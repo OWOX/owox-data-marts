@@ -153,6 +153,129 @@ describe('ReportController OpenAPI', () => {
     });
   });
 
+  it('documents aggregationConfig in request and response', () => {
+    const updateProperties = requestSchema('/api/reports/{id}', 'put').properties;
+
+    expect(updateProperties.aggregationConfig).toMatchObject({
+      type: 'array',
+      nullable: true,
+    });
+    expect(updateProperties.aggregationConfig.items.$ref).toContain('ReportAggregationRuleApiDto');
+
+    const aggregationRule = resolveRef(updateProperties.aggregationConfig.items.$ref);
+    expect(aggregationRule.required).toEqual(expect.arrayContaining(['column', 'function']));
+    expect(aggregationRule.properties.function.enum).toEqual(
+      expect.arrayContaining([
+        'SUM',
+        'AVG',
+        'COUNT',
+        'COUNT_DISTINCT',
+        'MIN',
+        'MAX',
+        'ANY_VALUE',
+        'STRING_AGG',
+        'P25',
+        'P50',
+        'P75',
+        'P95',
+      ])
+    );
+
+    const createProperties = requestSchema('/api/reports', 'post').properties;
+    expect(createProperties.aggregationConfig).toMatchObject({
+      type: 'array',
+      nullable: true,
+    });
+
+    // Response side: GET /api/reports/{id} 200 schema must also document aggregationConfig.
+    const getResponseSchema = document.paths['/api/reports/{id}']?.get?.responses['200'] as Record<
+      string,
+      any
+    >;
+    const getResponseBodySchema = getResponseSchema.content['application/json'].schema as Record<
+      string,
+      any
+    >;
+    const responseDto = getResponseBodySchema.$ref
+      ? resolveRef(getResponseBodySchema.$ref as string)
+      : getResponseBodySchema;
+    expect(responseDto.properties.aggregationConfig).toMatchObject({
+      type: 'array',
+      nullable: true,
+    });
+  });
+
+  it('documents dateTruncConfig in request and response', () => {
+    const updateProperties = requestSchema('/api/reports/{id}', 'put').properties;
+
+    expect(updateProperties.dateTruncConfig).toMatchObject({
+      type: 'array',
+      nullable: true,
+    });
+    expect(updateProperties.dateTruncConfig.items.$ref).toContain('ReportDateTruncRuleApiDto');
+
+    const dateTruncRule = resolveRef(updateProperties.dateTruncConfig.items.$ref);
+    expect(dateTruncRule.required).toEqual(expect.arrayContaining(['column', 'unit']));
+    expect(dateTruncRule.properties.unit.enum).toEqual(
+      expect.arrayContaining(['DAY', 'WEEK', 'MONTH', 'QUARTER', 'YEAR'])
+    );
+    // timeZone is an optional string (not in `required`).
+    expect(dateTruncRule.properties.timeZone).toMatchObject({ type: 'string' });
+    expect(dateTruncRule.required).not.toContain('timeZone');
+
+    const createProperties = requestSchema('/api/reports', 'post').properties;
+    expect(createProperties.dateTruncConfig).toMatchObject({
+      type: 'array',
+      nullable: true,
+    });
+
+    const getResponseSchema = document.paths['/api/reports/{id}']?.get?.responses['200'] as Record<
+      string,
+      any
+    >;
+    const getResponseBodySchema = getResponseSchema.content['application/json'].schema as Record<
+      string,
+      any
+    >;
+    const responseDto = getResponseBodySchema.$ref
+      ? resolveRef(getResponseBodySchema.$ref as string)
+      : getResponseBodySchema;
+    expect(responseDto.properties.dateTruncConfig).toMatchObject({
+      type: 'array',
+      nullable: true,
+    });
+  });
+
+  it('documents uniqueCountConfig in request and response', () => {
+    const updateProperties = requestSchema('/api/reports/{id}', 'put').properties;
+    expect(updateProperties.uniqueCountConfig).toMatchObject({
+      type: 'boolean',
+      nullable: true,
+    });
+
+    const createProperties = requestSchema('/api/reports', 'post').properties;
+    expect(createProperties.uniqueCountConfig).toMatchObject({
+      type: 'boolean',
+      nullable: true,
+    });
+
+    const getResponseSchema = document.paths['/api/reports/{id}']?.get?.responses['200'] as Record<
+      string,
+      any
+    >;
+    const getResponseBodySchema = getResponseSchema.content['application/json'].schema as Record<
+      string,
+      any
+    >;
+    const responseDto = getResponseBodySchema.$ref
+      ? resolveRef(getResponseBodySchema.$ref as string)
+      : getResponseBodySchema;
+    expect(responseDto.properties.uniqueCountConfig).toMatchObject({
+      type: 'boolean',
+      nullable: true,
+    });
+  });
+
   it('documents small object responses', () => {
     expect(document.paths['/api/reports/{id}/generated-sql']?.get?.responses['200']).toMatchObject({
       content: {

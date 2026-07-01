@@ -7,6 +7,7 @@ import {
   QueryBuildResult,
 } from '../../../interfaces/data-mart-query-builder.interface';
 import { escapeBigQueryIdentifier } from '../../utils/bigquery-identifier.utils';
+import { composeSelectFromClause } from '../../../utils/sql-clause-renderer';
 import { BigQueryClauseRenderer } from '../bigquery-clause-renderer';
 import { BigQueryQueryBuilder } from '../bigquery-query.builder';
 import { LegacyBigQuerySqlPreprocessor } from './legacy-bigquery-sql-preprocessor.service';
@@ -26,10 +27,19 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
     definition: DataMartDefinition,
     queryOptions?: DataMartQueryOptions
   ): Promise<string | QueryBuildResult> {
+    // Must mirror the parent BigQueryQueryBuilder's full notion of "needs the OC path":
+    // aggregations / date-trunc buckets / Row Count / Unique Count count too, not just
+    // filter/sort/limit. Otherwise an aggregated or Totals request with no filter/sort/limit
+    // (e.g. composeTotals: rowCount:false, empty sort/limit) bypasses super.buildQuery and
+    // silently drops the GROUP BY, returning ungrouped rows.
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
-      queryOptions?.limit != null;
+      queryOptions?.limit != null ||
+      (queryOptions?.aggregations?.length ?? 0) > 0 ||
+      (queryOptions?.dateTruncs?.length ?? 0) > 0 ||
+      queryOptions?.rowCount === true ||
+      queryOptions?.uniqueCount === true;
 
     // Output controls reference the materialized BQ view (mainTableReference), which is
     // already ODM-preprocessed at view-creation time, so the parent BigQuery builder does
@@ -51,7 +61,7 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
       return preparedSql;
     }
     const cleanQuery = preparedSql.trim().replace(/;\s*$/, '');
-    const selectList = queryOptions.columns.map(col => escapeBigQueryIdentifier(col)).join(', ');
-    return `SELECT ${selectList} FROM (${cleanQuery})`;
+    const selectList = queryOptions.columns.map(col => escapeBigQueryIdentifier(col)).join(',\n  ');
+    return composeSelectFromClause(selectList, `(${cleanQuery})`);
   }
 }

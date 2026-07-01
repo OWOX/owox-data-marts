@@ -319,6 +319,292 @@ AS SELECT * FROM (VALUES
       expect(rows).toHaveLength(0);
     }, 60000);
   });
+
+  // ---------------------------------------------------------------------------
+  // Aggregation (real GROUP BY / percentile / date-trunc / totals)
+  // ---------------------------------------------------------------------------
+  // Seed (4 rows): id(int), name(varchar), active(boolean), created_at(timestamp)
+  //   (1, 'alpha',    true,  2024-01-01)
+  //   (2, 'beta',     false, 2024-02-01)
+  //   (3, 'gamma',    true,  2024-03-01)
+  //   (4, 'alphabet', true,  2024-04-01)
+  //
+  // No `amount` column → aggregations run on `id` (numeric). String agg on `name`.
+  // Group-by dimension: `active`. Date-trunc on `created_at`.
+  //
+  // Trino dialect specifics:
+  //   - Percentile: APPROX_PERCENTILE(col, fraction) — APPROXIMATE → assert range + monotonic.
+  //   - STRING_AGG: array_join(array_agg(col), ', ') — unordered → split + sort before comparing.
+  //   - date_trunc: date_trunc('month'/'year', col) → returns TIMESTAMP as VarCharValue string.
+  describe('Aggregation (real GROUP BY / percentile / date-trunc / totals)', () => {
+    const aggBuilder = new AthenaQueryBuilder(new AthenaClauseRenderer());
+    const aggDefinition: TableDefinition = {
+      get fullyQualifiedName() {
+        return `${database}.${TEST_TABLE_SUFFIX}`;
+      },
+    };
+
+    // Builds SQL+params via AthenaQueryBuilder and runs on real Athena.
+    // Returns row objects keyed by column name (header row is sliced off,
+    // mirroring AthenaReportReader parsing).
+    async function runWithAggregations(
+      queryOptions: Parameters<AthenaQueryBuilder['buildQuery']>[1]
+    ): Promise<Record<string, string | undefined>[]> {
+      const built = aggBuilder.buildQuery(aggDefinition, queryOptions);
+      if (typeof built === 'string') throw new Error('expected QueryBuildResult with aggregations');
+      const { queryExecutionId } = await adapter.executeQuery(
+        built.sql,
+        config.outputBucket,
+        `${TEST_S3_PREFIX}aggregations/`,
+        built.params
+      );
+      await adapter.waitForQueryToComplete(queryExecutionId);
+      const results = await adapter.getQueryResults(queryExecutionId, undefined, 1000);
+      const rows = results.ResultSet?.Rows ?? [];
+      const columnInfo = results.ResultSet?.ResultSetMetadata?.ColumnInfo ?? [];
+      // First row is the header in Athena results.
+      return rows.slice(1).map(r => {
+        const obj: Record<string, string | undefined> = {};
+        columnInfo.forEach((col, i) => {
+          obj[col.Name!] = r.Data?.[i]?.VarCharValue;
+        });
+        return obj;
+      });
+    }
+
+    // Case 1 — group-by + multi-fn (SUM+AVG) + COUNT_DISTINCT on `id`.
+    // active=true → ids 1,3,4: SUM=8, AVG≈2.667, COUNT_DISTINCT=3, Row Count=3
+    // active=false → id 2:     SUM=2, AVG=2.0,   COUNT_DISTINCT=1, Row Count=1
+    it('group-by active + SUM/AVG/COUNT_DISTINCT on id + Row Count → real per-group values', async () => {
+      const rows = await runWithAggregations({
+        columns: ['active', 'id'],
+        rowCount: true,
+        aggregations: [
+          { column: 'id', function: 'SUM' },
+          { column: 'id', function: 'AVG' },
+          { column: 'id', function: 'COUNT_DISTINCT' },
+        ],
+      });
+
+      expect(rows).toHaveLength(2);
+      // Athena returns booleans as 'true'/'false' strings in VarCharValue.
+      const byActive = new Map(rows.map(r => [r.active, r]));
+
+      const active = byActive.get('true')!;
+      expect(active).toBeDefined();
+      expect(Number(active['id | SUM'])).toBe(8); // 1+3+4
+      expect(Number(active['id | AVG'])).toBeCloseTo(8 / 3, 3);
+      expect(Number(active['id | COUNTUNIQUE'])).toBe(3);
+      expect(Number(active['Row Count'])).toBe(3);
+
+      const inactive = byActive.get('false')!;
+      expect(inactive).toBeDefined();
+      expect(Number(inactive['id | SUM'])).toBe(2);
+      expect(Number(inactive['id | AVG'])).toBeCloseTo(2.0, 5);
+      expect(Number(inactive['id | COUNTUNIQUE'])).toBe(1);
+      expect(Number(inactive['Row Count'])).toBe(1);
+    }, 60000);
+
+    // Case 2 — MIN / MAX / plain COUNT (group by active).
+    // active=true → ids 1,3,4: MIN=1, MAX=4, COUNT=3
+    // active=false → id 2:     MIN=2, MAX=2, COUNT=1
+    it('MIN / MAX / COUNT grouped by active → real extrema and counts', async () => {
+      const rows = await runWithAggregations({
+        columns: ['active', 'id'],
+        aggregations: [
+          { column: 'id', function: 'MIN' },
+          { column: 'id', function: 'MAX' },
+          { column: 'id', function: 'COUNT' },
+        ],
+      });
+
+      expect(rows).toHaveLength(2);
+      const byActive = new Map(rows.map(r => [r.active, r]));
+
+      const active = byActive.get('true')!;
+      expect(active).toBeDefined();
+      expect(Number(active['id | MIN'])).toBe(1);
+      expect(Number(active['id | MAX'])).toBe(4);
+      expect(Number(active['id | COUNT'])).toBe(3);
+
+      const inactive = byActive.get('false')!;
+      expect(inactive).toBeDefined();
+      expect(Number(inactive['id | MIN'])).toBe(2);
+      expect(Number(inactive['id | MAX'])).toBe(2);
+      expect(Number(inactive['id | COUNT'])).toBe(1);
+    }, 60000);
+
+    // Case 3 — STRING_AGG via array_join(array_agg(col), ', ').
+    // Trino array_agg has no guaranteed order → split + sort before comparing.
+    // active=true  → names: alpha, gamma, alphabet
+    // active=false → names: beta
+    it('STRING_AGG on name grouped by active → sorted members match seed (order-insensitive)', async () => {
+      const rows = await runWithAggregations({
+        columns: ['active', 'name'],
+        aggregations: [{ column: 'name', function: 'STRING_AGG' }],
+      });
+
+      expect(rows).toHaveLength(2);
+      const byActive = new Map(rows.map(r => [r.active, r]));
+
+      const splitSorted = (v: string | undefined): string[] =>
+        (v ?? '')
+          .split(', ')
+          .map(s => s.trim())
+          .sort();
+
+      const active = byActive.get('true')!;
+      expect(active).toBeDefined();
+      expect(splitSorted(active['name | STRINGAGG'])).toEqual(['alpha', 'alphabet', 'gamma']);
+
+      const inactive = byActive.get('false')!;
+      expect(inactive).toBeDefined();
+      expect(splitSorted(inactive['name | STRINGAGG'])).toEqual(['beta']);
+    }, 60000);
+
+    // Case 4 — percentiles P25/P50/P75/P95 over all 4 rows (no group-by).
+    // APPROX_PERCENTILE is approximate; assert values are finite, within [1, 4],
+    // and monotonically non-decreasing.
+    it('all percentiles (P25/P50/P75/P95) on id are finite, within [1,4], and monotonic', async () => {
+      const rows = await runWithAggregations({
+        columns: ['id'],
+        aggregations: [
+          { column: 'id', function: 'P25' },
+          { column: 'id', function: 'P50' },
+          { column: 'id', function: 'P75' },
+          { column: 'id', function: 'P95' },
+        ],
+      });
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      const p25 = Number(row['id | P25']);
+      const p50 = Number(row['id | MEDIAN']);
+      const p75 = Number(row['id | P75']);
+      const p95 = Number(row['id | P95']);
+
+      for (const p of [p25, p50, p75, p95]) {
+        expect(Number.isFinite(p)).toBe(true);
+        expect(p).toBeGreaterThanOrEqual(1);
+        expect(p).toBeLessThanOrEqual(4);
+      }
+      expect(p25).toBeLessThanOrEqual(p50);
+      expect(p50).toBeLessThanOrEqual(p75);
+      expect(p75).toBeLessThanOrEqual(p95);
+    }, 60000);
+
+    // Case 5 — date-trunc MONTH + SUM.
+    // Each row is in a distinct month → 4 buckets, each with SUM(id) = the row's id.
+    // Trino date_trunc returns a TIMESTAMP; VarCharValue starts with 'YYYY-MM-DD'.
+    it('date-trunc MONTH + SUM on id → 4 month buckets with the seeded sums', async () => {
+      const rows = await runWithAggregations({
+        columns: ['created_at', 'id'],
+        rowCount: true,
+        dateTruncs: [{ column: 'created_at', unit: 'MONTH' }],
+        aggregations: [{ column: 'id', function: 'SUM' }],
+      });
+
+      expect(rows).toHaveLength(4);
+
+      // Trino date_trunc returns a timestamp string; take the first 10 chars for the date.
+      const monthStart = (r: Record<string, string | undefined>): string =>
+        (r.created_at ?? '').slice(0, 10);
+
+      const sumByMonth = new Map(rows.map(r => [monthStart(r), Number(r['id | SUM'])]));
+
+      expect(sumByMonth.get('2024-01-01')).toBe(1);
+      expect(sumByMonth.get('2024-02-01')).toBe(2);
+      expect(sumByMonth.get('2024-03-01')).toBe(3);
+      expect(sumByMonth.get('2024-04-01')).toBe(4);
+
+      // Row Count is 1 per month (one seeded row each).
+      for (const r of rows) {
+        expect(Number(r['Row Count'])).toBe(1);
+      }
+    }, 60000);
+
+    // Case 6 — date-trunc YEAR + SUM (all 4 rows in 2024 → 1 bucket, SUM=10).
+    it('date-trunc YEAR + SUM on id → single 2024 bucket with SUM 10', async () => {
+      const rows = await runWithAggregations({
+        columns: ['created_at', 'id'],
+        dateTruncs: [{ column: 'created_at', unit: 'YEAR' }],
+        aggregations: [{ column: 'id', function: 'SUM' }],
+      });
+
+      expect(rows).toHaveLength(1);
+      expect((rows[0].created_at ?? '').slice(0, 4)).toBe('2024');
+      expect(Number(rows[0]['id | SUM'])).toBe(10);
+    }, 60000);
+
+    // Case 7 — totals shape (metrics-only, no GROUP BY) → one row.
+    it('totals (no GROUP BY) → one row with SUM=10, COUNT_DISTINCT=4, Row Count=4', async () => {
+      const rows = await runWithAggregations({
+        columns: ['id'],
+        rowCount: true,
+        aggregations: [
+          { column: 'id', function: 'SUM' },
+          { column: 'id', function: 'COUNT_DISTINCT' },
+        ],
+      });
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(Number(row['id | SUM'])).toBe(10);
+      expect(Number(row['id | COUNTUNIQUE'])).toBe(4);
+      expect(Number(row['Row Count'])).toBe(4);
+    }, 60000);
+
+    // Case 8 — totals WITH a WHERE filter (active=true → ids 1,3,4, SUM=8, count=3).
+    it('totals with active=is_true filter → SUM=8, COUNT_DISTINCT=3, Row Count=3', async () => {
+      const rows = await runWithAggregations({
+        columns: ['id'],
+        rowCount: true,
+        filters: [{ column: 'active', operator: 'is_true' }],
+        aggregations: [
+          { column: 'id', function: 'SUM' },
+          { column: 'id', function: 'COUNT_DISTINCT' },
+        ],
+      });
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(Number(row['id | SUM'])).toBe(8); // 1+3+4
+      expect(Number(row['id | COUNTUNIQUE'])).toBe(3);
+      expect(Number(row['Row Count'])).toBe(3);
+    }, 60000);
+
+    // Case 9 — aggregation respects a WHERE filter (group-by still narrows correctly).
+    // With active=is_false → only id=2; group-by on active gives one group.
+    it('aggregation with active=is_false filter → one group, SUM=2, Row Count=1', async () => {
+      const rows = await runWithAggregations({
+        columns: ['active', 'id'],
+        rowCount: true,
+        filters: [{ column: 'active', operator: 'is_false' }],
+        aggregations: [{ column: 'id', function: 'SUM' }],
+      });
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(row.active).toBe('false');
+      expect(Number(row['id | SUM'])).toBe(2);
+      expect(Number(row['Row Count'])).toBe(1);
+    }, 60000);
+
+    // Case 10 — ORDER BY aggregated alias (SUM desc) + limit 1 returns larger group.
+    // active=true SUM=8 > active=false SUM=2 → limit 1 returns active=true.
+    it('ORDER BY aggregated alias (SUM desc) + limit 1 returns the active=true group', async () => {
+      const rows = await runWithAggregations({
+        columns: ['active', 'id'],
+        aggregations: [{ column: 'id', function: 'SUM' }],
+        sort: [{ column: 'id', direction: 'desc' }],
+        limit: 1,
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].active).toBe('true');
+      expect(Number(rows[0]['id | SUM'])).toBe(8);
+    }, 60000);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -987,3 +1273,241 @@ AS SELECT * FROM (VALUES
     }, 120000);
   }
 );
+
+// ---------------------------------------------------------------------------
+// Blended POST-JOIN aggregation — the canonical composite-key funnel on REAL
+// Athena. This path (an outer GROUP BY over a joined/blended result) had only
+// ever been exercised by unit string-tests; it had NEVER run against real
+// Athena. The same class of gap previously hid the `(aggregated by SUM)` parens
+// bug, so the value here is real Trino/Presto execution, not string-matching.
+// Uses its OWN two seeded tables + beforeAll/afterAll.
+// ---------------------------------------------------------------------------
+// Seed (composite-key, pre-aggregated marts → 1-to-1 join, no row multiplication).
+// Column is `dt` (not `date`: DATE is a Trino/Athena reserved keyword):
+//   sessions(dt, channel, sessions): ('2024-01-01','paid',100) ('2024-01-01','organic',50)
+//   events(dt, channel, events):     ('2024-01-01','paid',10)  ('2024-01-01','organic',5)
+//
+// Join on the COMPOSITE key (dt AND channel). The events CTE rolls up SUM by
+// (dt,channel) — identity here, one row per key — then main LEFT JOINs it.
+// The outer SELECT groups by channel with SUM(sessions) + SUM(events). If the
+// join fanned out, sessions would be inflated; it must stay 100/50.
+
+const BLEND_AGG_RUN_SUFFIX = `blend_agg_run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const BLEND_AGG_SESSIONS_SUFFIX = `blend_agg_sessions_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const BLEND_AGG_EVENTS_SUFFIX = `blend_agg_events_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+// Block-level root for all shared op outputs (cleanup/ctas/drop/query results).
+const BLEND_AGG_S3_PREFIX = `integration-test/${BLEND_AGG_RUN_SUFFIX}/`;
+const BLEND_AGG_SESSIONS_S3_PREFIX = `integration-test/${BLEND_AGG_SESSIONS_SUFFIX}/`;
+const BLEND_AGG_EVENTS_S3_PREFIX = `integration-test/${BLEND_AGG_EVENTS_SUFFIX}/`;
+
+describeIfCredentials('Blended post-join aggregation — composite-key funnel (real Athena)', () => {
+  let adapter: AthenaApiAdapter;
+  let s3Adapter: S3ApiAdapter;
+  let credentials: AthenaCredentials;
+  let config: AthenaConfig;
+  let database: string;
+
+  const builder = new AthenaBlendedQueryBuilder(new AthenaClauseRenderer());
+
+  function eventsRelationship(
+    joinConditions: { sourceFieldName: string; targetFieldName: string }[]
+  ): DataMartRelationship {
+    return {
+      id: 'rel-events',
+      targetAlias: 'events',
+      joinConditions,
+      blendedFields: [],
+      projectId: 'proj',
+      createdById: 'user-1',
+      createdAt: new Date(),
+      modifiedAt: new Date(),
+    } as unknown as DataMartRelationship;
+  }
+
+  // Composite-key context: post-join SUM(sessions) + SUM(events), group by channel.
+  function compositeContext(): BlendedQueryContext {
+    return {
+      mainTableReference: `"${database}"."${BLEND_AGG_SESSIONS_SUFFIX}"`,
+      mainDataMartTitle: 'Sessions',
+      mainDataMartUrl: 'http://x/sessions',
+      chains: [
+        {
+          relationship: eventsRelationship([
+            { sourceFieldName: 'dt', targetFieldName: 'dt' },
+            { sourceFieldName: 'channel', targetFieldName: 'channel' },
+          ]),
+          targetTableReference: `"${database}"."${BLEND_AGG_EVENTS_SUFFIX}"`,
+          parentAlias: 'main',
+          cteName: 'events',
+          blendedFields: [
+            {
+              targetFieldName: 'events',
+              outputAlias: 'events',
+              isHidden: false,
+              aggregateFunction: 'SUM',
+            },
+          ],
+          targetDataMartTitle: 'Events',
+          targetDataMartUrl: 'http://x/events',
+        },
+      ],
+      columns: ['channel', 'sessions', 'events'],
+      aggregations: [
+        { column: 'sessions', function: 'SUM' },
+        { column: 'events', function: 'SUM' },
+      ],
+    };
+  }
+
+  // Build SQL+params via the blended builder, run on real Athena, return rows
+  // keyed by column name (header row sliced off, mirroring AthenaReportReader).
+  // Athena uses POSITIONAL params, so we pass both sql AND params.
+  async function runBlend(
+    context: BlendedQueryContext
+  ): Promise<Record<string, string | undefined>[]> {
+    const { sql, params } = builder.buildBlendedQuery(context);
+    const { queryExecutionId } = await adapter.executeQuery(
+      sql,
+      config.outputBucket,
+      `${BLEND_AGG_S3_PREFIX}blend-funnel/`,
+      params
+    );
+    await adapter.waitForQueryToComplete(queryExecutionId);
+    const results = await adapter.getQueryResults(queryExecutionId, undefined, 1000);
+    const rows = results.ResultSet?.Rows ?? [];
+    const columnInfo = results.ResultSet?.ResultSetMetadata?.ColumnInfo ?? [];
+    return rows.slice(1).map(r => {
+      const obj: Record<string, string | undefined> = {};
+      columnInfo.forEach((col, i) => {
+        obj[col.Name!] = r.Data?.[i]?.VarCharValue;
+      });
+      return obj;
+    });
+  }
+
+  beforeAll(async () => {
+    credentials = {
+      accessKeyId: AWS_ACCESS_KEY_ID!,
+      secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+    };
+    config = {
+      region: ATHENA_REGION!,
+      outputBucket: ATHENA_OUTPUT_BUCKET!,
+    };
+    adapter = new AthenaApiAdapter(credentials, config);
+    s3Adapter = new S3ApiAdapter(credentials, config);
+    database = ATHENA_DATABASE!;
+
+    // Pre-cleanup in case of a previous crash
+    for (const suffix of [BLEND_AGG_SESSIONS_SUFFIX, BLEND_AGG_EVENTS_SUFFIX]) {
+      try {
+        const { queryExecutionId: dropId } = await adapter.executeQuery(
+          `DROP TABLE IF EXISTS \`${database}\`.\`${suffix}\``,
+          config.outputBucket,
+          `${BLEND_AGG_S3_PREFIX}cleanup/`
+        );
+        await adapter.waitForQueryToComplete(dropId);
+      } catch {
+        // ignore
+      }
+    }
+
+    const sessionsCtas = `CREATE TABLE "${database}"."${BLEND_AGG_SESSIONS_SUFFIX}"
+WITH (format = 'PARQUET', external_location = 's3://${config.outputBucket}/${BLEND_AGG_SESSIONS_S3_PREFIX}data/')
+AS SELECT * FROM (VALUES
+  (DATE '2024-01-01', 'paid',    100),
+  (DATE '2024-01-01', 'organic', 50)
+) AS t (dt, channel, sessions)`;
+
+    const eventsCtas = `CREATE TABLE "${database}"."${BLEND_AGG_EVENTS_SUFFIX}"
+WITH (format = 'PARQUET', external_location = 's3://${config.outputBucket}/${BLEND_AGG_EVENTS_S3_PREFIX}data/')
+AS SELECT * FROM (VALUES
+  (DATE '2024-01-01', 'paid',    10),
+  (DATE '2024-01-01', 'organic', 5)
+) AS t (dt, channel, events)`;
+
+    const { queryExecutionId: sessionsId } = await adapter.executeQuery(
+      sessionsCtas,
+      config.outputBucket,
+      `${BLEND_AGG_S3_PREFIX}blend-sessions-ctas/`
+    );
+    await adapter.waitForQueryToComplete(sessionsId);
+
+    const { queryExecutionId: eventsId } = await adapter.executeQuery(
+      eventsCtas,
+      config.outputBucket,
+      `${BLEND_AGG_S3_PREFIX}blend-events-ctas/`
+    );
+    await adapter.waitForQueryToComplete(eventsId);
+  }, 180000);
+
+  afterAll(async () => {
+    for (const suffix of [BLEND_AGG_SESSIONS_SUFFIX, BLEND_AGG_EVENTS_SUFFIX]) {
+      try {
+        const { queryExecutionId } = await adapter.executeQuery(
+          `DROP TABLE IF EXISTS \`${database}\`.\`${suffix}\``,
+          config.outputBucket,
+          `${BLEND_AGG_S3_PREFIX}blend-drop/`
+        );
+        await adapter.waitForQueryToComplete(queryExecutionId);
+      } catch (error) {
+        console.warn(`Failed to drop blend-agg table ${suffix}:`, error);
+      }
+    }
+    try {
+      // Sweep only this block's unique roots: the shared-op root plus the two
+      // per-table data roots (each derived from a unique per-run suffix).
+      await s3Adapter.cleanupOutputFiles(config.outputBucket, BLEND_AGG_S3_PREFIX);
+      await s3Adapter.cleanupOutputFiles(config.outputBucket, BLEND_AGG_SESSIONS_S3_PREFIX);
+      await s3Adapter.cleanupOutputFiles(config.outputBucket, BLEND_AGG_EVENTS_S3_PREFIX);
+    } catch (error) {
+      console.warn('Failed to clean up blend-agg S3 prefixes:', error);
+    }
+  }, 120000);
+
+  // The headline case: the composite-key join is 1-to-1, so the outer GROUP BY
+  // yields exactly one row per channel with un-inflated SUM(sessions) and the
+  // joined SUM(events). A fan-out would multiply sessions; the assertion would
+  // then fail (which is the entire point of running this for real). Athena
+  // returns aggregate values as strings via VarCharValue, so Number(...) them;
+  // the emitted alias case is preserved → keys are 'sessions | SUM'.
+  it('composite-key (dt AND channel) post-join SUM stays 1-to-1: paid 100/10, organic 50/5', async () => {
+    const rows = await runBlend(compositeContext());
+
+    expect(rows).toHaveLength(2);
+    const byChannel = new Map(rows.map(r => [r.channel, r]));
+
+    const paid = byChannel.get('paid')!;
+    expect(paid).toBeDefined();
+    expect(Number(paid['sessions | SUM'])).toBe(100);
+    expect(Number(paid['events | SUM'])).toBe(10);
+
+    const organic = byChannel.get('organic')!;
+    expect(organic).toBeDefined();
+    expect(Number(organic['sessions | SUM'])).toBe(50);
+    expect(Number(organic['events | SUM'])).toBe(5);
+  }, 120000);
+
+  // Same shape with a single-column join (channel only). The events table here
+  // has one row per channel, so it is also 1-to-1 — proves the simpler join path
+  // executes and aggregates correctly on real Athena too.
+  it('single-key (channel only) post-join SUM also executes 1-to-1: paid 100/10, organic 50/5', async () => {
+    const context = compositeContext();
+    context.chains[0].relationship = eventsRelationship([
+      { sourceFieldName: 'channel', targetFieldName: 'channel' },
+    ]);
+
+    const rows = await runBlend(context);
+
+    expect(rows).toHaveLength(2);
+    const byChannel = new Map(rows.map(r => [r.channel, r]));
+
+    const paid = byChannel.get('paid')!;
+    expect(Number(paid['sessions | SUM'])).toBe(100);
+    expect(Number(paid['events | SUM'])).toBe(10);
+
+    const organic = byChannel.get('organic')!;
+    expect(Number(organic['sessions | SUM'])).toBe(50);
+    expect(Number(organic['events | SUM'])).toBe(5);
+  }, 120000);
+});

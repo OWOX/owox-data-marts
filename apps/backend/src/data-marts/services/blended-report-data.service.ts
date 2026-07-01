@@ -4,7 +4,7 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
-import { ReportLike } from '../dto/domain/report-like-read-plan';
+import { ReportLike, shouldIncludeRowCount } from '../dto/domain/report-like-read-plan';
 import {
   BlendedColumnTypes,
   ResolvedRelationshipChain,
@@ -25,6 +25,7 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import {
   collectSchemaFieldPaths,
   collectSchemaFieldPathTypes,
+  getPrimaryKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -47,7 +48,9 @@ export class BlendedReportDataService {
 
   async resolveBlendingDecision(
     report: ReportLike,
-    accessor: BlendableSchemaAccessor
+    accessor: BlendableSchemaAccessor,
+    // Reuse an already-resolved schema (totals path) instead of recomputing it here and in the validator.
+    precomputedBlendableSchema?: BlendableSchemaDto
   ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
 
@@ -60,7 +63,11 @@ export class BlendedReportDataService {
       filterConfig: report.filterConfig ?? null,
       sortConfig: report.sortConfig ?? null,
       limitConfig: report.limitConfig ?? null,
+      aggregationConfig: report.aggregationConfig ?? null,
+      dateTruncConfig: report.dateTruncConfig ?? null,
+      uniqueCountConfig: report.uniqueCountConfig ?? null,
       accessor,
+      precomputedBlendableSchema,
     });
 
     const postJoinFilterColumns: string[] = [];
@@ -85,11 +92,13 @@ export class BlendedReportDataService {
         return { needsBlending: false };
       }
 
-      const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-        dataMart.id,
-        dataMart.projectId,
-        accessor
-      );
+      const blendableSchema =
+        precomputedBlendableSchema ??
+        (await this.blendableSchemaService.computeBlendableSchema(
+          dataMart.id,
+          dataMart.projectId,
+          accessor
+        ));
       const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
       const blendedRefs = [...postJoinFilterColumns, ...sortColumns].filter(c =>
         blendedFieldsByName.has(c)
@@ -107,11 +116,13 @@ export class BlendedReportDataService {
       );
     }
 
-    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-      dataMart.id,
-      dataMart.projectId,
-      accessor
-    );
+    const blendableSchema =
+      precomputedBlendableSchema ??
+      (await this.blendableSchemaService.computeBlendableSchema(
+        dataMart.id,
+        dataMart.projectId,
+        accessor
+      ));
 
     const fieldIndex = buildBlendedFieldIndex(blendableSchema);
     const preJoinAliasPaths = new Set<string>(
@@ -178,6 +189,8 @@ export class BlendedReportDataService {
       preJoinAliasPaths
     );
 
+    const schemaFields = dataMart.schema?.fields ?? [];
+    const pkFields = getPrimaryKeyFields(schemaFields);
     const blendedResult = await this.blendedQueryBuilderFacade.buildBlendedQuery(
       dataMart.storage.type,
       {
@@ -189,6 +202,11 @@ export class BlendedReportDataService {
         filters: report.filterConfig ?? undefined,
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
+        aggregations: report.aggregationConfig ?? undefined,
+        dateTruncs: report.dateTruncConfig ?? undefined,
+        rowCount: shouldIncludeRowCount(report),
+        uniqueCount: report.uniqueCountConfig === true,
+        primaryKeyColumns: pkFields.map(f => f.name),
         columnTypes: this.buildBlendedColumnTypes(blendableSchema),
         fieldIndex,
       }

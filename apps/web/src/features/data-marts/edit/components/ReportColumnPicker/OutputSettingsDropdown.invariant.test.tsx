@@ -55,7 +55,14 @@ import {
   type OutputSettingsDropdownColumn,
 } from './OutputSettingsDropdown';
 
-const EMPTY: OutputConfig = { filterConfig: [], sortConfig: [], limitConfig: null };
+const EMPTY: OutputConfig = {
+  filterConfig: [],
+  sortConfig: [],
+  limitConfig: null,
+  aggregationConfig: [],
+  dateTruncConfig: [],
+  uniqueCountConfig: false,
+};
 
 // Alias differs from the raw name on purpose — that's where a leak would show.
 const productId: OutputSettingsDropdownColumn = {

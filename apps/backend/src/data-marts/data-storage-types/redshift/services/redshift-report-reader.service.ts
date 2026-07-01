@@ -60,7 +60,8 @@ export class RedshiftReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
     this.pendingQuery =
       options?.sqlOverride ??

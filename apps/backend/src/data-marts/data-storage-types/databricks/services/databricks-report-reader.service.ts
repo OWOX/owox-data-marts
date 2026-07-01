@@ -67,7 +67,8 @@ export class DatabricksReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
 
     this.adapter = await this.adapterFactory.createFromStorage(storage);

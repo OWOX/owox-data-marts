@@ -92,7 +92,7 @@ describe('AthenaClauseRenderer', () => {
         { column: 'amount', operator: 'between', value: { from: 1, to: 100 } },
         { column: 'name', operator: 'eq', value: 'X' },
       ]);
-      expect(out.sql).toBe('\nWHERE "amount" BETWEEN ? AND ? AND "name" = ?');
+      expect(out.sql).toBe('\nWHERE "amount" BETWEEN ? AND ?\n  AND "name" = ?');
       expect(out.params.map(p => p.value)).toEqual([1, 100, 'X']);
     });
   });
@@ -246,7 +246,7 @@ describe('AthenaClauseRenderer', () => {
     });
     it('honours the resolver in ORDER BY', () => {
       expect(r.renderOrderBy([{ column: 'a', direction: 'asc' }], qualify).sql).toBe(
-        '\nORDER BY main."a" ASC'
+        '\nORDER BY\n  main."a" ASC'
       );
     });
     it('honours the resolver on both column references in last_month', () => {
@@ -267,7 +267,7 @@ describe('AthenaClauseRenderer', () => {
         { column: 'name', operator: 'eq', value: 'alice' },
         { column: 'id', operator: 'gt', value: 5 },
       ]);
-      expect(out.sql).toBe('\nWHERE "name" = ? AND "id" > ?');
+      expect(out.sql).toBe('\nWHERE "name" = ?\n  AND "id" > ?');
       expect(out.params).toEqual([
         { name: 'p0', value: 'alice' },
         { name: 'p1', value: 5 },
@@ -279,7 +279,7 @@ describe('AthenaClauseRenderer', () => {
         { column: 'id', operator: 'gte', value: 2 },
         { column: 'id', operator: 'lte', value: 9 },
       ]);
-      expect(out.sql).toBe('\nWHERE "id" >= ? AND "id" <= ?');
+      expect(out.sql).toBe('\nWHERE "id" >= ?\n  AND "id" <= ?');
       expect(out.params).toEqual([
         { name: 'p0', value: 2 },
         { name: 'p1', value: 9 },
@@ -292,7 +292,7 @@ describe('AthenaClauseRenderer', () => {
         { column: 'amount', operator: 'gte', value: 100 },
         { column: 'amount', operator: 'lte', value: 999 },
       ]);
-      expect(out.sql).toBe('\nWHERE "status" = ? AND "amount" >= ? AND "amount" <= ?');
+      expect(out.sql).toBe('\nWHERE "status" = ?\n  AND "amount" >= ?\n  AND "amount" <= ?');
       expect(out.params.map(p => p.value)).toEqual(['active', 100, 999]);
     });
   });

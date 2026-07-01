@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
 
 // Column references (filter/sort columns) are user-controlled (`FilterRule.column` is
@@ -46,6 +47,10 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     return escapeColumnIdentifier(name);
   }
 
+  protected override textCastType(): string {
+    return 'VARCHAR';
+  }
+
   protected validateFragment(clause: RenderedClause): void {
     if (clause.params.length !== 0) {
       throw new Error(
@@ -60,6 +65,26 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     return columnType && SnowflakeClauseRenderer.DATE_CAST_TYPES.has(columnType)
       ? `CAST(${l} AS ${columnType})`
       : l;
+  }
+
+  protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
+    return `PERCENTILE_CONT(${p / 100}) WITHIN GROUP (ORDER BY ${columnRef})`;
+  }
+
+  // CAST to VARCHAR so LISTAGG is valid on a non-string column (e.g. a DATE).
+  protected override renderStringAgg(columnRef: string): string {
+    return `LISTAGG(CAST(${columnRef} AS VARCHAR), ', ')`;
+  }
+
+  // With a time zone, CONVERT_TIMEZONE('tz', col) shifts the value before truncation.
+  protected override renderDateTrunc(
+    columnRef: string,
+    unit: DateTruncUnit,
+    timeZone?: string
+  ): string {
+    this.assertSafeDateTrunc(unit, timeZone);
+    const expr = timeZone ? `CONVERT_TIMEZONE('${timeZone}', ${columnRef})` : columnRef;
+    return `DATE_TRUNC('${unit}', ${expr})`;
   }
 
   protected renderFilterFragment(

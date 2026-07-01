@@ -11,6 +11,7 @@ import type {
   BlendedField,
 } from '../../../shared/types/relationship.types';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
+import type { OutputConfig } from '../../../shared/types/output-config';
 
 vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
   dataMartRelationshipService: {
@@ -384,6 +385,9 @@ describe('ReportColumnPicker unresolved columns', () => {
           filterConfig: [{ column: 'ghost__col', operator: 'eq', value: 'x' }] as never,
           sortConfig: [],
           limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: false,
         }}
         onOutputConfigChange={() => {}}
       />,
@@ -426,6 +430,9 @@ describe('ReportColumnPicker unresolved columns', () => {
           filterConfig: [],
           sortConfig: [{ column: 'ghost__sort', direction: 'asc' }],
           limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: false,
         }}
         onOutputConfigChange={onOutputConfigChange}
       />,
@@ -446,6 +453,9 @@ describe('ReportColumnPicker unresolved columns', () => {
       filterConfig: [],
       sortConfig: [],
       limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: false,
     });
   });
 
@@ -481,6 +491,9 @@ describe('ReportColumnPicker unresolved columns', () => {
           ] as never,
           sortConfig: [],
           limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: false,
         }}
         onOutputConfigChange={() => {}}
       />,
@@ -536,6 +549,9 @@ describe('ReportColumnPicker unresolved columns', () => {
           ],
           sortConfig: [],
           limitConfig: null,
+          aggregationConfig: [],
+          dateTruncConfig: [],
+          uniqueCountConfig: false,
         }}
         onOutputConfigChange={() => {}}
       />,
@@ -567,6 +583,9 @@ describe('ReportColumnPicker unresolved columns', () => {
         filterConfig: [{ column: 'native_one', operator: 'eq', value: 'ok' }] as never,
         sortConfig: [],
         limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
       },
       onOutputConfigChange: () => {},
     });
@@ -590,6 +609,9 @@ describe('ReportColumnPicker unresolved columns', () => {
         ],
         sortConfig: [],
         limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
       },
       onOutputConfigChange: () => {},
     });
@@ -621,5 +643,386 @@ describe('ReportColumnPicker unresolved columns', () => {
     );
 
     expect(onCountChange).toHaveBeenLastCalledWith({ selected: 2, total: 2 });
+  });
+});
+
+describe('ReportColumnPicker aggregation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const aggSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'native_one', type: 'STRING' },
+        { name: 'revenue', type: 'INTEGER' },
+        { name: 'ordered_at', type: 'TIMESTAMP' },
+      ] as unknown[],
+    });
+
+  it('AGG button badge counts aggregation + date-trunc only (Row Count excluded — automatic)', () => {
+    renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [{ column: 'native_one', operator: 'eq', value: 'x' }] as never,
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [
+          { column: 'revenue', function: 'SUM' },
+          { column: 'revenue', function: 'AVG' },
+        ],
+        dateTruncConfig: [{ column: 'ordered_at', unit: 'MONTH' }],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    // AGG badge = 2 aggregations + 1 date-trunc = 3 (Row Count is automatic, not counted).
+    expect(screen.getByLabelText('Aggregations count')).toHaveTextContent('3');
+    // Output controls badge counts only the filter (1), NOT aggregation.
+    expect(screen.getByLabelText('Output controls count')).toHaveTextContent('1');
+  });
+
+  it('opens the AGG panel (with aggregation controls) on click; neither panel has a row-count toggle', () => {
+    renderPicker(aggSchema(), ['native_one', 'revenue'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    // Output controls panel: no row-count toggle.
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    expect(screen.queryByLabelText('Add a Row Count metric')).not.toBeInTheDocument();
+
+    // AGG panel: no row-count toggle (Row Count is automatic).
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    expect(screen.queryByLabelText('Add a Row Count metric')).not.toBeInTheDocument();
+  });
+
+  it('shows a per-row AGG icon on a selected aggregatable field, hidden on an unselected one', () => {
+    renderPicker(aggSchema(), ['revenue'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    const selectedRow = screen.getByText('revenue').closest('label') as HTMLElement;
+    expect(
+      within(selectedRow).getByRole('button', { name: 'Add aggregation' })
+    ).toBeInTheDocument();
+
+    // ordered_at is NOT selected → no AGG icon on its row.
+    const unselectedRow = screen.getByText('ordered_at').closest('label') as HTMLElement;
+    expect(
+      within(unselectedRow).queryByRole('button', { name: /aggregation/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('materializes columnConfig to the explicit selection when an aggregation is applied while columns are implicit (null = all)', async () => {
+    const { onChange } = renderPicker(aggSchema(), null, {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    // Apply SUM on the numeric `revenue` field via its per-row Σ.
+    const revenueRow = screen.getByText('revenue').closest('label') as HTMLElement;
+    fireEvent.click(within(revenueRow).getByRole('button', { name: 'Add aggregation' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'SUM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    // Backend rejects a null columnConfig with aggregations → the picker materializes the
+    // implicit "all selected" to the explicit native column list so the report stays saveable.
+    expect(onChange).toHaveBeenCalledWith(['native_one', 'revenue', 'ordered_at']);
+  });
+
+  it('emits columnConfig in the picker DISPLAY order, not the order fields were toggled on', () => {
+    // Schema/display order is native_one, revenue, ordered_at. Start with an out-of-order
+    // selection and toggle one more on — the emitted config must be re-sorted to display order.
+    const { onChange } = renderPicker(aggSchema(), ['revenue', 'native_one'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+    });
+
+    const row = screen.getByText('ordered_at').closest('label') as HTMLElement;
+    fireEvent.click(within(row).getByRole('checkbox'));
+
+    expect(onChange).toHaveBeenLastCalledWith(['native_one', 'revenue', 'ordered_at']);
+  });
+
+  it('hides the per-row AGG icon when the field has an empty allowed-aggregation set', () => {
+    const schema = buildSchema({
+      nativeFields: [{ name: 'locked', type: 'INTEGER', allowedAggregations: [] }] as unknown[],
+    });
+
+    renderPicker(schema, ['locked'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    const row = screen.getByText('locked').closest('label') as HTMLElement;
+    expect(within(row).queryByRole('button', { name: /aggregation/i })).not.toBeInTheDocument();
+  });
+
+  it('renders AGG button before Output Controls button in DOM order', () => {
+    renderPicker(aggSchema(), ['native_one', 'revenue'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    const aggBtn = screen.getByRole('button', { name: 'Aggregations' });
+    const outputBtn = screen.getByRole('button', { name: 'Output controls' });
+    expect(
+      aggBtn.compareDocumentPosition(outputBtn) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('applies blue class to Sigma icon when aggregations are present; no AGG text label', () => {
+    renderPicker(aggSchema(), ['native_one', 'revenue'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [],
+        uniqueCountConfig: false,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    const aggBtn = screen.getByRole('button', { name: 'Aggregations' });
+    // Sigma svg has text-blue-500 when active.
+    const sigmaIcon = aggBtn.querySelector('svg');
+    expect(sigmaIcon).not.toBeNull();
+    expect(sigmaIcon!.getAttribute('class')).toMatch(/text-blue-500/);
+    // The "AGG" text label is gone.
+    expect(
+      Array.from(aggBtn.querySelectorAll('span')).find(el => el.textContent === 'AGG')
+    ).toBeUndefined();
+    // Badge count is visible.
+    expect(screen.getByLabelText('Aggregations count')).toBeInTheDocument();
+  });
+});
+
+describe('ReportColumnPicker Unique count virtual row', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const pkSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'name', type: 'STRING' },
+      ] as unknown[],
+    });
+
+  const noPkSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'col_a', type: 'STRING' },
+        { name: 'col_b', type: 'INTEGER' },
+      ] as unknown[],
+    });
+
+  const baseOutputConfig: OutputConfig = {
+    filterConfig: [],
+    sortConfig: [],
+    limitConfig: null,
+    aggregationConfig: [],
+    dateTruncConfig: [],
+    uniqueCountConfig: false,
+  };
+
+  it('renders the Unique count row when the schema has a PK field and outputControlsAvailable', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByText('Unique count')).toBeInTheDocument();
+  });
+
+  it('does NOT render the Unique count row when the schema has no PK field', () => {
+    renderPicker(noPkSchema(), ['col_a', 'col_b'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByText('Unique count')).not.toBeInTheDocument();
+  });
+
+  it('does NOT render the Unique count row when outputControlsAvailable is false (no onOutputConfigChange)', () => {
+    renderPicker(pkSchema(), ['id', 'name']);
+
+    expect(screen.queryByText('Unique count')).not.toBeInTheDocument();
+  });
+
+  it('toggling the Unique count checkbox calls onOutputConfigChange with uniqueCountConfig: true', () => {
+    const onOutputConfigChange = vi.fn();
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange,
+    });
+
+    const row = screen.getByText('Unique count').closest('label')!;
+    const checkbox = within(row).getByRole('checkbox');
+    fireEvent.click(checkbox);
+
+    expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({ uniqueCountConfig: true })
+    );
+  });
+
+  it('toggling the Unique count checkbox back calls onOutputConfigChange with uniqueCountConfig: false', () => {
+    const onOutputConfigChange = vi.fn();
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange,
+    });
+
+    const row = screen.getByText('Unique count').closest('label')!;
+    const checkbox = within(row).getByRole('checkbox');
+    fireEvent.click(checkbox);
+
+    expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({ uniqueCountConfig: false })
+    );
+  });
+
+  it('shows the Σ indicator (and no COUNT_DISTINCT text) when uniqueCountConfig is true', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    const row = screen.getByText('Unique count').closest('label')!;
+    // The metric Σ icon is shown (matching the other aggregated columns): a blue indicator
+    // box (text-blue-500 like the native RowAggregationIcon) containing the Sigma svg…
+    const indicator = row.querySelector('.text-blue-500');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.querySelector('svg')).not.toBeNull();
+    // …but the raw COUNT_DISTINCT function token is not surfaced.
+    expect(screen.queryByText('COUNT_DISTINCT')).not.toBeInTheDocument();
+  });
+
+  it('does not show the Σ indicator when uniqueCountConfig is false', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: false },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    const row = screen.getByText('Unique count').closest('label')!;
+    expect(row.querySelector('.text-blue-500')).toBeNull();
+  });
+
+  it('renders the Unique count row at the bottom of the data mart fields (after the native fields)', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    const uniqueRow = screen.getByText('Unique count');
+    const lastNativeField = screen.getByText('name');
+    // Unique count follows the native fields in DOM order (it sits at the bottom of the mart).
+    expect(
+      lastNativeField.compareDocumentPosition(uniqueRow) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('toggling Unique count does NOT call onChange (column selection must not change)', () => {
+    const onOutputConfigChange = vi.fn();
+    const { onChange } = renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange,
+    });
+
+    const row = screen.getByText('Unique count').closest('label')!;
+    fireEvent.click(within(row).getByRole('checkbox'));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onOutputConfigChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('Unique count row does not affect the native column count (selectedNativeCount / onCountChange)', () => {
+    const onCountChange = vi.fn();
+    renderPicker(pkSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+      onCountChange,
+    });
+
+    // selectedNativeCount is 1 (only 'id' is selected), totalFieldsCount is 2 (id + name).
+    // uniqueCountConfig:true must not inflate these counts.
+    expect(onCountChange).toHaveBeenLastCalledWith({ selected: 1, total: 2 });
+  });
+
+  it('Unique count row is NOT included in Select all', () => {
+    const onOutputConfigChange = vi.fn();
+    const { onChange } = renderPicker(pkSchema(), [], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange,
+    });
+
+    const masterCheckbox = screen.getByRole('checkbox', { name: 'Select all fields' });
+    fireEvent.click(masterCheckbox);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const selected = onChange.mock.calls[0][0] as string[];
+    // Only real native field names, no virtual row
+    expect(selected).not.toContain('Unique count');
+    expect(selected).toContain('id');
+    expect(selected).toContain('name');
+    // uniqueCountConfig must remain unchanged
+    expect(onOutputConfigChange).not.toHaveBeenCalled();
   });
 });

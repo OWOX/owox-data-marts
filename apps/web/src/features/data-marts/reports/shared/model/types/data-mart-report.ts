@@ -8,7 +8,12 @@ import type { DataMart } from '../../../../edit';
 import type { DataStorage } from '../../../../../data-storage/shared/model/types/data-storage';
 import type { ReportConditionEnum } from '../../enums/report-condition.enum';
 import type { UserProjection } from '../../../../../../shared/types';
-import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
+import type {
+  AggregationRule,
+  DateTruncRule,
+  FilterRule,
+  SortRule,
+} from '../../../../shared/types/output-config';
 import type { DataMartDefinitionType } from '../../../../shared';
 
 export interface GoogleSheetsDestinationConfig {
@@ -108,6 +113,9 @@ export interface DataMartReport {
   filterConfig: FilterRule[] | null;
   sortConfig: SortRule[] | null;
   limitConfig: number | null;
+  aggregationConfig: AggregationRule[] | null;
+  dateTruncConfig: DateTruncRule[] | null;
+  uniqueCountConfig: boolean;
   lastRunDate: Date | null;
   lastRunStatus: ReportStatusEnum | null;
   lastRunError: string | null;

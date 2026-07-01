@@ -238,6 +238,63 @@ describe('DataMartRunService', () => {
       expect(outputConfig).toEqual({ filterConfig, sortConfig, limitConfig: 50 });
     });
 
+    // I1: aggregationConfig must be captured in the run-history snapshot
+    it('snapshots aggregationConfig into reportDefinition.outputConfig when report has aggregations', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const aggregationConfig = [{ column: 'revenue', function: 'SUM' as const }];
+      const report = fakeReport({ aggregationConfig } as Partial<Report>);
+
+      await service.createAndMarkReportRunAsPending(report, context);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      const outputConfig = (saved.reportDefinition as Record<string, unknown>)[
+        'outputConfig'
+      ] as Record<string, unknown>;
+      expect(outputConfig).toBeDefined();
+      expect(outputConfig['aggregationConfig']).toEqual(aggregationConfig);
+    });
+
+    it('snapshots dateTruncConfig into reportDefinition.outputConfig when report has date-trunc rules', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const dateTruncConfig = [{ column: 'date', unit: 'MONTH' as const }];
+      const report = fakeReport({ dateTruncConfig } as Partial<Report>);
+
+      await service.createAndMarkReportRunAsPending(report, context);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      const outputConfig = (saved.reportDefinition as Record<string, unknown>)[
+        'outputConfig'
+      ] as Record<string, unknown>;
+      expect(outputConfig).toBeDefined();
+      expect(outputConfig['dateTruncConfig']).toEqual(dateTruncConfig);
+    });
+
+    it('snapshots all four (filter + sort + limit + aggregation) together into outputConfig', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const filterConfig = [{ column: 'channel', operator: 'eq', value: 'organic' }];
+      const sortConfig = [{ column: 'channel', direction: 'asc' as const }];
+      const aggregationConfig = [{ column: 'revenue', function: 'SUM' as const }];
+      const report = fakeReport({
+        filterConfig,
+        sortConfig,
+        limitConfig: 100,
+        aggregationConfig,
+      } as Partial<Report>);
+
+      await service.createAndMarkReportRunAsPending(report, context);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      const outputConfig = (saved.reportDefinition as Record<string, unknown>)[
+        'outputConfig'
+      ] as Record<string, unknown>;
+      expect(outputConfig).toEqual({
+        filterConfig,
+        sortConfig,
+        limitConfig: 100,
+        aggregationConfig,
+      });
+    });
+
     it('creates the run in PENDING status', async () => {
       const { service, dataMartRunRepository } = createService();
       const report = fakeReport();

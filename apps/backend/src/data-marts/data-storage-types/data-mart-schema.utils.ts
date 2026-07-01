@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DataStorageCredentials } from './data-storage-credentials.type';
+import { REPORT_AGGREGATE_FUNCTIONS } from '../dto/schemas/aggregate-function.schema';
 import type { DataMartSchemaField } from './data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from './enums/data-storage-type.enum';
@@ -30,17 +31,41 @@ export function collectSchemaFieldPathTypes(
   fields: readonly DataMartSchemaField[],
   prefix = ''
 ): { name: string; type: string }[] {
-  const result: { name: string; type: string }[] = [];
+  return collectSchemaFieldPathDescriptors(fields, prefix).map(({ name, type }) => ({
+    name,
+    type,
+  }));
+}
+
+// Same traversal as `collectSchemaFieldPathTypes` but exposes the underlying field so
+// callers can read per-field governance (aggregationRole / allowedAggregations).
+export function collectSchemaFieldPathDescriptors(
+  fields: readonly DataMartSchemaField[],
+  prefix = ''
+): { name: string; type: string; field: DataMartSchemaField }[] {
+  const result: { name: string; type: string; field: DataMartSchemaField }[] = [];
   for (const field of fields) {
     if (field.isHiddenForReporting) continue;
     if (!isConnected(field)) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({ name: fullName, type: String(field.type) });
+    result.push({ name: fullName, type: String(field.type), field });
     if ('fields' in field && field.fields?.length) {
-      result.push(...collectSchemaFieldPathTypes(field.fields, fullName));
+      result.push(...collectSchemaFieldPathDescriptors(field.fields, fullName));
     }
   }
   return result;
+}
+
+// Primary-key fields as `{ name (dotted path), type, field }`, reusing the SAME pruned
+// traversal as collectSchemaFieldPathDescriptors. This matters because the result feeds
+// `primaryKeyColumns` for `COUNT(DISTINCT …)`: a disconnected/hidden PK is dropped (so it
+// can't reference a column the query no longer projects) and a NESTED PK keeps its full
+// `parent.child` path (so the reference targets the right column, not just the leaf name).
+// Callers read `.name` (the column reference) and `.length`.
+export function getPrimaryKeyFields(
+  fields: readonly DataMartSchemaField[]
+): { name: string; type: string; field: DataMartSchemaField }[] {
+  return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
 }
 
 export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaFieldType: T) {
@@ -58,6 +83,16 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .boolean()
         .default(false)
         .describe('Hide field from reporting and blending'),
+      aggregationRole: z
+        .enum(['dimension', 'metric'])
+        .optional()
+        .describe('Whether this field acts as a grouping dimension or an aggregatable metric'),
+      allowedAggregations: z
+        .array(z.enum(REPORT_AGGREGATE_FUNCTIONS))
+        .optional()
+        .describe(
+          'Aggregation functions a report may apply to this field; absent = derive defaults by type'
+        ),
       status: z
         .nativeEnum(DataMartSchemaFieldStatus)
         .describe('Field status relatively to the actual data mart schema'),

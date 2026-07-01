@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AggregateFunction } from '../../../dto/schemas/aggregate-function.schema';
+import { ReportAggregateFunction } from '../../../dto/schemas/aggregate-function.schema';
 import { AggregationType } from '../enums/aggregation-type.enum';
 import { FieldConceptType } from '../enums/field-concept-type.enum';
 import { FieldDataType } from '../enums/field-data-type.enum';
@@ -13,7 +13,7 @@ export interface AggregationSemantics {
 @Injectable()
 export class LookerStudioAggregationMapperService {
   mapAggregateFunctionToLookerType(
-    aggFunc: AggregateFunction | undefined,
+    aggFunc: ReportAggregateFunction | undefined,
     dataType: FieldDataType
   ): AggregationSemantics {
     if (aggFunc === undefined) {
@@ -51,6 +51,16 @@ export class LookerStudioAggregationMapperService {
               isReaggregatable: true,
             }
           : { conceptType: FieldConceptType.DIMENSION };
+      case 'AVG':
+        // Averages are not re-aggregatable (an average of averages is not the
+        // overall average), so Looker must not roll them up further.
+        return dataType === FieldDataType.NUMBER
+          ? {
+              conceptType: FieldConceptType.METRIC,
+              defaultAggregationType: AggregationType.AVG,
+              isReaggregatable: false,
+            }
+          : { conceptType: FieldConceptType.DIMENSION };
       case 'COUNT':
         return {
           conceptType: FieldConceptType.METRIC,
@@ -62,6 +72,13 @@ export class LookerStudioAggregationMapperService {
       case 'STRING_AGG':
       case 'ANY_VALUE':
         return { conceptType: FieldConceptType.DIMENSION };
+      case 'P25':
+      case 'P50':
+      case 'P75':
+      case 'P95':
+        return dataType === FieldDataType.NUMBER
+          ? { conceptType: FieldConceptType.METRIC, isReaggregatable: false }
+          : { conceptType: FieldConceptType.DIMENSION };
       default: {
         const _exhaustive: never = aggFunc;
         return _exhaustive;

@@ -70,7 +70,8 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
     const builtQuery = this.athenaQueryBuilder.buildQuery(definition, {
       columns: options?.columnFilter,

@@ -93,7 +93,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
 
     this.adapter = await this.adapterFactory.createFromStorage(storage, storage.config);

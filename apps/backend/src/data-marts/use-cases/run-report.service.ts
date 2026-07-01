@@ -282,8 +282,11 @@ export class RunReportService {
         sqlOverrideParams,
         columnFilter: blendingDecision.columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
+        aggregationConfig: report.aggregationConfig ?? undefined,
+        uniqueCount: report.uniqueCountConfig ?? undefined,
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
+
       reportWriter.setExecutionContext?.({
         runId: report.id,
         logger: reportRunLogger!,

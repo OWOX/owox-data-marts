@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
+import { AGGREGATE_FUNCTIONS, REPORT_AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 
 // Segments flow into SQL identifiers (CTE names, column prefixes) and must stay safe
 // even when the UI is bypassed. Note: `BlendedSource.alias` is a display label, not an
@@ -12,6 +12,7 @@ export const BlendedFieldOverrideSchema = z.object({
   alias: z.string().min(1).max(255).optional(),
   isHidden: z.boolean().optional(),
   aggregateFunction: z.enum(AGGREGATE_FUNCTIONS).optional(),
+  postJoinAggregations: z.array(z.enum(REPORT_AGGREGATE_FUNCTIONS)).optional(),
 });
 export type BlendedFieldOverride = z.infer<typeof BlendedFieldOverrideSchema>;
 

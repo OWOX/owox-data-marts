@@ -5,6 +5,7 @@ import {
   isNumberType,
   isDateType,
   isTimeType,
+  isTimestampType,
 } from './output-controls-operators';
 
 const opValues = (type: string) => operatorsForType(type).map(o => o.value);
@@ -42,6 +43,28 @@ describe('isNumberType / isDateType (shared with FilterValueEditor parsing)', ()
     for (const t of ['TIME', 'TIME WITH TIME ZONE']) {
       expect(isTimeType(t)).toBe(true);
       expect(isDateType(t)).toBe(false);
+    }
+  });
+
+  it('isTimestampType returns true for timestamp/sub-day types (not pure DATE)', () => {
+    for (const t of [
+      'DATETIME',
+      'TIMESTAMP',
+      'TIMESTAMP WITH TIME ZONE',
+      'TIMESTAMPTZ',
+      'TIMESTAMP_NTZ',
+    ]) {
+      expect(isTimestampType(t)).toBe(true);
+    }
+  });
+
+  it('isTimestampType returns false for pure DATE (no time component)', () => {
+    expect(isTimestampType('DATE')).toBe(false);
+  });
+
+  it('isTimestampType returns false for non-date types', () => {
+    for (const t of ['STRING', 'INTEGER', 'BOOLEAN', 'TIME']) {
+      expect(isTimestampType(t)).toBe(false);
     }
   });
 });

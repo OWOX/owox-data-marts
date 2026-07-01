@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ALIAS_PATH_REGEX } from './blended-fields-config.schema';
+import { REPORT_AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 
 // .finite() rejects Infinity/-Infinity/NaN: a numeric filter value reaches the SQL
 // either as a bound param or inlined as a literal, and `String(Infinity)` would render
@@ -64,6 +65,11 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
 
 const PlacementExtrasSchema = z.object({
   placement: z.enum(['pre-join', 'post-join']).optional(),
+  // When set, the rule filters the AGGREGATED value of `column` after grouping —
+  // `HAVING <function>(column) <op> <value>` — instead of the raw rows (`WHERE`).
+  // The (column, function) pair must match a configured report aggregation. A bare
+  // dimension filter omits `function` and stays a WHERE rule.
+  function: z.enum(REPORT_AGGREGATE_FUNCTIONS).optional(),
 });
 
 export const FilterRuleSchema = z.intersection(FilterRuleBaseSchema, PlacementExtrasSchema);

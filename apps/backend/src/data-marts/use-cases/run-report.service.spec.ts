@@ -811,4 +811,60 @@ describe('RunReportService', () => {
     expect(reportSqlComposerService.inlineStaticSql).not.toHaveBeenCalled();
     expect(dataMartRun.reportDefinition!.executionSqlQuery).toBeUndefined();
   });
+
+  // Finding B: prepareReportData must receive uniqueCount: true when the report has
+  // uniqueCountConfig === true, so that resolveReportDataHeaders appends the
+  // "Unique Count" header — without which the SQL column would be silently dropped.
+  it('passes uniqueCount: true to prepareReportData when report.uniqueCountConfig === true', async () => {
+    const { service, reportReaderResolver, reportWriterResolver } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.uniqueCountConfig = true;
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] }
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      report,
+      expect.objectContaining({ uniqueCount: true })
+    );
+  });
+
+  // Finding B: when uniqueCountConfig is null/absent, uniqueCount must NOT be true.
+  it('does NOT pass uniqueCount: true to prepareReportData when report.uniqueCountConfig is null', async () => {
+    const { service, reportReaderResolver, reportWriterResolver } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.uniqueCountConfig = null;
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] }
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      report,
+      expect.not.objectContaining({ uniqueCount: true })
+    );
+  });
 });

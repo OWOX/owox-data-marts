@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-renderer';
+import {
+  ColumnRefResolver,
+  RenderedClause,
+  SqlClauseRenderer,
+} from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
 
 /**
@@ -37,6 +42,10 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
     return escapeRedshiftIdentifier(name);
   }
 
+  protected override textCastType(): string {
+    return 'VARCHAR';
+  }
+
   // This renderer inlines every value, so a fragment must never emit a bound param.
   // A future operator that forgets to inline fails fast here instead of silently
   // dropping a value (the run path would then send unbound SQL with no channel).
@@ -47,6 +56,44 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           `${clause.params.length} param(s): "${clause.sql}".`
       );
     }
+  }
+
+  protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
+    return `PERCENTILE_CONT(${p / 100}) WITHIN GROUP (ORDER BY ${columnRef})`;
+  }
+
+  // CAST to VARCHAR so LISTAGG is valid on a non-string column (e.g. a DATE).
+  protected override renderStringAgg(columnRef: string): string {
+    return `LISTAGG(CAST(${columnRef} AS VARCHAR), ', ')`;
+  }
+
+  // Redshift's CONCAT is strictly binary (exactly 2 args) — the base N-ary
+  // CONCAT(a, sep, b, …) fails at run time for a composite PK. Join the parts with the
+  // `||` operator instead (verified live: 3-arg CONCAT rejected, `||` chain accepted).
+  protected override renderCountDistinctPrimaryKey(
+    pkColumns: string[],
+    qualify?: ColumnRefResolver
+  ): string {
+    const ref = (col: string): string => (qualify ? qualify(col) : this.quoteIdentifier(col));
+    if (pkColumns.length === 1) {
+      return `COUNT(DISTINCT ${ref(pkColumns[0])})`;
+    }
+    const SEP = "'␟'";
+    const castType = this.textCastType();
+    const parts = pkColumns.map(col => `COALESCE(CAST(${ref(col)} AS ${castType}), '')`);
+    return `COUNT(DISTINCT ${parts.join(` || ${SEP} || `)})`;
+  }
+
+  // Redshift DATE_TRUNC takes a lowercase, single-quoted datepart. With a time zone,
+  // CONVERT_TIMEZONE('tz', col) shifts the value before truncation.
+  protected override renderDateTrunc(
+    columnRef: string,
+    unit: DateTruncUnit,
+    timeZone?: string
+  ): string {
+    this.assertSafeDateTrunc(unit, timeZone);
+    const expr = timeZone ? `CONVERT_TIMEZONE('${timeZone}', ${columnRef})` : columnRef;
+    return `DATE_TRUNC('${unit.toLowerCase()}', ${expr})`;
   }
 
   protected renderFilterFragment(

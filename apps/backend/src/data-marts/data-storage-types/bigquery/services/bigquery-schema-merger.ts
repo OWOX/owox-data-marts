@@ -103,7 +103,7 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
     }
 
     // Simple field: update status
-    return this.updateSimpleField(existingField, hasTypeMismatch);
+    return this.updateSimpleField(existingField, newField, hasTypeMismatch);
   }
 
   private isRecordType(type: BigQueryFieldType): boolean {
@@ -131,6 +131,8 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
     return {
       ...existingField,
       isHiddenForReporting: existingField.isHiddenForReporting ?? false,
+      aggregationRole: existingField.aggregationRole ?? newField.aggregationRole,
+      allowedAggregations: existingField.allowedAggregations ?? newField.allowedAggregations,
       status,
       fields: mergedFields,
     };
@@ -151,10 +153,16 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
     };
   }
 
-  private updateSimpleField(existingField: SchemaField, hasTypeMismatch: boolean): SchemaField {
+  private updateSimpleField(
+    existingField: SchemaField,
+    newField: SchemaField,
+    hasTypeMismatch: boolean
+  ): SchemaField {
     return {
       ...existingField,
       isHiddenForReporting: existingField.isHiddenForReporting ?? false,
+      aggregationRole: existingField.aggregationRole ?? newField.aggregationRole,
+      allowedAggregations: existingField.allowedAggregations ?? newField.allowedAggregations,
       status: this.getConnectedFieldStatus(hasTypeMismatch),
     };
   }

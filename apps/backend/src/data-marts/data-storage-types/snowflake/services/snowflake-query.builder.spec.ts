@@ -19,7 +19,7 @@ function build() {
 describe('SnowflakeQueryBuilder', () => {
   it('builds a plain SELECT with no output controls', () => {
     const sql = build().buildQuery(tableDef, {});
-    expect(sql).toBe('SELECT * FROM db."sc"."events"');
+    expect(sql).toBe('SELECT *\nFROM db."sc"."events"');
   });
 
   it('applies filters, sort and limit via the clause renderer', () => {
@@ -30,15 +30,15 @@ describe('SnowflakeQueryBuilder', () => {
       limit: 100,
       columnTypes: new Map([['created_at', 'TIMESTAMP']]),
     });
-    expect(sql).toContain('SELECT "id", "created_at" FROM db."sc"."events"');
+    expect(sql).toContain('SELECT\n  "id",\n  "created_at"\nFROM db."sc"."events"');
     expect(sql).toContain(`WHERE "created_at" >= CAST('2024-01-01' AS TIMESTAMP)`);
-    expect(sql).toContain('ORDER BY "id" DESC');
+    expect(sql).toContain('ORDER BY\n  "id" DESC');
     expect(sql).toContain('LIMIT 100');
   });
 
   it('safely quotes a malicious column name in the SELECT list', () => {
     const sql = build().buildQuery(tableDef, { columns: ['a.b.c.d OR 1=1 --'] });
-    expect(sql).toBe('SELECT "a"."b"."c"."d OR 1=1 --" FROM db."sc"."events"');
+    expect(sql).toBe('SELECT\n  "a"."b"."c"."d OR 1=1 --"\nFROM db."sc"."events"');
   });
 
   it('uses mainTableReference as the FROM for a SQL-def mart with output controls', () => {

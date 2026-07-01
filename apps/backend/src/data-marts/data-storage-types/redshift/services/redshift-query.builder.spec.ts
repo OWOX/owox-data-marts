@@ -8,12 +8,14 @@ describe('RedshiftQueryBuilder', () => {
 
   it('still builds a plain query when no controls are present', () => {
     const builder = new RedshiftQueryBuilder(new RedshiftClauseRenderer());
-    expect(builder.buildQuery(tableDef)).toBe('SELECT * FROM "db"."events"');
+    expect(builder.buildQuery(tableDef)).toBe('SELECT *\nFROM "db"."events"');
   });
 
   it('builds an exact LIMIT 0 schema-probe query (via the OC branch)', () => {
     const builder = new RedshiftQueryBuilder(new RedshiftClauseRenderer());
-    expect(builder.buildQuery(tableDef, { limit: 0 })).toBe('SELECT * FROM "db"."events"\nLIMIT 0');
+    expect(builder.buildQuery(tableDef, { limit: 0 })).toBe(
+      'SELECT *\nFROM "db"."events"\nLIMIT 0'
+    );
   });
 
   it('emits WHERE/ORDER BY/LIMIT with inlined literals for a TABLE def', () => {
@@ -24,7 +26,7 @@ describe('RedshiftQueryBuilder', () => {
       limit: 50,
     });
     expect(sql).toBe(
-      `SELECT * FROM "db"."events"\nWHERE "status" = 'active'\nORDER BY "created_at" DESC\nLIMIT 50`
+      `SELECT *\nFROM "db"."events"\nWHERE "status" = 'active'\nORDER BY\n  "created_at" DESC\nLIMIT 50`
     );
   });
 
@@ -33,7 +35,7 @@ describe('RedshiftQueryBuilder', () => {
     const sql = builder.buildQuery(tableDef, {
       filters: [{ column: 'status', operator: 'eq', value: 'active' }],
     });
-    expect(sql).toBe(`SELECT * FROM "db"."events"\nWHERE "status" = 'active'`);
+    expect(sql).toBe(`SELECT *\nFROM "db"."events"\nWHERE "status" = 'active'`);
   });
 
   it('wraps a SQL-def in parens when output controls have no mainTableReference', () => {
@@ -41,7 +43,7 @@ describe('RedshiftQueryBuilder', () => {
     const sql = builder.buildQuery(sqlDef, {
       filters: [{ column: 'a', operator: 'eq', value: 1 }],
     });
-    expect(sql).toBe(`SELECT * FROM (SELECT a FROM t) AS subq\nWHERE "a" = 1`);
+    expect(sql).toBe(`SELECT *\nFROM (SELECT a FROM t) AS subq\nWHERE "a" = 1`);
   });
 
   it('uses mainTableReference for a SQL-def with output controls', () => {

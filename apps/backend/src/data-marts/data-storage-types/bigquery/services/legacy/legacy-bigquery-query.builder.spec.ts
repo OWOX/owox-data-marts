@@ -82,7 +82,9 @@ describe('LegacyBigQueryQueryBuilder', () => {
   it('projects a column subset over the preprocessed SQL when no output controls are present', async () => {
     const { builder, preprocessor } = makeBuilder();
     const result = await builder.buildQuery(sqlDefinition, { columns: ['id', 'created_at'] });
-    expect(result).toBe('SELECT `id`, `created_at` FROM (SELECT id, created_at FROM parsed_table)');
+    expect(result).toBe(
+      'SELECT\n  `id`,\n  `created_at`\nFROM (SELECT id, created_at FROM parsed_table)'
+    );
     expect(preprocessor.prepare).toHaveBeenCalledWith('SELECT id, created_at FROM source_table');
   });
 

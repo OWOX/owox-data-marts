@@ -50,6 +50,20 @@ describe('LookerStudioAggregationMapperService', () => {
     });
   });
 
+  describe('AVG', () => {
+    it('NUMBER -> METRIC + AVG + reagg=false (average of averages is invalid)', () => {
+      const result = service.mapAggregateFunctionToLookerType('AVG', FieldDataType.NUMBER);
+      expect(result.conceptType).toBe(FieldConceptType.METRIC);
+      expect(result.defaultAggregationType).toBe(AggregationType.AVG);
+      expect(result.isReaggregatable).toBe(false);
+    });
+
+    it('STRING -> DIMENSION', () => {
+      const result = service.mapAggregateFunctionToLookerType('AVG', FieldDataType.STRING);
+      expect(result.conceptType).toBe(FieldConceptType.DIMENSION);
+    });
+  });
+
   describe('MIN', () => {
     it('NUMBER -> METRIC + MIN + reagg=true', () => {
       const result = service.mapAggregateFunctionToLookerType('MIN', FieldDataType.NUMBER);
@@ -177,12 +191,65 @@ describe('LookerStudioAggregationMapperService', () => {
     });
   });
 
+  describe('P25', () => {
+    it('NUMBER -> METRIC + no defaultAgg + reagg=false', () => {
+      const result = service.mapAggregateFunctionToLookerType('P25', FieldDataType.NUMBER);
+      expect(result.conceptType).toBe(FieldConceptType.METRIC);
+      expect(result.defaultAggregationType).toBeUndefined();
+      expect(result.isReaggregatable).toBe(false);
+    });
+    it('STRING -> DIMENSION', () => {
+      const result = service.mapAggregateFunctionToLookerType('P25', FieldDataType.STRING);
+      expect(result.conceptType).toBe(FieldConceptType.DIMENSION);
+    });
+  });
+
+  describe('P50', () => {
+    it('NUMBER -> METRIC + no defaultAgg + reagg=false', () => {
+      const result = service.mapAggregateFunctionToLookerType('P50', FieldDataType.NUMBER);
+      expect(result.conceptType).toBe(FieldConceptType.METRIC);
+      expect(result.defaultAggregationType).toBeUndefined();
+      expect(result.isReaggregatable).toBe(false);
+    });
+    it('STRING -> DIMENSION', () => {
+      const result = service.mapAggregateFunctionToLookerType('P50', FieldDataType.STRING);
+      expect(result.conceptType).toBe(FieldConceptType.DIMENSION);
+    });
+  });
+
+  describe('P75', () => {
+    it('NUMBER -> METRIC + no defaultAgg + reagg=false', () => {
+      const result = service.mapAggregateFunctionToLookerType('P75', FieldDataType.NUMBER);
+      expect(result.conceptType).toBe(FieldConceptType.METRIC);
+      expect(result.defaultAggregationType).toBeUndefined();
+      expect(result.isReaggregatable).toBe(false);
+    });
+    it('STRING -> DIMENSION', () => {
+      const result = service.mapAggregateFunctionToLookerType('P75', FieldDataType.STRING);
+      expect(result.conceptType).toBe(FieldConceptType.DIMENSION);
+    });
+  });
+
+  describe('P95', () => {
+    it('NUMBER -> METRIC + no defaultAgg + reagg=false', () => {
+      const result = service.mapAggregateFunctionToLookerType('P95', FieldDataType.NUMBER);
+      expect(result.conceptType).toBe(FieldConceptType.METRIC);
+      expect(result.defaultAggregationType).toBeUndefined();
+      expect(result.isReaggregatable).toBe(false);
+    });
+    it('STRING -> DIMENSION', () => {
+      const result = service.mapAggregateFunctionToLookerType('P95', FieldDataType.STRING);
+      expect(result.conceptType).toBe(FieldConceptType.DIMENSION);
+    });
+  });
+
   it('covers all AggregateFunction values (exhaustive check)', () => {
     const allFuncs: AggregateFunction[] = [
       'STRING_AGG',
       'MAX',
       'MIN',
       'SUM',
+      'AVG',
       'COUNT',
       'COUNT_DISTINCT',
       'ANY_VALUE',

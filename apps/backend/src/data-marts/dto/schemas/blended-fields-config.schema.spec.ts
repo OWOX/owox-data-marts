@@ -36,6 +36,34 @@ describe('BlendedFieldOverrideSchema', () => {
   it.each([...AGGREGATE_FUNCTIONS])('should accept aggregateFunction: %s', fn => {
     expect(BlendedFieldOverrideSchema.parse({ aggregateFunction: fn }).aggregateFunction).toBe(fn);
   });
+
+  it('should accept postJoinAggregations with valid functions', () => {
+    const result = BlendedFieldOverrideSchema.parse({
+      postJoinAggregations: ['MIN', 'MAX', 'AVG'],
+    });
+    expect(result.postJoinAggregations).toEqual(['MIN', 'MAX', 'AVG']);
+  });
+
+  it('should accept postJoinAggregations with a percentile function (superset)', () => {
+    const result = BlendedFieldOverrideSchema.parse({ postJoinAggregations: ['P50'] });
+    expect(result.postJoinAggregations).toEqual(['P50']);
+  });
+
+  it('should reject postJoinAggregations with an unknown function', () => {
+    expect(() =>
+      BlendedFieldOverrideSchema.parse({ postJoinAggregations: ['NONSENSE'] })
+    ).toThrow();
+  });
+
+  it('should accept omitting postJoinAggregations (optional)', () => {
+    const result = BlendedFieldOverrideSchema.parse({});
+    expect(result.postJoinAggregations).toBeUndefined();
+  });
+
+  it('should accept an empty array for postJoinAggregations', () => {
+    const result = BlendedFieldOverrideSchema.parse({ postJoinAggregations: [] });
+    expect(result.postJoinAggregations).toEqual([]);
+  });
 });
 
 describe('BlendedSourceSchema', () => {

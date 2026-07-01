@@ -802,7 +802,7 @@ describe('AbstractBlendedQueryBuilder', () => {
       expect(sql).toContain('SUM(item_count) AS item_count');
     });
 
-    it('re-aggregation: COUNT_DISTINCT becomes SUM at parent level', () => {
+    it('re-aggregation: COUNT_DISTINCT becomes SUM at parent level (known over-count limitation)', () => {
       const ab = makeChain({
         relationship: makeRelationship({
           id: 'rel-ab',
@@ -835,6 +835,10 @@ describe('AbstractBlendedQueryBuilder', () => {
         buildContext([ab, bc], ['customer_name', 'unique_items'])
       );
 
+      // KNOWN LIMITATION (documented in getReAggregateFunction): on a 2+ level blend this
+      // SUMs per-child-group distinct counts, which over-counts a value present in more than
+      // one group — it is NOT a true global distinct. Asserting the current SQL, not a claim
+      // of semantic correctness.
       expect(sql).toContain('COUNT(DISTINCT item_id) AS unique_items');
       expect(sql).toContain('SUM(unique_items) AS unique_items');
     });
@@ -1144,7 +1148,7 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
     expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-    expect(sql).toContain('ORDER BY main.customer_name DESC');
+    expect(sql).toContain('ORDER BY\n  main.customer_name DESC');
     expect(sql).toContain('LIMIT 50');
   });
 
@@ -1171,7 +1175,7 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       /main AS \(\s*SELECT\s+customer_name,\s+id,\s+signup_date\s+FROM main_table/
     );
     expect(sql).toContain('WHERE main.customer_name = @p0');
-    expect(sql).toContain('ORDER BY main.signup_date DESC');
+    expect(sql).toContain('ORDER BY\n  main.signup_date DESC');
   });
 
   it('routes a depth-2 blended outputAlias to its root CTE in WHERE', () => {
@@ -1229,7 +1233,7 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       sort: [{ column: 'user.email', direction: 'asc' }],
     });
     expect(sql).toContain('WHERE main.user.email = @p0');
-    expect(sql).toContain('ORDER BY main.user.email ASC');
+    expect(sql).toContain('ORDER BY\n  main.user.email ASC');
     expect(sql).not.toContain('main.`user.email`');
   });
 
@@ -1971,6 +1975,176 @@ describe('AbstractBlendedQueryBuilder — pre-join filters on tricky tree shapes
   });
 });
 
+describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
+  let builder: TestBlendedWithRenderer;
+  const buildContext = createBuildContext('main_table');
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  function spendChain() {
+    return makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'spend',
+        joinConditions: [{ sourceFieldName: 'date', targetFieldName: 'date' }],
+      }),
+      targetTableReference: 'spend_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'cost',
+          outputAlias: 'spend__cost',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+  }
+
+  it('groups by a native dimension and aggregates a blended metric across the group', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+    });
+
+    // BigQuery's renderer always backticks the output alias, but the builder's own
+    // qualifier leaves safe identifiers unquoted — hence `main.channel AS `channel``.
+    expect(sql).toContain('main.channel AS `channel`');
+    expect(sql).toContain('SUM(spend.spend__cost) AS `spend__cost | SUM`');
+    expect(sql).toContain('GROUP BY\n  main.channel');
+    // The outer GROUP BY lands after the final FROM/JOIN (the inner CTE GROUP BY date
+    // is unrelated — anchor on the qualified outer key).
+    expect(sql.indexOf('LEFT JOIN spend')).toBeLessThan(sql.indexOf('GROUP BY\n  main.channel'));
+  });
+
+  it('orders by an aggregated blended metric via its output alias, not the bare column', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      sort: [{ column: 'spend__cost', direction: 'desc' }],
+    });
+
+    expect(sql).toContain('ORDER BY\n  `spend__cost | SUM` DESC');
+    expect(sql.indexOf('GROUP BY')).toBeLessThan(sql.indexOf('ORDER BY'));
+  });
+
+  it('emits two aggregated SELECT items when one blended metric carries two functions', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [
+        { column: 'spend__cost', function: 'SUM' },
+        { column: 'spend__cost', function: 'AVG' },
+      ],
+    });
+
+    expect(sql).toContain('SUM(spend.spend__cost) AS `spend__cost | SUM`');
+    expect(sql).toContain('AVG(spend.spend__cost) AS `spend__cost | AVG`');
+    expect(sql).toContain('GROUP BY\n  main.channel');
+  });
+
+  it('keeps a post-join filter before the GROUP BY (filters rows pre-aggregation)', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      filters: [{ column: 'channel', operator: 'eq', value: 'cpc' }],
+    });
+
+    expect(sql).toContain('WHERE main.channel = @p0');
+    expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('GROUP BY\n  main.channel'));
+  });
+
+  it('truncates a date dimension and groups by the truncated qualified expression', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['date', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      dateTruncs: [{ column: 'date', unit: 'MONTH' }],
+    });
+
+    expect(sql).toContain('DATE_TRUNC(DATE(main.date), MONTH) AS `date`');
+    expect(sql).toContain('GROUP BY\n  DATE_TRUNC(DATE(main.date), MONTH)');
+  });
+
+  it('appends COUNT(*) Row Count as the last select item when rowCount is set', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      rowCount: true,
+    });
+
+    expect(sql).toContain('COUNT(*) AS `Row Count`');
+  });
+
+  it('does not aggregate when no aggregation/date-trunc/row-count is requested', () => {
+    const { sql } = builder.buildBlendedQuery(
+      buildContext([spendChain()], ['channel', 'spend__cost'])
+    );
+
+    expect(sql).not.toContain('GROUP BY main.');
+    expect(sql).not.toContain(' | ');
+    expect(sql).toContain('main.channel');
+    expect(sql).toContain('spend.spend__cost');
+  });
+
+  it('emits COUNT(DISTINCT pk) Unique Count when uniqueCount=true with a single PK', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: ['user_id'],
+    });
+
+    expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
+  });
+
+  it('emits COUNT(DISTINCT CONCAT(...)) Unique Count when uniqueCount=true with composite PK', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: ['project_id', 'user_id'],
+    });
+
+    expect(sql).toContain('COUNT(DISTINCT CONCAT(');
+    expect(sql).toContain("COALESCE(CAST(main.project_id AS STRING), '')");
+    expect(sql).toContain("COALESCE(CAST(main.user_id AS STRING), '')");
+    expect(sql).toContain('AS `Unique Count`');
+  });
+
+  it('does not emit Unique Count when uniqueCount=false', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: false,
+      primaryKeyColumns: ['user_id'],
+    });
+
+    expect(sql).not.toContain('Unique Count');
+  });
+
+  it('does not emit Unique Count when primaryKeyColumns is empty', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: [],
+    });
+
+    expect(sql).not.toContain('Unique Count');
+  });
+
+  it('triggers aggregation path when only uniqueCount+PK is set (no aggregationConfig)', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      uniqueCount: true,
+      primaryKeyColumns: ['user_id'],
+    });
+
+    expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
+    expect(sql).toContain('GROUP BY');
+  });
+});
+
 describe('AbstractBlendedQueryBuilder — regression: ambiguous column in WHERE/ORDER BY', () => {
   let builder: TestBlendedWithRenderer;
 
@@ -2045,7 +2219,7 @@ describe('AbstractBlendedQueryBuilder — regression: ambiguous column in WHERE/
 
     expect(sql).toContain('WHERE main.date BETWEEN @p0 AND @p1');
     expect(sql).toContain('AND visitors_e_commerce.visitors_e_commerce__total_sessions > @p2');
-    expect(sql).toContain('ORDER BY main.source ASC');
+    expect(sql).toContain('ORDER BY\n  main.source ASC');
     expect(sql).toContain('LIMIT 1000');
 
     const tail = sql.slice(sql.indexOf('\nWHERE'));

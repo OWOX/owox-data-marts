@@ -609,6 +609,9 @@ export class DataMartRunService {
           filterConfig: report.filterConfig ?? undefined,
           sortConfig: report.sortConfig ?? undefined,
           limitConfig: report.limitConfig ?? undefined,
+          aggregationConfig: report.aggregationConfig ?? undefined,
+          dateTruncConfig: report.dateTruncConfig ?? undefined,
+          uniqueCountConfig: report.uniqueCountConfig ?? undefined,
         }
       : undefined;
 

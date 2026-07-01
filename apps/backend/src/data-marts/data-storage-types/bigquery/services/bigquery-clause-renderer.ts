@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SqlClauseRenderer, RenderedClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeBigQueryIdentifier } from '../utils/bigquery-identifier.utils';
 
 @Injectable()
@@ -28,6 +29,42 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     return columnType && BigQueryClauseRenderer.DATE_CAST_TYPES.has(columnType)
       ? `CAST(@${paramName} AS ${columnType})`
       : `@${paramName}`;
+  }
+
+  protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
+    return `APPROX_QUANTILES(${columnRef}, 100)[OFFSET(${p})]`;
+  }
+
+  // CAST to STRING so STRING_AGG is valid on a non-string column (e.g. a DATE).
+  protected override renderStringAgg(columnRef: string): string {
+    return `STRING_AGG(CAST(${columnRef} AS STRING), ', ')`;
+  }
+
+  // Reduces a date/time column to a DATE bucket. The wrap depends on the column type
+  // (verified on real BigQuery):
+  //   - DATE: DATE_TRUNC accepts a DATE directly; the DATE() wrap is redundant (and a
+  //     DATE column never carries a tz — the validator rejects that upstream).
+  //   - TIMESTAMP (± tz) / DATETIME without tz: DATE(col[, tz]) covers these directly.
+  //   - DATETIME WITH tz: there is no DATE(DATETIME, tz) overload, so interpret the
+  //     tz-naive wall clock in the target zone via TIMESTAMP(datetime, tz) first, then
+  //     read the date back in that zone.
+  protected override renderDateTrunc(
+    columnRef: string,
+    unit: DateTruncUnit,
+    timeZone?: string,
+    columnType?: string
+  ): string {
+    this.assertSafeDateTrunc(unit, timeZone);
+    const type = columnType?.trim().toUpperCase();
+    let dateExpr: string;
+    if (type === 'DATE') {
+      dateExpr = columnRef;
+    } else if (timeZone && type === 'DATETIME') {
+      dateExpr = `DATE(TIMESTAMP(${columnRef}, '${timeZone}'), '${timeZone}')`;
+    } else {
+      dateExpr = timeZone ? `DATE(${columnRef}, '${timeZone}')` : `DATE(${columnRef})`;
+    }
+    return `DATE_TRUNC(${dateExpr}, ${unit})`;
   }
 
   protected renderFilterFragment(

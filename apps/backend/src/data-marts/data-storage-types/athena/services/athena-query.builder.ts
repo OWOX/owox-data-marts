@@ -14,8 +14,11 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
+import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { AthenaClauseRenderer } from './athena-clause-renderer';
+import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { effectiveComparisonType } from '../../field-aggregation';
 
 @Injectable()
 export class AthenaQueryBuilder implements DataMartQueryBuilder {
@@ -27,9 +30,17 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     definition: DataMartDefinition,
     queryOptions?: DataMartQueryOptions
   ): string | QueryBuildResult {
+    const aggregations = queryOptions?.aggregations ?? [];
+    const dateTruncs = queryOptions?.dateTruncs ?? [];
+    const rowCount = queryOptions?.rowCount === true;
+    const uniqueCount = queryOptions?.uniqueCount === true;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      rowCount ||
+      uniqueCount ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -41,7 +52,7 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
     const columnTypes = queryOptions?.columnTypes;
     const resolveColumnType = columnTypes
-      ? (rule: FilterRule) => columnTypes.get(rule.column)
+      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
       : undefined;
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
@@ -52,8 +63,38 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
+    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+      const agg = this.clauseRenderer.renderAggregatedSelect(
+        queryOptions?.columns ?? [],
+        aggregations,
+        buildDateTruncUnitMap(dateTruncs),
+        {
+          includeRowCount: rowCount,
+          includeUniqueCount: uniqueCount,
+          primaryKeyColumns: queryOptions?.primaryKeyColumns,
+          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: columnTypes,
+        }
+      );
+      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
+      const aggOrderBy = this.clauseRenderer.renderOrderBy(
+        queryOptions?.sort ?? [],
+        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      const having = this.clauseRenderer.renderHaving(
+        queryOptions?.filters ?? [],
+        undefined,
+        'h',
+        resolveColumnType
+      );
+      return {
+        sql: `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`,
+        params: [...where.params, ...having.params, ...aggOrderBy.params, ...limit.params],
+      };
+    }
+
     return {
-      sql: `SELECT ${selectList} FROM ${fromClause}${where.sql}${orderBy.sql}${limit.sql}`,
+      sql: `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`,
       params: [...where.params, ...orderBy.params, ...limit.params],
     };
   }
@@ -64,15 +105,21 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     queryOptions?: DataMartQueryOptions
   ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      return `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.fullyQualifiedName)}`;
+      return composeSelectFromClause(
+        selectList,
+        escapeAthenaIdentifier(definition.fullyQualifiedName)
+      );
     }
     if (isConnectorDefinition(definition)) {
-      return `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      return composeSelectFromClause(
+        selectList,
+        escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)
+      );
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        return `SELECT ${selectList} FROM (${cleanQuery})`;
+        return composeSelectFromClause(selectList, `(${cleanQuery})`);
       }
       return definition.sqlQuery.trim();
     }
@@ -109,6 +156,6 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     if (!columns || columns.length === 0) {
       return '*';
     }
-    return columns.map(col => escapeAthenaIdentifier(col)).join(', ');
+    return columns.map(col => escapeAthenaIdentifier(col)).join(',\n  ');
   }
 }

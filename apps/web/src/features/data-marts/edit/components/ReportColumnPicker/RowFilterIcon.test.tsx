@@ -87,6 +87,38 @@ describe('RowFilterIcon — remove-only popup', () => {
     expect(onRemoveAt).toHaveBeenCalledWith(0);
   });
 
+  it('keeps an active filter icon always visible as a configured-state indicator', () => {
+    render(
+      <RowFilterIcon
+        column='ghost__col'
+        fieldType='STRING'
+        activeRules={[filterRule]}
+        onRemoveAt={vi.fn()}
+      />
+    );
+    const btn = screen.getByRole('button', { name: 'Manage filters and slices' });
+    expect(btn.className).toMatch(/text-blue-500/);
+    expect(btn.className).toMatch(/opacity-100/);
+    expect(btn.className).not.toMatch(/opacity-0/);
+    expect(btn.className).not.toMatch(/group-hover/);
+  });
+
+  it('hides an inactive filter add-affordance until the row is hovered', () => {
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onRemoveAt={() => undefined}
+      />
+    );
+    const btn = screen.getByRole('button', { name: 'Add filter' });
+    expect(btn.className).toMatch(/opacity-0/);
+    // Named group (/row) scopes the reveal to this row, not the ancestor FormItem `group`.
+    expect(btn.className).toMatch(/group-hover\/row:opacity-100/);
+  });
+
   it('shows filters and slices together without tabs for no-access rows (nothing editable)', () => {
     render(
       <RowFilterIcon

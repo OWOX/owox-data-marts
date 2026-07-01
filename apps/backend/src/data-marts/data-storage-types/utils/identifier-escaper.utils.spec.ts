@@ -56,6 +56,12 @@ describe('createIdentifierEscaper', () => {
       expect(escaper('table"with"quotes')).toBe('"table""with""quotes"');
     });
 
+    it('should NOT drop an unbalanced inner double quote (no corruption to "a"."b")', () => {
+      // A lone quote previously matched neither regex branch and was dropped, turning a
+      // column named a"b into the qualified "a"."b". It must stay one identifier, quote doubled.
+      expect(escaper('a"b')).toBe('"a""b"');
+    });
+
     it('should handle already-quoted parts', () => {
       expect(escaper('"schema"."table"')).toBe('"schema"."table"');
     });
@@ -74,6 +80,10 @@ describe('createIdentifierEscaper', () => {
 
     it('should handle already-quoted parts', () => {
       expect(escaper('`schema`.`table`')).toBe('`schema`.`table`');
+    });
+
+    it('should NOT drop an unbalanced inner backtick', () => {
+      expect(escaper('a`b')).toBe('`a``b`');
     });
   });
 });

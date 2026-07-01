@@ -3,6 +3,8 @@ import { DataStorageType } from '../enums/data-storage-type.enum';
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
+import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
+import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
 import { QueryBuildResult } from './data-mart-query-builder.interface';
 
 export interface BlendedFieldConfig {
@@ -53,6 +55,13 @@ export interface BlendedQueryContext {
   filters?: FilterRule[];
   sort?: SortRule[];
   limit?: number | null;
+  // Post-join aggregation over the flat blended result (an outer GROUP BY on the
+  // final SELECT). Mirrors DataMartQueryOptions; the pre-join rollup is unrelated.
+  aggregations?: AggregationRule[];
+  dateTruncs?: DateTruncRule[];
+  rowCount?: boolean;
+  uniqueCount?: boolean;
+  primaryKeyColumns?: string[];
   columnTypes?: BlendedColumnTypes;
   fieldIndex?: ReadonlyMap<string, BlendedFieldEntry>;
 }

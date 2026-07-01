@@ -15,6 +15,7 @@ import {
 } from '../data-storage-types/field-type-compatibility';
 import { BlendedFieldsConfig, BlendedSource } from '../dto/schemas/blended-fields-config.schema';
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import { resolveFieldGovernance } from '../dto/schemas/field-aggregation-governance';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -260,6 +261,10 @@ export class BlendableSchemaService {
         dto.isHidden = fieldOverride?.isHidden ?? false;
         dto.aggregateFunction =
           fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type);
+        // No override → type-derived allowed set (governance default); explicit `[]` = none allowed.
+        dto.postJoinAggregations =
+          fieldOverride?.postJoinAggregations ??
+          resolveFieldGovernance(field.type).allowedAggregations;
         dto.transitiveDepth = ctx.depth;
 
         ctx.result.push(dto);

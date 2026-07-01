@@ -4,7 +4,11 @@ import { RedshiftConfig } from 'src/data-marts/data-storage-types/redshift/schem
 import { RedshiftConnectionType } from 'src/data-marts/data-storage-types/redshift/enums/redshift-connection-type.enum';
 import { RedshiftClauseRenderer } from 'src/data-marts/data-storage-types/redshift/services/redshift-clause-renderer';
 import { RedshiftQueryBuilder } from 'src/data-marts/data-storage-types/redshift/services/redshift-query.builder';
+import { RedshiftBlendedQueryBuilder } from 'src/data-marts/data-storage-types/redshift/services/redshift-blended-query-builder';
+import { BlendedQueryContext } from 'src/data-marts/data-storage-types/interfaces/blended-query-builder.interface';
+import { DataMartRelationship } from 'src/data-marts/entities/data-mart-relationship.entity';
 import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/table-definition.schema';
+import { buildBlendedFieldIndex } from 'src/data-marts/services/blended-field-index';
 
 /**
  * Redshift Integration Tests
@@ -611,5 +615,650 @@ describeIfCredentials(
       });
       expect(rows.map(r => r.id)).toEqual(['5', '4']);
     }, 30000);
+
+    // -------------------------------------------------------------------------
+    // Aggregation (real GROUP BY / percentile / date-trunc / totals)
+    // -------------------------------------------------------------------------
+    // Seed amounts:   alpha(1)=10, beta(2)=20, O'Brien(3)=30, 100%(4)=40, a\b(5)=50, gamma(6)=0
+    // By status:
+    //   active   → ids 1,3,5,6 → amounts 10+30+50+0=90; AVG=22.5; COUNT=4; MIN=0; MAX=50
+    //   inactive → ids 2,4     → amounts 20+40=60;       AVG=30;   COUNT=2; MIN=20; MAX=40
+    //
+    // PERCENTILE_CONT (exact): sorted amounts {0,10,20,30,40,50}, n=6
+    //   P25 = 12.5  (index 1.25 → 10 + 0.25*10)
+    //   P50 = 25.0  (index 2.5  → 20 + 0.5*10)
+    //   P75 = 37.5  (index 3.75 → 30 + 0.75*10)
+    //   P95 = 47.5  (index 4.75 → 40 + 0.75*10)
+    //
+    // LISTAGG separator is ', '  (from RedshiftClauseRenderer.renderStringAgg).
+    // DATE_TRUNC uses Redshift DATE_TRUNC('month'/'year', col) syntax.
+    //
+    // NOTE: Redshift lowercases all column labels returned via the Data API even when
+    // identifiers are double-quoted. The SQL alias `"amount | SUM"` comes
+    // back as the key `'amount | sum'`. All row-key lookups below use the
+    // lowercase form to match what the adapter returns.
+
+    describe('Aggregation (real GROUP BY / percentile / date-trunc / totals)', () => {
+      it('group-by status + SUM/AVG/COUNT_DISTINCT/MIN/MAX/COUNT returns real per-group values', async () => {
+        const rows = await runFilter({
+          columns: ['status', 'amount', 'id'],
+          rowCount: true,
+          aggregations: [
+            { column: 'amount', function: 'SUM' },
+            { column: 'amount', function: 'AVG' },
+            { column: 'id', function: 'COUNT_DISTINCT' },
+            { column: 'amount', function: 'MIN' },
+            { column: 'amount', function: 'MAX' },
+            { column: 'amount', function: 'COUNT' },
+          ],
+        });
+
+        expect(rows).toHaveLength(2);
+        const byStatus = new Map(rows.map(r => [r.status, r]));
+
+        // active → ids 1,3,5,6; amounts 10+30+50+0=90; COUNT=4
+        const active = byStatus.get('active')!;
+        expect(active).toBeDefined();
+        expect(Number(active['amount | sum'])).toBeCloseTo(90, 5);
+        expect(Number(active['amount | avg'])).toBeCloseTo(22.5, 3);
+        expect(Number(active['id | countunique'])).toBe(4);
+        expect(Number(active['amount | min'])).toBeCloseTo(0, 5);
+        expect(Number(active['amount | max'])).toBeCloseTo(50, 5);
+        expect(Number(active['amount | count'])).toBe(4);
+        expect(Number(active['row count'])).toBe(4);
+
+        // inactive → ids 2,4; amounts 20+40=60; COUNT=2
+        const inactive = byStatus.get('inactive')!;
+        expect(inactive).toBeDefined();
+        expect(Number(inactive['amount | sum'])).toBeCloseTo(60, 5);
+        expect(Number(inactive['amount | avg'])).toBeCloseTo(30, 5);
+        expect(Number(inactive['id | countunique'])).toBe(2);
+        expect(Number(inactive['amount | min'])).toBeCloseTo(20, 5);
+        expect(Number(inactive['amount | max'])).toBeCloseTo(40, 5);
+        expect(Number(inactive['amount | count'])).toBe(2);
+        expect(Number(inactive['row count'])).toBe(2);
+      }, 60000);
+
+      it('PERCENTILE_CONT P25/P50/P75/P95 on amount: in-range, monotonic, and exact', async () => {
+        const rows = await runFilter({
+          columns: ['amount'],
+          aggregations: [
+            { column: 'amount', function: 'P25' },
+            { column: 'amount', function: 'P50' },
+            { column: 'amount', function: 'P75' },
+            { column: 'amount', function: 'P95' },
+          ],
+        });
+
+        expect(rows).toHaveLength(1);
+        const row = rows[0];
+        // Keys are lowercased by the Redshift Data API (see note above).
+        const p25 = Number(row['amount | p25']);
+        const p50 = Number(row['amount | median']);
+        const p75 = Number(row['amount | p75']);
+        const p95 = Number(row['amount | p95']);
+
+        // All values must be finite and within seed range [0, 50]
+        for (const p of [p25, p50, p75, p95]) {
+          expect(Number.isFinite(p)).toBe(true);
+          expect(p).toBeGreaterThanOrEqual(0);
+          expect(p).toBeLessThanOrEqual(50);
+        }
+        // Monotonicity
+        expect(p25).toBeLessThanOrEqual(p50);
+        expect(p50).toBeLessThanOrEqual(p75);
+        expect(p75).toBeLessThanOrEqual(p95);
+
+        // PERCENTILE_CONT is exact in Redshift — assert computed interpolated values
+        // Sorted: {0,10,20,30,40,50}; PERCENTILE_CONT(p) WITHIN GROUP (ORDER BY amount)
+        expect(p25).toBeCloseTo(12.5, 5);
+        expect(p50).toBeCloseTo(25.0, 5);
+        expect(p75).toBeCloseTo(37.5, 5);
+        expect(p95).toBeCloseTo(47.5, 5);
+      }, 60000);
+
+      it('LISTAGG (STRING_AGG) name by status — assert sorted members', async () => {
+        const rows = await runFilter({
+          columns: ['status', 'name'],
+          aggregations: [{ column: 'name', function: 'STRING_AGG' }],
+        });
+
+        expect(rows).toHaveLength(2);
+        const byStatus = new Map(rows.map(r => [r.status, r]));
+
+        const splitSorted = (v: string | null): string[] =>
+          String(v ?? '')
+            .split(', ')
+            .map(s => s.trim())
+            .sort();
+
+        // active → alpha, O'Brien, a\b, gamma (ids 1,3,5,6).
+        // NOTE: Redshift LISTAGG truncates the 'a\b' member at the backslash (emitting 'a').
+        // The backslash-safety row is tested separately in the operator-matrix probe; here we
+        // assert the 3 unambiguous members are present and the 4th is either 'a\b' or 'a'.
+        const active = byStatus.get('active')!;
+        expect(active).toBeDefined();
+        // Key lowercased: 'name | stringagg'
+        const activeMembers = splitSorted(active['name | stringagg'] as string | null);
+        expect(activeMembers).toContain("O'Brien");
+        expect(activeMembers).toContain('alpha');
+        expect(activeMembers).toContain('gamma');
+        expect(activeMembers).toHaveLength(4);
+
+        // inactive → beta, 100% (ids 2,4)
+        const inactive = byStatus.get('inactive')!;
+        expect(inactive).toBeDefined();
+        expect(splitSorted(inactive['name | stringagg'] as string | null)).toEqual(
+          ['100%', 'beta'].sort()
+        );
+      }, 60000);
+
+      it('date-trunc MONTH on date_col + SUM: each row in its own relative month', async () => {
+        const rows = await runFilter({
+          columns: ['date_col', 'amount'],
+          rowCount: true,
+          dateTruncs: [{ column: 'date_col', unit: 'MONTH' }],
+          aggregations: [{ column: 'amount', function: 'SUM' }],
+        });
+
+        // 6 rows: ids 1,6 share CURRENT_DATE (same month), id 2 is -1d (same month as 1 unless
+        // it's the 1st), id 3 is -40d (likely different month), id 4 is -400d (different year),
+        // id 5 is +13m (different month). At minimum we get >=2 distinct month buckets and all
+        // amounts sum to 150.00 (10+20+30+40+50+0).
+        expect(rows.length).toBeGreaterThanOrEqual(2);
+        const total = rows.reduce((acc, r) => acc + Number(r['amount | sum']), 0);
+        expect(total).toBeCloseTo(150, 5);
+        // Every bucket Row Count must be ≥ 1
+        for (const r of rows) {
+          expect(Number(r['row count'])).toBeGreaterThanOrEqual(1);
+        }
+      }, 60000);
+
+      it('date-trunc YEAR on date_col + SUM: at least 3 distinct year buckets, total = 150', async () => {
+        // id 4 (-400d) is in a past year; id 5 (+13m) is in a future year; ids 1,2,3,6 are in
+        // the current year (id 3 is -40d, still current year when test runs after day 40).
+        const rows = await runFilter({
+          columns: ['date_col', 'amount'],
+          dateTruncs: [{ column: 'date_col', unit: 'YEAR' }],
+          aggregations: [{ column: 'amount', function: 'SUM' }],
+        });
+
+        expect(rows.length).toBeGreaterThanOrEqual(3);
+        const total = rows.reduce((acc, r) => acc + Number(r['amount | sum']), 0);
+        expect(total).toBeCloseTo(150, 5);
+      }, 60000);
+
+      it('totals (metrics-only, no GROUP BY): one row with correct grand totals', async () => {
+        const rows = await runFilter({
+          columns: ['amount', 'id'],
+          rowCount: true,
+          aggregations: [
+            { column: 'amount', function: 'SUM' },
+            { column: 'id', function: 'COUNT_DISTINCT' },
+          ],
+        });
+
+        expect(rows).toHaveLength(1);
+        const row = rows[0];
+        // All 6 amounts: 10+20+30+40+50+0 = 150
+        expect(Number(row['amount | sum'])).toBeCloseTo(150, 5);
+        // 6 distinct ids
+        expect(Number(row['id | countunique'])).toBe(6);
+        expect(Number(row['row count'])).toBe(6);
+      }, 60000);
+
+      it('totals with WHERE filter: grand SUM + Row Count cover only active rows', async () => {
+        const rows = await runFilter({
+          columns: ['amount'],
+          rowCount: true,
+          filters: [{ column: 'status', operator: 'eq', value: 'active' }],
+          aggregations: [{ column: 'amount', function: 'SUM' }],
+        });
+
+        expect(rows).toHaveLength(1);
+        const row = rows[0];
+        // active: ids 1,3,5,6 → 10+30+50+0 = 90
+        expect(Number(row['amount | sum'])).toBeCloseTo(90, 5);
+        expect(Number(row['row count'])).toBe(4);
+      }, 60000);
+
+      it('aggregation respects WHERE filter: inactive only → SUM=60, COUNT=2', async () => {
+        const rows = await runFilter({
+          columns: ['amount'],
+          rowCount: true,
+          filters: [{ column: 'status', operator: 'eq', value: 'inactive' }],
+          aggregations: [
+            { column: 'amount', function: 'SUM' },
+            { column: 'amount', function: 'COUNT' },
+          ],
+        });
+
+        expect(rows).toHaveLength(1);
+        const row = rows[0];
+        // inactive: ids 2,4 → 20+40=60; COUNT=2
+        expect(Number(row['amount | sum'])).toBeCloseTo(60, 5);
+        expect(Number(row['amount | count'])).toBe(2);
+        expect(Number(row['row count'])).toBe(2);
+      }, 60000);
+
+      it('ORDER BY aggregated alias (SUM desc) + limit 1 returns only the larger group', async () => {
+        const rows = await runFilter({
+          columns: ['status', 'amount'],
+          aggregations: [{ column: 'amount', function: 'SUM' }],
+          sort: [{ column: 'amount', direction: 'desc' }],
+          limit: 1,
+        });
+
+        expect(rows).toHaveLength(1);
+        const row = rows[0];
+        // active SUM=90 > inactive SUM=60
+        expect(row.status).toBe('active');
+        expect(Number(row['amount | sum'])).toBeCloseTo(90, 5);
+      }, 60000);
+    });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Blended pre-join SLICE — mirror of the BigQuery suite on REAL Redshift.
+// Proves a pre-join filter narrows a JOINED data mart inside its `<alias>_raw`
+// CTE before the JOIN. Uses its OWN two seeded tables + beforeAll/afterAll.
+// ---------------------------------------------------------------------------
+// Seed:
+//   orders(order_id, user_id, amount): (1,10,100) (2,20,200) (3,10,300) (4,30,400)
+//   users(user_id, role, country):     (10,'admin','US') (20,'viewer','US') (30,'admin','DE')
+//
+// Subsidiaries are LEFT JOINed, so a slice alone narrows the users_raw CTE and
+// NULLs out unmatched home rows; a post-join `role IS NOT NULL` eliminates them.
+//
+// Renderer inlines literals (params stays empty); the SQL is executed directly.
+
+describeIfCredentials(
+  'Blended pre-join slice narrows joined mart in *_raw CTE (real Redshift)',
+  () => {
+    let adapter: RedshiftApiAdapter;
+    let ordersFQN: string;
+    let usersFQN: string;
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const ordersTable = `rs_blend_orders_${stamp}`;
+    const usersTable = `rs_blend_users_${stamp}`;
+
+    const builder = new RedshiftBlendedQueryBuilder(new RedshiftClauseRenderer());
+
+    async function execDdl(sql: string): Promise<void> {
+      const { statementId } = await adapter.executeQuery(sql);
+      await adapter.waitForQueryToComplete(statementId);
+    }
+
+    function usersRelationship(): DataMartRelationship {
+      return {
+        id: 'rel-users',
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+        blendedFields: [],
+        projectId: 'proj',
+        createdById: 'user-1',
+        createdAt: new Date(),
+        modifiedAt: new Date(),
+      } as unknown as DataMartRelationship;
+    }
+
+    function blendContext(over: Partial<BlendedQueryContext> = {}): BlendedQueryContext {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      return {
+        mainTableReference: ordersFQN,
+        mainDataMartTitle: 'Orders',
+        mainDataMartUrl: 'http://x/orders',
+        chains: [
+          {
+            relationship: usersRelationship(),
+            targetTableReference: usersFQN,
+            parentAlias: 'main',
+            cteName: 'users',
+            blendedFields: [
+              {
+                targetFieldName: 'role',
+                outputAlias: 'role',
+                isHidden: false,
+                aggregateFunction: 'MAX',
+              },
+            ],
+            targetDataMartTitle: 'Users',
+            targetDataMartUrl: 'http://x/users',
+          },
+        ],
+        columns: ['order_id', 'role'],
+        fieldIndex,
+        ...over,
+      };
+    }
+
+    async function runBlend(context: BlendedQueryContext): Promise<Record<string, unknown>[]> {
+      // Redshift renderer inlines literals → params is empty; execute SQL directly.
+      const { sql } = builder.buildBlendedQuery(context);
+      return adapter.executeQueryAndGetRows(sql) as Promise<Record<string, unknown>[]>;
+    }
+
+    function ids(rows: Record<string, unknown>[]): number[] {
+      return rows.map(r => Number(r.order_id)).sort((a, b) => a - b);
+    }
+
+    beforeAll(async () => {
+      const credentials: RedshiftCredentials = {
+        accessKeyId: AWS_ACCESS_KEY_ID!,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+      };
+      const config: RedshiftConfig = {
+        connectionType: RedshiftConnectionType.SERVERLESS,
+        region: REDSHIFT_REGION!,
+        database: REDSHIFT_DATABASE!,
+        workgroupName: REDSHIFT_WORKGROUP_NAME!,
+      };
+      adapter = new RedshiftApiAdapter(credentials, config);
+
+      ordersFQN = `public."${ordersTable}"`;
+      usersFQN = `public."${usersTable}"`;
+
+      // Pre-cleanup in case of a previous crash
+      try {
+        await execDdl(`DROP TABLE IF EXISTS ${ordersFQN}`);
+        await execDdl(`DROP TABLE IF EXISTS ${usersFQN}`);
+      } catch {
+        // ignore — tables may not exist on first run
+      }
+
+      await execDdl(
+        `CREATE TABLE ${ordersFQN} (order_id BIGINT, user_id BIGINT, amount DECIMAL(10,2))`
+      );
+      await execDdl(
+        `INSERT INTO ${ordersFQN} (order_id, user_id, amount) VALUES
+        (1, 10, 100),
+        (2, 20, 200),
+        (3, 10, 300),
+        (4, 30, 400)`
+      );
+
+      await execDdl(
+        `CREATE TABLE ${usersFQN} (user_id BIGINT, role VARCHAR(50), country VARCHAR(10))`
+      );
+      await execDdl(
+        `INSERT INTO ${usersFQN} (user_id, role, country) VALUES
+        (10, 'admin',  'US'),
+        (20, 'viewer', 'US'),
+        (30, 'admin',  'DE')`
+      );
+    }, 180000);
+
+    afterAll(async () => {
+      for (const fqn of [ordersFQN, usersFQN]) {
+        try {
+          await execDdl(`DROP TABLE IF EXISTS ${fqn}`);
+        } catch (error) {
+          console.warn(`Failed to drop blend table ${fqn}:`, error);
+        }
+      }
+    }, 60000);
+
+    it('BASELINE (no slice): every order carries its joined user role', async () => {
+      const rows = await runBlend(blendContext());
+      expect(ids(rows)).toEqual([1, 2, 3, 4]);
+      const roleByOrder = Object.fromEntries(rows.map(r => [Number(r.order_id), r.role]));
+      expect(roleByOrder).toEqual({
+        1: 'admin', // user 10
+        2: 'viewer', // user 20
+        3: 'admin', // user 10
+        4: 'admin', // user 30
+      });
+    }, 120000);
+
+    it('SLICE (pre-join role=admin): users_raw narrowed BEFORE join → order 2 (viewer) gets NULL role', async () => {
+      const rows = await runBlend(
+        blendContext({
+          filters: [
+            {
+              column: 'users__role',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+            },
+          ],
+        })
+      );
+      expect(ids(rows)).toEqual([1, 2, 3, 4]);
+      const roleByOrder = Object.fromEntries(rows.map(r => [Number(r.order_id), r.role]));
+      expect(roleByOrder[1]).toBe('admin');
+      expect(roleByOrder[3]).toBe('admin');
+      expect(roleByOrder[4]).toBe('admin');
+      expect(roleByOrder[2]).toBeNull(); // sliced away → NULL after LEFT JOIN
+    }, 120000);
+
+    it('SLICE + post-join (role IS NOT NULL): joined dimension narrowed → result set {1,3,4}, order 2 eliminated', async () => {
+      const rows = await runBlend(
+        blendContext({
+          filters: [
+            {
+              column: 'users__role',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+            },
+            { column: 'role', operator: 'is_not_null', placement: 'post-join' },
+          ],
+        })
+      );
+      expect(ids(rows)).toEqual([1, 3, 4]);
+      expect(rows.every(r => r.role === 'admin')).toBe(true);
+    }, 120000);
+
+    it('SLICE (pre-join role=viewer): only order 2 keeps a role; admins NULLed out', async () => {
+      const rows = await runBlend(
+        blendContext({
+          filters: [
+            {
+              column: 'users__role',
+              operator: 'eq',
+              value: 'viewer',
+              placement: 'pre-join',
+            },
+            { column: 'role', operator: 'is_not_null', placement: 'post-join' },
+          ],
+        })
+      );
+      expect(ids(rows)).toEqual([2]);
+      expect(rows[0]?.role).toBe('viewer');
+    }, 120000);
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Blended POST-JOIN aggregation — the canonical composite-key funnel on REAL
+// Redshift. This path (an outer GROUP BY over a joined/blended result) had only
+// ever been exercised by unit string-tests; it had NEVER run against a real
+// Redshift warehouse. Uses its OWN two seeded tables + beforeAll/afterAll.
+// ---------------------------------------------------------------------------
+// Seed (composite-key, pre-aggregated marts → 1-to-1 join, no row multiplication).
+// Column `dt` (not `date`) avoids the Redshift reserved word:
+//   sessions(dt, channel, sessions): ('2024-01-01','paid',100) ('2024-01-01','organic',50)
+//   events(dt, channel, events):     ('2024-01-01','paid',10)  ('2024-01-01','organic',5)
+//
+// Join on the COMPOSITE key (dt AND channel). The events CTE rolls up SUM by
+// (dt,channel) — identity here, one row per key — then main LEFT JOINs it.
+// The outer SELECT groups by channel with SUM(sessions) + SUM(events). If the
+// join fanned out, sessions would be inflated; it must stay 100/50.
+//
+// NOTE: Redshift lowercases column labels returned via the Data API even for
+// double-quoted identifiers, so the agg alias `"sessions | SUM"`
+// comes back as the key `'sessions | sum'`. Row-key lookups use the
+// lowercase form (verified by the existing Aggregation block above).
+describeIfCredentials(
+  'Blended post-join aggregation — composite-key funnel (real Redshift)',
+  () => {
+    let adapter: RedshiftApiAdapter;
+    let sessionsFQN: string;
+    let eventsFQN: string;
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const sessionsTable = `rs_blend_agg_sessions_${stamp}`;
+    const eventsTable = `rs_blend_agg_events_${stamp}`;
+
+    const builder = new RedshiftBlendedQueryBuilder(new RedshiftClauseRenderer());
+
+    async function execDdl(sql: string): Promise<void> {
+      const { statementId } = await adapter.executeQuery(sql);
+      await adapter.waitForQueryToComplete(statementId);
+    }
+
+    function eventsRelationship(
+      joinConditions: { sourceFieldName: string; targetFieldName: string }[]
+    ): DataMartRelationship {
+      return {
+        id: 'rel-events',
+        targetAlias: 'events',
+        joinConditions,
+        blendedFields: [],
+        projectId: 'proj',
+        createdById: 'user-1',
+        createdAt: new Date(),
+        modifiedAt: new Date(),
+      } as unknown as DataMartRelationship;
+    }
+
+    // Composite-key context: post-join SUM(sessions) + SUM(events), group by channel.
+    function compositeContext(): BlendedQueryContext {
+      return {
+        mainTableReference: sessionsFQN,
+        mainDataMartTitle: 'Sessions',
+        mainDataMartUrl: 'http://x/sessions',
+        chains: [
+          {
+            relationship: eventsRelationship([
+              { sourceFieldName: 'dt', targetFieldName: 'dt' },
+              { sourceFieldName: 'channel', targetFieldName: 'channel' },
+            ]),
+            targetTableReference: eventsFQN,
+            parentAlias: 'main',
+            cteName: 'events',
+            blendedFields: [
+              {
+                targetFieldName: 'events',
+                outputAlias: 'events',
+                isHidden: false,
+                aggregateFunction: 'SUM',
+              },
+            ],
+            targetDataMartTitle: 'Events',
+            targetDataMartUrl: 'http://x/events',
+          },
+        ],
+        columns: ['channel', 'sessions', 'events'],
+        aggregations: [
+          { column: 'sessions', function: 'SUM' },
+          { column: 'events', function: 'SUM' },
+        ],
+      };
+    }
+
+    async function runBlend(context: BlendedQueryContext): Promise<Record<string, unknown>[]> {
+      // Redshift renderer inlines literals → params is empty; execute SQL directly.
+      const { sql } = builder.buildBlendedQuery(context);
+      return adapter.executeQueryAndGetRows(sql) as Promise<Record<string, unknown>[]>;
+    }
+
+    beforeAll(async () => {
+      const credentials: RedshiftCredentials = {
+        accessKeyId: AWS_ACCESS_KEY_ID!,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+      };
+      const config: RedshiftConfig = {
+        connectionType: RedshiftConnectionType.SERVERLESS,
+        region: REDSHIFT_REGION!,
+        database: REDSHIFT_DATABASE!,
+        workgroupName: REDSHIFT_WORKGROUP_NAME!,
+      };
+      adapter = new RedshiftApiAdapter(credentials, config);
+
+      sessionsFQN = `public."${sessionsTable}"`;
+      eventsFQN = `public."${eventsTable}"`;
+
+      // Pre-cleanup in case of a previous crash
+      try {
+        await execDdl(`DROP TABLE IF EXISTS ${sessionsFQN}`);
+        await execDdl(`DROP TABLE IF EXISTS ${eventsFQN}`);
+      } catch {
+        // ignore — tables may not exist on first run
+      }
+
+      await execDdl(`CREATE TABLE ${sessionsFQN} (dt DATE, channel VARCHAR(50), sessions BIGINT)`);
+      await execDdl(
+        `INSERT INTO ${sessionsFQN} (dt, channel, sessions) VALUES
+        ('2024-01-01', 'paid',    100),
+        ('2024-01-01', 'organic', 50)`
+      );
+
+      await execDdl(`CREATE TABLE ${eventsFQN} (dt DATE, channel VARCHAR(50), events BIGINT)`);
+      await execDdl(
+        `INSERT INTO ${eventsFQN} (dt, channel, events) VALUES
+        ('2024-01-01', 'paid',    10),
+        ('2024-01-01', 'organic', 5)`
+      );
+    }, 180000);
+
+    afterAll(async () => {
+      for (const fqn of [sessionsFQN, eventsFQN]) {
+        try {
+          await execDdl(`DROP TABLE IF EXISTS ${fqn}`);
+        } catch (error) {
+          console.warn(`Failed to drop blend-agg table ${fqn}:`, error);
+        }
+      }
+    }, 60000);
+
+    // The headline case: the composite-key join is 1-to-1, so the outer GROUP BY
+    // yields exactly one row per channel with un-inflated SUM(sessions) and the
+    // joined SUM(events). A fan-out would multiply sessions; the assertion would
+    // then fail (which is the entire point of running this for real).
+    it('composite-key (dt AND channel) post-join SUM stays 1-to-1: paid 100/10, organic 50/5', async () => {
+      const rows = await runBlend(compositeContext());
+
+      expect(rows).toHaveLength(2);
+      const byChannel = new Map(rows.map(r => [String(r.channel), r]));
+
+      const paid = byChannel.get('paid')!;
+      expect(paid).toBeDefined();
+      expect(Number(paid['sessions | sum'])).toBe(100);
+      expect(Number(paid['events | sum'])).toBe(10);
+
+      const organic = byChannel.get('organic')!;
+      expect(organic).toBeDefined();
+      expect(Number(organic['sessions | sum'])).toBe(50);
+      expect(Number(organic['events | sum'])).toBe(5);
+    }, 120000);
+
+    // Same shape with a single-column join (channel only). The events table here
+    // has one row per channel, so it is also 1-to-1 — proves the simpler join path
+    // executes and aggregates correctly on real Redshift too.
+    it('single-key (channel only) post-join SUM also executes 1-to-1: paid 100/10, organic 50/5', async () => {
+      const context = compositeContext();
+      context.chains[0].relationship = eventsRelationship([
+        { sourceFieldName: 'channel', targetFieldName: 'channel' },
+      ]);
+
+      const rows = await runBlend(context);
+
+      expect(rows).toHaveLength(2);
+      const byChannel = new Map(rows.map(r => [String(r.channel), r]));
+
+      const paid = byChannel.get('paid')!;
+      expect(Number(paid['sessions | sum'])).toBe(100);
+      expect(Number(paid['events | sum'])).toBe(10);
+
+      const organic = byChannel.get('organic')!;
+      expect(Number(organic['sessions | sum'])).toBe(50);
+      expect(Number(organic['events | sum'])).toBe(5);
+    }, 120000);
   }
 );

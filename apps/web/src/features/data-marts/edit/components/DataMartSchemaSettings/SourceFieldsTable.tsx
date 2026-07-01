@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EyeOff, Info, MoreHorizontal, Eye, Search } from 'lucide-react';
+import { EyeOff, Info, MoreHorizontal, Eye, Search, Sigma } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import { AllowedAggregationsSelect } from './AllowedAggregationsSelect';
 import { Input } from '@owox/ui/components/input';
 import {
   Select,
@@ -82,7 +83,7 @@ function FieldAliasInput({
   );
 }
 
-const COLUMN_COUNT = 5;
+const COLUMN_COUNT = 6;
 
 export function SourceFieldsTable({
   fields,
@@ -200,28 +201,46 @@ export function SourceFieldsTable({
         <table className='w-full table-auto caption-bottom text-sm'>
           <TableHeader className='bg-transparent'>
             <TableRow className='hover:bg-transparent'>
-              <TableHead className={`${headCellClass} w-[30%]`}>
+              <TableHead className={`${headCellClass} w-[24%]`}>
                 <Tooltip>
                   <TooltipTrigger className='cursor-default'>Name</TooltipTrigger>
                   <TooltipContent>Field name in the source data mart</TooltipContent>
                 </Tooltip>
               </TableHead>
-              <TableHead className={`${headCellClass} w-[25%]`}>
+              <TableHead className={`${headCellClass} w-[18%]`}>
                 <Tooltip>
                   <TooltipTrigger className='cursor-default'>Alias</TooltipTrigger>
                   <TooltipContent>Alternative name for the field</TooltipContent>
                 </Tooltip>
               </TableHead>
-              <TableHead className={`${headCellClass} w-[15%]`}>
+              <TableHead className={`${headCellClass} w-[12%]`}>
                 <Tooltip>
                   <TooltipTrigger className='cursor-default'>Type</TooltipTrigger>
                   <TooltipContent>Data type of the field</TooltipContent>
                 </Tooltip>
               </TableHead>
-              <TableHead className={`${headCellClass} w-[25%]`}>
+              <TableHead className={`${headCellClass} w-[18%]`}>
                 <Tooltip>
-                  <TooltipTrigger className='cursor-default'>Aggregation</TooltipTrigger>
-                  <TooltipContent>Function used to aggregate values when blending</TooltipContent>
+                  <TooltipTrigger className='cursor-default'>Dedup</TooltipTrigger>
+                  <TooltipContent>
+                    Deduplication rollup — collapses a joined field to one row per join key so the
+                    join never multiplies rows.
+                  </TooltipContent>
+                </Tooltip>
+              </TableHead>
+              <TableHead className={`${headCellClass} w-[23%]`}>
+                <Tooltip>
+                  <TooltipTrigger
+                    className='flex cursor-default items-center gap-1'
+                    aria-label='Available aggregations'
+                  >
+                    <Sigma className='h-3.5 w-3.5' />
+                    available
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Available aggregations — functions a report may apply to this field after the
+                    join.
+                  </TooltipContent>
                 </Tooltip>
               </TableHead>
               <TableHead className={`${headCellClass} w-[5%]`} />
@@ -294,6 +313,18 @@ export function SourceFieldsTable({
                         ))}
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell style={{ paddingTop: 8, paddingBottom: 8 }}>
+                    <AllowedAggregationsSelect
+                      value={field.postJoinAggregations ?? []}
+                      fieldType={field.type}
+                      onChange={next => {
+                        onFieldOverrideChange(field.originalFieldName, {
+                          postJoinAggregations: next,
+                        });
+                      }}
+                      ariaLabel={`Available aggregations for ${field.originalFieldName}`}
+                    />
                   </TableCell>
                   <TableCell className='text-right' style={{ paddingTop: 8, paddingBottom: 8 }}>
                     <DropdownMenu>

@@ -145,4 +145,19 @@ export class DataMartRunResponseApiDto {
     nullable: true,
   })
   additionalParams: Record<string, unknown> | null;
+
+  @ApiProperty({
+    example: {
+      'revenue | SUM': 1575.93,
+      'revenue | AVG': 157.593,
+      'revenue | MIN': 12.5,
+      'revenue | MAX': 450,
+    },
+    description:
+      'Grand-totals summary: every selected numeric field aggregated by its allowed functions ' +
+      'over the full filtered dataset (no grouping). Null when the run produced no totals.',
+    required: false,
+    nullable: true,
+  })
+  totals: Record<string, number | string | boolean | null> | null;
 }

@@ -108,7 +108,7 @@ export function RowFilterIcon({
         'ml-auto flex h-6 w-6 items-center justify-center gap-0.5 rounded transition-opacity',
         isActive
           ? 'text-blue-500 opacity-100'
-          : 'text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100'
+          : 'text-muted-foreground hover:text-foreground opacity-0 group-hover/row:opacity-100 data-[state=open]:opacity-100'
       )}
     >
       <Filter className='h-4 w-4' />

@@ -20,4 +20,9 @@ export class AthenaBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   protected buildStringAgg(fieldName: string): string {
     return `ARRAY_JOIN(ARRAY_AGG(CAST(${fieldName} AS VARCHAR)), ', ')`;
   }
+
+  // Trino does not guarantee ANY_VALUE across engine versions; arbitrary() is the all-version-safe form.
+  protected override buildAnyValue(fieldName: string): string {
+    return `arbitrary(${fieldName})`;
+  }
 }

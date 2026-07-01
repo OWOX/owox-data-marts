@@ -8,6 +8,8 @@ import {
   FILTER_NO_VALUE_OPERATORS,
   FILTER_SCALAR_OPERATORS,
 } from '../../dto/schemas/filter-config.schema';
+import { REPORT_AGGREGATE_FUNCTIONS } from '../../dto/schemas/aggregate-function.schema';
+import { DATE_TRUNC_UNITS } from '../../dto/schemas/date-trunc-config.schema';
 
 const primitiveValueSchema = {
   oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }],
@@ -160,6 +162,13 @@ export class ReportFilterRuleApiDto {
     description: 'Use pre-join for slice filters. Omit for normal output filters.',
   })
   placement?: 'pre-join' | 'post-join';
+
+  @ApiPropertyOptional({
+    enum: REPORT_AGGREGATE_FUNCTIONS,
+    description:
+      'When set, the rule filters the AGGREGATED value of the column after grouping (HAVING <function>(column) <operator> <value>) instead of the raw rows (WHERE). The (column, function) pair must match a configured aggregationConfig entry.',
+  })
+  function?: (typeof REPORT_AGGREGATE_FUNCTIONS)[number];
 }
 
 export class ReportSortRuleApiDto {
@@ -177,7 +186,44 @@ export class ReportSortRuleApiDto {
   direction: 'asc' | 'desc';
 }
 
+export class ReportAggregationRuleApiDto {
+  @ApiProperty({
+    minLength: 1,
+    description: 'Output column name to aggregate.',
+  })
+  column: string;
+
+  @ApiProperty({
+    enum: REPORT_AGGREGATE_FUNCTIONS,
+    description: 'Aggregation function to apply to the column.',
+  })
+  function: (typeof REPORT_AGGREGATE_FUNCTIONS)[number];
+}
+
+export class ReportDateTruncRuleApiDto {
+  @ApiProperty({
+    minLength: 1,
+    description: 'Date/timestamp dimension column to truncate.',
+  })
+  column: string;
+
+  @ApiProperty({
+    enum: DATE_TRUNC_UNITS,
+    description: 'Calendar bucket to truncate the column to.',
+  })
+  unit: (typeof DATE_TRUNC_UNITS)[number];
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Optional IANA time zone (e.g. America/New_York). When set, the value is converted to this zone before truncation; absent = no conversion.',
+  })
+  timeZone?: string;
+}
+
 export const REPORT_OPENAPI_MODELS = [
+  ReportAggregationRuleApiDto,
+  ReportDateTruncRuleApiDto,
   ReportBetweenFilterValueApiDto,
   ReportCustomMessageTemplateSourceApiDto,
   ReportEmailDestinationConfigApiDto,
@@ -247,6 +293,26 @@ const commonReportRequestProperties = {
     description: 'Maximum number of rows to return. Set null to return without an explicit cap.',
     example: 1000,
   },
+  aggregationConfig: {
+    type: 'array',
+    nullable: true,
+    maxItems: 50,
+    items: { $ref: getSchemaPath(ReportAggregationRuleApiDto) },
+    description: 'Aggregation rules. Each non-aggregated selected column becomes a grouping key.',
+  },
+  dateTruncConfig: {
+    type: 'array',
+    nullable: true,
+    maxItems: 50,
+    items: { $ref: getSchemaPath(ReportDateTruncRuleApiDto) },
+    description: 'Date-trunc rules. A date/timestamp dimension is bucketed by a calendar unit.',
+  },
+  uniqueCountConfig: {
+    type: 'boolean',
+    nullable: true,
+    description:
+      'Unique Count config. When true, counts distinct primary-key tuples instead of all rows.',
+  },
 };
 
 export const createReportRequestBodySchema = {
@@ -262,6 +328,9 @@ export const createReportRequestBodySchema = {
     filterConfig: commonReportRequestProperties.filterConfig,
     sortConfig: commonReportRequestProperties.sortConfig,
     limitConfig: commonReportRequestProperties.limitConfig,
+    aggregationConfig: commonReportRequestProperties.aggregationConfig,
+    dateTruncConfig: commonReportRequestProperties.dateTruncConfig,
+    uniqueCountConfig: commonReportRequestProperties.uniqueCountConfig,
   },
 };
 

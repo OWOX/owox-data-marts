@@ -85,8 +85,8 @@ describe('DataMartMapper', () => {
     });
   });
 
-  describe('maskAdditionalParams (via toRunResponse)', () => {
-    it('exposes only the httpData subtree for HTTP_DATA runs', async () => {
+  describe('totals (top-level) + additionalParams masking (via toRunResponse)', () => {
+    it('exposes only the httpData subtree for HTTP_DATA runs; totals null when absent', async () => {
       const entity = {
         id: 'run-1',
         status: 'SUCCESS',
@@ -103,9 +103,33 @@ describe('DataMartMapper', () => {
       expect(response.additionalParams).toEqual({
         httpData: { format: 'ndjson', columns: ['date'] },
       });
+      expect(response.totals).toBeNull();
     });
 
-    it('returns null additionalParams for non-HTTP_DATA runs', async () => {
+    it('surfaces HTTP_DATA totals at the TOP LEVEL and strips them from the exposed httpData subtree', async () => {
+      const totals = { 'revenue | SUM': 100 };
+      const entity = {
+        id: 'run-1b',
+        status: 'SUCCESS',
+        type: DataMartRunType.HTTP_DATA,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        additionalParams: {
+          httpData: { format: 'ndjson', columns: ['date'], totals },
+          internalNote: 'x',
+        },
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
+
+      expect(response.totals).toEqual(totals);
+      expect(response.additionalParams).toEqual({
+        httpData: { format: 'ndjson', columns: ['date'] },
+      });
+    });
+
+    it('returns null additionalParams and null totals for non-HTTP_DATA runs without totals', async () => {
       const entity = {
         id: 'run-2',
         status: 'SUCCESS',
@@ -119,6 +143,42 @@ describe('DataMartMapper', () => {
       const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
 
       expect(response.additionalParams).toBeNull();
+      expect(response.totals).toBeNull();
+    });
+
+    it('surfaces report-run totals at the TOP LEVEL (not under additionalParams), masking other internal params', async () => {
+      const totals = { 'revenue | SUM': 100, 'quantity | MAX': 6 };
+      const entity = {
+        id: 'run-3',
+        status: 'SUCCESS',
+        type: DataMartRunType.GOOGLE_SHEETS_EXPORT,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        additionalParams: { totals, internalNote: 'secret' },
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
+
+      expect(response.totals).toEqual(totals);
+      expect(response.additionalParams).toBeNull();
+    });
+
+    it('returns null additionalParams and null totals for a report run without totals', async () => {
+      const entity = {
+        id: 'run-4',
+        status: 'SUCCESS',
+        type: DataMartRunType.GOOGLE_SHEETS_EXPORT,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        additionalParams: { internalNote: 'secret' },
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
+
+      expect(response.additionalParams).toBeNull();
+      expect(response.totals).toBeNull();
     });
   });
 });

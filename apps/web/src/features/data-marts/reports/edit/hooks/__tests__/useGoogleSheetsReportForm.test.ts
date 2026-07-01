@@ -106,6 +106,9 @@ const validGoogleSheetsFormData = {
   filterConfig: null,
   sortConfig: null,
   limitConfig: null,
+  aggregationConfig: null,
+  dateTruncConfig: null,
+  uniqueCountConfig: false,
 };
 
 describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
@@ -129,6 +132,34 @@ describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it('validates aggregation and date-trunc configs', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      aggregationConfig: [{ column: 'revenue', function: 'P95' }],
+      dateTruncConfig: [{ column: 'ordered_at', unit: 'MONTH' }],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an unknown aggregation function', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      aggregationConfig: [{ column: 'revenue', function: 'MEDIAN' }],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an unknown date-trunc unit', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      dateTruncConfig: [{ column: 'ordered_at', unit: 'HOUR' }],
+    });
+
+    expect(result.success).toBe(false);
   });
 });
 
@@ -205,6 +236,8 @@ describe('useGoogleSheetsReportForm — submission', () => {
       result.current.form.setValue('filterConfig', [preJoinRule]);
       result.current.form.setValue('sortConfig', [{ column: 'event_id', direction: 'desc' }]);
       result.current.form.setValue('limitConfig', 100);
+      result.current.form.setValue('aggregationConfig', [{ column: 'revenue', function: 'SUM' }]);
+      result.current.form.setValue('dateTruncConfig', [{ column: 'event_id', unit: 'DAY' }]);
     });
 
     await act(async () => {
@@ -226,6 +259,8 @@ describe('useGoogleSheetsReportForm — submission', () => {
         filterConfig: [preJoinRule],
         sortConfig: [{ column: 'event_id', direction: 'desc' }],
         limitConfig: 100,
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [{ column: 'event_id', unit: 'DAY' }],
       })
     );
   });
@@ -305,5 +340,56 @@ describe('useGoogleSheetsReportForm — submission', () => {
 
     const payload = mockCreateReport.mock.calls[0][0];
     expect('ownerIds' in payload).toBe(false);
+  });
+});
+
+describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
+  it('initializes uniqueCountConfig from saved report (true)', () => {
+    const initial = buildReport({ uniqueCountConfig: true } as Partial<DataMartReport>);
+    const { result } = renderHook(() =>
+      useGoogleSheetsReportForm({
+        initialReport: initial,
+        mode: ReportFormMode.EDIT,
+        dataMartId: 'dm-1',
+      })
+    );
+    expect(result.current.getValues().uniqueCountConfig).toBe(true);
+  });
+
+  it('falls back to false when initialReport.uniqueCountConfig is absent', () => {
+    const initial = buildReport();
+    const { result } = renderHook(() =>
+      useGoogleSheetsReportForm({
+        initialReport: initial,
+        mode: ReportFormMode.EDIT,
+        dataMartId: 'dm-1',
+      })
+    );
+    expect(result.current.getValues().uniqueCountConfig).toBe(false);
+  });
+
+  it('CREATE: includes uniqueCountConfig in createReport payload', async () => {
+    const { result } = renderHook(() =>
+      useGoogleSheetsReportForm({
+        mode: ReportFormMode.CREATE,
+        dataMartId: 'dm-1',
+      })
+    );
+
+    act(() => {
+      result.current.form.setValue('title', 'X');
+      result.current.form.setValue('documentUrl', VALID_SHEETS_URL);
+      result.current.form.setValue('dataDestinationId', 'dest-1');
+      result.current.form.setValue('columnConfig', ['col_a']);
+      result.current.form.setValue('uniqueCountConfig', true);
+    });
+
+    await act(async () => {
+      await result.current.onSubmit(result.current.getValues());
+    });
+
+    expect(mockCreateReport).toHaveBeenCalledWith(
+      expect.objectContaining({ uniqueCountConfig: true })
+    );
   });
 });
