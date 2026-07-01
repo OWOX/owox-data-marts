@@ -9,14 +9,16 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
 
-type ListDestinationsInput = Record<string, never>;
+const inputSchema = z.object({}).strict();
+
+type ListDestinationsInput = z.infer<typeof inputSchema>;
 
 @Injectable()
 export class ListDestinationsTool implements McpToolDefinition<ListDestinationsInput> {
   readonly name = 'list_destinations';
   readonly description =
     'List destinations in the active OWOX project to target when creating a report.';
-  readonly zodSchema = {};
+  readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     destinations: z.array(
       z.object({
@@ -35,15 +37,13 @@ export class ListDestinationsTool implements McpToolDefinition<ListDestinationsI
   };
   readonly requiredScopes: McpScope[] = ['mcp:read'];
 
-  private readonly inputSchema = z.object({}).strict();
-
   constructor(
     @Inject(MCP_DATA_DESTINATIONS_FACADE)
     private readonly destinations: McpDataDestinationsFacade
   ) {}
 
   parseInput(input: unknown): ListDestinationsInput {
-    return this.inputSchema.parse(input);
+    return inputSchema.parse(input);
   }
 
   async handler(input: ListDestinationsInput, context: McpAuthContext): Promise<McpToolResult> {

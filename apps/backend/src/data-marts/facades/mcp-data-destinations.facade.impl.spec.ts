@@ -133,21 +133,22 @@ describe('McpDataDestinationsFacadeImpl', () => {
     expect(result.destinations.map(d => d.id)).toEqual(['usable']);
   });
 
-  it('prefers an assigned owner over the creator, falling back to the creator', async () => {
+  it('reports the creator as owner, ignoring the unordered owners relation', async () => {
     const listDataDestinationsService = {
       run: jest.fn().mockResolvedValue([
         buildDestination({
-          id: 'owned',
-          title: 'Owned',
+          id: 'with-creator',
+          title: 'With creator',
           type: DataDestinationType.GOOGLE_SHEETS,
           createdByUser: new UserProjectionDto('creator', 'Creator', 'creator@owox.com'),
           ownerUsers: [new UserProjectionDto('owner', 'Owner', 'owner@owox.com')],
         }),
         buildDestination({
-          id: 'creator-only',
-          title: 'Creator only',
+          id: 'no-creator',
+          title: 'No creator',
           type: DataDestinationType.GOOGLE_SHEETS,
-          createdByUser: new UserProjectionDto('creator', 'Creator', 'creator@owox.com'),
+          createdByUser: null,
+          ownerUsers: [new UserProjectionDto('owner', 'Owner', 'owner@owox.com')],
         }),
       ]),
     } as unknown as jest.Mocked<ListDataDestinationsService>;
@@ -160,6 +161,6 @@ describe('McpDataDestinationsFacadeImpl', () => {
       roles: [],
     });
 
-    expect(result.destinations.map(d => d.owner)).toEqual(['owner@owox.com', 'creator@owox.com']);
+    expect(result.destinations.map(d => d.owner)).toEqual(['creator@owox.com', null]);
   });
 });

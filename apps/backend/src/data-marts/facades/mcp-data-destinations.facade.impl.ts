@@ -36,9 +36,10 @@ export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade 
           id: destination.id,
           name: destination.title,
           type: DESTINATION_TYPE_MAP[destination.type],
-          // Prefer an assigned owner; fall back to the creator when a
-          // destination has no explicit owner.
-          owner: (destination.ownerUsers[0] ?? destination.createdByUser)?.email ?? null,
+          // Report the creator as the owner. The `owners` relation has no stable
+          // ordering, so picking one of potentially several owners would be
+          // non-deterministic; the creator is a single, stable value.
+          owner: destination.createdByUser?.email ?? null,
         })),
     };
   }
