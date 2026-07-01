@@ -433,6 +433,9 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       this._setAccessToken(accessToken, responseData.expires_in);
     } catch (err) {
       console.log(`Error getting access token: ${err}`);
+      if (typeof err?.statusCode === 'number') {
+        throw err;
+      }
       throw new Error(`Failed to get access token: ${err}`);
     }
   }
