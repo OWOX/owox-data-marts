@@ -2,34 +2,69 @@ jest.mock('../use-cases/list-data-marts.service', () => ({
   ListDataMartsService: jest.fn(),
 }));
 
+jest.mock('../services/data-mart.service', () => ({
+  DataMartService: jest.fn(),
+}));
+
+jest.mock('../use-cases/get-data-mart.service', () => ({
+  GetDataMartService: jest.fn(),
+}));
+
+import { NotFoundException } from '@nestjs/common';
+import { BigQueryFieldMode } from '../data-storage-types/bigquery/enums/bigquery-field-mode.enum';
+import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { BigQueryDataMartSchemaType } from '../data-storage-types/bigquery/schemas/bigquery-data-mart.schema';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartListItemDto } from '../dto/domain/data-mart-list-item.dto';
+import type { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import type { DataMartService } from '../services/data-mart.service';
+import type { GetDataMartService } from '../use-cases/get-data-mart.service';
 import type { ListDataMartsService } from '../use-cases/list-data-marts.service';
 import { McpDataMartsFacadeImpl } from './mcp-data-marts.facade.impl';
 
 describe('McpDataMartsFacadeImpl', () => {
-  it('lists data marts using project-member context', async () => {
-    const listDataMartsService = {
+  const createListDataMartsService = (items: DataMartListItemDto[]) =>
+    ({
       run: jest.fn().mockResolvedValue({
-        items: [
-          new DataMartListItemDto(
-            'dm_1',
-            'Orders',
-            DataMartStatus.PUBLISHED,
-            DataStorageType.GOOGLE_BIGQUERY,
-            'BigQuery',
-            new Date('2026-06-01T10:00:00.000Z'),
-            new Date('2026-06-10T10:00:00.000Z'),
-            'Mock Description'
-          ),
-        ],
-        total: 1,
+        items,
+        total: items.length,
         offset: 0,
       }),
-    } as unknown as jest.Mocked<ListDataMartsService>;
+    }) as unknown as jest.Mocked<ListDataMartsService>;
 
-    const facade = new McpDataMartsFacadeImpl(listDataMartsService);
+  const createDataMartService = (dataMart?: Partial<DataMart>) =>
+    ({
+      actualizeSchemaIfExpired: jest.fn().mockResolvedValue(dataMart),
+    }) as unknown as jest.Mocked<DataMartService>;
+
+  const createGetDataMartService = () =>
+    ({
+      run: jest.fn().mockResolvedValue({ id: 'dm_1' }),
+    }) as unknown as jest.Mocked<GetDataMartService>;
+
+  it('lists data marts using project-member context', async () => {
+    const listDataMartsService = createListDataMartsService([
+      new DataMartListItemDto(
+        'dm_1',
+        'Orders',
+        DataMartStatus.PUBLISHED,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Mock Description'
+      ),
+    ]);
+    const dataMartService = createDataMartService();
+    const getDataMartService = createGetDataMartService();
+
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      getDataMartService,
+      dataMartService
+    );
 
     const result = await facade.listDataMarts({
       projectId: 'project-1',
@@ -55,5 +90,122 @@ describe('McpDataMartsFacadeImpl', () => {
         },
       ],
     });
+  });
+
+  it('returns prepared schema fields for data marts visible to the project member', async () => {
+    const listDataMartsService = createListDataMartsService([
+      new DataMartListItemDto(
+        'dm_1',
+        'Orders',
+        DataMartStatus.PUBLISHED,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Orders data mart'
+      ),
+    ]);
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'Orders',
+      description: 'Orders data mart',
+      schema: {
+        type: BigQueryDataMartSchemaType,
+        fields: [
+          {
+            name: 'order_date',
+            type: BigQueryFieldType.DATE,
+            mode: BigQueryFieldMode.NULLABLE,
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            description: 'Order date',
+          },
+          {
+            name: 'utm_source',
+            type: BigQueryFieldType.STRING,
+            mode: BigQueryFieldMode.NULLABLE,
+            status: DataMartSchemaFieldStatus.CONNECTED_WITH_DEFINITION_MISMATCH,
+            alias: 'Traffic source',
+            description: 'Marketing traffic source',
+          },
+          {
+            name: 'removed_column',
+            type: BigQueryFieldType.STRING,
+            mode: BigQueryFieldMode.NULLABLE,
+            status: DataMartSchemaFieldStatus.DISCONNECTED,
+            description: 'No longer present in storage',
+          },
+        ],
+      },
+    });
+    const getDataMartService = createGetDataMartService();
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      getDataMartService,
+      dataMartService
+    );
+
+    await expect(
+      facade.getDataMartDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        dataMartId: 'dm_1',
+      })
+    ).resolves.toEqual({
+      id: 'dm_1',
+      name: 'Orders',
+      description: 'Orders data mart',
+      fields: [
+        {
+          name: 'order_date',
+          type: BigQueryFieldType.DATE,
+          mode: BigQueryFieldMode.NULLABLE,
+          description: 'Order date',
+        },
+        {
+          name: 'utm_source',
+          type: BigQueryFieldType.STRING,
+          mode: BigQueryFieldMode.NULLABLE,
+          businessName: 'Traffic source',
+          description: 'Marketing traffic source',
+        },
+      ],
+    });
+    expect(dataMartService.actualizeSchemaIfExpired).toHaveBeenCalledWith(
+      'dm_1',
+      'project-1',
+      expect.any(Number)
+    );
+    expect(getDataMartService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'dm_1',
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+      })
+    );
+  });
+
+  it('does not load details when the project member cannot access the data mart', async () => {
+    const listDataMartsService = createListDataMartsService([]);
+    const dataMartService = createDataMartService();
+    const getDataMartService = {
+      run: jest.fn().mockRejectedValue(new NotFoundException('DataMart not found')),
+    } as unknown as jest.Mocked<GetDataMartService>;
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      getDataMartService,
+      dataMartService
+    );
+
+    await expect(
+      facade.getDataMartDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        dataMartId: 'dm_hidden',
+      })
+    ).rejects.toThrow(NotFoundException);
+    expect(dataMartService.actualizeSchemaIfExpired).not.toHaveBeenCalled();
   });
 });
