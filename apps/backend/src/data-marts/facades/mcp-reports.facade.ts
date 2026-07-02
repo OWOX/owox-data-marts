@@ -71,6 +71,22 @@ export interface McpAddReportResult {
   shared_with_requester?: boolean;
 }
 
+export interface McpUpdateReportRequest {
+  reportId: string;
+  /** Replacement column selection; `['*']` (or containing `'*'`) selects every field. Omit to keep the current selection. */
+  fields?: string[];
+  /** New report name. Omit to keep the current name. */
+  name?: string;
+  projectId: string;
+  userId: string;
+  roles: string[];
+}
+
+export interface McpUpdateReportResult {
+  report_id: string;
+  status: 'updated';
+}
+
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
   /**
@@ -79,4 +95,11 @@ export interface McpReportsFacade {
    * rejected by the underlying document-creation service.
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
+  /**
+   * Partially updates a report (name and/or column selection). The domain
+   * update command requires the full report state, so the facade loads the
+   * current report and merges the requested changes into it; everything else
+   * (destination, filters, sorting, owners, …) is preserved as-is.
+   */
+  updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
 }
