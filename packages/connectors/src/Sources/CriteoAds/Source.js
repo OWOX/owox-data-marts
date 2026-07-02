@@ -111,21 +111,29 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @returns {Array<Object>}
    */
   async fetchData({ nodeName, accountId, fields = [], date }) {
-    switch (nodeName) {
-      case 'statistics':
-        return await this._fetchStatistics({ accountId, fields, date });
+    try {
+      switch (nodeName) {
+        case 'statistics':
+          return await this._fetchStatistics({ accountId, fields, date });
 
-      case 'placements':
-        return await this._fetchPlacements({ accountId, fields, date });
+        case 'placements':
+          return await this._fetchPlacements({ accountId, fields, date });
 
-      case 'placement_categories':
-        return await this._fetchPlacementCategories({ accountId, fields, date });
+        case 'placement_categories':
+          return await this._fetchPlacementCategories({ accountId, fields, date });
 
-      case 'transactions':
-        return await this._fetchTransactions({ accountId, fields, date });
+        case 'transactions':
+          return await this._fetchTransactions({ accountId, fields, date });
 
-      default:
-        throw new Error(`Unknown node: ${nodeName}`);
+        default:
+          throw new Error(`Unknown node: ${nodeName}`);
+      }
+    } catch (error) {
+      const summary = this._describeError(error);
+      if (summary) {
+        this.config.logMessage(summary);
+      }
+      throw error;
     }
   }
 
@@ -497,6 +505,68 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     }
 
     return String(error.message || '').includes('authorization-token-expired');
+  }
+
+  /**
+   * Determines if a Criteo API error is valid for retry.
+   * Retries transient failures: 5xx server errors, 429 rate limits, and
+   * network-level errors (no statusCode). Token expiry (401) is intentionally
+   * not retried here — it is already handled in _makeApiRequest, which force-
+   * refreshes the token and retries the request once.
+   * @param {HttpRequestException} error - The error to check
+   * @returns {boolean} True if the error should trigger a retry, false otherwise
+   */
+  isValidToRetry(error) {
+    return !error?.statusCode
+      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
+      || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
+  }
+
+  /**
+   * Builds a short, human-readable summary of an API failure to log ahead of
+   * the raw stack trace. Returns null when the error carries no HTTP status
+   * code, since the stack trace's first line already states the error name and
+   * message in that case.
+   * @param {Error} error - The error that ended the fetch
+   * @returns {string|null} A one-line summary of the failure, or null
+   * @private
+   */
+  _describeError(error) {
+    if (typeof error?.statusCode !== 'number') {
+      return null;
+    }
+
+    const isServerSide = error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN;
+    const hint = isServerSide
+      ? " This is a server-side error from Criteo, not your configuration; it may be transient, so re-running the import later can help."
+      : "";
+    const detail = this._formatErrorDetail(error);
+    return `Import failed: the Criteo API request failed with HTTP ${error.statusCode}.${detail}${hint}`;
+  }
+
+  /**
+   * Extracts readable provider context from a Criteo error payload for the
+   * high-level failure summary.
+   * @param {Error} error - The error that ended the fetch
+   * @returns {string} A formatted detail suffix, or an empty string
+   * @private
+   */
+  _formatErrorDetail(error) {
+    const providerError = Array.isArray(error?.payload?.errors) ? error.payload.errors[0] : null;
+
+    if (providerError) {
+      const detailParts = [
+        providerError.message || providerError.title || providerError.detail,
+        providerError.code ? `Provider code: ${providerError.code}.` : "",
+        providerError.traceId ? `Provider trace ID: ${providerError.traceId}.` : ""
+      ].filter(Boolean);
+
+      if (detailParts.length) {
+        return ` ${detailParts.join(" ")}`;
+      }
+    }
+
+    return error.message ? ` ${error.message}` : "";
   }
 
   /**

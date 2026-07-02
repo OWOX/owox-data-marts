@@ -598,6 +598,35 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     throw new Error(`Async stats job ${jobId} did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
   }
 
+  /**
+   * Determines if a X Ads API error is valid for retry
+   * Based on X Ads API error codes and HTTP status codes
+   *
+   * @param {HttpRequestException} error - The error to check
+   * @return {boolean} True if the error should trigger a retry, false otherwise
+   */
+  isValidToRetry(error) {
+    console.log(`isValidToRetry() called`);
+    console.log(`error.statusCode = ${error.statusCode}`);
+
+    // Retry on server errors (5xx)
+    if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
+      return true;
+    }
+
+    // Retry on rate limits (429)
+    if (error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS) {
+      return true;
+    }
+
+    // Retry on network errors or timeouts
+    if (!error.statusCode) {
+      return true;
+    }
+
+    return false;
+  }
+
   async _getData(path, nodeName, fields, extraParams = {}) {
     const json = await this._rawFetch(path, extraParams);
     if (!json.data) return json;

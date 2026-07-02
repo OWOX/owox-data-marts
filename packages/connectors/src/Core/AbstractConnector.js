@@ -128,65 +128,14 @@ var AbstractConnector = class AbstractConnector {
           status: EXECUTION_STATUS.ERROR,
           error: error
         });
-        const summary = this._describeError(error);
-        this.config.logMessage(summary ? `${summary}\n${error.stack}` : `${error.stack}`);
+        this.config.logMessage(`${error.stack}`);
         throw error;
 
       }
 
     }
-    //----------------------------------------------------------------
-
-  //---- _describeError -----------------------------------------------
-    /**
-     * Builds a short, human-readable summary of an import failure to log
-     * ahead of the raw stack trace. Returns null when the error carries no
-     * HTTP status code, since the stack trace's first line already states
-     * the error name and message in that case.
-     * @param {Error} error - The error that ended the import
-     * @return {string|null} A one-line summary of the failure, or null
-     * @private
-     */
-    _describeError(error) {
-      if (typeof error?.statusCode !== 'number') {
-        return null;
-      }
-
-      const isServerSide = error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN;
-      const hint = isServerSide
-        ? " This is a server-side error from the API provider, not your configuration; it may be transient, so re-running the import later can help."
-        : "";
-      const detail = this._formatErrorDetail(error);
-      return `Import failed: the API request failed with HTTP ${error.statusCode}.${detail}${hint}`;
-    }
-    //----------------------------------------------------------------
-
-  //---- _formatErrorDetail ------------------------------------------
-    /**
-     * Extracts readable provider context for the high-level failure summary.
-     * @param {Error} error - The error that ended the import
-     * @return {string} A formatted detail suffix, or an empty string
-     * @private
-     */
-    _formatErrorDetail(error) {
-      const providerError = Array.isArray(error?.payload?.errors) ? error.payload.errors[0] : null;
-
-      if (providerError) {
-        const detailParts = [
-          providerError.message || providerError.title || providerError.detail,
-          providerError.code ? `Provider code: ${providerError.code}.` : "",
-          providerError.traceId ? `Provider trace ID: ${providerError.traceId}.` : ""
-        ].filter(Boolean);
-
-        if (detailParts.length) {
-          return ` ${detailParts.join(" ")}`;
-        }
-      }
-
-      return error.message ? ` ${error.message}` : "";
-    }
-    //----------------------------------------------------------------
-
+    //----------------------------------------------------------------  
+    
   //---- startImportProcess ------------------------------------------
     /**
      * A method for calling from Root script for determining parameters needed to fetch new data.
