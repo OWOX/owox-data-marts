@@ -646,6 +646,27 @@ describe('QueryDataMartService', () => {
       expect(result.rows).toHaveLength(2);
     });
 
+    it('suppresses billing when the SUCCESS audit save fails (no untraceable charge)', async () => {
+      const { service, dataMartRunService, consumptionTrackingService } = createService();
+      dataMartRunService.recordMcpQueryRun.mockRejectedValue(new Error('DB write boom'));
+
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+        })
+      );
+
+      // Read still succeeds…
+      expect(result.rows).toHaveLength(2);
+      // …but with no Run History record, the user must NOT be billed (dangling reportRunId).
+      expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
+    });
+
     it('rethrows the ORIGINAL read error, not the audit error, when the FAILED run write also rejects', async () => {
       const { service, reader, dataMartRunService } = createService();
       reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));

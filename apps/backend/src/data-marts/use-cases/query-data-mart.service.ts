@@ -154,6 +154,7 @@ export class QueryDataMartService {
       }
 
       // Audit save is best-effort — a successful read must not become FAILED.
+      let runRecorded = false;
       try {
         await this.dataMartRunService.recordMcpQueryRun({
           runId,
@@ -174,18 +175,29 @@ export class QueryDataMartService {
             query: queryMetadata,
           },
         });
+        runRecorded = true;
       } catch (auditErr) {
         this.logger.warn(
           `recordMcpQueryRun (SUCCESS) failed; swallowing: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`
         );
       }
 
-      // Consumption record is best-effort — a tracking failure must not fail a successful read.
-      try {
-        await this.consumptionTrackingService.registerMcpQueryRunConsumption(dataMart, runId);
-      } catch (consumptionErr) {
+      // Consumption is best-effort AND gated on the audit write: never bill a run that has no
+      // Run History record. That would over-charge the user with a consumption `reportRunId` that
+      // resolves to nothing — an untraceable charge. If the audit write failed we suppress billing
+      // (favor a revenue miss over an untraceable charge). A tracking failure still must not fail
+      // an already-successful read.
+      if (runRecorded) {
+        try {
+          await this.consumptionTrackingService.registerMcpQueryRunConsumption(dataMart, runId);
+        } catch (consumptionErr) {
+          this.logger.warn(
+            `Failed to register MCP Query run consumption ${runId}: ${consumptionErr instanceof Error ? consumptionErr.message : String(consumptionErr)}`
+          );
+        }
+      } else {
         this.logger.warn(
-          `Failed to register MCP Query run consumption ${runId}: ${consumptionErr instanceof Error ? consumptionErr.message : String(consumptionErr)}`
+          `Skipping MCP Query run consumption ${runId}: Run History record was not persisted, suppressing billing to avoid an untraceable charge.`
         );
       }
 
