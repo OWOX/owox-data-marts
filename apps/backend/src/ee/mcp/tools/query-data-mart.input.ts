@@ -60,13 +60,47 @@ const McpDateBucketSchema = z.object({
 
 export const queryDataMartInputSchema = z
   .object({
-    data_mart_id: z.string().min(1),
-    fields: z.array(z.string().min(1)).min(1),
-    slices: z.array(McpFilterSchema).optional(),
-    filters: z.array(McpFilterSchema).optional(),
-    aggregations: z.array(McpAggregationSchema).optional(),
-    date_buckets: z.array(McpDateBucketSchema).optional(),
-    limit: z.number().int().min(1).max(MAX_LIMIT).optional(),
+    data_mart_id: z
+      .string()
+      .min(1)
+      .describe(
+        'ID of the data mart to query (from list_data_marts or get_data_mart_details_by_id).'
+      ),
+    fields: z
+      .array(z.string().min(1))
+      .min(1)
+      .describe(
+        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations and date_buckets — a field you aggregate or bucket but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions.'
+      ),
+    slices: z
+      .array(McpFilterSchema)
+      .optional()
+      .describe(
+        "Pre-join filters: narrow a JOINED data mart before it is blended in. Criteria on a joined data mart's own fields only — never the main data mart."
+      ),
+    filters: z
+      .array(McpFilterSchema)
+      .optional()
+      .describe(
+        'Post-join filters on the blended result. May reference a field that is NOT in "fields" (e.g. filter on a column you do not display).'
+      ),
+    aggregations: z
+      .array(McpAggregationSchema)
+      .optional()
+      .describe('Aggregations over a field. Each aggregated field must also appear in "fields".'),
+    date_buckets: z
+      .array(McpDateBucketSchema)
+      .optional()
+      .describe(
+        'Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR. Each bucketed field must also appear in "fields".'
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_LIMIT)
+      .optional()
+      .describe('Max rows to return (1-1000, default 20). No offset/pagination.'),
   })
   .strict();
 

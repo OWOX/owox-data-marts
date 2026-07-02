@@ -38,6 +38,7 @@ When building the query:
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
 - aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95. Group-by is implied by the non-aggregated fields you select.
 - date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
+- fields must list every column the query uses, INCLUDING any field named in aggregations or date_buckets — a field you aggregate or bucket but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
 Choosing between slices and filters:
 - slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join.
@@ -177,17 +178,31 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     if (err instanceof BadRequestException) {
       const body = err.getResponse() as Record<string, unknown> | undefined;
       const errors = (body?.['details'] as Record<string, unknown> | undefined)?.['errors'] as
-        | Array<{ code?: string }>
+        | Array<{ code?: string; column?: string }>
         | undefined;
-      const fieldCodes = new Set([
-        'FILTER_COLUMN_UNKNOWN',
-        'AGGREGATION_COLUMN_NOT_SELECTED',
-        'SORT_COLUMN_NOT_SELECTED',
-      ]);
-      if (errors?.some(e => fieldCodes.has(e.code ?? ''))) {
+
+      // A genuinely unknown column (hallucinated / disconnected) — the field name is wrong.
+      if (errors?.some(e => e.code === 'FILTER_COLUMN_UNKNOWN')) {
         return toStructuredToolError(
           'field_not_found',
-          `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and copy them verbatim into "fields"; never guess or invent field names.`
+          `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`
+        );
+      }
+
+      // The column exists but was left out of `fields`. This is structural — the field name is
+      // correct, so the field_not_found "re-check the schema" guidance would send the model in
+      // circles. Point it at the real fix: add the referenced field to `fields`.
+      const notSelected = new Set([
+        'AGGREGATION_COLUMN_NOT_SELECTED',
+        'DATE_TRUNC_COLUMN_NOT_SELECTED',
+        'SORT_COLUMN_NOT_SELECTED',
+      ]);
+      const missing = errors?.filter(e => notSelected.has(e.code ?? '')) ?? [];
+      if (missing.length > 0) {
+        const cols = [...new Set(missing.map(e => e.column).filter(Boolean))].join(', ');
+        return toStructuredToolError(
+          'field_not_selected',
+          `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated, bucketed, or sorted field must also be listed in "fields". Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`
         );
       }
     }

@@ -192,6 +192,52 @@ describe('QueryDataMartTool', () => {
       expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
     });
 
+    it('maps AGGREGATION_COLUMN_NOT_SELECTED → field_not_selected (structural, names the column, no schema re-fetch)', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: { errors: [{ code: 'AGGREGATION_COLUMN_NOT_SELECTED', column: 'revenue' }] },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['ts'],
+          aggregations: [{ field: 'revenue', function: 'SUM' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_selected' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('revenue');
+      expect(msg).toContain('"fields"');
+      expect(msg).not.toContain('get_data_mart_details_by_id');
+    });
+
+    it('maps DATE_TRUNC_COLUMN_NOT_SELECTED → field_not_selected (bucket field not in fields)', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: { errors: [{ code: 'DATE_TRUNC_COLUMN_NOT_SELECTED', column: 'ts' }] },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['revenue'],
+          date_buckets: [{ field: 'ts', unit: 'MONTH' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_selected' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('ts');
+    });
+
     it('maps ProjectOperationBlockedException (BI_PROJECT_NOT_ACTIVE) → project_inactive', async () => {
       facade.queryDataMart.mockRejectedValue(
         new ProjectOperationBlockedException([ProjectBlockedReason.BI_PROJECT_NOT_ACTIVE])

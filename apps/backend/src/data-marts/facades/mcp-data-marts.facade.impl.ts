@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS } from '../ai-insights/ai-insights.constants';
 import { prepareSchema } from '../ai-insights/utils/prepare-schema';
 import type {
@@ -8,6 +8,7 @@ import type {
 import { isConnected } from '../data-storage-types/data-mart-schema.utils';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { DataMartService } from '../services/data-mart.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
@@ -16,6 +17,7 @@ import {
   McpDataMartsFacade,
   McpDataMartDetailsResponse,
   McpGetDataMartDetailsRequest,
+  McpJoinedFieldDto,
   McpListDataMartsRequest,
   McpListDataMartsResponse,
   McpQueryDataMartRequest,
@@ -24,11 +26,14 @@ import {
 
 @Injectable()
 export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
+  private readonly logger = new Logger(McpDataMartsFacadeImpl.name);
+
   constructor(
     private readonly listDataMartsService: ListDataMartsService,
     private readonly getDataMartService: GetDataMartService,
     private readonly dataMartService: DataMartService,
-    private readonly queryDataMartService: QueryDataMartService
+    private readonly queryDataMartService: QueryDataMartService,
+    private readonly blendableSchemaService: BlendableSchemaService
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
@@ -69,7 +74,39 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       name: dataMart.title,
       description: dataMart.description ?? '',
       fields: schema?.fields ?? [],
+      joinedFields: await this.resolveJoinedFields(request),
     };
+  }
+
+  /**
+   * Fields contributed by joined/blended data marts, with their qualified `<alias>__<field>`
+   * names — best-effort, so a discovery call still returns native fields if the blend can't be
+   * resolved (e.g. a deleted join target).
+   */
+  private async resolveJoinedFields(
+    request: McpGetDataMartDetailsRequest
+  ): Promise<McpJoinedFieldDto[]> {
+    try {
+      const blendable = await this.blendableSchemaService.computeBlendableSchema(
+        request.dataMartId,
+        request.projectId,
+        { userId: request.userId, roles: request.roles }
+      );
+      return blendable.blendedFields
+        .filter(f => !f.isHidden)
+        .map(f => ({
+          name: f.name,
+          type: f.type,
+          description: f.description ?? '',
+          sourceDataMart: f.sourceDataMartTitle,
+          ...(f.postJoinAggregations?.length
+            ? { allowedAggregations: f.postJoinAggregations }
+            : {}),
+        }));
+    } catch (err) {
+      this.logger.warn('computeBlendableSchema failed; returning no joined fields', { error: err });
+      return [];
+    }
   }
 
   async queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse> {

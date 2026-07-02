@@ -26,11 +26,20 @@ export interface McpListDataMartsResponse {
   dataMarts: McpDataMartListItem[];
 }
 
+export interface McpJoinedFieldDto {
+  name: string;
+  type: string;
+  description: string;
+  sourceDataMart: string;
+  allowedAggregations?: string[];
+}
+
 export interface McpDataMartDetailsResponse {
   id: string;
   name: string;
   description: string;
   fields: Array<Record<string, unknown>>;
+  joinedFields: McpJoinedFieldDto[];
 }
 
 export interface McpQueryDataMartRequest {

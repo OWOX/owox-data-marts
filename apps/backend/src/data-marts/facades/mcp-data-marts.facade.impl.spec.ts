@@ -23,6 +23,7 @@ import type { DataMartService } from '../services/data-mart.service';
 import type { GetDataMartService } from '../use-cases/get-data-mart.service';
 import type { ListDataMartsService } from '../use-cases/list-data-marts.service';
 import type { QueryDataMartService } from '../use-cases/query-data-mart.service';
+import type { BlendableSchemaService } from '../services/blendable-schema.service';
 import { McpDataMartsFacadeImpl } from './mcp-data-marts.facade.impl';
 
 describe('McpDataMartsFacadeImpl', () => {
@@ -50,6 +51,15 @@ describe('McpDataMartsFacadeImpl', () => {
       run: jest.fn(),
     }) as unknown as jest.Mocked<QueryDataMartService>;
 
+  const createBlendableSchemaService = (blendedFields: unknown[] = []) =>
+    ({
+      computeBlendableSchema: jest.fn().mockResolvedValue({
+        nativeFields: [],
+        blendedFields,
+        availableSources: [],
+      }),
+    }) as unknown as jest.Mocked<BlendableSchemaService>;
+
   it('lists data marts using project-member context', async () => {
     const listDataMartsService = createListDataMartsService([
       new DataMartListItemDto(
@@ -71,7 +81,8 @@ describe('McpDataMartsFacadeImpl', () => {
       listDataMartsService,
       getDataMartService,
       dataMartService,
-      queryDataMartService
+      queryDataMartService,
+      createBlendableSchemaService()
     );
 
     const result = await facade.listDataMarts({
@@ -189,7 +200,8 @@ describe('McpDataMartsFacadeImpl', () => {
       listDataMartsService,
       getDataMartService,
       dataMartService,
-      createQueryDataMartService()
+      createQueryDataMartService(),
+      createBlendableSchemaService()
     );
 
     await expect(
@@ -232,6 +244,7 @@ describe('McpDataMartsFacadeImpl', () => {
           ],
         },
       ],
+      joinedFields: [],
     });
     expect(dataMartService.actualizeSchemaIfExpired).toHaveBeenCalledWith(
       'dm_1',
@@ -258,7 +271,8 @@ describe('McpDataMartsFacadeImpl', () => {
       listDataMartsService,
       getDataMartService,
       dataMartService,
-      createQueryDataMartService()
+      createQueryDataMartService(),
+      createBlendableSchemaService()
     );
 
     await expect(
@@ -285,7 +299,8 @@ describe('McpDataMartsFacadeImpl', () => {
       listDataMartsService,
       getDataMartService,
       dataMartService,
-      createQueryDataMartService()
+      createQueryDataMartService(),
+      createBlendableSchemaService()
     );
 
     await expect(
@@ -300,6 +315,112 @@ describe('McpDataMartsFacadeImpl', () => {
       name: 'Orders',
       description: '',
       fields: [],
+      joinedFields: [],
     });
+  });
+
+  it('surfaces joined/blended fields with their qualified names and governance', async () => {
+    const listDataMartsService = createListDataMartsService([]);
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const getDataMartService = createGetDataMartService();
+    const blendableSchemaService = createBlendableSchemaService([
+      {
+        name: 'blended_org__orgName',
+        type: 'STRING',
+        description: 'Organization name',
+        sourceDataMartTitle: 'blended_org',
+        isHidden: false,
+        postJoinAggregations: undefined,
+      },
+      {
+        name: 'blended_users__userId',
+        type: 'STRING',
+        description: '',
+        sourceDataMartTitle: 'blended_users',
+        isHidden: false,
+        postJoinAggregations: ['COUNT'],
+      },
+      {
+        name: 'blended_users__secret',
+        type: 'STRING',
+        description: '',
+        sourceDataMartTitle: 'blended_users',
+        isHidden: true,
+        postJoinAggregations: undefined,
+      },
+    ]);
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      getDataMartService,
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+    });
+
+    // Hidden blended field is dropped; governance is surfaced only when restricted.
+    expect(result.joinedFields).toEqual([
+      {
+        name: 'blended_org__orgName',
+        type: 'STRING',
+        description: 'Organization name',
+        sourceDataMart: 'blended_org',
+      },
+      {
+        name: 'blended_users__userId',
+        type: 'STRING',
+        description: '',
+        sourceDataMart: 'blended_users',
+        allowedAggregations: ['COUNT'],
+      },
+    ]);
+    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
+      'dm_1',
+      'project-1',
+      {
+        userId: 'user-1',
+        roles: ['viewer'],
+      }
+    );
+  });
+
+  it('degrades to no joined fields when blended-schema computation fails', async () => {
+    const listDataMartsService = createListDataMartsService([]);
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = {
+      computeBlendableSchema: jest.fn().mockRejectedValue(new Error('deleted join target')),
+    } as unknown as jest.Mocked<BlendableSchemaService>;
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+    });
+
+    expect(result.joinedFields).toEqual([]);
   });
 });

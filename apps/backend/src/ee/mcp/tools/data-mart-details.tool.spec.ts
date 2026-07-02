@@ -14,72 +14,51 @@ describe('GetDataMartDetailsTool', () => {
   };
 
   it('returns data mart details using token project-member context', async () => {
+    const detailsResult = {
+      id: 'dm_1',
+      name: 'Orders',
+      description: 'Orders data mart',
+      fields: [
+        {
+          name: 'order_date',
+          type: 'DATE',
+          description: 'Order date',
+        },
+        {
+          name: 'utm_source',
+          type: 'STRING',
+          businessName: 'Traffic source',
+          description: 'Marketing traffic source',
+        },
+      ],
+      joinedFields: [
+        {
+          name: 'blended_org__orgName',
+          type: 'STRING',
+          description: 'Organization name',
+          sourceDataMart: 'blended_org',
+        },
+      ],
+    };
     const facade = {
-      getDataMartDetails: jest.fn().mockResolvedValue({
-        id: 'dm_1',
-        name: 'Orders',
-        description: 'Orders data mart',
-        fields: [
-          {
-            name: 'order_date',
-            type: 'DATE',
-            description: 'Order date',
-          },
-          {
-            name: 'utm_source',
-            type: 'STRING',
-            businessName: 'Traffic source',
-            description: 'Marketing traffic source',
-          },
-        ],
-      }),
+      getDataMartDetails: jest.fn().mockResolvedValue(detailsResult),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new GetDataMartDetailsTool(facade);
 
+    const expectedStructured = {
+      id: 'dm_1',
+      name: 'Orders',
+      description: 'Orders data mart',
+      fields: detailsResult.fields,
+      joined_fields: detailsResult.joinedFields,
+    };
+
     await expect(tool.handler({ data_mart_id: 'dm_1' }, context)).resolves.toEqual({
-      structuredContent: {
-        id: 'dm_1',
-        name: 'Orders',
-        description: 'Orders data mart',
-        fields: [
-          {
-            name: 'order_date',
-            type: 'DATE',
-            description: 'Order date',
-          },
-          {
-            name: 'utm_source',
-            type: 'STRING',
-            businessName: 'Traffic source',
-            description: 'Marketing traffic source',
-          },
-        ],
-      },
+      structuredContent: expectedStructured,
       content: [
         {
           type: 'text',
-          text: JSON.stringify(
-            {
-              id: 'dm_1',
-              name: 'Orders',
-              description: 'Orders data mart',
-              fields: [
-                {
-                  name: 'order_date',
-                  type: 'DATE',
-                  description: 'Order date',
-                },
-                {
-                  name: 'utm_source',
-                  type: 'STRING',
-                  businessName: 'Traffic source',
-                  description: 'Marketing traffic source',
-                },
-              ],
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(expectedStructured, null, 2),
         },
       ],
     });
@@ -109,6 +88,7 @@ describe('GetDataMartDetailsTool', () => {
         name: expect.any(Object),
         description: expect.any(Object),
         fields: expect.any(Object),
+        joined_fields: expect.any(Object),
       }),
       annotations: {
         title: 'Get Data Mart Details',
@@ -118,8 +98,7 @@ describe('GetDataMartDetailsTool', () => {
       },
     });
     expect(tool.description).toContain('Get available details');
-    expect(tool.description).toContain('fields with names, types, field descriptions');
-    expect(tool.description).toContain('business names');
+    expect(tool.description).toContain('joined_fields');
     expect(tool.description).toContain('get_relevant_data_marts_by_prompt');
     expect(tool.description).toContain('field-level metadata');
     expect(tool.description).toContain('does not return data owners');
