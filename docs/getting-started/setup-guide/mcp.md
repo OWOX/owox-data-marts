@@ -2,7 +2,7 @@
 
 OWOX Data Marts exposes a Model Context Protocol (MCP) server that lets AI assistants and MCP-compatible clients connect to your project data using standard OAuth authorization.
 
-Use the MCP server when you want an AI assistant — such as Claude or ChatGPT — to explore the [data marts](../core-concepts.md) in your OWOX project in plain language, without leaving the assistant. The assistant can tell you which project you are connected to and list the data marts available to you. See [Available tools](#available-tools) for exactly what it can and cannot do.
+Use the MCP server when you want an AI assistant — such as Claude or ChatGPT — to explore the [data marts](../core-concepts.md) in your OWOX project in plain language, without leaving the assistant. The assistant can tell you which project you are connected to, list the data marts available to you, and show field-level metadata for a selected data mart. See [Available tools](#available-tools) for exactly what it can and cannot do.
 
 ## Prerequisites
 
@@ -110,7 +110,7 @@ To switch projects, disconnect, then reconnect and sign in again, choosing the p
 
 ## Available tools
 
-Once connected, the MCP server exposes four read-only tools. They all require the `mcp:read` scope, which the client requests during authorization.
+Once connected, the MCP server exposes five read-only tools. They all require the `mcp:read` scope, which the client requests during authorization.
 
 ### `get_project_context`
 
@@ -151,6 +151,13 @@ The list reflects your access: it includes only the data marts your [project rol
 
 Finds the data marts most relevant to a natural-language question, ranked by relevance. Use it to discover which data marts can answer a specific question without listing the whole project.
 
+**Input:**
+
+| Field | Description |
+| --- | --- |
+| `prompt` | Natural-language search prompt |
+| `limit` | Optional maximum number of results |
+
 **Returns** an array of matching data mart objects:
 
 | Field | Description |
@@ -162,6 +169,27 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 | `relevance_score` | How closely the data mart matches your question |
 
 Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned.
+
+### `get_data_mart_details_by_id`
+
+Returns field-level metadata for one data mart visible to you in the current project.
+
+**Input:**
+
+| Field | Description |
+| --- | --- |
+| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt` |
+
+**Returns:**
+
+| Field | Description |
+| --- | --- |
+| `id` | Data mart identifier |
+| `name` | Data mart name |
+| `description` | Data mart description |
+| `fields` | Output fields with names, types, descriptions, and business names when available |
+
+Use this tool when you need to understand the fields available in a specific data mart. It does not return sample values, data freshness, owners, or actual data rows.
 
 ### `list_destinations`
 
@@ -186,12 +214,13 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "List all the data marts in my project."
 - "Which of my data marts were updated most recently?"
 - "Do I have any data marts about Facebook Ads? Show their descriptions."
+- "What fields are available in the Facebook Ads data mart?"
 - "Give me a one-line summary of each data mart and what it is for."
 - "Which destinations can I send a report to?"
 
-> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, and when each was last updated), and the destinations available for reports. They do **not** run queries against the data inside a data mart or return its rows. Use them to find and understand what is available, then open the data mart in OWOX Data Marts to work with the data itself.
+> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, when each was last updated, and field-level metadata for a selected data mart), and the destinations available for reports. They do **not** run queries against the data inside a data mart or return its rows. Use them to find and understand what is available, then open the data mart in OWOX Data Marts to work with the data itself.
 >
-> **What is shared with your AI provider:** To answer your prompts, the metadata above (project and data-mart names, descriptions, status, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. The data stored in your data marts is never sent. Connect OWOX only to clients your organization permits to receive this information.
+> **What is shared with your AI provider:** To answer your prompts, the metadata above (project and data-mart names, descriptions, status, fields, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. The data stored in your data marts is never sent. Connect OWOX only to clients your organization permits to receive this information.
 
 ## Troubleshooting
 
