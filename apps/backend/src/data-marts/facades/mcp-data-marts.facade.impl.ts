@@ -125,7 +125,9 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
             : {}),
         }));
     } catch (err) {
-      this.logger.warn('resolveJoinedFields failed; returning no joined fields', { error: err });
+      this.logger.warn(
+        `resolveJoinedFields failed; returning no joined fields: ${err instanceof Error ? err.message : String(err)}`
+      );
       return [];
     }
   }

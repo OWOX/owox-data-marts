@@ -202,10 +202,10 @@ Runs a query against one data mart and returns its data rows, plus server-side t
 | --- | --- |
 | `data_mart_id` | Data mart to query |
 | `fields` | Exact field names to return, copied from `get_data_mart_details_by_id`. Must include every field used in `aggregations` and `date_buckets`. Reference blended fields by their qualified `<alias>__<field>` name |
-| `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Group-by is implied by the non-aggregated fields |
+| `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Each data mart's output controls decide which functions a field allows, so some may be rejected. Group-by is implied by the non-aggregated fields |
 | `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR` |
 | `slices` | Pre-join filters — narrow a joined data mart before it is blended in (joined fields only) |
-| `filters` | Post-join filters on the blended result |
+| `filters` | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total |
 | `limit` | Maximum rows to return (1–1000, default 20). There is no pagination |
 
 **Returns:**

@@ -23,7 +23,7 @@ import {
   DEFAULT_LIMIT,
 } from './query-data-mart.input';
 import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
-import { toToolError, toStructuredToolError } from '../mappers/mcp-error.mapper';
+import { toStructuredToolError } from '../mappers/mcp-error.mapper';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -35,15 +35,16 @@ Call get_data_mart_details_by_id first to get the data mart's exact field names,
 When building the query:
 - Request only the fields relevant to the user's question — never request all fields.
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
-- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95. Group-by is implied by the non-aggregated fields you select.
+- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — but each data mart's output controls decide which functions a given field allows, so some may be rejected (pick another, or ask an admin to enable it). Group-by is implied by the non-aggregated fields you select.
 - date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
 - fields must list every column the query uses, INCLUDING any field named in aggregations or date_buckets — a field you aggregate or bucket but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
-Choosing between slices and filters:
+Choosing between slices and filters (both are row-level predicates applied to raw values BEFORE any aggregation — neither can threshold an aggregated total; there is no HAVING):
 - slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join.
-- filters (post-join): criteria on the blended result — use for anything on the MAIN data mart's fields, on a joined field, or on an aggregated value.
-- Rule: pre-narrowing a joined data mart's rows → slices; anything on the main data mart or on joined/aggregated results → filters.
-- Example — "orders over 100 in the last 3 months" where orders is a joined data mart: the date range narrows the joined orders before the join → slices; the >100 threshold on the aggregated total → filters.
+- filters (post-join): row-level criteria on the blended result — use for anything on the MAIN data mart's fields or on a joined field. A filter on a field you also aggregate restricts which raw rows feed the aggregate (e.g. filter revenue > 0 → SUM over positive rows), NOT the group total.
+- Rule: pre-narrowing a joined data mart's rows → slices; any other raw-row criterion → filters.
+- Filtering by an aggregated total (e.g. "groups whose SUM(revenue) > 100") is NOT supported — return all groups with their totals and let the caller compare.
+- Example — "orders in the last 3 months" where orders is a joined data mart: the date range narrows the joined orders before the join → slices.
 
 Using the results:
 - Use metrics and totals from the response directly — never recompute a value already present (totals are computed server-side over all matching rows, so they stay correct even when rows are truncated).
@@ -180,10 +181,23 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       );
     }
 
+    // Source-access / exclusion violations. Their message embeds the caller's name/email AND the
+    // restricted data-mart titles (which discovery deliberately hides) — never forward that to the
+    // AI provider. Return a generic denial with no titles or identity.
+    if (
+      err instanceof BusinessViolationException &&
+      (err.errorDetails?.['deniedDataMartIds'] || err.errorDetails?.['excludedDataMartIds'])
+    ) {
+      return toStructuredToolError(
+        'permission_denied',
+        'This query references one or more data marts you do not have reporting access to. Remove the joined/blended field(s) you cannot access, or ask an admin to grant access.'
+      );
+    }
+
     if (err instanceof BadRequestException) {
       const body = err.getResponse() as Record<string, unknown> | undefined;
       const errors = (body?.['details'] as Record<string, unknown> | undefined)?.['errors'] as
-        | Array<{ code?: string; column?: string }>
+        | Array<{ code?: string; column?: string; function?: string }>
         | undefined;
 
       // A genuinely unknown column (hallucinated / disconnected) — the field name is wrong.
@@ -210,8 +224,38 @@ If truncated is true, not all matching rows were returned: narrow the query (few
           `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated, bucketed, or sorted field must also be listed in "fields". Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`
         );
       }
+
+      // The field exists and is selected, but the data mart's output controls don't permit this
+      // aggregate function on it (admin-restricted / type-incompatible), or the (column, function)
+      // pair is duplicated. Name field+function so the model can pick an allowed aggregation
+      // instead of getting the bare "Output controls validation failed" string it can't act on.
+      const aggNotAllowed = new Set([
+        'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
+        'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+        'DUPLICATE_AGGREGATION',
+      ]);
+      const rejected = errors?.filter(e => aggNotAllowed.has(e.code ?? '')) ?? [];
+      if (rejected.length > 0) {
+        const detail = [
+          ...new Set(
+            rejected.map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
+          ),
+        ]
+          .filter(Boolean)
+          .join(', ');
+        return toStructuredToolError(
+          'aggregation_not_allowed',
+          `Aggregation not permitted on the requested field(s)${detail ? `: ${detail}` : ''}. This data mart's output controls restrict which aggregate functions each field allows (or the same field+function was requested twice). Choose a different aggregation, or ask an admin to enable it — the field name(s) are correct, so do not re-fetch the schema.`
+        );
+      }
     }
 
-    return toToolError(err);
+    // Unclassified error (raw DWH/driver text, unexpected exception). Do NOT forward err.message to
+    // the AI provider — it can carry SQL fragments, identifiers, or PII. The full error is still
+    // recorded in Run History for operators.
+    return toStructuredToolError(
+      'query_failed',
+      'The query could not be completed. Verify the field names, filters, and aggregations against get_data_mart_details_by_id, then retry.'
+    );
   }
 }

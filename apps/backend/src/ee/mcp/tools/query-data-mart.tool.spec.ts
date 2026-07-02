@@ -274,17 +274,66 @@ describe('QueryDataMartTool', () => {
       expect(result.structuredContent).toMatchObject({ error_code: 'insufficient_credits' });
     });
 
-    it('routes unknown errors to generic fallback (no error_code in structuredContent)', async () => {
-      facade.queryDataMart.mockRejectedValue(new Error('some internal error'));
+    it('routes unknown errors to a sanitized query_failed — never forwards the raw message', async () => {
+      facade.queryDataMart.mockRejectedValue(
+        new Error('Syntax error near SELECT revenue FROM `secret_project.dataset` at [1:42]')
+      );
 
       const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
 
       expect(result.isError).toBe(true);
-      expect(result.structuredContent).toBeUndefined();
-      expect(result.content?.[0]).toMatchObject({
-        type: 'text',
-        text: 'some internal error',
+      expect(result.structuredContent).toMatchObject({ error_code: 'query_failed' });
+      const text = (result.content?.[0] as { text: string }).text;
+      expect(text).not.toContain('secret_project');
+      expect(text).not.toContain('SELECT revenue');
+    });
+
+    it('maps source-access BusinessViolationException → permission_denied without leaking titles/identity', async () => {
+      const err = new BusinessViolationException(
+        'Cannot build report SQL, user "Jane Doe <jane@corp.com>" is missing access to data marts: "Restricted Revenue"',
+        { userId: 'u1', deniedDataMartIds: ['dm9'], deniedAliasPaths: ['orders'] }
+      );
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'permission_denied' });
+      const text = (result.content?.[0] as { text: string }).text;
+      expect(text).not.toContain('Restricted Revenue');
+      expect(text).not.toContain('jane@corp.com');
+      expect(text).not.toContain('Jane Doe');
+    });
+
+    it('maps AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD → aggregation_not_allowed (names field+function, no schema re-fetch)', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
+              column: 'revenue',
+              function: 'P95',
+            },
+          ],
+        },
       });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['revenue'],
+          aggregations: [{ field: 'revenue', function: 'P95' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'aggregation_not_allowed' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('P95(revenue)');
+      expect(msg).not.toContain('get_data_mart_details_by_id');
     });
 
     it('surfaces UnsupportedOperatorError via instanceof (not error.name)', () => {

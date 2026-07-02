@@ -7,11 +7,11 @@ export const ROWS_PAYLOAD_BYTE_CAP = 131072; // 128 KiB — safety ceiling for t
 
 function cell(v: unknown): string {
   if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/\\/g, '\\\\')
-    .replace(/\t/g, '\\t')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
+  // RECORD/STRUCT/ARRAY warehouse cells are objects — String() would emit "[object Object]".
+  // JSON-encode them so the LLM sees the actual value. Date keeps its String() form to preserve
+  // the existing timestamp rendering.
+  const s = typeof v === 'object' && !(v instanceof Date) ? JSON.stringify(v) : String(v);
+  return s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 export function serializeTsvWithByteCap(

@@ -7,6 +7,7 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartService } from '../services/data-mart.service';
+import { DataMart } from '../entities/data-mart.entity';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { BlendableSchemaAccessor } from '../services/blendable-schema.service';
 import { ReportTotalsService } from '../services/report-totals.service';
@@ -50,7 +51,18 @@ export class QueryDataMartService {
   async run(command: QueryDataMartCommand): Promise<McpQueryDataMartResponse> {
     const r = command.request;
 
-    const dataMart = await this.dataMartService.getByIdAndProjectId(r.dataMartId, r.projectId);
+    let dataMart: DataMart;
+    try {
+      dataMart = await this.dataMartService.getByIdAndProjectId(r.dataMartId, r.projectId);
+    } catch (err) {
+      // Normalize the missing-DM message to the exact constant the hidden-DM path throws below —
+      // getByIdAndProjectId's message embeds the id + projectId, which would let a caller tell
+      // "doesn't exist" apart from "exists but you can't see it". Both must be indistinguishable.
+      if (err instanceof NotFoundException) {
+        throw new NotFoundException(`Data Mart not found`);
+      }
+      throw err;
+    }
 
     // Throw not-found (not forbidden) on a hidden DM so the caller cannot tell it apart from a missing one.
     const canSee = await this.accessDecisionService.canAccess(
@@ -136,7 +148,9 @@ export class QueryDataMartService {
           dataMart.storage.type
         );
       } catch (totalsErr) {
-        this.logger.warn('computeTotals failed; degrading to null', { error: totalsErr });
+        this.logger.warn(
+          `computeTotals failed; degrading to null: ${totalsErr instanceof Error ? totalsErr.message : String(totalsErr)}`
+        );
       }
 
       // Audit save is best-effort — a successful read must not become FAILED.
@@ -161,7 +175,9 @@ export class QueryDataMartService {
           },
         });
       } catch (auditErr) {
-        this.logger.warn('recordMcpQueryRun (SUCCESS) failed; swallowing', { error: auditErr });
+        this.logger.warn(
+          `recordMcpQueryRun (SUCCESS) failed; swallowing: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`
+        );
       }
 
       // Consumption record is best-effort — a tracking failure must not fail a successful read.
@@ -201,7 +217,9 @@ export class QueryDataMartService {
           errors: [errorMessage],
         });
       } catch (auditErr) {
-        this.logger.warn('recordMcpQueryRun (FAILED) failed; swallowing', { error: auditErr });
+        this.logger.warn(
+          `recordMcpQueryRun (FAILED) failed; swallowing: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`
+        );
       }
       throw err;
     } finally {
@@ -211,7 +229,9 @@ export class QueryDataMartService {
       try {
         await reader?.finalize();
       } catch (finalizeErr) {
-        this.logger.warn('reader.finalize() failed; ignoring', { error: finalizeErr });
+        this.logger.warn(
+          `reader.finalize() failed; ignoring: ${finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr)}`
+        );
       }
     }
   }

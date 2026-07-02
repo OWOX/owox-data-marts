@@ -51,6 +51,12 @@ describe('serializeTsv', () => {
   it('escapes carriage return', () => {
     expect(serializeTsv(['c'], [['a\rb']])).toBe('c\na\\rb');
   });
+
+  it('JSON-encodes RECORD/STRUCT and ARRAY cells instead of emitting [object Object]', () => {
+    expect(serializeTsv(['obj', 'arr'], [[{ a: 1, b: 'x' }, [1, 2, 3]]])).toBe(
+      'obj\tarr\n{"a":1,"b":"x"}\t[1,2,3]'
+    );
+  });
 });
 
 describe('serializeTsvWithByteCap', () => {

@@ -555,6 +555,32 @@ describe('QueryDataMartService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('normalizes a missing-DM NotFound to the same "Data Mart not found" as the hidden path (no existence oracle)', async () => {
+      const { service, dataMartService, accessDecisionService } = createService();
+      dataMartService.getByIdAndProjectId.mockRejectedValue(
+        new NotFoundException('Data Mart with id dm1 and projectId p1 not found')
+      );
+
+      const err = await service
+        .run(
+          new QueryDataMartCommand({
+            projectId: 'p1',
+            userId: 'u1',
+            roles: ['viewer'],
+            dataMartId: 'dm1',
+            fields: ['channel'],
+            limit: 100,
+          })
+        )
+        .catch((e: Error) => e);
+
+      // Same constant message as the hidden path — id/projectId must NOT leak the DM's existence.
+      expect(err).toBeInstanceOf(NotFoundException);
+      expect((err as Error).message).toBe('Data Mart not found');
+      // A missing DM must not even reach the access check.
+      expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    });
+
     it('calls canAccess with correct arguments', async () => {
       const { service, accessDecisionService } = createService();
 
