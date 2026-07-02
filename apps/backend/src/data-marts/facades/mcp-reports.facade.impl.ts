@@ -88,7 +88,11 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       }
     }
     for (const reportTriggers of byReportId.values()) {
-      reportTriggers.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      // The id tie-break keeps the order stable when several triggers share a
+      // creation timestamp (e.g. batch-created) — DB row order is not reliable.
+      reportTriggers.sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)
+      );
     }
     return byReportId;
   }

@@ -171,6 +171,21 @@ describe('McpReportsFacadeImpl', () => {
     ]);
   });
 
+  it('orders schedules with equal creation time by id, independent of row order', async () => {
+    const sharedCreatedAt = new Date('2026-01-01T00:00:00.000Z');
+    const { facade } = buildFacade(
+      [buildReport({ id: 'r1' })],
+      [
+        buildTrigger({ id: 'trigger-b', reportId: 'r1', createdAt: sharedCreatedAt }),
+        buildTrigger({ id: 'trigger-a', reportId: 'r1', createdAt: sharedCreatedAt }),
+      ]
+    );
+
+    const result = await facade.getDataMartReports(request);
+
+    expect(result.reports[0].schedules.map(s => s.trigger_id)).toEqual(['trigger-a', 'trigger-b']);
+  });
+
   it('reports an unscheduled report with an empty schedules list', async () => {
     const { facade } = buildFacade([buildReport({ id: 'r1' })], []);
 
