@@ -21,7 +21,7 @@ jest.mock('../services/scheduled-trigger.service', () => ({
   ScheduledTriggerService: jest.fn(),
 }));
 
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ProjectScheduledTriggerDto } from '../dto/domain/project-scheduled-trigger.dto';
 import { ScheduledTriggerDto } from '../dto/domain/scheduled-trigger.dto';
@@ -407,8 +407,8 @@ describe('McpScheduledTriggersFacadeImpl', () => {
   });
 
   describe('updateReportRunSchedule', () => {
-    it('rejects an invalid cron expression before loading the trigger', async () => {
-      const getTrigger = jest.fn();
+    it('rejects an invalid schedule after loading the target trigger', async () => {
+      const getTrigger = jest.fn().mockResolvedValue(makeEntityTrigger());
       const updateRun = jest.fn();
       const facade = buildFacade({
         scheduledTriggerService: { getByIdAndProjectId: getTrigger },
@@ -419,16 +419,15 @@ describe('McpScheduledTriggersFacadeImpl', () => {
         facade.updateReportRunSchedule(CTX, {
           triggerId: 'trigger-1',
           cronExpression: 'not-a-cron',
-          timeZone: 'UTC',
-          isActive: true,
+          timeZone: 'Europe/Kyiv',
         })
       ).rejects.toThrow(BusinessViolationException);
 
-      expect(getTrigger).not.toHaveBeenCalled();
+      expect(getTrigger).toHaveBeenCalledWith('trigger-1', 'proj-1');
       expect(updateRun).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException when trigger is not a REPORT_RUN', async () => {
+    it('throws NotFoundException when trigger is not a REPORT_RUN', async () => {
       const updateRun = jest.fn();
       const facade = buildFacade({
         scheduledTriggerService: {
@@ -446,7 +445,7 @@ describe('McpScheduledTriggersFacadeImpl', () => {
           timeZone: 'UTC',
           isActive: true,
         })
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(NotFoundException);
 
       expect(updateRun).not.toHaveBeenCalled();
     });
@@ -512,10 +511,78 @@ describe('McpScheduledTriggersFacadeImpl', () => {
         reportId: 'report-1',
       });
     });
+
+    it('preserves current timezone and active state when optional fields are omitted', async () => {
+      const trigger = makeEntityTrigger();
+      trigger.timeZone = 'Europe/Kyiv';
+      trigger.isActive = false;
+      const updateRun = jest
+        .fn()
+        .mockResolvedValue(
+          new ScheduledTriggerDto(
+            'trigger-1',
+            ScheduledTriggerType.REPORT_RUN,
+            '0 10 * * 1',
+            'Europe/Kyiv',
+            false,
+            null,
+            null,
+            'user-1',
+            new Date('2026-06-01T00:00:00.000Z'),
+            new Date('2026-06-01T00:00:00.000Z'),
+            { type: ScheduledReportRunConfigType, reportId: 'report-1' },
+            null
+          )
+        );
+      const facade = buildFacade({
+        scheduledTriggerService: {
+          getByIdAndProjectId: jest.fn().mockResolvedValue(trigger),
+        },
+        updateScheduledTriggerService: { run: updateRun },
+      });
+
+      const result = await facade.updateReportRunSchedule(CTX, {
+        triggerId: 'trigger-1',
+        cronExpression: '0 10 * * 1',
+      });
+
+      expect(updateRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cronExpression: '0 10 * * 1',
+          timeZone: 'Europe/Kyiv',
+          isActive: false,
+        })
+      );
+      expect(result).toMatchObject({
+        cronExpression: '0 10 * * 1',
+        timeZone: 'Europe/Kyiv',
+        isActive: false,
+      });
+    });
+
+    it('hides forbidden report-run schedule updates as not found', async () => {
+      const facade = buildFacade({
+        scheduledTriggerService: {
+          getByIdAndProjectId: jest.fn().mockResolvedValue(makeEntityTrigger()),
+        },
+        updateScheduledTriggerService: {
+          run: jest.fn().mockRejectedValue(new ForbiddenException()),
+        },
+      });
+
+      await expect(
+        facade.updateReportRunSchedule(CTX, {
+          triggerId: 'trigger-1',
+          cronExpression: '0 10 * * 1',
+          timeZone: 'UTC',
+          isActive: true,
+        })
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
   describe('deleteReportRunSchedule', () => {
-    it('throws BadRequestException when trigger is not a REPORT_RUN', async () => {
+    it('throws NotFoundException when trigger is not a REPORT_RUN', async () => {
       const facade = buildFacade({
         scheduledTriggerService: {
           getByIdAndProjectId: jest
@@ -525,7 +592,7 @@ describe('McpScheduledTriggersFacadeImpl', () => {
       });
 
       await expect(facade.deleteReportRunSchedule(CTX, { triggerId: 'trigger-1' })).rejects.toThrow(
-        BadRequestException
+        NotFoundException
       );
     });
 
@@ -551,6 +618,21 @@ describe('McpScheduledTriggersFacadeImpl', () => {
       );
 
       expect(result).toEqual({ triggerId: 'trigger-1', reportId: 'report-1' });
+    });
+
+    it('hides forbidden report-run schedule deletes as not found', async () => {
+      const facade = buildFacade({
+        scheduledTriggerService: {
+          getByIdAndProjectId: jest.fn().mockResolvedValue(makeEntityTrigger()),
+        },
+        deleteScheduledTriggerService: {
+          run: jest.fn().mockRejectedValue(new ForbiddenException()),
+        },
+      });
+
+      await expect(facade.deleteReportRunSchedule(CTX, { triggerId: 'trigger-1' })).rejects.toThrow(
+        NotFoundException
+      );
     });
 
     it('returns null reportId when report-run config has no report id', async () => {

@@ -36,7 +36,7 @@ export interface McpScheduledTriggersFacade {
   ): Promise<McpReportRunScheduleResult>;
   updateReportRunSchedule(
     ctx: McpScheduledTriggersContext,
-    input: { triggerId: string; cronExpression: string; timeZone: string; isActive: boolean }
+    input: { triggerId: string; cronExpression: string; timeZone?: string; isActive?: boolean }
   ): Promise<McpReportRunScheduleResult>;
   deleteReportRunSchedule(
     ctx: McpScheduledTriggersContext,

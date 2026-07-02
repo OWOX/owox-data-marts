@@ -8,8 +8,6 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
-const DEFAULT_TIME_ZONE = 'UTC';
-
 const inputSchema = z
   .object({
     trigger_id: z.string().trim().min(1),
@@ -25,7 +23,7 @@ type UpdateReportRunScheduleInput = z.infer<typeof inputSchema>;
 export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateReportRunScheduleInput> {
   readonly name = 'update_report_run_schedule';
   readonly description =
-    'Updates one existing report run schedule identified by trigger_id (get it from list_report_run_schedules). This changes only cron_expression, time_zone, and is_active; it does not change the report target and does not create another schedule. To add another schedule for the same report, call create_report_run_schedule instead. time_zone must be a valid IANA timezone (e.g. "Europe/Kyiv"); if the user does not specify one, default to UTC and confirm with them. is_active defaults to true.';
+    'Updates one existing report run schedule identified by trigger_id (get it from list_report_run_schedules). This changes cron_expression, and optionally time_zone and is_active; it does not change the report target and does not create another schedule. To add another schedule for the same report, call create_report_run_schedule instead. time_zone must be a valid IANA timezone (e.g. "Europe/Kyiv"); if omitted, the schedule keeps its current timezone. If is_active is omitted, the schedule keeps its current active state.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     trigger_id: z.string(),
@@ -62,8 +60,8 @@ export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateRepo
     const result = await this.facade.updateReportRunSchedule(ctx, {
       triggerId: parsed.trigger_id,
       cronExpression: parsed.cron_expression,
-      timeZone: parsed.time_zone ?? DEFAULT_TIME_ZONE,
-      isActive: parsed.is_active ?? true,
+      ...(parsed.time_zone !== undefined ? { timeZone: parsed.time_zone } : {}),
+      ...(parsed.is_active !== undefined ? { isActive: parsed.is_active } : {}),
     });
 
     return jsonToolResult({

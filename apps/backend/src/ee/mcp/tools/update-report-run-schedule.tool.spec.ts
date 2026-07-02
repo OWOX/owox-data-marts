@@ -63,7 +63,7 @@ describe('UpdateReportRunScheduleTool', () => {
     );
   });
 
-  it('defaults time_zone and is_active when omitted', async () => {
+  it('omits time_zone and is_active when they are not supplied', async () => {
     const facade = {
       updateReportRunSchedule: jest.fn().mockResolvedValue(facadeResult),
     } as unknown as jest.Mocked<McpScheduledTriggersFacade>;
@@ -71,10 +71,10 @@ describe('UpdateReportRunScheduleTool', () => {
 
     await tool.handler({ trigger_id: 'trigger-1', cron_expression: '0 9 * * 1' }, context);
 
-    expect(facade.updateReportRunSchedule).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ timeZone: 'UTC', isActive: true })
-    );
+    expect(facade.updateReportRunSchedule).toHaveBeenCalledWith(expect.any(Object), {
+      triggerId: 'trigger-1',
+      cronExpression: '0 9 * * 1',
+    });
   });
 
   it('rejects missing required fields and unknown fields', () => {
@@ -98,6 +98,8 @@ describe('UpdateReportRunScheduleTool', () => {
     });
     expect(tool.description).toContain('Updates one existing');
     expect(tool.description).toContain('trigger_id');
+    expect(tool.description).toContain('keeps its current timezone');
+    expect(tool.description).toContain('keeps its current active state');
     expect(tool.description).not.toContain('upsert');
   });
 });

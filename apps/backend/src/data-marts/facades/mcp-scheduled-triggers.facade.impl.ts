@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CronTime } from 'cron';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateScheduledTriggerCommand } from '../dto/domain/create-scheduled-trigger.command';
@@ -105,26 +110,30 @@ export class McpScheduledTriggersFacadeImpl implements McpScheduledTriggersFacad
 
   async updateReportRunSchedule(
     ctx: McpScheduledTriggersContext,
-    input: { triggerId: string; cronExpression: string; timeZone: string; isActive: boolean }
+    input: { triggerId: string; cronExpression: string; timeZone?: string; isActive?: boolean }
   ): Promise<McpReportRunScheduleResult> {
-    this.assertValidSchedule(input.cronExpression, input.timeZone);
-
     const trigger = await this.scheduledTriggerService.getByIdAndProjectId(
       input.triggerId,
       ctx.projectId
     );
     const reportId = this.assertReportRunWithConfig(trigger);
+    const timeZone = input.timeZone ?? trigger.timeZone;
+    const isActive = input.isActive ?? trigger.isActive;
 
-    const dto = await this.updateScheduledTriggerService.run(
-      new UpdateScheduledTriggerCommand(
-        trigger.id,
-        trigger.dataMart.id,
-        ctx.projectId,
-        ctx.userId,
-        ctx.roles,
-        input.cronExpression,
-        input.timeZone,
-        input.isActive
+    this.assertValidSchedule(input.cronExpression, timeZone);
+
+    const dto = await this.hideForbiddenAsNotFound(input.triggerId, () =>
+      this.updateScheduledTriggerService.run(
+        new UpdateScheduledTriggerCommand(
+          trigger.id,
+          trigger.dataMart.id,
+          ctx.projectId,
+          ctx.userId,
+          ctx.roles,
+          input.cronExpression,
+          timeZone,
+          isActive
+        )
       )
     );
 
@@ -144,13 +153,15 @@ export class McpScheduledTriggersFacadeImpl implements McpScheduledTriggersFacad
 
     const reportId = this.reportIdOrNull(trigger.triggerConfig);
 
-    await this.deleteScheduledTriggerService.run(
-      new DeleteScheduledTriggerCommand(
-        trigger.id,
-        trigger.dataMart.id,
-        ctx.projectId,
-        ctx.userId,
-        ctx.roles
+    await this.hideForbiddenAsNotFound(input.triggerId, () =>
+      this.deleteScheduledTriggerService.run(
+        new DeleteScheduledTriggerCommand(
+          trigger.id,
+          trigger.dataMart.id,
+          ctx.projectId,
+          ctx.userId,
+          ctx.roles
+        )
       )
     );
 
@@ -170,7 +181,7 @@ export class McpScheduledTriggersFacadeImpl implements McpScheduledTriggersFacad
 
   private assertReportRun(trigger: DataMartScheduledTrigger): void {
     if (trigger.type !== ScheduledTriggerType.REPORT_RUN) {
-      throw new BadRequestException('Scheduled trigger is not a report run schedule');
+      throw this.reportRunScheduleNotFound(trigger.id);
     }
   }
 
@@ -186,6 +197,24 @@ export class McpScheduledTriggersFacadeImpl implements McpScheduledTriggersFacad
 
   private reportIdOrNull(config: DataMartScheduledTrigger['triggerConfig']): string | null {
     return isScheduledReportRunConfig(config) ? config.reportId : null;
+  }
+
+  private async hideForbiddenAsNotFound<T>(
+    triggerId: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw this.reportRunScheduleNotFound(triggerId);
+      }
+      throw error;
+    }
+  }
+
+  private reportRunScheduleNotFound(triggerId: string): NotFoundException {
+    return new NotFoundException(`Report run schedule with id ${triggerId} not found`);
   }
 
   private reportRefOf(config: DataMartScheduledTrigger['triggerConfig']): {
