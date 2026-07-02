@@ -6,12 +6,14 @@ import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled
 import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
+import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
 import { CreateReportService } from '../use-cases/create-report.service';
+import { DeleteReportService } from '../use-cases/delete-report.service';
 import { GetReportService } from '../use-cases/get-report.service';
 import { UpdateReportService } from '../use-cases/update-report.service';
 import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
@@ -23,6 +25,8 @@ import { toMcpDestinationType } from './mcp-destination-type';
 import {
   McpAddReportRequest,
   McpAddReportResult,
+  McpDeleteReportRequest,
+  McpDeleteReportResult,
   McpGetDataMartReportsRequest,
   McpGetDataMartReportsResponse,
   McpReportScheduleItem,
@@ -51,8 +55,19 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
     private readonly getReportService: GetReportService,
-    private readonly updateReportService: UpdateReportService
+    private readonly updateReportService: UpdateReportService,
+    private readonly deleteReportService: DeleteReportService
   ) {}
+
+  async deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult> {
+    // The service enforces not-found and mutate-access itself and returns
+    // void, so the confirmation shape is synthesized here.
+    await this.deleteReportService.run(
+      new DeleteReportCommand(request.reportId, request.projectId, request.userId, request.roles)
+    );
+
+    return { report_id: request.reportId, status: 'deleted' };
+  }
 
   async updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult> {
     // The facade is a public interface, so the "at least one change" invariant

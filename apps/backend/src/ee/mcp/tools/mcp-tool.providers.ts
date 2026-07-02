@@ -4,6 +4,7 @@ import { AddReportTool } from './add-report.tool';
 import { ListDataMartsTool } from './data-mart-catalog.tool';
 import { GetDataMartDetailsTool } from './data-mart-details.tool';
 import { DeleteReportRunScheduleTool } from './delete-report-run-schedule.tool';
+import { DeleteReportTool } from './delete-report.tool';
 import { GetDataMartReportsTool } from './get-data-mart-reports.tool';
 import { ListDestinationsTool } from './list-destinations.tool';
 import { ListReportRunSchedulesTool } from './list-report-run-schedules.tool';
@@ -28,6 +29,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   QueryDataMartTool,
   AddReportTool,
   UpdateReportTool,
+  DeleteReportTool,
 ];
 
 export const MCP_TOOL_DEFINITIONS_PROVIDER: Provider = {
