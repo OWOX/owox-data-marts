@@ -19,6 +19,7 @@ describe('GetDataMartReportsTool', () => {
     const reports = [
       {
         report_id: 'r1',
+        data_mart_id: 'dm-1',
         name: 'Weekly revenue',
         destination_id: 'dest-1',
         destination_type: 'google_sheets' as const,

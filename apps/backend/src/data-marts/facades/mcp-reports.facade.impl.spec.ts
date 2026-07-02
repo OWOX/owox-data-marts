@@ -121,6 +121,7 @@ describe('McpReportsFacadeImpl', () => {
     expect(result.reports).toEqual([
       {
         report_id: 'r1',
+        data_mart_id: 'dm-1',
         name: 'Weekly revenue',
         destination_id: 'dest-99',
         destination_type: 'teams',

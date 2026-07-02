@@ -29,8 +29,14 @@ const DESTINATION_TYPE_MAP: Record<DataDestinationType, McpDestinationType> = {
 /**
  * Maps a domain `DataDestinationType` to the lowercase MCP vocabulary exposed to
  * clients. The `Record` is exhaustive over the enum, so a new destination type
- * fails the build until it is mapped here.
+ * fails the build until it is mapped here; the runtime guard covers values that
+ * bypass the compiler (e.g. a raw DB string outside the enum), which would
+ * otherwise leak `undefined` into an MCP response.
  */
 export function toMcpDestinationType(type: DataDestinationType): McpDestinationType {
-  return DESTINATION_TYPE_MAP[type];
+  const mapped = DESTINATION_TYPE_MAP[type];
+  if (!mapped) {
+    throw new Error(`Unsupported destination type for MCP: ${type}`);
+  }
+  return mapped;
 }

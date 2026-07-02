@@ -28,6 +28,8 @@ export interface McpReportScheduleItem {
 
 export interface McpReportListItem {
   report_id: string;
+  /** Id of the parent data mart, echoed so each item is self-describing. */
+  data_mart_id: string;
   name: string;
   destination_id: string;
   destination_type: McpDestinationType;

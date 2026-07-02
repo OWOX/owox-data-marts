@@ -24,6 +24,7 @@ export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartRepo
     reports: z.array(
       z.object({
         report_id: z.string(),
+        data_mart_id: z.string(),
         name: z.string(),
         destination_id: z.string(),
         destination_type: z.enum(MCP_DESTINATION_TYPES),

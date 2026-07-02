@@ -41,6 +41,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     return {
       reports: reports.map(report => ({
         report_id: report.id,
+        data_mart_id: request.dataMartId,
         name: report.title,
         destination_id: report.dataDestinationAccess.id,
         destination_type: toMcpDestinationType(report.dataDestinationAccess.type),
@@ -88,6 +89,10 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       }
     }
     for (const reportTriggers of byReportId.values()) {
+      // Oldest-first is purely a stable chronological presentation — the order
+      // carries no precedence semantics (schedules are equal peers; a newer
+      // trigger is an additional schedule, not an override of an older one).
+      // `createdAt` is the trigger's creation time and never changes on update.
       // The id tie-break keeps the order stable when several triggers share a
       // creation timestamp (e.g. batch-created) — DB row order is not reliable.
       reportTriggers.sort(
