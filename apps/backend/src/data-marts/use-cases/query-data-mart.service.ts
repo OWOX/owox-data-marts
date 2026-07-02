@@ -1,0 +1,198 @@
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { TypeResolver } from '../../common/resolver/type-resolver';
+import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartService } from '../services/data-mart.service';
+import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { BlendableSchemaAccessor } from '../services/blendable-schema.service';
+import { ReportTotalsService } from '../services/report-totals.service';
+import { DataMartRunService } from '../services/data-mart-run.service';
+import { ProjectBalanceService } from '../services/project-balance.service';
+import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import {
+  McpQueryDataMartRequest,
+  McpQueryDataMartResponse,
+} from '../facades/mcp-data-marts.facade';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+
+export class QueryDataMartCommand {
+  constructor(public readonly request: McpQueryDataMartRequest) {}
+}
+
+/**
+ * Reads rows for a single Data Mart on behalf of the `query_data_mart` MCP tool.
+ *
+ * The SQL is composed from the read plan and handed to the reader as `sqlOverride`, with
+ * `columnFilter` restricting the emitted headers to the selected fields in their requested
+ * order. Without these the reader falls back to `SELECT *` and ignores the field selection,
+ * filters, and limit.
+ */
+@Injectable()
+export class QueryDataMartService {
+  private readonly logger = new Logger(QueryDataMartService.name);
+
+  constructor(
+    private readonly dataMartService: DataMartService,
+    private readonly composer: ReportSqlComposerService,
+    @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
+    private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
+    private readonly reportTotalsService: ReportTotalsService,
+    private readonly dataMartRunService: DataMartRunService,
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly consumptionTrackingService: ConsumptionTrackingService
+  ) {}
+
+  async run(command: QueryDataMartCommand): Promise<McpQueryDataMartResponse> {
+    const r = command.request;
+
+    const dataMart = await this.dataMartService.getByIdAndProjectId(r.dataMartId, r.projectId);
+
+    // Throw not-found (not forbidden) on a hidden DM so the caller cannot tell it apart from a missing one.
+    const canSee = await this.accessDecisionService.canAccess(
+      r.userId,
+      r.roles,
+      EntityType.DATA_MART,
+      r.dataMartId,
+      Action.SEE,
+      r.projectId
+    );
+    if (!canSee) {
+      throw new NotFoundException(`Data Mart not found`);
+    }
+
+    await this.projectBalanceService.verifyCanPerformOperations(r.projectId);
+
+    const accessor: BlendableSchemaAccessor = { userId: r.userId, roles: r.roles };
+
+    // Read one extra row to detect truncation without a separate COUNT query.
+    const overReadLimit = r.limit + 1;
+    const readPlan: ReportLikeReadPlan = {
+      dataMart,
+      columnConfig: r.fields,
+      filterConfig: r.filterConfig ?? null,
+      aggregationConfig: r.aggregationConfig ?? null,
+      dateTruncConfig: r.dateTruncConfig ?? null,
+      limitConfig: overReadLimit,
+    };
+
+    const runId = randomUUID();
+    const startedAt = new Date();
+
+    const queryMetadata = {
+      fields: r.fields,
+      ...(r.filterConfig ? { filters: r.filterConfig } : {}),
+      ...(r.aggregationConfig ? { aggregations: r.aggregationConfig } : {}),
+      ...(r.dateTruncConfig ? { dateBuckets: r.dateTruncConfig } : {}),
+      limit: r.limit,
+    };
+
+    let reader: DataStorageReportReader | undefined;
+    let executionSqlQuery: string | undefined;
+    try {
+      const composed = await this.composer.compose(readPlan, accessor);
+      executionSqlQuery = composed.sql;
+      reader = await this.readerResolver.resolve(dataMart.storage.type);
+      const description = await reader.prepareReportData(readPlan, {
+        sqlOverride: composed.sql,
+        sqlOverrideParams: composed.params,
+        columnFilter: r.fields,
+        aggregationConfig: readPlan.aggregationConfig ?? undefined,
+      });
+      const columns = description.dataHeaders.map(header => header.name);
+
+      const rows: unknown[][] = [];
+      let batchId: string | undefined;
+      do {
+        const batch = await reader.readReportDataBatch(batchId, overReadLimit - rows.length);
+        rows.push(...batch.dataRows);
+        batchId = batch.nextDataBatchId ?? undefined;
+      } while (batchId && rows.length < overReadLimit);
+
+      const truncated = rows.length > r.limit;
+      const trimmed = truncated ? rows.slice(0, r.limit) : rows;
+
+      // computeTotals is a secondary DWH query — degrade gracefully on failure.
+      let totals: McpQueryDataMartResponse['totals'] = null;
+      try {
+        totals = await this.reportTotalsService.computeTotals(
+          readPlan,
+          accessor,
+          dataMart.storage.type
+        );
+      } catch (totalsErr) {
+        this.logger.warn('computeTotals failed; degrading to null', { error: totalsErr });
+      }
+
+      // Audit save is best-effort — a successful read must not become FAILED.
+      try {
+        await this.dataMartRunService.recordMcpQueryRun({
+          runId,
+          dataMart,
+          createdById: r.userId,
+          startedAt,
+          status: DataMartRunStatus.SUCCESS,
+          metadata: {
+            columns,
+            rowCount: trimmed.length,
+            truncated,
+            executionSqlQuery,
+            filterCount: r.filterConfig?.length,
+            aggregationCount: r.aggregationConfig?.length,
+            query: queryMetadata,
+          },
+        });
+      } catch (auditErr) {
+        this.logger.warn('recordMcpQueryRun (SUCCESS) failed; swallowing', { error: auditErr });
+      }
+
+      // Consumption record is best-effort — a tracking failure must not fail a successful read.
+      try {
+        await this.consumptionTrackingService.registerMcpQueryRunConsumption(dataMart, runId);
+      } catch (consumptionErr) {
+        this.logger.warn(
+          `Failed to register MCP Query run consumption ${runId}: ${consumptionErr instanceof Error ? consumptionErr.message : String(consumptionErr)}`
+        );
+      }
+
+      return {
+        columns,
+        rows: trimmed,
+        returnedRows: trimmed.length,
+        truncated,
+        totals,
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      // Best-effort — a failing audit write must not replace the original error.
+      try {
+        await this.dataMartRunService.recordMcpQueryRun({
+          runId,
+          dataMart,
+          createdById: r.userId,
+          startedAt,
+          status: DataMartRunStatus.FAILED,
+          metadata: {
+            columns: [],
+            rowCount: 0,
+            truncated: false,
+            executionSqlQuery,
+            filterCount: r.filterConfig?.length,
+            aggregationCount: r.aggregationConfig?.length,
+            query: queryMetadata,
+          },
+          errors: [errorMessage],
+        });
+      } catch (auditErr) {
+        this.logger.warn('recordMcpQueryRun (FAILED) failed; swallowing', { error: auditErr });
+      }
+      throw err;
+    } finally {
+      await reader?.finalize();
+    }
+  }
+}

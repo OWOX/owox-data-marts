@@ -22,6 +22,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import type { DataMartService } from '../services/data-mart.service';
 import type { GetDataMartService } from '../use-cases/get-data-mart.service';
 import type { ListDataMartsService } from '../use-cases/list-data-marts.service';
+import type { QueryDataMartService } from '../use-cases/query-data-mart.service';
 import { McpDataMartsFacadeImpl } from './mcp-data-marts.facade.impl';
 
 describe('McpDataMartsFacadeImpl', () => {
@@ -44,6 +45,11 @@ describe('McpDataMartsFacadeImpl', () => {
       run: jest.fn().mockResolvedValue({ id: 'dm_1' }),
     }) as unknown as jest.Mocked<GetDataMartService>;
 
+  const createQueryDataMartService = () =>
+    ({
+      run: jest.fn(),
+    }) as unknown as jest.Mocked<QueryDataMartService>;
+
   it('lists data marts using project-member context', async () => {
     const listDataMartsService = createListDataMartsService([
       new DataMartListItemDto(
@@ -59,11 +65,13 @@ describe('McpDataMartsFacadeImpl', () => {
     ]);
     const dataMartService = createDataMartService();
     const getDataMartService = createGetDataMartService();
+    const queryDataMartService = createQueryDataMartService();
 
     const facade = new McpDataMartsFacadeImpl(
       listDataMartsService,
       getDataMartService,
-      dataMartService
+      dataMartService,
+      queryDataMartService
     );
 
     const result = await facade.listDataMarts({
@@ -180,7 +188,8 @@ describe('McpDataMartsFacadeImpl', () => {
     const facade = new McpDataMartsFacadeImpl(
       listDataMartsService,
       getDataMartService,
-      dataMartService
+      dataMartService,
+      createQueryDataMartService()
     );
 
     await expect(
@@ -248,7 +257,8 @@ describe('McpDataMartsFacadeImpl', () => {
     const facade = new McpDataMartsFacadeImpl(
       listDataMartsService,
       getDataMartService,
-      dataMartService
+      dataMartService,
+      createQueryDataMartService()
     );
 
     await expect(
@@ -274,7 +284,8 @@ describe('McpDataMartsFacadeImpl', () => {
     const facade = new McpDataMartsFacadeImpl(
       listDataMartsService,
       getDataMartService,
-      dataMartService
+      dataMartService,
+      createQueryDataMartService()
     );
 
     await expect(

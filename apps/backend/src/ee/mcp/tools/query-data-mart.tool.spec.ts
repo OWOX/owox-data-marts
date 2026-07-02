@@ -1,0 +1,256 @@
+import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { QueryDataMartTool } from './query-data-mart.tool';
+import {
+  UnsupportedOperatorError,
+  UnsupportedAggregationError,
+  UnsupportedDateBucketError,
+} from './query-data-mart.input';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
+import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
+
+const AUTH_CTX = {
+  projectId: 'p1',
+  userId: 'u1',
+  roles: ['admin'] as string[],
+};
+
+describe('QueryDataMartTool', () => {
+  const facade = { queryDataMart: jest.fn(), listDataMarts: jest.fn() };
+  const tool = new QueryDataMartTool(facade as never);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('exposes the MCP contract', () => {
+    expect(tool.name).toBe('query_data_mart');
+    expect(tool.requiredScopes).toEqual(['mcp:read']);
+    expect(tool.annotations).toMatchObject({ title: 'Query Data Mart', openWorldHint: false });
+  });
+
+  it('rejects input missing required fields', () => {
+    expect(() => tool['parseInput']({ data_mart_id: 'dm1' })).toThrow();
+  });
+
+  describe('success path', () => {
+    it('returns returned_rows from serializer and truncated from facade when cap is not hit', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['name', 'value'],
+        rows: [
+          ['alpha', '1'],
+          ['beta', '2'],
+        ],
+        returnedRows: 2,
+        truncated: false,
+        totals: null,
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['name', 'value'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      const sc = result.structuredContent as {
+        columns: string[];
+        rows: string;
+        returned_rows: number;
+        truncated: boolean;
+        totals: null;
+      };
+      expect(sc.returned_rows).toBe(2);
+      expect(sc.truncated).toBe(false);
+      expect(sc.columns).toEqual(['name', 'value']);
+    });
+
+    it('sets truncated: true when the facade signals truncation', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['id'],
+        rows: [['1'], ['2'], ['3']],
+        returnedRows: 3,
+        truncated: true,
+        totals: null,
+      });
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['id'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBeFalsy();
+      const sc = result.structuredContent as { truncated: boolean };
+      expect(sc.truncated).toBe(true);
+    });
+  });
+
+  describe('error mapping', () => {
+    it('maps NotFoundException → permission_denied', async () => {
+      facade.queryDataMart.mockRejectedValue(
+        new NotFoundException('Data Mart with id dm1 and projectId p1 not found')
+      );
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'permission_denied' });
+      expect(result.content?.[0]).toMatchObject({
+        type: 'text',
+        text: expect.stringContaining('permission_denied'),
+      });
+    });
+
+    it('maps UnsupportedOperatorError → unsupported_operator', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['f1'],
+          filters: [{ field: 'f1', operator: 'in' as never }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'unsupported_operator' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'in'");
+      expect(msg).toContain('eq');
+      expect(msg).toContain('Supported operators:');
+    });
+
+    it('invalid aggregation function fails at schema parse (ZodError) → invalid_input', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['f1'],
+          aggregations: [{ field: 'f1', function: 'BOGUS_FN' as never }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
+      expect((result.structuredContent as { message?: string }).message).toContain('BOGUS_FN');
+    });
+
+    it('invalid date bucket unit fails at schema parse (ZodError) → invalid_input', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['order_date'],
+          date_buckets: [{ field: 'order_date', unit: 'DECADE' as never }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
+      expect((result.structuredContent as { message?: string }).message).toContain('DECADE');
+    });
+
+    it('missing required data_mart_id (ZodError) → invalid_input', async () => {
+      const result = await tool.handler({ fields: ['f1'] } as never, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
+    });
+
+    it('surfaces UnsupportedDateBucketError via instanceof (not error.name)', () => {
+      const err = new UnsupportedDateBucketError('DECADE');
+      expect(err instanceof UnsupportedDateBucketError).toBe(true);
+      expect(err instanceof Error).toBe(true);
+    });
+
+    it('maps BusinessViolationException with unknownColumns → field_not_found', async () => {
+      const err = new BusinessViolationException('Disconnected columns: "ghost_field"', {
+        unknownColumns: ['ghost_field'],
+        dataMartId: 'dm1',
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['ghost_field'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('ghost_field');
+      expect(msg).toContain('get_data_mart_details_by_id');
+      const c0 = result.content![0] as { type: string; text: string };
+      expect(JSON.parse(c0.text)).toMatchObject({
+        error_code: 'field_not_found',
+      });
+    });
+
+    it('maps BadRequestException with FILTER_COLUMN_UNKNOWN → field_not_found', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'bad_col' }] },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
+    });
+
+    it('maps ProjectOperationBlockedException (BI_PROJECT_NOT_ACTIVE) → project_inactive', async () => {
+      facade.queryDataMart.mockRejectedValue(
+        new ProjectOperationBlockedException([ProjectBlockedReason.BI_PROJECT_NOT_ACTIVE])
+      );
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'project_inactive' });
+    });
+
+    it('maps ProjectOperationBlockedException (OVERDRAFT_LIMIT_EXCEEDED) → insufficient_credits', async () => {
+      facade.queryDataMart.mockRejectedValue(
+        new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+      );
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'insufficient_credits' });
+    });
+
+    it('prioritizes insufficient_credits over project_inactive when both reasons are present', async () => {
+      facade.queryDataMart.mockRejectedValue(
+        new ProjectOperationBlockedException([
+          ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED,
+          ProjectBlockedReason.BI_PROJECT_NOT_ACTIVE,
+        ])
+      );
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'insufficient_credits' });
+    });
+
+    it('routes unknown errors to generic fallback (no error_code in structuredContent)', async () => {
+      facade.queryDataMart.mockRejectedValue(new Error('some internal error'));
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+      expect(result.content?.[0]).toMatchObject({
+        type: 'text',
+        text: 'some internal error',
+      });
+    });
+
+    it('surfaces UnsupportedOperatorError via instanceof (not error.name)', () => {
+      const err = new UnsupportedOperatorError('in');
+      expect(err instanceof UnsupportedOperatorError).toBe(true);
+      expect(err instanceof Error).toBe(true);
+    });
+
+    it('surfaces UnsupportedAggregationError via instanceof (not error.name)', () => {
+      const err = new UnsupportedAggregationError('BOGUS');
+      expect(err instanceof UnsupportedAggregationError).toBe(true);
+      expect(err instanceof Error).toBe(true);
+    });
+  });
+});

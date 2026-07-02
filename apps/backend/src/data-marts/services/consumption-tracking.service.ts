@@ -25,6 +25,7 @@ export class ConsumptionTrackingService {
   private readonly googleChatReportRunConsumptionTopic?: string;
   private readonly msTeamsReportRunConsumptionTopic?: string;
   private readonly httpDataRunConsumptionTopic?: string;
+  private readonly mcpQueryRunConsumptionTopic?: string;
 
   constructor(
     private readonly connectorService: ConnectorService,
@@ -108,6 +109,13 @@ export class ConsumptionTrackingService {
       );
       if (this.httpDataRunConsumptionTopic) {
         this.logger.log(`Consumption HTTP Data Run topic: ${this.httpDataRunConsumptionTopic}`);
+      }
+
+      this.mcpQueryRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_MCP_QUERY_RUN_TOPIC'
+      );
+      if (this.mcpQueryRunConsumptionTopic) {
+        this.logger.log(`Consumption MCP Query Run topic: ${this.mcpQueryRunConsumptionTopic}`);
       }
     }
   }
@@ -200,6 +208,17 @@ export class ConsumptionTrackingService {
       return;
     }
     await this.sendConsumptionCommand(this.httpDataRunConsumptionTopic, {
+      ...this.baseDataMartConsumptionPayload(dataMart),
+      reportRunId: runId,
+    });
+  }
+
+  public async registerMcpQueryRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
+    if (!this.pubSubService || !this.mcpQueryRunConsumptionTopic) {
+      this.logger.debug('MCP Query run consumption tracking is not configured, skipping...');
+      return;
+    }
+    await this.sendConsumptionCommand(this.mcpQueryRunConsumptionTopic, {
       ...this.baseDataMartConsumptionPayload(dataMart),
       reportRunId: runId,
     });

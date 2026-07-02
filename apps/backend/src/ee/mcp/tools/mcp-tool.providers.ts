@@ -8,6 +8,7 @@ import { ListDestinationsTool } from './list-destinations.tool';
 import { ListReportRunSchedulesTool } from './list-report-run-schedules.tool';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { GetProjectContextTool } from './project-context.tool';
+import { QueryDataMartTool } from './query-data-mart.tool';
 import { SearchDataMartsTool } from './search-data-marts.tool';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 
@@ -22,6 +23,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   CreateReportRunScheduleTool,
   UpdateReportRunScheduleTool,
   DeleteReportRunScheduleTool,
+  QueryDataMartTool,
 ];
 
 export const MCP_TOOL_DEFINITIONS_PROVIDER: Provider = {

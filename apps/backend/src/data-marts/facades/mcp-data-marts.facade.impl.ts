@@ -11,12 +11,15 @@ import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { DataMartService } from '../services/data-mart.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
+import { QueryDataMartCommand, QueryDataMartService } from '../use-cases/query-data-mart.service';
 import {
   McpDataMartsFacade,
   McpDataMartDetailsResponse,
   McpGetDataMartDetailsRequest,
   McpListDataMartsRequest,
   McpListDataMartsResponse,
+  McpQueryDataMartRequest,
+  McpQueryDataMartResponse,
 } from './mcp-data-marts.facade';
 
 @Injectable()
@@ -24,7 +27,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
   constructor(
     private readonly listDataMartsService: ListDataMartsService,
     private readonly getDataMartService: GetDataMartService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly queryDataMartService: QueryDataMartService
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
@@ -66,6 +70,10 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       description: dataMart.description ?? '',
       fields: schema?.fields ?? [],
     };
+  }
+
+  async queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse> {
+    return this.queryDataMartService.run(new QueryDataMartCommand(request));
   }
 
   private async ensureDataMartAccessible(request: McpGetDataMartDetailsRequest): Promise<void> {
