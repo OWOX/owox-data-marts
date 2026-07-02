@@ -104,6 +104,7 @@ describe('ListDataMartsTool', () => {
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
       'ListDataMartsTool',
       'SearchDataMartsTool',
+      'GetDataMartDetailsTool',
       'GetProjectContextTool',
       'ListDestinationsTool',
     ]);
