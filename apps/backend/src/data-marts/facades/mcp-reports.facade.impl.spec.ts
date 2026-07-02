@@ -40,18 +40,26 @@ function buildReport(overrides: {
 }
 
 function buildTrigger(overrides: {
+  id?: string;
   reportId: string;
   cron?: string;
+  timeZone?: string;
   isActive?: boolean;
   type?: ScheduledTriggerType;
   createdAt?: Date;
+  nextRunTimestamp?: Date | null;
+  lastRunTimestamp?: Date | null;
 }): DataMartScheduledTrigger {
   return {
+    id: overrides.id ?? `trigger-${overrides.reportId}`,
     type: overrides.type ?? ScheduledTriggerType.REPORT_RUN,
     triggerConfig: { type: 'scheduled-report-run-config', reportId: overrides.reportId },
     isActive: overrides.isActive ?? true,
     cronExpression: overrides.cron ?? '0 9 * * 1',
+    timeZone: overrides.timeZone ?? 'UTC',
     createdAt: overrides.createdAt ?? new Date('2026-01-01T00:00:00.000Z'),
+    nextRunTimestamp: overrides.nextRunTimestamp ?? null,
+    lastRunTimestamp: overrides.lastRunTimestamp ?? null,
   } as unknown as DataMartScheduledTrigger;
 }
 
@@ -87,7 +95,17 @@ describe('McpReportsFacadeImpl', () => {
           lastRunStatus: ReportRunStatus.SUCCESS,
         }),
       ],
-      [buildTrigger({ reportId: 'r1', cron: '0 9 * * 1', isActive: true })]
+      [
+        buildTrigger({
+          id: 'trigger-1',
+          reportId: 'r1',
+          cron: '0 9 * * 1',
+          timeZone: 'Europe/Kyiv',
+          isActive: true,
+          nextRunTimestamp: new Date('2026-06-15T06:00:00.000Z'),
+          lastRunTimestamp: new Date('2026-06-08T06:00:00.000Z'),
+        }),
+      ]
     );
 
     const result = await facade.getDataMartReports(request);
@@ -107,42 +125,67 @@ describe('McpReportsFacadeImpl', () => {
         destination_id: 'dest-99',
         destination_type: 'teams',
         owner: 'ann@owox.com',
-        schedule: '0 9 * * 1',
+        schedules: [
+          {
+            trigger_id: 'trigger-1',
+            cron_expression: '0 9 * * 1',
+            time_zone: 'Europe/Kyiv',
+            is_active: true,
+            next_run_at: '2026-06-15T06:00:00.000Z',
+            last_run_at: '2026-06-08T06:00:00.000Z',
+          },
+        ],
         last_run_at: '2026-06-10T10:00:00.000Z',
-        status: 'active',
+        last_run_status: ReportRunStatus.SUCCESS,
       },
     ]);
   });
 
-  it('derives status and schedule across the trigger/last-run matrix', async () => {
+  it('returns every schedule of a report, ordered by creation time', async () => {
     const { facade } = buildFacade(
+      [buildReport({ id: 'r1' })],
       [
-        buildReport({ id: 'no-trigger', lastRunStatus: ReportRunStatus.SUCCESS }),
-        buildReport({ id: 'paused', lastRunStatus: ReportRunStatus.SUCCESS }),
-        buildReport({ id: 'active', lastRunStatus: ReportRunStatus.SUCCESS }),
-        buildReport({ id: 'errored', lastRunStatus: ReportRunStatus.ERROR }),
-      ],
-      [
-        buildTrigger({ reportId: 'paused', cron: '0 8 * * *', isActive: false }),
-        buildTrigger({ reportId: 'active', cron: '0 9 * * *', isActive: true }),
-        buildTrigger({ reportId: 'errored', cron: '0 7 * * *', isActive: true }),
+        buildTrigger({
+          id: 'newer',
+          reportId: 'r1',
+          cron: '0 9 * * *',
+          isActive: true,
+          createdAt: new Date('2026-02-01T00:00:00.000Z'),
+        }),
+        buildTrigger({
+          id: 'older-disabled',
+          reportId: 'r1',
+          cron: '0 8 * * *',
+          isActive: false,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
       ]
     );
 
     const result = await facade.getDataMartReports(request);
-    const byId = Object.fromEntries(result.reports.map(r => [r.report_id, r]));
 
-    expect(byId['no-trigger']).toMatchObject({ schedule: null, status: 'paused' });
-    // A disabled schedule is still reported, but the status is paused.
-    expect(byId['paused']).toMatchObject({ schedule: '0 8 * * *', status: 'paused' });
-    expect(byId['active']).toMatchObject({ schedule: '0 9 * * *', status: 'active' });
-    // A failed last run wins over an otherwise-active schedule.
-    expect(byId['errored']).toMatchObject({ schedule: '0 7 * * *', status: 'error' });
+    // A disabled schedule is still reported (is_active: false), nothing is collapsed.
+    expect(result.reports[0].schedules).toEqual([
+      expect.objectContaining({ trigger_id: 'older-disabled', is_active: false }),
+      expect.objectContaining({ trigger_id: 'newer', is_active: true }),
+    ]);
+  });
+
+  it('reports an unscheduled report with an empty schedules list', async () => {
+    const { facade } = buildFacade([buildReport({ id: 'r1' })], []);
+
+    const result = await facade.getDataMartReports(request);
+
+    expect(result.reports[0]).toMatchObject({
+      schedules: [],
+      last_run_at: null,
+      last_run_status: null,
+    });
   });
 
   it('ignores connector triggers and triggers targeting other reports', async () => {
     const { facade } = buildFacade(
-      [buildReport({ id: 'r1', lastRunStatus: ReportRunStatus.SUCCESS })],
+      [buildReport({ id: 'r1' })],
       [
         buildTrigger({ reportId: 'r1', type: ScheduledTriggerType.CONNECTOR_RUN, isActive: true }),
         buildTrigger({ reportId: 'other-report', cron: '0 1 * * *', isActive: true }),
@@ -151,21 +194,25 @@ describe('McpReportsFacadeImpl', () => {
 
     const result = await facade.getDataMartReports(request);
 
-    expect(result.reports[0]).toMatchObject({ schedule: null, status: 'paused' });
+    expect(result.reports[0].schedules).toEqual([]);
   });
 
-  it('prefers an active trigger deterministically when a report has several', async () => {
+  it('passes the last run status through unchanged', async () => {
     const { facade } = buildFacade(
-      [buildReport({ id: 'r1', lastRunStatus: ReportRunStatus.SUCCESS })],
       [
-        buildTrigger({ reportId: 'r1', cron: 'inactive-cron', isActive: false }),
-        buildTrigger({ reportId: 'r1', cron: 'active-cron', isActive: true }),
-      ]
+        buildReport({ id: 'ok', lastRunStatus: ReportRunStatus.SUCCESS }),
+        buildReport({ id: 'failed', lastRunStatus: ReportRunStatus.ERROR }),
+        buildReport({ id: 'never-ran' }),
+      ],
+      []
     );
 
     const result = await facade.getDataMartReports(request);
+    const byId = Object.fromEntries(result.reports.map(r => [r.report_id, r]));
 
-    expect(result.reports[0]).toMatchObject({ schedule: 'active-cron', status: 'active' });
+    expect(byId['ok'].last_run_status).toBe(ReportRunStatus.SUCCESS);
+    expect(byId['failed'].last_run_status).toBe(ReportRunStatus.ERROR);
+    expect(byId['never-ran'].last_run_status).toBeNull();
   });
 
   it('returns an empty list without querying triggers when there are no reports', async () => {
@@ -178,10 +225,7 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('returns owner null when the report has no creator', async () => {
-    const { facade } = buildFacade(
-      [buildReport({ id: 'r1', createdByEmail: null, lastRunStatus: ReportRunStatus.SUCCESS })],
-      []
-    );
+    const { facade } = buildFacade([buildReport({ id: 'r1', createdByEmail: null })], []);
 
     const result = await facade.getDataMartReports(request);
 

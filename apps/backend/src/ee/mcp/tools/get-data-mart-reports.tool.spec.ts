@@ -23,9 +23,18 @@ describe('GetDataMartReportsTool', () => {
         destination_id: 'dest-1',
         destination_type: 'google_sheets' as const,
         owner: 'ann@owox.com',
-        schedule: '0 9 * * 1',
+        schedules: [
+          {
+            trigger_id: 'trigger-1',
+            cron_expression: '0 9 * * 1',
+            time_zone: 'Europe/Kyiv',
+            is_active: true,
+            next_run_at: '2026-06-15T06:00:00.000Z',
+            last_run_at: '2026-06-08T06:00:00.000Z',
+          },
+        ],
         last_run_at: '2026-06-10T10:00:00.000Z',
-        status: 'active' as const,
+        last_run_status: 'SUCCESS' as const,
       },
     ];
     const facade = {

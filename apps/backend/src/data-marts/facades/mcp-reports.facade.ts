@@ -1,3 +1,4 @@
+import type { ReportRunStatus } from '../enums/report-run-status.enum';
 import type { McpDestinationType } from './mcp-destination-type';
 
 export const MCP_REPORTS_FACADE = Symbol('MCP_REPORTS_FACADE');
@@ -9,9 +10,21 @@ export interface McpGetDataMartReportsRequest {
   roles: string[];
 }
 
-export type McpReportStatus = 'active' | 'paused' | 'error';
-
-export const MCP_REPORT_STATUSES = ['active', 'paused', 'error'] as const;
+/**
+ * One REPORT_RUN scheduled trigger of a report. A report can have any number
+ * of schedules; the field vocabulary matches the report-run-schedule MCP tools,
+ * so `trigger_id` can be passed to them directly.
+ */
+export interface McpReportScheduleItem {
+  trigger_id: string;
+  cron_expression: string;
+  time_zone: string;
+  is_active: boolean;
+  /** ISO 8601 timestamp of the next scheduled run, or `null`. */
+  next_run_at: string | null;
+  /** ISO 8601 timestamp of the trigger's last run, or `null` when it never ran. */
+  last_run_at: string | null;
+}
 
 export interface McpReportListItem {
   report_id: string;
@@ -19,11 +32,12 @@ export interface McpReportListItem {
   destination_id: string;
   destination_type: McpDestinationType;
   owner: string | null;
-  /** Cron expression of the report's active schedule, or `null` when unscheduled. */
-  schedule: string | null;
-  /** ISO 8601 timestamp of the last run, or `null` when the report never ran. */
+  /** All REPORT_RUN schedules of the report; empty when unscheduled. */
+  schedules: McpReportScheduleItem[];
+  /** ISO 8601 timestamp of the report's last run, or `null` when it never ran. */
   last_run_at: string | null;
-  status: McpReportStatus;
+  /** Status of the report's last run, or `null` when it never ran. */
+  last_run_status: ReportRunStatus | null;
 }
 
 export interface McpGetDataMartReportsResponse {
