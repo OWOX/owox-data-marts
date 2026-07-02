@@ -1,6 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_DATA_MARTS_FACADE,
@@ -73,6 +72,12 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     private readonly dataMarts: McpDataMartsFacade
   ) {}
 
+  // The MCP SDK validates arguments against `zodSchema` (the schema shape, non-strict) BEFORE
+  // calling handler(): it strips unknown keys and rejects bad enums/missing fields with its own
+  // generic error. So through a real MCP client this re-parse rarely fires — `.strict()`,
+  // `invalid_input`, and the unsupported_aggregation/unsupported_date_bucket branches in mapError
+  // are effectively defense-in-depth for direct/facade callers (only `unsupported_operator` is
+  // reachable via a client, since those operators are intentionally in the enum).
   private parseInput(input: unknown): QueryDataMartInput {
     return queryDataMartInputSchema.parse(input);
   }

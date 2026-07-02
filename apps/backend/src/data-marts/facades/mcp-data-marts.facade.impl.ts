@@ -9,6 +9,7 @@ import { isConnected } from '../data-storage-types/data-mart-schema.utils';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
+import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
@@ -33,7 +34,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     private readonly getDataMartService: GetDataMartService,
     private readonly dataMartService: DataMartService,
     private readonly queryDataMartService: QueryDataMartService,
-    private readonly blendableSchemaService: BlendableSchemaService
+    private readonly blendableSchemaService: BlendableSchemaService,
+    private readonly relationshipService: DataMartRelationshipService
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
@@ -87,13 +89,32 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     request: McpGetDataMartDetailsRequest
   ): Promise<McpJoinedFieldDto[]> {
     try {
+      // No outgoing relationships → no blended fields; skip the heavier blendable-schema
+      // computation on the (common) non-blended discovery path.
+      const relationships = await this.relationshipService.findBySourceDataMartId(
+        request.dataMartId
+      );
+      if (relationships.length === 0) {
+        return [];
+      }
+
       const blendable = await this.blendableSchemaService.computeBlendableSchema(
         request.dataMartId,
         request.projectId,
         { userId: request.userId, roles: request.roles }
       );
+
+      // Expose only fields from included sources the caller may report on — mirror the report
+      // UI's gate (isIncluded + isAccessibleForReporting). computeBlendableSchema resolves access
+      // per source but leaves it on availableSources; without this filter we would leak the
+      // schema of joined data marts the caller has no reporting access to.
+      const accessiblePaths = new Set(
+        blendable.availableSources
+          .filter(s => s.isIncluded && s.isAccessibleForReporting)
+          .map(s => s.aliasPath)
+      );
       return blendable.blendedFields
-        .filter(f => !f.isHidden)
+        .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
         .map(f => ({
           name: f.name,
           type: f.type,
@@ -104,7 +125,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
             : {}),
         }));
     } catch (err) {
-      this.logger.warn('computeBlendableSchema failed; returning no joined fields', { error: err });
+      this.logger.warn('resolveJoinedFields failed; returning no joined fields', { error: err });
       return [];
     }
   }

@@ -57,7 +57,6 @@ export interface McpQueryDataMartRequest {
 export interface McpQueryDataMartResponse {
   columns: string[];
   rows: unknown[][];
-  returnedRows: number;
   truncated: boolean;
   totals: Record<string, number | string | boolean | null> | null;
 }

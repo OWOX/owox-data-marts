@@ -42,6 +42,7 @@ describe('QueryDataMartService', () => {
     };
     const composer = {
       compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
+      inlineStaticSql: jest.fn((_storageType: unknown, sql: string) => sql),
     };
     const reader = {
       prepareReportData: jest.fn().mockResolvedValue(new ReportDataDescription(dataHeaders)),
@@ -128,7 +129,6 @@ describe('QueryDataMartService', () => {
       ['fb', 10],
       ['org', 8],
     ]);
-    expect(result.returnedRows).toBe(2);
     expect(result.truncated).toBe(false);
     expect(result.totals).toBeNull();
 
@@ -175,7 +175,6 @@ describe('QueryDataMartService', () => {
       ['fb', 10],
       ['org', 8],
     ]);
-    expect(result.returnedRows).toBe(2);
     expect(result.truncated).toBe(true);
   });
 
@@ -199,6 +198,27 @@ describe('QueryDataMartService', () => {
     expect(reader.finalize).toHaveBeenCalledTimes(1);
   });
 
+  it('does not fail an already-successful, already-recorded query when finalize() rejects', async () => {
+    const { service, reader, dataMartRunService } = createService();
+    reader.finalize.mockRejectedValue(new Error('finalize boom'));
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+
+    expect(result.rows).toHaveLength(2);
+    expect(reader.finalize).toHaveBeenCalledTimes(1);
+    const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+    expect(call.status).toBe(DataMartRunStatus.SUCCESS);
+  });
+
   it('computes and returns totals via ReportTotalsService', async () => {
     const mockTotals = { 'revenue | SUM': 18 };
     const reportTotalsService = {
@@ -207,7 +227,10 @@ describe('QueryDataMartService', () => {
 
     const service = new QueryDataMartService(
       { getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart) } as never,
-      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }) } as never,
+      {
+        compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
+        inlineStaticSql: jest.fn((_st: unknown, sql: string) => sql),
+      } as never,
       {
         resolve: jest.fn().mockResolvedValue({
           prepareReportData: jest
@@ -487,7 +510,10 @@ describe('QueryDataMartService', () => {
 
     const service = new QueryDataMartService(
       { getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart) } as never,
-      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }) } as never,
+      {
+        compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
+        inlineStaticSql: jest.fn((_st: unknown, sql: string) => sql),
+      } as never,
       { resolve: jest.fn().mockResolvedValue(readerMock) } as never,
       reportTotalsService as never,
       { recordMcpQueryRun: jest.fn().mockResolvedValue(undefined) } as never,
@@ -679,7 +705,6 @@ describe('QueryDataMartService', () => {
       ['fb', 10],
       ['org', 8],
     ]);
-    expect(result.returnedRows).toBe(2);
     expect(result.truncated).toBe(false);
     expect(result.totals).toEqual(mockTotals);
   });

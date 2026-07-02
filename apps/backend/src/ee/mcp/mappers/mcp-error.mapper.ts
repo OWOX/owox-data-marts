@@ -12,8 +12,8 @@ export function toToolError(error: unknown): McpToolResult {
   };
 }
 
-export function toStructuredToolError(error_code: string, message: string): McpToolResult {
-  const payload = { error_code, message };
+export function toStructuredToolError(errorCode: string, message: string): McpToolResult {
+  const payload = { error_code: errorCode, message };
   return {
     isError: true,
     structuredContent: payload,

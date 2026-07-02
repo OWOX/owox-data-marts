@@ -95,7 +95,18 @@ export class QueryDataMartService {
     let executionSqlQuery: string | undefined;
     try {
       const composed = await this.composer.compose(readPlan, accessor);
-      executionSqlQuery = composed.sql;
+      // Persist a self-contained SQL string for Run History (parameters inlined, like report
+      // runs) so the recorded "Executed SQL" is runnable, not @p/? placeholders. Best-effort:
+      // fall back to the parameterized SQL if inlining is unsupported for this storage.
+      try {
+        executionSqlQuery = this.composer.inlineStaticSql(
+          dataMart.storage.type,
+          composed.sql,
+          composed.params
+        );
+      } catch {
+        executionSqlQuery = composed.sql;
+      }
       reader = await this.readerResolver.resolve(dataMart.storage.type);
       const description = await reader.prepareReportData(readPlan, {
         sqlOverride: composed.sql,
@@ -138,6 +149,9 @@ export class QueryDataMartService {
           status: DataMartRunStatus.SUCCESS,
           metadata: {
             columns,
+            // Rows read from the warehouse (audit). The client's `returned_rows` may be lower
+            // if the tool's byte-cap trims the payload — an intentional divergence: metadata
+            // records the query result size, the response reflects the transported payload.
             rowCount: trimmed.length,
             truncated,
             executionSqlQuery,
@@ -162,7 +176,6 @@ export class QueryDataMartService {
       return {
         columns,
         rows: trimmed,
-        returnedRows: trimmed.length,
         truncated,
         totals,
       };
@@ -192,7 +205,14 @@ export class QueryDataMartService {
       }
       throw err;
     } finally {
-      await reader?.finalize();
+      // Best-effort, like every other secondary op here: a finalize() rejection (e.g. Snowflake
+      // adapter.destroy / Databricks cursor close on a network blip) must not convert an
+      // already-returned, already-billed success into a tool error, nor mask the original error.
+      try {
+        await reader?.finalize();
+      } catch (finalizeErr) {
+        this.logger.warn('reader.finalize() failed; ignoring', { error: finalizeErr });
+      }
     }
   }
 }
