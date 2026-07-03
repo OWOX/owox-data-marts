@@ -76,6 +76,17 @@ export function aggregatedColumnLabel(column: string, fn: ReportAggregateFunctio
 }
 
 /**
+ * Display label `<alias> | <TOKEN>` for an aggregated column that carries a user alias.
+ * Mirrors the suffix of `aggregatedColumnLabel` so an aliased metric reads consistently with a
+ * non-aliased one (whose display falls back to the `name`, i.e. `<column> | <TOKEN>`). The alias
+ * is NOT sanitized — it is a display string, not a SQL identifier, so it has no dot/legality
+ * constraint (and mangling it would corrupt the header the user chose).
+ */
+export function aggregatedColumnAlias(alias: string, fn: ReportAggregateFunction): string {
+  return `${alias} | ${REPORT_AGGREGATE_FUNCTION_TOKENS[fn]}`;
+}
+
+/**
  * The aggregation functions applied to a column, in rule order. A column may carry
  * more than one (each producing its own output column). The SQL renderer and the
  * header resolver MUST both expand a column through this same helper so the per-column
