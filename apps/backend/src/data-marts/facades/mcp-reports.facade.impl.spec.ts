@@ -4,14 +4,33 @@ jest.mock('../use-cases/list-reports-by-data-mart.service', () => ({
 jest.mock('../services/scheduled-trigger.service', () => ({
   ScheduledTriggerService: jest.fn(),
 }));
+jest.mock('../use-cases/create-report.service', () => ({ CreateReportService: jest.fn() }));
+jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () => ({
+  CreateGoogleSheetDocumentService: jest.fn(),
+}));
+jest.mock('../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
+jest.mock('../services/output-controls-validator.service', () => ({
+  OutputControlsValidatorService: jest.fn(),
+}));
+jest.mock('../services/access-decision', () => ({
+  AccessDecisionService: jest.fn(),
+  EntityType: { DATA_MART: 'DATA_MART', DESTINATION: 'DESTINATION' },
+  Action: { USE: 'USE' },
+}));
 
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ReportDto } from '../dto/domain/report.dto';
 import type { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
 import type { ScheduledTriggerService } from '../services/scheduled-trigger.service';
+import type { CreateReportService } from '../use-cases/create-report.service';
+import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
+import type { AccessDecisionService } from '../services/access-decision';
+import type { DataMartService } from '../services/data-mart.service';
+import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import { McpReportsFacadeImpl } from './mcp-reports.facade.impl';
 
 function buildReport(overrides: {
@@ -70,8 +89,44 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
   const scheduledTriggerService = {
     getAllByDataMartIdAndProjectId: jest.fn().mockResolvedValue(triggers),
   } as unknown as jest.Mocked<ScheduledTriggerService>;
-  const facade = new McpReportsFacadeImpl(listReportsByDataMartService, scheduledTriggerService);
-  return { facade, listReportsByDataMartService, scheduledTriggerService };
+  const createReportService = {
+    run: jest.fn(),
+  } as unknown as jest.Mocked<CreateReportService>;
+  const createGoogleSheetDocumentService = {
+    run: jest.fn(),
+  } as unknown as jest.Mocked<CreateGoogleSheetDocumentService>;
+  const dataMartService = {
+    getByIdAndProjectId: jest.fn().mockResolvedValue({
+      id: 'dm-1',
+      status: DataMartStatus.PUBLISHED,
+      storage: { type: 'GOOGLE_BIGQUERY' },
+    }),
+  } as unknown as jest.Mocked<DataMartService>;
+  const accessDecisionService = {
+    canAccess: jest.fn().mockResolvedValue(true),
+  } as unknown as jest.Mocked<AccessDecisionService>;
+  const outputControlsValidator = {
+    validateForReport: jest.fn().mockResolvedValue(undefined),
+  } as unknown as jest.Mocked<OutputControlsValidatorService>;
+  const facade = new McpReportsFacadeImpl(
+    listReportsByDataMartService,
+    scheduledTriggerService,
+    createReportService,
+    createGoogleSheetDocumentService,
+    dataMartService,
+    accessDecisionService,
+    outputControlsValidator
+  );
+  return {
+    facade,
+    listReportsByDataMartService,
+    scheduledTriggerService,
+    createReportService,
+    createGoogleSheetDocumentService,
+    dataMartService,
+    accessDecisionService,
+    outputControlsValidator,
+  };
 }
 
 const request = {
@@ -246,5 +301,179 @@ describe('McpReportsFacadeImpl', () => {
     const result = await facade.getDataMartReports(request);
 
     expect(result.reports[0].owner).toBeNull();
+  });
+});
+
+describe('McpReportsFacadeImpl.addReport', () => {
+  const addRequest = {
+    dataMartId: 'dm-1',
+    destinationId: 'dest-1',
+    fields: ['channel', 'revenue'],
+    name: 'Weekly revenue',
+    projectId: 'project-1',
+    userId: 'user-1',
+    userEmail: 'ann@owox.com',
+    roles: ['editor'],
+  };
+
+  it('pre-validates, auto-creates a sheet, then creates a report pointing at it', async () => {
+    const {
+      facade,
+      createGoogleSheetDocumentService,
+      createReportService,
+      accessDecisionService,
+      outputControlsValidator,
+    } = buildFacade([], []);
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+    createReportService.run.mockResolvedValue({
+      id: 'report-1',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport(addRequest);
+
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      'DATA_MART',
+      'dm-1',
+      'USE',
+      'project-1'
+    );
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      'DESTINATION',
+      'dest-1',
+      'USE',
+      'project-1'
+    );
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storageType: 'GOOGLE_BIGQUERY',
+        dataMartId: 'dm-1',
+        projectId: 'project-1',
+        columnConfig: ['channel', 'revenue'],
+      })
+    );
+    expect(createGoogleSheetDocumentService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationId: 'dest-1',
+        projectId: 'project-1',
+        title: 'Weekly revenue',
+        requestedByUserId: 'user-1',
+        userEmail: 'ann@owox.com',
+      })
+    );
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        title: 'Weekly revenue',
+        dataMartId: 'dm-1',
+        dataDestinationId: 'dest-1',
+        destinationConfig: {
+          type: 'google-sheets-config',
+          spreadsheetId: 'ss-1',
+          sheetId: 0,
+        },
+        columnConfig: ['channel', 'revenue'],
+      })
+    );
+    expect(result).toEqual({
+      report_id: 'report-1',
+      owner: 'ann@owox.com',
+      status: 'created',
+      sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+    });
+  });
+
+  it('passes the placed-in-root and shared-with-requester flags through', async () => {
+    const { facade, createGoogleSheetDocumentService, createReportService } = buildFacade([], []);
+    createGoogleSheetDocumentService.run.mockResolvedValue({
+      spreadsheetId: 'ss-1',
+      sheetId: 0,
+      placedInRoot: true,
+      sharedWithRequester: false,
+    });
+    createReportService.run.mockResolvedValue({
+      id: 'report-1',
+      createdByUser: null,
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport(addRequest);
+
+    expect(result).toMatchObject({ placed_in_root: true, shared_with_requester: false });
+  });
+
+  it('maps fields ["*"] to no column projection (all fields)', async () => {
+    const {
+      facade,
+      createGoogleSheetDocumentService,
+      createReportService,
+      outputControlsValidator,
+    } = buildFacade([], []);
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-2', sheetId: 3 });
+    createReportService.run.mockResolvedValue({ id: 'report-2', createdByUser: null } as ReportDto);
+
+    await facade.addReport({ ...addRequest, fields: ['*'] });
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: null })
+    );
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: null })
+    );
+  });
+
+  it('rejects a non-published data mart before creating the sheet', async () => {
+    const { facade, createGoogleSheetDocumentService, dataMartService } = buildFacade([], []);
+    dataMartService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dm-1',
+      status: 'DRAFT',
+      storage: { type: 'GOOGLE_BIGQUERY' },
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow('PUBLISHED');
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a caller without data mart access before creating the sheet', async () => {
+    const { facade, createGoogleSheetDocumentService, accessDecisionService } = buildFacade([], []);
+    accessDecisionService.canAccess.mockResolvedValueOnce(false);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow('access to the DataMart');
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a caller without destination access before creating the sheet', async () => {
+    const { facade, createGoogleSheetDocumentService, accessDecisionService } = buildFacade([], []);
+    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow('access to the Destination');
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid fields before creating the sheet', async () => {
+    const { facade, createGoogleSheetDocumentService, outputControlsValidator } = buildFacade(
+      [],
+      []
+    );
+    outputControlsValidator.validateForReport.mockRejectedValue(new Error('Unknown column'));
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow('Unknown column');
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+  });
+
+  it('does not create the report when sheet creation fails', async () => {
+    const { facade, createGoogleSheetDocumentService, createReportService } = buildFacade([], []);
+    createGoogleSheetDocumentService.run.mockRejectedValue(
+      new Error('Destination is not a Google Sheets destination')
+    );
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'Destination is not a Google Sheets destination'
+    );
+    expect(createReportService.run).not.toHaveBeenCalled();
   });
 });

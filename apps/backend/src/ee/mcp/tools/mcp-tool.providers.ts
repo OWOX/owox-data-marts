@@ -1,5 +1,6 @@
 import type { Provider, Type } from '@nestjs/common';
 import { CreateReportRunScheduleTool } from './create-report-run-schedule.tool';
+import { AddReportTool } from './add-report.tool';
 import { ListDataMartsTool } from './data-mart-catalog.tool';
 import { GetDataMartDetailsTool } from './data-mart-details.tool';
 import { DeleteReportRunScheduleTool } from './delete-report-run-schedule.tool';
@@ -24,6 +25,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   UpdateReportRunScheduleTool,
   DeleteReportRunScheduleTool,
   QueryDataMartTool,
+  AddReportTool,
 ];
 
 export const MCP_TOOL_DEFINITIONS_PROVIDER: Provider = {

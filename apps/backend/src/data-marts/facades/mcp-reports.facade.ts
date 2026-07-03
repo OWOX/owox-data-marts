@@ -46,6 +46,37 @@ export interface McpGetDataMartReportsResponse {
   reports: McpReportListItem[];
 }
 
+export interface McpAddReportRequest {
+  dataMartId: string;
+  destinationId: string;
+  /** Column names to include; `['*']` (or containing `'*'`) selects every field. */
+  fields: string[];
+  name: string;
+  projectId: string;
+  userId: string;
+  /** Requesting user email — the auto-created sheet is shared with them (best-effort). */
+  userEmail?: string;
+  roles: string[];
+}
+
+export interface McpAddReportResult {
+  report_id: string;
+  owner: string | null;
+  status: 'created';
+  /** Link to the auto-created Google Sheet. */
+  sheet_url: string;
+  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. */
+  placed_in_root?: boolean;
+  /** False when the created sheet could not be shared with the requesting user. */
+  shared_with_requester?: boolean;
+}
+
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
+  /**
+   * Creates a report for a Google Sheets destination: auto-creates a new Sheet,
+   * then creates the report pointing at it. Non-Google-Sheets destinations are
+   * rejected by the underlying document-creation service.
+   */
+  addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
 }
