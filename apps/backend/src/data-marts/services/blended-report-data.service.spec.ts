@@ -1539,6 +1539,67 @@ describe('BlendedReportDataService', () => {
 
         expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
       });
+
+      it('does NOT reject an EXCLUDED-but-accessible source referenced via a POST-join filter (documents current behavior)', async () => {
+        // Counterpart to the pre-join-slice test above. The exclusion guard covers ONLY pre-join
+        // slices: an excluded (isIncluded:false) source that the caller's role CAN report on
+        // (isAccessibleForReporting:true) is NOT rejected when named via columnConfig or a
+        // post-join filter — it resolves and builds the blend, exactly as the regular report run
+        // path does (both go through this same method). The role gate (isAccessibleForReporting)
+        // is still enforced; isIncluded is a blend-config hint that the FE picker (report builder
+        // AND MCP discovery) hides but the backend does not enforce here. So MCP mirrors the
+        // platform — aligning discovery and the run path on exclusion is a platform-wide decision,
+        // not an MCP-local one. This test locks that current behavior.
+        const report = makeReport({
+          columnConfig: ['b__field'],
+          filterConfig: [
+            { column: 'excluded__field', operator: 'eq', value: 'x', placement: 'post-join' },
+          ] as any,
+        });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({ aliasPath: 'b', isAccessibleForReporting: true }),
+            makeAccessibleSource({
+              aliasPath: 'excluded',
+              title: 'Excluded DM',
+              dataMartId: 'dm-excluded',
+              relationshipId: 'rel-excluded',
+              isAccessibleForReporting: true,
+              isIncluded: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b'), makeField('excluded__field', 'excluded')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+          {
+            id: 'rel-excluded',
+            targetAlias: 'excluded',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-excluded', title: 'Excluded DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
     });
 
     describe('resolveBlendingDecision — filter on non-selected blended column', () => {

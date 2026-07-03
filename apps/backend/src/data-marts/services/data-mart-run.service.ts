@@ -18,9 +18,16 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
+import {
+  McpQueryRunMetadata,
+  McpQueryRunMetadataSchema,
+} from '../dto/schemas/mcp-query-run-metadata.schema';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
+
 import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
+
+export const MCP_QUERY_PARAMS_KEY = 'mcpQuery';
 
 /**
  * Context for creating a new report run.
@@ -80,6 +87,17 @@ export interface HttpDataRunRecord {
   startedAt: Date;
   status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED;
   metadata: HttpDataRunMetadata;
+  errors?: string[];
+}
+
+// Terminal-only MCP_QUERY run: written once at the end (success or failure), no RUNNING phase.
+export interface McpQueryRunRecord {
+  runId: string;
+  dataMart: DataMart;
+  createdById: string;
+  startedAt: Date;
+  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED;
+  metadata: McpQueryRunMetadata;
   errors?: string[];
 }
 
@@ -553,6 +571,26 @@ export class DataMartRunService {
       createdById: record.createdById,
       definitionRun: record.dataMart.definition,
       additionalParams: { [HTTP_DATA_PARAMS_KEY]: record.metadata },
+      startedAt: record.startedAt,
+      finishedAt: this.systemClock.now(),
+      errors: record.errors?.length ? record.errors : null,
+    });
+
+    await this.dataMartRunRepository.save(run);
+  }
+
+  // Terminal-only: persisted once at the end; id is caller-provided to match the run UUID.
+  public async recordMcpQueryRun(record: McpQueryRunRecord): Promise<void> {
+    const metadata = McpQueryRunMetadataSchema.parse(record.metadata);
+    const run = this.dataMartRunRepository.create({
+      id: record.runId,
+      dataMartId: record.dataMart.id,
+      type: DataMartRunType.MCP_QUERY,
+      runType: RunType.manual,
+      status: record.status,
+      createdById: record.createdById,
+      definitionRun: record.dataMart.definition,
+      additionalParams: { [MCP_QUERY_PARAMS_KEY]: metadata },
       startedAt: record.startedAt,
       finishedAt: this.systemClock.now(),
       errors: record.errors?.length ? record.errors : null,

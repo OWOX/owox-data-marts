@@ -10,7 +10,7 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
-import { DataMartRunService, ReportRunContext } from './data-mart-run.service';
+import { DataMartRunService, McpQueryRunRecord, ReportRunContext } from './data-mart-run.service';
 
 function fakeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -334,6 +334,69 @@ describe('DataMartRunService', () => {
       expect(outputConfig).toBeDefined();
       expect(outputConfig['filterConfig']).toEqual(filterConfig);
       expect(runArg.status).toBe(DataMartRunStatus.RUNNING);
+    });
+  });
+
+  describe('recordMcpQueryRun', () => {
+    it('persists a SUCCESS MCP_QUERY run with correct fields', async () => {
+      const { service, dataMartRunRepository, systemClock } = createService();
+      const dm = fakeDataMart();
+      const startedAt = new Date('2026-07-01T10:00:00.000Z');
+      const record: McpQueryRunRecord = {
+        runId: 'run-mcp-1',
+        dataMart: dm,
+        createdById: 'user-42',
+        startedAt,
+        status: DataMartRunStatus.SUCCESS,
+        metadata: {
+          columns: ['channel', 'revenue'],
+          rowCount: 5,
+          truncated: false,
+          filterCount: 1,
+          aggregationCount: 0,
+        },
+      };
+
+      await service.recordMcpQueryRun(record);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      expect(saved.id).toBe('run-mcp-1');
+      expect(saved.type).toBe(DataMartRunType.MCP_QUERY);
+      expect(saved.status).toBe(DataMartRunStatus.SUCCESS);
+      expect(saved.createdById).toBe('user-42');
+      expect(saved.dataMartId).toBe('dm-1');
+      expect(saved.startedAt).toBe(startedAt);
+      expect(saved.finishedAt).toEqual(systemClock.now());
+      expect(saved.additionalParams).toEqual({
+        mcpQuery: {
+          columns: ['channel', 'revenue'],
+          rowCount: 5,
+          truncated: false,
+          filterCount: 1,
+          aggregationCount: 0,
+        },
+      });
+      expect(saved.errors).toBeNull();
+    });
+
+    it('persists a FAILED MCP_QUERY run with errors', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const dm = fakeDataMart();
+      const record: McpQueryRunRecord = {
+        runId: 'run-mcp-fail',
+        dataMart: dm,
+        createdById: 'user-1',
+        startedAt: new Date(),
+        status: DataMartRunStatus.FAILED,
+        metadata: { columns: [], rowCount: 0, truncated: false },
+        errors: ['query timed out'],
+      };
+
+      await service.recordMcpQueryRun(record);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      expect(saved.status).toBe(DataMartRunStatus.FAILED);
+      expect(saved.errors).toEqual(['query timed out']);
     });
   });
 

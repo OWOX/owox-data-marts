@@ -30,13 +30,24 @@ export function ConfigurationView({
     !Array.isArray(additionalParams.httpData)
       ? (additionalParams.httpData as Record<string, unknown>)
       : null;
+  const mcpQueryParams =
+    additionalParams != null &&
+    typeof additionalParams.mcpQuery === 'object' &&
+    additionalParams.mcpQuery !== null &&
+    !Array.isArray(additionalParams.mcpQuery)
+      ? (additionalParams.mcpQuery as Record<string, unknown>)
+      : null;
+  const mcpExecutedSql =
+    mcpQueryParams != null && typeof mcpQueryParams.executionSqlQuery === 'string'
+      ? mcpQueryParams.executionSqlQuery
+      : null;
   const { copiedSection, handleCopy } = useClipboard();
 
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
-  if (definitionRun == null && httpDataParams == null) {
+  if (definitionRun == null && httpDataParams == null && mcpQueryParams == null) {
     return (
       <div className='border-border rounded-lg border' onClick={handleStopPropagation}>
         <div className='text-muted-foreground p-8 text-center'>
@@ -132,6 +143,39 @@ export function ConfigurationView({
             <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>HTTP Data parameters:</h4>
             <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
               {JSON.stringify(httpDataParams, null, 2)}
+            </pre>
+          </>
+        )}
+        {mcpExecutedSql != null && (
+          <>
+            <div className='mt-3 mb-3 flex items-center justify-between'>
+              <h4 className='text-foreground text-sm font-medium'>Executed SQL:</h4>
+              <CopyButton
+                text={mcpExecutedSql}
+                section='mcpExecutionSql'
+                variant={CopyButtonVariant.DEFAULT}
+                copiedSection={copiedSection}
+                onCopy={handleCopy}
+              />
+            </div>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {mcpExecutedSql}
+            </pre>
+          </>
+        )}
+        {mcpQueryParams && (
+          <>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>MCP query:</h4>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {JSON.stringify(
+                // executionSqlQuery renders in its own "Executed SQL:" block above,
+                // so exclude it here to avoid showing it twice.
+                Object.fromEntries(
+                  Object.entries(mcpQueryParams).filter(([key]) => key !== 'executionSqlQuery')
+                ),
+                null,
+                2
+              )}
             </pre>
           </>
         )}

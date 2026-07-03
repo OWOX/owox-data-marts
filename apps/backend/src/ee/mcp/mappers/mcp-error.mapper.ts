@@ -11,3 +11,12 @@ export function toToolError(error: unknown): McpToolResult {
     ],
   };
 }
+
+export function toStructuredToolError(errorCode: string, message: string): McpToolResult {
+  const payload = { error_code: errorCode, message };
+  return {
+    isError: true,
+    structuredContent: payload,
+    content: [{ type: 'text', text: JSON.stringify(payload) }],
+  };
+}
