@@ -30,7 +30,7 @@ export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> 
   readonly name = 'query_data_mart';
   readonly description = `Query an OWOX data mart and return its data rows in a compact, header-once table, plus server-side totals computed over all matching rows (ignoring the row limit). Each call costs credits.
 
-Call get_data_mart_details_by_id first to get the data mart's exact field names, joinable/blended fields, and sample values, then copy field names verbatim into fields — unless you already have that schema in context. Field names must be exact; never guess or invent them.
+Call get_data_mart_details_by_id first to get the data mart's exact field names and joinable/blended fields, then copy field names verbatim into fields — unless you already have that schema in context. Field names must be exact; never guess or invent them.
 
 When building the query:
 - Request only the fields relevant to the user's question — never request all fields.

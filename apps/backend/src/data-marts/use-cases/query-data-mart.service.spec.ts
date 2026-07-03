@@ -7,11 +7,13 @@ import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 describe('QueryDataMartService', () => {
   const dataMart = {
     id: 'dm1',
     projectId: 'p1',
+    status: DataMartStatus.PUBLISHED,
     storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
   };
 
@@ -219,6 +221,52 @@ describe('QueryDataMartService', () => {
     expect(reader.readReportDataBatch).not.toHaveBeenCalled();
     expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
     expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
+  });
+
+  it('rejects limit above the upper bound at the service boundary', async () => {
+    const { service, reader } = createService();
+
+    await expect(
+      service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel'],
+          limit: 1001,
+        })
+      )
+    ).rejects.toThrow(BadRequestException);
+
+    expect(reader.readReportDataBatch).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unpublished (DRAFT) data mart with the same not-found as a hidden one', async () => {
+    const { service, dataMartService, reader, accessDecisionService } = createService();
+    dataMartService.getByIdAndProjectId.mockResolvedValue({
+      ...dataMart,
+      status: DataMartStatus.DRAFT,
+    });
+
+    const err = await service
+      .run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel'],
+          limit: 100,
+        })
+      )
+      .catch((e: Error) => e);
+
+    expect(err).toBeInstanceOf(NotFoundException);
+    expect((err as Error).message).toBe('Data Mart not found');
+    // Published is checked before access and before any read — a DRAFT never reaches the warehouse.
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(reader.readReportDataBatch).not.toHaveBeenCalled();
   });
 
   it('finalizes the reader even when reading fails', async () => {

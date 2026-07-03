@@ -8,6 +8,7 @@ import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMart } from '../entities/data-mart.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { BlendableSchemaAccessor } from '../services/blendable-schema.service';
 import { ReportTotalsService } from '../services/report-totals.service';
@@ -23,6 +24,10 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 export class QueryDataMartCommand {
   constructor(public readonly request: McpQueryDataMartRequest) {}
 }
+
+// Upper bound on rows read per query, independent of the MCP tool's own clamp (query-data-mart.
+// input.ts MAX_LIMIT) — this guards direct service/facade callers that bypass the tool schema.
+const MAX_QUERY_LIMIT = 1000;
 
 /**
  * Reads rows for a single Data Mart on behalf of the `query_data_mart` MCP tool.
@@ -51,12 +56,15 @@ export class QueryDataMartService {
   async run(command: QueryDataMartCommand): Promise<McpQueryDataMartResponse> {
     const r = command.request;
 
-    // Defense-in-depth for direct facade callers: the MCP tool clamps limit to 1–1000, but the
-    // facade contract types it as a bare number. A limit < 1 would still read and then fail to
-    // persist the run (McpQueryRunMetadataSchema requires limit.positive()), silently dropping the
-    // audit row inside the best-effort catch. Reject it up front, before any read or billing.
-    if (!Number.isInteger(r.limit) || r.limit < 1) {
-      throw new BadRequestException('query_data_mart: limit must be an integer >= 1');
+    // Defense-in-depth for direct facade callers: the MCP tool clamps limit to 1–MAX_QUERY_LIMIT,
+    // but the facade contract types it as a bare number. A limit < 1 would still read and then fail
+    // to persist the run (McpQueryRunMetadataSchema requires limit.positive()), silently dropping
+    // the audit row inside the best-effort catch; an unbounded upper limit invites a memory/DWH
+    // overload. Bound both ends up front, before any read or billing.
+    if (!Number.isInteger(r.limit) || r.limit < 1 || r.limit > MAX_QUERY_LIMIT) {
+      throw new BadRequestException(
+        `query_data_mart: limit must be an integer between 1 and ${MAX_QUERY_LIMIT}`
+      );
     }
 
     let dataMart: DataMart;
@@ -70,6 +78,13 @@ export class QueryDataMartService {
         throw new NotFoundException(`Data Mart not found`);
       }
       throw err;
+    }
+
+    // Only PUBLISHED data marts are queryable — mirror StreamHttpDataService's boundary so a visible
+    // DRAFT cannot be executed by ID. Reuse the same not-found message so an unpublished DM is
+    // indistinguishable from a missing/hidden one.
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      throw new NotFoundException(`Data Mart not found`);
     }
 
     // Throw not-found (not forbidden) on a hidden DM so the caller cannot tell it apart from a missing one.

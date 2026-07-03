@@ -1,9 +1,10 @@
 // Escaping contract: \\ first, then \t/\n/\r — embedded control chars must not
 // create phantom columns or rows when the consumer splits on tab/newline.
 
-export const ROWS_PAYLOAD_BYTE_CAP = 131072; // 128 KiB — safety ceiling for the serialized rows payload.
-// Comfortably above a max-limit (1000) narrow result (~56 KB), so normal queries pass untouched;
-// only pathological wide-value payloads get trimmed (then `truncated: true`).
+export const ROWS_PAYLOAD_BYTE_CAP = 131072; // 128 KiB — hard ceiling for the serialized rows payload.
+// Comfortably above a max-limit (1000) narrow result (~56 KB), so normal queries pass untouched.
+// The ceiling is hard: a pathological row that alone exceeds it is dropped (not emitted in full),
+// and the result is flagged `capped` (→ `truncated: true`) so the caller narrows the query.
 
 // JSON.stringify throws on a nested BigInt (TypeError) or a circular reference. A struct/array cell
 // can carry a BigInt warehouse value (e.g. BigQuery INT64 inside a RECORD), and that throw would
@@ -37,8 +38,10 @@ export function serializeTsvWithByteCap(
   let count = 0;
   for (const r of rows) {
     const line = r.map(cell).join('\t');
-    const add = Buffer.byteLength('\n' + line, 'utf8');
-    if (count > 0 && total + add > maxBytes) break; // always keep at least the first row
+    const add = Buffer.byteLength(line, 'utf8') + 1; // +1 for the '\n' separator (always 1 byte in UTF-8)
+    // Hard ceiling: drop the row rather than emit past maxBytes — even the first row, so a single
+    // oversized warehouse value cannot blow the payload. An empty result is flagged `capped`.
+    if (total + add > maxBytes) break;
     total += add;
     lines.push(line);
     count++;

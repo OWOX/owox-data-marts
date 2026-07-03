@@ -103,10 +103,18 @@ describe('serializeTsvWithByteCap', () => {
     expect(direct).toBe(tsv);
   });
 
-  it('always keeps at least the first row even when it alone exceeds maxBytes', () => {
-    // maxBytes = 5 is far smaller than the header + first row; first row must still be included
-    const { rowCount, capped } = serializeTsvWithByteCap(COLUMNS, FIVE_ROWS, 5);
-    expect(rowCount).toBeGreaterThanOrEqual(1);
+  it('enforces the ceiling even on the first row — an oversized first row is dropped, not emitted', () => {
+    // maxBytes = 5 is far smaller than the header + first row; the ceiling is hard, so no row fits.
+    const { tsv, rowCount, capped } = serializeTsvWithByteCap(COLUMNS, FIVE_ROWS, 5);
+    expect(rowCount).toBe(0);
+    expect(capped).toBe(true);
+    expect(tsv).toBe('col1\tcol2'); // header only
+  });
+
+  it('drops a single pathologically wide first row so the payload stays under the cap', () => {
+    const wide = 'x'.repeat(500);
+    const { rowCount, capped } = serializeTsvWithByteCap(['a'], [[wide], ['ok']], 100);
+    expect(rowCount).toBe(0);
     expect(capped).toBe(true);
   });
 
