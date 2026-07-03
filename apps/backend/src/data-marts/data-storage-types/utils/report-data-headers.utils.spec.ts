@@ -5,6 +5,7 @@ import { BigQueryFieldType } from '../bigquery/enums/bigquery-field-type.enum';
 import {
   ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
+  aggregatedColumnAlias,
   aggregatedColumnLabel,
 } from '../../dto/schemas/aggregation-labels';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
@@ -218,6 +219,48 @@ describe('resolveReportDataHeaders', () => {
       );
       const aggregated = out.find(h => h.aggregateFunction === 'SUM');
       expect(aggregated?.storageFieldType).toBe(BigQueryFieldType.FLOAT);
+    });
+
+    it('an aliased aggregated column suffixes the DISPLAY alias too (sheet header keeps `| <FUNC>`)', () => {
+      // Regression: the sheet writer renders `alias || name`. If only the name gets the
+      // suffix, an aliased metric shows a bare `<alias>` and drops `| <FUNC>`; with two
+      // functions both columns would collide on the same header.
+      const aliased = [
+        new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),
+        new ReportDataHeader('revenue', 'Revenue', undefined, BigQueryFieldType.INTEGER),
+      ];
+      const out = resolveReportDataHeaders(
+        aliased,
+        {
+          columnFilter: ['channel', 'revenue'],
+          aggregationConfig: [
+            { column: 'revenue', function: 'SUM' },
+            { column: 'revenue', function: 'AVG' },
+          ],
+        },
+        BQ
+      );
+      const sum = out.find(h => h.name === aggregatedColumnLabel('revenue', 'SUM'));
+      const avg = out.find(h => h.name === aggregatedColumnLabel('revenue', 'AVG'));
+      expect(sum?.alias).toBe(aggregatedColumnAlias('Revenue', 'SUM'));
+      expect(avg?.alias).toBe(aggregatedColumnAlias('Revenue', 'AVG'));
+      // Distinct display labels — no header collision.
+      expect(sum?.alias).not.toBe(avg?.alias);
+      // A non-aggregated dimension keeps its plain (here: absent) alias.
+      expect(out.find(h => h.name === 'channel')?.alias).toBeUndefined();
+    });
+
+    it('an aggregated column with NO alias leaves the alias undefined (writer falls back to name)', () => {
+      const out = resolveReportDataHeaders(
+        native,
+        {
+          columnFilter: ['channel', 'revenue'],
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        },
+        BQ
+      );
+      const revenue = out.find(h => h.name === aggregatedColumnLabel('revenue', 'SUM'));
+      expect(revenue?.alias).toBeUndefined();
     });
 
     it('an unknown aggregated column (no native/blended header) yields undefined type, not a forced lie', () => {
