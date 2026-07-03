@@ -49,6 +49,7 @@ Choosing between slices and filters (both are row-level predicates applied to ra
 Using the results:
 - Use metrics and totals from the response directly — never recompute a value already present (totals are computed server-side over all matching rows, so they stay correct even when rows are truncated).
 - The totals block is separate from the rows.
+- When you use aggregations, the rows include an extra "Row Count" column — the number of underlying rows in each group. It is grouping metadata, not one of your requested fields; ignore it unless the user asked how many rows a group contains.
 
 If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000).`;
   readonly zodSchema = queryDataMartInputSchema.shape;
@@ -205,6 +206,16 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         return toStructuredToolError(
           'field_not_found',
           `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`
+        );
+      }
+
+      // `slices` were used on a data mart with no joined/blended sources. slices are pre-join
+      // filters — they only make sense when the data mart blends another one in. Point the model
+      // at the real fix instead of the generic "re-check the schema" fallback.
+      if (errors?.some(e => e.code === 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART')) {
+        return toStructuredToolError(
+          'slices_not_applicable',
+          'This data mart has no joined/blended sources, so slices (pre-join filters) do not apply. Move these predicates to "filters" and retry.'
         );
       }
 

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { QueryDataMartCommand, QueryDataMartService } from './query-data-mart.service';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
@@ -176,6 +176,49 @@ describe('QueryDataMartService', () => {
       ['org', 8],
     ]);
     expect(result.truncated).toBe(true);
+  });
+
+  it('does not hang when a reader returns an empty page with a non-null next token', async () => {
+    const { service, reader } = createService();
+    // Redshift/Athena forward the warehouse NextToken verbatim and ignore the row cap — an empty
+    // page with a truthy token would spin the read loop forever without the empty-page guard.
+    reader.readReportDataBatch.mockReset();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], 'never-ending-token'));
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel'],
+        limit: 100,
+      })
+    );
+
+    expect(result.rows).toHaveLength(0);
+    expect(reader.readReportDataBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects limit < 1 at the service boundary before any read or billing', async () => {
+    const { service, reader, dataMartRunService, consumptionTrackingService } = createService();
+
+    await expect(
+      service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel'],
+          limit: 0,
+        })
+      )
+    ).rejects.toThrow(BadRequestException);
+
+    expect(reader.readReportDataBatch).not.toHaveBeenCalled();
+    expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
+    expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
   });
 
   it('finalizes the reader even when reading fails', async () => {

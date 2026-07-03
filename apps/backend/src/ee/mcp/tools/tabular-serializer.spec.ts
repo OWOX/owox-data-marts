@@ -57,6 +57,15 @@ describe('serializeTsv', () => {
       'obj\tarr\n{"a":1,"b":"x"}\t[1,2,3]'
     );
   });
+
+  it('serializes a nested BigInt inside a STRUCT/ARRAY cell instead of throwing', () => {
+    // A BigQuery INT64 nested in a RECORD arrives as a BigInt; plain JSON.stringify would throw
+    // AFTER the query ran and was billed. It must serialize to its decimal string instead.
+    expect(serializeTsv(['rec'], [[{ id: 9007199254740993n }]])).toBe(
+      'rec\n{"id":"9007199254740993"}'
+    );
+    expect(serializeTsv(['arr'], [[[1n, 2n]]])).toBe('arr\n["1","2"]');
+  });
 });
 
 describe('serializeTsvWithByteCap', () => {

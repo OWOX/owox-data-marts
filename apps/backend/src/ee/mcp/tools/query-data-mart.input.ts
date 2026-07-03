@@ -3,7 +3,7 @@ import type {
   FilterConfig,
   FilterRule,
 } from '../../../data-marts/dto/schemas/filter-config.schema';
-import { REPORT_AGGREGATE_FUNCTIONS } from '../../../data-marts/dto/schemas/aggregate-function.schema';
+import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import type { AggregationConfig } from '../../../data-marts/dto/schemas/aggregation-config.schema';
 import {
   DATE_TRUNC_UNITS,
@@ -47,9 +47,26 @@ const McpFilterSchema = z.object({
   value: z.unknown().optional(),
 });
 
+// The MCP tool advertises only these functions (tool description + docs/mcp.md). A strict subset of
+// REPORT_AGGREGATE_FUNCTIONS — STRING_AGG and ANY_VALUE are intentionally NOT exposed, so the input
+// schema and the documented contract agree. The `satisfies` guard fails to compile if a name drifts
+// out of the report set.
+export const MCP_AGGREGATE_FUNCTIONS = [
+  'SUM',
+  'COUNT',
+  'COUNT_DISTINCT',
+  'AVG',
+  'MIN',
+  'MAX',
+  'P25',
+  'P50',
+  'P75',
+  'P95',
+] as const satisfies readonly ReportAggregateFunction[];
+
 const McpAggregationSchema = z.object({
   field: z.string().min(1),
-  function: z.enum(REPORT_AGGREGATE_FUNCTIONS),
+  function: z.enum(MCP_AGGREGATE_FUNCTIONS),
 });
 
 const McpDateBucketSchema = z.object({
@@ -209,10 +226,10 @@ export function mapMcpAggregations(
 ): AggregationConfig {
   if (!aggregations.length) return null;
   return aggregations.map(a => {
-    if (!(REPORT_AGGREGATE_FUNCTIONS as readonly string[]).includes(a.function)) {
+    if (!(MCP_AGGREGATE_FUNCTIONS as readonly string[]).includes(a.function)) {
       throw new UnsupportedAggregationError(a.function);
     }
-    return { column: a.field, function: a.function as (typeof REPORT_AGGREGATE_FUNCTIONS)[number] };
+    return { column: a.field, function: a.function as ReportAggregateFunction };
   });
 }
 

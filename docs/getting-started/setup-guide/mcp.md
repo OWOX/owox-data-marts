@@ -118,14 +118,14 @@ Returns information about the OWOX project that this MCP connection is authorize
 
 **Returns:**
 
-| Field | Description |
-| --- | --- |
-| `current_project.id` | Project identifier |
-| `current_project.title` | Project display name |
-| `current_project.status` | Project status |
-| `current_project.roles` | Your roles in this project |
-| `current_project.created_at` | Project creation date |
-| `project_switching` | Instructions for switching to a different project |
+| Field                        | Description                                       |
+| ---------------------------- | ------------------------------------------------- |
+| `current_project.id`         | Project identifier                                |
+| `current_project.title`      | Project display name                              |
+| `current_project.status`     | Project status                                    |
+| `current_project.roles`      | Your roles in this project                        |
+| `current_project.created_at` | Project creation date                             |
+| `project_switching`          | Instructions for switching to a different project |
 
 Use this tool when you need to confirm which project is active, or when the assistant asks which project is selected.
 
@@ -135,13 +135,13 @@ Lists all data marts visible to you in the current project.
 
 **Returns** an array of data mart objects:
 
-| Field | Description |
-| --- | --- |
-| `id` | Data mart identifier |
-| `title` | Data mart name |
+| Field         | Description           |
+| ------------- | --------------------- |
+| `id`          | Data mart identifier  |
+| `title`       | Data mart name        |
 | `description` | Data mart description |
-| `status` | Current status |
-| `updated_at` | Last update timestamp |
+| `status`      | Current status        |
+| `updated_at`  | Last update timestamp |
 
 Use this tool to discover available data marts before running queries or building reports.
 
@@ -153,19 +153,19 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 
 **Input:**
 
-| Field | Description |
-| --- | --- |
-| `prompt` | Natural-language search prompt |
-| `limit` | Optional maximum number of results |
+| Field    | Description                        |
+| -------- | ---------------------------------- |
+| `prompt` | Natural-language search prompt     |
+| `limit`  | Optional maximum number of results |
 
 **Returns** an array of matching data mart objects:
 
-| Field | Description |
-| --- | --- |
-| `id` | Data mart identifier |
-| `title` | Data mart name |
-| `description` | Data mart description |
-| `url` | Link to open the data mart in OWOX Data Marts |
+| Field             | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| `id`              | Data mart identifier                            |
+| `title`           | Data mart name                                  |
+| `description`     | Data mart description                           |
+| `url`             | Link to open the data mart in OWOX Data Marts   |
 | `relevance_score` | How closely the data mart matches your question |
 
 Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned.
@@ -176,18 +176,18 @@ Returns field-level metadata for one data mart visible to you in the current pro
 
 **Input:**
 
-| Field | Description |
-| --- | --- |
+| Field          | Description                                                                               |
+| -------------- | ----------------------------------------------------------------------------------------- |
 | `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt` |
 
 **Returns:**
 
-| Field | Description |
-| --- | --- |
-| `id` | Data mart identifier |
-| `name` | Data mart name |
-| `description` | Data mart description |
-| `fields` | The data mart's own (native) output fields with names, types, descriptions, and business names when available |
+| Field           | Description                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`            | Data mart identifier                                                                                                                                                                       |
+| `name`          | Data mart name                                                                                                                                                                             |
+| `description`   | Data mart description                                                                                                                                                                      |
+| `fields`        | The data mart's own (native) output fields with names, types, descriptions, and business names when available                                                                              |
 | `joined_fields` | Fields contributed by blended/joined data marts (empty when the data mart has no joins), each with its qualified `<alias>__<field>` name, source data mart, type, and allowed aggregations |
 
 Use this tool when you need to understand the fields available in a specific data mart — both its native fields and any joined fields you can then query with `query_data_mart`. It does not return sample values, data freshness, owners, or actual data rows.
@@ -198,25 +198,25 @@ Runs a query against one data mart and returns its data rows, plus server-side t
 
 **Input:**
 
-| Field | Description |
-| --- | --- |
-| `data_mart_id` | Data mart to query |
-| `fields` | Exact field names to return, copied from `get_data_mart_details_by_id`. Must include every field used in `aggregations` and `date_buckets`. Reference blended fields by their qualified `<alias>__<field>` name |
+| Field          | Description                                                                                                                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_mart_id` | Data mart to query                                                                                                                                                                                                                                                           |
+| `fields`       | Exact field names to return, copied from `get_data_mart_details_by_id`. Must include every field used in `aggregations` and `date_buckets`. Reference blended fields by their qualified `<alias>__<field>` name                                                              |
 | `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Each data mart's output controls decide which functions a field allows, so some may be rejected. Group-by is implied by the non-aggregated fields |
-| `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR` |
-| `slices` | Pre-join filters — narrow a joined data mart before it is blended in (joined fields only) |
-| `filters` | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total |
-| `limit` | Maximum rows to return (1–1000, default 20). There is no pagination |
+| `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`                                                                                                                                                                                                       |
+| `slices`       | Pre-join filters — narrow a joined data mart before it is blended in (joined fields only)                                                                                                                                                                                    |
+| `filters`      | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total                                                                                              |
+| `limit`        | Maximum rows to return (1–1000, default 20). There is no pagination                                                                                                                                                                                                          |
 
 **Returns:**
 
-| Field | Description |
-| --- | --- |
-| `columns` | Column names in the result |
-| `rows` | The data rows, as a compact header-once table |
-| `returned_rows` | Number of rows in the response |
-| `truncated` | `true` if not all matching rows were returned — narrow the query or raise `limit` |
-| `totals` | Server-side totals over all matching rows, ignoring the row limit |
+| Field           | Description                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `columns`       | Column names in the result. When `aggregations` are used, an extra `Row Count` column (the number of underlying rows per group) is appended |
+| `rows`          | The data rows, as a compact header-once table                                                                                               |
+| `returned_rows` | Number of rows in the response                                                                                                              |
+| `truncated`     | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
+| `totals`        | Server-side totals over all matching rows, ignoring the row limit                                                                           |
 
 Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable.
 
@@ -226,12 +226,12 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 
 **Returns** an array of destination objects:
 
-| Field | Description |
-| --- | --- |
-| `id` | Destination identifier |
-| `name` | Destination name |
-| `type` | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
-| `owner` | The user who created the destination |
+| Field   | Description                                                                                               |
+| ------- | --------------------------------------------------------------------------------------------------------- |
+| `id`    | Destination identifier                                                                                    |
+| `name`  | Destination name                                                                                          |
+| `type`  | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
+| `owner` | The user who created the destination                                                                      |
 
 The list reflects your access: it includes only the destinations your [project role](../../project/roles-and-permissions.md) permits you to use.
 
@@ -259,12 +259,12 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 
 The MCP server rejects a request with `401` in these cases. Your AI client may surface these as a generic "couldn't connect" or "authorization expired" message rather than the exact text below:
 
-| Message | Cause | Fix |
-| --- | --- | --- |
-| `Missing MCP bearer token` | No `Authorization: Bearer` header was sent. | Re-run authorization so the client obtains a token. A `GET /mcp` without a token (a client probe) is expected and harmless. |
-| `Invalid MCP bearer token` | The token is expired, revoked, or invalid. | Disconnect and reconnect the MCP server to obtain a fresh token. |
-| `Invalid MCP resource` | The token was issued for a different resource than this server. | Confirm the client points to the correct `/mcp` URL, then reconnect. |
-| `Missing MCP project context` / `Missing MCP project roles` | The token has no project selected or no active role in it. | Reconnect and make sure you select a project where you are an active member. |
+| Message                                                     | Cause                                                           | Fix                                                                                                                         |
+| ----------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `Missing MCP bearer token`                                  | No `Authorization: Bearer` header was sent.                     | Re-run authorization so the client obtains a token. A `GET /mcp` without a token (a client probe) is expected and harmless. |
+| `Invalid MCP bearer token`                                  | The token is expired, revoked, or invalid.                      | Disconnect and reconnect the MCP server to obtain a fresh token.                                                            |
+| `Invalid MCP resource`                                      | The token was issued for a different resource than this server. | Confirm the client points to the correct `/mcp` URL, then reconnect.                                                        |
+| `Missing MCP project context` / `Missing MCP project roles` | The token has no project selected or no active role in it.      | Reconnect and make sure you select a project where you are an active member.                                                |
 
 ### The wrong project is connected
 

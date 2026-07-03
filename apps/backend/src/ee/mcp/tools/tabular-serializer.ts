@@ -5,12 +5,24 @@ export const ROWS_PAYLOAD_BYTE_CAP = 131072; // 128 KiB — safety ceiling for t
 // Comfortably above a max-limit (1000) narrow result (~56 KB), so normal queries pass untouched;
 // only pathological wide-value payloads get trimmed (then `truncated: true`).
 
+// JSON.stringify throws on a nested BigInt (TypeError) or a circular reference. A struct/array cell
+// can carry a BigInt warehouse value (e.g. BigQuery INT64 inside a RECORD), and that throw would
+// happen AFTER the query ran and was billed — surfacing as a misleading generic error. Encode
+// BigInt as its decimal string and fall back to String(v) if stringify still throws.
+function stringifyObjectCell(v: object): string {
+  try {
+    return JSON.stringify(v, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
+  } catch {
+    return String(v);
+  }
+}
+
 function cell(v: unknown): string {
   if (v === null || v === undefined) return '';
   // RECORD/STRUCT/ARRAY warehouse cells are objects — String() would emit "[object Object]".
   // JSON-encode them so the LLM sees the actual value. Date keeps its String() form to preserve
   // the existing timestamp rendering.
-  const s = typeof v === 'object' && !(v instanceof Date) ? JSON.stringify(v) : String(v);
+  const s = typeof v === 'object' && !(v instanceof Date) ? stringifyObjectCell(v) : String(v);
   return s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 

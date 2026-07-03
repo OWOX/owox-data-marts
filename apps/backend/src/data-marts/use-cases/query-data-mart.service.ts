@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
@@ -50,6 +50,14 @@ export class QueryDataMartService {
 
   async run(command: QueryDataMartCommand): Promise<McpQueryDataMartResponse> {
     const r = command.request;
+
+    // Defense-in-depth for direct facade callers: the MCP tool clamps limit to 1–1000, but the
+    // facade contract types it as a bare number. A limit < 1 would still read and then fail to
+    // persist the run (McpQueryRunMetadataSchema requires limit.positive()), silently dropping the
+    // audit row inside the best-effort catch. Reject it up front, before any read or billing.
+    if (!Number.isInteger(r.limit) || r.limit < 1) {
+      throw new BadRequestException('query_data_mart: limit must be an integer >= 1');
+    }
 
     let dataMart: DataMart;
     try {
@@ -134,6 +142,10 @@ export class QueryDataMartService {
         const batch = await reader.readReportDataBatch(batchId, overReadLimit - rows.length);
         rows.push(...batch.dataRows);
         batchId = batch.nextDataBatchId ?? undefined;
+        // A reader may return an empty page with a non-null next token (Redshift/Athena forward the
+        // warehouse NextToken verbatim and ignore the row cap). Without this break the loop would
+        // spin forever, since rows.length never advances past an empty page.
+        if (batch.dataRows.length === 0) break;
       } while (batchId && rows.length < overReadLimit);
 
       const truncated = rows.length > r.limit;

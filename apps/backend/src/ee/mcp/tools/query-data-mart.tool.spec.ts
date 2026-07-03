@@ -192,6 +192,43 @@ describe('QueryDataMartTool', () => {
       expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
     });
 
+    it('maps PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART → slices_not_applicable (move to filters)', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['channel'],
+          slices: [{ field: 'channel', operator: 'eq', value: 'fb' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'slices_not_applicable' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('filters');
+    });
+
+    it('rejects an aggregation function not advertised by the tool (STRING_AGG) at schema parse → invalid_input', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['name'],
+          aggregations: [{ field: 'name', function: 'STRING_AGG' as never }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
+      expect((result.structuredContent as { message?: string }).message).toContain('STRING_AGG');
+    });
+
     it('maps AGGREGATION_COLUMN_NOT_SELECTED → field_not_selected (structural, names the column, no schema re-fetch)', async () => {
       const err = new BadRequestException({
         message: 'Output controls validation failed',
