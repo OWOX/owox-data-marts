@@ -65,16 +65,18 @@ Save the file and restart Claude Desktop. On restart, Claude detects the server 
 
 ### ChatGPT
 
-1. Open ChatGPT and go to **Settings → Apps**.
-2. Open **Advanced settings** and turn on **Developer mode**. A **Create app** button appears.
-3. Click **Create app**.
+1. Open ChatGPT settings and go to **Apps** or **Apps & Connectors**.
+2. Open **Advanced settings** and turn on **Developer mode**. A **Create app**, **Create**, or **Create connector** button appears.
+3. Click that create button.
 4. Enter the MCP server URL:
 
    ```text
    https://mcp.owox.com/mcp
    ```
 
-5. ChatGPT opens an authorization window. Follow the steps in [Step 2](#step-2-authorize-access).
+5. If ChatGPT asks for connector details, enter a clear name such as `OWOX Data Marts` and a short description, then create it.
+6. ChatGPT opens an authorization window. Follow the steps in [Step 2](#step-2-authorize-access).
+7. In a new chat, select or enable the OWOX app/connector from the tools, apps, or connectors menu if ChatGPT does not use it automatically.
 
 ![Enabling Developer mode in ChatGPT Apps advanced settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/08e99f82-13b4-4e3a-0d01-819105aba800/public)
 
@@ -110,7 +112,10 @@ To switch projects, disconnect, then reconnect and sign in again, choosing the p
 
 ## Available tools
 
-Once connected, the MCP server exposes six tools, all requesting the `mcp:read` scope during authorization. Five are read-only metadata tools; `query_data_mart` additionally queries a data mart's data — it returns data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call.
+Once connected, the MCP server exposes twelve tools across two scopes:
+
+- **`mcp:read`** (requested by every connection): discovery and query tools — `get_project_context`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `query_data_mart`, `list_destinations`, `get_data_mart_reports`, `list_report_run_schedules`. `query_data_mart` additionally queries a data mart's data — it returns data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call.
+- **`mcp:write`** (requested alongside `mcp:read`): tools that create or change reports and schedules — `add_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`. Your MCP client may ask you to confirm before it calls one of these.
 
 ### `get_project_context`
 
@@ -137,11 +142,12 @@ Lists all data marts visible to you in the current project.
 
 | Field         | Description           |
 | ------------- | --------------------- |
-| `id`          | Data mart identifier  |
-| `title`       | Data mart name        |
-| `description` | Data mart description |
-| `status`      | Current status        |
-| `updated_at`  | Last update timestamp |
+| `id`          | Data mart identifier                          |
+| `title`       | Data mart name                                |
+| `description` | Data mart description                         |
+| `url`         | Link to open the data mart in OWOX Data Marts |
+| `status`      | Current status                                |
+| `updated_at`  | Last update timestamp                         |
 
 Use this tool to discover available data marts before running queries or building reports.
 
@@ -190,7 +196,7 @@ Returns field-level metadata for one data mart visible to you in the current pro
 | `fields`        | The data mart's own (native) output fields with names, types, descriptions, and business names when available                                                                              |
 | `joined_fields` | Fields contributed by blended/joined data marts (empty when the data mart has no joins), each with its qualified `<alias>__<field>` name, source data mart, type, and allowed aggregations |
 
-Use this tool when you need to understand the fields available in a specific data mart — both its native fields and any joined fields you can then query with `query_data_mart`. It does not return sample values, data freshness, owners, or actual data rows.
+Use this tool when you need to understand the fields available in a specific data mart — both its native fields and any joined fields you can then query with `query_data_mart`. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
 
 ### `query_data_mart`
 
@@ -218,7 +224,7 @@ Runs a query against one data mart and returns its data rows, plus server-side t
 | `truncated`     | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
 | `totals`        | Server-side totals over all matching rows, ignoring the row limit                                                                           |
 
-Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable.
+Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable. For more on how aggregations and totals are computed, see [Report Aggregations and Totals](./report-aggregations.md); for why a given aggregation may be rejected on a field, see [Report Output Controls](./output-controls.md).
 
 ### `list_destinations`
 
@@ -233,7 +239,127 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | `type`  | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
 | `owner` | The user who created the destination                                                                      |
 
-The list reflects your access: it includes only the destinations your [project role](../../project/roles-and-permissions.md) permits you to use.
+The list reflects your access: it includes only the destinations your [project role](../../project/roles-and-permissions.md) permits you to use. To add or manage destinations, see [Destination Management](../../destinations/manage-destinations.md).
+
+### `get_data_mart_reports`
+
+Lists the reports tied to a data mart, including each report's destination, its run schedules (a report can have any number of schedule triggers), and its last run status.
+
+**Input:**
+
+| Field          | Description           |
+| -------------- | ---------------------- |
+| `data_mart_id` | Data mart identifier   |
+
+**Returns** an array of report objects:
+
+| Field              | Description                                                            |
+| ------------------ | ----------------------------------------------------------------------- |
+| `report_id`         | Report identifier                                                      |
+| `data_mart_id`      | Data mart identifier                                                   |
+| `name`              | Report name                                                            |
+| `destination_id`    | Destination the report exports to                                      |
+| `destination_type`  | Destination type (for example `google_sheets`)                        |
+| `owner`             | The user who created the report                                       |
+| `schedules`         | Array of run schedules — `trigger_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`, `last_run_at` |
+| `last_run_at`       | Timestamp of the most recent run                                      |
+| `last_run_status`   | Status of the most recent run                                         |
+
+Use this tool before scheduling or changing a report's cadence, to see what already exists.
+
+### `list_report_run_schedules`
+
+Lists every scheduled report-run trigger in the current project that you can see, in a single response.
+
+**Returns** an array of schedule objects:
+
+| Field             | Description                                                          |
+| ------------------ | ---------------------------------------------------------------------- |
+| `trigger_id`        | Schedule identifier — pass to `update_report_run_schedule` or `delete_report_run_schedule` |
+| `report`            | The report this schedule belongs to (`id`, `title`)                  |
+| `data_mart`         | The data mart the report is built on (`id`, `title`)                 |
+| `cron_expression`   | Schedule in 5-field cron syntax                                      |
+| `time_zone`         | IANA timezone the cron expression is evaluated in                    |
+| `is_active`         | Whether the schedule is currently enabled                            |
+| `next_run_at`       | Next scheduled run, if any                                           |
+| `last_run_at`       | Last run, if any                                                     |
+| `can_edit`          | Whether you can update this schedule                                 |
+| `can_delete`        | Whether you can delete this schedule                                 |
+
+Use this tool to find a schedule's `trigger_id` before updating or deleting it. Creating a new schedule (`create_report_run_schedule`) never replaces an existing one — a report can have several. These schedules are the same report triggers you can manage in the UI — see [Report Triggers](./report-triggers.md).
+
+### `create_report_run_schedule` (requires `mcp:write`)
+
+Adds a new recurring run schedule to an existing report. The assistant translates natural language (for example "every Monday at 9am") into a standard 5-field cron expression before calling this tool.
+
+**Input:**
+
+| Field              | Description                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `report_id`          | Report to attach the schedule to                                                      |
+| `cron_expression`    | 5-field cron expression                                                                |
+| `time_zone`          | Optional IANA timezone (for example `Europe/Kyiv`); defaults to UTC if not specified   |
+| `is_active`          | Optional; defaults to `true`                                                           |
+
+**Returns:** `trigger_id`, `report_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`.
+
+This always creates an additional schedule — it never replaces or updates an existing one. To change an existing schedule, use `update_report_run_schedule` instead.
+
+### `update_report_run_schedule` (requires `mcp:write`)
+
+Updates one existing schedule identified by `trigger_id` (from `list_report_run_schedules`).
+
+**Input:**
+
+| Field              | Description                                                                   |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `trigger_id`         | Schedule to update                                                              |
+| `cron_expression`    | New 5-field cron expression                                                    |
+| `time_zone`          | Optional; omit to keep the schedule's current timezone                         |
+| `is_active`          | Optional; omit to keep the schedule's current active state                     |
+
+**Returns:** `trigger_id`, `report_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`.
+
+This changes the schedule's cadence in place — it does not change which report it belongs to and does not create another schedule.
+
+### `delete_report_run_schedule` (requires `mcp:write`)
+
+Removes a single schedule identified by `trigger_id`. This is destructive and cannot be undone from the assistant.
+
+**Input:**
+
+| Field         | Description        |
+| -------------- | -------------------- |
+| `trigger_id`    | Schedule to remove  |
+
+**Returns:** `trigger_id`, `report_id`, and `schedule: null` to confirm removal. Only that one schedule is removed — the report and any other schedules it has are left intact.
+
+### `add_report` (requires `mcp:write`)
+
+Creates a report that exports a data mart to a Google Sheets destination. A new Google Sheet is created automatically and linked to the report.
+
+Unlike every other tool, this one reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. It needs a Google Sheets destination to already exist in the project — see [Google Sheets destination](../../destinations/supported-destinations/google-sheets.md) for how to set one up.
+
+**Input:**
+
+| Field             | Description                                                          |
+| ------------------ | ------------------------------------------------------------------------ |
+| `data_mart_id`      | Data mart to export                                                    |
+| `destination_id`    | A **Google Sheets** destination to export to (from `list_destinations`). Other destination types are rejected — a new Sheet is always created under a Google Sheets destination |
+| `fields`            | Exact column names to include, or `["*"]` for every field              |
+| `name`              | Report name                                                            |
+
+**Returns:**
+
+| Field                     | Description                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `report_id`                 | Report identifier                                                                                  |
+| `report_url`                | Link to the report in OWOX Data Marts                                                              |
+| `sheet_url`                 | Link to the created Google Sheet                                                                    |
+| `owner`                     | The user who created the report                                                                    |
+| `status`                    | `created`                                                                                           |
+| `placed_in_root`            | `true` if the configured Drive folder could not be used, so the sheet was created in the Drive root |
+| `shared_with_requester`     | `false` if the sheet could not be shared with you — opening the link may require requesting access  |
 
 ## How to use it: example prompts
 
@@ -248,8 +374,12 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "What's the total revenue by month in the Sales data mart?"
 - "Show the top campaigns by spend in the Ads data mart."
 - "Which destinations can I send a report to?"
+- "What reports and schedules already exist for the Sales data mart?"
+- "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report'."
+- "Schedule that report to run every Monday at 9am New York time."
+- "Turn off the schedule you just created."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, when each was last updated, and field-level metadata for a selected data mart), and the destinations available for reports — and, with `query_data_mart`, run a bounded query and read the resulting data rows and totals. They do **not** create or change anything, and they cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above.
+> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, when each was last updated, and field-level metadata for a selected data mart), and the destinations available for reports — and, with `query_data_mart`, run a bounded query and read the resulting data rows and totals. With your confirmation, the assistant can also create a report to a Google Sheets destination (`add_report`) and create, update, or delete that report's run schedules (`create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`) — these are the only actions that create or change anything. They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot change a data mart, destination, or project itself.
 >
 > **What is shared with your AI provider:** To answer your prompts, data-mart metadata (project and data-mart names, descriptions, status, fields, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. In addition, whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 
