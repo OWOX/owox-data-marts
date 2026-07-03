@@ -164,6 +164,9 @@ export const getRunSummaryParts = (
     case DataMartRunType.HTTP_DATA:
       runType = 'HTTP Data';
       break;
+    case DataMartRunType.MCP_QUERY:
+      runType = 'MCP query';
+      break;
     default:
       break;
   }

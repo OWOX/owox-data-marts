@@ -1,5 +1,6 @@
 import {
   ROW_COUNT_LABEL,
+  aggregatedColumnAlias,
   aggregatedColumnLabel,
   aggregateFunctionLabel,
 } from './aggregation-labels';
@@ -23,6 +24,16 @@ describe('aggregation-labels', () => {
   it('aggregatedColumnLabel sanitizes dots in a nested/struct column path', () => {
     expect(aggregatedColumnLabel('metrics.revenue', 'SUM')).toBe('metrics_revenue | SUM');
     expect(aggregatedColumnLabel('a.b.c', 'COUNT_DISTINCT')).toBe('a_b_c | COUNTUNIQUE');
+  });
+
+  it('aggregatedColumnAlias appends the same function suffix to a display alias', () => {
+    expect(aggregatedColumnAlias('Revenue', 'SUM')).toBe('Revenue | SUM');
+    expect(aggregatedColumnAlias('Revenue', 'AVG')).toBe('Revenue | AVG');
+  });
+
+  // Unlike the SQL-facing label, the alias is display-only: dots are legal and must survive.
+  it('aggregatedColumnAlias does NOT sanitize dots in the display alias', () => {
+    expect(aggregatedColumnAlias('Revenue v2.0', 'SUM')).toBe('Revenue v2.0 | SUM');
   });
 
   it('aggregateFunctionLabel maps every function to a human-readable Title Case label', () => {

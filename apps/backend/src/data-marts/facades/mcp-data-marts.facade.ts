@@ -1,3 +1,7 @@
+import type { FilterConfig } from '../dto/schemas/filter-config.schema';
+import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
+import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
+
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
 
 export interface McpListDataMartsRequest {
@@ -22,14 +26,43 @@ export interface McpListDataMartsResponse {
   dataMarts: McpDataMartListItem[];
 }
 
+export interface McpJoinedFieldDto {
+  name: string;
+  type: string;
+  description: string;
+  sourceDataMart: string;
+  allowedAggregations?: string[];
+}
+
 export interface McpDataMartDetailsResponse {
   id: string;
   name: string;
   description: string;
   fields: Array<Record<string, unknown>>;
+  joinedFields: McpJoinedFieldDto[];
+}
+
+export interface McpQueryDataMartRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  dataMartId: string;
+  fields: string[];
+  filterConfig?: FilterConfig;
+  aggregationConfig?: AggregationConfig;
+  dateTruncConfig?: DateTruncConfig;
+  limit: number;
+}
+
+export interface McpQueryDataMartResponse {
+  columns: string[];
+  rows: unknown[][];
+  truncated: boolean;
+  totals: Record<string, number | string | boolean | null> | null;
 }
 
 export interface McpDataMartsFacade {
   listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse>;
   getDataMartDetails(request: McpGetDataMartDetailsRequest): Promise<McpDataMartDetailsResponse>;
+  queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse>;
 }

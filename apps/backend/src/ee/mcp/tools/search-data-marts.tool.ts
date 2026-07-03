@@ -41,6 +41,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
     ),
   };
   readonly annotations = {
+    title: 'Find Relevant Data Marts by Prompt',
     readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: false,

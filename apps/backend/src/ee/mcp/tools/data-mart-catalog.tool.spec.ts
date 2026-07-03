@@ -83,7 +83,10 @@ describe('ListDataMartsTool', () => {
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
   });
 
-  it('registers list data marts while keeping unimplemented RFC tools out of providers', () => {
+  // Note: MCP_TOOL_PROVIDER_CLASSES assertion checks the LOCAL test registry snapshot, not
+  // production gating. QueryDataMartTool IS in providers; the registry fixture here only
+  // registers ListDataMartsTool so query_data_mart is absent from that local registry.
+  it('registers list_data_marts and verifies provider class list', () => {
     const registry = new McpToolRegistry([
       new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin),
     ]);
@@ -112,6 +115,7 @@ describe('ListDataMartsTool', () => {
       'CreateReportRunScheduleTool',
       'UpdateReportRunScheduleTool',
       'DeleteReportRunScheduleTool',
+      'QueryDataMartTool',
       'AddReportTool',
     ]);
     expect(registry.getTool('list_data_marts')).toBeDefined();

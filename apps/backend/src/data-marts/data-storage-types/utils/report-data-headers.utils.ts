@@ -5,6 +5,7 @@ import { computeEffectiveType, integerTypeFor } from '../field-aggregation';
 import {
   ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
+  aggregatedColumnAlias,
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
 } from '../../dto/schemas/aggregation-labels';
@@ -77,7 +78,10 @@ export function resolveReportDataHeaders(
         fn =>
           new ReportDataHeader(
             aggregatedColumnLabel(header.name, fn),
-            header.alias,
+            // The display alias must carry the function suffix too, else the sheet writer's
+            // `alias || name` renders a bare `<alias>` — dropping `| <FUNC>` and colliding
+            // when one aliased column carries several functions.
+            header.alias ? aggregatedColumnAlias(header.alias, fn) : undefined,
             header.description,
             // Type can only be derived when the base column type is known (it is for native
             // and blended headers; unknown SQL-override columns stay untyped).

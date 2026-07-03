@@ -67,6 +67,7 @@ import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owne
 import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
+import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
 
 @Injectable()
 export class DataMartMapper {
@@ -693,7 +694,9 @@ export class DataMartMapper {
     // Whitelist only what is safe to expose; every other key (internal run params) is
     // dropped. `totals` are surfaced at the TOP LEVEL of the response (see extractTotals),
     // so they are removed here: HTTP_DATA runs expose their `httpData` subtree minus totals;
-    // report runs expose nothing (their only safe-to-expose key was `totals`).
+    // MCP_QUERY runs expose their `mcpQuery` subtree (response summary + request config,
+    // no result-row values); report runs expose nothing (their only safe-to-expose key
+    // was `totals`).
     if (run.type === DataMartRunType.HTTP_DATA) {
       const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as
         | Record<string, unknown>
@@ -703,6 +706,15 @@ export class DataMartMapper {
       }
       const { totals: _totals, ...rest } = httpData;
       return { [HTTP_DATA_PARAMS_KEY]: rest };
+    }
+    // MCP_QUERY runs expose their `mcpQuery` subtree: response summary (column names, counts,
+    // truncated) + the request query payload. It contains NO result-row values, so it is safe
+    // to surface (unlike raw run params, which stay masked).
+    if (run.type === DataMartRunType.MCP_QUERY) {
+      const mcpQuery = run.additionalParams?.[MCP_QUERY_PARAMS_KEY] as
+        | Record<string, unknown>
+        | undefined;
+      return mcpQuery ? { [MCP_QUERY_PARAMS_KEY]: mcpQuery } : null;
     }
     return null;
   }

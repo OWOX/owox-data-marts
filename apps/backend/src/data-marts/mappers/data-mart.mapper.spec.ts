@@ -180,5 +180,37 @@ describe('DataMartMapper', () => {
       expect(response.additionalParams).toBeNull();
       expect(response.totals).toBeNull();
     });
+
+    it('surfaces the mcpQuery subtree for MCP_QUERY runs and drops unrelated internal keys', async () => {
+      const entity = {
+        id: 'run-5',
+        status: 'SUCCESS',
+        type: DataMartRunType.MCP_QUERY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        additionalParams: {
+          mcpQuery: {
+            columns: ['event_name', 'revenue | SUM'],
+            rowCount: 3,
+            truncated: false,
+            query: { fields: ['event_name', 'revenue'], limit: 100 },
+          },
+          internalNote: 'x',
+        },
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
+
+      expect(response.additionalParams).toEqual({
+        mcpQuery: {
+          columns: ['event_name', 'revenue | SUM'],
+          rowCount: 3,
+          truncated: false,
+          query: { fields: ['event_name', 'revenue'], limit: 100 },
+        },
+      });
+      expect(response.totals).toBeNull();
+    });
   });
 });
