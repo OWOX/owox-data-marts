@@ -3,9 +3,9 @@ import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_DATA_DESTINATIONS_FACADE,
-  MCP_DESTINATION_TYPES,
   type McpDataDestinationsFacade,
 } from '../../../data-marts/facades/mcp-data-destinations.facade';
+import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
 
