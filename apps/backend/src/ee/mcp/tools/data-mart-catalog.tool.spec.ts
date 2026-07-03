@@ -108,6 +108,10 @@ describe('ListDataMartsTool', () => {
       'GetProjectContextTool',
       'ListDestinationsTool',
       'GetDataMartReportsTool',
+      'ListReportRunSchedulesTool',
+      'CreateReportRunScheduleTool',
+      'UpdateReportRunScheduleTool',
+      'DeleteReportRunScheduleTool',
       'AddReportTool',
     ]);
     expect(registry.getTool('list_data_marts')).toBeDefined();

@@ -151,6 +151,29 @@ describe('ListProjectScheduledTriggersService', () => {
     });
   });
 
+  it('forwards trigger type filters to the visible-triggers query', async () => {
+    const { service, scheduledTriggerService } = createService();
+
+    await service.run(
+      new ListProjectScheduledTriggersCommand(
+        'project-1',
+        20,
+        0,
+        'user-1',
+        ['viewer'],
+        ScheduledTriggerType.REPORT_RUN
+      )
+    );
+
+    expect(scheduledTriggerService.listVisibleByProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        type: ScheduledTriggerType.REPORT_RUN,
+      })
+    );
+  });
+
   it('adds hydrated report data to project report-run trigger configs', async () => {
     const { service, mapper, reportService, reportMapper, reportResponse } = createService();
 

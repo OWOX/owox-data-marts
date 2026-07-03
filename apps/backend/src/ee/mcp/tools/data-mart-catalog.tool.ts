@@ -7,7 +7,7 @@ import {
   type McpDataMartsFacade,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
 
 type ListDataMartsInput = Record<string, never>;
@@ -70,14 +70,6 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
       })),
     };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }

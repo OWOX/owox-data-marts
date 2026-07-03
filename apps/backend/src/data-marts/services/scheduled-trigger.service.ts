@@ -13,6 +13,7 @@ export interface ListVisibleProjectScheduledTriggersOptions {
   roleScope: RoleScope;
   limit?: number;
   offset?: number;
+  type?: ScheduledTriggerType;
 }
 
 @Injectable()
@@ -35,6 +36,19 @@ export class ScheduledTriggerService {
           projectId,
         },
       },
+      relations: ['dataMart'],
+    });
+
+    if (!trigger) {
+      throw new NotFoundException(`Scheduled trigger with id ${id} not found`);
+    }
+
+    return trigger;
+  }
+
+  async getByIdAndProjectId(id: string, projectId: string): Promise<DataMartScheduledTrigger> {
+    const trigger = await this.triggerRepository.findOne({
+      where: { id, dataMart: { projectId } },
       relations: ['dataMart'],
     });
 
@@ -68,6 +82,10 @@ export class ScheduledTriggerService {
       .innerJoin('scheduledTrigger.dataMart', 'dataMart')
       .where('dataMart.projectId = :projectId', { projectId: options.projectId })
       .andWhere('dataMart.deletedAt IS NULL');
+
+    if (options.type) {
+      pageQb.andWhere('scheduledTrigger.type = :type', { type: options.type });
+    }
 
     applyDataMartVisibilityFilter(pageQb, {
       dataMartAlias: 'dataMart',
