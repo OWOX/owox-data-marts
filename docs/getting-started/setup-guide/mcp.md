@@ -65,16 +65,18 @@ Save the file and restart Claude Desktop. On restart, Claude detects the server 
 
 ### ChatGPT
 
-1. Open ChatGPT and go to **Settings → Apps**.
-2. Open **Advanced settings** and turn on **Developer mode**. A **Create app** button appears.
-3. Click **Create app**.
+1. Open ChatGPT settings and go to **Apps** or **Apps & Connectors**.
+2. Open **Advanced settings** and turn on **Developer mode**. A **Create app**, **Create**, or **Create connector** button appears.
+3. Click that create button.
 4. Enter the MCP server URL:
 
    ```text
    https://mcp.owox.com/mcp
    ```
 
-5. ChatGPT opens an authorization window. Follow the steps in [Step 2](#step-2-authorize-access).
+5. If ChatGPT asks for connector details, enter a clear name such as `OWOX Data Marts` and a short description, then create it.
+6. ChatGPT opens an authorization window. Follow the steps in [Step 2](#step-2-authorize-access).
+7. In a new chat, select or enable the OWOX app/connector from the tools, apps, or connectors menu if ChatGPT does not use it automatically.
 
 ![Enabling Developer mode in ChatGPT Apps advanced settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/08e99f82-13b4-4e3a-0d01-819105aba800/public)
 
