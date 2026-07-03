@@ -537,6 +537,11 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     expect(updateReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'report-1',
+        // Authorization inputs must be forwarded verbatim — UpdateReportService
+        // derives mutate-access decisions from them.
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
         title: 'New name',
         dataDestinationId: 'dest-1',
         destinationConfig: currentReport.destinationConfig,
@@ -550,6 +555,16 @@ describe('McpReportsFacadeImpl.updateReport', () => {
       })
     );
     expect(result).toEqual({ report_id: 'report-1', status: 'updated' });
+  });
+
+  it('rejects a call with nothing to update before touching any service', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+
+    await expect(facade.updateReport(updateRequest)).rejects.toThrow(
+      'Nothing to update: provide fields and/or name'
+    );
+    expect(getReportService.run).not.toHaveBeenCalled();
+    expect(updateReportService.run).not.toHaveBeenCalled();
   });
 
   it('replaces the column selection while preserving the name and filters', async () => {

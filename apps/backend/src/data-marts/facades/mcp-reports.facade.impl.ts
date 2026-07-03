@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -55,6 +55,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   ) {}
 
   async updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult> {
+    // The facade is a public interface, so the "at least one change" invariant
+    // is enforced here as well, not only by the tool-layer input schema.
+    if (request.fields === undefined && request.name === undefined) {
+      throw new BadRequestException('Nothing to update: provide fields and/or name');
+    }
+
     // UpdateReportCommand carries the FULL report state and the service
     // overwrites every output control, so merge the partial MCP input into the
     // current report. Keeping the current destination id skips the destination
@@ -73,7 +79,9 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         current.dataDestinationAccess.id,
         current.destinationConfig,
         undefined,
-        request.fields ? this.toColumnConfig(request.fields) : (current.columnConfig ?? null),
+        request.fields !== undefined
+          ? this.toColumnConfig(request.fields)
+          : (current.columnConfig ?? null),
         current.filterConfig ?? null,
         current.sortConfig ?? null,
         current.limitConfig ?? null,

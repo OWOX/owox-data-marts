@@ -18,8 +18,15 @@ const baseInputSchema = z
       .array(z.string().min(1))
       .min(1)
       .optional()
-      .describe("Replacement column selection, or ['*'] for every field; omit to keep current"),
-    name: z.string().trim().min(1).optional().describe('New report name; omit to keep current'),
+      .describe(
+        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one of fields/name is required."
+      ),
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('New report name; omit to keep current. At least one of fields/name is required.'),
   })
   .strict();
 
@@ -36,11 +43,11 @@ type UpdateReportInput = z.infer<typeof inputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it and/or replace which data mart fields it exports. Anything not provided stays unchanged.';
+    'Update an existing report: rename it and/or replace which data mart fields it exports. Provide at least one of name or fields; anything not provided stays unchanged.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
-    report_id: z.string(),
-    status: z.literal('updated'),
+    report_id: z.string().describe('Id of the updated report'),
+    status: z.literal('updated').describe("Always 'updated' on success"),
   };
   readonly annotations = {
     title: 'Update Report',

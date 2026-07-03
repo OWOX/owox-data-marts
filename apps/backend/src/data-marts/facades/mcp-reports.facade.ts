@@ -100,6 +100,8 @@ export interface McpReportsFacade {
    * update command requires the full report state, so the facade loads the
    * current report and merges the requested changes into it; everything else
    * (destination, filters, sorting, owners, …) is preserved as-is.
+   * At least one of `fields`/`name` must be provided — a call with neither is
+   * rejected by the implementation, independent of the tool-layer validation.
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
 }
