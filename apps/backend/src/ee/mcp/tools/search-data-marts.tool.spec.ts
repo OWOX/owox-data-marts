@@ -111,6 +111,7 @@ describe('SearchDataMartsTool', () => {
         data_marts: expect.any(Object),
       }),
       annotations: {
+        title: 'Find Relevant Data Marts by Prompt',
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: false,
