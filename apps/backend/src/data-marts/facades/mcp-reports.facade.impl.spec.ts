@@ -9,6 +9,8 @@ jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () 
   CreateGoogleSheetDocumentService: jest.fn(),
 }));
 jest.mock('../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
+jest.mock('../use-cases/get-report.service', () => ({ GetReportService: jest.fn() }));
+jest.mock('../use-cases/update-report.service', () => ({ UpdateReportService: jest.fn() }));
 jest.mock('../services/output-controls-validator.service', () => ({
   OutputControlsValidatorService: jest.fn(),
 }));
@@ -31,6 +33,8 @@ import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheet
 import type { AccessDecisionService } from '../services/access-decision';
 import type { DataMartService } from '../services/data-mart.service';
 import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import type { GetReportService } from '../use-cases/get-report.service';
+import type { UpdateReportService } from '../use-cases/update-report.service';
 import { McpReportsFacadeImpl } from './mcp-reports.facade.impl';
 
 function buildReport(overrides: {
@@ -108,6 +112,12 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
   const outputControlsValidator = {
     validateForReport: jest.fn().mockResolvedValue(undefined),
   } as unknown as jest.Mocked<OutputControlsValidatorService>;
+  const getReportService = {
+    run: jest.fn(),
+  } as unknown as jest.Mocked<GetReportService>;
+  const updateReportService = {
+    run: jest.fn(),
+  } as unknown as jest.Mocked<UpdateReportService>;
   const facade = new McpReportsFacadeImpl(
     listReportsByDataMartService,
     scheduledTriggerService,
@@ -115,7 +125,9 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
     createGoogleSheetDocumentService,
     dataMartService,
     accessDecisionService,
-    outputControlsValidator
+    outputControlsValidator,
+    getReportService,
+    updateReportService
   );
   return {
     facade,
@@ -126,6 +138,8 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
     dataMartService,
     accessDecisionService,
     outputControlsValidator,
+    getReportService,
+    updateReportService,
   };
 }
 
@@ -475,5 +489,125 @@ describe('McpReportsFacadeImpl.addReport', () => {
       'Destination is not a Google Sheets destination'
     );
     expect(createReportService.run).not.toHaveBeenCalled();
+  });
+});
+
+describe('McpReportsFacadeImpl.updateReport', () => {
+  const updateRequest = {
+    reportId: 'report-1',
+    projectId: 'project-1',
+    userId: 'user-1',
+    roles: ['editor'],
+  };
+
+  const currentReport = {
+    id: 'report-1',
+    title: 'Old name',
+    dataDestinationAccess: { id: 'dest-1' },
+    destinationConfig: { type: 'google-sheets-config', spreadsheetId: 'ss-1', sheetId: 0 },
+    columnConfig: ['channel', 'revenue'],
+    filterConfig: [{ column: 'channel', operator: 'eq', value: 'ads' }],
+    sortConfig: [{ column: 'revenue', direction: 'DESC' }],
+    limitConfig: 100,
+    aggregationConfig: { groupBy: ['channel'] },
+    dateTruncConfig: { column: 'date', unit: 'month' },
+    uniqueCountConfig: undefined,
+  } as unknown as ReportDto;
+
+  function buildUpdateFacade() {
+    const built = buildFacade([], []);
+    built.getReportService.run.mockResolvedValue(currentReport);
+    built.updateReportService.run.mockResolvedValue(currentReport);
+    return built;
+  }
+
+  it('renames the report while preserving every other setting', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+
+    const result = await facade.updateReport({ ...updateRequest, name: 'New name' });
+
+    expect(getReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'report-1',
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+      })
+    );
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'report-1',
+        // Authorization inputs must be forwarded verbatim — UpdateReportService
+        // derives mutate-access decisions from them.
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        title: 'New name',
+        dataDestinationId: 'dest-1',
+        destinationConfig: currentReport.destinationConfig,
+        ownerIds: undefined,
+        columnConfig: ['channel', 'revenue'],
+        filterConfig: currentReport.filterConfig,
+        sortConfig: currentReport.sortConfig,
+        limitConfig: 100,
+        aggregationConfig: currentReport.aggregationConfig,
+        dateTruncConfig: currentReport.dateTruncConfig,
+      })
+    );
+    expect(result).toEqual({ report_id: 'report-1', status: 'updated' });
+  });
+
+  it('rejects a call with nothing to update before touching any service', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+
+    await expect(facade.updateReport(updateRequest)).rejects.toThrow(
+      'Nothing to update: provide fields and/or name'
+    );
+    expect(getReportService.run).not.toHaveBeenCalled();
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('replaces the column selection while preserving the name and filters', async () => {
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    await facade.updateReport({ ...updateRequest, fields: ['channel'] });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Old name',
+        columnConfig: ['channel'],
+        filterConfig: currentReport.filterConfig,
+      })
+    );
+  });
+
+  it('maps fields ["*"] to no column projection', async () => {
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    await facade.updateReport({ ...updateRequest, fields: ['*'] });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: null })
+    );
+  });
+
+  it('applies name and fields together', async () => {
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    await facade.updateReport({ ...updateRequest, name: 'New name', fields: ['channel'] });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'New name', columnConfig: ['channel'] })
+    );
+  });
+
+  it('does not update when loading the current report fails', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockRejectedValue(new Error('Report with ID report-1 not found'));
+
+    await expect(facade.updateReport({ ...updateRequest, name: 'New name' })).rejects.toThrow(
+      'not found'
+    );
+    expect(updateReportService.run).not.toHaveBeenCalled();
   });
 });

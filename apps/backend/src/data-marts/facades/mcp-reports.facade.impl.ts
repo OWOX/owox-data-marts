@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -6,10 +6,14 @@ import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled
 import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
+import { GetReportCommand } from '../dto/domain/get-report.command';
+import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
 import { CreateReportService } from '../use-cases/create-report.service';
+import { GetReportService } from '../use-cases/get-report.service';
+import { UpdateReportService } from '../use-cases/update-report.service';
 import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
@@ -23,6 +27,8 @@ import {
   McpGetDataMartReportsResponse,
   McpReportScheduleItem,
   McpReportsFacade,
+  McpUpdateReportRequest,
+  McpUpdateReportResult,
 } from './mcp-reports.facade';
 
 /**
@@ -43,8 +49,50 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService,
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly getReportService: GetReportService,
+    private readonly updateReportService: UpdateReportService
   ) {}
+
+  async updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult> {
+    // The facade is a public interface, so the "at least one change" invariant
+    // is enforced here as well, not only by the tool-layer input schema.
+    if (request.fields === undefined && request.name === undefined) {
+      throw new BadRequestException('Nothing to update: provide fields and/or name');
+    }
+
+    // UpdateReportCommand carries the FULL report state and the service
+    // overwrites every output control, so merge the partial MCP input into the
+    // current report. Keeping the current destination id skips the destination
+    // re-auth path, and leaving ownerIds undefined keeps owners untouched.
+    const current = await this.getReportService.run(
+      new GetReportCommand(request.reportId, request.projectId, request.userId, request.roles)
+    );
+
+    await this.updateReportService.run(
+      new UpdateReportCommand(
+        request.reportId,
+        request.projectId,
+        request.userId,
+        request.roles,
+        request.name ?? current.title,
+        current.dataDestinationAccess.id,
+        current.destinationConfig,
+        undefined,
+        request.fields !== undefined
+          ? this.toColumnConfig(request.fields)
+          : (current.columnConfig ?? null),
+        current.filterConfig ?? null,
+        current.sortConfig ?? null,
+        current.limitConfig ?? null,
+        current.aggregationConfig ?? null,
+        current.dateTruncConfig ?? null,
+        current.uniqueCountConfig
+      )
+    );
+
+    return { report_id: request.reportId, status: 'updated' };
+  }
 
   async addReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
     const columnConfig = this.toColumnConfig(request.fields);
