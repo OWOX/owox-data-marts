@@ -112,10 +112,10 @@ To switch projects, disconnect, then reconnect and sign in again, choosing the p
 
 ## Available tools
 
-Once connected, the MCP server exposes twelve tools across two scopes:
+Once connected, the MCP server exposes fourteen tools across two scopes:
 
 - **`mcp:read`** (requested by every connection): discovery and query tools — `get_project_context`, `list_data_marts`, `get_relevant_data_marts_by_prompt`, `get_data_mart_details_by_id`, `query_data_mart`, `list_destinations`, `get_data_mart_reports`, `list_report_run_schedules`. `query_data_mart` additionally queries a data mart's data — it returns data rows, records each call in Run History, and costs [credits](../billing/consumption-units.md) per call.
-- **`mcp:write`** (requested alongside `mcp:read`): tools that create or change reports and schedules — `add_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`. Your MCP client may ask you to confirm before it calls one of these.
+- **`mcp:write`** (requested alongside `mcp:read`): tools that create or change reports and schedules — `add_report`, `update_report`, `delete_report`, `create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`. Your MCP client may ask you to confirm before it calls one of these.
 
 ### `get_project_context`
 
@@ -361,6 +361,44 @@ Unlike every other tool, this one reaches outside OWOX: it creates a file in Goo
 | `placed_in_root`            | `true` if the configured Drive folder could not be used, so the sheet was created in the Drive root |
 | `shared_with_requester`     | `false` if the sheet could not be shared with you — opening the link may require requesting access  |
 
+### `update_report` (requires `mcp:write`)
+
+Updates an existing report: renames it and/or replaces which data mart fields it exports. Anything not provided stays unchanged — the destination, filters, sorting, owners, and schedules are preserved as-is.
+
+**Input:**
+
+| Field       | Description                                                                       |
+| ----------- | --------------------------------------------------------------------------------- |
+| `report_id` | Report to update (from `get_data_mart_reports`)                                   |
+| `fields`    | Optional. Replacement column selection, or `["*"]` for every field                |
+| `name`      | Optional. New report name                                                          |
+
+At least one of `fields` / `name` must be provided.
+
+**Returns:**
+
+| Field       | Description        |
+| ----------- | ------------------ |
+| `report_id` | Report identifier  |
+| `status`    | `updated`          |
+
+### `delete_report` (requires `mcp:write`)
+
+Permanently deletes a report. The report stops running and disappears from the project; the underlying data mart, destination, and any already-exported documents are not affected. This cannot be undone, so your assistant asks for confirmation before calling it.
+
+**Input:**
+
+| Field       | Description                                     |
+| ----------- | ----------------------------------------------- |
+| `report_id` | Report to delete (from `get_data_mart_reports`) |
+
+**Returns:**
+
+| Field       | Description        |
+| ----------- | ------------------ |
+| `report_id` | Report identifier  |
+| `status`    | `deleted`          |
+
 ## How to use it: example prompts
 
 Once the OWOX server is connected, just ask your assistant in plain language. You do not need to name the tools — the assistant calls them for you. Try prompts like:
@@ -376,10 +414,12 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Which destinations can I send a report to?"
 - "What reports and schedules already exist for the Sales data mart?"
 - "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report'."
+- "Rename that report to 'Q3 Ads Report' and keep only the campaign and spend fields."
 - "Schedule that report to run every Monday at 9am New York time."
 - "Turn off the schedule you just created."
+- "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, when each was last updated, and field-level metadata for a selected data mart), and the destinations available for reports — and, with `query_data_mart`, run a bounded query and read the resulting data rows and totals. With your confirmation, the assistant can also create a report to a Google Sheets destination (`add_report`) and create, update, or delete that report's run schedules (`create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`) — these are the only actions that create or change anything. They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot change a data mart, destination, or project itself.
+> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, when each was last updated, and field-level metadata for a selected data mart), and the destinations available for reports — and, with `query_data_mart`, run a bounded query and read the resulting data rows and totals. With your confirmation, the assistant can also create a report to a Google Sheets destination (`add_report`), rename a report or change which fields it exports (`update_report`), delete a report (`delete_report`), and create, update, or delete a report's run schedules (`create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`) — these are the only actions that create or change anything. They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot change a data mart, destination, or project itself.
 >
 > **What is shared with your AI provider:** To answer your prompts, data-mart metadata (project and data-mart names, descriptions, status, fields, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. In addition, whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 
