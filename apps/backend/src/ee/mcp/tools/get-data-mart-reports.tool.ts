@@ -8,7 +8,7 @@ import {
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
 const inputSchema = z.object({ data_mart_id: z.string().min(1) }).strict();
 
@@ -73,14 +73,6 @@ export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartRepo
 
     const structuredContent = { reports: result.reports };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }

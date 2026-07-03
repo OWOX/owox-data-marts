@@ -8,7 +8,7 @@ import {
 } from '../../../common/search/search.facade';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
 
 const DEFAULT_LIMIT = 10;
@@ -85,14 +85,6 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
         })),
     };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }

@@ -7,7 +7,7 @@ import {
 } from '../../../data-marts/facades/mcp-data-destinations.facade';
 import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
 const inputSchema = z.object({}).strict();
 
@@ -57,14 +57,6 @@ export class ListDestinationsTool implements McpToolDefinition<ListDestinationsI
 
     const structuredContent = { destinations: result.destinations };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }

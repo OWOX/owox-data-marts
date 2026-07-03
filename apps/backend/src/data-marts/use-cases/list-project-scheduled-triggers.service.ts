@@ -46,6 +46,7 @@ export class ListProjectScheduledTriggersService {
       roleScope,
       limit: command.limit,
       offset: command.offset,
+      type: command.type,
     });
 
     const userProjections =

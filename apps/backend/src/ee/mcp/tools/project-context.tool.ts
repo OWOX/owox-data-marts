@@ -6,7 +6,7 @@ import {
   type McpProjectContextFacade,
 } from '../../../idp/facades/mcp-project-context.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
 type GetProjectContextInput = Record<string, never>;
 
@@ -66,14 +66,6 @@ export class GetProjectContextTool implements McpToolDefinition<GetProjectContex
         'To use another OWOX project, disconnect and reconnect this MCP server, then sign in again and choose the desired project during OWOX authorization.',
     };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }
