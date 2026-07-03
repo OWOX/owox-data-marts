@@ -7,7 +7,7 @@ import {
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildReportsUiPath, joinPublicOrigin } from './data-mart-ui-path';
 
 const inputSchema = z
@@ -53,7 +53,9 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
     title: 'Add Report',
     readOnlyHint: false,
     destructiveHint: false,
-    openWorldHint: false,
+    // Unlike the other tools, this one reaches outside the OWOX domain: it
+    // creates a document in Google Drive and may share it with the requester.
+    openWorldHint: true,
   };
   readonly requiredScopes: McpScope[] = ['mcp:write'];
 
@@ -95,14 +97,6 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       shared_with_requester: result.shared_with_requester,
     };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }

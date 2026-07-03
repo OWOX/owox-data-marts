@@ -116,7 +116,8 @@ describe('AddReportTool', () => {
         title: 'Add Report',
         readOnlyHint: false,
         destructiveHint: false,
-        openWorldHint: false,
+        // The tool creates (and may share) a document in Google Drive.
+        openWorldHint: true,
       },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toContain('AddReportTool');
