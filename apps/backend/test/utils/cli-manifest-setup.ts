@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -8,6 +8,8 @@ const backendTestRoot = __dirname;
 const backendRoot = resolve(backendTestRoot, '../..');
 const repoRoot = resolve(backendRoot, '../..');
 const cliPackageRoots = [resolve(repoRoot, 'apps/owox'), resolve(repoRoot, 'apps/ctl')];
+const manifestFileName = 'oclif.manifest.json';
+const packageFileName = 'package.json';
 
 let prepared = false;
 
@@ -18,11 +20,12 @@ export function prepareCliManifests(): void {
 
   for (const packageRoot of cliPackageRoots) {
     withManifestLock(packageRoot, () => {
-      const manifestPath = join(packageRoot, 'oclif.manifest.json');
-      if (existsSync(manifestPath)) {
+      const manifestPath = join(packageRoot, manifestFileName);
+      if (isManifestCurrent(packageRoot, manifestPath)) {
         return;
       }
 
+      rmSync(manifestPath, { force: true });
       const result = spawnSync('npm', ['run', 'prepack'], {
         cwd: packageRoot,
         encoding: 'utf8',
@@ -39,6 +42,28 @@ export function prepareCliManifests(): void {
   }
 
   prepared = true;
+}
+
+function isManifestCurrent(packageRoot: string, manifestPath: string): boolean {
+  if (!existsSync(manifestPath)) {
+    return false;
+  }
+
+  try {
+    const packagePath = join(packageRoot, packageFileName);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version?: unknown };
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8')) as {
+      version?: unknown;
+    };
+
+    return (
+      typeof manifest.version === 'string' &&
+      typeof packageJson.version === 'string' &&
+      manifest.version === packageJson.version
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function useCliManifests(): void {

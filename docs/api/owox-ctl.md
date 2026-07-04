@@ -95,6 +95,10 @@ With auto-loaded `.env`, `envFile` is the default path used:
 
 With `--env-file ../../.env`, `envFile` is the resolved absolute path.
 
+When the backend does not expose the auth-context endpoint, `status` falls back to credential
+exchange only. In that case `authenticated` is still `true` for a valid key, but `project` and
+`member` are omitted.
+
 When credentials are missing or invalid, `authenticated` is `false` and the command exits non-zero:
 
 ```json
