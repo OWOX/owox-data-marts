@@ -397,14 +397,11 @@ export async function expectDomainManagementAllowed(
   expect(typeof contextResponse.body.userId).toBe('string');
   const currentUserId = contextResponse.body.userId as string;
 
-  const createdContext = await fetchJson<JsonRecord>(
-    `${origin}/api/contexts`,
-    {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({ name: `api-key-smoke-${randomUUID()}` }),
-    }
-  );
+  const createdContext = await fetchJson<JsonRecord>(`${origin}/api/contexts`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name: `api-key-smoke-${randomUUID()}` }),
+  });
   expect(createdContext.status).toBe(201);
   expect(typeof createdContext.body.id).toBe('string');
   const contextId = createdContext.body.id as string;
@@ -428,97 +425,73 @@ export async function expectDomainManagementAllowed(
     200
   );
 
-  await expectNotForbidden(
-    `${origin}/api/data-marts/data-mart-1/owners`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        businessOwnerIds: [currentUserId],
-        technicalOwnerIds: [currentUserId],
-      }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/data-marts/data-mart-1/contexts`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders,
-      body: JSON.stringify({ contextIds: [contextId] }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/data-storages/storage-1`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        title: 'Storage',
-        config: {},
-        ownerIds: [currentUserId],
-        contextIds: [contextId],
-      }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/data-storages`,
-    {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({ type: 'GOOGLE_BIGQUERY', ownerIds: [currentUserId] }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/data-destinations/destination-1`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        title: 'Destination',
-        ownerIds: [currentUserId],
-        contextIds: [contextId],
-      }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/data-destinations`,
-    {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        title: 'Destination',
-        type: 'GOOGLE_SHEETS',
-        ownerIds: [currentUserId],
-      }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/reports`,
-    {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        title: 'Report',
-        dataMartId: 'data-mart-1',
-        dataDestinationId: 'destination-1',
-        destinationConfig: {},
-        ownerIds: [currentUserId],
-      }),
-    }
-  );
-  await expectNotForbidden(
-    `${origin}/api/reports/report-1`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        title: 'Report',
-        dataDestinationId: 'destination-1',
-        destinationConfig: {},
-        ownerIds: [currentUserId],
-      }),
-    }
-  );
+  await expectNotForbidden(`${origin}/api/data-marts/data-mart-1/owners`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      businessOwnerIds: [currentUserId],
+      technicalOwnerIds: [currentUserId],
+    }),
+  });
+  await expectNotForbidden(`${origin}/api/data-marts/data-mart-1/contexts`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ contextIds: [contextId] }),
+  });
+  await expectNotForbidden(`${origin}/api/data-storages/storage-1`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      title: 'Storage',
+      config: {},
+      ownerIds: [currentUserId],
+      contextIds: [contextId],
+    }),
+  });
+  await expectNotForbidden(`${origin}/api/data-storages`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ type: 'GOOGLE_BIGQUERY', ownerIds: [currentUserId] }),
+  });
+  await expectNotForbidden(`${origin}/api/data-destinations/destination-1`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      title: 'Destination',
+      ownerIds: [currentUserId],
+      contextIds: [contextId],
+    }),
+  });
+  await expectNotForbidden(`${origin}/api/data-destinations`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      title: 'Destination',
+      type: 'GOOGLE_SHEETS',
+      ownerIds: [currentUserId],
+    }),
+  });
+  await expectNotForbidden(`${origin}/api/reports`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      title: 'Report',
+      dataMartId: 'data-mart-1',
+      dataDestinationId: 'destination-1',
+      destinationConfig: {},
+      ownerIds: [currentUserId],
+    }),
+  });
+  await expectNotForbidden(`${origin}/api/reports/report-1`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      title: 'Report',
+      dataDestinationId: 'destination-1',
+      destinationConfig: {},
+      ownerIds: [currentUserId],
+    }),
+  });
 
   await expectStatus(`${origin}/api/contexts/${contextId}`, { method: 'DELETE', headers }, 204);
 }

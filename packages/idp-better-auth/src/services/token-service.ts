@@ -94,9 +94,7 @@ export class TokenService {
   private isProjectMemberApiKeyAccessTokenPayload(
     payload: Payload
   ): payload is ProjectMemberApiKeyAccessTokenPayload {
-    return (
-      this.isProjectMemberApiKeyPayload(payload) && this.isFutureDateString(payload.expiresAt)
-    );
+    return this.isProjectMemberApiKeyPayload(payload) && this.isFutureDateString(payload.expiresAt);
   }
 
   private isProjectMemberApiKeyPayload(payload: Payload): payload is ProjectMemberApiKeyPayload {

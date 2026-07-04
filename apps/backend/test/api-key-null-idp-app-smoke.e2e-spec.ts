@@ -51,11 +51,7 @@ describe('Null IDP app smoke (e2e)', () => {
       );
       await expectUserProvisioningRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectIntercomJwtRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
-      await expectDomainManagementAllowed(
-        app.origin,
-        apiKeyAccessToken,
-        parsedKey.apiKeyId
-      );
+      await expectDomainManagementAllowed(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectDataMartsAccessible(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectCtlStatus(createdKey.apiKey, parsedKey);
     } finally {
