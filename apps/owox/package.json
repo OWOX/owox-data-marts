@@ -62,7 +62,6 @@
     "athena"
   ],
   "license": "ELv2",
-  "main": "dist/index.js",
   "type": "module",
   "oclif": {
     "bin": "owox",
@@ -98,6 +97,5 @@
     "pretest": "oclif manifest",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
-  },
-  "types": "dist/index.d.ts"
+  }
 }
