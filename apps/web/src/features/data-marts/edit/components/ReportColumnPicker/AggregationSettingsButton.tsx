@@ -27,7 +27,7 @@ export function AggregationSettingsButton({
           aria-label='Aggregations'
           aria-expanded={open}
           onClick={onClick}
-          className='relative h-6 gap-1 px-1.5'
+          className='relative h-7 w-7 gap-1'
         >
           <Sigma className={cn('h-3.5 w-3.5', active && 'text-blue-500')} />
           {typeof count === 'number' && count > 0 && (
