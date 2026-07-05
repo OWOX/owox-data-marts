@@ -47,7 +47,7 @@ Values already present in the process environment take precedence over values lo
 owox-ctl status
 ```
 
-The command validates credentials, reports the API key ID, and reports the env file path used for the command.
+The command validates credentials, reports the API key ID, reports the env file path used for the command, and returns the project and member context resolved from the exchanged access token.
 
 Example:
 
@@ -56,7 +56,18 @@ Example:
   "apiOrigin": "https://app.owox.com",
   "apiKeyId": "pmk_1234567890abcdef",
   "authenticated": true,
-  "envFile": null
+  "envFile": null,
+  "project": {
+    "id": "project-1",
+    "title": "Demo Project"
+  },
+  "member": {
+    "userId": "user-1",
+    "email": "user@example.com",
+    "fullName": "User Example",
+    "avatar": null,
+    "roles": ["viewer"]
+  }
 }
 ```
 
@@ -67,11 +78,26 @@ With auto-loaded `.env`, `envFile` is the default path used:
   "apiOrigin": "https://app.owox.com",
   "apiKeyId": "pmk_1234567890abcdef",
   "authenticated": true,
-  "envFile": "/path/to/project/.env"
+  "envFile": "/path/to/project/.env",
+  "project": {
+    "id": "project-1",
+    "title": "Demo Project"
+  },
+  "member": {
+    "userId": "user-1",
+    "email": "user@example.com",
+    "fullName": "User Example",
+    "avatar": null,
+    "roles": ["viewer"]
+  }
 }
 ```
 
 With `--env-file ../../.env`, `envFile` is the resolved absolute path.
+
+When the backend does not expose the auth-context endpoint, `status` falls back to credential
+exchange only. In that case `authenticated` is still `true` for a valid key, but `project` and
+`member` are omitted.
 
 When credentials are missing or invalid, `authenticated` is `false` and the command exits non-zero:
 
@@ -91,6 +117,7 @@ When credentials are missing or invalid, `authenticated` is `false` and the comm
 ## Commands
 
 ```bash
+owox-ctl status
 owox-ctl data-marts list
 owox-ctl data-marts stream <dataMartId> --columns '*'
 owox-ctl storages list

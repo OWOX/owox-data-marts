@@ -1,4 +1,5 @@
 export { API_KEY_PREFIX, parseOWOXApiKey, type ParsedOWOXApiKey } from './api-key.js';
+export { type OWOXAuthContext } from './auth.js';
 export { OWOXApiClient, type OWOXApiClientOptions } from './client.js';
 export { OWOXApiError, OWOXAuthError, OWOXConfigError } from './errors.js';
 export {

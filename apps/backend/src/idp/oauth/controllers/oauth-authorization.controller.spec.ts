@@ -1,6 +1,10 @@
 import { Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import type { McpOAuthProjectMemberContext, Payload } from '@owox/idp-protocol';
+import {
+  AuthorizationError,
+  type McpOAuthProjectMemberContext,
+  type Payload,
+} from '@owox/idp-protocol';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort } from '../oauth-idp.port';
@@ -199,6 +203,27 @@ describe('OAuthAuthorizationController', () => {
     expect(response.redirect).toHaveBeenCalledWith(
       'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'
     );
+  });
+
+  it('rejects API-key access tokens for OAuth authorization', async () => {
+    const { controller, provider, oauthIdp } = createController();
+    provider.parseToken.mockResolvedValueOnce({
+      ...payload,
+      authFlow: 'api_key',
+      apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+    });
+    const response = createResponse();
+    const request = createRequest({
+      headers: {
+        'x-owox-authorization': 'Bearer api-key-access-token',
+        'x-owox-api-key-id': 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      },
+    });
+
+    await expect(
+      controller.authorize({}, request, response as unknown as Response)
+    ).rejects.toThrow(AuthorizationError);
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
   });
 
   it('renders MCP project selection when authenticated user has multiple projects and none is selected', async () => {

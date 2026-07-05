@@ -1,6 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  Role,
+  Strategy,
+} from '../../idp';
 import {
   ApproveMembershipRequestApiDto,
   ApproveMembershipRequestResponseApiDto,
@@ -45,6 +52,7 @@ import {
 
 @Controller('members')
 @ApiTags('Project Members')
+@RejectApiKeyAuth()
 /**
  * Self-protection (admin cannot remove or change-role on themselves) is
  * enforced inside `RemoveProjectMemberService.run` and

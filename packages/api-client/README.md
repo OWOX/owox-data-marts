@@ -17,6 +17,8 @@ import { OWOXApiClient } from '@owox/api-client';
 const client = new OWOXApiClient({
   apiKey: process.env.OWOX_API_KEY!,
 });
+
+const context = await client.auth.getContext();
 ```
 
 ## Documentation

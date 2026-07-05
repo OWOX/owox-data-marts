@@ -29,13 +29,18 @@ export class ExchangeProjectMemberApiKeyService {
         apiKey.apiKeyId,
         apiKey.userId,
         apiKey.projectId,
-        apiKey.role,
-        apiKey.readOnly
+        null,
+        false
       );
 
     await this.projectMemberApiKeyService.markAuthenticated(apiKey.apiKeyId, new Date());
 
-    return { accessToken: tokenResult.accessToken };
+    return {
+      accessToken: tokenResult.accessToken,
+      ...(typeof tokenResult.accessTokenExpiresIn === 'number'
+        ? { accessTokenExpiresIn: tokenResult.accessTokenExpiresIn }
+        : {}),
+    };
   }
 
   private invalidCredentials(): AuthenticationError {

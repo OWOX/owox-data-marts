@@ -211,6 +211,62 @@ describe('TokenService', () => {
       expect(auth.api.getSession).not.toHaveBeenCalled();
     });
 
+    it('should return unexpired api_key payloads', async () => {
+      const payload = {
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      };
+      cryptoService.decrypt.mockResolvedValue(JSON.stringify(payload));
+
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(service.introspectToken('token')).resolves.toEqual(payload);
+    });
+
+    it.each([
+      ['apiKeyId', { apiKeyId: undefined }],
+      ['projectId', { projectId: '' }],
+      ['roles', { roles: [] }],
+      ['roles', { roles: ['viewer', 'editor'] }],
+      ['expiresAt', { expiresAt: undefined }],
+      ['expiresAt', { expiresAt: 'not-a-date' }],
+      ['expiresAt', { expiresAt: new Date(Date.now() - 60_000).toISOString() }],
+    ])('should return null for api_key payloads without valid %s', async (_field, overrides) => {
+      cryptoService.decrypt.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          authFlow: 'api_key',
+          apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          ...overrides,
+        })
+      );
+
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(service.introspectToken('token')).resolves.toBeNull();
+    });
+
     it('should throw on empty string payload', async () => {
       cryptoService.decrypt.mockResolvedValue('');
 
@@ -270,6 +326,75 @@ describe('TokenService', () => {
       const result = await service.parseToken('token');
 
       expect(result).toEqual(payload);
+    });
+  });
+
+  describe('issueProjectMemberApiKeyAccessToken', () => {
+    it('encrypts an API-key auth payload with apiKeyId and authFlow claims', async () => {
+      cryptoService.encrypt.mockResolvedValue('encrypted-api-key-token');
+
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      const result = await service.issueProjectMemberApiKeyAccessToken({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      });
+
+      expect(cryptoService.encrypt).toHaveBeenCalledTimes(1);
+      const encryptedPayload = JSON.parse(cryptoService.encrypt.mock.calls[0][0]);
+      expect(encryptedPayload).toEqual({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        expiresAt: expect.any(String),
+      });
+      expect(Date.parse(encryptedPayload.expiresAt)).toBeGreaterThan(Date.now());
+      expect(result).toEqual({
+        accessToken: 'encrypted-api-key-token',
+        accessTokenExpiresIn: 900,
+      });
+    });
+
+    it.each([
+      ['authFlow', { authFlow: 'app_owox', apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv' }],
+      ['apiKeyId', { authFlow: 'api_key' }],
+      ['userId', { userId: '' }],
+      ['projectId', { projectId: '' }],
+      ['roles', { roles: [] }],
+      ['roles', { roles: ['viewer', 'editor'] }],
+    ])('rejects API-key payloads without valid %s', async (_field, overrides) => {
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(
+        service.issueProjectMemberApiKeyAccessToken({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          ...overrides,
+        } as never)
+      ).rejects.toThrow('Invalid project member API key token payload');
+      expect(cryptoService.encrypt).not.toHaveBeenCalled();
     });
   });
 
