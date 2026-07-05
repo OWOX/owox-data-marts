@@ -1026,3 +1026,144 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     expect(onOutputConfigChange).not.toHaveBeenCalled();
   });
 });
+
+describe('ReportColumnPicker search', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('selects only the visible search results when Select all is clicked', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'country', type: 'STRING' },
+        { name: 'city', type: 'STRING' },
+      ] as unknown[],
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__revenue',
+          originalFieldName: 'revenue',
+        }),
+        buildBlendedField({
+          name: 'b__sessions',
+          originalFieldName: 'sessions',
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+
+    const { onChange } = renderPicker(schema, []);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search columns' }));
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search columns' }), {
+      target: { value: 'city' },
+    });
+
+    expect(screen.getByText('city')).toBeInTheDocument();
+    expect(screen.queryByText('country')).not.toBeInTheDocument();
+    expect(screen.queryByText('revenue')).not.toBeInTheDocument();
+    expect(screen.queryByText('sessions')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all fields' }));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(['city']);
+  });
+
+  it('shows a message when no columns match the search', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'country', type: 'STRING' },
+        { name: 'city', type: 'STRING' },
+      ] as unknown[],
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__revenue',
+          originalFieldName: 'revenue',
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+
+    renderPicker(schema, []);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search columns' }));
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search columns' }), {
+      target: { value: 'does-not-exist' },
+    });
+
+    expect(screen.getByText('No matching columns found.')).toBeInTheDocument();
+
+    expect(screen.queryByText('country')).not.toBeInTheDocument();
+    expect(screen.queryByText('city')).not.toBeInTheDocument();
+    expect(screen.queryByText('revenue')).not.toBeInTheDocument();
+  });
+
+  it('restores all columns after clearing the search', () => {
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'country', type: 'STRING' },
+        { name: 'city', type: 'STRING' },
+      ] as unknown[],
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__revenue',
+          originalFieldName: 'revenue',
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+
+    renderPicker(schema, []);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search columns' }));
+
+    const input = screen.getByRole('textbox', { name: 'Search columns' });
+
+    fireEvent.change(input, {
+      target: { value: 'city' },
+    });
+
+    expect(screen.queryByText('country')).not.toBeInTheDocument();
+
+    fireEvent.change(input, {
+      target: { value: '' },
+    });
+
+    expect(screen.getByText('country')).toBeInTheDocument();
+    expect(screen.getByText('city')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Joined DM' })).toBeInTheDocument();
+  });
+
+  it('filters blended fields by the search query', () => {
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__revenue',
+          originalFieldName: 'revenue',
+        }),
+        buildBlendedField({
+          name: 'b__sessions',
+          originalFieldName: 'sessions',
+        }),
+      ],
+      availableSources: [buildAvailableSource()],
+    });
+
+    renderPicker(schema, []);
+
+    expect(screen.getByRole('button', { name: 'Expand Joined DM' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search columns' }));
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search columns' }), {
+      target: { value: 'revenue' },
+    });
+
+    expect(screen.getByRole('button', { name: 'Collapse Joined DM' })).toBeInTheDocument();
+
+    expect(screen.getByText('revenue')).toBeInTheDocument();
+    expect(screen.queryByText('sessions')).not.toBeInTheDocument();
+  });
+});
