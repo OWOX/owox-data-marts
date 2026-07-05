@@ -930,10 +930,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                     <FormItem>
                       {dataMart?.id && (
                         <FormControl>
-                          <div
-                            className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'
-                            tabIndex={-1}
-                          >
+                          <div className='space-y-3' tabIndex={-1}>
                             <ReportColumnPicker
                               dataMartId={dataMart.id}
                               storageType={dataMart.storage.type}
