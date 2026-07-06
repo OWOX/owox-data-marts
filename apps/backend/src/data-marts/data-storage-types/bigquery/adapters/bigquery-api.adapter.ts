@@ -76,8 +76,17 @@ export class BigQueryApiAdapter {
    * When params are provided, BigQuery named parameter mode is used
    * (@paramName placeholders). The SDK infers types from JS values
    * (string, number, boolean, Date).
+   *
+   * `jobTimeoutMs` (already in ms) caps warehouse cost by aborting the job server-side; unset = no change.
+   * `signal` (client disconnect/cancel) cancels the running job immediately — the poll loop then
+   * surfaces the cancellation as a thrown error. Unset = no cancellation hook.
    */
-  public async executeQuery(query: string, params?: SqlParameter[]): Promise<{ jobId: string }> {
+  public async executeQuery(
+    query: string,
+    params?: SqlParameter[],
+    jobTimeoutMs?: number,
+    signal?: AbortSignal
+  ): Promise<{ jobId: string }> {
     const queryConfig: Query =
       params && params.length > 0
         ? {
@@ -85,14 +94,31 @@ export class BigQueryApiAdapter {
             params: Object.fromEntries(params.map(p => [p.name, p.value])),
             parameterMode: 'NAMED',
             ...this.getLocationOption(),
+            ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
           }
         : {
             query,
             ...this.getLocationOption(),
+            ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
           };
 
     const [job] = await this.bigQuery.createQueryJob(queryConfig);
-    await this.waitForJobToComplete(job);
+
+    // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
+    // then sees the job finish (cancelled) and throws, so we stop billing compute for a gone client.
+    const onAbort = () => {
+      job.cancel().catch(() => undefined);
+    };
+    if (signal) {
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    try {
+      await this.waitForJobToComplete(job, signal);
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
+    }
     this.setLocationFromJob(job);
 
     const jobId = job.id;
@@ -109,7 +135,7 @@ export class BigQueryApiAdapter {
    * (e.g. invalid SQL) so a bad query still surfaces as a thrown error from
    * {@link executeQuery}, matching the previous `bigQuery.query()` behaviour.
    */
-  private async waitForJobToComplete(job: Job): Promise<void> {
+  private async waitForJobToComplete(job: Job, signal?: AbortSignal): Promise<void> {
     while (true) {
       const [metadata] = await job.getMetadata();
       if (metadata?.status?.state === 'DONE') {
@@ -121,8 +147,28 @@ export class BigQueryApiAdapter {
         }
         return;
       }
-      await new Promise(resolve => setTimeout(resolve, BigQueryApiAdapter.JOB_POLL_INTERVAL_MS));
+      // Interruptible: an abort wakes the sleep so we re-poll immediately after job.cancel() (fired
+      // by executeQuery's abort handler) instead of waiting out the full poll interval.
+      await this.interruptibleSleep(BigQueryApiAdapter.JOB_POLL_INTERVAL_MS, signal);
     }
+  }
+
+  private interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise(resolve => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**

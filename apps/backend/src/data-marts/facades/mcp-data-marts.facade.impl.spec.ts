@@ -481,6 +481,69 @@ describe('McpDataMartsFacadeImpl', () => {
     expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
   });
 
+  it('forwards the request and abort signal to QueryDataMartService.run', async () => {
+    const response = {
+      columns: ['country'],
+      rows: 'country\nUA',
+      truncated: false,
+      totals: null,
+    };
+    const queryDataMartService = {
+      run: jest.fn().mockResolvedValue(response),
+    } as unknown as jest.Mocked<QueryDataMartService>;
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      createDataMartService(),
+      queryDataMartService,
+      createBlendableSchemaService(),
+      createRelationshipService()
+    );
+    const request = {
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      fields: ['country'],
+      limit: 100,
+    };
+    const signal = new AbortController().signal;
+
+    await expect(facade.queryDataMart(request, signal)).resolves.toBe(response);
+    expect(queryDataMartService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ request }),
+      signal
+    );
+  });
+
+  it('forwards an undefined signal when none is provided to queryDataMart', async () => {
+    const queryDataMartService = {
+      run: jest.fn().mockResolvedValue({ columns: [], rows: '', truncated: false, totals: null }),
+    } as unknown as jest.Mocked<QueryDataMartService>;
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      createDataMartService(),
+      queryDataMartService,
+      createBlendableSchemaService(),
+      createRelationshipService()
+    );
+    const request = {
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      fields: ['country'],
+      limit: 100,
+    };
+
+    await facade.queryDataMart(request);
+    expect(queryDataMartService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ request }),
+      undefined
+    );
+  });
+
   it('degrades to no joined fields when blended-schema computation fails', async () => {
     const listDataMartsService = createListDataMartsService([]);
     const dataMartService = createDataMartService({

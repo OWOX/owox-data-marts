@@ -79,10 +79,36 @@ describe('McpSdkServerFactory', () => {
     );
 
     const sdkHandler = mockRegisterTool.mock.calls[0][2];
+    const signal = new AbortController().signal;
+    await expect(sdkHandler({ query: 'orders' }, { signal })).resolves.toEqual({
+      content: [{ type: 'text', text: 'ok' }],
+    });
+    // The SDK's per-request abort signal (client disconnect/cancel) must reach the tool handler.
+    expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context, signal);
+  });
+
+  it('forwards an undefined signal when the SDK provides no extra', async () => {
+    const handler = jest.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
+    const tool = {
+      name: 'list_data_marts',
+      description: 'List data marts',
+      zodSchema: { query: z.string().optional() },
+      requiredScopes: ['mcp:read'],
+      handler,
+    } as McpToolDefinition<{ query?: string }>;
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([tool])
+    );
+
+    factory.create(context);
+    const sdkHandler = mockRegisterTool.mock.calls[0][2];
+
     await expect(sdkHandler({ query: 'orders' })).resolves.toEqual({
       content: [{ type: 'text', text: 'ok' }],
     });
-    expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context);
+    expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context, undefined);
   });
 
   it('rejects tool calls when token context lacks required scope', async () => {

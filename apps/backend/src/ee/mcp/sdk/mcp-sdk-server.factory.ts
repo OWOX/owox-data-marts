@@ -17,7 +17,7 @@ type McpSdkToolRegistrar = {
       outputSchema?: ZodRawShape;
       annotations?: ToolAnnotations;
     },
-    callback: (input: unknown) => Promise<McpToolResult>
+    callback: (input: unknown, extra: { signal?: AbortSignal }) => Promise<McpToolResult>
   ): unknown;
 };
 
@@ -45,9 +45,11 @@ export class McpSdkServerFactory {
           ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
           ...(tool.annotations ? { annotations: tool.annotations } : {}),
         },
-        async input => {
+        async (input, extra) => {
           this.assertScopes(mcpContext, tool.requiredScopes);
-          return tool.handler(input, mcpContext);
+          // extra.signal fires on client disconnect/cancel — thread it so an abandoned query stops
+          // waiting and is recorded CANCELLED (not billed) instead of running to completion.
+          return tool.handler(input, mcpContext, extra?.signal);
         }
       );
     }

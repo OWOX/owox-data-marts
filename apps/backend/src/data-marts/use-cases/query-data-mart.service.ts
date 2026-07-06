@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
@@ -18,6 +25,8 @@ import { ConsumptionTrackingService } from '../services/consumption-tracking.ser
 import {
   McpQueryDataMartRequest,
   McpQueryDataMartResponse,
+  QueryAbortedError,
+  QueryTimeoutError,
 } from '../facades/mcp-data-marts.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
@@ -25,17 +34,17 @@ export class QueryDataMartCommand {
   constructor(public readonly request: McpQueryDataMartRequest) {}
 }
 
-// Upper bound on rows read per query, independent of the MCP tool's own clamp (query-data-mart.
-// input.ts MAX_LIMIT) — this guards direct service/facade callers that bypass the tool schema.
+// Guards direct facade callers that bypass the tool schema's own clamp.
 const MAX_QUERY_LIMIT = 1000;
 
+// Server-side deadline for one run; on expiry the run fails query_timeout and is not billed. Matches
+// SERVER_TIMEOUT_MS (3 min), so the /mcp controller raises its socket timeout above this or the idle
+// timer would blunt-reset a computing request first. Overridable via constructor for tests.
+export const DEFAULT_QUERY_DEADLINE_MS = 3 * 60_000;
+
 /**
- * Reads rows for a single Data Mart on behalf of the `query_data_mart` MCP tool.
- *
- * The SQL is composed from the read plan and handed to the reader as `sqlOverride`, with
- * `columnFilter` restricting the emitted headers to the selected fields in their requested
- * order. Without these the reader falls back to `SELECT *` and ignores the field selection,
- * filters, and limit.
+ * Reads rows for a single Data Mart on behalf of the `query_data_mart` MCP tool. The composed SQL is
+ * passed to the reader as `sqlOverride` + `columnFilter`; without them it falls back to `SELECT *`.
  */
 @Injectable()
 export class QueryDataMartService {
@@ -50,17 +59,17 @@ export class QueryDataMartService {
     private readonly dataMartRunService: DataMartRunService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly projectBalanceService: ProjectBalanceService,
-    private readonly consumptionTrackingService: ConsumptionTrackingService
+    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    @Optional() private readonly queryDeadlineMs: number = DEFAULT_QUERY_DEADLINE_MS
   ) {}
 
-  async run(command: QueryDataMartCommand): Promise<McpQueryDataMartResponse> {
+  async run(
+    command: QueryDataMartCommand,
+    signal?: AbortSignal
+  ): Promise<McpQueryDataMartResponse> {
     const r = command.request;
 
-    // Defense-in-depth for direct facade callers: the MCP tool clamps limit to 1–MAX_QUERY_LIMIT,
-    // but the facade contract types it as a bare number. A limit < 1 would still read and then fail
-    // to persist the run (McpQueryRunMetadataSchema requires limit.positive()), silently dropping
-    // the audit row inside the best-effort catch; an unbounded upper limit invites a memory/DWH
-    // overload. Bound both ends up front, before any read or billing.
+    // Bound before any read/billing — the facade types limit as a bare number, bypassing the tool clamp.
     if (!Number.isInteger(r.limit) || r.limit < 1 || r.limit > MAX_QUERY_LIMIT) {
       throw new BadRequestException(
         `query_data_mart: limit must be an integer between 1 and ${MAX_QUERY_LIMIT}`
@@ -71,23 +80,17 @@ export class QueryDataMartService {
     try {
       dataMart = await this.dataMartService.getByIdAndProjectId(r.dataMartId, r.projectId);
     } catch (err) {
-      // Normalize the missing-DM message to the exact constant the hidden-DM path throws below —
-      // getByIdAndProjectId's message embeds the id + projectId, which would let a caller tell
-      // "doesn't exist" apart from "exists but you can't see it". Both must be indistinguishable.
+      // Missing / unpublished / hidden must all be indistinguishable — same not-found, no id leak.
       if (err instanceof NotFoundException) {
         throw new NotFoundException(`Data Mart not found`);
       }
       throw err;
     }
 
-    // Only PUBLISHED data marts are queryable — mirror StreamHttpDataService's boundary so a visible
-    // DRAFT cannot be executed by ID. Reuse the same not-found message so an unpublished DM is
-    // indistinguishable from a missing/hidden one.
     if (dataMart.status !== DataMartStatus.PUBLISHED) {
       throw new NotFoundException(`Data Mart not found`);
     }
 
-    // Throw not-found (not forbidden) on a hidden DM so the caller cannot tell it apart from a missing one.
     const canSee = await this.accessDecisionService.canAccess(
       r.userId,
       r.roles,
@@ -126,59 +129,119 @@ export class QueryDataMartService {
       limit: r.limit,
     };
 
-    let reader: DataStorageReportReader | undefined;
     let executionSqlQuery: string | undefined;
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    let abortListener: (() => void) | undefined;
     try {
-      const composed = await this.composer.compose(readPlan, accessor);
-      // Persist a self-contained SQL string for Run History (parameters inlined, like report
-      // runs) so the recorded "Executed SQL" is runnable, not @p/? placeholders. Best-effort:
-      // fall back to the parameterized SQL if inlining is unsupported for this storage.
-      try {
-        executionSqlQuery = this.composer.inlineStaticSql(
-          dataMart.storage.type,
-          composed.sql,
-          composed.params
-        );
-      } catch {
-        executionSqlQuery = composed.sql;
+      // Inside the try so `dataMart` is resolved for the CANCELLED audit row.
+      if (signal?.aborted) {
+        throw new QueryAbortedError();
       }
-      reader = await this.readerResolver.resolve(dataMart.storage.type);
-      const description = await reader.prepareReportData(readPlan, {
-        sqlOverride: composed.sql,
-        sqlOverrideParams: composed.params,
-        columnFilter: r.fields,
-        aggregationConfig: readPlan.aggregationConfig ?? undefined,
+
+      // Only the app-side timer and abort actually stop the server waiting; both throw, so billing
+      // (success-path only) is skipped. Audit + billing stay OUTSIDE the race — fast local writes.
+      const deadline = new Promise<never>((_, reject) => {
+        deadlineTimer = setTimeout(
+          () => reject(new QueryTimeoutError(this.queryDeadlineMs)),
+          this.queryDeadlineMs
+        );
       });
-      const columns = description.dataHeaders.map(header => header.name);
 
-      const rows: unknown[][] = [];
-      let batchId: string | undefined;
-      do {
-        const batch = await reader.readReportDataBatch(batchId, overReadLimit - rows.length);
-        rows.push(...batch.dataRows);
-        batchId = batch.nextDataBatchId ?? undefined;
-        // A reader may return an empty page with a non-null next token (Redshift/Athena forward the
-        // warehouse NextToken verbatim and ignore the row cap). Without this break the loop would
-        // spin forever, since rows.length never advances past an empty page.
-        if (batch.dataRows.length === 0) break;
-      } while (batchId && rows.length < overReadLimit);
+      // Intentionally the SAME budget as the app-side timer, NOT lower: the warehouse clock starts
+      // later (after compose/resolve/prepare above), so the JS timer reliably wins under normal load
+      // and returns a clean query_timeout. The equal DWH cap is a cost backstop for a wedged event
+      // loop where the JS timer can't fire. Only BigQuery/Snowflake honor it; others ignore it.
+      const queryTimeoutMs = this.queryDeadlineMs;
 
-      const truncated = rows.length > r.limit;
-      const trimmed = truncated ? rows.slice(0, r.limit) : rows;
+      const aborted = new Promise<never>((_, reject) => {
+        if (signal) {
+          abortListener = () => reject(new QueryAbortedError());
+          signal.addEventListener('abort', abortListener, { once: true });
+        }
+      });
 
-      // computeTotals is a secondary DWH query — degrade gracefully on failure.
-      let totals: McpQueryDataMartResponse['totals'] = null;
-      try {
-        totals = await this.reportTotalsService.computeTotals(
-          readPlan,
-          accessor,
-          dataMart.storage.type
-        );
-      } catch (totalsErr) {
-        this.logger.warn(
-          `computeTotals failed; degrading to null: ${totalsErr instanceof Error ? totalsErr.message : String(totalsErr)}`
-        );
-      }
+      const produce = (async () => {
+        // produce owns its reader and finalizes it here — the outer finally fires when the race
+        // settles and would skip a reader assigned after a lost race (leak) or destroy one mid-read.
+        let reader: DataStorageReportReader | undefined;
+        try {
+          const composed = await this.composer.compose(readPlan, accessor);
+          // Inline params so Run History's "Executed SQL" is runnable; fall back if unsupported.
+          try {
+            executionSqlQuery = this.composer.inlineStaticSql(
+              dataMart.storage.type,
+              composed.sql,
+              composed.params
+            );
+          } catch {
+            executionSqlQuery = composed.sql;
+          }
+
+          // Run totals in PARALLEL with the rows read (wall-clock ≈ max, not sum); failure degrades to null.
+          const totalsPromise: Promise<McpQueryDataMartResponse['totals']> =
+            this.reportTotalsService
+              .computeTotals(readPlan, accessor, dataMart.storage.type, queryTimeoutMs, signal)
+              .catch(totalsErr => {
+                this.logger.warn(
+                  `computeTotals failed; degrading to null: ${totalsErr instanceof Error ? totalsErr.message : String(totalsErr)}`
+                );
+                return null;
+              });
+
+          reader = await this.readerResolver.resolve(dataMart.storage.type);
+          // Make the silent gap observable: a cap was requested but this storage drops it, so the
+          // query has no warehouse-side cost cap — only the app-side deadline. Adding a new storage
+          // without honorsQueryTimeout will surface here.
+          if (queryTimeoutMs !== undefined && !reader.honorsQueryTimeout) {
+            this.logger.debug(
+              `Storage ${dataMart.storage.type} does not honor queryTimeoutMs; no warehouse-side cost cap for this query.`
+            );
+          }
+          const description = await reader.prepareReportData(readPlan, {
+            sqlOverride: composed.sql,
+            sqlOverrideParams: composed.params,
+            columnFilter: r.fields,
+            aggregationConfig: readPlan.aggregationConfig ?? undefined,
+            queryTimeoutMs,
+            signal,
+          });
+          const columns = description.dataHeaders.map(header => header.name);
+
+          const rows: unknown[][] = [];
+          let batchId: string | undefined;
+          do {
+            // Cooperative cancellation: once the client aborted, stop paging — the DWH job is capped
+            // by queryTimeoutMs, but there is no point buffering more rows nobody will receive.
+            if (signal?.aborted) {
+              throw new QueryAbortedError();
+            }
+            const batch = await reader.readReportDataBatch(batchId, overReadLimit - rows.length);
+            rows.push(...batch.dataRows);
+            batchId = batch.nextDataBatchId ?? undefined;
+            // Empty page + non-null token (Redshift/Athena) would spin forever — stop.
+            if (batch.dataRows.length === 0) break;
+          } while (batchId && rows.length < overReadLimit);
+
+          const truncated = rows.length > r.limit;
+          const trimmed = truncated ? rows.slice(0, r.limit) : rows;
+          const totals = await totalsPromise;
+          return { columns, trimmed, truncated, totals };
+        } finally {
+          try {
+            await reader?.finalize();
+          } catch (finalizeErr) {
+            this.logger.warn(
+              `reader.finalize() failed; ignoring: ${finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr)}`
+            );
+          }
+        }
+      })();
+
+      const { columns, trimmed, truncated, totals } = await Promise.race([
+        produce,
+        deadline,
+        aborted,
+      ]);
 
       // Audit save is best-effort — a successful read must not become FAILED.
       let runRecorded = false;
@@ -191,9 +254,7 @@ export class QueryDataMartService {
           status: DataMartRunStatus.SUCCESS,
           metadata: {
             columns,
-            // Rows read from the warehouse (audit). The client's `returned_rows` may be lower
-            // if the tool's byte-cap trims the payload — an intentional divergence: metadata
-            // records the query result size, the response reflects the transported payload.
+            // Rows read (audit); the tool's byte-cap may trim the transported payload below this.
             rowCount: trimmed.length,
             truncated,
             executionSqlQuery,
@@ -209,11 +270,7 @@ export class QueryDataMartService {
         );
       }
 
-      // Consumption is best-effort AND gated on the audit write: never bill a run that has no
-      // Run History record. That would over-charge the user with a consumption `reportRunId` that
-      // resolves to nothing — an untraceable charge. If the audit write failed we suppress billing
-      // (favor a revenue miss over an untraceable charge). A tracking failure still must not fail
-      // an already-successful read.
+      // Never bill a run with no audit record — that charge would resolve to nothing (untraceable).
       if (runRecorded) {
         try {
           await this.consumptionTrackingService.registerMcpQueryRunConsumption(dataMart, runId);
@@ -236,14 +293,15 @@ export class QueryDataMartService {
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      // Best-effort — a failing audit write must not replace the original error.
+      const status =
+        err instanceof QueryAbortedError ? DataMartRunStatus.CANCELLED : DataMartRunStatus.FAILED;
       try {
         await this.dataMartRunService.recordMcpQueryRun({
           runId,
           dataMart,
           createdById: r.userId,
           startedAt,
-          status: DataMartRunStatus.FAILED,
+          status,
           metadata: {
             columns: [],
             rowCount: 0,
@@ -262,16 +320,9 @@ export class QueryDataMartService {
       }
       throw err;
     } finally {
-      // Best-effort, like every other secondary op here: a finalize() rejection (e.g. Snowflake
-      // adapter.destroy / Databricks cursor close on a network blip) must not convert an
-      // already-returned, already-billed success into a tool error, nor mask the original error.
-      try {
-        await reader?.finalize();
-      } catch (finalizeErr) {
-        this.logger.warn(
-          `reader.finalize() failed; ignoring: ${finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr)}`
-        );
-      }
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      // The SDK reuses one signal across the request — detach so nothing outlives this run.
+      if (signal && abortListener) signal.removeEventListener('abort', abortListener);
     }
   }
 }

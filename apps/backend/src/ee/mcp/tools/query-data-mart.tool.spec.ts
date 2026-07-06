@@ -8,6 +8,10 @@ import {
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
+import {
+  QueryAbortedError,
+  QueryTimeoutError,
+} from '../../../data-marts/facades/mcp-data-marts.facade';
 
 const AUTH_CTX = {
   projectId: 'p1',
@@ -77,10 +81,50 @@ describe('QueryDataMartTool', () => {
       const sc = result.structuredContent as { truncated: boolean };
       expect(sc.truncated).toBe(true);
     });
+
+    it('forwards the request AbortSignal to the facade', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['id'],
+        rows: [['1']],
+        truncated: false,
+        totals: null,
+      });
+      const controller = new AbortController();
+
+      await tool.handler(
+        { data_mart_id: 'dm1', fields: ['id'] },
+        AUTH_CTX as never,
+        controller.signal
+      );
+
+      expect(facade.queryDataMart).toHaveBeenCalledTimes(1);
+      expect(facade.queryDataMart.mock.calls[0][1]).toBe(controller.signal);
+    });
   });
 
   describe('error mapping', () => {
-    it('maps NotFoundException → permission_denied', async () => {
+    it('maps QueryTimeoutError → query_timeout (actionable, mentions not billed)', async () => {
+      facade.queryDataMart.mockRejectedValue(new QueryTimeoutError(30000));
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'query_timeout' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toMatch(/not billed/i);
+      expect(msg).toMatch(/fewer fields|limit|aggregate|filter/i);
+    });
+
+    it('maps QueryAbortedError → query_cancelled', async () => {
+      facade.queryDataMart.mockRejectedValue(new QueryAbortedError());
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'query_cancelled' });
+    });
+
+    it('maps NotFoundException → permission_denied without leaking the exception message', async () => {
       facade.queryDataMart.mockRejectedValue(
         new NotFoundException('Data Mart with id dm1 and projectId p1 not found')
       );
@@ -93,6 +137,8 @@ describe('QueryDataMartTool', () => {
         type: 'text',
         text: expect.stringContaining('permission_denied'),
       });
+      // The raw exception embeds the id/projectId — the tool must return a static message, not forward it.
+      expect(JSON.stringify(result)).not.toContain('projectId p1');
     });
 
     it('maps UnsupportedOperatorError → unsupported_operator', async () => {

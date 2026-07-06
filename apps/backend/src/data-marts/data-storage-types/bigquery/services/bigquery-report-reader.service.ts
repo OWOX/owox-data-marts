@@ -37,6 +37,7 @@ import type { SqlParameter } from '../../utils/sql-clause-renderer';
 export class BigQueryReportReader implements DataStorageReportReader {
   protected readonly logger = new Logger(BigQueryReportReader.name);
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
+  readonly honorsQueryTimeout = true;
 
   private adapter: BigQueryApiAdapter;
   private reportResultTable: Table;
@@ -52,6 +53,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
   private sqlOverride?: string;
   private sqlOverrideParams?: SqlParameter[];
   private columnFilter?: string[];
+  private queryTimeoutMs?: number;
+  private signal?: AbortSignal;
 
   constructor(
     protected readonly adapterFactory: BigQueryApiAdapterFactory,
@@ -90,6 +93,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
     this.sqlOverride = options?.sqlOverride;
     this.sqlOverrideParams = options?.sqlOverrideParams;
     this.columnFilter = options?.columnFilter;
+    this.queryTimeoutMs = options?.queryTimeoutMs;
+    this.signal = options?.signal;
 
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
@@ -181,7 +186,12 @@ export class BigQueryReportReader implements DataStorageReportReader {
   }
 
   private async prepareQueryData(query: string, params?: SqlParameter[]): Promise<void> {
-    const { jobId } = await this.adapter.executeQuery(query, params);
+    const { jobId } = await this.adapter.executeQuery(
+      query,
+      params,
+      this.queryTimeoutMs,
+      this.signal
+    );
     const jobResult = await this.adapter.getJob(jobId);
     const destinationTable = jobResult.metadata.configuration.query.destinationTable;
     this.defineReportResultTable(

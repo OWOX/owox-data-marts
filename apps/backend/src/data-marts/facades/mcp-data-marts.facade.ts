@@ -86,8 +86,33 @@ export interface McpDataCatalogSummaryResponse {
 export interface McpDataMartsFacade {
   listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse>;
   getDataMartDetails(request: McpGetDataMartDetailsRequest): Promise<McpDataMartDetailsResponse>;
-  queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse>;
+  queryDataMart(
+    request: McpQueryDataMartRequest,
+    signal?: AbortSignal
+  ): Promise<McpQueryDataMartResponse>;
   summarizeDataCatalog(
     request: McpSummarizeDataCatalogRequest
   ): Promise<McpDataCatalogSummaryResponse>;
+}
+
+// Part of the queryDataMart contract: the tool catches these to emit query_timeout / query_cancelled.
+// They live on the facade surface (not in the use-case) so consumers don't reach into internals.
+
+// Recorded FAILED and never billed (billing is success-path only).
+export class QueryTimeoutError extends Error {
+  readonly deadlineMs: number;
+  constructor(deadlineMs: number) {
+    super(`query_data_mart timed out after ${deadlineMs} ms`);
+    this.name = 'QueryTimeoutError';
+    this.deadlineMs = deadlineMs;
+  }
+}
+
+// Client aborted (disconnect / cancel). Recorded CANCELLED, never billed. Stops the server waiting;
+// does not cancel the warehouse job.
+export class QueryAbortedError extends Error {
+  constructor() {
+    super('query_data_mart was cancelled by the client');
+    this.name = 'QueryAbortedError';
+  }
 }
