@@ -8,35 +8,62 @@ jest.mock('../use-cases/create-report.service', () => ({ CreateReportService: je
 jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () => ({
   CreateGoogleSheetDocumentService: jest.fn(),
 }));
-jest.mock('../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
-jest.mock('../use-cases/get-report.service', () => ({ GetReportService: jest.fn() }));
-jest.mock('../use-cases/update-report.service', () => ({ UpdateReportService: jest.fn() }));
-jest.mock('../use-cases/delete-report.service', () => ({ DeleteReportService: jest.fn() }));
+jest.mock('../use-cases/get-report.service', () => ({
+  GetReportService: jest.fn(),
+}));
+jest.mock('../use-cases/update-report.service', () => ({
+  UpdateReportService: jest.fn(),
+}));
+jest.mock('../use-cases/delete-report.service', () => ({
+  DeleteReportService: jest.fn(),
+}));
+jest.mock('../use-cases/run-report.service', () => ({
+  RunReportService: jest.fn(),
+}));
+jest.mock('../services/data-mart-run.service', () => ({
+  DataMartRunService: jest.fn(),
+}));
+jest.mock('../services/data-mart.service', () => ({
+  DataMartService: jest.fn(),
+}));
+jest.mock('../services/report-access.service', () => ({
+  ReportAccessService: jest.fn(),
+}));
 jest.mock('../services/output-controls-validator.service', () => ({
   OutputControlsValidatorService: jest.fn(),
 }));
 jest.mock('../services/access-decision', () => ({
   AccessDecisionService: jest.fn(),
   EntityType: { DATA_MART: 'DATA_MART', DESTINATION: 'DESTINATION' },
-  Action: { USE: 'USE' },
+  Action: { SEE: 'SEE', USE: 'USE' },
 }));
 
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { RunType } from '../../common/scheduler/shared/types';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { GetReportCommand } from '../dto/domain/get-report.command';
+import { DataMart } from '../entities/data-mart.entity';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ReportDto } from '../dto/domain/report.dto';
-import type { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
+import type { AccessDecisionService } from '../services/access-decision';
+import type { DataMartRunService } from '../services/data-mart-run.service';
+import type { DataMartService } from '../services/data-mart.service';
+import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import type { ReportAccessService } from '../services/report-access.service';
 import type { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import type { CreateReportService } from '../use-cases/create-report.service';
 import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
-import type { AccessDecisionService } from '../services/access-decision';
-import type { DataMartService } from '../services/data-mart.service';
-import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
-import type { GetReportService } from '../use-cases/get-report.service';
-import type { UpdateReportService } from '../use-cases/update-report.service';
 import type { DeleteReportService } from '../use-cases/delete-report.service';
+import type { GetReportService } from '../use-cases/get-report.service';
+import type { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
+import type { RunReportService } from '../use-cases/run-report.service';
+import type { UpdateReportService } from '../use-cases/update-report.service';
 import { McpReportsFacadeImpl } from './mcp-reports.facade.impl';
 
 function buildReport(overrides: {
@@ -88,65 +115,99 @@ function buildTrigger(overrides: {
   } as unknown as DataMartScheduledTrigger;
 }
 
-function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[]) {
-  const listReportsByDataMartService = {
-    run: jest.fn().mockResolvedValue(reports),
-  } as unknown as jest.Mocked<ListReportsByDataMartService>;
-  const scheduledTriggerService = {
-    getAllByDataMartIdAndProjectId: jest.fn().mockResolvedValue(triggers),
-  } as unknown as jest.Mocked<ScheduledTriggerService>;
-  const createReportService = {
-    run: jest.fn(),
-  } as unknown as jest.Mocked<CreateReportService>;
-  const createGoogleSheetDocumentService = {
-    run: jest.fn(),
-  } as unknown as jest.Mocked<CreateGoogleSheetDocumentService>;
-  const dataMartService = {
-    getByIdAndProjectId: jest.fn().mockResolvedValue({
-      id: 'dm-1',
-      status: DataMartStatus.PUBLISHED,
-      storage: { type: 'GOOGLE_BIGQUERY' },
-    }),
-  } as unknown as jest.Mocked<DataMartService>;
-  const accessDecisionService = {
-    canAccess: jest.fn().mockResolvedValue(true),
-  } as unknown as jest.Mocked<AccessDecisionService>;
-  const outputControlsValidator = {
-    validateForReport: jest.fn().mockResolvedValue(undefined),
-  } as unknown as jest.Mocked<OutputControlsValidatorService>;
-  const getReportService = {
-    run: jest.fn(),
-  } as unknown as jest.Mocked<GetReportService>;
-  const updateReportService = {
-    run: jest.fn(),
-  } as unknown as jest.Mocked<UpdateReportService>;
-  const deleteReportService = {
-    run: jest.fn(),
-  } as unknown as jest.Mocked<DeleteReportService>;
-  const facade = new McpReportsFacadeImpl(
-    listReportsByDataMartService,
-    scheduledTriggerService,
-    createReportService,
-    createGoogleSheetDocumentService,
-    dataMartService,
-    accessDecisionService,
-    outputControlsValidator,
-    getReportService,
-    updateReportService,
-    deleteReportService
-  );
+function buildRun(overrides: Partial<DataMartRun>): DataMartRun {
   return {
-    facade,
-    listReportsByDataMartService,
-    scheduledTriggerService,
-    createReportService,
-    createGoogleSheetDocumentService,
-    dataMartService,
-    accessDecisionService,
-    outputControlsValidator,
-    getReportService,
-    updateReportService,
-    deleteReportService,
+    id: 'run-1',
+    reportId: 'report-1',
+    dataMartId: 'dm-1',
+    type: DataMartRunType.GOOGLE_SHEETS_EXPORT,
+    status: DataMartRunStatus.SUCCESS,
+    createdAt: new Date('2026-07-01T09:59:00.000Z'),
+    startedAt: new Date('2026-07-01T10:00:00.000Z'),
+    errors: null,
+    ...overrides,
+  } as DataMartRun;
+}
+
+function createMocks() {
+  return {
+    listReportsByDataMartService: {
+      run: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<ListReportsByDataMartService>,
+    scheduledTriggerService: {
+      getAllByDataMartIdAndProjectId: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<ScheduledTriggerService>,
+    createReportService: {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<CreateReportService>,
+    createGoogleSheetDocumentService: {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<CreateGoogleSheetDocumentService>,
+    getReportService: {
+      run: jest.fn().mockResolvedValue(buildReport({ id: 'report-1' })),
+    } as unknown as jest.Mocked<GetReportService>,
+    updateReportService: {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<UpdateReportService>,
+    deleteReportService: {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<DeleteReportService>,
+    runReportService: {
+      run: jest.fn().mockResolvedValue({ dataMartRunId: 'run-1' }),
+    } as unknown as jest.Mocked<RunReportService>,
+    dataMartRunService: {
+      findById: jest.fn().mockResolvedValue(buildRun({})),
+    } as unknown as jest.Mocked<DataMartRunService>,
+    dataMartService: {
+      getByIdAndProjectId: jest.fn().mockResolvedValue({
+        id: 'dm-1',
+        status: DataMartStatus.PUBLISHED,
+        storage: { type: 'GOOGLE_BIGQUERY' },
+      } as DataMart),
+    } as unknown as jest.Mocked<DataMartService>,
+    accessDecisionService: {
+      canAccess: jest.fn().mockResolvedValue(true),
+    } as unknown as jest.Mocked<AccessDecisionService>,
+    reportAccessService: {
+      checkOperateAccess: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<ReportAccessService>,
+    outputControlsValidator: {
+      validateForReport: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<OutputControlsValidatorService>,
+  };
+}
+
+function createFacade(overrides?: {
+  reports?: ReportDto[];
+  triggers?: DataMartScheduledTrigger[];
+}) {
+  const mocks = createMocks();
+  if (overrides?.reports) {
+    mocks.listReportsByDataMartService.run.mockResolvedValue(overrides.reports);
+  }
+  if (overrides?.triggers) {
+    mocks.scheduledTriggerService.getAllByDataMartIdAndProjectId.mockResolvedValue(
+      overrides.triggers
+    );
+  }
+
+  return {
+    facade: new McpReportsFacadeImpl(
+      mocks.listReportsByDataMartService,
+      mocks.scheduledTriggerService,
+      mocks.createReportService,
+      mocks.createGoogleSheetDocumentService,
+      mocks.getReportService,
+      mocks.updateReportService,
+      mocks.deleteReportService,
+      mocks.runReportService,
+      mocks.dataMartRunService,
+      mocks.dataMartService,
+      mocks.accessDecisionService,
+      mocks.reportAccessService,
+      mocks.outputControlsValidator
+    ),
+    ...mocks,
   };
 }
 
@@ -159,8 +220,8 @@ const request = {
 
 describe('McpReportsFacadeImpl', () => {
   it('maps a scheduled report to the MCP shape', async () => {
-    const { facade, listReportsByDataMartService } = buildFacade(
-      [
+    const { facade, listReportsByDataMartService } = createFacade({
+      reports: [
         buildReport({
           id: 'r1',
           title: 'Weekly revenue',
@@ -171,7 +232,7 @@ describe('McpReportsFacadeImpl', () => {
           lastRunStatus: ReportRunStatus.SUCCESS,
         }),
       ],
-      [
+      triggers: [
         buildTrigger({
           id: 'trigger-1',
           reportId: 'r1',
@@ -181,8 +242,8 @@ describe('McpReportsFacadeImpl', () => {
           nextRunTimestamp: new Date('2026-06-15T06:00:00.000Z'),
           lastRunTimestamp: new Date('2026-06-08T06:00:00.000Z'),
         }),
-      ]
-    );
+      ],
+    });
 
     const result = await facade.getDataMartReports(request);
 
@@ -219,9 +280,9 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('returns every schedule of a report, ordered by creation time', async () => {
-    const { facade } = buildFacade(
-      [buildReport({ id: 'r1' })],
-      [
+    const { facade } = createFacade({
+      reports: [buildReport({ id: 'r1' })],
+      triggers: [
         buildTrigger({
           id: 'newer',
           reportId: 'r1',
@@ -236,8 +297,8 @@ describe('McpReportsFacadeImpl', () => {
           isActive: false,
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
         }),
-      ]
-    );
+      ],
+    });
 
     const result = await facade.getDataMartReports(request);
 
@@ -250,13 +311,13 @@ describe('McpReportsFacadeImpl', () => {
 
   it('orders schedules with equal creation time by id, independent of row order', async () => {
     const sharedCreatedAt = new Date('2026-01-01T00:00:00.000Z');
-    const { facade } = buildFacade(
-      [buildReport({ id: 'r1' })],
-      [
+    const { facade } = createFacade({
+      reports: [buildReport({ id: 'r1' })],
+      triggers: [
         buildTrigger({ id: 'trigger-b', reportId: 'r1', createdAt: sharedCreatedAt }),
         buildTrigger({ id: 'trigger-a', reportId: 'r1', createdAt: sharedCreatedAt }),
-      ]
-    );
+      ],
+    });
 
     const result = await facade.getDataMartReports(request);
 
@@ -264,7 +325,7 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('reports an unscheduled report with an empty schedules list', async () => {
-    const { facade } = buildFacade([buildReport({ id: 'r1' })], []);
+    const { facade } = createFacade({ reports: [buildReport({ id: 'r1' })], triggers: [] });
 
     const result = await facade.getDataMartReports(request);
 
@@ -276,13 +337,13 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('ignores connector triggers and triggers targeting other reports', async () => {
-    const { facade } = buildFacade(
-      [buildReport({ id: 'r1' })],
-      [
+    const { facade } = createFacade({
+      reports: [buildReport({ id: 'r1' })],
+      triggers: [
         buildTrigger({ reportId: 'r1', type: ScheduledTriggerType.CONNECTOR_RUN, isActive: true }),
         buildTrigger({ reportId: 'other-report', cron: '0 1 * * *', isActive: true }),
-      ]
-    );
+      ],
+    });
 
     const result = await facade.getDataMartReports(request);
 
@@ -290,14 +351,14 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('passes the last run status through unchanged', async () => {
-    const { facade } = buildFacade(
-      [
+    const { facade } = createFacade({
+      reports: [
         buildReport({ id: 'ok', lastRunStatus: ReportRunStatus.SUCCESS }),
         buildReport({ id: 'failed', lastRunStatus: ReportRunStatus.ERROR }),
         buildReport({ id: 'never-ran' }),
       ],
-      []
-    );
+      triggers: [],
+    });
 
     const result = await facade.getDataMartReports(request);
     const byId = Object.fromEntries(result.reports.map(r => [r.report_id, r]));
@@ -308,7 +369,7 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('returns an empty list without querying triggers when there are no reports', async () => {
-    const { facade, scheduledTriggerService } = buildFacade([], []);
+    const { facade, scheduledTriggerService } = createFacade({ reports: [], triggers: [] });
 
     const result = await facade.getDataMartReports(request);
 
@@ -317,7 +378,10 @@ describe('McpReportsFacadeImpl', () => {
   });
 
   it('returns owner null when the report has no creator', async () => {
-    const { facade } = buildFacade([buildReport({ id: 'r1', createdByEmail: null })], []);
+    const { facade } = createFacade({
+      reports: [buildReport({ id: 'r1', createdByEmail: null })],
+      triggers: [],
+    });
 
     const result = await facade.getDataMartReports(request);
 
@@ -344,7 +408,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
       createReportService,
       accessDecisionService,
       outputControlsValidator,
-    } = buildFacade([], []);
+    } = createFacade({ reports: [], triggers: [] });
     createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
     createReportService.run.mockResolvedValue({
       id: 'report-1',
@@ -410,7 +474,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('passes the placed-in-root and shared-with-requester flags through', async () => {
-    const { facade, createGoogleSheetDocumentService, createReportService } = buildFacade([], []);
+    const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
     createGoogleSheetDocumentService.run.mockResolvedValue({
       spreadsheetId: 'ss-1',
       sheetId: 0,
@@ -433,7 +500,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
       createGoogleSheetDocumentService,
       createReportService,
       outputControlsValidator,
-    } = buildFacade([], []);
+    } = createFacade({ reports: [], triggers: [] });
     createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-2', sheetId: 3 });
     createReportService.run.mockResolvedValue({ id: 'report-2', createdByUser: null } as ReportDto);
 
@@ -448,7 +515,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('rejects a non-published data mart before creating the sheet', async () => {
-    const { facade, createGoogleSheetDocumentService, dataMartService } = buildFacade([], []);
+    const { facade, createGoogleSheetDocumentService, dataMartService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
     dataMartService.getByIdAndProjectId.mockResolvedValue({
       id: 'dm-1',
       status: 'DRAFT',
@@ -460,7 +530,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('rejects a caller without data mart access before creating the sheet', async () => {
-    const { facade, createGoogleSheetDocumentService, accessDecisionService } = buildFacade([], []);
+    const { facade, createGoogleSheetDocumentService, accessDecisionService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
     accessDecisionService.canAccess.mockResolvedValueOnce(false);
 
     await expect(facade.addReport(addRequest)).rejects.toThrow('access to the DataMart');
@@ -468,7 +541,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('rejects a caller without destination access before creating the sheet', async () => {
-    const { facade, createGoogleSheetDocumentService, accessDecisionService } = buildFacade([], []);
+    const { facade, createGoogleSheetDocumentService, accessDecisionService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
     accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
     await expect(facade.addReport(addRequest)).rejects.toThrow('access to the Destination');
@@ -476,10 +552,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('rejects invalid fields before creating the sheet', async () => {
-    const { facade, createGoogleSheetDocumentService, outputControlsValidator } = buildFacade(
-      [],
-      []
-    );
+    const { facade, createGoogleSheetDocumentService, outputControlsValidator } = createFacade({
+      reports: [],
+      triggers: [],
+    });
     outputControlsValidator.validateForReport.mockRejectedValue(new Error('Unknown column'));
 
     await expect(facade.addReport(addRequest)).rejects.toThrow('Unknown column');
@@ -487,7 +563,10 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('does not create the report when sheet creation fails', async () => {
-    const { facade, createGoogleSheetDocumentService, createReportService } = buildFacade([], []);
+    const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
     createGoogleSheetDocumentService.run.mockRejectedValue(
       new Error('Destination is not a Google Sheets destination')
     );
@@ -522,7 +601,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
   } as unknown as ReportDto;
 
   function buildUpdateFacade() {
-    const built = buildFacade([], []);
+    const built = createFacade({ reports: [], triggers: [] });
     built.getReportService.run.mockResolvedValue(currentReport);
     built.updateReportService.run.mockResolvedValue(currentReport);
     return built;
@@ -628,7 +707,7 @@ describe('McpReportsFacadeImpl.deleteReport', () => {
   };
 
   it('deletes the report and synthesizes the confirmation shape', async () => {
-    const { facade, deleteReportService } = buildFacade([], []);
+    const { facade, deleteReportService } = createFacade();
     deleteReportService.run.mockResolvedValue(undefined);
 
     const result = await facade.deleteReport(deleteRequest);
@@ -645,9 +724,236 @@ describe('McpReportsFacadeImpl.deleteReport', () => {
   });
 
   it('propagates a not-found error instead of reporting success', async () => {
-    const { facade, deleteReportService } = buildFacade([], []);
+    const { facade, deleteReportService } = createFacade();
     deleteReportService.run.mockRejectedValue(new Error('Report with ID report-1 not found'));
 
     await expect(facade.deleteReport(deleteRequest)).rejects.toThrow('not found');
+  });
+});
+
+describe('McpReportsFacadeImpl.runReport', () => {
+  const runRequest = {
+    projectId: 'project-1',
+    userId: 'user-1',
+    roles: ['viewer'],
+    reportId: 'report-1',
+  };
+
+  it('enqueues a manual run and returns only the report and run ids', async () => {
+    const { facade, getReportService, runReportService, dataMartRunService, reportAccessService } =
+      createFacade();
+
+    await expect(facade.runReport(runRequest)).resolves.toEqual({
+      reportId: 'report-1',
+      runId: 'run-1',
+    });
+
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'report-1',
+      'project-1'
+    );
+    expect(getReportService.run).toHaveBeenCalledWith(
+      new GetReportCommand('report-1', 'project-1', 'user-1', ['viewer'])
+    );
+    expect(runReportService.run).toHaveBeenCalledWith({
+      reportId: 'report-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      projectId: 'project-1',
+      runType: RunType.manual,
+    });
+    expect(dataMartRunService.findById).not.toHaveBeenCalled();
+  });
+
+  it('rejects pull-based reports in the MCP facade before enqueuing a run', async () => {
+    const { facade, getReportService, runReportService } = createFacade();
+    getReportService.run.mockResolvedValue(
+      buildReport({
+        id: 'report-1',
+        destinationType: DataDestinationType.LOOKER_STUDIO,
+      })
+    );
+
+    await expect(facade.runReport(runRequest)).rejects.toThrow(
+      'Reports with a Data Studio destination are pull-based and cannot be run through run_report'
+    );
+    expect(runReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the report is already running or pending', async () => {
+    const { facade, runReportService } = createFacade();
+    runReportService.run.mockResolvedValue(null);
+
+    await expect(facade.runReport(runRequest)).rejects.toThrow(
+      'Report is already running or pending'
+    );
+  });
+});
+
+describe('McpReportsFacadeImpl.getReportRunStatus', () => {
+  const statusRequest = {
+    projectId: 'project-1',
+    userId: 'user-1',
+    roles: ['viewer'],
+    reportId: 'report-1',
+    runId: 'run-1',
+  };
+
+  it('checks operate access before returning status', async () => {
+    const { facade, reportAccessService, dataMartService, accessDecisionService } = createFacade();
+
+    await expect(facade.getReportRunStatus(statusRequest)).resolves.toMatchObject({
+      reportId: 'report-1',
+      runId: 'run-1',
+      status: 'success',
+    });
+
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'report-1',
+      'project-1'
+    );
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the caller cannot operate the report, without looking up the run', async () => {
+    const { facade, reportAccessService, dataMartRunService } = createFacade();
+    reportAccessService.checkOperateAccess.mockRejectedValue(
+      new ForbiddenException(
+        'You do not have access to the destination configured for this report.'
+      )
+    );
+
+    await expect(facade.getReportRunStatus(statusRequest)).rejects.toThrow(ForbiddenException);
+    expect(dataMartRunService.findById).not.toHaveBeenCalled();
+
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'report-1',
+      'project-1'
+    );
+  });
+
+  it('normalizes foreign-project report access through ReportAccessService', async () => {
+    const { facade, reportAccessService, dataMartService } = createFacade();
+    reportAccessService.checkOperateAccess.mockRejectedValue(
+      new ForbiddenException('Report not found.')
+    );
+
+    await expect(facade.getReportRunStatus(statusRequest)).rejects.toThrow('Report not found');
+
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
+  });
+
+  it('reports success with the actual start time', async () => {
+    const { facade } = createFacade();
+
+    await expect(facade.getReportRunStatus(statusRequest)).resolves.toEqual({
+      reportId: 'report-1',
+      runId: 'run-1',
+      status: 'success',
+      queuedAt: '2026-07-01T09:59:00.000Z',
+      startedAt: '2026-07-01T10:00:00.000Z',
+      rawStatus: DataMartRunStatus.SUCCESS,
+      error: null,
+    });
+  });
+
+  it('reports a not-yet-started or in-progress run as running with null started_at', async () => {
+    const { facade, dataMartRunService } = createFacade();
+    dataMartRunService.findById.mockResolvedValue(
+      buildRun({ status: DataMartRunStatus.PENDING, startedAt: null })
+    );
+
+    await expect(facade.getReportRunStatus(statusRequest)).resolves.toEqual({
+      reportId: 'report-1',
+      runId: 'run-1',
+      status: 'running',
+      queuedAt: '2026-07-01T09:59:00.000Z',
+      startedAt: null,
+      rawStatus: DataMartRunStatus.PENDING,
+      error: null,
+    });
+  });
+
+  it.each<[DataMartRunStatus, string[] | null, string]>([
+    [
+      DataMartRunStatus.FAILED,
+      [
+        JSON.stringify({
+          type: 'error',
+          at: '2026-07-02T10:00:01.000Z',
+          error: 'storage read failed',
+        }),
+      ],
+      'storage read failed',
+    ],
+    [DataMartRunStatus.FAILED, [JSON.stringify({ message: 'worker failed' })], 'worker failed'],
+    [DataMartRunStatus.FAILED, [JSON.stringify({ msg: 'delivery failed' })], 'delivery failed'],
+    [DataMartRunStatus.FAILED, ['Trigger handling failed'], 'Trigger handling failed'],
+    [DataMartRunStatus.CANCELLED, null, 'Report run ended with status CANCELLED'],
+    [DataMartRunStatus.INTERRUPTED, null, 'Report run ended with status INTERRUPTED'],
+    [DataMartRunStatus.RESTRICTED, null, 'Report run ended with status RESTRICTED'],
+  ])('reports %s runs as failed with a readable error', async (status, errors, expectedError) => {
+    const { facade, dataMartRunService } = createFacade();
+    dataMartRunService.findById.mockResolvedValue(buildRun({ status, errors }));
+
+    await expect(facade.getReportRunStatus(statusRequest)).resolves.toMatchObject({
+      status: 'failed',
+      rawStatus: status,
+      error: expectedError,
+    });
+  });
+
+  it('rejects when the run does not exist', async () => {
+    const { facade, dataMartRunService } = createFacade();
+    dataMartRunService.findById.mockResolvedValue(null);
+
+    await expect(facade.getReportRunStatus(statusRequest)).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects when the run belongs to a different report, without leaking its status', async () => {
+    const { facade, dataMartRunService, reportAccessService } = createFacade();
+    dataMartRunService.findById.mockResolvedValue(
+      buildRun({ reportId: 'someone-elses-report', status: DataMartRunStatus.SUCCESS })
+    );
+
+    await expect(facade.getReportRunStatus(statusRequest)).rejects.toThrow(NotFoundException);
+    expect(dataMartRunService.findById).toHaveBeenCalledWith('run-1');
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'report-1',
+      'project-1'
+    );
+  });
+
+  it('rejects a non-report run (e.g. connector run) whose reportId is null', async () => {
+    const { facade, dataMartRunService } = createFacade();
+    dataMartRunService.findById.mockResolvedValue(
+      buildRun({ reportId: null, status: DataMartRunStatus.SUCCESS })
+    );
+
+    await expect(facade.getReportRunStatus(statusRequest)).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects report runs that could not have been returned by run_report', async () => {
+    const { facade, dataMartRunService, reportAccessService } = createFacade();
+    dataMartRunService.findById.mockResolvedValue(
+      buildRun({ type: DataMartRunType.LOOKER_STUDIO, status: DataMartRunStatus.SUCCESS })
+    );
+
+    await expect(facade.getReportRunStatus(statusRequest)).rejects.toThrow(NotFoundException);
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'report-1',
+      'project-1'
+    );
   });
 });

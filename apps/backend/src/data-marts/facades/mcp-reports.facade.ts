@@ -1,4 +1,5 @@
 import type { ReportRunStatus } from '../enums/report-run-status.enum';
+import type { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import type { McpDestinationType } from './mcp-destination-type';
 
 export const MCP_REPORTS_FACADE = Symbol('MCP_REPORTS_FACADE');
@@ -99,6 +100,40 @@ export interface McpDeleteReportResult {
   status: 'deleted';
 }
 
+export interface McpRunReportRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  reportId: string;
+}
+
+export interface McpRunReportResponse {
+  reportId: string;
+  runId: string;
+}
+
+export const MCP_REPORT_RUN_STATUSES = ['running', 'success', 'failed'] as const;
+
+export type McpReportRunStatus = (typeof MCP_REPORT_RUN_STATUSES)[number];
+
+export interface McpGetReportRunStatusRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  reportId: string;
+  runId: string;
+}
+
+export interface McpGetReportRunStatusResponse {
+  reportId: string;
+  runId: string;
+  status: McpReportRunStatus;
+  queuedAt: string | null;
+  startedAt: string | null;
+  rawStatus: DataMartRunStatus;
+  error: string | null;
+}
+
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
   /**
@@ -123,4 +158,6 @@ export interface McpReportsFacade {
    * asynchronously via the report.deleted event and is not awaited.
    */
   deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult>;
+  runReport(request: McpRunReportRequest): Promise<McpRunReportResponse>;
+  getReportRunStatus(request: McpGetReportRunStatusRequest): Promise<McpGetReportRunStatusResponse>;
 }

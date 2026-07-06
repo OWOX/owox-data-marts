@@ -539,6 +539,40 @@ describe('RunReportService', () => {
       expect(reportAccessService.checkMutateAccess).not.toHaveBeenCalled();
       expect(reportRunTriggerService.createTrigger).toHaveBeenCalled();
     });
+
+    it('returns the enqueued run info', async () => {
+      const { service, reportRunService } = createService();
+      reportRunService.createPending.mockResolvedValue({
+        getDataMart: () => ({ projectId: 'proj-1' }),
+        getDataMartRun: () => ({ id: 'dmr-1' }),
+      });
+
+      await expect(
+        service.run({
+          reportId: 'report-1',
+          userId: 'user-1',
+          roles: ['viewer'],
+          runType: RunType.manual,
+          projectId: 'proj-1',
+        })
+      ).resolves.toEqual({ dataMartRunId: 'dmr-1' });
+    });
+
+    it('returns null when the report is already running or pending', async () => {
+      const { service, reportRunService, reportRunTriggerService } = createService();
+      reportRunService.createPending.mockResolvedValue(null);
+
+      await expect(
+        service.run({
+          reportId: 'report-1',
+          userId: 'user-1',
+          roles: ['viewer'],
+          runType: RunType.manual,
+          projectId: 'proj-1',
+        })
+      ).resolves.toBeNull();
+      expect(reportRunTriggerService.createTrigger).not.toHaveBeenCalled();
+    });
   });
 
   it('keeps non-email destinations unchanged and reads all batches', async () => {

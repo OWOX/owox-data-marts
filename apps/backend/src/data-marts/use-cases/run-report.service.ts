@@ -49,6 +49,10 @@ const ERROR_NAMES = {
   ABORT: 'AbortError',
 } as const;
 
+export interface EnqueuedReportRun {
+  dataMartRunId: string;
+}
+
 /**
  * Use case for executing scheduled and manual report runs.
  *
@@ -122,8 +126,9 @@ export class RunReportService {
    *
    * @param command - Report run command with reportId, userId, runType
    * @param signal - Unused, kept for backward compatibility with scheduled processors
+   * @returns Enqueued run info, or null if the report is already running or pending
    */
-  async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
+  async run(command: RunReportCommand, _signal?: AbortSignal): Promise<EnqueuedReportRun | null> {
     this.validateCanRun();
 
     if (command.runType === RunType.manual) {
@@ -135,11 +140,11 @@ export class RunReportService {
       );
     }
 
-    await this.enqueueReportRun(command);
+    return this.enqueueReportRun(command);
   }
 
   @Transactional()
-  private async enqueueReportRun(command: RunReportCommand): Promise<void> {
+  private async enqueueReportRun(command: RunReportCommand): Promise<EnqueuedReportRun | null> {
     this.logger.log(`Creating report run trigger for report ${command.reportId}`);
 
     const reportRun = await this.reportRunService.createPending(command);
@@ -147,16 +152,19 @@ export class RunReportService {
       this.logger.log(
         `Report ${command.reportId} is already running or pending, skipping execution`
       );
-      return;
+      return null;
     }
 
+    const dataMartRunId = reportRun.getDataMartRun().id;
     await this.reportRunTriggerService.createTrigger({
       reportId: command.reportId,
       createdById: command.userId,
       projectId: reportRun.getDataMart().projectId,
-      dataMartRunId: reportRun.getDataMartRun().id,
+      dataMartRunId,
       runType: command.runType,
     });
+
+    return { dataMartRunId };
   }
 
   /**

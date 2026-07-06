@@ -1,26 +1,44 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
-import { DataMartStatus } from '../enums/data-mart-status.enum';
-import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { RunType } from '../../common/scheduler/shared/types';
+import {
+  DataDestinationType,
+  toHumanReadable,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
-import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { GetReportCommand } from '../dto/domain/get-report.command';
-import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
+import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
+import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
-import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { DataMartRunService } from '../services/data-mart-run.service';
+import { DataMartService } from '../services/data-mart.service';
+import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import { ReportAccessService } from '../services/report-access.service';
+import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { CreateReportService } from '../use-cases/create-report.service';
 import { DeleteReportService } from '../use-cases/delete-report.service';
 import { GetReportService } from '../use-cases/get-report.service';
-import { UpdateReportService } from '../use-cases/update-report.service';
 import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
-import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
-import { DataMartService } from '../services/data-mart.service';
-import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
-import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
+import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
+import { RunReportService } from '../use-cases/run-report.service';
+import { UpdateReportService } from '../use-cases/update-report.service';
+import { toReportRunType } from '../utils/report-run-type';
+import { extractRunErrorMessage } from '../utils/run-error-message';
 import { toMcpDestinationType } from './mcp-destination-type';
 import {
   McpAddReportRequest,
@@ -29,8 +47,13 @@ import {
   McpDeleteReportResult,
   McpGetDataMartReportsRequest,
   McpGetDataMartReportsResponse,
+  McpGetReportRunStatusRequest,
+  McpGetReportRunStatusResponse,
+  McpReportRunStatus,
   McpReportScheduleItem,
   McpReportsFacade,
+  McpRunReportRequest,
+  McpRunReportResponse,
   McpUpdateReportRequest,
   McpUpdateReportResult,
 } from './mcp-reports.facade';
@@ -44,6 +67,30 @@ function buildGoogleSheetUrl(spreadsheetId: string, sheetId: number): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`;
 }
 
+const MCP_RUN_REPORT_DESTINATION_TYPES = [
+  DataDestinationType.GOOGLE_SHEETS,
+  DataDestinationType.EMAIL,
+  DataDestinationType.SLACK,
+  DataDestinationType.MS_TEAMS,
+  DataDestinationType.GOOGLE_CHAT,
+] as const;
+const MCP_RUN_REPORT_DESTINATION_TYPE_SET: ReadonlySet<DataDestinationType> = new Set(
+  MCP_RUN_REPORT_DESTINATION_TYPES
+);
+const RUN_REPORT_RUN_TYPES: ReadonlySet<DataMartRunType> = new Set(
+  MCP_RUN_REPORT_DESTINATION_TYPES.map(toReportRunType)
+);
+
+const MCP_STATUS_BY_RAW_STATUS: Record<DataMartRunStatus, McpReportRunStatus> = {
+  [DataMartRunStatus.PENDING]: 'running',
+  [DataMartRunStatus.RUNNING]: 'running',
+  [DataMartRunStatus.SUCCESS]: 'success',
+  [DataMartRunStatus.FAILED]: 'failed',
+  [DataMartRunStatus.CANCELLED]: 'failed',
+  [DataMartRunStatus.INTERRUPTED]: 'failed',
+  [DataMartRunStatus.RESTRICTED]: 'failed',
+};
+
 @Injectable()
 export class McpReportsFacadeImpl implements McpReportsFacade {
   constructor(
@@ -51,12 +98,15 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly createReportService: CreateReportService,
     private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService,
-    private readonly dataMartService: DataMartService,
-    private readonly accessDecisionService: AccessDecisionService,
-    private readonly outputControlsValidator: OutputControlsValidatorService,
     private readonly getReportService: GetReportService,
     private readonly updateReportService: UpdateReportService,
-    private readonly deleteReportService: DeleteReportService
+    private readonly deleteReportService: DeleteReportService,
+    private readonly runReportService: RunReportService,
+    private readonly dataMartRunService: DataMartRunService,
+    private readonly dataMartService: DataMartService,
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly reportAccessService: ReportAccessService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   async deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult> {
@@ -262,6 +312,59 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     };
   }
 
+  async runReport(request: McpRunReportRequest): Promise<McpRunReportResponse> {
+    await this.reportAccessService.checkOperateAccess(
+      request.userId,
+      request.roles,
+      request.reportId,
+      request.projectId
+    );
+
+    const report = await this.getReportService.run(
+      new GetReportCommand(request.reportId, request.projectId, request.userId, request.roles)
+    );
+    const destinationType = report.dataDestinationAccess.type;
+    if (!MCP_RUN_REPORT_DESTINATION_TYPE_SET.has(destinationType)) {
+      throw new BusinessViolationException(
+        `Reports with a ${toHumanReadable(destinationType)} destination are pull-based and cannot be run through run_report`
+      );
+    }
+
+    const enqueued = await this.runReportService.run({
+      reportId: request.reportId,
+      userId: request.userId,
+      roles: request.roles,
+      projectId: request.projectId,
+      runType: RunType.manual,
+    });
+
+    if (!enqueued) {
+      throw new BusinessViolationException('Report is already running or pending');
+    }
+
+    return { reportId: request.reportId, runId: enqueued.dataMartRunId };
+  }
+
+  async getReportRunStatus(
+    request: McpGetReportRunStatusRequest
+  ): Promise<McpGetReportRunStatusResponse> {
+    await this.reportAccessService.checkOperateAccess(
+      request.userId,
+      request.roles,
+      request.reportId,
+      request.projectId
+    );
+
+    const run = await this.dataMartRunService.findById(request.runId);
+    if (!run || run.reportId !== request.reportId || !RUN_REPORT_RUN_TYPES.has(run.type)) {
+      throw new NotFoundException(
+        `Report run ${request.runId} not found for report ${request.reportId}`
+      );
+    }
+
+    return { reportId: request.reportId, runId: request.runId, ...this.toRunResponse(run) };
+  }
+
   /**
    * Loads the data mart's schedule triggers once and groups the REPORT_RUN ones
    * by their target report. A report can have any number of schedules; they are
@@ -316,5 +419,28 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       next_run_at: trigger.nextRunTimestamp?.toISOString() ?? null,
       last_run_at: trigger.lastRunTimestamp?.toISOString() ?? null,
     };
+  }
+
+  private toRunResponse(
+    run: DataMartRun
+  ): Pick<
+    McpGetReportRunStatusResponse,
+    'status' | 'queuedAt' | 'startedAt' | 'rawStatus' | 'error'
+  > {
+    const queuedAt = run.createdAt?.toISOString() ?? null;
+    const startedAt = run.startedAt?.toISOString() ?? null;
+    const status = MCP_STATUS_BY_RAW_STATUS[run.status];
+    const base = { queuedAt, startedAt, rawStatus: run.status };
+
+    if (status === 'failed') {
+      return { ...base, status: 'failed', error: this.toErrorMessage(run) };
+    }
+
+    return { ...base, status, error: null };
+  }
+
+  private toErrorMessage(run: DataMartRun): string {
+    const messages = (run.errors ?? []).map(entry => extractRunErrorMessage(entry));
+    return messages.length ? messages.join('; ') : `Report run ended with status ${run.status}`;
   }
 }

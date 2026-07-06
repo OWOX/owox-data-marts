@@ -8,21 +8,12 @@ import { NotificationContext, NotificationRuntimeConfig } from '../types/notific
 import { Repository, MoreThan, In } from 'typeorm';
 import { DataMartRun } from '../../data-marts/entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../../data-marts/enums/data-mart-run-status.enum';
+import { extractRunErrorMessage } from '../../data-marts/utils/run-error-message';
 import {
   failedRunEmailTemplate,
   failedRunEmailSubjectSingle,
   failedRunEmailSubjectBatch,
 } from '../templates/email/failed-run.template';
-
-function extractErrorMessage(errorStr: string): string {
-  try {
-    const parsed = JSON.parse(errorStr) as Record<string, unknown>;
-    const msg = parsed['error'] ?? parsed['message'] ?? parsed['msg'];
-    return typeof msg === 'string' ? msg : errorStr;
-  } catch {
-    return errorStr;
-  }
-}
 
 export class FailedRunsAllDmNotification extends BaseNotification {
   private static readonly MAX_DATA_MARTS = 20;
@@ -96,7 +87,7 @@ export class FailedRunsAllDmNotification extends BaseNotification {
           errors:
             allErrors.length > 0
               ? allErrors.slice(0, FailedRunsAllDmNotification.MAX_ERRORS_PER_RUN).map(e => {
-                  const msg = extractErrorMessage(String(e));
+                  const msg = extractRunErrorMessage(String(e));
                   return msg.length > FailedRunsAllDmNotification.MAX_ERROR_LENGTH
                     ? {
                         message: msg.slice(0, FailedRunsAllDmNotification.MAX_ERROR_LENGTH),
