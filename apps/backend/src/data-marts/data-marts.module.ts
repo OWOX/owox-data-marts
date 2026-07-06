@@ -183,6 +183,7 @@ import { ConnectorState } from './entities/connector-state.entity';
 import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
+import { MCP_OPERATION_TIMEOUT_EXCLUSIONS } from './config/mcp-operation-timeout-exclusions';
 import { CommonModule } from '../common/common.module';
 import { ConnectorSecretService } from './services/connector/connector-secret.service';
 import { DataMartRunService } from './services/data-mart-run.service';
@@ -850,7 +851,8 @@ export class DataMartsModule {
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'external/{*path}', method: RequestMethod.ALL }
+        { path: 'external/{*path}', method: RequestMethod.ALL },
+        ...MCP_OPERATION_TIMEOUT_EXCLUSIONS
       )
       .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
   }
