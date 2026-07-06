@@ -26,6 +26,7 @@ import {
   McpListDataMartsResponse,
   McpQueryDataMartRequest,
   McpQueryDataMartResponse,
+  McpSummarizeDataCatalogRequest,
 } from './mcp-data-marts.facade';
 
 @Injectable()
@@ -141,7 +142,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
   }
 
   async summarizeDataCatalog(
-    request: McpListDataMartsRequest
+    request: McpSummarizeDataCatalogRequest
   ): Promise<McpDataCatalogSummaryResponse> {
     return this.summarizeMcpDataCatalogService.run(
       new SummarizeMcpDataCatalogCommand(request.projectId, request.userId, request.roles)

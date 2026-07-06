@@ -19,6 +19,8 @@ describe('McpDataCatalogSummaryRepository', () => {
     orderBy: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
     groupBy: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
     getRawMany: jest.fn().mockResolvedValue(rawRows),
   });
 
@@ -81,7 +83,8 @@ describe('McpDataCatalogSummaryRepository', () => {
         roleScope: RoleScope.SELECTED_CONTEXTS,
       })
     );
-    expect(dataMartQb).not.toHaveProperty('take');
+    expect(dataMartQb.take).not.toHaveBeenCalled();
+    expect(dataMartQb.skip).not.toHaveBeenCalled();
     expect(result).toEqual([
       {
         id: 'dm-1',

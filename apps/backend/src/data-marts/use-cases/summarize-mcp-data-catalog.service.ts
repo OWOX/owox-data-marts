@@ -13,6 +13,7 @@ import { McpDataCatalogSummaryService } from '../services/mcp-data-catalog-summa
 
 const MAX_SUMMARY_DESCRIPTION_LENGTH = 300;
 const MAX_SUMMARY_DATA_MARTS = 10;
+const MAX_RELATIONSHIP_TRAVERSAL_STEPS = 100_000;
 
 @Injectable()
 export class SummarizeMcpDataCatalogService {
@@ -84,18 +85,34 @@ export class SummarizeMcpDataCatalogService {
     relationshipsBySource: ReadonlyMap<string, DataMartRelationshipGraphEdgeDto[]>
   ): number {
     const countedRelationshipIds = new Set<string>();
+    const path = new Set<string>([rootId]);
+    let traversalSteps = 0;
+    let traversalLimitReached = false;
 
-    const walk = (sourceId: string, path: ReadonlySet<string>): void => {
+    const walk = (sourceId: string): void => {
+      if (traversalLimitReached) return;
+
       for (const relationship of relationshipsBySource.get(sourceId) ?? []) {
+        if (traversalLimitReached) return;
+
+        // Catalog summary ranking is best-effort; cap pathological dense/cyclic graphs.
+        traversalSteps += 1;
+        if (traversalSteps > MAX_RELATIONSHIP_TRAVERSAL_STEPS) {
+          traversalLimitReached = true;
+          return;
+        }
+
         const targetId = relationship.targetDataMartId;
         if (path.has(targetId)) continue;
 
         countedRelationshipIds.add(relationship.id);
-        walk(targetId, new Set([...path, targetId]));
+        path.add(targetId);
+        walk(targetId);
+        path.delete(targetId);
       }
     };
 
-    walk(rootId, new Set([rootId]));
+    walk(rootId);
     return countedRelationshipIds.size;
   }
 

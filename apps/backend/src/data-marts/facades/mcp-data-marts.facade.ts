@@ -10,6 +10,12 @@ export interface McpListDataMartsRequest {
   roles: string[];
 }
 
+export interface McpSummarizeDataCatalogRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+}
+
 export interface McpGetDataMartDetailsRequest extends McpListDataMartsRequest {
   dataMartId: string;
 }
@@ -81,5 +87,7 @@ export interface McpDataMartsFacade {
   listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse>;
   getDataMartDetails(request: McpGetDataMartDetailsRequest): Promise<McpDataMartDetailsResponse>;
   queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse>;
-  summarizeDataCatalog(request: McpListDataMartsRequest): Promise<McpDataCatalogSummaryResponse>;
+  summarizeDataCatalog(
+    request: McpSummarizeDataCatalogRequest
+  ): Promise<McpDataCatalogSummaryResponse>;
 }
