@@ -11,10 +11,12 @@ import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definit
 import { GetProjectContextTool } from './project-context.tool';
 import { QueryDataMartTool } from './query-data-mart.tool';
 import { SearchDataMartsTool } from './search-data-marts.tool';
+import { SummarizeDataCatalogTool } from './summarize-data-catalog.tool';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 import { UpdateReportTool } from './update-report.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
+  SummarizeDataCatalogTool,
   ListDataMartsTool,
   SearchDataMartsTool,
   GetDataMartDetailsTool,

@@ -61,8 +61,25 @@ export interface McpQueryDataMartResponse {
   totals: Record<string, number | string | boolean | null> | null;
 }
 
+export interface McpDataCatalogSummaryItem {
+  id: string;
+  title: string;
+  description: string;
+  relationshipCount: number;
+  reportsCount: number;
+  triggersCount: number;
+  updatedAt: string;
+}
+
+export interface McpDataCatalogSummaryResponse {
+  projectId: string;
+  dataMartCount: number;
+  topDataMartsByConnectivity: McpDataCatalogSummaryItem[];
+}
+
 export interface McpDataMartsFacade {
   listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse>;
   getDataMartDetails(request: McpGetDataMartDetailsRequest): Promise<McpDataMartDetailsResponse>;
   queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse>;
+  summarizeDataCatalog(request: McpListDataMartsRequest): Promise<McpDataCatalogSummaryResponse>;
 }

@@ -8,13 +8,16 @@ import type {
 import { isConnected } from '../data-storage-types/data-mart-schema.utils';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
+import { SummarizeMcpDataCatalogCommand } from '../dto/domain/summarize-mcp-data-catalog.command';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
 import { QueryDataMartCommand, QueryDataMartService } from '../use-cases/query-data-mart.service';
+import { SummarizeMcpDataCatalogService } from '../use-cases/summarize-mcp-data-catalog.service';
 import {
+  McpDataCatalogSummaryResponse,
   McpDataMartsFacade,
   McpDataMartDetailsResponse,
   McpGetDataMartDetailsRequest,
@@ -35,7 +38,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     private readonly dataMartService: DataMartService,
     private readonly queryDataMartService: QueryDataMartService,
     private readonly blendableSchemaService: BlendableSchemaService,
-    private readonly relationshipService: DataMartRelationshipService
+    private readonly relationshipService: DataMartRelationshipService,
+    private readonly summarizeMcpDataCatalogService: SummarizeMcpDataCatalogService
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
@@ -134,6 +138,14 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
 
   async queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse> {
     return this.queryDataMartService.run(new QueryDataMartCommand(request));
+  }
+
+  async summarizeDataCatalog(
+    request: McpListDataMartsRequest
+  ): Promise<McpDataCatalogSummaryResponse> {
+    return this.summarizeMcpDataCatalogService.run(
+      new SummarizeMcpDataCatalogCommand(request.projectId, request.userId, request.roles)
+    );
   }
 
   private async ensureDataMartAccessible(request: McpGetDataMartDetailsRequest): Promise<void> {

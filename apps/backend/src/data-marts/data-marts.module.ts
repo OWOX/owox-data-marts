@@ -45,12 +45,14 @@ import { ProjectBalanceService } from './services/project-balance.service';
 import { LegacyDataMartsService } from './services/legacy-data-marts/legacy-data-marts.service';
 import { ReportDataCacheService } from './services/report-data-cache.service';
 import { UserProjectionsFetcherService } from './services/user-projections-fetcher.service';
+import { McpDataCatalogSummaryService } from './services/mcp-data-catalog-summary.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { DeleteLegacyDataMartService } from './use-cases/legacy-data-marts/delete-legacy-data-mart.service';
 import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move-legacy-data-storage.service';
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { QueryDataMartService } from './use-cases/query-data-mart.service';
+import { SummarizeMcpDataCatalogService } from './use-cases/summarize-mcp-data-catalog.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
 import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
@@ -65,6 +67,7 @@ import { ListProjectInsightTemplatesService } from './use-cases/list-project-ins
 import { ListProjectScheduledTriggersService } from './use-cases/list-project-scheduled-triggers.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
+import { McpDataCatalogSummaryMapper } from './mappers/mcp-data-catalog-summary.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
 import { DataStorageService } from './services/data-storage.service';
 import { DataStorageMapper } from './mappers/data-storage.mapper';
@@ -279,6 +282,8 @@ import { AiAssistantSqlOrchestratorService } from './ai-insights/agent-flow/ai-a
 import { AiAssistantRunTriggerHandlerService } from './services/ai-assistant-run-trigger-handler.service';
 import { RunAiAssistantService } from './use-cases/run-ai-assistant.service';
 import { InsightArtifactRepository } from './repositories/insight-artifact.repository';
+import { DataMartRelationshipRepository } from './repositories/data-mart-relationship.repository';
+import { McpDataCatalogSummaryRepository } from './repositories/mcp-data-catalog-summary.repository';
 import { AgentFlowService } from './ai-insights/agent-flow/agent-flow.service';
 import { AgentFlowAgent } from './ai-insights/agent-flow/agent-flow.agent';
 import { AgentFlowPolicySanitizerService } from './ai-insights/agent-flow/agent-flow-policy-sanitizer.service';
@@ -505,9 +510,11 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ...scheduledTriggerFacadesProviders,
     ...aiInsightsProviders,
     DataMartService,
+    McpDataCatalogSummaryService,
     CreateDataMartService,
     ListDataMartsService,
     QueryDataMartService,
+    SummarizeMcpDataCatalogService,
     {
       provide: MCP_DATA_MARTS_FACADE,
       useClass: McpDataMartsFacadeImpl,
@@ -579,6 +586,8 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     AgentFlowRequestMapper,
     InsightService,
     InsightArtifactRepository,
+    DataMartRelationshipRepository,
+    McpDataCatalogSummaryRepository,
     InsightArtifactService,
     InsightArtifactSqlPreviewTriggerService,
     InsightArtifactSqlPreviewTriggerHandlerService,
@@ -779,6 +788,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ReportSqlComposerService,
     ReportTotalsService,
     RelationshipMapper,
+    McpDataCatalogSummaryMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,
     DeleteDataMartRelationshipService,
