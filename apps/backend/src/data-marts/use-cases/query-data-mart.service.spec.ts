@@ -1047,6 +1047,44 @@ describe('QueryDataMartService', () => {
       // Only the first page was fetched; the abort guard stopped the loop before a second read.
       expect(reader.readReportDataBatch).toHaveBeenCalledTimes(1);
     });
+
+    it('aborts the DWH work signal on the deadline so the warehouse job is cancelled', async () => {
+      const { service, reader } = createService({ deadlineMs: 20 });
+      let capturedSignal: AbortSignal | undefined;
+      let rejectRead!: (e: Error) => void;
+      reader.prepareReportData.mockImplementation(
+        (_plan: unknown, opts: { signal?: AbortSignal }) => {
+          capturedSignal = opts?.signal;
+          return new Promise((_res, reject) => {
+            rejectRead = reject;
+          });
+        }
+      );
+
+      await expect(service.run(cmd(100))).rejects.toBeInstanceOf(QueryTimeoutError);
+
+      // The reader got a live signal that the deadline aborted — the adapter cancels the job on it.
+      expect(capturedSignal).toBeDefined();
+      expect(capturedSignal!.aborted).toBe(true);
+      rejectRead(new Error('read abandoned after timeout'));
+    });
+
+    it('aborts the totals work signal when the rows read fails (no orphaned totals query)', async () => {
+      const { service, reader, reportTotalsService } = createService();
+      let totalsSignal: AbortSignal | undefined;
+      reportTotalsService.computeTotals.mockImplementation(
+        (_p: unknown, _a: unknown, _s: unknown, _t: unknown, signal?: AbortSignal) => {
+          totalsSignal = signal;
+          return Promise.resolve(null);
+        }
+      );
+      reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));
+
+      await expect(service.run(cmd(100))).rejects.toThrow('read boom');
+
+      expect(totalsSignal).toBeDefined();
+      expect(totalsSignal!.aborted).toBe(true);
+    });
   });
 
   it('happy-path: fields + one slice + one aggregation → columns, rows, and totals block', async () => {
@@ -1225,14 +1263,14 @@ describe('QueryDataMartService', () => {
         expect.anything(),
         expect.objectContaining({ queryTimeoutMs: 12_345 })
       );
-      // Totals is a separate DWH query; it gets the same timeout (4th arg) and the request signal
-      // (5th arg, undefined here since none was passed) so an abort cancels both warehouse queries.
+      // Totals is a separate DWH query; it gets the same timeout (4th arg) and the internal work
+      // signal (5th arg) so the deadline / a client abort / a rows failure cancels both queries.
       expect(reportTotalsService.computeTotals).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
         DataStorageType.GOOGLE_BIGQUERY,
         12_345,
-        undefined
+        expect.any(AbortSignal)
       );
     });
   });

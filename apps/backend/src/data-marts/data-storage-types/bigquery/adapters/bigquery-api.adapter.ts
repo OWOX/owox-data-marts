@@ -136,6 +136,7 @@ export class BigQueryApiAdapter {
    * {@link executeQuery}, matching the previous `bigQuery.query()` behaviour.
    */
   private async waitForJobToComplete(job: Job, signal?: AbortSignal): Promise<void> {
+    let repolledAfterAbort = false;
     while (true) {
       const [metadata] = await job.getMetadata();
       if (metadata?.status?.state === 'DONE') {
@@ -147,18 +148,17 @@ export class BigQueryApiAdapter {
         }
         return;
       }
-      // Interruptible: an abort wakes the sleep so we re-poll immediately after job.cancel() (fired
-      // by executeQuery's abort handler) instead of waiting out the full poll interval.
-      await this.interruptibleSleep(BigQueryApiAdapter.JOB_POLL_INTERVAL_MS, signal);
+      // One immediate re-poll after job.cancel(), then a bounded interval — never busy-poll jobs.get.
+      if (signal?.aborted && !repolledAfterAbort) {
+        repolledAfterAbort = true;
+        continue;
+      }
+      await this.edgeInterruptibleSleep(BigQueryApiAdapter.JOB_POLL_INTERVAL_MS, signal);
     }
   }
 
-  private interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  private edgeInterruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise(resolve => {
-      if (signal?.aborted) {
-        resolve();
-        return;
-      }
       const onAbort = () => {
         clearTimeout(timer);
         resolve();
@@ -167,6 +167,7 @@ export class BigQueryApiAdapter {
         signal?.removeEventListener('abort', onAbort);
         resolve();
       }, ms);
+      // Fires only on the abort edge; if already aborted it never fires, so the full interval elapses.
       signal?.addEventListener('abort', onAbort, { once: true });
     });
   }

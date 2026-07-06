@@ -132,6 +132,8 @@ export class QueryDataMartService {
     let executionSqlQuery: string | undefined;
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
     let abortListener: (() => void) | undefined;
+    // Cancels the DWH work on any early exit (client abort / deadline / rows failure), not just abort.
+    const workController = new AbortController();
     try {
       // Inside the try so `dataMart` is resolved for the CANCELLED audit row.
       if (signal?.aborted) {
@@ -141,10 +143,10 @@ export class QueryDataMartService {
       // Only the app-side timer and abort actually stop the server waiting; both throw, so billing
       // (success-path only) is skipped. Audit + billing stay OUTSIDE the race — fast local writes.
       const deadline = new Promise<never>((_, reject) => {
-        deadlineTimer = setTimeout(
-          () => reject(new QueryTimeoutError(this.queryDeadlineMs)),
-          this.queryDeadlineMs
-        );
+        deadlineTimer = setTimeout(() => {
+          workController.abort();
+          reject(new QueryTimeoutError(this.queryDeadlineMs));
+        }, this.queryDeadlineMs);
       });
 
       // Intentionally the SAME budget as the app-side timer, NOT lower: the warehouse clock starts
@@ -155,7 +157,10 @@ export class QueryDataMartService {
 
       const aborted = new Promise<never>((_, reject) => {
         if (signal) {
-          abortListener = () => reject(new QueryAbortedError());
+          abortListener = () => {
+            workController.abort();
+            reject(new QueryAbortedError());
+          };
           signal.addEventListener('abort', abortListener, { once: true });
         }
       });
@@ -180,7 +185,13 @@ export class QueryDataMartService {
           // Run totals in PARALLEL with the rows read (wall-clock ≈ max, not sum); failure degrades to null.
           const totalsPromise: Promise<McpQueryDataMartResponse['totals']> =
             this.reportTotalsService
-              .computeTotals(readPlan, accessor, dataMart.storage.type, queryTimeoutMs, signal)
+              .computeTotals(
+                readPlan,
+                accessor,
+                dataMart.storage.type,
+                queryTimeoutMs,
+                workController.signal
+              )
               .catch(totalsErr => {
                 this.logger.warn(
                   `computeTotals failed; degrading to null: ${totalsErr instanceof Error ? totalsErr.message : String(totalsErr)}`
@@ -203,7 +214,7 @@ export class QueryDataMartService {
             columnFilter: r.fields,
             aggregationConfig: readPlan.aggregationConfig ?? undefined,
             queryTimeoutMs,
-            signal,
+            signal: workController.signal,
           });
           const columns = description.dataHeaders.map(header => header.name);
 
@@ -227,6 +238,7 @@ export class QueryDataMartService {
           const totals = await totalsPromise;
           return { columns, trimmed, truncated, totals };
         } finally {
+          workController.abort();
           try {
             await reader?.finalize();
           } catch (finalizeErr) {

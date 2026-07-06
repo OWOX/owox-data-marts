@@ -98,4 +98,28 @@ describe('BigQueryApiAdapter jobTimeoutMs (Phase 3)', () => {
     ).rejects.toThrow('Job stopped by cancel');
     expect(job.cancel).toHaveBeenCalledTimes(1);
   });
+
+  it('does not busy-poll getMetadata after abort — one immediate re-poll, then a bounded interval', async () => {
+    jest.useFakeTimers();
+    try {
+      const { adapter, job } = createAdapter();
+      const controller = new AbortController();
+      controller.abort();
+      job.getMetadata.mockResolvedValue([{ status: { state: 'RUNNING' } }]);
+
+      const p = adapter.executeQuery('SELECT 1', undefined, undefined, controller.signal);
+      // Flush microtasks WITHOUT advancing time: initial poll + exactly one immediate re-poll, then
+      // the loop parks on the bounded sleep. A busy-poll would call getMetadata many more times here.
+      await jest.advanceTimersByTimeAsync(0);
+      expect(job.getMetadata).toHaveBeenCalledTimes(2);
+
+      // The bounded interval must elapse before the next poll; finish the job so the promise settles.
+      job.getMetadata.mockResolvedValue([{ status: { state: 'DONE' } }]);
+      await jest.advanceTimersByTimeAsync(2000);
+      await p;
+      expect(job.getMetadata).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
