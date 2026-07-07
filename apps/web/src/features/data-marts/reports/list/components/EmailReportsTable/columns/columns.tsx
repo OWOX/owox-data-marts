@@ -9,6 +9,7 @@ import { ReportColumnKey } from './columnKeys';
 import { ReportColumnLabels } from './columnLabels';
 import { UserReference } from '../../../../../../../shared/components/UserReference';
 import { UserAvatarGroup } from '../../../../../../../shared/components/UserAvatarGroup';
+import { EmailReportTitleCell } from '../EmailReportTitleCell';
 
 interface EmailTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -21,7 +22,7 @@ export const getEmailColumns = ({
 }: EmailTableColumnsProps = {}): ColumnDef<DataMartReport>[] => [
   {
     id: 'quickRun',
-    size: 50,
+    size: 40,
     enableResizing: false,
     enableSorting: false,
     enableHiding: false,
@@ -38,7 +39,7 @@ export const getEmailColumns = ({
     header: ({ column }) => (
       <SortableHeader column={column}>{ReportColumnLabels[ReportColumnKey.TITLE]}</SortableHeader>
     ),
-    cell: ({ row }) => row.original.title,
+    cell: ({ row }) => <EmailReportTitleCell report={row.original} />,
   },
   {
     accessorKey: ReportColumnKey.LAST_RUN_DATE,
@@ -125,7 +126,7 @@ export const getEmailColumns = ({
   },
   {
     id: 'actions',
-    size: 130,
+    size: 50,
     enableResizing: false,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (

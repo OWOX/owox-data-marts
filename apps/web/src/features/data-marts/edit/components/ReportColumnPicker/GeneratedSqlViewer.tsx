@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { cn } from '@owox/ui/lib/utils';
 import { Editor } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { Copy, FileCode2, Loader2 } from 'lucide-react';
@@ -40,6 +41,7 @@ interface GeneratedSqlViewerProps {
    * action icon variant.
    */
   reportTitle?: string;
+  className?: string;
 }
 
 /**
@@ -50,6 +52,7 @@ export function GeneratedSqlViewer({
   dataMartId,
   variant = 'action-icon',
   reportTitle,
+  className,
 }: GeneratedSqlViewerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [sql, setSql] = useState<string | null>(null);
@@ -119,7 +122,10 @@ export function GeneratedSqlViewer({
               <Button
                 type='button'
                 variant='ghost'
-                className='dm-card-table-body-row-actionbtn cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
+                className={cn(
+                  'dm-card-table-body-row-actionbtn w-6 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100',
+                  className
+                )}
                 aria-label={ariaLabel}
                 onClick={e => {
                   e.stopPropagation();

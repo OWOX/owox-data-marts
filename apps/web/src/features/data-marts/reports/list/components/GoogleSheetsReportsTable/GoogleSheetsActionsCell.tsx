@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { MoreHorizontal, Pencil, FileText, Trash2, Play } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, Play } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -8,20 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@owox/ui/components/tooltip';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
-import { getGoogleSheetTabUrl, isGeneratedSqlSupported } from '../../../shared';
-import type {
-  DataMartReport,
-  GoogleSheetsDestinationConfig,
-} from '../../../shared/model/types/data-mart-report';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport, ReportStatusEnum } from '../../../shared';
-import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsActionsCellProps {
   row: { original: DataMartReport };
@@ -102,124 +91,87 @@ export function GoogleSheetsActionsCell({
   }, [canEditConfig]);
 
   return (
-    <TooltipProvider>
-      <div
-        className='flex justify-end gap-1'
-        onClick={e => {
-          e.stopPropagation();
+    <div
+      className='flex justify-end'
+      onClick={e => {
+        e.stopPropagation();
+      }}
+    >
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant='ghost'
+            className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity ${
+              menuOpen ? 'opacity-100' : 'group-hover:opacity-100'
+            }`}
+            aria-label={`Actions for report: ${row.original.title}`}
+            aria-haspopup='true'
+            aria-expanded={menuOpen}
+            aria-controls={actionsMenuId}
+          >
+            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
+          <DropdownMenuItem
+            disabled={isRunning || !canRun}
+            onClick={e => {
+              e.stopPropagation();
+              void handleRun();
+            }}
+            role='menuitem'
+          >
+            <Play className='text-foreground h-4 w-4' aria-hidden='true' />
+            {isRunning ? 'Running report...' : 'Run report'}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            disabled={!canEditConfig}
+            onClick={e => {
+              e.stopPropagation();
+              handleEdit();
+            }}
+            role='menuitem'
+          >
+            <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
+            Edit report
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            disabled={!canEditConfig}
+            onClick={e => {
+              e.stopPropagation();
+              handleDeleteClick();
+            }}
+            role='menuitem'
+            aria-label={`Delete report: ${row.original.title}`}
+          >
+            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+            <span className='text-red-600'>Delete report</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title='Delete Report'
+        description={
+          <p className='break-words'>
+            Are you sure you want to delete "
+            <span className='font-semibold [overflow-wrap:anywhere]'>{row.original.title}</span>
+            "? This action cannot be undone.
+          </p>
+        }
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        onConfirm={() => {
+          void handleDelete();
         }}
-      >
-        {/* Open doc */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <a
-              href={getGoogleSheetTabUrl(
-                (row.original.destinationConfig as GoogleSheetsDestinationConfig).spreadsheetId,
-                (row.original.destinationConfig as GoogleSheetsDestinationConfig).sheetId
-              )}
-              className='dm-card-table-body-row-actionbtn inline-flex items-center justify-center rounded-md px-3 opacity-0 transition-opacity group-hover:opacity-100'
-              target='_blank'
-              rel='noopener noreferrer'
-              onClick={e => {
-                e.stopPropagation();
-              }}
-            >
-              <FileText className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
-            </a>
-          </TooltipTrigger>
-          <TooltipContent id={`run-report-${row.original.id}`} side='bottom' role='tooltip'>
-            Open document
-          </TooltipContent>
-        </Tooltip>
-
-        {/* View SQL */}
-        {isGeneratedSqlSupported(
-          row.original.dataMart.definitionType,
-          row.original.dataMart.storage.type
-        ) && (
-          <GeneratedSqlViewer
-            reportId={row.original.id}
-            dataMartId={row.original.dataMart.id}
-            reportTitle={row.original.title}
-          />
-        )}
-
-        {/* More actions */}
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='ghost'
-              className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity ${menuOpen ? 'opacity-100' : 'group-hover:opacity-100'}`}
-              aria-label={`Actions for report: ${row.original.title}`}
-              aria-haspopup='true'
-              aria-expanded={menuOpen}
-              aria-controls={actionsMenuId}
-            >
-              <MoreHorizontal
-                className='dm-card-table-body-row-actionbtn-icon'
-                aria-hidden='true'
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
-            <DropdownMenuItem
-              disabled={isRunning || !canRun}
-              onClick={e => {
-                e.stopPropagation();
-                void handleRun();
-              }}
-              role='menuitem'
-            >
-              <Play className='text-foreground h-4 w-4' aria-hidden='true' />
-              {isRunning ? 'Running report...' : 'Run report'}
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
-              disabled={!canEditConfig}
-              onClick={e => {
-                e.stopPropagation();
-                handleEdit();
-              }}
-              role='menuitem'
-            >
-              <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
-              Edit report
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={!canEditConfig}
-              onClick={e => {
-                e.stopPropagation();
-                handleDeleteClick();
-              }}
-              role='menuitem'
-              aria-label={`Delete report: ${row.original.title}`}
-            >
-              <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
-              <span className='text-red-600'>Delete report</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <ConfirmationDialog
-          open={isDeleteDialogOpen}
-          onOpenChange={setIsDeleteDialogOpen}
-          title='Delete Report'
-          description={
-            <p className='break-words'>
-              Are you sure you want to delete "
-              <span className='font-semibold [overflow-wrap:anywhere]'>{row.original.title}</span>"?
-              This action cannot be undone.
-            </p>
-          }
-          confirmLabel='Delete'
-          cancelLabel='Cancel'
-          onConfirm={() => {
-            void handleDelete();
-          }}
-          variant='destructive'
-        />
-      </div>
-    </TooltipProvider>
+        variant='destructive'
+      />
+    </div>
   );
 }
