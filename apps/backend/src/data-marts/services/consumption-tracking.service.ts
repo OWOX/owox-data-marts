@@ -220,7 +220,7 @@ export class ConsumptionTrackingService {
     }
     await this.sendConsumptionCommand(this.mcpQueryRunConsumptionTopic, {
       ...this.baseDataMartConsumptionPayload(dataMart),
-      reportRunId: runId,
+      runId,
     });
   }
 
