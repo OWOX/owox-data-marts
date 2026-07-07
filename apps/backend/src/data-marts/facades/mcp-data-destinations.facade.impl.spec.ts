@@ -9,7 +9,6 @@ import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
-import { PublicOriginService } from '../../common/config/public-origin.service';
 import { McpDataDestinationsFacadeImpl } from './mcp-data-destinations.facade.impl';
 
 function createFacade(
@@ -22,8 +21,7 @@ function createFacade(
   return new McpDataDestinationsFacadeImpl(
     listDataDestinationsService as unknown as ListDataDestinationsService,
     {} as unknown as CreateDataDestinationService,
-    dataDestinationCredentialService as unknown as DataDestinationCredentialService,
-    {} as unknown as PublicOriginService
+    dataDestinationCredentialService as unknown as DataDestinationCredentialService
   );
 }
 
@@ -31,13 +29,11 @@ function createFacadeForCreate(
   overrides: {
     createDataDestinationService?: Pick<CreateDataDestinationService, 'run'>;
     dataDestinationCredentialService?: Pick<DataDestinationCredentialService, 'getById'>;
-    publicOriginService?: Pick<PublicOriginService, 'getLookerStudioDeploymentUrl'>;
   } = {}
 ): {
   facade: McpDataDestinationsFacadeImpl;
   createDataDestinationService: any;
   dataDestinationCredentialService: any;
-  publicOriginService: any;
 } {
   const createDataDestinationService = {
     run: jest.fn(),
@@ -47,21 +43,14 @@ function createFacadeForCreate(
     getById: jest.fn(),
     ...overrides.dataDestinationCredentialService,
   };
-  const publicOriginService = {
-    getLookerStudioDeploymentUrl: jest.fn(() => 'https://looker.example.com/deploy'),
-    ...overrides.publicOriginService,
-  };
-
   return {
     facade: new McpDataDestinationsFacadeImpl(
       {} as unknown as ListDataDestinationsService,
       createDataDestinationService as unknown as CreateDataDestinationService,
-      dataDestinationCredentialService as unknown as DataDestinationCredentialService,
-      publicOriginService as unknown as PublicOriginService
+      dataDestinationCredentialService as unknown as DataDestinationCredentialService
     ),
     createDataDestinationService,
     dataDestinationCredentialService,
-    publicOriginService,
   };
 }
 
@@ -453,7 +442,6 @@ describe('McpDataDestinationsFacadeImpl', () => {
       expect(result).toEqual({
         id: 'email-dest',
         name: 'Marketing Email',
-        lookerStudioCredentials: undefined,
       });
     });
 
@@ -487,7 +475,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       expect(createDataDestinationService.run).not.toHaveBeenCalled();
     });
 
-    it('returns the created looker_studio destination when the credential record cannot be resolved', async () => {
+    it('returns the created looker_studio destination without reading connector credentials', async () => {
       const { facade, createDataDestinationService, dataDestinationCredentialService } =
         createFacadeForCreate({
           createDataDestinationService: {
@@ -498,7 +486,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
             }),
           },
           dataDestinationCredentialService: {
-            getById: jest.fn().mockResolvedValue(null),
+            getById: jest.fn(),
           },
         });
 
@@ -509,53 +497,10 @@ describe('McpDataDestinationsFacadeImpl', () => {
       });
 
       expect(createDataDestinationService.run).toHaveBeenCalled();
-      expect(dataDestinationCredentialService.getById).toHaveBeenCalledWith('cred-looker-1');
+      expect(dataDestinationCredentialService.getById).not.toHaveBeenCalled();
       expect(result).toEqual({
         id: 'looker-dest',
         name: 'Looker Studio MCP Destination',
-        lookerStudioCredentials: undefined,
-      });
-    });
-
-    it('assembles Looker Studio connector credentials from the stored credential record', async () => {
-      const { facade, createDataDestinationService, dataDestinationCredentialService } =
-        createFacadeForCreate({
-          createDataDestinationService: {
-            run: jest.fn().mockResolvedValue({
-              id: 'looker-dest',
-              title: 'Looker Studio MCP Destination',
-              credentialId: 'cred-looker-1',
-            }),
-          },
-          dataDestinationCredentialService: {
-            getById: jest.fn().mockResolvedValue({
-              credentials: { destinationSecretKey: 'secret-key-123' },
-            }),
-          },
-        });
-
-      const result = await facade.createDestination({
-        ...baseRequest,
-        type: 'looker_studio',
-        title: 'Looker Studio MCP Destination',
-      });
-
-      expect(createDataDestinationService.run).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: DataDestinationType.LOOKER_STUDIO,
-          credentials: { type: 'looker-studio-credentials' },
-          availableForUse: false,
-        })
-      );
-      expect(dataDestinationCredentialService.getById).toHaveBeenCalledWith('cred-looker-1');
-      expect(result).toEqual({
-        id: 'looker-dest',
-        name: 'Looker Studio MCP Destination',
-        lookerStudioCredentials: {
-          destinationId: 'looker-dest',
-          destinationSecretKey: 'secret-key-123',
-          deploymentUrl: 'https://looker.example.com/deploy',
-        },
       });
     });
   });

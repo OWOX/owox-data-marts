@@ -5,10 +5,8 @@ import { ListDataDestinationsService } from '../use-cases/list-data-destinations
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
-import { PublicOriginService } from '../../common/config/public-origin.service';
 import { DataDestinationCredential } from '../entities/data-destination-credential.entity';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
-import { LookerStudioConnectorCredentials } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { toMcpDestinationType, type McpDestinationType } from './mcp-destination-type';
 import {
   McpDataDestinationsFacade,
@@ -34,8 +32,7 @@ export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade 
   constructor(
     private readonly listDataDestinationsService: ListDataDestinationsService,
     private readonly createDataDestinationService: CreateDataDestinationService,
-    private readonly dataDestinationCredentialService: DataDestinationCredentialService,
-    private readonly publicOriginService: PublicOriginService
+    private readonly dataDestinationCredentialService: DataDestinationCredentialService
   ) {}
 
   async listDestinations(
@@ -152,41 +149,9 @@ export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade 
 
     const result = await this.createDataDestinationService.run(command);
 
-    let lookerStudioCredentials:
-      | {
-          destinationId: string;
-          destinationSecretKey: string;
-          deploymentUrl: string;
-        }
-      | undefined = undefined;
-    if (request.type === 'looker_studio') {
-      try {
-        const credential = result.credentialId
-          ? await this.dataDestinationCredentialService.getById(result.credentialId)
-          : null;
-        const destinationSecretKey = credential?.credentials
-          ? ((credential.credentials as LookerStudioConnectorCredentials).destinationSecretKey ?? '')
-          : '';
-
-        if (destinationSecretKey) {
-          lookerStudioCredentials = {
-            destinationId: result.id,
-            destinationSecretKey,
-            deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
-          };
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Failed to resolve Looker Studio connector credentials for destination ${result.id}`,
-          error instanceof Error ? error.stack : String(error)
-        );
-      }
-    }
-
     return {
       id: result.id,
       name: result.title,
-      lookerStudioCredentials,
     };
   }
 }

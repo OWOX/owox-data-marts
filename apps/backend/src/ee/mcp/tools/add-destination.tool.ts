@@ -161,13 +161,6 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
         title,
       });
 
-      const creds = created.lookerStudioCredentials;
-      if (!creds?.deploymentUrl || !creds.destinationSecretKey) {
-        throw new BadRequestException(
-          'Data Studio destination was created but connector credentials could not be resolved'
-        );
-      }
-
       // The Destination Secret Key (Token) must never be sent through MCP/chat, even for a
       // destination just created in this same call — it's a live credential, not a display
       // value, so the user retrieves it themselves from the OWOX Data Marts UI.

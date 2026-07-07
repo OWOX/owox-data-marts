@@ -29,11 +29,6 @@ export interface McpCreateDestinationRequest {
 export interface McpCreateDestinationResponse {
   id: string;
   name: string;
-  lookerStudioCredentials?: {
-    destinationId: string;
-    destinationSecretKey: string;
-    deploymentUrl: string;
-  };
 }
 
 export interface McpListDestinationsResponse {

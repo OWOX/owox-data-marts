@@ -146,34 +146,10 @@ describe('AddDestinationTool', () => {
     expect(structured.instructions).toContain('Successfully connected Email destination');
   });
 
-  it('rejects looker_studio creation when connector credentials are missing from the facade response', async () => {
+  it('supports direct creation of looker_studio destination without returning credentials', async () => {
     destinationsFacade.createDestination.mockResolvedValue({
       id: 'looker-dest-id',
       name: 'Looker Studio MCP Destination',
-    });
-
-    await expect(
-      tool.handler(
-        {
-          destination_type: 'looker_studio',
-          title: 'Looker Studio MCP Destination',
-        },
-        context
-      )
-    ).rejects.toThrow(
-      'Data Studio destination was created but connector credentials could not be resolved'
-    );
-  });
-
-  it('supports direct creation of looker_studio destination and returns credentials', async () => {
-    destinationsFacade.createDestination.mockResolvedValue({
-      id: 'looker-dest-id',
-      name: 'Looker Studio MCP Destination',
-      lookerStudioCredentials: {
-        destinationId: 'looker-dest-id',
-        destinationSecretKey: 'mock-secret-key-123',
-        deploymentUrl: 'https://looker.example.com',
-      },
     });
 
     const result = await tool.handler(
@@ -198,9 +174,8 @@ describe('AddDestinationTool', () => {
       'Data Studio Destination "Looker Studio MCP Destination" has been successfully enabled'
     );
     expect(structured.instructions).toContain('Data Destinations in OWOX Data Marts');
-    // The secret must never appear in the MCP response, even for a destination just created.
-    expect(structured.instructions).not.toContain('mock-secret-key-123');
-    expect(JSON.stringify(structured)).not.toContain('mock-secret-key-123');
+    expect(JSON.stringify(structured)).not.toContain('destinationSecretKey');
+    expect(JSON.stringify(structured)).not.toContain('lookerStudioCredentials');
   });
 
   it.each([
