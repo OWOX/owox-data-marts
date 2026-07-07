@@ -487,7 +487,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       expect(createDataDestinationService.run).not.toHaveBeenCalled();
     });
 
-    it('rejects looker_studio creation when the credential record cannot be resolved', async () => {
+    it('returns the created looker_studio destination when the credential record cannot be resolved', async () => {
       const { facade, createDataDestinationService, dataDestinationCredentialService } =
         createFacadeForCreate({
           createDataDestinationService: {
@@ -502,18 +502,19 @@ describe('McpDataDestinationsFacadeImpl', () => {
           },
         });
 
-      await expect(
-        facade.createDestination({
-          ...baseRequest,
-          type: 'looker_studio',
-          title: 'Looker Studio MCP Destination',
-        })
-      ).rejects.toThrow(
-        'Looker Studio connector credentials could not be resolved after destination creation'
-      );
+      const result = await facade.createDestination({
+        ...baseRequest,
+        type: 'looker_studio',
+        title: 'Looker Studio MCP Destination',
+      });
 
       expect(createDataDestinationService.run).toHaveBeenCalled();
       expect(dataDestinationCredentialService.getById).toHaveBeenCalledWith('cred-looker-1');
+      expect(result).toEqual({
+        id: 'looker-dest',
+        name: 'Looker Studio MCP Destination',
+        lookerStudioCredentials: undefined,
+      });
     });
 
     it('assembles Looker Studio connector credentials from the stored credential record', async () => {

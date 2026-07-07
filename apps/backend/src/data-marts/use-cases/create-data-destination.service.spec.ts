@@ -281,6 +281,7 @@ describe('CreateDataDestinationService', () => {
       dataDestinationCredentialService.getById.mockResolvedValue({
         id: 'cred-1',
         projectId: 'proj-1',
+        createdById: 'user-0',
       });
 
       const command = new CreateDataDestinationCommand({
@@ -304,6 +305,7 @@ describe('CreateDataDestinationService', () => {
       dataDestinationCredentialService.getById.mockResolvedValue({
         id: 'cred-oauth-1',
         projectId: 'proj-1',
+        createdById: 'user-0',
       });
 
       const command = new CreateDataDestinationCommand({
@@ -326,6 +328,26 @@ describe('CreateDataDestinationService', () => {
           availableForMaintenance: false,
         })
       );
+    });
+
+    it('rejects an unlinked credential created by another same-project user', async () => {
+      const { service, dataDestinationCredentialService, repository } = createService();
+      dataDestinationCredentialService.getById.mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        createdById: 'user-1',
+      });
+      repository.findOne.mockResolvedValue(null);
+
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
+
+      await expect(service.run(command)).rejects.toThrow('Credential does not belong to this user');
     });
 
     it('rejects credential already linked to another destination when caller lacks COPY_CREDENTIALS', async () => {

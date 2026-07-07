@@ -147,6 +147,8 @@ export class CreateDataDestinationService {
             'You do not have permission to copy credentials from this destination'
           );
         }
+      } else if (credential.createdById !== command.userId) {
+        throw new ForbiddenException('Credential does not belong to this user');
       }
 
       const oauth2Client =

@@ -160,27 +160,27 @@ export class McpDataDestinationsFacadeImpl implements McpDataDestinationsFacade 
         }
       | undefined = undefined;
     if (request.type === 'looker_studio') {
-      if (!result.credentialId) {
-        throw new BadRequestException(
-          'Looker Studio destination was created but has no credential record'
+      try {
+        const credential = result.credentialId
+          ? await this.dataDestinationCredentialService.getById(result.credentialId)
+          : null;
+        const destinationSecretKey = credential?.credentials
+          ? ((credential.credentials as LookerStudioConnectorCredentials).destinationSecretKey ?? '')
+          : '';
+
+        if (destinationSecretKey) {
+          lookerStudioCredentials = {
+            destinationId: result.id,
+            destinationSecretKey,
+            deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
+          };
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to resolve Looker Studio connector credentials for destination ${result.id}`,
+          error instanceof Error ? error.stack : String(error)
         );
       }
-
-      const credential = await this.dataDestinationCredentialService.getById(result.credentialId);
-      const destinationSecretKey = credential?.credentials
-        ? ((credential.credentials as LookerStudioConnectorCredentials).destinationSecretKey ?? '')
-        : '';
-      if (!credential?.credentials || !destinationSecretKey) {
-        throw new BadRequestException(
-          'Looker Studio connector credentials could not be resolved after destination creation'
-        );
-      }
-
-      lookerStudioCredentials = {
-        destinationId: result.id,
-        destinationSecretKey,
-        deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
-      };
     }
 
     return {
