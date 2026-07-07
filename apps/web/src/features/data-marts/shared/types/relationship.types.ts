@@ -121,6 +121,29 @@ export interface BlendedField {
   postJoinAggregations?: ReportAggregateFunction[];
 }
 
+export interface BlendedGroup {
+  aliasPath: string;
+  title: string;
+  alias: string;
+  description?: string;
+  isAccessibleForReporting: boolean;
+  visibleFields: BlendedField[];
+  selectedCount: number;
+}
+export interface NativeField {
+  name: string;
+  type?: string;
+  alias?: string;
+  description?: string;
+  isHiddenForReporting?: boolean;
+  status?: string;
+  fields?: NativeField[];
+  isPrimaryKey?: boolean;
+  // Aggregation governance (optional; absent → type-derived defaults on the web).
+  aggregationRole?: AggregationRole;
+  allowedAggregations?: ReportAggregateFunction[];
+}
+
 export interface AvailableSource {
   aliasPath: string;
   title: string;

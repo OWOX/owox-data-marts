@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
+import { Input } from '@owox/ui/components/input';
+import { Search } from 'lucide-react';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
@@ -13,9 +15,10 @@ import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 import type {
-  AggregationRole,
   AvailableSource,
   BlendedField,
+  BlendedGroup,
+  NativeField,
   ReportAggregateFunction,
 } from '../../../shared/types/relationship.types';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
@@ -47,20 +50,8 @@ import {
   functionsForColumn,
   timeZoneForColumn,
 } from './aggregation-config';
-
-interface NativeField {
-  name: string;
-  type?: string;
-  alias?: string;
-  description?: string;
-  isHiddenForReporting?: boolean;
-  status?: string;
-  fields?: NativeField[];
-  isPrimaryKey?: boolean;
-  // Aggregation governance (optional; absent → type-derived defaults on the web).
-  aggregationRole?: AggregationRole;
-  allowedAggregations?: ReportAggregateFunction[];
-}
+import { buildColumnSearchResult, matchesColumnSearch } from './report-column-search';
+import { SearchButton } from './SearchButton';
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
 // DISCONNECTED nodes (with their subtrees) are unavailable for reporting, so they
@@ -84,16 +75,6 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
     }
   }
   return result;
-}
-
-interface BlendedGroup {
-  aliasPath: string;
-  title: string;
-  alias: string;
-  description?: string;
-  isAccessibleForReporting: boolean;
-  visibleFields: BlendedField[];
-  selectedCount: number;
 }
 
 export interface ReportColumnSelectionCount {
@@ -372,6 +353,7 @@ interface BlendedGroupItemProps {
   preJoinByAliasPathColumn?: Map<string, ColumnFilters>;
   aggregationByColumn?: Map<string, ColumnAggregation>;
   onApplyAggregation?: ApplyAggregationFn;
+  hasSearchQuery?: boolean;
 }
 
 function BlendedGroupItem({
@@ -386,11 +368,21 @@ function BlendedGroupItem({
   preJoinByAliasPathColumn,
   aggregationByColumn,
   onApplyAggregation,
+  hasSearchQuery = false,
 }: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
   const inaccessible = !group.isAccessibleForReporting;
   const Chevron = isOpen ? ChevronDown : ChevronRight;
   const accentClass = inaccessible ? 'text-destructive' : 'text-muted-foreground';
+  const previousHasSearchQuery = useRef(false);
+
+  useEffect(() => {
+    if (!previousHasSearchQuery.current && hasSearchQuery) {
+      setIsOpen(true);
+    }
+
+    previousHasSearchQuery.current = hasSearchQuery;
+  }, [hasSearchQuery]);
 
   return (
     <Collapsible
@@ -463,8 +455,16 @@ export function ReportColumnPicker({
   const outputControlsSupported = storageType ? supportsOutputControls(storageType) : false;
   const outputControlsAvailable: boolean = outputControlsSupported && !!onOutputConfigChange;
   const effectiveOutputConfig: OutputConfig = outputConfig ?? EMPTY_OUTPUT_CONFIG;
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [aggSettingsOpen, setAggSettingsOpen] = useState(false);
+
+  type ActivePanel = 'aggregation' | 'output' | 'search' | null;
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  const settingsOpen = activePanel === 'output';
+  const aggSettingsOpen = activePanel === 'aggregation';
+  const isSearchOpen = activePanel === 'search';
+  const togglePanel = (panel: Exclude<ActivePanel, null>) => {
+    setActivePanel(current => (current === panel ? null : panel));
+  };
+
   const { data: schema, isLoading } = useQuery({
     queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
     queryFn: () => dataMartRelationshipService.getBlendableSchema(dataMartId),
@@ -624,49 +624,6 @@ export function ReportColumnPicker({
     },
     [onChange, orderBySelectable]
   );
-
-  function selectAll() {
-    if (!schema) return;
-    const selectableSet = new Set(selectableFieldNames);
-    const preserved = effectiveValue.filter(name => !selectableSet.has(name));
-    onChange([...selectableFieldNames, ...preserved]);
-  }
-
-  function deselectAll() {
-    if (!schema) return;
-    const selectableSet = new Set(selectableFieldNames);
-    onChange(effectiveValue.filter(name => !selectableSet.has(name)));
-  }
-
-  const selectedNativeCount = nativeFields.filter(f => effectiveValueSet.has(f.name)).length;
-
-  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
-
-  const visibleNativeFields = showSelectedOnly
-    ? nativeFields.filter(f => effectiveValueSet.has(f.name))
-    : nativeFields;
-
-  const selectedBlendedCount = effectiveValue.filter(name =>
-    includedBlendedNamesSet.has(name)
-  ).length;
-  const selectedFieldsCount = selectedNativeCount + selectedBlendedCount + unresolvedColumns.length;
-  const accessibleBlendedNamesSet = useMemo(
-    () => new Set(accessibleBlendedFieldNames),
-    [accessibleBlendedFieldNames]
-  );
-  const selectedInaccessibleBlendedCount = useMemo(
-    () =>
-      effectiveValue.filter(
-        name => includedBlendedNamesSet.has(name) && !accessibleBlendedNamesSet.has(name)
-      ).length,
-    [effectiveValue, includedBlendedNamesSet, accessibleBlendedNamesSet]
-  );
-  const totalFieldsCount =
-    selectableFieldNames.length + selectedInaccessibleBlendedCount + unresolvedColumns.length;
-
-  useEffect(() => {
-    onCountChange?.({ selected: selectedFieldsCount, total: totalFieldsCount });
-  }, [selectedFieldsCount, totalFieldsCount, onCountChange]);
 
   const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
     const map = new Map<string, ColumnFilters>();
@@ -955,6 +912,49 @@ export function ReportColumnPicker({
     return keys;
   }, [effectiveOutputConfig.filterConfig]);
 
+  function selectAll() {
+    if (!schema) return;
+    const selectableSet = new Set(targetSelectableFieldNames);
+    const preserved = effectiveValue.filter(name => !selectableSet.has(name));
+    onChange([...targetSelectableFieldNames, ...preserved]);
+  }
+
+  function deselectAll() {
+    if (!schema) return;
+    const selectableSet = new Set(targetSelectableFieldNames);
+    onChange(effectiveValue.filter(name => !selectableSet.has(name)));
+  }
+
+  const selectedNativeCount = nativeFields.filter(f => effectiveValueSet.has(f.name)).length;
+
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+
+  const visibleNativeFields = showSelectedOnly
+    ? nativeFields.filter(f => effectiveValueSet.has(f.name))
+    : nativeFields;
+
+  const selectedBlendedCount = effectiveValue.filter(name =>
+    includedBlendedNamesSet.has(name)
+  ).length;
+  const selectedFieldsCount = selectedNativeCount + selectedBlendedCount + unresolvedColumns.length;
+  const accessibleBlendedNamesSet = useMemo(
+    () => new Set(accessibleBlendedFieldNames),
+    [accessibleBlendedFieldNames]
+  );
+  const selectedInaccessibleBlendedCount = useMemo(
+    () =>
+      effectiveValue.filter(
+        name => includedBlendedNamesSet.has(name) && !accessibleBlendedNamesSet.has(name)
+      ).length,
+    [effectiveValue, includedBlendedNamesSet, accessibleBlendedNamesSet]
+  );
+  const totalFieldsCount =
+    selectableFieldNames.length + selectedInaccessibleBlendedCount + unresolvedColumns.length;
+
+  useEffect(() => {
+    onCountChange?.({ selected: selectedFieldsCount, total: totalFieldsCount });
+  }, [selectedFieldsCount, totalFieldsCount, onCountChange]);
+
   const groupedBlendedFields = useMemo<BlendedGroup[]>(() => {
     const groupMap = new Map<string, BlendedGroup>();
 
@@ -994,6 +994,52 @@ export function ReportColumnPicker({
     referencedPreJoinKeys,
   ]);
 
+  // Search query state and derived search results.
+  const [searchQuery, setSearchQuery] = useState('');
+  const hasSearchQuery = searchQuery.trim().length > 0;
+
+  useEffect(() => {
+    if (!isSearchOpen) {
+      setSearchQuery('');
+    }
+  }, [isSearchOpen]);
+
+  const { visibleNativeFields: searchedNativeFields, visibleBlendedGroups: searchedBlendedGroups } =
+    useMemo(
+      () => buildColumnSearchResult(visibleNativeFields, groupedBlendedFields, searchQuery),
+      [visibleNativeFields, groupedBlendedFields, searchQuery]
+    );
+
+  const visibleUnresolvedColumns = useMemo(
+    () => unresolvedColumns.filter(column => matchesColumnSearch(column, searchQuery)),
+    [unresolvedColumns, searchQuery]
+  );
+
+  const visibleUnresolvedFilterOnlyColumns = useMemo(
+    () => unresolvedFilterOnlyColumns.filter(column => matchesColumnSearch(column, searchQuery)),
+    [unresolvedFilterOnlyColumns, searchQuery]
+  );
+
+  const visibleUnresolvedSlices = useMemo(
+    () => unresolvedSlices.filter(slice => matchesColumnSearch(slice.column, searchQuery)),
+    [unresolvedSlices, searchQuery]
+  );
+
+  const targetSelectableFieldNames = useMemo(
+    () => [
+      ...searchedNativeFields.map(field => field.name),
+      ...searchedBlendedGroups.flatMap(group => group.visibleFields.map(field => field.name)),
+    ],
+    [searchedNativeFields, searchedBlendedGroups]
+  );
+
+  const hasVisibleColumns =
+    searchedNativeFields.length > 0 ||
+    searchedBlendedGroups.length > 0 ||
+    visibleUnresolvedColumns.length > 0 ||
+    visibleUnresolvedFilterOnlyColumns.length > 0 ||
+    visibleUnresolvedSlices.length > 0;
+
   if (isLoading) {
     return (
       <div className='space-y-2'>
@@ -1006,10 +1052,8 @@ export function ReportColumnPicker({
   }
 
   const allSelected =
-    selectableFieldNames.length > 0 &&
-    selectableFieldNames.every(name => effectiveValueSet.has(name));
-  const toggleLabelClass =
-    'text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors';
+    targetSelectableFieldNames.length > 0 &&
+    targetSelectableFieldNames.every(name => effectiveValueSet.has(name));
 
   const showCapabilityFallback =
     !outputControlsSupported &&
@@ -1020,30 +1064,36 @@ export function ReportColumnPicker({
   return (
     <div className='space-y-2'>
       <div className='flex items-center justify-between px-2'>
-        <label className={toggleLabelClass}>
-          <Checkbox
-            checked={allSelected}
-            onCheckedChange={checked => {
-              if (checked === true) selectAll();
-              else deselectAll();
-            }}
-            aria-label={allSelected ? 'Deselect all fields' : 'Select all fields'}
-          />
-          Select all
-        </label>
-        <div className='flex items-center gap-3'>
-          <label className={toggleLabelClass}>
-            Show selected only
-            <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
+        <div className='flex items-center gap-2'>
+          <label className='text-muted-foreground hover:text-foreground border-border flex cursor-pointer items-center gap-2 border-r pr-3 text-xs transition-colors'>
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={checked => {
+                if (checked === true) selectAll();
+                else deselectAll();
+              }}
+              aria-label={allSelected ? 'Deselect all fields' : 'Select all fields'}
+            />
+            Select all
           </label>
+          <label className='text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 text-xs transition-colors'>
+            <Switch
+              className='scale-75'
+              checked={showSelectedOnly}
+              onCheckedChange={setShowSelectedOnly}
+            />
+            Show selected only
+          </label>
+        </div>
+
+        <div className='flex items-center gap-1'>
           {outputControlsAvailable && (
             <AggregationSettingsButton
               active={hasAnyAggregation}
               count={aggregationCount}
               open={aggSettingsOpen}
               onClick={() => {
-                setAggSettingsOpen(o => !o);
-                setSettingsOpen(false);
+                togglePanel('aggregation');
               }}
             />
           )}
@@ -1054,13 +1104,34 @@ export function ReportColumnPicker({
               hasDisconnectedControls={hasDisconnectedOutputControls}
               open={settingsOpen}
               onClick={() => {
-                setSettingsOpen(o => !o);
-                setAggSettingsOpen(false);
+                togglePanel('output');
               }}
             />
           )}
+          <SearchButton
+            open={isSearchOpen}
+            onClick={() => {
+              togglePanel('search');
+            }}
+          />
         </div>
       </div>
+
+      {isSearchOpen && (
+        <div className='relative' role='search'>
+          <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2' />
+          <Input
+            autoFocus
+            value={searchQuery}
+            placeholder='Search columns...'
+            aria-label='Search columns'
+            className='pl-8'
+            onChange={event => {
+              setSearchQuery(event.target.value);
+            }}
+          />
+        </div>
+      )}
 
       {settingsOpen && onOutputConfigChange && outputControlsSupported && (
         <div className='rounded-md border'>
@@ -1109,9 +1180,9 @@ export function ReportColumnPicker({
           selectedNativeCount === 0 ? 'border-destructive' : 'border-border'
         )}
       >
-        {(unresolvedColumns.length > 0 ||
-          unresolvedFilterOnlyColumns.length > 0 ||
-          unresolvedSlices.length > 0) && (
+        {(visibleUnresolvedColumns.length > 0 ||
+          visibleUnresolvedFilterOnlyColumns.length > 0 ||
+          visibleUnresolvedSlices.length > 0) && (
           <div className='border-destructive bg-destructive/10 rounded border'>
             <div className='flex items-start gap-1.5 px-1 py-1'>
               <div className='min-w-0 flex-1'>
@@ -1137,8 +1208,8 @@ export function ReportColumnPicker({
               </Tooltip>
             </div>
             {[
-              ...unresolvedColumns.map(name => ({ name, selected: true })),
-              ...unresolvedFilterOnlyColumns.map(name => ({ name, selected: false })),
+              ...visibleUnresolvedColumns.map(name => ({ name, selected: true })),
+              ...visibleUnresolvedFilterOnlyColumns.map(name => ({ name, selected: false })),
             ].map(({ name, selected }) => {
               const columnFilters = filtersByColumn.get(name) ?? EMPTY_COLUMN_FILTERS;
               return (
@@ -1167,7 +1238,7 @@ export function ReportColumnPicker({
                 </label>
               );
             })}
-            {unresolvedSlices.map(({ column, fieldType }) => {
+            {visibleUnresolvedSlices.map(({ column, fieldType }) => {
               const slices = preJoinByAliasPathColumn.get(column) ?? EMPTY_COLUMN_FILTERS;
               return (
                 <label
@@ -1195,10 +1266,12 @@ export function ReportColumnPicker({
             })}
           </div>
         )}
-        {visibleNativeFields.length === 0 && (
-          <p className='text-muted-foreground px-1 text-xs'>No fields available.</p>
+        {!hasVisibleColumns && (
+          <p className='text-muted-foreground px-2 py-6 text-center text-sm'>
+            {hasSearchQuery ? 'No matching columns found.' : 'No fields available.'}
+          </p>
         )}
-        {visibleNativeFields.map(field => (
+        {searchedNativeFields.map(field => (
           <NativeFieldRow
             key={field.name}
             field={field}
@@ -1245,7 +1318,7 @@ export function ReportColumnPicker({
           </label>
         )}
 
-        {groupedBlendedFields.map(group => (
+        {searchedBlendedGroups.map(group => (
           <BlendedGroupItem
             key={group.aliasPath}
             group={group}
@@ -1259,12 +1332,15 @@ export function ReportColumnPicker({
             preJoinByAliasPathColumn={preJoinByAliasPathColumn}
             aggregationByColumn={aggregationByColumn}
             onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
+            hasSearchQuery={hasSearchQuery}
           />
         ))}
       </div>
 
-      {selectedNativeCount === 0 && (
-        <p className='text-destructive text-xs'>At least one native field must be selected.</p>
+      {selectedNativeCount === 0 && selectedBlendedCount > 0 && (
+        <p className='text-destructive text-sm'>
+          At least one column from the current Data Mart must be selected
+        </p>
       )}
     </div>
   );
