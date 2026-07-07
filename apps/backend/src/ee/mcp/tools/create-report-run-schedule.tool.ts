@@ -41,7 +41,7 @@ export class CreateReportRunScheduleTool implements McpToolDefinition<CreateRepo
     destructiveHint: false,
     openWorldHint: false,
   };
-  readonly requiredScopes: McpScope[] = ['mcp:write'];
+  readonly requiredScopes: McpScope[] = ['mcp:read', 'mcp:write'];
 
   constructor(
     @Inject(MCP_SCHEDULED_TRIGGERS_FACADE)
