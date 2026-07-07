@@ -87,20 +87,15 @@ export class BigQueryApiAdapter {
     jobTimeoutMs?: number,
     signal?: AbortSignal
   ): Promise<{ jobId: string }> {
-    const queryConfig: Query =
-      params && params.length > 0
-        ? {
-            query,
-            params: Object.fromEntries(params.map(p => [p.name, p.value])),
-            parameterMode: 'NAMED',
-            ...this.getLocationOption(),
-            ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
-          }
-        : {
-            query,
-            ...this.getLocationOption(),
-            ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
-          };
+    const queryConfig: Query = {
+      query,
+      ...this.getLocationOption(),
+      ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
+    };
+    if (params && params.length > 0) {
+      queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
+      queryConfig.parameterMode = 'NAMED';
+    }
 
     const [job] = await this.bigQuery.createQueryJob(queryConfig);
 

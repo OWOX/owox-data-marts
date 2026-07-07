@@ -204,7 +204,7 @@ export class QueryDataMartService {
           // query has no warehouse-side cost cap — only the app-side deadline. Adding a new storage
           // without honorsQueryTimeout will surface here.
           if (queryTimeoutMs !== undefined && !reader.honorsQueryTimeout) {
-            this.logger.debug(
+            this.logger.warn(
               `Storage ${dataMart.storage.type} does not honor queryTimeoutMs; no warehouse-side cost cap for this query.`
             );
           }

@@ -19,8 +19,7 @@ describe('MCP operation-timeout exclusions', () => {
     pathRegex: pathToRegexp(addLeadingSlash(route.path)).regexp,
   }));
 
-  const isExcluded = (url: string) =>
-    isRouteExcluded(compiled, url, RequestMethod[RequestMethod.POST]);
+  const isExcluded = (url: string) => isRouteExcluded(compiled, url, RequestMethod.POST);
 
   it('excludes the /mcp transport route and its subpaths', () => {
     expect(isExcluded('/mcp')).toBe(true);

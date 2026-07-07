@@ -108,8 +108,8 @@ export class QueryTimeoutError extends Error {
   }
 }
 
-// Client aborted (disconnect / cancel). Recorded CANCELLED, never billed. Stops the server waiting;
-// does not cancel the warehouse job.
+// Client aborted (disconnect / cancel). Recorded CANCELLED, never billed. Stops the server waiting
+// and asks the warehouse to cancel the in-flight job/statement (for storages that honor it).
 export class QueryAbortedError extends Error {
   constructor() {
     super('query_data_mart was cancelled by the client');

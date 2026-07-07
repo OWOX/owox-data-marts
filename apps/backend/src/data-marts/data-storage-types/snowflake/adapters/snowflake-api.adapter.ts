@@ -162,7 +162,14 @@ export class SnowflakeApiAdapter {
       // billing compute. The cancel triggers the complete callback with an error → the promise rejects.
       // `!settled` guards a synchronous complete (would leave a listener attached past resolve).
       if (signal && !settled) {
-        onAbort = () => statement.cancel(() => undefined);
+        onAbort = () => {
+          // Guard a driver that throws synchronously on an already-gone statement/connection.
+          try {
+            statement.cancel(() => undefined);
+          } catch {
+            /* best-effort cancel */
+          }
+        };
         if (signal.aborted) onAbort();
         else signal.addEventListener('abort', onAbort, { once: true });
       }
