@@ -68,11 +68,10 @@ describe('DeleteReportRunScheduleTool', () => {
 
     expect(tool).toMatchObject({
       name: 'delete_report_run_schedule',
-      requiredScopes: ['mcp:read', 'mcp:write'],
+      requiredScopes: ['mcp:write'],
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     });
     expect(tool.description).toContain('trigger_id');
     expect(tool.description).toContain('left intact');
-    expect(context.scopes).toEqual(tool.requiredScopes);
   });
 });

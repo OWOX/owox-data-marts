@@ -88,7 +88,7 @@ describe('CreateReportRunScheduleTool', () => {
 
     expect(tool).toMatchObject({
       name: 'create_report_run_schedule',
-      requiredScopes: ['mcp:read', 'mcp:write'],
+      requiredScopes: ['mcp:write'],
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     });
     expect(tool.description).toContain('Creates a new');
