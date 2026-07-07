@@ -52,6 +52,21 @@ To remove an existing **Destination** configuration:
 
 ---
 
+## Rotating a Data Studio Destination Secret Key
+
+Use **Rotate Secret Key** when a Data Studio Destination's JSON Config was exposed or when you need to revoke existing Data Studio connector access.
+
+1. Go to the **Destinations** page.
+2. Locate the Data Studio Destination, click the item actions menu (represented by **...**), and click **Rotate Secret Key**.
+3. Confirm the rotation. The previous key is invalidated, and the new JSON Config is copied to your clipboard.
+4. Open the Data Studio connector configuration that uses this Destination and update it with the new JSON Config.
+
+Any existing Data Studio data source that still uses the old JSON Config stops working until it is updated.
+
+![Destinations page showing the Data Studio Destination row action menu with Rotate Secret Key highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e32fc2f2-da61-4853-b522-92a7923c9f00/public)
+
+---
+
 ## Managing Owners
 
 Each Destination has an **Owners** list — the team members responsible for its configuration.
