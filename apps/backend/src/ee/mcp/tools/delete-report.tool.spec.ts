@@ -49,6 +49,15 @@ describe('DeleteReportTool', () => {
     expect(() => tool.parseInput({ report_id: 'report-1', extra: true })).toThrow();
   });
 
+  it('propagates facade errors instead of swallowing them', async () => {
+    const facade = {
+      deleteReport: jest.fn().mockRejectedValue(new Error('Report with ID report-1 not found')),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new DeleteReportTool(facade);
+
+    await expect(tool.handler({ report_id: 'report-1' }, context)).rejects.toThrow('not found');
+  });
+
   it('is registered as a destructive write tool with the mcp:write scope', () => {
     const registry = new McpToolRegistry([new DeleteReportTool({} as McpReportsFacade)]);
 

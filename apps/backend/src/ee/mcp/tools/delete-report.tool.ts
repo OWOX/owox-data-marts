@@ -19,8 +19,8 @@ export class DeleteReportTool implements McpToolDefinition<DeleteReportInput> {
     'Permanently delete a report by id. The report stops running and disappears from the project; the underlying data mart, destination, and any already-exported documents are not affected. This cannot be undone.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
-    report_id: z.string(),
-    status: z.literal('deleted'),
+    report_id: z.string().describe('Id of the deleted report'),
+    status: z.literal('deleted').describe("Always 'deleted' on success"),
   };
   readonly annotations = {
     title: 'Delete Report',
