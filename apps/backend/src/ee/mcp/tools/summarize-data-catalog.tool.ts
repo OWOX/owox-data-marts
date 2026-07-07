@@ -8,7 +8,8 @@ import {
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
-import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
+import { buildDataMartUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z.object({}).strict();
 type SummarizeDataCatalogInput = z.infer<typeof inputSchema>;

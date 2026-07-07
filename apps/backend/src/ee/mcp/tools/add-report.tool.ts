@@ -8,7 +8,8 @@ import {
 } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
-import { buildReportsUiPath, joinPublicOrigin } from './data-mart-ui-path';
+import { buildReportsUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z
   .object({

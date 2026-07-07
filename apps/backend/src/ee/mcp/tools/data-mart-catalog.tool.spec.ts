@@ -120,6 +120,7 @@ describe('ListDataMartsTool', () => {
       'AddReportTool',
       'UpdateReportTool',
       'DeleteReportTool',
+      'AddDestinationTool',
     ]);
     expect(registry.getTool('list_data_marts')).toBeDefined();
     expect(registry.getTool('query_data_mart')).toBeUndefined();

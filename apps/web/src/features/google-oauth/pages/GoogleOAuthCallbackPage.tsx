@@ -54,6 +54,7 @@ export function GoogleOAuthCallbackPage() {
         // Client-side state check (tab-scoped via sessionStorage).
         // The real CSRF protection is the server-side JWT signature in the state token.
         const storedState = sessionStorage.getItem('oauth_state');
+
         if (state !== storedState) {
           clearOAuthSessionData();
           if (

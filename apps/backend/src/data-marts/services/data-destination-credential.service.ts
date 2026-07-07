@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, LessThan } from 'typeorm';
+import { Repository, IsNull, LessThan, In } from 'typeorm';
 import { DataDestinationCredential } from '../entities/data-destination-credential.entity';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
+
+const MAX_BATCH_SIZE = 500;
 
 @Injectable()
 export class DataDestinationCredentialService {
@@ -34,6 +36,23 @@ export class DataDestinationCredentialService {
 
   async getById(id: string): Promise<DataDestinationCredential | null> {
     return this.repo.findOne({ where: { id, deletedAt: IsNull() } });
+  }
+
+  async getByIds(
+    ids: string[],
+    projectId: string
+  ): Promise<Map<string, DataDestinationCredential>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    if (ids.length > MAX_BATCH_SIZE) {
+      throw new BadRequestException(`Cannot fetch more than ${MAX_BATCH_SIZE} credentials at once`);
+    }
+
+    const entities = await this.repo.find({
+      where: { id: In(ids), projectId, deletedAt: IsNull() },
+    });
+    return new Map(entities.map(entity => [entity.id, entity]));
   }
 
   async getByProjectId(projectId: string): Promise<DataDestinationCredential[]> {

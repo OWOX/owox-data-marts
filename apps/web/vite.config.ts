@@ -45,6 +45,41 @@ export default defineConfig(({ mode }) => ({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // MCP transport (Streamable HTTP) — lets an external client (Claude Desktop/web,
+      // ChatGPT, ...) connect to this single dev-server origin instead of the bare
+      // backend port, so the same https://localhost:5173 (or its tunnel URL) works for
+      // both the /ui/* pages and the MCP endpoint.
+      '/mcp': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      // OAuth discovery documents (MCP dynamic client registration, protected-resource
+      // metadata) — served at the origin root, no /api prefix (see
+      // PROTOCOL_ROUTE_EXCLUSIONS in the backend).
+      '/.well-known': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      // The actual OAuth 2.0 protocol endpoints backing MCP dynamic client registration.
+      // Proxied by exact path, NOT a blanket '/oauth' prefix — this app's own frontend
+      // routes live under /oauth/* too (e.g. /oauth/google/callback, oauth.routes.tsx),
+      // and a blanket rule would wrongly send those to the backend instead of the SPA.
+      '/oauth/authorize': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/oauth/register': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/oauth/token': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/oauth/jwks': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
 }));

@@ -170,6 +170,7 @@ export function GoogleOAuthConnectButton({
           onSuccess?.(credentialId);
           void fetchStatus();
         } else {
+          console.error('Google OAuth callback reported failure', event.data.error);
           setConnectError(
             event.data.error ?? 'Failed to connect your Google account. Please try again.'
           );
@@ -189,6 +190,7 @@ export function GoogleOAuthConnectButton({
         }
       }, 500);
     } catch (error) {
+      console.error('Failed to start Google OAuth connection', error);
       setConnecting(false);
       setConnectError(
         error instanceof Error

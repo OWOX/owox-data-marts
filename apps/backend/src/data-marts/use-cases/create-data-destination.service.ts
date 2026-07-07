@@ -58,6 +58,7 @@ export class CreateDataDestinationService {
   @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     this.availableDestinationTypesService.verifyIsAllowed(command.type);
+    const availableForUse = command.availableForUse ?? true;
 
     // Mutual exclusion: sourceDestinationId vs credentials/credentialId
     if (command.sourceDestinationId && command.hasCredentials()) {
@@ -110,7 +111,7 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: newCredId,
         createdById: command.userId,
-        availableForUse: true,
+        availableForUse,
         availableForMaintenance: false,
         config: command.config ?? null,
       });
@@ -160,7 +161,7 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: command.credentialId,
         createdById: command.userId,
-        availableForUse: true,
+        availableForUse,
         availableForMaintenance: false,
         config: command.config ?? null,
       });
@@ -204,7 +205,7 @@ export class CreateDataDestinationService {
       projectId: command.projectId,
       credentialId: credentialRecord.id,
       createdById: command.userId,
-      availableForUse: true,
+      availableForUse,
       availableForMaintenance: false,
       config: command.config ?? null,
     });

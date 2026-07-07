@@ -22,6 +22,9 @@ import { oauthRoutes } from './oauth.routes';
 import { RootErrorBoundary, LayoutErrorBoundary } from '../components/errors';
 import { MyApiKeysPage } from '../features/api-keys/pages/MyApiKeysPage';
 import { SearchPage } from '../pages/search/SearchPage';
+import { ConnectFlowLayout } from '../layouts/ConnectFlowLayout';
+import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPage';
+import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
 
 const routes: RouteObject[] = [
   {
@@ -133,6 +136,23 @@ const routes: RouteObject[] = [
       {
         path: '*',
         element: <NotFound />,
+      },
+    ],
+  },
+  {
+    path: '/ui/:projectId/connect',
+    element: <ConnectFlowLayout />,
+    errorElement: <RootErrorBoundary />,
+    children: [
+      {
+        path: 'google-sheets',
+        element: <ConnectGoogleSheetsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'google-sheets/done',
+        element: <ConnectGoogleSheetsDonePage />,
+        errorElement: <LayoutErrorBoundary />,
       },
     ],
   },

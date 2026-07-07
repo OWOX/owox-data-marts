@@ -13,6 +13,27 @@ export interface McpDestinationListItem {
   name: string;
   type: McpDestinationType;
   owner: string | null;
+  connectedGoogleAccount?: string | null;
+  createdAt: string;
+}
+
+export interface McpCreateDestinationRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  type: McpDestinationType;
+  title?: string;
+  emails?: string[];
+}
+
+export interface McpCreateDestinationResponse {
+  id: string;
+  name: string;
+  lookerStudioCredentials?: {
+    destinationId: string;
+    destinationSecretKey: string;
+    deploymentUrl: string;
+  };
 }
 
 export interface McpListDestinationsResponse {
@@ -21,4 +42,5 @@ export interface McpListDestinationsResponse {
 
 export interface McpDataDestinationsFacade {
   listDestinations(request: McpListDestinationsRequest): Promise<McpListDestinationsResponse>;
+  createDestination(request: McpCreateDestinationRequest): Promise<McpCreateDestinationResponse>;
 }

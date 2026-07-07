@@ -9,7 +9,8 @@ import {
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
-import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
+import { buildDataMartUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 25;

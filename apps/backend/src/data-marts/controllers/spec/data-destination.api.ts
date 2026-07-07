@@ -10,6 +10,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { CreateDataDestinationApiDto } from '../../dto/presentation/create-data-destination-api.dto';
+import { CreateConnectGoogleSheetsDestinationApiDto } from '../../dto/presentation/create-connect-google-sheets-destination-api.dto';
 import { UpdateDataDestinationApiDto } from '../../dto/presentation/update-data-destination-api.dto';
 import { UpdateDestinationAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { DataDestinationResponseApiDto } from '../../dto/presentation/data-destination-response-api.dto';
@@ -38,6 +39,17 @@ export function CreateDataDestinationSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Create a new Data Destination' }),
     ApiBody({ type: CreateDataDestinationApiDto }),
+    ApiCreatedResponse({ type: DataDestinationResponseApiDto })
+  );
+}
+
+export function CreateConnectGoogleSheetsDestinationSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary:
+        'Create a Google Sheets destination from the MCP connect flow (starts unshared internally)',
+    }),
+    ApiBody({ type: CreateConnectGoogleSheetsDestinationApiDto }),
     ApiCreatedResponse({ type: DataDestinationResponseApiDto })
   );
 }

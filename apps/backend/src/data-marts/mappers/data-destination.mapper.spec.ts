@@ -43,3 +43,33 @@ describe('DataDestinationMapper - destination config normalization', () => {
     expect(command.config).toBeUndefined();
   });
 });
+
+describe('DataDestinationMapper - MCP connect Google Sheets flow', () => {
+  const mapper = new DataDestinationMapper(null as never, null as never, null as never);
+  const context = {
+    projectId: 'proj-1',
+    userId: 'user-1',
+    roles: ['viewer'],
+  } as never;
+
+  it('builds a connect-flow command that starts unshared and links the OAuth credential', () => {
+    const command = mapper.toConnectGoogleSheetsCreateCommand(context, {
+      title: 'Google Sheets (user@example.com)',
+      credentialId: 'cred-oauth-1',
+    });
+
+    expect(command).toMatchObject({
+      projectId: 'proj-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      title: 'Google Sheets (user@example.com)',
+      type: DataDestinationType.GOOGLE_SHEETS,
+      credentials: undefined,
+      credentialId: 'cred-oauth-1',
+      sourceDestinationId: undefined,
+      ownerIds: undefined,
+      config: undefined,
+      availableForUse: false,
+    });
+  });
+});
