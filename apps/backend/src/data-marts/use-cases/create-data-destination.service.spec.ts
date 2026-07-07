@@ -133,13 +133,13 @@ describe('CreateDataDestinationService', () => {
 
   it('should call syncOwners with creator userId when ownerIds not provided', async () => {
     const { service } = createService();
-    const command = new CreateDataDestinationCommand(
-      'proj-1',
-      'Test Dest',
-      DataDestinationType.LOOKER_STUDIO,
-      'user-0',
-      { type: 'looker-studio-credentials' } as never
-    );
+    const command = new CreateDataDestinationCommand({
+      projectId: 'proj-1',
+      title: 'Test Dest',
+      type: DataDestinationType.LOOKER_STUDIO,
+      userId: 'user-0',
+      credentials: { type: 'looker-studio-credentials' } as never,
+    });
 
     await service.run(command);
 
@@ -156,13 +156,13 @@ describe('CreateDataDestinationService', () => {
 
   it('should make a new destination available for use but private for maintenance by default', async () => {
     const { service } = createService();
-    const command = new CreateDataDestinationCommand(
-      'proj-1',
-      'Test Dest',
-      DataDestinationType.LOOKER_STUDIO,
-      'user-0',
-      { type: 'looker-studio-credentials' } as never
-    );
+    const command = new CreateDataDestinationCommand({
+      projectId: 'proj-1',
+      title: 'Test Dest',
+      type: DataDestinationType.LOOKER_STUDIO,
+      userId: 'user-0',
+      credentials: { type: 'looker-studio-credentials' } as never,
+    });
 
     await service.run(command);
 
@@ -175,15 +175,37 @@ describe('CreateDataDestinationService', () => {
     );
   });
 
+  it('respects an explicit availableForUse override (e.g. MCP-created destinations start unshared)', async () => {
+    const { service } = createService();
+    const command = new CreateDataDestinationCommand({
+      projectId: 'proj-1',
+      title: 'Test Dest',
+      type: DataDestinationType.LOOKER_STUDIO,
+      userId: 'user-0',
+      credentials: { type: 'looker-studio-credentials' } as never,
+      availableForUse: false,
+    });
+
+    await service.run(command);
+
+    const repository = (service as unknown as { repository: { create: jest.Mock } }).repository;
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        availableForUse: false,
+        availableForMaintenance: false,
+      })
+    );
+  });
+
   it('always validates the configured folder on create (a new folder is always "changed")', async () => {
     const { service, folderValidator } = createService();
-    const command = new CreateDataDestinationCommand(
-      'proj-1',
-      'Test Dest',
-      DataDestinationType.LOOKER_STUDIO,
-      'user-0',
-      { type: 'looker-studio-credentials' } as never
-    );
+    const command = new CreateDataDestinationCommand({
+      projectId: 'proj-1',
+      title: 'Test Dest',
+      type: DataDestinationType.LOOKER_STUDIO,
+      userId: 'user-0',
+      credentials: { type: 'looker-studio-credentials' } as never,
+    });
 
     await service.run(command);
 
@@ -193,16 +215,14 @@ describe('CreateDataDestinationService', () => {
 
   it('should call syncOwners with provided ownerIds', async () => {
     const { service } = createService();
-    const command = new CreateDataDestinationCommand(
-      'proj-1',
-      'Test Dest',
-      DataDestinationType.LOOKER_STUDIO,
-      'user-0',
-      { type: 'looker-studio-credentials' } as never,
-      undefined,
-      undefined,
-      ['user-1', 'user-2']
-    );
+    const command = new CreateDataDestinationCommand({
+      projectId: 'proj-1',
+      title: 'Test Dest',
+      type: DataDestinationType.LOOKER_STUDIO,
+      userId: 'user-0',
+      credentials: { type: 'looker-studio-credentials' } as never,
+      ownerIds: ['user-1', 'user-2'],
+    });
 
     await service.run(command);
 
@@ -225,14 +245,13 @@ describe('CreateDataDestinationService', () => {
         projectId: 'other-project',
       });
 
-      const command = new CreateDataDestinationCommand(
-        'proj-1',
-        'Test',
-        DataDestinationType.GOOGLE_SHEETS,
-        'user-0',
-        undefined,
-        'cred-1'
-      );
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
 
       await expect(service.run(command)).rejects.toThrow(
         'Credential does not belong to this project'
@@ -243,14 +262,13 @@ describe('CreateDataDestinationService', () => {
       const { service, dataDestinationCredentialService } = createService();
       dataDestinationCredentialService.getById.mockResolvedValue(null);
 
-      const command = new CreateDataDestinationCommand(
-        'proj-1',
-        'Test',
-        DataDestinationType.GOOGLE_SHEETS,
-        'user-0',
-        undefined,
-        'cred-missing'
-      );
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-missing',
+      });
 
       await expect(service.run(command)).rejects.toThrow(
         'Credential does not belong to this project'
@@ -263,16 +281,16 @@ describe('CreateDataDestinationService', () => {
       dataDestinationCredentialService.getById.mockResolvedValue({
         id: 'cred-1',
         projectId: 'proj-1',
+        createdById: 'user-0',
       });
 
-      const command = new CreateDataDestinationCommand(
-        'proj-1',
-        'Test',
-        DataDestinationType.GOOGLE_SHEETS,
-        'user-0',
-        undefined,
-        'cred-1'
-      );
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
 
       const result = await service.run(command);
 
@@ -280,6 +298,56 @@ describe('CreateDataDestinationService', () => {
         googleOAuthClientService.getDestinationOAuth2ClientByCredentialId
       ).toHaveBeenCalledWith('cred-1');
       expect(result).toEqual({ id: 'dest-1' });
+    });
+
+    it('persists availableForUse=false for the MCP connect Google Sheets command shape', async () => {
+      const { service, dataDestinationCredentialService, repository } = createService();
+      dataDestinationCredentialService.getById.mockResolvedValue({
+        id: 'cred-oauth-1',
+        projectId: 'proj-1',
+        createdById: 'user-0',
+      });
+
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Google Sheets (user@example.com)',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-oauth-1',
+        roles: ['viewer'],
+        availableForUse: false,
+      });
+
+      await service.run(command);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: DataDestinationType.GOOGLE_SHEETS,
+          credentialId: 'cred-oauth-1',
+          availableForUse: false,
+          availableForMaintenance: false,
+        })
+      );
+    });
+
+    it('rejects an unlinked credential created by another same-project user', async () => {
+      const { service, dataDestinationCredentialService, repository } = createService();
+      dataDestinationCredentialService.getById.mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        createdById: 'user-1',
+      });
+      repository.findOne.mockResolvedValue(null);
+
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
+
+      await expect(service.run(command)).rejects.toThrow('Credential does not belong to this user');
     });
 
     it('rejects credential already linked to another destination when caller lacks COPY_CREDENTIALS', async () => {
@@ -292,14 +360,13 @@ describe('CreateDataDestinationService', () => {
       repository.findOne.mockResolvedValue({ id: 'existing-dest', credentialId: 'cred-1' });
       accessDecisionService.canAccess.mockResolvedValue(false);
 
-      const command = new CreateDataDestinationCommand(
-        'proj-1',
-        'Test',
-        DataDestinationType.GOOGLE_SHEETS,
-        'user-0',
-        undefined,
-        'cred-1'
-      );
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
 
       await expect(service.run(command)).rejects.toThrow(
         'You do not have permission to copy credentials from this destination'
@@ -329,14 +396,13 @@ describe('CreateDataDestinationService', () => {
       repository.findOne.mockResolvedValue({ id: 'existing-dest', credentialId: 'cred-1' });
       accessDecisionService.canAccess.mockResolvedValue(true);
 
-      const command = new CreateDataDestinationCommand(
-        'proj-1',
-        'Test',
-        DataDestinationType.GOOGLE_SHEETS,
-        'user-0',
-        undefined,
-        'cred-1'
-      );
+      const command = new CreateDataDestinationCommand({
+        projectId: 'proj-1',
+        title: 'Test',
+        type: DataDestinationType.GOOGLE_SHEETS,
+        userId: 'user-0',
+        credentialId: 'cred-1',
+      });
 
       const result = await service.run(command);
 

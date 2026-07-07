@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
+import { CreateConnectGoogleSheetsDestinationApiDto } from '../dto/presentation/create-connect-google-sheets-destination-api.dto';
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
@@ -35,6 +36,7 @@ import { GoogleOAuthSettingsResponseDto } from '../dto/presentation/google-oauth
 
 import {
   CreateDataDestinationSpec,
+  CreateConnectGoogleSheetsDestinationSpec,
   DeleteDataDestinationSpec,
   GetDataDestinationImpactSpec,
   GetDataDestinationSpec,
@@ -121,6 +123,18 @@ export class DataDestinationController {
     @Body() dto: CreateDataDestinationApiDto
   ): Promise<DataDestinationResponseApiDto> {
     const command = this.mapper.toCreateCommand(context, dto);
+    const dataDestinationDto = await this.createService.run(command);
+    return await this.mapper.toApiResponse(dataDestinationDto);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Post('connect/google-sheets')
+  @CreateConnectGoogleSheetsDestinationSpec()
+  async createConnectGoogleSheets(
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto: CreateConnectGoogleSheetsDestinationApiDto
+  ): Promise<DataDestinationResponseApiDto> {
+    const command = this.mapper.toConnectGoogleSheetsCreateCommand(context, dto);
     const dataDestinationDto = await this.createService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
   }

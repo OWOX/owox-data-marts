@@ -1,11 +1,15 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
-import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
+import {
+  CreateDataDestinationCommand,
+  CreateDataDestinationCommandProps,
+} from '../dto/domain/create-data-destination.command';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
 import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationCredentialsUtils } from '../data-destination-types/data-destination-credentials.utils';
 import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command';
 import { GetDestinationOAuthStatusCommand } from '../dto/domain/google-oauth/get-destination-oauth-status.command';
@@ -16,6 +20,7 @@ import { ExchangeOAuthCodeCommand } from '../dto/domain/google-oauth/exchange-oa
 import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
+import { CreateConnectGoogleSheetsDestinationApiDto } from '../dto/presentation/create-connect-google-sheets-destination-api.dto';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
 import { DataDestinationResponseApiDto } from '../dto/presentation/data-destination-response-api.dto';
 import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
@@ -43,22 +48,45 @@ export class DataDestinationMapper {
     private readonly publicOriginService: PublicOriginService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService
   ) {}
+
+  private buildCreateCommand(
+    context: AuthorizationContext,
+    options: Omit<CreateDataDestinationCommandProps, 'projectId' | 'userId' | 'roles'>
+  ): CreateDataDestinationCommand {
+    return new CreateDataDestinationCommand({
+      ...options,
+      projectId: context.projectId,
+      userId: context.userId,
+      roles: context.roles ?? [],
+    });
+  }
+
   toCreateCommand(
     context: AuthorizationContext,
     dto: CreateDataDestinationApiDto
   ): CreateDataDestinationCommand {
-    return new CreateDataDestinationCommand(
-      context.projectId,
-      dto.title,
-      dto.type,
-      context.userId,
-      dto.credentials,
-      dto.credentialId,
-      dto.sourceDestinationId,
-      dto.ownerIds,
-      context.roles ?? [],
-      this.normalizeDestinationConfig(dto.config)
-    );
+    return this.buildCreateCommand(context, {
+      title: dto.title,
+      type: dto.type,
+      credentials: dto.credentials,
+      credentialId: dto.credentialId,
+      sourceDestinationId: dto.sourceDestinationId,
+      ownerIds: dto.ownerIds,
+      config: this.normalizeDestinationConfig(dto.config),
+    });
+  }
+
+  toConnectGoogleSheetsCreateCommand(
+    context: AuthorizationContext,
+    dto: CreateConnectGoogleSheetsDestinationApiDto
+  ): CreateDataDestinationCommand {
+    return this.buildCreateCommand(context, {
+      title: dto.title,
+      type: DataDestinationType.GOOGLE_SHEETS,
+      credentialId: dto.credentialId,
+      // MCP-driven connect flow — starts unshared; not client-controlled.
+      availableForUse: false,
+    });
   }
 
   toUpdateCommand(

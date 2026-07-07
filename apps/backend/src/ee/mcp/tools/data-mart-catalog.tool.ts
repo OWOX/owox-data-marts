@@ -8,7 +8,8 @@ import {
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
-import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
+import { buildDataMartUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 type ListDataMartsInput = Record<string, never>;
 

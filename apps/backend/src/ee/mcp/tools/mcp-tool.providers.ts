@@ -15,6 +15,7 @@ import { SearchDataMartsTool } from './search-data-marts.tool';
 import { SummarizeDataCatalogTool } from './summarize-data-catalog.tool';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 import { UpdateReportTool } from './update-report.tool';
+import { AddDestinationTool } from './add-destination.tool';
 
 export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   SummarizeDataCatalogTool,
@@ -32,6 +33,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   AddReportTool,
   UpdateReportTool,
   DeleteReportTool,
+  AddDestinationTool,
 ];
 
 export const MCP_TOOL_DEFINITIONS_PROVIDER: Provider = {

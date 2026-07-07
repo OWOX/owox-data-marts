@@ -22,11 +22,8 @@ import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
 import { Toaster as SonnerToaster } from '@owox/ui/components/sonner';
 import { Toaster as HotToaster } from '../shared/components/Toaster';
-import { AuthGuard } from '../features/idp';
-import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
-import { ProjectRoleGuard } from '../features/idp/components/ProjectRoleGuard';
 import { useUser } from '../features/idp/hooks';
-import { ProjectsProvider } from '../features/idp/context/ProjectsContext';
+import { ProjectAuthGuards } from './ProjectAuthGuards';
 import { Separator } from '@owox/ui/components/separator';
 import { ArchiveRestore, Box, DatabaseIcon, LockKeyhole } from 'lucide-react';
 import { HelpMenu } from '../components/AppSidebar/HelpMenu';
@@ -115,31 +112,25 @@ function MainLayoutContent() {
       {/* Legacy react-hot-toast Toaster to keep previously configured toasts working */}
       <HotToaster />
       <GlobalLoader isLoading={isLoading} />
-      <AuthGuard>
-        <ProjectIdGuard>
-          <ProjectRoleGuard>
-            <ProjectsProvider>
-              {user && hasEmptyProjectRoles ? (
-                <>
-                  <RestrictedProjectSidebar />
-                  <SidebarInset className='min-w-0'>
-                    {showTrigger && <SidebarTrigger />}
-                    <Outlet />
-                  </SidebarInset>
-                </>
-              ) : (
-                <>
-                  <AppSidebar variant='inset' collapsible='icon' />
-                  <SidebarInset className='min-w-0'>
-                    {showTrigger && <SidebarTrigger />}
-                    <Outlet />
-                  </SidebarInset>
-                </>
-              )}
-            </ProjectsProvider>
-          </ProjectRoleGuard>
-        </ProjectIdGuard>
-      </AuthGuard>
+      <ProjectAuthGuards>
+        {user && hasEmptyProjectRoles ? (
+          <>
+            <RestrictedProjectSidebar />
+            <SidebarInset className='min-w-0'>
+              {showTrigger && <SidebarTrigger />}
+              <Outlet />
+            </SidebarInset>
+          </>
+        ) : (
+          <>
+            <AppSidebar variant='inset' collapsible='icon' />
+            <SidebarInset className='min-w-0'>
+              {showTrigger && <SidebarTrigger />}
+              <Outlet />
+            </SidebarInset>
+          </>
+        )}
+      </ProjectAuthGuards>
     </>
   );
 }

@@ -65,6 +65,17 @@ export class DataDestinationService extends ApiService {
   }
 
   /**
+   * MCP connect-flow: creates a Google Sheets destination after OAuth.
+   * Sharing defaults are enforced server-side (not client-controlled).
+   */
+  async createConnectGoogleSheetsDestination(data: {
+    title: string;
+    credentialId: string;
+  }): Promise<DataDestinationResponseDto> {
+    return this.post<DataDestinationResponseDto>('/connect/google-sheets', data);
+  }
+
+  /**
    * Update an existing data destination
    * @param id Data destination ID
    * @param data Data to update
