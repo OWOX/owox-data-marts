@@ -93,7 +93,7 @@ describe('UpdateReportRunScheduleTool', () => {
 
     expect(tool).toMatchObject({
       name: 'update_report_run_schedule',
-      requiredScopes: ['mcp:read', 'mcp:write'],
+      requiredScopes: ['mcp:write'],
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     });
     expect(tool.description).toContain('Updates one existing');
