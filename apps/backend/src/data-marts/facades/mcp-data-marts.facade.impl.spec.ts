@@ -10,6 +10,10 @@ jest.mock('../use-cases/get-data-mart.service', () => ({
   GetDataMartService: jest.fn(),
 }));
 
+jest.mock('../use-cases/summarize-mcp-data-catalog.service', () => ({
+  SummarizeMcpDataCatalogService: jest.fn(),
+}));
+
 import { NotFoundException } from '@nestjs/common';
 import { BigQueryFieldMode } from '../data-storage-types/bigquery/enums/bigquery-field-mode.enum';
 import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
@@ -25,6 +29,7 @@ import type { ListDataMartsService } from '../use-cases/list-data-marts.service'
 import type { QueryDataMartService } from '../use-cases/query-data-mart.service';
 import type { BlendableSchemaService } from '../services/blendable-schema.service';
 import type { DataMartRelationshipService } from '../services/data-mart-relationship.service';
+import type { SummarizeMcpDataCatalogService } from '../use-cases/summarize-mcp-data-catalog.service';
 import { McpDataMartsFacadeImpl } from './mcp-data-marts.facade.impl';
 
 describe('McpDataMartsFacadeImpl', () => {
@@ -71,6 +76,15 @@ describe('McpDataMartsFacadeImpl', () => {
         .mockResolvedValue(Array.from({ length: relationshipCount }, () => ({}))),
     }) as unknown as jest.Mocked<DataMartRelationshipService>;
 
+  const createSummarizeMcpDataCatalogService = () =>
+    ({
+      run: jest.fn().mockResolvedValue({
+        projectId: 'project-1',
+        dataMartCount: 0,
+        topDataMartsByConnectivity: [],
+      }),
+    }) as unknown as jest.Mocked<SummarizeMcpDataCatalogService>;
+
   it('lists data marts using project-member context', async () => {
     const listDataMartsService = createListDataMartsService([
       new DataMartListItemDto(
@@ -94,7 +108,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       queryDataMartService,
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
 
     const result = await facade.listDataMarts({
@@ -214,7 +229,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       createQueryDataMartService(),
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
 
     await expect(
@@ -286,7 +302,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       createQueryDataMartService(),
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
 
     await expect(
@@ -315,7 +332,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       createQueryDataMartService(),
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
 
     await expect(
@@ -395,7 +413,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       createQueryDataMartService(),
       blendableSchemaService,
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
 
     const result = await facade.getDataMartDetails({
@@ -447,7 +466,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       createQueryDataMartService(),
       blendableSchemaService,
-      createRelationshipService(0)
+      createRelationshipService(0),
+      createSummarizeMcpDataCatalogService()
     );
 
     const result = await facade.getDataMartDetails({
@@ -478,7 +498,8 @@ describe('McpDataMartsFacadeImpl', () => {
       dataMartService,
       createQueryDataMartService(),
       blendableSchemaService,
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
 
     const result = await facade.getDataMartDetails({

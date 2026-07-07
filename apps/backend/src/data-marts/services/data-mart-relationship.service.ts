@@ -12,12 +12,17 @@ import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { JoinCondition } from '../dto/schemas/join-condition.schema';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { DataMartRelationshipGraphEdgeDto } from '../dto/domain/data-mart-relationship-graph-edge.dto';
+import { DataMartRelationshipRepository } from '../repositories/data-mart-relationship.repository';
 
 @Injectable()
 export class DataMartRelationshipService {
   constructor(
     @InjectRepository(DataMartRelationship)
-    private readonly repository: Repository<DataMartRelationship>
+    private readonly repository: Repository<DataMartRelationship>,
+    private readonly relationshipRepository: DataMartRelationshipRepository,
+    private readonly mapper: RelationshipMapper
   ) {}
 
   async create(
@@ -45,6 +50,20 @@ export class DataMartRelationshipService {
       where: { sourceDataMart: { id: sourceDataMartId } },
       order: { createdAt: 'ASC' },
     });
+  }
+
+  async findGraphEdgesByProjectIdAndSourceDataMartIds(
+    projectId: string,
+    sourceDataMartIds: string[]
+  ): Promise<DataMartRelationshipGraphEdgeDto[]> {
+    if (sourceDataMartIds.length === 0) return [];
+
+    const rows = await this.relationshipRepository.listGraphEdgeRowsByProjectIdAndSourceDataMartIds(
+      projectId,
+      sourceDataMartIds
+    );
+
+    return rows.map(row => this.mapper.toGraphEdgeDto(row));
   }
 
   async findSourceDataMartIdsByTargetDataMartId(

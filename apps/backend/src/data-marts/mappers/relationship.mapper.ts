@@ -15,9 +15,11 @@ import {
 import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
 import { RelationshipGraphResponseApiDto } from '../dto/presentation/relationship-graph-response-api.dto';
-import { JoinCondition } from '../dto/schemas/join-condition.schema';
+import { JoinCondition, JoinConditionsSchema } from '../dto/schemas/join-condition.schema';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
+import { DataMartRelationshipGraphEdgeDto } from '../dto/domain/data-mart-relationship-graph-edge.dto';
+import type { DataMartRelationshipGraphEdgeRow } from '../repositories/data-mart-relationship.repository';
 
 @Injectable()
 export class RelationshipMapper {
@@ -158,10 +160,24 @@ export class RelationshipMapper {
     };
   }
 
+  toGraphEdgeDto(row: DataMartRelationshipGraphEdgeRow): DataMartRelationshipGraphEdgeDto {
+    return new DataMartRelationshipGraphEdgeDto(
+      row.id,
+      row.sourceDataMartId,
+      row.targetDataMartId,
+      this.parseJoinConditions(row.joinConditions)
+    );
+  }
+
   private toJoinCondition(dto: JoinConditionApiDto): JoinCondition {
     return {
       sourceFieldName: dto.sourceFieldName,
       targetFieldName: dto.targetFieldName,
     };
+  }
+
+  private parseJoinConditions(value: unknown): JoinCondition[] {
+    const raw = typeof value === 'string' ? JSON.parse(value) : value;
+    return JoinConditionsSchema.parse(raw);
   }
 }

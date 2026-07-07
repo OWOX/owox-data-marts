@@ -105,6 +105,7 @@ describe('ListDataMartsTool', () => {
       },
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
+      'SummarizeDataCatalogTool',
       'ListDataMartsTool',
       'SearchDataMartsTool',
       'GetDataMartDetailsTool',

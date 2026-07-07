@@ -10,6 +10,12 @@ export interface McpListDataMartsRequest {
   roles: string[];
 }
 
+export interface McpSummarizeDataCatalogRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+}
+
 export interface McpGetDataMartDetailsRequest extends McpListDataMartsRequest {
   dataMartId: string;
 }
@@ -61,8 +67,27 @@ export interface McpQueryDataMartResponse {
   totals: Record<string, number | string | boolean | null> | null;
 }
 
+export interface McpDataCatalogSummaryItem {
+  id: string;
+  title: string;
+  description: string;
+  relationshipCount: number;
+  reportsCount: number;
+  triggersCount: number;
+  updatedAt: string;
+}
+
+export interface McpDataCatalogSummaryResponse {
+  projectId: string;
+  dataMartCount: number;
+  topDataMartsByConnectivity: McpDataCatalogSummaryItem[];
+}
+
 export interface McpDataMartsFacade {
   listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse>;
   getDataMartDetails(request: McpGetDataMartDetailsRequest): Promise<McpDataMartDetailsResponse>;
   queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse>;
+  summarizeDataCatalog(
+    request: McpSummarizeDataCatalogRequest
+  ): Promise<McpDataCatalogSummaryResponse>;
 }

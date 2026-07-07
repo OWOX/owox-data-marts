@@ -9,6 +9,8 @@ import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataStorage } from '../entities/data-storage.entity';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { DataMartRelationshipRepository } from '../repositories/data-mart-relationship.repository';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 
 function makeRelationship(
@@ -34,6 +36,7 @@ function makeRelationship(
 describe('DataMartRelationshipService', () => {
   let service: DataMartRelationshipService;
   let repository: jest.Mocked<Repository<DataMartRelationship>>;
+  let relationshipRepository: jest.Mocked<DataMartRelationshipRepository>;
 
   beforeEach(async () => {
     const mockRepository: Partial<jest.Mocked<Repository<DataMartRelationship>>> = {
@@ -44,19 +47,28 @@ describe('DataMartRelationshipService', () => {
       remove: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
+    const mockRelationshipRepository: Partial<jest.Mocked<DataMartRelationshipRepository>> = {
+      listGraphEdgeRowsByProjectIdAndSourceDataMartIds: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DataMartRelationshipService,
+        RelationshipMapper,
         {
           provide: getRepositoryToken(DataMartRelationship),
           useValue: mockRepository,
+        },
+        {
+          provide: DataMartRelationshipRepository,
+          useValue: mockRelationshipRepository,
         },
       ],
     }).compile();
 
     service = module.get<DataMartRelationshipService>(DataMartRelationshipService);
     repository = module.get(getRepositoryToken(DataMartRelationship));
+    relationshipRepository = module.get(DataMartRelationshipRepository);
   });
 
   describe('validateNoSelfReference', () => {
@@ -95,6 +107,48 @@ describe('DataMartRelationshipService', () => {
         order: { createdAt: 'ASC' },
       });
       expect(result).toBe(expected);
+    });
+  });
+
+  describe('findGraphEdgesByProjectIdAndSourceDataMartIds', () => {
+    it('maps compact graph edge rows from the relationship repository', async () => {
+      relationshipRepository.listGraphEdgeRowsByProjectIdAndSourceDataMartIds.mockResolvedValue([
+        {
+          id: 'rel-1',
+          sourceDataMartId: 'dm-1',
+          targetDataMartId: 'dm-2',
+          joinConditions: JSON.stringify([{ sourceFieldName: 'id', targetFieldName: 'id' }]),
+        },
+      ]);
+
+      const result = await service.findGraphEdgesByProjectIdAndSourceDataMartIds('project-1', [
+        'dm-1',
+        'dm-3',
+      ]);
+
+      expect(repository.find).not.toHaveBeenCalled();
+      expect(
+        relationshipRepository.listGraphEdgeRowsByProjectIdAndSourceDataMartIds
+      ).toHaveBeenCalledWith('project-1', ['dm-1', 'dm-3']);
+      expect(result).toEqual([
+        {
+          id: 'rel-1',
+          sourceDataMartId: 'dm-1',
+          targetDataMartId: 'dm-2',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+        },
+      ]);
+    });
+
+    it('does not query repository when source list is empty', async () => {
+      await expect(
+        service.findGraphEdgesByProjectIdAndSourceDataMartIds('project-1', [])
+      ).resolves.toEqual([]);
+
+      expect(repository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(
+        relationshipRepository.listGraphEdgeRowsByProjectIdAndSourceDataMartIds
+      ).not.toHaveBeenCalled();
     });
   });
 
