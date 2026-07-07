@@ -33,7 +33,7 @@ export class DeleteReportRunScheduleTool implements McpToolDefinition<DeleteRepo
     destructiveHint: true,
     openWorldHint: false,
   };
-  readonly requiredScopes: McpScope[] = ['mcp:write'];
+  readonly requiredScopes: McpScope[] = ['mcp:read', 'mcp:write'];
 
   constructor(
     @Inject(MCP_SCHEDULED_TRIGGERS_FACADE)
