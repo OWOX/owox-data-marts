@@ -2,7 +2,7 @@
 
 Summarize Data Mart data directly in a report — group by dimensions, apply aggregate functions to metrics, bucket dates, and get grand totals — without writing any SQL. OWOX builds the correct `GROUP BY` query for your storage and returns compact, ready-to-read numbers instead of raw rows.
 
-> 💡 Aggregation runs **server-side in your data warehouse**, so the report returns one row per dimension combination (plus a separate totals block) rather than every underlying row. This keeps results small enough for Google Sheets and AI tools, and every number is backed by a query — nothing is recomputed downstream.
+> 💡 Aggregation runs **server-side in your data warehouse**, so the report returns one row per dimension combination (plus a separate totals block via the data API) rather than every underlying row. This keeps results small enough for Google Sheets and AI tools, and every number is backed by a query — nothing is recomputed downstream.
 
 ## What You Can Do
 
@@ -45,11 +45,12 @@ The supported menu and on-by-default subset per type:
 | Numeric         | `SUM`, `AVG`, `MIN`, `MAX` | percentiles (`P25`/`P50`/`P75`/`P95`), `ANY_VALUE` |
 | Date / time     | `MIN`, `MAX`            | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` |
 | Text            | `COUNT`, `COUNT_DISTINCT` | `MIN`, `MAX`, `STRING_AGG`, `ANY_VALUE`        |
-| Boolean / other | `COUNT`, `COUNT_DISTINCT` | `ANY_VALUE`                                    |
+| Boolean         | `COUNT`, `COUNT_DISTINCT` | `ANY_VALUE`                                    |
+| Other (JSON, geography, array, struct, …) | `COUNT` | `ANY_VALUE`                                    |
 
 Note that `COUNT` / `COUNT_DISTINCT` are not offered for numeric fields, and `SUM` / `AVG` / percentiles are not offered for non-numeric fields. A report can only request a function the field allows.
 
-<!-- TODO(screenshot): Data Mart schema field row showing the "Allowed aggregations" selector open, with some functions checked and the "off all" state — illustrates per-field governance. -->
+![Data Mart "CRM Data" on the Data Setup tab with the Output Schema section expanded. The field table has Name, Type, Mode, PK, and a "Σ available" column; an arrow points to the "available" header. The order_timestamp (TIMESTAMP) row has its allowed-aggregations dropdown open, showing MIN and MAX checked with ANY_VALUE, COUNT, COUNT_DISTINCT, and STRING_AGG also available.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b87a0c7b-4012-4063-79cd-f7e5081ccc00/public)
 
 ## Report Level: Aggregate a Column
 
@@ -57,7 +58,7 @@ In the report's **Columns** picker, each eligible field shows a Σ (aggregation)
 
 > `revenue` with `SUM` → output column **`revenue | SUM`**
 
-<!-- TODO(screenshot): Report Columns picker with the Σ aggregation control open on a metric field (e.g. revenue), showing the function list — illustrates applying an aggregation at report level. -->
+![Google Sheets report with the OWOX Data Marts side panel open. The AGGREGATIONS list shows one entry — order_id aggregated by Max — and the order_id column row carries a Σ icon. An arrow points to the resulting "order_id | MAX" output column header in the sheet.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4969dedd-fb39-4b3a-cb3d-7f489423aa00/public)
 
 ### Aggregate Function Reference
 
@@ -80,7 +81,7 @@ Which functions appear depends on the field type and the Data Mart's **allowed a
 
 You can apply several functions to one column — for example `SUM` and `AVG` of `amount`. Each function produces its own output column (`amount | SUM`, `amount | AVG`), so you can compare them side by side in a single report.
 
-<!-- TODO(screenshot): a column with two aggregations applied (SUM + AVG), showing the two resulting output-column chips/labels. -->
+![Google Sheets report with the OWOX Data Marts side panel open. The AGGREGATIONS list shows four entries for the revenue field — aggregated by Sum, Average, Min, and Max. The sheet shows corresponding output columns revenue | SUM, revenue | AVG, revenue | MIN, and revenue | MAX with matching values in each row.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d6c5e5e2-e570-4501-9f6d-8ee1f9903e00/public)
 
 ## Group By (Dimensions)
 
@@ -90,15 +91,17 @@ Grouping is implicit: every selected column that has **no** aggregation becomes 
 
 To answer questions like *"revenue by month"* or *"sessions by week"*, bucket a date or timestamp dimension instead of grouping by the raw (daily) value. Choose a granularity — **Day, Week, Month, Quarter, or Year** — for the date column. For **timestamp/datetime** columns you can optionally set an **IANA time zone** (for example, `America/New_York`) so values are converted to that zone before truncation; without one, no conversion is applied. (Pure `DATE` columns have no time-of-day, so no time zone applies.)
 
-<!-- TODO(screenshot): date-bucketing control on a date/timestamp column showing the granularity options (Day/Week/Month/Quarter/Year) and the optional time-zone field. -->
+![Edit report panel with a popover open on the order_timestamp column. "Group by bucket" is set to WEEK and "Time zone (optional)" to America/New_York, with "Or aggregate by" Min/Max checkboxes below. An arrow points to the Group by bucket dropdown.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3230bcf4-f40a-478e-b174-be28be8d6a00/public)
 
-## Unique Count
+## Unique count
 
 The **Unique count** row (at the bottom of the Data Mart's field list) adds a `COUNT(DISTINCT <primary key>)` metric to the report. It counts unique entities by the Data Mart's primary key, including composite keys.
 
+> Not to be confused with the per-column **Count Unique** (`COUNT_DISTINCT`) aggregation above — Unique count is a single report-wide metric keyed on the primary key, not applied to an individual column.
+>
 > ⚠️ Unique count requires the Data Mart to have a primary key. If no primary key is defined, the option is not offered.
 
-<!-- TODO(screenshot): the "Unique count" row at the bottom of the Data Mart field list, checked, with the Σ indicator. -->
+![Create new report panel with the column list scrolled to the bottom. A checked "Unique count" row appears below the fields with a Σ icon, and a tooltip reads "Auto-generated column — counts the distinct values of the primary key." An arrow points to the Unique count checkbox.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/28565768-b0c0-4f3b-c17c-51b224b56f00/public)
 
 ## Auto Row Count
 
@@ -110,11 +113,13 @@ Whenever a report is aggregated, OWOX automatically adds a **`Row Count`** colum
 
 Totals are produced even when the report itself is not grouped, and they cover numeric fields from joined Data Marts as well. `Row Count` and `Unique count` are not part of Totals.
 
-<!-- TODO(screenshot): report output (e.g. Google Sheets) showing the grouped rows plus the separate grand-totals block/row. -->
+> ⚠️ Totals are returned in the report **data API** (used by the MCP server and HTTP destinations), not written into Google Sheets or Looker Studio report output.
 
 ## View Generated SQL
 
 The SQL OWOX builds for an aggregated report is fully transparent — preview it from the report to see the exact `GROUP BY`, aggregate expressions, and date-truncation per your storage dialect, or copy it into a standalone SQL-based Data Mart.
+
+![Data Mart "Orders" on the Destinations tab with the Google Sheets section expanded, showing one "Google Sheets report" row. An arrow points to the Preview SQL icon button in the row's actions, with a "Preview SQL" tooltip visible.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/112a1da6-5bbd-4825-19ad-a7b50d37f700/public)
 
 ## Limitations and Considerations
 
