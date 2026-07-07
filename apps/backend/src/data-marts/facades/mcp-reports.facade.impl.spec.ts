@@ -11,6 +11,7 @@ jest.mock('../use-cases/google-sheets/create-google-sheet-document.service', () 
 jest.mock('../services/data-mart.service', () => ({ DataMartService: jest.fn() }));
 jest.mock('../use-cases/get-report.service', () => ({ GetReportService: jest.fn() }));
 jest.mock('../use-cases/update-report.service', () => ({ UpdateReportService: jest.fn() }));
+jest.mock('../use-cases/delete-report.service', () => ({ DeleteReportService: jest.fn() }));
 jest.mock('../services/output-controls-validator.service', () => ({
   OutputControlsValidatorService: jest.fn(),
 }));
@@ -35,6 +36,7 @@ import type { DataMartService } from '../services/data-mart.service';
 import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import type { GetReportService } from '../use-cases/get-report.service';
 import type { UpdateReportService } from '../use-cases/update-report.service';
+import type { DeleteReportService } from '../use-cases/delete-report.service';
 import { McpReportsFacadeImpl } from './mcp-reports.facade.impl';
 
 function buildReport(overrides: {
@@ -118,6 +120,9 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
   const updateReportService = {
     run: jest.fn(),
   } as unknown as jest.Mocked<UpdateReportService>;
+  const deleteReportService = {
+    run: jest.fn(),
+  } as unknown as jest.Mocked<DeleteReportService>;
   const facade = new McpReportsFacadeImpl(
     listReportsByDataMartService,
     scheduledTriggerService,
@@ -127,7 +132,8 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
     accessDecisionService,
     outputControlsValidator,
     getReportService,
-    updateReportService
+    updateReportService,
+    deleteReportService
   );
   return {
     facade,
@@ -140,6 +146,7 @@ function buildFacade(reports: ReportDto[], triggers: DataMartScheduledTrigger[])
     outputControlsValidator,
     getReportService,
     updateReportService,
+    deleteReportService,
   };
 }
 
@@ -609,5 +616,38 @@ describe('McpReportsFacadeImpl.updateReport', () => {
       'not found'
     );
     expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+});
+
+describe('McpReportsFacadeImpl.deleteReport', () => {
+  const deleteRequest = {
+    reportId: 'report-1',
+    projectId: 'project-1',
+    userId: 'user-1',
+    roles: ['editor'],
+  };
+
+  it('deletes the report and synthesizes the confirmation shape', async () => {
+    const { facade, deleteReportService } = buildFacade([], []);
+    deleteReportService.run.mockResolvedValue(undefined);
+
+    const result = await facade.deleteReport(deleteRequest);
+
+    expect(deleteReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'report-1',
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['editor'],
+      })
+    );
+    expect(result).toEqual({ report_id: 'report-1', status: 'deleted' });
+  });
+
+  it('propagates a not-found error instead of reporting success', async () => {
+    const { facade, deleteReportService } = buildFacade([], []);
+    deleteReportService.run.mockRejectedValue(new Error('Report with ID report-1 not found'));
+
+    await expect(facade.deleteReport(deleteRequest)).rejects.toThrow('not found');
   });
 });

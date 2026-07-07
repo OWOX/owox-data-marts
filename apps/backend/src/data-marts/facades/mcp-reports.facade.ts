@@ -87,6 +87,18 @@ export interface McpUpdateReportResult {
   status: 'updated';
 }
 
+export interface McpDeleteReportRequest {
+  reportId: string;
+  projectId: string;
+  userId: string;
+  roles: string[];
+}
+
+export interface McpDeleteReportResult {
+  report_id: string;
+  status: 'deleted';
+}
+
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
   /**
@@ -104,4 +116,11 @@ export interface McpReportsFacade {
    * rejected by the implementation, independent of the tool-layer validation.
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
+  /**
+   * Deletes a report. Deleting an unknown id is a not-found error, not a
+   * no-op. The domain service returns void, so the result status is
+   * synthesized; external cleanup (e.g. Google Sheets metadata) runs
+   * asynchronously via the report.deleted event and is not awaited.
+   */
+  deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult>;
 }
