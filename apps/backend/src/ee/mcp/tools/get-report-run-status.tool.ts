@@ -30,13 +30,13 @@ const RUN_LONGER_THAN_USUAL_MINUTES = 10;
 const RUN_LIKELY_STUCK_MINUTES = 30;
 
 const KEEP_POLLING_MESSAGE =
-  'The report run has not finished yet — a "running" status is normal and expected, even after many checks, because report runs routinely take several minutes. Call get_report_run_status with the same report_id and run_id again: if you can wait between tool calls, wait up to 15 seconds; if you cannot wait, call it again right away rather than ending your reply. Do not stop polling on your own initiative, do not report a failure, and do not stop just to ask whether to continue (if the user explicitly asks you to stop, then stop) — only a "success" or "failed" status ends the polling.';
+  'The report run has not finished yet — a "running" status is normal and expected, even after many checks, because report runs routinely take several minutes. Call get_report_run_status with the same report_id and run_id again: if you can wait between tool calls, wait up to 15 seconds; if you cannot wait, call it again right away rather than ending your reply. Do not stop polling on your own initiative, do not report a failure, and do not stop just to ask whether to continue (if the user explicitly asks you to stop, then stop) — only a terminal status ("success", "failed", "cancelled", "interrupted", or "restricted") ends the polling.';
 
 @Injectable()
 export class GetReportRunStatusTool implements McpToolDefinition<GetReportRunStatusInput> {
   readonly name = 'get_report_run_status';
   readonly description =
-    'Get the current status of a report run started with run_report, identified by report_id and the run_id it returned. Report runs routinely take several minutes (large datasets can take longer), so keep polling while should_poll is true and stop when should_poll is false; terminal runs return status "success" or "failed". If you can wait between tool calls, poll about every 15 seconds; if your environment cannot wait between calls, call again immediately instead — an immediate re-check is always better than stopping, and never end your reply just to wait for the run. A "running" status is normal and expected even after many checks in a row: it is not an error and not a reason to stop polling or report a failure (stop early only if the user explicitly asks). If a status check itself errors (timeout, network error, 5xx), that says nothing about the run — retry the check. The message field tells you what to do next, including when to warn the user that a run is taking longer than usual and when to treat it as stuck and stop polling. stop_reason is set only when status is still "running" but should_poll is false, such as queued_too_long or running_too_long. queued_at is when the run was created; started_at is null until execution starts. raw_status exposes the backend terminal state (for example CANCELLED, INTERRUPTED, or RESTRICTED) even though status stays simplified for polling. error is populated only when status is "failed".';
+    'Get the current status of a report run started with run_report, identified by report_id and the run_id it returned. Report runs routinely take several minutes, so keep polling while should_poll is true and stop when should_poll is false; terminal statuses are "success", "failed", "cancelled", "interrupted", and "restricted". If you can wait between tool calls, poll about every 15 seconds; otherwise call again immediately. The message field tells you what to do next, including when to warn that a run is taking longer than usual and when to treat it as stuck and stop polling. stop_reason is set only when status is still "running" but should_poll is false, such as queued_too_long or running_too_long. queued_at is when the run was created; started_at is null until execution starts. raw_status exposes the backend status, and error is populated only for failed runs.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -145,6 +145,17 @@ export class GetReportRunStatusTool implements McpToolDefinition<GetReportRunSta
         'running_too_long',
         `This run was created about ${claimedWithoutStartMinutes} minutes ago and has been claimed by a worker, but execution has not recorded a start time.`
       );
+    }
+
+    if (
+      claimedWithoutStartMinutes !== null &&
+      claimedWithoutStartMinutes >= RUN_LONGER_THAN_USUAL_MINUTES
+    ) {
+      return {
+        shouldPoll: true,
+        stopReason: null,
+        message: `This run was created about ${claimedWithoutStartMinutes} minutes ago and has been claimed by a worker, but execution has not recorded a start time — longer than usual. Let the user know it is taking longer than normal, and keep polling. ${KEEP_POLLING_MESSAGE}`,
+      };
     }
 
     return this.keepPollingAdvice();

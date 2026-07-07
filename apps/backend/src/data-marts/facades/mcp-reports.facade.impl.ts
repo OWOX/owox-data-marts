@@ -8,6 +8,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { RunType } from '../../common/scheduler/shared/types';
 import {
   DataDestinationType,
+  isPullBasedDataDestinationType,
   toHumanReadable,
 } from '../data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
@@ -86,9 +87,9 @@ const MCP_STATUS_BY_RAW_STATUS: Record<DataMartRunStatus, McpReportRunStatus> = 
   [DataMartRunStatus.RUNNING]: 'running',
   [DataMartRunStatus.SUCCESS]: 'success',
   [DataMartRunStatus.FAILED]: 'failed',
-  [DataMartRunStatus.CANCELLED]: 'failed',
-  [DataMartRunStatus.INTERRUPTED]: 'failed',
-  [DataMartRunStatus.RESTRICTED]: 'failed',
+  [DataMartRunStatus.CANCELLED]: 'cancelled',
+  [DataMartRunStatus.INTERRUPTED]: 'interrupted',
+  [DataMartRunStatus.RESTRICTED]: 'restricted',
 };
 
 @Injectable()
@@ -313,6 +314,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   }
 
   async runReport(request: McpRunReportRequest): Promise<McpRunReportResponse> {
+    // Must happen before loading the report/destination policy, so foreign-project ids
+    // normalize to "Report not found" instead of leaking destination details.
     await this.reportAccessService.checkOperateAccess(
       request.userId,
       request.roles,
@@ -325,8 +328,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     );
     const destinationType = report.dataDestinationAccess.type;
     if (!MCP_RUN_REPORT_DESTINATION_TYPE_SET.has(destinationType)) {
+      const destinationLabel = toHumanReadable(destinationType);
+      const reason = isPullBasedDataDestinationType(destinationType)
+        ? 'are pull-based and cannot be run through run_report'
+        : 'are not supported by run_report';
       throw new BusinessViolationException(
-        `Reports with a ${toHumanReadable(destinationType)} destination are pull-based and cannot be run through run_report`
+        `Reports with a ${destinationLabel} destination ${reason}`
       );
     }
 

@@ -36,3 +36,7 @@ export function isEmailBasedDataDestinationType(type: DataDestinationType): bool
     type === DataDestinationType.GOOGLE_CHAT
   );
 }
+
+export function isPullBasedDataDestinationType(type: DataDestinationType): boolean {
+  return type === DataDestinationType.LOOKER_STUDIO;
+}

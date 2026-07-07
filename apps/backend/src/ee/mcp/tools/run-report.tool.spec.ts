@@ -90,6 +90,7 @@ describe('RunReportTool', () => {
     expect(tool.description).toContain('run_id');
     expect(tool.description).toContain('15 seconds');
     expect(tool.description).toContain('billed');
+    expect(tool.description).not.toContain('do not stop polling on your own initiative');
     expect(tool.description).not.toContain('60 seconds');
   });
 });

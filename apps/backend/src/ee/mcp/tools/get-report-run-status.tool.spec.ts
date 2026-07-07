@@ -161,7 +161,7 @@ describe('GetReportRunStatusTool', () => {
     expect(content.message).toContain('about 30 minutes');
   });
 
-  it('keeps polling when a worker claimed the run before started_at was recorded', async () => {
+  it('warns but keeps polling when a worker claimed the run before started_at was recorded for a while', async () => {
     const content = await runningContent({
       startedAt: null,
       queuedAt: minutesAgo(12),
@@ -170,7 +170,10 @@ describe('GetReportRunStatusTool', () => {
 
     expect(content.should_poll).toBe(true);
     expect(content.stop_reason).toBeNull();
-    expect(content.message).toContain('normal');
+    expect(content.message).toContain('about 12 minutes');
+    expect(content.message).toContain('claimed by a worker');
+    expect(content.message).toContain('longer than usual');
+    expect(content.message).toContain('keep polling');
     expect(content.message).not.toContain('not been picked up');
   });
 
@@ -243,16 +246,16 @@ describe('GetReportRunStatusTool', () => {
     expect(content.message).toContain('about 30 minutes');
   });
 
-  it('keeps the message null for failed runs — the error field already explains them', async () => {
+  it('keeps the message null for terminal runs — status/raw_status/error explain them', async () => {
     const facade = {
       getReportRunStatus: jest.fn().mockResolvedValue({
         reportId: 'report-1',
         runId: 'run-1',
-        status: 'failed',
+        status: 'cancelled',
         queuedAt: '2026-07-01T09:59:00.000Z',
         startedAt: '2026-07-01T10:00:00.000Z',
         rawStatus: 'CANCELLED',
-        error: 'storage read failed',
+        error: null,
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new GetReportRunStatusTool(facade, systemTimeService);
@@ -260,11 +263,11 @@ describe('GetReportRunStatusTool', () => {
     const result = await tool.handler({ report_id: 'report-1', run_id: 'run-1' }, context);
 
     expect(result.structuredContent).toMatchObject({
-      status: 'failed',
+      status: 'cancelled',
       should_poll: false,
       stop_reason: null,
       raw_status: 'CANCELLED',
-      error: 'storage read failed',
+      error: null,
       message: null,
     });
   });
@@ -342,6 +345,7 @@ describe('GetReportRunStatusTool', () => {
     expect(tool.description).toContain('started_at');
     expect(tool.description).toContain('15 seconds');
     expect(tool.description).toContain('stop polling');
+    expect(tool.description).not.toContain('not a reason to stop polling');
     expect(tool.description).not.toContain('exponential backoff');
     expect(tool.description).not.toContain('up to 60 seconds');
   });

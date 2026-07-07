@@ -782,6 +782,22 @@ describe('McpReportsFacadeImpl.runReport', () => {
     expect(runReportService.run).not.toHaveBeenCalled();
   });
 
+  it('rejects unsupported destination types without calling them pull-based', async () => {
+    const { facade, getReportService, runReportService } = createFacade();
+    getReportService.run.mockResolvedValue(
+      buildReport({
+        id: 'report-1',
+        destinationType: 'FUTURE_PUSH_DESTINATION' as DataDestinationType,
+      })
+    );
+
+    await expect(facade.runReport(runRequest)).rejects.toThrow(
+      'Reports with a FUTURE_PUSH_DESTINATION destination are not supported by run_report'
+    );
+    await expect(facade.runReport(runRequest)).rejects.not.toThrow('pull-based');
+    expect(runReportService.run).not.toHaveBeenCalled();
+  });
+
   it('rejects when the report is already running or pending', async () => {
     const { facade, runReportService } = createFacade();
     runReportService.run.mockResolvedValue(null);
@@ -881,7 +897,7 @@ describe('McpReportsFacadeImpl.getReportRunStatus', () => {
     });
   });
 
-  it.each<[DataMartRunStatus, string[] | null, string]>([
+  it.each<[DataMartRunStatus, string[] | null, string, string | null]>([
     [
       DataMartRunStatus.FAILED,
       [
@@ -891,22 +907,49 @@ describe('McpReportsFacadeImpl.getReportRunStatus', () => {
           error: 'storage read failed',
         }),
       ],
+      'failed',
       'storage read failed',
     ],
-    [DataMartRunStatus.FAILED, [JSON.stringify({ message: 'worker failed' })], 'worker failed'],
-    [DataMartRunStatus.FAILED, [JSON.stringify({ msg: 'delivery failed' })], 'delivery failed'],
-    [DataMartRunStatus.FAILED, ['Trigger handling failed'], 'Trigger handling failed'],
-    [DataMartRunStatus.CANCELLED, null, 'Report run ended with status CANCELLED'],
-    [DataMartRunStatus.INTERRUPTED, null, 'Report run ended with status INTERRUPTED'],
-    [DataMartRunStatus.RESTRICTED, null, 'Report run ended with status RESTRICTED'],
-  ])('reports %s runs as failed with a readable error', async (status, errors, expectedError) => {
+    [
+      DataMartRunStatus.FAILED,
+      [JSON.stringify({ message: 'worker failed' })],
+      'failed',
+      'worker failed',
+    ],
+    [
+      DataMartRunStatus.FAILED,
+      [JSON.stringify({ msg: 'delivery failed' })],
+      'failed',
+      'delivery failed',
+    ],
+    [DataMartRunStatus.FAILED, ['Trigger handling failed'], 'failed', 'Trigger handling failed'],
+    [DataMartRunStatus.CANCELLED, null, 'cancelled', null],
+    [DataMartRunStatus.INTERRUPTED, null, 'interrupted', null],
+    [DataMartRunStatus.RESTRICTED, null, 'restricted', null],
+  ])(
+    'reports %s runs with the matching MCP terminal status',
+    async (status, errors, expectedStatus, expectedError) => {
+      const { facade, dataMartRunService } = createFacade();
+      dataMartRunService.findById.mockResolvedValue(buildRun({ status, errors }));
+
+      await expect(facade.getReportRunStatus(statusRequest)).resolves.toMatchObject({
+        status: expectedStatus,
+        rawStatus: status,
+        error: expectedError,
+      });
+    }
+  );
+
+  it('keeps backend error details for failed runs only', async () => {
     const { facade, dataMartRunService } = createFacade();
-    dataMartRunService.findById.mockResolvedValue(buildRun({ status, errors }));
+    dataMartRunService.findById.mockResolvedValue(
+      buildRun({ status: DataMartRunStatus.FAILED, errors: ['Trigger handling failed'] })
+    );
 
     await expect(facade.getReportRunStatus(statusRequest)).resolves.toMatchObject({
       status: 'failed',
-      rawStatus: status,
-      error: expectedError,
+      rawStatus: DataMartRunStatus.FAILED,
+      error: 'Trigger handling failed',
     });
   });
 

@@ -112,7 +112,14 @@ export interface McpRunReportResponse {
   runId: string;
 }
 
-export const MCP_REPORT_RUN_STATUSES = ['running', 'success', 'failed'] as const;
+export const MCP_REPORT_RUN_STATUSES = [
+  'running',
+  'success',
+  'failed',
+  'cancelled',
+  'interrupted',
+  'restricted',
+] as const;
 
 export type McpReportRunStatus = (typeof MCP_REPORT_RUN_STATUSES)[number];
 
