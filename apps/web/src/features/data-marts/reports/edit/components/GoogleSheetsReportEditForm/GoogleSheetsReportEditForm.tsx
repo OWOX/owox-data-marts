@@ -41,7 +41,7 @@ import { useProjectRoute } from '../../../../../../shared/hooks';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
-import { AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { AlertCircle, ExternalLink, Loader2, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
 import {
@@ -444,61 +444,59 @@ export const GoogleSheetsReportEditForm = forwardRef<
                       <div className='flex items-center gap-2'>
                         <Input
                           id={documentUrlInputId}
-                          placeholder='Document URL'
+                          placeholder='Paste a Google Sheets URL'
                           className='flex-1'
                           {...field}
                         />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type='button'
-                              className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
-                                isValidDocumentUrl
-                                  ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
-                                  : 'text-muted-foreground/30 cursor-not-allowed'
-                              }`}
-                              onClick={() => {
-                                if (isValidDocumentUrl) {
+                        {isValidDocumentUrl && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='sm'
+                                className='size-8 p-0'
+                                onClick={() => {
                                   window.open(documentUrl.trim(), '_blank', 'noopener,noreferrer');
-                                }
-                              }}
-                              disabled={!isValidDocumentUrl}
-                              aria-label={
-                                isValidDocumentUrl
-                                  ? 'Open document in new tab'
-                                  : 'Document link is not valid'
-                              }
-                            >
-                              <ExternalLink className='h-4 w-4' aria-hidden='true' />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' align='center' role='tooltip'>
-                            {isValidDocumentUrl
-                              ? 'Open document in new tab'
-                              : 'Enter a valid URL to enable link'}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type='button'
-                              variant='outline'
-                              className='flex-shrink-0'
-                              disabled={!selectedDestinationId || isCreatingSheet}
-                              onClick={() => void handleCreateGoogleSheet()}
-                            >
-                              {isCreatingSheet ? (
-                                <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
-                              ) : null}
-                              Create document
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' align='center' role='tooltip'>
-                            {selectedDestinationId
-                              ? 'Create a new Google Sheet in the selected destination and fill the link above'
-                              : 'Select a destination first'}
-                          </TooltipContent>
-                        </Tooltip>
+                                }}
+                                aria-label='Open document in new tab'
+                              >
+                                <ExternalLink className='h-3.5 w-3.5' strokeWidth={1.5} />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side='top' align='center' role='tooltip'>
+                              Open document
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {!isValidDocumentUrl && (
+                          <>
+                            <span className='text-muted-foreground/75 text-sm'>or</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  className='flex-shrink-0'
+                                  disabled={!selectedDestinationId || isCreatingSheet}
+                                  onClick={() => void handleCreateGoogleSheet()}
+                                >
+                                  {isCreatingSheet ? (
+                                    <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+                                  ) : (
+                                    <Plus className='h-4 w-4' />
+                                  )}
+                                  New Sheet
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side='top' align='center' role='tooltip'>
+                                {selectedDestinationId
+                                  ? 'Create a new Google Sheet in the selected destination and fill the link above'
+                                  : 'Select a destination first'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </>
+                        )}
                       </div>
                     </FormControl>
                     <FormDescription>
