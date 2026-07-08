@@ -5,6 +5,10 @@ import { McpAuthExceptionFilter } from '../auth/mcp-auth.exception-filter';
 import { McpAuthGuard } from '../auth/mcp-auth.guard';
 import { McpStreamableHttpTransportHandler } from '../sdk/mcp-streamable-http-transport.handler';
 
+// Above query_data_mart's 3-min deadline so the global socket-idle timeout (SERVER_TIMEOUT_MS)
+// doesn't blunt-reset a computing MCP call before it can return a clean query_timeout. LB (1h) caps.
+export const MCP_REQUEST_SOCKET_TIMEOUT_MS = 4 * 60_000;
+
 @Controller()
 @UseGuards(McpAuthGuard)
 @UseFilters(McpAuthExceptionFilter)
@@ -19,6 +23,10 @@ export class McpTransportController {
     @Res() response: Response,
     @Body() body: unknown
   ): Promise<void> {
+    if (typeof request.setTimeout === 'function') {
+      request.setTimeout(MCP_REQUEST_SOCKET_TIMEOUT_MS);
+    }
+
     const startedAt = Date.now();
     const requestSessionId = this.getRequestedSessionId(request);
     const rpc = this.getJsonRpcSummary(body);

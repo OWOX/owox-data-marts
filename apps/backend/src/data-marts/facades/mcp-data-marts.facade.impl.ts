@@ -137,8 +137,11 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     }
   }
 
-  async queryDataMart(request: McpQueryDataMartRequest): Promise<McpQueryDataMartResponse> {
-    return this.queryDataMartService.run(new QueryDataMartCommand(request));
+  async queryDataMart(
+    request: McpQueryDataMartRequest,
+    signal?: AbortSignal
+  ): Promise<McpQueryDataMartResponse> {
+    return this.queryDataMartService.run(new QueryDataMartCommand(request), signal);
   }
 
   async summarizeDataCatalog(

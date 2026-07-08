@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { QueryDataMartCommand, QueryDataMartService } from './query-data-mart.service';
+import { QueryAbortedError, QueryTimeoutError } from '../facades/mcp-data-marts.facade';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -23,6 +24,7 @@ describe('QueryDataMartService', () => {
       batches?: ReportDataBatch[];
       accessAllowed?: boolean;
       balanceAllowed?: boolean;
+      deadlineMs?: number;
     } = {}
   ) => {
     const dataHeaders = overrides.dataHeaders ?? [
@@ -84,7 +86,6 @@ describe('QueryDataMartService', () => {
     const consumptionTrackingService = {
       registerMcpQueryRunConsumption: jest.fn().mockResolvedValue(undefined),
     };
-
     const service = new QueryDataMartService(
       dataMartService as never,
       composer as never,
@@ -93,7 +94,10 @@ describe('QueryDataMartService', () => {
       dataMartRunService as never,
       accessDecisionService as never,
       projectBalanceService as never,
-      consumptionTrackingService as never
+      consumptionTrackingService as never,
+      // Default deadline is large (constructor default) so normal tests never time out; pass a tiny
+      // value to exercise the timeout path.
+      overrides.deadlineMs ?? 3_600_000
     );
 
     return {
@@ -758,6 +762,64 @@ describe('QueryDataMartService', () => {
       expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
     });
 
+    it('throws QueryTimeoutError past the deadline, records FAILED, and does NOT bill', async () => {
+      const { service, reader, dataMartRunService, consumptionTrackingService } = createService({
+        deadlineMs: 20,
+      });
+      // Hold the DWH read pending (controllable deferred) so the server-side deadline fires first.
+      let rejectRead!: (e: Error) => void;
+      reader.prepareReportData.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectRead = reject;
+        })
+      );
+
+      await expect(
+        service.run(
+          new QueryDataMartCommand({
+            projectId: 'p1',
+            userId: 'u1',
+            roles: ['admin'],
+            dataMartId: 'dm1',
+            fields: ['channel'],
+            limit: 100,
+          })
+        )
+      ).rejects.toBeInstanceOf(QueryTimeoutError);
+
+      // Recorded FAILED (audit trail), but billing is skipped — a timed-out query is never charged.
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.status).toBe(DataMartRunStatus.FAILED);
+      expect(call.errors[0]).toContain('timed out');
+      expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
+
+      // Settle the abandoned read so it does not linger past the test (Phase 2 adds real cancel).
+      rejectRead(new Error('read abandoned after timeout'));
+    });
+
+    it('runs totals in parallel and still degrades to null (rows + billing) when totals rejects', async () => {
+      const { service, reportTotalsService, consumptionTrackingService } = createService();
+      reportTotalsService.computeTotals.mockRejectedValue(new Error('totals boom'));
+
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+        })
+      );
+
+      // Totals started in parallel with the read; its failure must not fail the rows read.
+      expect(result.rows).toHaveLength(2);
+      expect(result.totals).toBeNull();
+      expect(reportTotalsService.computeTotals).toHaveBeenCalledTimes(1);
+      // A successful read is still billed even though totals degraded.
+      expect(consumptionTrackingService.registerMcpQueryRunConsumption).toHaveBeenCalledTimes(1);
+    });
+
     it('rethrows the ORIGINAL read error, not the audit error, when the FAILED run write also rejects', async () => {
       const { service, reader, dataMartRunService } = createService();
       reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));
@@ -777,6 +839,251 @@ describe('QueryDataMartService', () => {
       ).rejects.toThrow('read boom');
 
       expect(reader.finalize).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('client abort (Phase 2)', () => {
+    it('rejects with QueryAbortedError before any read or billing when already aborted, records CANCELLED', async () => {
+      const { service, reader, dataMartRunService, consumptionTrackingService } = createService();
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        service.run(
+          new QueryDataMartCommand({
+            projectId: 'p1',
+            userId: 'u1',
+            roles: ['admin'],
+            dataMartId: 'dm1',
+            fields: ['channel'],
+            limit: 100,
+          }),
+          controller.signal
+        )
+      ).rejects.toBeInstanceOf(QueryAbortedError);
+
+      // An already-abandoned request never touches the warehouse and is never billed…
+      expect(reader.prepareReportData).not.toHaveBeenCalled();
+      expect(reader.readReportDataBatch).not.toHaveBeenCalled();
+      expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
+      // …but the run is still recorded CANCELLED (not FAILED) for the audit trail.
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.status).toBe(DataMartRunStatus.CANCELLED);
+    });
+
+    it('rejects with QueryAbortedError, records CANCELLED, and does NOT bill when aborted during the read', async () => {
+      const { service, reader, dataMartRunService, consumptionTrackingService } = createService();
+      const controller = new AbortController();
+
+      // Hold the DWH read pending and fire the client abort exactly when the read starts, so the
+      // abort wins the race (Phase 2 only stops waiting — the read is never truly cancelled).
+      let rejectRead!: (e: Error) => void;
+      reader.prepareReportData.mockImplementation(() => {
+        controller.abort();
+        return new Promise((_resolve, reject) => {
+          rejectRead = reject;
+        });
+      });
+
+      await expect(
+        service.run(
+          new QueryDataMartCommand({
+            projectId: 'p1',
+            userId: 'u1',
+            roles: ['admin'],
+            dataMartId: 'dm1',
+            fields: ['channel'],
+            limit: 100,
+          }),
+          controller.signal
+        )
+      ).rejects.toBeInstanceOf(QueryAbortedError);
+
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.status).toBe(DataMartRunStatus.CANCELLED);
+      expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
+
+      // Settle the abandoned read so it does not linger past the test (no real cancel in Phase 2).
+      rejectRead(new Error('read abandoned after abort'));
+    });
+
+    it('behaves exactly as before when no signal is passed (regression)', async () => {
+      const { service, dataMartRunService, consumptionTrackingService } = createService();
+
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+        })
+      );
+
+      expect(result.columns).toEqual(['channel', 'revenue']);
+      expect(result.rows).toHaveLength(2);
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.status).toBe(DataMartRunStatus.SUCCESS);
+      expect(consumptionTrackingService.registerMcpQueryRunConsumption).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('resource lifecycle & parallelism (review follow-up)', () => {
+    const cmd = (limit: number) =>
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel'],
+        limit,
+      });
+    const flush = () => new Promise(resolve => setImmediate(resolve));
+
+    it('over-reads limit+1 rows to detect truncation without a separate COUNT query', async () => {
+      const { service, reader } = createService();
+      await service.run(cmd(50));
+      // A 51st row is the truncation signal; the first page must therefore request limit+1.
+      expect(reader.readReportDataBatch).toHaveBeenCalledWith(undefined, 51);
+    });
+
+    it('does not mark truncated when exactly limit rows are returned (boundary)', async () => {
+      const { service } = createService({
+        batches: [
+          new ReportDataBatch(
+            [
+              ['fb', 10],
+              ['org', 8],
+            ],
+            null
+          ),
+        ],
+      });
+      const result = await service.run(cmd(2));
+      expect(result.rows).toHaveLength(2);
+      expect(result.truncated).toBe(false);
+    });
+
+    it('reads rows in parallel with totals — the read proceeds while totals is still pending', async () => {
+      const { service, reader, reportTotalsService } = createService();
+      let resolveTotals!: (v: null) => void;
+      reportTotalsService.computeTotals.mockReturnValue(
+        new Promise(resolve => {
+          resolveTotals = resolve;
+        })
+      );
+
+      const run = service.run(cmd(100));
+      await flush();
+
+      // Totals is still pending, yet the rows read has already run — a totals-first sequential
+      // implementation would have blocked the read here.
+      expect(reportTotalsService.computeTotals).toHaveBeenCalledTimes(1);
+      expect(reader.prepareReportData).toHaveBeenCalledTimes(1);
+      expect(reader.readReportDataBatch).toHaveBeenCalled();
+
+      resolveTotals(null);
+      const result = await run;
+      expect(result.totals).toBeNull();
+    });
+
+    it('clears the deadline timer and detaches the abort listener on a successful run', async () => {
+      const { service } = createService();
+      const controller = new AbortController();
+      const removeSpy = jest.spyOn(controller.signal, 'removeEventListener');
+      const clearSpy = jest.spyOn(global, 'clearTimeout');
+
+      await service.run(cmd(100), controller.signal);
+
+      expect(clearSpy).toHaveBeenCalled();
+      expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+      clearSpy.mockRestore();
+    });
+
+    it('finalizes the reader even when the deadline is lost before the reader is resolved (no leak)', async () => {
+      const { service, reader, composer } = createService({ deadlineMs: 20 });
+      // Hold compose pending so the deadline fires BEFORE the reader is ever resolved — the exact
+      // window where the old outer-finally cleanup would skip a reader produce assigns later.
+      let resolveCompose!: (v: { sql: string; params: never[] }) => void;
+      composer.compose.mockReturnValue(
+        new Promise(resolve => {
+          resolveCompose = resolve;
+        })
+      );
+
+      await expect(service.run(cmd(100))).rejects.toBeInstanceOf(QueryTimeoutError);
+
+      // The race is already lost; let produce continue past compose so it resolves the reader.
+      resolveCompose({ sql: 'SELECT 1', params: [] });
+      await flush();
+
+      // produce owns the reader now, so its finally finalizes it even though it lost the race.
+      expect(reader.finalize).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops paging once the client aborts mid-read (cooperative cancellation)', async () => {
+      const { service, reader } = createService({
+        batches: [
+          new ReportDataBatch([['fb', 1]], 'next-1'),
+          new ReportDataBatch([['org', 2]], 'next-2'),
+        ],
+      });
+      const controller = new AbortController();
+      // Abort after the first page so the loop's pre-read guard trips before the second fetch.
+      let page = 0;
+      reader.readReportDataBatch.mockImplementation(() => {
+        const batch =
+          page === 0 ? new ReportDataBatch([['fb', 1]], 'next-1') : new ReportDataBatch([], null);
+        page += 1;
+        controller.abort();
+        return Promise.resolve(batch);
+      });
+
+      await expect(service.run(cmd(100), controller.signal)).rejects.toBeInstanceOf(
+        QueryAbortedError
+      );
+
+      // Only the first page was fetched; the abort guard stopped the loop before a second read.
+      expect(reader.readReportDataBatch).toHaveBeenCalledTimes(1);
+    });
+
+    it('aborts the DWH work signal on the deadline so the warehouse job is cancelled', async () => {
+      const { service, reader } = createService({ deadlineMs: 20 });
+      let capturedSignal: AbortSignal | undefined;
+      let rejectRead!: (e: Error) => void;
+      reader.prepareReportData.mockImplementation(
+        (_plan: unknown, opts: { signal?: AbortSignal }) => {
+          capturedSignal = opts?.signal;
+          return new Promise((_res, reject) => {
+            rejectRead = reject;
+          });
+        }
+      );
+
+      await expect(service.run(cmd(100))).rejects.toBeInstanceOf(QueryTimeoutError);
+
+      // The reader got a live signal that the deadline aborted — the adapter cancels the job on it.
+      expect(capturedSignal).toBeDefined();
+      expect(capturedSignal!.aborted).toBe(true);
+      rejectRead(new Error('read abandoned after timeout'));
+    });
+
+    it('aborts the totals work signal when the rows read fails (no orphaned totals query)', async () => {
+      const { service, reader, reportTotalsService } = createService();
+      let totalsSignal: AbortSignal | undefined;
+      reportTotalsService.computeTotals.mockImplementation(
+        (_p: unknown, _a: unknown, _s: unknown, _t: unknown, signal?: AbortSignal) => {
+          totalsSignal = signal;
+          return Promise.resolve(null);
+        }
+      );
+      reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));
+
+      await expect(service.run(cmd(100))).rejects.toThrow('read boom');
+
+      expect(totalsSignal).toBeDefined();
+      expect(totalsSignal!.aborted).toBe(true);
     });
   });
 
@@ -931,6 +1238,39 @@ describe('QueryDataMartService', () => {
       expect(composer.compose).toHaveBeenCalledWith(
         expect.objectContaining({ dateTruncConfig: null }),
         expect.anything()
+      );
+    });
+  });
+
+  describe('per-query DWH timeout (Phase 3)', () => {
+    it('passes queryTimeoutMs (= the configured deadline) into the rows prepareReportData options and computeTotals', async () => {
+      const { service, reader, reportTotalsService } = createService({ deadlineMs: 12_345 });
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+        })
+      );
+
+      // The rows read carries the same nominal deadline as the app-side timer — the DWH aborts
+      // the job server-side at that bound, capping cost even if the JS deadline never fires.
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ queryTimeoutMs: 12_345 })
+      );
+      // Totals is a separate DWH query; it gets the same timeout (4th arg) and the internal work
+      // signal (5th arg) so the deadline / a client abort / a rows failure cancels both queries.
+      expect(reportTotalsService.computeTotals).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        DataStorageType.GOOGLE_BIGQUERY,
+        12_345,
+        expect.any(AbortSignal)
       );
     });
   });

@@ -36,7 +36,9 @@ export class ReportTotalsService {
   async computeTotals(
     report: ReportLike,
     accessor: BlendableSchemaAccessor,
-    storageType: DataStorageType
+    storageType: DataStorageType,
+    queryTimeoutMs?: number,
+    signal?: AbortSignal
   ): Promise<ReportTotals | null> {
     const totals = await this.reportSqlComposerService.composeTotals(report, accessor);
     if (!totals) {
@@ -58,6 +60,9 @@ export class ReportTotalsService {
         blendedDataHeaders: totals.blendedDataHeaders,
         // Row Count / Unique Count are not part of the totals summary.
         rowCount: false,
+        // Only when supplied, so non-MCP callers stay unchanged.
+        ...(queryTimeoutMs !== undefined ? { queryTimeoutMs } : {}),
+        ...(signal !== undefined ? { signal } : {}),
       });
 
       const batch = await reader.readReportDataBatch(undefined, 1);

@@ -142,6 +142,25 @@ describe('ReportTotalsService', () => {
     expect(readerResolver.resolve).toHaveBeenCalledWith(DataStorageType.GOOGLE_BIGQUERY);
   });
 
+  it('forwards queryTimeoutMs into the reader prepareReportData options (Phase 3)', async () => {
+    const { service, reader } = createService();
+
+    await service.computeTotals(buildReport(), {} as never, DataStorageType.GOOGLE_BIGQUERY, 30000);
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ queryTimeoutMs: 30000 })
+    );
+  });
+
+  it('omits queryTimeoutMs from the reader options when none is passed (regression)', async () => {
+    const { service, reader } = createService();
+
+    await service.computeTotals(buildReport(), {} as never, DataStorageType.GOOGLE_BIGQUERY);
+
+    expect(reader.prepareReportData.mock.calls[0][1]).not.toHaveProperty('queryTimeoutMs');
+  });
+
   it('empty totals dataset (no rows) returns null', async () => {
     const reader = createReader([new ReportDataHeader('revenue | SUM')], undefined);
     const { service } = createService({ reader });

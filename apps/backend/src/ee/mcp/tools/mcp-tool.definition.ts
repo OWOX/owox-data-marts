@@ -21,5 +21,5 @@ export interface McpToolDefinition<TInput = unknown> {
   readonly outputSchema?: ZodRawShape;
   readonly annotations?: ToolAnnotations;
   readonly requiredScopes: McpScope[];
-  handler(input: TInput, context: McpAuthContext): Promise<McpToolResult>;
+  handler(input: TInput, context: McpAuthContext, signal?: AbortSignal): Promise<McpToolResult>;
 }

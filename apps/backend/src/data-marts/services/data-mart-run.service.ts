@@ -90,13 +90,14 @@ export interface HttpDataRunRecord {
   errors?: string[];
 }
 
-// Terminal-only MCP_QUERY run: written once at the end (success or failure), no RUNNING phase.
+// Terminal-only MCP_QUERY run: written once at the end (success, failure, or client-abort), no
+// RUNNING phase. CANCELLED is recorded when the request's AbortSignal fires mid-query.
 export interface McpQueryRunRecord {
   runId: string;
   dataMart: DataMart;
   createdById: string;
   startedAt: Date;
-  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED;
+  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.CANCELLED;
   metadata: McpQueryRunMetadata;
   errors?: string[];
 }

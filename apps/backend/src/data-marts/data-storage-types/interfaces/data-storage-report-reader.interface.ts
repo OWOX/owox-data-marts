@@ -55,12 +55,30 @@ export interface PrepareReportDataOptions {
    * row carries only the metric aggregates (Row Count is a per-group column, not a total).
    */
   rowCount?: boolean;
+
+  /**
+   * Server-side per-query timeout (ms). BigQuery/Snowflake abort the job/statement at the
+   * warehouse when exceeded, capping cost. Other storages currently ignore it.
+   */
+  queryTimeoutMs?: number;
+
+  /**
+   * When it fires (client disconnect/cancel), BigQuery/Snowflake cancel the in-flight warehouse
+   * job/statement so an abandoned query stops billing compute immediately. Other storages ignore it.
+   */
+  signal?: AbortSignal;
 }
 
 /**
  * Interface for reading report data from a data storage
  */
 export interface DataStorageReportReader extends TypedComponent<DataStorageType> {
+  /**
+   * Whether this reader enforces `PrepareReportDataOptions.queryTimeoutMs` at the warehouse. Readers
+   * that leave it unset silently drop the cap — callers relying on a cost bound should observe that.
+   */
+  readonly honorsQueryTimeout?: boolean;
+
   /**
    * Prepares report data for reading
    */

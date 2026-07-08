@@ -25,6 +25,7 @@ import { resolveReportDataHeaders } from '../../utils/report-data-headers.utils'
 export class SnowflakeReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(SnowflakeReportReader.name);
   readonly type = DataStorageType.SNOWFLAKE;
+  readonly honorsQueryTimeout = true;
 
   private adapter: SnowflakeApiAdapter;
   private reportDataHeaders: ReportDataHeader[];
@@ -73,7 +74,12 @@ export class SnowflakeReportReader implements DataStorageReportReader {
       this.queryBuilder.buildQuery(definition, { columns: options?.columnFilter });
     this.logger.debug(`Executing query: ${query}`);
 
-    const result = await this.adapter.executeQuery(query);
+    const result = await this.adapter.executeQuery(
+      query,
+      false,
+      options?.queryTimeoutMs,
+      options?.signal
+    );
     this.queryId = result.queryId;
     this.currentRowIndex = 0;
 

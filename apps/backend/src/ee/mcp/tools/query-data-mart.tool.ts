@@ -4,6 +4,8 @@ import type { McpScope } from '@owox/idp-protocol';
 import {
   MCP_DATA_MARTS_FACADE,
   type McpDataMartsFacade,
+  QueryAbortedError,
+  QueryTimeoutError,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
@@ -74,34 +76,37 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     private readonly dataMarts: McpDataMartsFacade
   ) {}
 
-  // The MCP SDK validates arguments against `zodSchema` (the schema shape, non-strict) BEFORE
-  // calling handler(): it strips unknown keys and rejects bad enums/missing fields with its own
-  // generic error. So through a real MCP client this re-parse rarely fires — `.strict()`,
-  // `invalid_input`, and the unsupported_aggregation/unsupported_date_bucket branches in mapError
-  // are effectively defense-in-depth for direct/facade callers (only `unsupported_operator` is
-  // reachable via a client, since those operators are intentionally in the enum).
+  // The SDK already validates against zodSchema before handler(); this strict re-parse guards
+  // direct/facade callers that bypass it.
   private parseInput(input: unknown): QueryDataMartInput {
     return queryDataMartInputSchema.parse(input);
   }
 
-  async handler(input: QueryDataMartInput, context: McpAuthContext): Promise<McpToolResult> {
+  async handler(
+    input: QueryDataMartInput,
+    context: McpAuthContext,
+    signal?: AbortSignal
+  ): Promise<McpToolResult> {
     try {
       const parsed = this.parseInput(input);
       const filterConfig = mapMcpFiltersToRules(parsed.slices, parsed.filters);
       const aggregationConfig = mapMcpAggregations(parsed.aggregations);
       const dateTruncConfig = mapMcpDateBuckets(parsed.date_buckets);
 
-      const res = await this.dataMarts.queryDataMart({
-        projectId: context.projectId,
-        userId: context.userId,
-        roles: context.roles,
-        dataMartId: parsed.data_mart_id,
-        fields: parsed.fields,
-        filterConfig,
-        aggregationConfig,
-        dateTruncConfig,
-        limit: parsed.limit ?? DEFAULT_LIMIT,
-      });
+      const res = await this.dataMarts.queryDataMart(
+        {
+          projectId: context.projectId,
+          userId: context.userId,
+          roles: context.roles,
+          dataMartId: parsed.data_mart_id,
+          fields: parsed.fields,
+          filterConfig,
+          aggregationConfig,
+          dateTruncConfig,
+          limit: parsed.limit ?? DEFAULT_LIMIT,
+        },
+        signal
+      );
 
       const { tsv, rowCount, capped } = serializeTsvWithByteCap(
         res.columns,
@@ -138,6 +143,21 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       return toStructuredToolError('invalid_input', `Invalid query input — ${detail}`);
     }
 
+    if (err instanceof QueryTimeoutError) {
+      return toStructuredToolError(
+        'query_timeout',
+        'The query took too long and was stopped (it was not billed). Make it lighter: request fewer fields, add tighter filters/slices, aggregate instead of returning raw rows, or lower the limit — then retry.'
+      );
+    }
+
+    // Rarely delivered (the client already disconnected); kept for direct callers.
+    if (err instanceof QueryAbortedError) {
+      return toStructuredToolError(
+        'query_cancelled',
+        'The query was cancelled before it finished (it was not billed).'
+      );
+    }
+
     if (err instanceof UnsupportedOperatorError) {
       const supported = SUPPORTED_MCP_OPERATORS.join(', ');
       return toStructuredToolError(
@@ -155,7 +175,8 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     }
 
     if (err instanceof NotFoundException) {
-      return toStructuredToolError('permission_denied', err.message);
+      // Static string — a deeper resolver's NotFoundException could embed an id/title we must not leak.
+      return toStructuredToolError('permission_denied', 'Data mart not found or not accessible.');
     }
 
     if (err instanceof ProjectOperationBlockedException) {
@@ -182,9 +203,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       );
     }
 
-    // Source-access / exclusion violations. Their message embeds the caller's name/email AND the
-    // restricted data-mart titles (which discovery deliberately hides) — never forward that to the
-    // AI provider. Return a generic denial with no titles or identity.
+    // Generic denial — the raw message leaks the caller's identity and hidden data-mart titles.
     if (
       err instanceof BusinessViolationException &&
       (err.errorDetails?.['deniedDataMartIds'] || err.errorDetails?.['excludedDataMartIds'])
@@ -201,7 +220,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         | Array<{ code?: string; column?: string; function?: string }>
         | undefined;
 
-      // A genuinely unknown column (hallucinated / disconnected) — the field name is wrong.
+      // Wrong field name — point at the schema.
       if (errors?.some(e => e.code === 'FILTER_COLUMN_UNKNOWN')) {
         return toStructuredToolError(
           'field_not_found',
@@ -209,9 +228,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         );
       }
 
-      // `slices` were used on a data mart with no joined/blended sources. slices are pre-join
-      // filters — they only make sense when the data mart blends another one in. Point the model
-      // at the real fix instead of the generic "re-check the schema" fallback.
+      // slices are pre-join filters; on a non-blended data mart they don't apply.
       if (errors?.some(e => e.code === 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART')) {
         return toStructuredToolError(
           'slices_not_applicable',
@@ -219,9 +236,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         );
       }
 
-      // The column exists but was left out of `fields`. This is structural — the field name is
-      // correct, so the field_not_found "re-check the schema" guidance would send the model in
-      // circles. Point it at the real fix: add the referenced field to `fields`.
+      // Field name is correct but missing from `fields` — a re-fetch would loop the model; fix is to add it.
       const notSelected = new Set([
         'AGGREGATION_COLUMN_NOT_SELECTED',
         'DATE_TRUNC_COLUMN_NOT_SELECTED',
@@ -236,10 +251,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         );
       }
 
-      // The field exists and is selected, but the data mart's output controls don't permit this
-      // aggregate function on it (admin-restricted / type-incompatible), or the (column, function)
-      // pair is duplicated. Name field+function so the model can pick an allowed aggregation
-      // instead of getting the bare "Output controls validation failed" string it can't act on.
+      // Output controls reject this aggregate on this field (or it's a duplicate) — name field+function.
       const aggNotAllowed = new Set([
         'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
         'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
@@ -261,9 +273,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       }
     }
 
-    // Unclassified error (raw DWH/driver text, unexpected exception). Do NOT forward err.message to
-    // the AI provider — it can carry SQL fragments, identifiers, or PII. The full error is still
-    // recorded in Run History for operators.
+    // Never forward the raw message — it can carry SQL/identifiers/PII. Full error stays in Run History.
     return toStructuredToolError(
       'query_failed',
       'The query could not be completed. Verify the field names, filters, and aggregations against get_data_mart_details_by_id, then retry.'

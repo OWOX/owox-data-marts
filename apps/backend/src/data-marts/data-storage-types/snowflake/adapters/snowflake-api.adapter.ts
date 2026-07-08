@@ -93,11 +93,16 @@ export class SnowflakeApiAdapter {
   }
 
   /**
-   * Executes a SQL query
+   * Executes a SQL query. `queryTimeoutMs` caps warehouse cost via STATEMENT_TIMEOUT_IN_SECONDS
+   * (Snowflake's unit is SECONDS, so the ms budget is rounded up to ≥1s); unset = no change.
+   * `signal` (client disconnect/cancel) cancels the running statement immediately so an abandoned
+   * query stops billing compute; the cancel surfaces as a rejected promise. Unset = no cancel hook.
    */
   public async executeQuery(
     query: string,
-    dryRun: boolean = false
+    dryRun: boolean = false,
+    queryTimeoutMs?: number,
+    signal?: AbortSignal
   ): Promise<{
     queryId: string;
     rows?: Record<string, unknown>[];
@@ -108,10 +113,24 @@ export class SnowflakeApiAdapter {
     }
 
     return new Promise((resolve, reject) => {
-      this.connection.execute({
+      let settled = false;
+      let onAbort: (() => void) | undefined;
+      const cleanup = () => {
+        settled = true;
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      };
+      const statement = this.connection.execute({
         sqlText: query,
         describeOnly: dryRun,
+        ...(queryTimeoutMs !== undefined
+          ? {
+              parameters: {
+                STATEMENT_TIMEOUT_IN_SECONDS: Math.max(1, Math.ceil(queryTimeoutMs / 1000)),
+              },
+            }
+          : {}),
         complete: (err, stmt, rows) => {
+          cleanup();
           if (err) {
             reject(
               new Error(
@@ -138,6 +157,22 @@ export class SnowflakeApiAdapter {
           }
         },
       });
+
+      // Best-effort warehouse cancel: on abort, cancel the running statement so a gone client stops
+      // billing compute. The cancel triggers the complete callback with an error → the promise rejects.
+      // `!settled` guards a synchronous complete (would leave a listener attached past resolve).
+      if (signal && !settled) {
+        onAbort = () => {
+          // Guard a driver that throws synchronously on an already-gone statement/connection.
+          try {
+            statement.cancel(() => undefined);
+          } catch {
+            /* best-effort cancel */
+          }
+        };
+        if (signal.aborted) onAbort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+      }
     });
   }
 
