@@ -161,7 +161,7 @@ describe('GetReportRunStatusTool', () => {
     expect(content.message).toContain('about 30 minutes');
   });
 
-  it('warns but keeps polling when a worker claimed the run before started_at was recorded for a while', async () => {
+  it('keeps polling when a worker claimed the run before started_at was recorded', async () => {
     const content = await runningContent({
       startedAt: null,
       queuedAt: minutesAgo(12),
@@ -170,39 +170,27 @@ describe('GetReportRunStatusTool', () => {
 
     expect(content.should_poll).toBe(true);
     expect(content.stop_reason).toBeNull();
-    expect(content.message).toContain('about 12 minutes');
     expect(content.message).toContain('claimed by a worker');
-    expect(content.message).toContain('longer than usual');
     expect(content.message).toContain('keep polling');
+    expect(content.message).not.toContain('about 12 minutes');
+    expect(content.message).not.toContain('longer than usual');
     expect(content.message).not.toContain('not been picked up');
   });
 
-  it('stops polling when a claimed run never records started_at', async () => {
+  it('does not mark a newly claimed run as stuck based on old queue time', async () => {
     const content = await runningContent({
       startedAt: null,
       queuedAt: minutesAgo(45),
       rawStatus: 'RUNNING',
     });
 
-    expect(content.should_poll).toBe(false);
-    expect(content.stop_reason).toBe('running_too_long');
-    expect(content.message).toContain('about 45 minutes');
-    expect(content.message).toContain('created about 45 minutes ago');
+    expect(content.should_poll).toBe(true);
+    expect(content.stop_reason).toBeNull();
     expect(content.message).toContain('claimed by a worker');
-    expect(content.message).toContain('Stop polling');
+    expect(content.message).toContain('keep polling');
+    expect(content.message).not.toContain('about 45 minutes');
+    expect(content.message).not.toContain('Stop polling');
     expect(content.message).not.toContain('not been picked up');
-  });
-
-  it('stops polling at exactly 30 claimed-without-start minutes', async () => {
-    const content = await runningContent({
-      startedAt: null,
-      queuedAt: minutesAgo(30),
-      rawStatus: 'RUNNING',
-    });
-
-    expect(content.should_poll).toBe(false);
-    expect(content.stop_reason).toBe('running_too_long');
-    expect(content.message).toContain('created about 30 minutes ago');
   });
 
   it('tells the caller to warn the user when the run exceeds the usual duration', async () => {

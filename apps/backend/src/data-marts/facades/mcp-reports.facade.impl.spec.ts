@@ -923,6 +923,7 @@ describe('McpReportsFacadeImpl.getReportRunStatus', () => {
       'delivery failed',
     ],
     [DataMartRunStatus.FAILED, ['Trigger handling failed'], 'failed', 'Trigger handling failed'],
+    [DataMartRunStatus.FAILED, null, 'failed', 'Report run failed; no detailed error was recorded'],
     [DataMartRunStatus.CANCELLED, null, 'cancelled', null],
     [DataMartRunStatus.INTERRUPTED, null, 'interrupted', null],
     [DataMartRunStatus.RESTRICTED, null, 'restricted', null],

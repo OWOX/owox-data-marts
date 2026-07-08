@@ -90,7 +90,14 @@ describe('RunReportTool', () => {
     expect(tool.description).toContain('run_id');
     expect(tool.description).toContain('15 seconds');
     expect(tool.description).toContain('billed');
+    expect(tool.description).not.toContain('HTTP Data API');
     expect(tool.description).not.toContain('do not stop polling on your own initiative');
     expect(tool.description).not.toContain('60 seconds');
+  });
+
+  it('keeps the description concise enough for MCP clients to parse', () => {
+    const tool = new RunReportTool({} as McpReportsFacade);
+
+    expect(tool.description.length).toBeLessThanOrEqual(650);
   });
 });

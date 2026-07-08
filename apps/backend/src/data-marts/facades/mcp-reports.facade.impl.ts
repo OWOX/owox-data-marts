@@ -75,6 +75,8 @@ const MCP_RUN_REPORT_DESTINATION_TYPES = [
   DataDestinationType.MS_TEAMS,
   DataDestinationType.GOOGLE_CHAT,
 ] as const;
+// MCP run_report only supports destinations that can be actively pushed by this tool.
+// This is a tool contract allowlist, not the global push/pull destination classifier.
 const MCP_RUN_REPORT_DESTINATION_TYPE_SET: ReadonlySet<DataDestinationType> = new Set(
   MCP_RUN_REPORT_DESTINATION_TYPES
 );
@@ -337,6 +339,9 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       );
     }
 
+    // RunReportService intentionally keeps its own manual-run access check for
+    // non-MCP callers; the facade pre-check above only protects MCP-specific
+    // destination policy ordering from leaking cross-project report details.
     const enqueued = await this.runReportService.run({
       reportId: request.reportId,
       userId: request.userId,
@@ -448,6 +453,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
   private toErrorMessage(run: DataMartRun): string {
     const messages = (run.errors ?? []).map(entry => extractRunErrorMessage(entry));
-    return messages.length ? messages.join('; ') : `Report run ended with status ${run.status}`;
+    return messages.length
+      ? messages.join('; ')
+      : 'Report run failed; no detailed error was recorded';
   }
 }

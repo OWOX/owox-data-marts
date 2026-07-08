@@ -36,7 +36,7 @@ const KEEP_POLLING_MESSAGE =
 export class GetReportRunStatusTool implements McpToolDefinition<GetReportRunStatusInput> {
   readonly name = 'get_report_run_status';
   readonly description =
-    'Get the current status of a report run started with run_report, identified by report_id and the run_id it returned. Report runs routinely take several minutes, so keep polling while should_poll is true and stop when should_poll is false; terminal statuses are "success", "failed", "cancelled", "interrupted", and "restricted". If you can wait between tool calls, poll about every 15 seconds; otherwise call again immediately. The message field tells you what to do next, including when to warn that a run is taking longer than usual and when to treat it as stuck and stop polling. stop_reason is set only when status is still "running" but should_poll is false, such as queued_too_long or running_too_long. queued_at is when the run was created; started_at is null until execution starts. raw_status exposes the backend status, and error is populated only for failed runs.';
+    'Get the current status of a report run started with run_report, identified by report_id and the run_id it returned. Report runs routinely take several minutes, so keep polling while should_poll is true and stop when should_poll is false; terminal statuses are "success", "failed", "cancelled", "interrupted", and "restricted". If you can wait between tool calls, poll about every 15 seconds; otherwise call again immediately. The message field tells you what to do next, including when to warn that a run is taking longer than usual and when to treat it as stuck and stop polling. stop_reason is set only when status is still "running" but should_poll is false, such as queued_too_long or running_too_long. queued_at is when the run was created; started_at is null until execution starts, including the brief worker-claimed state before the start time is recorded. raw_status exposes the backend status, and error is populated only for failed runs.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -134,31 +134,12 @@ export class GetReportRunStatusTool implements McpToolDefinition<GetReportRunSta
     return this.keepPollingAdvice();
   }
 
-  private claimedWithoutStartAdvice(queuedAt: string | null): PollingAdvice {
-    const claimedWithoutStartMinutes = this.elapsedMinutes(queuedAt);
-
-    if (
-      claimedWithoutStartMinutes !== null &&
-      claimedWithoutStartMinutes >= RUN_LIKELY_STUCK_MINUTES
-    ) {
-      return this.stopAdvice(
-        'running_too_long',
-        `This run was created about ${claimedWithoutStartMinutes} minutes ago and has been claimed by a worker, but execution has not recorded a start time.`
-      );
-    }
-
-    if (
-      claimedWithoutStartMinutes !== null &&
-      claimedWithoutStartMinutes >= RUN_LONGER_THAN_USUAL_MINUTES
-    ) {
-      return {
-        shouldPoll: true,
-        stopReason: null,
-        message: `This run was created about ${claimedWithoutStartMinutes} minutes ago and has been claimed by a worker, but execution has not recorded a start time — longer than usual. Let the user know it is taking longer than normal, and keep polling. ${KEEP_POLLING_MESSAGE}`,
-      };
-    }
-
-    return this.keepPollingAdvice();
+  private claimedWithoutStartAdvice(_queuedAt: string | null): PollingAdvice {
+    return {
+      shouldPoll: true,
+      stopReason: null,
+      message: `This run has been claimed by a worker, but execution has not recorded a start time yet; keep polling. ${KEEP_POLLING_MESSAGE}`,
+    };
   }
 
   private startedAdvice(startedAt: string | null): PollingAdvice {
