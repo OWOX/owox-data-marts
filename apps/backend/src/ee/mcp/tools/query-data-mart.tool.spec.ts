@@ -27,7 +27,7 @@ describe('QueryDataMartTool', () => {
 
   it('exposes the MCP contract', () => {
     expect(tool.name).toBe('query_data_mart');
-    expect(tool.requiredScopes).toEqual(['mcp:read']);
+    expect(tool.requiredScopes).toEqual(['mcp:read', 'mcp:write']);
     expect(tool.annotations).toMatchObject({ title: 'Query Data Mart', openWorldHint: false });
   });
 

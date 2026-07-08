@@ -16,7 +16,7 @@ const DEFAULT_LIMIT = 20;
 
 // Operators unsupported by the internal FilterRule are accepted here and rejected
 // at mapping time with a precise error, rather than silently dropped.
-export const McpOperatorEnum = z.enum([
+const MCP_OPERATORS = [
   'eq',
   'neq',
   'contains',
@@ -39,13 +39,26 @@ export const McpOperatorEnum = z.enum([
   'this_week',
   'this_month',
   'this_year',
-]);
+] as const;
 
-const McpFilterSchema = z.object({
-  field: z.string().min(1),
-  operator: McpOperatorEnum,
-  value: z.unknown().optional(),
-});
+export const McpOperatorEnum = z.enum(MCP_OPERATORS);
+
+// Fresh instance per use — a shared one becomes a JSON-Schema $ref that OpenAI can't resolve (filters → any[]).
+const makeMcpFilterSchema = () =>
+  z.object({
+    field: z.string().min(1),
+    operator: z.enum(MCP_OPERATORS),
+    value: z
+      .union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.array(z.unknown()),
+        z.record(z.unknown()),
+        z.null(),
+      ])
+      .optional(),
+  });
 
 // The MCP tool advertises only these functions (tool description + docs/mcp.md). A strict subset of
 // REPORT_AGGREGATE_FUNCTIONS — STRING_AGG and ANY_VALUE are intentionally NOT exposed, so the input
@@ -90,13 +103,13 @@ export const queryDataMartInputSchema = z
         'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations and date_buckets — a field you aggregate or bucket but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions.'
       ),
     slices: z
-      .array(McpFilterSchema)
+      .array(makeMcpFilterSchema())
       .optional()
       .describe(
         "Pre-join filters: narrow a JOINED data mart before it is blended in. Criteria on a joined data mart's own fields only — never the main data mart."
       ),
     filters: z
-      .array(McpFilterSchema)
+      .array(makeMcpFilterSchema())
       .optional()
       .describe(
         'Post-join filters on the blended result. May reference a field that is NOT in "fields" (e.g. filter on a column you do not display).'

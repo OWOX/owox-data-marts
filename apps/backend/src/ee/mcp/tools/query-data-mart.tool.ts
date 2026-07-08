@@ -69,7 +69,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     idempotentHint: false, // each call is a new billable Run
     openWorldHint: false,
   };
-  readonly requiredScopes: McpScope[] = ['mcp:read'];
+  readonly requiredScopes: McpScope[] = ['mcp:read', 'mcp:write'];
 
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)

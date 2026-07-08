@@ -1,3 +1,4 @@
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   mapMcpFiltersToRules,
   mapMcpAggregations,
@@ -200,5 +201,67 @@ describe('queryDataMartInputSchema enum validation', () => {
       date_buckets: [{ field: 'd', unit: 'MONTH' }],
     });
     expect(result.date_buckets?.[0]?.unit).toBe('MONTH');
+  });
+});
+
+describe('queryDataMartInputSchema filter value typing', () => {
+  it('accepts a between filter with an object {from, to} value', () => {
+    const parsed = queryDataMartInputSchema.parse({
+      data_mart_id: 'dm1',
+      fields: ['amount'],
+      filters: [{ field: 'amount', operator: 'between', value: { from: 10, to: 20 } }],
+    });
+    expect(parsed.filters?.[0]?.value).toEqual({ from: 10, to: 20 });
+  });
+
+  it('accepts scalar and array filter values', () => {
+    const parsed = queryDataMartInputSchema.parse({
+      data_mart_id: 'dm1',
+      fields: ['channel'],
+      slices: [{ field: 'channel', operator: 'eq', value: 'fb' }],
+      filters: [{ field: 'ids', operator: 'in', value: [1, 2, 3] }],
+    });
+    expect(parsed.slices?.[0]?.value).toBe('fb');
+    expect(parsed.filters?.[0]?.value).toEqual([1, 2, 3]);
+  });
+});
+
+// Guards the OpenAI tool-verification contract. The MCP SDK's v3 path
+// (server/zod-json-schema-compat.js) converts with zodToJsonSchema at strictUnions + input pipe and
+// the default $refStrategy 'root'; if slices/filters ever share a schema instance again, a $ref
+// reappears and OpenAI collapses `filters` to any[] ("Unclear Arguments").
+describe('query_data_mart tool JSON Schema (OpenAI verification)', () => {
+  const json = zodToJsonSchema(queryDataMartInputSchema, {
+    strictUnions: true,
+    pipeStrategy: 'input',
+  }) as {
+    properties: Record<string, { items: { type?: string; properties: Record<string, unknown> } }>;
+  };
+
+  const collectRefs = (node: unknown, path = ''): string[] => {
+    if (!node || typeof node !== 'object') return [];
+    const out: string[] = [];
+    const record = node as Record<string, unknown>;
+    if (typeof record.$ref === 'string') out.push(`${path} -> ${record.$ref}`);
+    for (const [k, v] of Object.entries(record)) out.push(...collectRefs(v, `${path}/${k}`));
+    return out;
+  };
+
+  it('emits no $ref anywhere (OpenAI does not resolve internal $ref)', () => {
+    expect(collectRefs(json)).toEqual([]);
+  });
+
+  it('inlines filters.items as a concrete object with field/operator/value', () => {
+    const items = json.properties.filters.items;
+    expect(items.type).toBe('object');
+    expect(Object.keys(items.properties)).toEqual(['field', 'operator', 'value']);
+  });
+
+  it('advertises a typed value union for slices and filters, not an empty {}', () => {
+    for (const key of ['slices', 'filters']) {
+      const value = json.properties[key].items.properties.value as { anyOf?: unknown[] };
+      expect(value).not.toEqual({});
+      expect(Array.isArray(value.anyOf)).toBe(true);
+    }
   });
 });
