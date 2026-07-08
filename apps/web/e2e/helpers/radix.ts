@@ -56,14 +56,59 @@ export class RadixHelpers {
   }
 
   /**
+   * Returns the topmost ConfirmationDialog content layer.
+   */
+  confirmationDialog(): Locator {
+    return this.page.locator('[data-slot="dialog-content"]').last();
+  }
+
+  /**
    * Click the confirm button in a ConfirmationDialog.
    * ConfirmationDialog has a confirm button with the label passed as confirmLabel (default "Confirm").
    */
   async confirmDialog(confirmLabel = 'Confirm'): Promise<void> {
-    const dialog = this.page.locator('[data-slot="dialog-content"]');
+    const dialog = this.confirmationDialog();
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: confirmLabel }).click();
     await expect(dialog).not.toBeVisible();
+  }
+
+  /**
+   * Click the cancel button in the standard unsaved-changes sheet guard dialog.
+   * Asserts the host sheet stays open — the regression guard for the nested
+   * dismissable-layer fix from PR #1355.
+   */
+  async stayOnDirtySheet(hostSheet: Locator): Promise<void> {
+    const dialog = this.confirmationDialog();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Unsaved Changes' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'No, stay here' }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(hostSheet).toBeVisible();
+  }
+
+  /**
+   * Confirm leaving a dirty sheet via the standard unsaved-changes dialog.
+   */
+  async leaveDirtySheet(hostSheet: Locator): Promise<void> {
+    const dialog = this.confirmationDialog();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Unsaved Changes' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Yes, leave now' }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(hostSheet).not.toBeVisible();
+  }
+
+  /**
+   * Dismiss a sheet-hosted confirmation dialog via its cancel button and
+   * assert the host sheet remains open.
+   */
+  async cancelSheetHostedDialog(hostSheet: Locator, cancelLabel: string | RegExp): Promise<void> {
+    const dialog = this.confirmationDialog();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: cancelLabel }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(hostSheet).toBeVisible();
   }
 
   /**
