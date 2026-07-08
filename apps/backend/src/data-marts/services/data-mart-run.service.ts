@@ -5,7 +5,6 @@ import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-di
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 import { RunType } from '../../common/scheduler/shared/types';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { AiAssistantSession } from '../entities/ai-assistant-session.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
@@ -23,6 +22,7 @@ import {
   McpQueryRunMetadataSchema,
 } from '../dto/schemas/mcp-query-run-metadata.schema';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
+import { toReportRunType } from '../utils/report-run-type';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
 
 import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
@@ -666,7 +666,7 @@ export class DataMartRunService {
 
     const dataMartRunDraft = {
       dataMartId: dataMart.id,
-      type: this.defineTypeFromDataDestinationType(dataDestination.type),
+      type: toReportRunType(dataDestination.type),
       reportId: id,
       definitionRun: dataMart.definition,
       createdById: context.createdById,
@@ -677,33 +677,5 @@ export class DataMartRunService {
     const dataMartRun = this.dataMartRunRepository.create(dataMartRunDraft);
 
     return dataMartRun;
-  }
-
-  /**
-   * Maps DataDestinationType to DataMartRunType.
-   *
-   * @param dataDestinationType - Destination type from Report
-   * @returns Corresponding DataMartRunType
-   * @throws Error if destination type is not supported
-   */
-  private defineTypeFromDataDestinationType(
-    dataDestinationType: DataDestinationType
-  ): DataMartRunType {
-    switch (dataDestinationType) {
-      case DataDestinationType.GOOGLE_SHEETS:
-        return DataMartRunType.GOOGLE_SHEETS_EXPORT;
-      case DataDestinationType.LOOKER_STUDIO:
-        return DataMartRunType.LOOKER_STUDIO;
-      case DataDestinationType.EMAIL:
-        return DataMartRunType.EMAIL;
-      case DataDestinationType.SLACK:
-        return DataMartRunType.SLACK;
-      case DataDestinationType.GOOGLE_CHAT:
-        return DataMartRunType.GOOGLE_CHAT;
-      case DataDestinationType.MS_TEAMS:
-        return DataMartRunType.MS_TEAMS;
-      default:
-        throw Error(`Unexpected Data Destination Type - ${dataDestinationType}`);
-    }
   }
 }
