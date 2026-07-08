@@ -123,7 +123,7 @@ export function GeneratedSqlViewer({
                 type='button'
                 variant='ghost'
                 className={cn(
-                  'dm-card-table-body-row-actionbtn w-6 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100',
+                  'dm-card-table-body-row-actionbtn !h-6 !w-6 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100',
                   className
                 )}
                 aria-label={ariaLabel}

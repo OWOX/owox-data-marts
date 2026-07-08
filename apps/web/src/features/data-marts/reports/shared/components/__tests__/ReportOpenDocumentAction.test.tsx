@@ -8,11 +8,15 @@ import type {
 } from '../../model/types/data-mart-report';
 import { getGoogleSheetTabUrl } from '../../utils';
 import { ReportOpenDocumentAction } from '../ReportOpenDocumentAction';
+import { DataDestinationType } from '../../../../../data-destination/shared/enums/data-destination-type.enum';
 
 function makeReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
     id: 'report-1',
     title: 'Monthly Revenue',
+    dataDestination: {
+      type: DataDestinationType.GOOGLE_SHEETS,
+    } as DataMartReport['dataDestination'],
     destinationConfig: {
       type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG,
       spreadsheetId: 'spreadsheet-123',

@@ -7,10 +7,11 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 
+import { DataDestinationType } from '../../../../data-destination/shared';
 import { getGoogleSheetTabUrl } from '../utils';
-import type {
-  DataMartReport,
-  GoogleSheetsDestinationConfig,
+import {
+  isGoogleSheetsDestinationConfig,
+  type DataMartReport,
 } from '../model/types/data-mart-report';
 
 interface ReportOpenDocumentActionProps {
@@ -19,16 +20,28 @@ interface ReportOpenDocumentActionProps {
 }
 
 export function ReportOpenDocumentAction({ report, className }: ReportOpenDocumentActionProps) {
-  const destinationConfig = report.destinationConfig as GoogleSheetsDestinationConfig;
+  if (report.dataDestination.type !== DataDestinationType.GOOGLE_SHEETS) {
+    return null;
+  }
+
+  if (!isGoogleSheetsDestinationConfig(report.destinationConfig)) {
+    return null;
+  }
+
+  const { spreadsheetId, sheetId } = report.destinationConfig;
+
+  if (!spreadsheetId || !sheetId) {
+    return null;
+  }
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <a
-            href={getGoogleSheetTabUrl(destinationConfig.spreadsheetId, destinationConfig.sheetId)}
+            href={getGoogleSheetTabUrl(spreadsheetId, sheetId)}
             className={cn(
-              'dm-card-table-body-row-actionbtn inline-flex h-6 w-6 items-center justify-center rounded-md',
+              'dm-card-table-body-row-actionbtn inline-flex !h-6 !w-6 items-center justify-center rounded-md',
               className
             )}
             aria-label={`Open document: ${report.title}`}
