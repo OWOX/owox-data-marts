@@ -5,6 +5,8 @@
  * file that was distributed with this source code.
  */
 
+var TIKTOK_ADS_DATA_LEVELS = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
+
 var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
   constructor(config) {
@@ -103,7 +105,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string",
         default: "AUCTION_AD",
         label: "Data Level",
-        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)",
+        description: "Data level for ad_insights reports",
+        options: TIKTOK_ADS_DATA_LEVELS,
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       StartDate: {
@@ -311,8 +314,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
       this.config.DataLevel.value : "AUCTION_AD";
 
-    const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
-    if (!validDataLevels.includes(dataLevel)) {
+    if (!TIKTOK_ADS_DATA_LEVELS.includes(dataLevel)) {
       this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
       dataLevel = "AUCTION_AD";
     }
@@ -361,8 +363,55 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   }
 
   /**
+   * Get unique key fields for a node, accounting for data-level dependent dimensions
+   *
+   * @param {string} nodeName - The node name (e.g. ad_insights, ad_insights_by_country)
+   * @param {string} dataLevel - The reporting data level (only relevant for insights nodes)
+   * @return {array} - Array of unique key fields
+   */
+  getUniqueKeysForNode(nodeName, dataLevel) {
+    if (nodeName === 'ad_insights') {
+      return this.getDimensionsForDataLevel(dataLevel);
+    }
+    if (nodeName === 'ad_insights_by_country') {
+      return this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'country_code');
+    }
+    return this.fieldsSchema[nodeName].uniqueKeys;
+  }
+
+  /**
+   * Get fields schema, adding a uniqueKeysByDataLevel map to insights nodes so the
+   * config UI can pin the correct fields for whichever DataLevel the user picks
+   * (e.g. AUCTION_ADVERTISER doesn't require ad_id, only AUCTION_AD does).
+   *
+   * @return {object} - Fields schema, keyed by node name
+   */
+  getFieldsSchema() {
+    const schema = super.getFieldsSchema();
+
+    const uniqueKeysByDataLevel = {};
+    for (const level of TIKTOK_ADS_DATA_LEVELS) {
+      uniqueKeysByDataLevel[level] = this.getDimensionsForDataLevel(level);
+    }
+
+    if (schema.ad_insights) {
+      schema.ad_insights = { ...schema.ad_insights, uniqueKeysByDataLevel };
+    }
+
+    if (schema.ad_insights_by_country) {
+      const byCountryUniqueKeysByDataLevel = {};
+      for (const level of TIKTOK_ADS_DATA_LEVELS) {
+        byCountryUniqueKeysByDataLevel[level] = this.populateDimensions(uniqueKeysByDataLevel[level], 'country_code');
+      }
+      schema.ad_insights_by_country = { ...schema.ad_insights_by_country, uniqueKeysByDataLevel: byCountryUniqueKeysByDataLevel };
+    }
+
+    return schema;
+  }
+
+  /**
    * Filter and validate metrics for API request
-   * 
+   *
    * @param {array} filteredFields - All requested fields
    * @param {array} dimensions - Dimension fields to exclude
    * @param {array} validMetricsList - List of valid metrics
@@ -394,7 +443,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Validate that required unique fields are included
     if (this.fieldsSchema[nodeName].uniqueKeys) {
-      const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys;
+      const nodeDataLevel = (nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country')
+        ? this.getValidatedDataLevel()
+        : null;
+      const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeDataLevel);
       const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
 
       if (missingKeys.length > 0) {

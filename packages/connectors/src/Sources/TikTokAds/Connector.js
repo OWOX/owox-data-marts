@@ -227,7 +227,10 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         throw new Error(`Unique keys for '${nodeName}' are not defined in fields schema`);
       }
 
-      let uniqueFields = this.source.fieldsSchema[nodeName]["uniqueKeys"];
+      const dataLevel = (nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country')
+        ? this.source.getValidatedDataLevel()
+        : null;
+      let uniqueFields = this.source.getUniqueKeysForNode(nodeName, dataLevel);
 
       // Create storage instance (Google Sheets is the default storage)
       this.storages[nodeName] = new globalThis[ this.storageName ](

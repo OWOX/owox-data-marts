@@ -25,6 +25,7 @@ interface FieldsSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
   selectedField: string;
   selectedFields: string[];
+  configuration?: Record<string, unknown>;
   onFieldToggle: (fieldName: string, isChecked: boolean) => void;
   onSelectAllFields: (fieldNames: string[], isSelected: boolean) => void;
 }
@@ -34,6 +35,7 @@ export function FieldsSelectionStep({
   connectorFields,
   selectedField,
   selectedFields,
+  configuration,
   onFieldToggle,
   onSelectAllFields,
 }: FieldsSelectionStepProps) {
@@ -49,10 +51,13 @@ export function FieldsSelectionStep({
     () => selectedFieldData?.fields ?? [],
     [selectedFieldData?.fields]
   );
-  const uniqueKeys = useMemo(
-    () => selectedFieldData?.uniqueKeys ?? [],
-    [selectedFieldData?.uniqueKeys]
-  );
+  const dataLevel = configuration?.DataLevel;
+  const uniqueKeys = useMemo(() => {
+    if (typeof dataLevel === 'string' && selectedFieldData?.uniqueKeysByDataLevel?.[dataLevel]) {
+      return selectedFieldData.uniqueKeysByDataLevel[dataLevel];
+    }
+    return selectedFieldData?.uniqueKeys ?? [];
+  }, [selectedFieldData, dataLevel]);
 
   const originalIndexByName = useMemo(() => {
     const indexMap = new Map<string, number>();

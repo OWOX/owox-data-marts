@@ -341,6 +341,7 @@ export function ConnectorEditForm({
               connectorFields={connectorFields}
               selectedField={selectedNode}
               selectedFields={selectedFields}
+              configuration={connectorConfiguration}
               onFieldToggle={handleFieldToggle}
               onSelectAllFields={handleSelectAllFields}
             />
@@ -394,6 +395,7 @@ export function ConnectorEditForm({
             connectorFields={connectorFields}
             selectedField={selectedNode}
             selectedFields={selectedFields}
+            configuration={connectorConfiguration}
             onFieldToggle={handleFieldToggle}
             onSelectAllFields={handleSelectAllFields}
           />
