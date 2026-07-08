@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { UnsavedChangesConfirmationDialog } from '../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import {
   Sheet,
   SheetContent,
@@ -96,17 +96,10 @@ export function DataStorageConfigSheet({
           onCancel={handleClose}
           onDirtyChange={handleFormDirtyChange}
         />
-        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
-              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
-        <ConfirmationDialog
+        <UnsavedChangesConfirmationDialog
           open={showUnsavedDialog}
           onOpenChange={setShowUnsavedDialog}
-          title='Unsaved Changes'
-          description='You have unsaved changes. Exit without saving?'
-          confirmLabel='Yes, leave now'
-          cancelLabel='No, stay here'
           onConfirm={confirmClose}
-          variant='destructive'
         />
       </SheetContent>
     </Sheet>

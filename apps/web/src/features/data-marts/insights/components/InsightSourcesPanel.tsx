@@ -58,6 +58,7 @@ import {
   FormActions,
 } from '@owox/ui/components/form';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
+import { UnsavedChangesConfirmationDialog } from '../../../../shared/components/UnsavedChangesConfirmationDialog';
 import { useUnsavedGuard } from '../../../../hooks/useUnsavedGuard';
 import { useSqlDryRunTrigger } from '../../shared/hooks/useSqlDryRunTrigger';
 import { formatBytes } from '../../../../utils';
@@ -902,17 +903,10 @@ function SourceEditSheet({
             </FormActions>
           </AppForm>
         </Form>
-        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
-              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
-        <ConfirmationDialog
+        <UnsavedChangesConfirmationDialog
           open={showUnsavedDialog}
           onOpenChange={setShowUnsavedDialog}
-          title='Unsaved Changes'
-          description='You have unsaved changes. Exit without saving?'
-          confirmLabel='Yes, leave now'
-          cancelLabel='No, stay here'
           onConfirm={confirmClose}
-          variant='destructive'
         />
       </SheetContent>
     </Sheet>
