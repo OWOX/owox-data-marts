@@ -74,10 +74,7 @@ test.describe('Sheet-hosted confirmation dialogs', () => {
       await expect(titleInput).toHaveValue('Dirty storage title');
     });
 
-    test('closes the sheet when the user confirms leaving dirty form', async ({
-      page,
-      radix,
-    }) => {
+    test('closes the sheet when the user confirms leaving dirty form', async ({ page, radix }) => {
       await page.goto('/ui/0/data-storages');
       await expect(page.getByTestId(TESTIDS.storageListPage)).toBeVisible();
 
