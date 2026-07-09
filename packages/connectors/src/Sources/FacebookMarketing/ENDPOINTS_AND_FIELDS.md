@@ -12,6 +12,7 @@ OWOX requests Meta Graph API version `v25.0`.
 
 - For performance reporting such as spend, impressions, clicks, reach, conversions, and ROAS, start with **Ad Account Insights**.
 - For reporting split by audience, placement, geography, product, or URL asset, use one of the **Ad Account Insights by ...** breakdown endpoints.
+- For performance aggregated at the ad set or campaign level, use **Ad Insights by Ad Set** or **Ad Insights by Campaign**. These endpoints deduplicate reach to match Meta Ads Manager.
 - For ad account metadata, use **Ad Account**.
 - For ad names, statuses, campaign IDs, ad set IDs, and creative IDs, use **Ad Account Ads**.
 - For creative metadata such as body text, image URL, object story ID, URL tags, or thumbnails, use **Ad Account Ad Creatives**.
@@ -33,6 +34,8 @@ OWOX requests Meta Graph API version `v25.0`.
 | **Ad Account Insights by Product ID** (`ad-account/insights-by-product-id`) | Daily ad-level performance split by product ID. | 101 | `ad_id`, `date_start`, `date_stop`, `product_id` | `facebook_ads_ad_account_insights_by_product_id` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 | **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | Daily ad-level performance split by Meta platform and placement position. | 102 | `ad_id`, `date_start`, `date_stop`, `publisher_platform`, `platform_position` | `facebook_ads_ad_account_insights_by_publisher_platform_and_position` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 | **Ad Account Insights by Region** (`ad-account/insights-by-region`) | Daily ad-level performance split by region. | 101 | `ad_id`, `date_start`, `date_stop`, `region` | `facebook_ads_ad_account_insights_by_region` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Insights by Ad Set** (`ad-account/insights-by-adset`) | Daily ad set-level performance with reach deduplicated to match Meta Ads Manager. | 92 | `adset_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_adset` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Insights by Campaign** (`ad-account/insights-by-campaign`) | Daily campaign-level performance with reach deduplicated to match Meta Ads Manager. | 89 | `campaign_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_campaign` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 | **Ad Object (formerly Ad Group)** (`ad-group`) | Legacy ad object fields. Prefer **Ad Account Ads** unless you specifically need fields listed only in this endpoint. | 32 | `id` | `facebook_ads_ad_group` | [Ad Group](https://developers.facebook.com/docs/marketing-api/reference/adgroup/) |
 
 ## Field Table Notes
@@ -45,7 +48,7 @@ OWOX requests Meta Graph API version `v25.0`.
 - OWOX uses **Unique keys** to match rows during loading.
 - OWOX adds these unique keys to every request automatically.
 - You do not need to select them as fields.
-- Insights endpoints return daily ad-level rows.
+- Insights endpoints return daily rows at the ad, ad set, or campaign level.
 - Breakdown endpoints add the listed breakdown fields.
 
 ## Account and Ad Object Fields
@@ -269,7 +272,7 @@ Official Meta reference: [Ad Group](https://developers.facebook.com/docs/marketi
 
 ## Insights Endpoint Fields
 
-Insights endpoints return daily ad-level performance data. Use **Ad Account Insights** for the standard report, or choose a breakdown endpoint when you need the same metrics split by audience, geography, device, URL asset, product, platform, or region.
+Insights endpoints return daily performance data. **Ad Account Insights** and its breakdown endpoints report at the ad level. Choose a breakdown endpoint when you need the same metrics split by audience, geography, device, URL asset, product, platform, or region. **Ad Insights by Ad Set** and **Ad Insights by Campaign** report at those higher levels instead, and deduplicate reach to match Meta Ads Manager.
 
 | Endpoint | Adds breakdown by | Extra fields | Unique keys | Default destination table | Meta reference |
 | --- | --- | --- | --- | --- | --- |
@@ -281,10 +284,14 @@ Insights endpoints return daily ad-level performance data. Use **Ad Account Insi
 | **Ad Account Insights by Product ID** (`ad-account/insights-by-product-id`) | Product ID | `product_id` | `ad_id`, `date_start`, `date_stop`, `product_id` | `facebook_ads_ad_account_insights_by_product_id` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 | **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | Publisher platform and placement position | `platform_position`, `publisher_platform` | `ad_id`, `date_start`, `date_stop`, `publisher_platform`, `platform_position` | `facebook_ads_ad_account_insights_by_publisher_platform_and_position` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 | **Ad Account Insights by Region** (`ad-account/insights-by-region`) | Region | `region` | `ad_id`, `date_start`, `date_stop`, `region` | `facebook_ads_ad_account_insights_by_region` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Insights by Ad Set** (`ad-account/insights-by-adset`) | None — ad set level | None | `adset_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_adset` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Insights by Campaign** (`ad-account/insights-by-campaign`) | None — campaign level | None | `campaign_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_campaign` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 
 ### Ad Account Insights Fields
 
 Use these fields with `ad-account/insights` and every `ad-account/insights-by-*` endpoint.
+
+**Ad Insights by Ad Set** and **Ad Insights by Campaign** use a subset of these fields. Some ad-level fields do not apply at the ad set or campaign level.
 
 Official Meta reference: [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights)
 

@@ -65,7 +65,7 @@ If you already used **OAuth**, skip this section.
 
 OAuth users do not need a manual access token.
 
-> **Before you start:** Step 3 sends your **App Secret**, authorization **code**, and **Access Token**.
+> **Before you start:** Step 3 sends your **App Secret** and authorization **code**, then receives your **Access Token**.
 > Use [Postman Desktop](https://www.postman.com/downloads/) or `curl` for better security.
 > If you use [ReqBin](https://reqbin.com/), avoid shared computers.
 > Do not save the request publicly.
@@ -123,7 +123,7 @@ Replace only `YOUR_APP_ID` with your **App ID**.
 
 OWOX requests both permissions because endpoints read different API areas:
 
-- `ads_read` covers reporting endpoints: **Ad Account Insights** and its breakdown variants by **Age and Gender**, **Country**, **Device Platform**, **Link URL Asset**, **Product ID**, **Publisher Platform and Position**, and **Region**.
+- `ads_read` covers reporting endpoints: **Ad Account Insights**, its breakdown variants by **Age and Gender**, **Country**, **Device Platform**, **Link URL Asset**, **Product ID**, **Publisher Platform and Position**, and **Region**, plus **Ad Insights by Ad Set** and **Ad Insights by Campaign**.
 - `ads_management` covers ad account and ad object endpoints: **Ad Account**, **Ad Account User**, **Ad Account Ads**, **Ad Account Ad Creatives**, and **Ad Object (formerly Ad Group)**.
 
 OWOX only reads data from these endpoints.
@@ -134,7 +134,7 @@ OWOX includes `ads_management` so the same token can read supported ad account a
 
 The URL requests both permissions in the `scope` parameter:
 
-``` code
+```text
 https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,ads_management&state=owox_fb_auth
 ```
 
@@ -184,7 +184,7 @@ Use [Postman Desktop](https://www.postman.com/downloads/), `curl`, or [ReqBin](h
 
 Send a `POST` request to:
 
-``` code
+```text
 https://graph.facebook.com/v25.0/oauth/access_token
 ```
 
@@ -198,7 +198,7 @@ In ReqBin, paste this body as one line.
 
 Replace the placeholder values first:
 
-``` code
+```text
 client_id=YOUR_APP_ID&client_secret=YOUR_APP_SECRET&redirect_uri=http://localhost:8080/&code=CODE_FROM_THE_PREVIOUS_STEP
 ```
 
@@ -270,7 +270,7 @@ Check that your `redirect_uri` matches this format:
 
 Example of a correct format:
 
-``` code
+```text
 http://localhost:8080/
 ```
 
@@ -290,9 +290,11 @@ Repeat **Step 2** to obtain a new temporary code and retry the request.
 Meta rejected the redirect URL used in the authorization request.
 
 **Solution:**
-Add `http://localhost:8080/` as a **Valid OAuth Redirect URI**.
+If your app has no **Facebook Login** product, add it from the app dashboard sidebar.
 
-Use your Meta app's **Facebook Login** settings.
+Open **Facebook Login → Settings**.
+
+Add `http://localhost:8080/` as a **Valid OAuth Redirect URI**.
 
 Then repeat **Step 2**.
 
