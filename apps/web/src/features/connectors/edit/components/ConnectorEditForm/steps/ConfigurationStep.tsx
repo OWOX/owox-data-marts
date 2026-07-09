@@ -27,6 +27,38 @@ interface ConfigurationStepProps {
   isEditingExisting?: boolean;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function migrateNestedConfigValuesToTopLevel(
+  config: Record<string, unknown>,
+  specs: ConnectorSpecificationResponseApiDto[]
+): Record<string, unknown> {
+  const nextConfig = { ...config };
+  const topLevelFields = specs.filter(spec => !spec.oneOf).map(spec => spec.name);
+
+  for (const spec of specs) {
+    if (!spec.oneOf) continue;
+
+    const oneOfConfig = nextConfig[spec.name];
+    if (!isRecord(oneOfConfig)) continue;
+
+    for (const optionConfig of Object.values(oneOfConfig)) {
+      if (!isRecord(optionConfig)) continue;
+
+      for (const fieldName of topLevelFields) {
+        if (nextConfig[fieldName] !== undefined) continue;
+        if (Object.prototype.hasOwnProperty.call(optionConfig, fieldName)) {
+          nextConfig[fieldName] = optionConfig[fieldName];
+        }
+      }
+    }
+  }
+
+  return nextConfig;
+}
+
 export function ConfigurationStep({
   connector,
   connectorSpecification,
@@ -54,7 +86,10 @@ export function ConfigurationStep({
     if (connectorSpecification) {
       updatingFromParentRef.current = true;
 
-      const config: Record<string, unknown> = { ...(initialConfiguration ?? {}) };
+      const config = migrateNestedConfigValuesToTopLevel(
+        { ...(initialConfiguration ?? {}) },
+        connectorSpecification
+      );
 
       connectorSpecification.forEach(spec => {
         const isSecret = Array.isArray(spec.attributes)
@@ -82,15 +117,18 @@ export function ConfigurationStep({
     if (
       initializedRef.current &&
       initialConfiguration &&
-      Object.keys(initialConfiguration).length > 0
+      Object.keys(initialConfiguration).length > 0 &&
+      connectorSpecification
     ) {
       updatingFromParentRef.current = true;
-      setConfiguration({ ...initialConfiguration });
+      setConfiguration(
+        migrateNestedConfigValuesToTopLevel({ ...initialConfiguration }, connectorSpecification)
+      );
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
     }
-  }, [initialConfiguration]);
+  }, [initialConfiguration, connectorSpecification]);
 
   useEffect(() => {
     if (

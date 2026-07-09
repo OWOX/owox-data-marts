@@ -444,7 +444,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       const loginCustomerIdRaw =
         topLevelLoginCustomerId !== undefined
           ? topLevelLoginCustomerId
-          : this.config.AuthType.items?.LoginCustomerId?.value;
+          : this.config.AuthType?.items?.LoginCustomerId?.value;
       const loginCustomerId = loginCustomerIdRaw
         ? FormatUtils.parseIds(loginCustomerIdRaw, { stripCharacters: '-' })[0]
         : null;
