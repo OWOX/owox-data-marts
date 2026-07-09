@@ -8,7 +8,7 @@ import { useCallback, useState } from 'react';
  * - confirm close and reset state
  * - handle successful submit (reset + close)
  *
- * Note: render the unsaved-changes `ConfirmationDialog` *inside* the sheet's `SheetContent`
+ * Note: render `UnsavedChangesConfirmationDialog` *inside* the sheet's `SheetContent`
  * (not as a sibling of `Sheet`). That makes Radix treat it as a nested dismissable layer, so
  * interacting with the dialog does not dismiss the host sheet — which previously re-opened the
  * dialog and trapped the user in a loop.

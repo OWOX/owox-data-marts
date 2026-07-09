@@ -4,6 +4,8 @@ dist
 dist-cjs
 build
 coverage
+playwright-report
+test-results
 
 # Dependencies
 package-lock.json

@@ -5,7 +5,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@owox/ui/components/sheet';
-import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
+import { UnsavedChangesConfirmationDialog } from '../../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { GoogleSheetsReportEditForm } from '../GoogleSheetsReportEditForm';
 import { DataDestinationProvider } from '../../../../../data-destination';
@@ -76,17 +76,10 @@ export function GoogleSheetsReportEditSheet({
             preSelectedDestination={preSelectedDestination}
           />
         </DataDestinationProvider>
-        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
-              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
-        <ConfirmationDialog
+        <UnsavedChangesConfirmationDialog
           open={showUnsavedDialog}
           onOpenChange={setShowUnsavedDialog}
-          title='Unsaved Changes'
-          description='You have unsaved changes. Exit without saving?'
-          confirmLabel='Yes, leave now'
-          cancelLabel='No, stay here'
           onConfirm={confirmClose}
-          variant='destructive'
         />
       </SheetContent>
     </Sheet>

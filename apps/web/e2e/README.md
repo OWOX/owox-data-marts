@@ -28,6 +28,7 @@ e2e/
     ├── run-history.spec.ts          # Run history: empty state, manual run, status badge, timestamps, log views
     ├── notifications.spec.ts        # Notification settings: page render, toggle, edit sheet
     ├── lifecycle.spec.ts            # Full lifecycle: storage -> datamart -> definition -> publish
+    ├── sheet-confirmation-dialogs.spec.ts  # Sheet-hosted confirmation dialogs (unsaved changes + membership decline)
     └── oauth-skeletons.spec.ts      # OAuth connector skeletons (all skipped, credential-gated)
 ```
 
@@ -177,7 +178,11 @@ Located in `helpers/radix.ts`. Handles Radix UI component interactions that invo
 | `selectComboboxOption(trigger, optionText, searchText?)` | Click a cmdk Combobox trigger, optionally search, click option |
 | `dismissSheet(sheetContent)` | Press Escape to close a Sheet, wait for animation |
 | `dismissDialog(dialogContent)` | Press Escape to close a Dialog, wait for animation |
+| `confirmationDialog()` | Locator for the topmost open Dialog content layer (`[data-slot="dialog-content"].last()`) |
 | `confirmDialog(confirmLabel?)` | Click confirm button in a ConfirmationDialog (default label: "Confirm") |
+| `stayOnDirtySheet(hostSheet)` | Cancel the unsaved-changes dialog (`No, stay here`) and assert the host sheet stays open |
+| `leaveDirtySheet(hostSheet)` | Confirm leave on the unsaved-changes dialog (`Yes, leave now`) and assert the host sheet closes |
+| `cancelSheetHostedDialog(hostSheet, cancelLabel)` | Click cancel on a sheet-hosted dialog and assert the host sheet stays open |
 
 ```typescript
 test('example with radix', async ({ page, radix }) => {

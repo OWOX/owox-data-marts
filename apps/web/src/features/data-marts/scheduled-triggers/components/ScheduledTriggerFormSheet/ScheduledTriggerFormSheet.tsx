@@ -14,7 +14,7 @@ import type {
   ScheduledTriggerConfig,
 } from '../../model/trigger-config.types';
 import { useMemo, useEffect, useRef } from 'react';
-import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { UnsavedChangesConfirmationDialog } from '../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
@@ -144,17 +144,10 @@ export function ScheduledTriggerFormSheet({
           onCancel={handleClose}
           onDirtyChange={handleFormDirtyChange}
         />
-        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
-              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
-        <ConfirmationDialog
+        <UnsavedChangesConfirmationDialog
           open={showUnsavedDialog}
           onOpenChange={setShowUnsavedDialog}
-          title='Unsaved Changes'
-          description='You have unsaved changes. Exit without saving?'
-          confirmLabel='Yes, leave now'
-          cancelLabel='No, stay here'
           onConfirm={confirmClose}
-          variant='destructive'
         />
       </SheetContent>
     </Sheet>

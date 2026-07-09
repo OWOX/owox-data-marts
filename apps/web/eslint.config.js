@@ -4,7 +4,11 @@ import { config } from '@owox/eslint-config/vite-react';
 export default tseslint.config(
   ...config,
   {
-    ignores: ['src/features/data-marts/insights-prev/**'],
+    ignores: [
+      'src/features/data-marts/insights-prev/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
   },
   // Allow numbers in template literals (e.g. field array index paths like `items.${index}.name`)
   {
