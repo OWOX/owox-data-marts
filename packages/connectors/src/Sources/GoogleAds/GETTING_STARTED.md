@@ -26,7 +26,7 @@ Before proceeding, please make sure that:
 4. Enter your **Login Customer ID** if you access the selected customer through a Manager (MCC) account.
    > This is the ID of the Manager (MCC) account. Leave it empty when authenticating directly as the same account.
 
-5. Fill in the required fields depending on your chosen authentication type.  
+5. Fill in the required fields depending on your chosen authentication type.
 (If you need help obtaining any of these values, please refer to the detailed instructions in the [CREDENTIALS](CREDENTIALS.md) guide.)
 
 ### For **OAuth2 Authentication** (with OAuth button)
@@ -78,7 +78,7 @@ Leave all other fields as default, then click **Next** to continue.
 4. Click **Finish**, then **Publish Data Mart**.
 
 > ⚠️ **Important Notice:**  
-> If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** must be an **ad account**, not your MCC. When you set a **Login Customer ID**, it must be **different** from the Customer ID; when querying the ad account directly, leave **Login Customer ID** empty.  
+> If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** must be an **ad account**, not your MCC. When you set a **Login Customer ID**, it must be **different** from the Customer ID; when querying the ad account directly, leave **Login Customer ID** empty.
 > Stats data **cannot be retrieved from an MCC (manager) account** — you must specify an **ad account’s Customer ID** as the data source.  
 > All **non-stats endpoints** allow data retrieval using an MCC Customer ID.
 

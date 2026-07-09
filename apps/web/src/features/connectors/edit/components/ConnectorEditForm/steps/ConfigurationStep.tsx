@@ -269,7 +269,7 @@ export function ConfigurationStep({
   }
 
   // Sort specifications by priority:
-  // 1. Required fields without default value (and GoogleAds LoginCustomerId, pinned under Customer ID)
+  // 1. Pinned fields and required fields without default value
   // 2. Required fields with default value
   // 3. Non-required fields without default value
   // 4. All others (non-required with default value)
