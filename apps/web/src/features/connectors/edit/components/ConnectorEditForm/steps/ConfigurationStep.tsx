@@ -230,7 +230,7 @@ export function ConfigurationStep({
   }
 
   // Sort specifications by priority:
-  // 1. Required fields without default value
+  // 1. Required fields without default value (and GoogleAds LoginCustomerId, pinned under Customer ID)
   // 2. Required fields with default value
   // 3. Non-required fields without default value
   // 4. All others (non-required with default value)
@@ -238,6 +238,9 @@ export function ConfigurationStep({
     .filter(spec => spec.name !== 'Fields' && !spec.attributes?.includes('HIDE_IN_CONFIG_FORM'))
     .sort((a, b) => {
       const getPriority = (spec: ConnectorSpecificationResponseApiDto) => {
+        if (connector.name === 'GoogleAds' && spec.name === 'LoginCustomerId') {
+          return 1;
+        }
         const hasDefault = spec.default != null && spec.default !== '';
         if (spec.required && !hasDefault) return 1;
         if (spec.required && hasDefault) return 2;
