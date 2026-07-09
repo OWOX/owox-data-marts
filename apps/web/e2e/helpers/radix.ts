@@ -56,7 +56,7 @@ export class RadixHelpers {
   }
 
   /**
-   * Returns the topmost ConfirmationDialog content layer.
+   * Returns the topmost open Dialog content layer.
    */
   confirmationDialog(): Locator {
     return this.page.locator('[data-slot="dialog-content"]').last();
