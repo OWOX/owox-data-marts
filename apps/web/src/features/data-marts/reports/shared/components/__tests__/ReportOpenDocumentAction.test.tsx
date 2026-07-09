@@ -38,4 +38,60 @@ describe('ReportOpenDocumentAction', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
+
+  it('does not render for non-Google Sheets reports', () => {
+    render(
+      <ReportOpenDocumentAction
+        report={makeReport({
+          dataDestination: {
+            type: DataDestinationType.LOOKER_STUDIO,
+          } as DataMartReport['dataDestination'],
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('link', {
+        name: /open document/i,
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render when the destination configuration is not Google Sheets', () => {
+    render(
+      <ReportOpenDocumentAction
+        report={makeReport({
+          destinationConfig: {
+            type: DestinationTypeConfigEnum.EMAIL_CONFIG,
+          } as DataMartReport['destinationConfig'],
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('link', {
+        name: /open document/i,
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render when the Google Sheets configuration is incomplete', () => {
+    render(
+      <ReportOpenDocumentAction
+        report={makeReport({
+          destinationConfig: {
+            type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG,
+            spreadsheetId: '',
+            sheetId: '456',
+          },
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('link', {
+        name: /open document/i,
+      })
+    ).not.toBeInTheDocument();
+  });
 });
