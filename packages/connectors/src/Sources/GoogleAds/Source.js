@@ -19,7 +19,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requiredType: "string",
         label: "Login Customer ID",
         description: "Optional when authenticating as the same account. Provide the manager account ID (format: 123-456-7890 or 1234567890) when acting on behalf of other accounts.",
-        placeholder: "Enter Login Customer ID"
+        placeholder: "Enter Login Customer ID",
+        attributes: [CONFIG_ATTRIBUTES.PINNED]
       },
       AuthType: {
         requiredType: "object",
@@ -439,8 +440,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requestBody.pageToken = nextPageToken;
       }
       
+      const topLevelLoginCustomerId = this.config.LoginCustomerId?.value;
       const loginCustomerIdRaw =
-        this.config.LoginCustomerId?.value || this.config.AuthType.items?.LoginCustomerId?.value;
+        topLevelLoginCustomerId !== undefined
+          ? topLevelLoginCustomerId
+          : this.config.AuthType.items?.LoginCustomerId?.value;
       const loginCustomerId = loginCustomerIdRaw
         ? FormatUtils.parseIds(loginCustomerIdRaw, { stripCharacters: '-' })[0]
         : null;

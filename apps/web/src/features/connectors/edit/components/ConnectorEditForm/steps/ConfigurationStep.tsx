@@ -15,6 +15,7 @@ import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRe
 import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
 import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 import { trackEvent } from '../../../../../../utils';
+import { ConnectorSpecificationAttribute } from '../../../../shared/enums/connector-specification-attribute.enum';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -238,7 +239,7 @@ export function ConfigurationStep({
     .filter(spec => spec.name !== 'Fields' && !spec.attributes?.includes('HIDE_IN_CONFIG_FORM'))
     .sort((a, b) => {
       const getPriority = (spec: ConnectorSpecificationResponseApiDto) => {
-        if (connector.name === 'GoogleAds' && spec.name === 'LoginCustomerId') {
+        if (spec.attributes?.includes(ConnectorSpecificationAttribute.PINNED)) {
           return 1;
         }
         const hasDefault = spec.default != null && spec.default !== '';
