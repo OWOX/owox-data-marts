@@ -20,8 +20,8 @@ import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 
 const mockToastCustom = vi.hoisted(() => vi.fn().mockReturnValue('mock-toast-id'));
 vi.mock('react-hot-toast', () => ({
-  default: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn() },
-  toast: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn() },
+  default: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn(), error: vi.fn() },
+  toast: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn(), error: vi.fn() },
 }));
 
 const reportServiceMock = vi.hoisted(() => ({
@@ -417,6 +417,46 @@ describe('DataMartReportsPage', () => {
 
     expect(await screen.findByText('Edit report')).toBeInTheDocument();
     expect(screen.getByText('Delete report')).toBeInTheDocument();
+  });
+
+  it('does not open the report edit sheet when Open document is clicked', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      buildGoogleSheetsReportResponse({
+        title: 'Blended Sheet Report',
+        columnConfig: ['joined_field'],
+      }),
+    ]);
+
+    const { container } = renderPage();
+
+    await screen.findByText('Blended Sheet Report');
+
+    fireEvent.click(
+      container.querySelector(
+        'a[href="https://docs.google.com/spreadsheets/d/spreadsheet-1/edit#gid=123"]'
+      )!
+    );
+
+    expect(screen.queryByRole('dialog', { name: 'Report edit sheet' })).not.toBeInTheDocument();
+  });
+
+  it('does not open the report edit sheet when Preview SQL is clicked', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      buildGoogleSheetsReportResponse({
+        title: 'Blended Sheet Report',
+        columnConfig: ['joined_field'],
+      }),
+    ]);
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Preview SQL: Blended Sheet Report',
+      })
+    );
+
+    expect(screen.queryByRole('dialog', { name: 'Report edit sheet' })).not.toBeInTheDocument();
   });
 
   it('renders notification report row actions like the Data Mart reports tab', async () => {
