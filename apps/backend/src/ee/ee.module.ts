@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CommonModule } from '../common/common.module';
 import { DataMartsModule } from '../data-marts/data-marts.module';
 import { IdpModule } from '../idp/idp.module';
+import { McpResourceModule } from '../mcp-resource/mcp-resource.module';
 import { IdpMcpAuthAdapter } from './mcp/auth/idp-mcp-auth.adapter';
 import { MCP_AUTH_PORT } from './mcp/auth/mcp-auth.port';
 import { McpAuthExceptionFilter } from './mcp/auth/mcp-auth.exception-filter';
@@ -18,7 +19,7 @@ import {
 import { McpToolRegistry } from './mcp/tools/mcp-tool.registry';
 
 @Module({
-  imports: [IdpModule, DataMartsModule, CommonModule],
+  imports: [IdpModule, DataMartsModule, CommonModule, McpResourceModule],
   controllers: [McpMetadataController, McpTransportController],
   providers: [
     McpConfigService,

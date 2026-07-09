@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectsContextType } from '../../features/idp/context/ProjectContext.types';
@@ -20,6 +20,16 @@ const projectsContext = vi.hoisted(() => ({
   value: {} as ProjectsContextType,
 }));
 
+const clipboard = vi.hoisted(() => ({
+  handleCopy: vi.fn(),
+}));
+
+const settingsFlags = vi.hoisted(() => ({
+  value: {
+    IDP_PROVIDER: 'owox-better-auth',
+  } as Record<string, unknown>,
+}));
+
 vi.mock('../../features/idp/hooks/useAuthState', () => ({
   useUser: () => currentUser.value,
 }));
@@ -29,7 +39,7 @@ vi.mock('../../features/idp/hooks/useProjects', () => ({
 }));
 
 vi.mock('../../app/store/hooks', () => ({
-  useFlags: () => ({ flags: {} }),
+  useFlags: () => ({ flags: settingsFlags.value }),
 }));
 
 vi.mock('../../shared/hooks', () => ({
@@ -59,13 +69,24 @@ vi.mock('../../features/contexts/services/context.service', () => ({
 vi.mock('../../hooks/useClipboard', () => ({
   useClipboard: () => ({
     copiedSection: null,
-    handleCopy: vi.fn(),
+    handleCopy: clipboard.handleCopy,
   }),
 }));
 
 describe('OverviewTab project status', () => {
   beforeEach(() => {
+    currentUser.value = {
+      id: 'user-1',
+      email: 'user@example.com',
+      roles: ['admin'],
+      projectId: 'blocked-project',
+      projectTitle: 'Blocked Project',
+    };
     projectsContext.value = projectContext();
+    clipboard.handleCopy.mockClear();
+    settingsFlags.value = {
+      IDP_PROVIDER: 'owox-better-auth',
+    };
   });
 
   it('renders blocked status for the current project from project list', () => {
@@ -87,6 +108,64 @@ describe('OverviewTab project status', () => {
 
     expect(loadProjects).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Unknown')).not.toBeInTheDocument();
+  });
+
+  it('renders and copies the project-specific MCP server URL from auth context', () => {
+    const mcpServerUrl = 'https://blocked-project.mcp.owox.com/mcp';
+    currentUser.value = {
+      ...currentUser.value!,
+      mcpServerUrl,
+    };
+
+    renderOverview();
+
+    expect(screen.getByText('MCP server')).toBeInTheDocument();
+    expect(screen.getByText(mcpServerUrl)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: mcpServerUrl })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/For a single-project setup, use the published OWOX MCP server/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/For multi-project workflows, use this project-specific URL/i)
+    ).toBeInTheDocument();
+
+    const setupGuideLink = screen.getByRole('link', { name: 'MCP setup guide' });
+    expect(setupGuideLink).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/getting-started/setup-guide/mcp/'
+    );
+
+    fireEvent.click(screen.getByTitle('Copy project-mcp-url to clipboard'));
+
+    expect(clipboard.handleCopy).toHaveBeenCalledWith(mcpServerUrl, 'project-mcp-url');
+  });
+
+  it('renders MCP server settings before legacy platform settings', () => {
+    currentUser.value = {
+      ...currentUser.value!,
+      mcpServerUrl: 'https://blocked-project.mcp.owox.com/mcp',
+    };
+
+    renderOverview();
+
+    const mcpHeading = screen.getByText('MCP server');
+    const legacyHeading = screen.getByText('Legacy platform settings');
+
+    expect(
+      Boolean(mcpHeading.compareDocumentPosition(legacyHeading) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBe(true);
+  });
+
+  it('does not render a client-built MCP server URL when auth context has no URL', () => {
+    currentUser.value = {
+      ...currentUser.value!,
+      mcpServerUrl: undefined,
+    };
+
+    renderOverview();
+
+    expect(screen.queryByText('MCP server')).not.toBeInTheDocument();
+    expect(screen.queryByText('https://blocked-project.mcp.owox.com/mcp')).not.toBeInTheDocument();
   });
 });
 

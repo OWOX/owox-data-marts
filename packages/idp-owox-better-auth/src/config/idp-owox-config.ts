@@ -364,6 +364,9 @@ export type BetterAuthProviderConfig = {
   betterAuth: BetterAuthConfig;
   idpOwox: IdpOwoxConfig;
   email: EmailConfig;
+  mcp?: {
+    publicBaseUrl: string;
+  };
   uiProviders: UiAuthProviders;
   gtmContainerId?: string;
 };
@@ -431,6 +434,13 @@ export function loadBetterAuthProviderConfigFromEnv(
         verifiedSenderName: sendgridEnv.IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME,
       },
     },
+    ...(env.MCP_PUBLIC_BASE_URL
+      ? {
+          mcp: {
+            publicBaseUrl: ensureValidUrl(env.MCP_PUBLIC_BASE_URL.trim()).replace(/\/$/, ''),
+          },
+        }
+      : {}),
     uiProviders,
     gtmContainerId: baEnv.GOOGLE_TAG_MANAGER_CONTAINER_ID,
   };

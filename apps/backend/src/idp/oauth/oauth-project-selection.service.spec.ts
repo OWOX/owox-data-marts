@@ -189,6 +189,53 @@ describe('OAuthProjectSelectionService', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
+  it('resolves a project member by project id from project host', async () => {
+    const provider = createProvider();
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const result = await service.resolveProjectHostMember(
+      provider as IdpProvider,
+      { ...context, projectId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      [
+        {
+          id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          title: 'Current project',
+          status: 'active',
+          roles: ['viewer'],
+        },
+        {
+          id: projectId,
+          title: 'Project from host',
+          status: 'active',
+          roles: ['admin'],
+        },
+      ],
+      projectId
+    );
+
+    expect(result).toEqual({
+      userId: 'user-1',
+      projectId,
+      roles: ['admin'],
+      email: 'user@example.com',
+      fullName: 'User One',
+      avatar: 'https://example.com/avatar.png',
+    });
+    expect(provider.getProjectMembers).not.toHaveBeenCalled();
+  });
+
+  it('rejects project host ids outside the user project list', async () => {
+    const provider = createProvider();
+
+    await expect(
+      service.resolveProjectHostMember(
+        provider as IdpProvider,
+        context,
+        projects,
+        '8c90f0b0f314bf5f5d6f69d24fd7ee3b'
+      )
+    ).rejects.toThrow('project from MCP resource is not available for user');
+  });
+
   it('renders a centered project selection dialog with project statuses', () => {
     const html = service.renderSelectionPage({
       authorizationRequest: {
@@ -205,6 +252,7 @@ describe('OAuthProjectSelectionService', () => {
     });
 
     expect(html).toContain('<form method="get" action="/oauth/authorize">');
+    expect(html).not.toContain('name="resource"');
     expect(html).toContain('Select project (2)');
     expect(html).toContain('name="selected_project_id"');
     expect(html).toContain('Current project');

@@ -1,5 +1,14 @@
-import { Controller, Get, Header, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Header,
+  NotFoundException,
+  Req,
+} from '@nestjs/common';
 import { OAuthProtectedResourceMetadataSchema } from '@owox/idp-protocol';
+import type { Request } from 'express';
+import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import { McpConfigService } from '../config/mcp.config';
 
 const PROTECTED_RESOURCE_METADATA_PATHS = [
@@ -12,13 +21,21 @@ const OPENAI_APPS_CHALLENGE_PATH = '/.well-known/openai-apps-challenge';
 
 @Controller()
 export class McpMetadataController {
-  constructor(private readonly config: McpConfigService) {}
+  constructor(
+    private readonly config: McpConfigService,
+    private readonly resourceResolver: McpResourceResolverService
+  ) {}
 
   @Get(PROTECTED_RESOURCE_METADATA_PATHS)
-  getProtectedResourceMetadata() {
+  getProtectedResourceMetadata(@Req() request: Request) {
+    const resourceContext = this.resourceResolver.tryResolveRequest(request);
+    if (!resourceContext) {
+      throw new BadRequestException('invalid MCP resource');
+    }
+
     return OAuthProtectedResourceMetadataSchema.parse({
-      resource: this.config.resource,
-      authorization_servers: [this.config.authorizationServer],
+      resource: resourceContext.resource,
+      authorization_servers: [resourceContext.publicBaseUrl],
       scopes_supported: this.config.scopes,
       resource_documentation: this.config.resourceDocumentationUrl,
     });

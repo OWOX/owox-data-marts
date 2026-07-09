@@ -14,6 +14,9 @@ export class OAuthDynamicClient {
   @Column({ type: 'varchar', length: '100', nullable: true })
   userId?: string | null;
 
+  @Column({ type: 'varchar', length: '2048', nullable: true })
+  resource?: string | null;
+
   @Column({ type: 'varchar', length: '20' })
   status: OAuthDynamicClientStatus;
 

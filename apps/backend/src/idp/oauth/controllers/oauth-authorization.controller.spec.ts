@@ -5,6 +5,7 @@ import {
   type McpOAuthProjectMemberContext,
   type Payload,
 } from '@owox/idp-protocol';
+import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort } from '../oauth-idp.port';
@@ -26,6 +27,12 @@ describe('OAuthAuthorizationController', () => {
     state: 'state-1',
     codeChallenge: 'challenge',
     codeChallengeMethod: 'S256',
+  } as const;
+  const sharedResourceContext = {
+    kind: 'shared',
+    resource: authorizationRequest.resource,
+    publicBaseUrl: 'http://localhost:3000',
+    projectId: null,
   } as const;
 
   const payload: Payload = {
@@ -67,9 +74,16 @@ describe('OAuthAuthorizationController', () => {
     } as unknown as Request;
   }
 
-  function createController() {
+  function createController(
+    validatedAuthorizationRequest: Awaited<
+      ReturnType<OAuthRequestValidator['validateAuthorizationRequest']>
+    > = {
+      request: authorizationRequest,
+      resourceContext: sharedResourceContext,
+    }
+  ) {
     const validator = {
-      validateAuthorizationRequest: jest.fn().mockResolvedValue(authorizationRequest),
+      validateAuthorizationRequest: jest.fn().mockResolvedValue(validatedAuthorizationRequest),
     } as unknown as jest.Mocked<OAuthRequestValidator>;
     const projectMemberResolver = {
       resolve: jest.fn().mockReturnValue(projectMember),
@@ -106,8 +120,12 @@ describe('OAuthAuthorizationController', () => {
         projects.filter(project => project.status !== 'removed')
       ),
       resolveSelectedProjectMember: jest.fn().mockResolvedValue(projectMember),
+      resolveProjectHostMember: jest.fn().mockResolvedValue(projectMember),
       renderSelectionPage: jest.fn().mockReturnValue('<html>Select project</html>'),
     } as unknown as jest.Mocked<OAuthProjectSelectionService>;
+    const resourceResolver = {
+      tryResolveRequest: jest.fn().mockReturnValue(null),
+    } as unknown as jest.Mocked<McpResourceResolverService>;
 
     return {
       controller: new (OAuthAuthorizationController as unknown as new (
@@ -118,7 +136,8 @@ describe('OAuthAuthorizationController', () => {
         idpProviderService,
         oauthIdp,
         clientRegistry,
-        projectSelectionService
+        projectSelectionService,
+        resourceResolver
       ),
       validator,
       projectMemberResolver,
@@ -126,12 +145,13 @@ describe('OAuthAuthorizationController', () => {
       oauthIdp,
       clientRegistry,
       projectSelectionService,
+      resourceResolver,
     };
   }
 
   it('redirects unauthenticated browser requests to sign-in with OAuth continuation', async () => {
     const loggerSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
-    const { controller, oauthIdp } = createController();
+    const { controller, validator, oauthIdp } = createController();
     const response = createResponse();
     const request = createRequest({
       originalUrl:
@@ -140,6 +160,7 @@ describe('OAuthAuthorizationController', () => {
 
     await controller.authorize({}, request, response as unknown as Response);
 
+    expect(validator.validateAuthorizationRequest).toHaveBeenCalledWith({}, undefined);
     expect(response.redirect).toHaveBeenCalledTimes(1);
     const redirectUrl = response.redirect.mock.calls[0]?.[0] as string;
     expect(redirectUrl).toContain('/auth/sign-in?');
@@ -285,6 +306,49 @@ describe('OAuthAuthorizationController', () => {
     expect(oauthIdp.createAuthorizationCode).toHaveBeenCalledWith(
       authorizationRequest,
       selectedProjectMember
+    );
+    expect(response.redirect).toHaveBeenCalledWith(
+      'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'
+    );
+  });
+
+  it('skips project picker for project-specific MCP resources', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const projectAuthorizationRequest = {
+      ...authorizationRequest,
+      resource: `https://${projectId}.mcp.owox.com/mcp`,
+    };
+    const { controller, oauthIdp, projectSelectionService } = createController({
+      request: projectAuthorizationRequest,
+      resourceContext: {
+        kind: 'project',
+        resource: projectAuthorizationRequest.resource,
+        publicBaseUrl: `https://${projectId}.mcp.owox.com`,
+        projectId,
+      },
+    });
+    projectSelectionService.loadProjects.mockResolvedValueOnce([
+      { id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', title: 'Other project', status: 'active' },
+      { id: projectId, title: 'Project from host', status: 'active', roles: ['admin'] },
+    ]);
+    const response = createResponse();
+    const request = createRequest({ cookies: { refreshToken: 'refresh-token-1' } });
+
+    await controller.authorize({}, request, response as unknown as Response);
+
+    expect(projectSelectionService.renderSelectionPage).not.toHaveBeenCalled();
+    expect(projectSelectionService.resolveProjectHostMember).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 'user-1', projectId: 'project-1' }),
+      [
+        { id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', title: 'Other project', status: 'active' },
+        { id: projectId, title: 'Project from host', status: 'active', roles: ['admin'] },
+      ],
+      projectId
+    );
+    expect(oauthIdp.createAuthorizationCode).toHaveBeenCalledWith(
+      projectAuthorizationRequest,
+      projectMember
     );
     expect(response.redirect).toHaveBeenCalledWith(
       'http://127.0.0.1:63888/callback?code=auth-code-1&state=state-1'

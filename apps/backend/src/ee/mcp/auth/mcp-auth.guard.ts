@@ -8,7 +8,8 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { McpScope, McpTokenPayload } from '@owox/idp-protocol';
-import { McpConfigService } from '../config/mcp.config';
+import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
+import type { McpResourceContext } from '../../../mcp-resource/mcp-resource-context';
 import { MCP_AUTH_PORT, type McpAuthPort } from './mcp-auth.port';
 
 interface MutableMcpRequest extends Request {
@@ -23,19 +24,27 @@ export class McpAuthGuard implements CanActivate {
   constructor(
     @Inject(MCP_AUTH_PORT)
     private readonly auth: McpAuthPort,
-    private readonly config: McpConfigService
+    private readonly resourceResolver: McpResourceResolverService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<MutableMcpRequest>();
     const token = this.extractBearerToken(request);
+    const resourceContext = this.resourceResolver.tryResolveRequest(request);
+    if (!resourceContext) {
+      throw new UnauthorizedException('Invalid MCP resource');
+    }
 
-    const payload = await this.auth.verifyToken(token, this.requiredScopes);
+    const payload = await this.auth.verifyToken(
+      token,
+      resourceContext.resource,
+      this.requiredScopes
+    );
     if (!payload) {
       throw new UnauthorizedException('Invalid MCP bearer token');
     }
 
-    this.assertPayload(payload);
+    this.assertPayload(payload, resourceContext);
     this.logger.debug('MCP auth accepted', {
       method: request.method,
       url: request.originalUrl ?? request.url,
@@ -72,13 +81,17 @@ export class McpAuthGuard implements CanActivate {
     return Array.isArray(header) ? header[0] : header;
   }
 
-  private assertPayload(payload: McpTokenPayload): void {
+  private assertPayload(payload: McpTokenPayload, resourceContext: McpResourceContext): void {
     if (payload.authFlow !== 'mcp') {
       throw new UnauthorizedException('Invalid MCP auth flow');
     }
 
-    if (payload.resource !== this.config.resource) {
+    if (payload.resource !== resourceContext.resource) {
       throw new UnauthorizedException('Invalid MCP resource');
+    }
+
+    if (resourceContext.kind === 'project' && payload.projectId !== resourceContext.projectId) {
+      throw new UnauthorizedException('Invalid MCP project context');
     }
 
     if (!payload.projectId) {

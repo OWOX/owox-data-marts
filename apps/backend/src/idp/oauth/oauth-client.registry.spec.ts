@@ -42,6 +42,7 @@ describe('OAuthClientRegistry', () => {
       {
         clientId: 'mcp_dyn_persisted',
         clientName: 'Codex',
+        resource: 'https://mcp.owox.com/mcp',
         redirectUris: ['http://127.0.0.1:54248/callback/OxWjtjMxOIr3'],
         scopes: ['mcp:read', 'mcp:write'],
         status: 'success',
@@ -54,6 +55,7 @@ describe('OAuthClientRegistry', () => {
 
     await expect(registry.get('mcp_dyn_persisted')).resolves.toMatchObject({
       clientId: 'mcp_dyn_persisted',
+      resource: 'https://mcp.owox.com/mcp',
       redirectUris: ['http://127.0.0.1:54248/callback/OxWjtjMxOIr3'],
       scopes: ['mcp:read', 'mcp:write'],
       status: 'success',
@@ -73,6 +75,7 @@ describe('OAuthClientRegistry', () => {
     await registry.register({
       clientId: 'mcp_dyn_new',
       clientName: 'Codex',
+      resource: 'https://mcp.owox.com/mcp',
       redirectUris: ['http://127.0.0.1:54248/callback/OxWjtjMxOIr3'],
       scopes: ['mcp:read'],
       createdAt,
@@ -81,6 +84,7 @@ describe('OAuthClientRegistry', () => {
     expect(repository.save).toHaveBeenCalledWith({
       clientId: 'mcp_dyn_new',
       clientName: 'Codex',
+      resource: 'https://mcp.owox.com/mcp',
       redirectUris: ['http://127.0.0.1:54248/callback/OxWjtjMxOIr3'],
       scopes: ['mcp:read'],
       status: 'pending',
@@ -95,6 +99,7 @@ describe('OAuthClientRegistry', () => {
       {
         clientId: 'mcp_dyn_authorized',
         clientName: 'Codex',
+        resource: 'https://mcp.owox.com/mcp',
         redirectUris: ['http://127.0.0.1:54248/callback/OxWjtjMxOIr3'],
         scopes: ['mcp:read', 'mcp:write'],
         status: 'pending',
@@ -118,6 +123,7 @@ describe('OAuthClientRegistry', () => {
       {
         clientId: 'mcp_dyn_used',
         clientName: 'Claude',
+        resource: 'https://mcp.owox.com/mcp',
         redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
         scopes: ['mcp:read', 'mcp:write'],
         status: 'pending',
@@ -145,6 +151,7 @@ describe('OAuthClientRegistry', () => {
     await firstRegistry.register({
       clientId: 'mcp_dyn_shared',
       clientName: 'ChatGPT',
+      resource: 'https://mcp.owox.com/mcp',
       redirectUris: ['https://chatgpt.com/connector/oauth/callback'],
       scopes: ['mcp:read', 'mcp:write'],
       createdAt: new Date('2026-06-11T14:00:00.000Z'),
@@ -152,6 +159,7 @@ describe('OAuthClientRegistry', () => {
 
     await expect(secondRegistry.get('mcp_dyn_shared')).resolves.toMatchObject({
       clientId: 'mcp_dyn_shared',
+      resource: 'https://mcp.owox.com/mcp',
       redirectUris: ['https://chatgpt.com/connector/oauth/callback'],
       scopes: ['mcp:read', 'mcp:write'],
     });

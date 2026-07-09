@@ -1,9 +1,9 @@
-import type { Role, TokenPayload, User } from '../types';
+import type { CurrentUserResponse, Role, User } from '../types';
 
 /**
- * Convert token payload to user object
+ * Convert current user API response to user object
  */
-export function tokenPayloadToUser(payload: TokenPayload): User {
+export function currentUserResponseToUser(payload: CurrentUserResponse): User {
   return {
     id: payload.userId,
     email: payload.email,
@@ -11,6 +11,7 @@ export function tokenPayloadToUser(payload: TokenPayload): User {
     roles: payload.roles,
     projectId: payload.projectId,
     projectTitle: payload.projectTitle,
+    mcpServerUrl: payload.mcpServerUrl,
     avatar: payload.avatar,
     onboarding: payload.onboarding,
   };
@@ -41,7 +42,7 @@ export function hasAllRoles(user: User | null, roles: Role[]): boolean {
 }
 
 export const AuthService = {
-  tokenPayloadToUser,
+  currentUserResponseToUser,
   hasRole,
   hasAnyRole,
   hasAllRoles,

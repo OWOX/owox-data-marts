@@ -181,6 +181,12 @@ owox serve --env-file custom.env --port 3030
   - Example for Claude web: `https://claude.ai`
   - Default: empty.
 
+- **MCP_PUBLIC_BASE_URL**: Public origin of the shared hosted MCP server.
+  - Example: `https://mcp.owox.com`
+  - `MCP_OAUTH_RESOURCE` defaults to `${MCP_PUBLIC_BASE_URL}/mcp` when not set.
+  - Project-specific MCP URLs are derived from this value. For `MCP_PUBLIC_BASE_URL=https://mcp.owox.com`, the project URL format is `https://{projectId}.mcp.owox.com/mcp`.
+  - Do not configure a separate project-domain environment variable. The deployment must route both `mcp.owox.com` and `*.mcp.owox.com` to the same MCP backend and preserve `Host`, `X-Forwarded-Host`, and `X-Forwarded-Proto`.
+
 ## CORS
 
 - **CORS_ALLOWED_HEADERS**: Additional comma-separated request headers allowed by the
