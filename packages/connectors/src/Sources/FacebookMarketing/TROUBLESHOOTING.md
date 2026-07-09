@@ -1,8 +1,6 @@
 # Troubleshooting Facebook Ads Imports
 
-Use this guide after you save credentials.
-
-It covers setup, manual runs, scheduled runs, and backfills.
+Use this guide after you save credentials. It covers setup, manual runs, scheduled runs, and backfills.
 
 For access token or authorization code errors, see [Credentials](CREDENTIALS.md#troubleshooting-credential-setup).
 
@@ -11,19 +9,11 @@ For access token or authorization code errors, see [Credentials](CREDENTIALS.md#
 Before changing credentials or app settings, check these items:
 
 - Check **Run history** for the exact Meta error.
-- Check **Account IDs**.
-- Use numeric IDs only.
-- Do not include the `act_` prefix.
-- Separate multiple Account IDs with commas or semicolons.
-- Check **Facebook access**.
-- The authorized Facebook user must access every selected ad account.
-- Check **Permissions**.
-- The token must include `ads_read` and `ads_management`.
+- Check **Account IDs**: use numeric IDs only, without the `act_` prefix, and separate multiple IDs with commas or semicolons.
+- Check **Facebook access**: the authorized Facebook user must access every selected ad account.
+- Check **Permissions**: the token must include `ads_read` and `ads_management`.
 - For large backfills, reduce the date range, selected fields, or breakdowns.
-- If the error continues, open the Data Mart settings.
-- Expand **Advanced settings**.
-- Lower **API Page Limit**, for example to `25`.
-- Save the Data Mart and rerun it.
+- If the error continues, open the Data Mart settings, expand **Advanced settings**, lower **API Page Limit** (for example to `25`), then save and rerun.
 
 If these checks look correct, match the **Run history** error with the cases below.
 
