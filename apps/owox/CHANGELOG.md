@@ -4,142 +4,77 @@
 
 ### Minor Changes 0.29.0
 
-- 964d886: # Protect unsaved Output Schema changes from being lost
+![OWOX Data Marts – v0.29.0](https://github.com/user-attachments/assets/01665ae0-4bda-45ac-a0af-6dc01f5a3214)
 
-  When a data mart's Output Schema has unsaved changes, you're now asked how you'd like to proceed before any action that would replace the schema — so your edits are never discarded without warning.
+- 36fb4d3: **Data Mart report aggregations**
 
-  You'll see a clear prompt with three choices — **Save & continue**, **Discard & continue**, or **Cancel** — when you have unsaved schema changes and you:
-  - generate field aliases or descriptions with AI,
-  - refresh the schema,
-  - publish the data mart,
-  - update the input source, or
-  - leave the page.
+  Reports can now aggregate Data Mart data server-side across all supported storages (BigQuery, Athena, Snowflake, Redshift, Databricks).
 
-  This makes it obvious what will happen to your changes and lets you keep your work instead of losing it.
+  - **Group-by + metric functions** — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, and percentiles `P25`/`P50`/`P75`/`P95`. Every selected column without an aggregation rule becomes a grouping key.
+  - **Date bucketing** (`dateTruncConfig`) — group a date/timestamp dimension by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`, with an optional per-rule IANA `timeZone` applied before truncation.
+  - **Aggregated column naming** — outputs are named `<column> | <TOKEN>` (e.g. `revenue | SUM`, `customer_id | COUNTUNIQUE`) and carry the function's effective type. A column can carry several functions, each as its own output column.
+  - **Auto Row Count** — aggregated reports automatically include a `Row Count` (`COUNT(*)`) column.
+  - **Unique Count** (`uniqueCountConfig`) — opt-in `COUNT(DISTINCT <primary key>)`, with composite primary key support; rejected at save time if the Data Mart has no primary key.
+  - **Post-aggregation filtering (`HAVING`)** — a filter on an aggregated output column is auto-routed to `HAVING` instead of row-level `WHERE`; the `(column, function)` pair must match a configured aggregation.
+  - **Joined Data Marts** — post-join aggregation over the joined result, in addition to the existing pre-join join-rollup.
+  - **Totals** — a per-column summary over the full filtered dataset (no grouping), computed as a separate query and surfaced through the HTTP Data API's run subtree. Push destinations (Google Sheets, Email/Slack/Teams/Chat) don't compute totals; Row Count and Unique Count are excluded from totals.
+  - **Governance** — each schema field carries a dimension/metric role, a type-derived set of supported aggregations, and an on-by-default subset, with per-field override.
+  - **UI** — a new **AGG** control next to output controls, plus a per-field AGG icon, configure grouping, multi-aggregation, date bucketing, and timezone.
 
-- 627880f: # Auto-create Google Sheets documents for reports
+  Backend adds three additive nullable report columns (`aggregationConfig`, `dateTruncConfig`, `uniqueCountConfig`) plus save-time validation. **Deployment ordering:** deploy the backend before shipping a Google Sheets Extension build that exposes new aggregation options, since the extension's function list has no compile-time guard against drift from the API.
 
-  Add a "Create document" action to the Google Sheets report form that auto-creates a new spreadsheet for the selected destination and fills in its link — so users no longer have to manually create and share a sheet. It works for both authentication methods: OAuth (the document is created in the connected account's Drive and shared with the requesting user) and Service Account (the document is created in a configured Shared Drive folder).
+- 627880f: **Auto-create Google Sheets documents for reports**
 
-  Destinations can target a Drive folder for auto-created documents: paste a folder URL for Service Account destinations (validated on save — it must be a Shared Drive folder the service account can write to), or pick one with the Google Drive Picker for OAuth destinations. The Picker requires a new `GOOGLE_PICKER_API_KEY` environment variable, and the OAuth destination flow now also requests the non-sensitive `drive.file` scope (existing OAuth destinations must reconnect to grant it before folder placement and sharing work).
+  A "Create document" action in the Google Sheets report form auto-creates a new spreadsheet for the selected destination and fills in its link. Works for both auth methods — OAuth (document created in the connected account's Drive and shared with the requesting user) and Service Account (created in a configured Shared Drive folder).
 
-- e8b87e3: # Add a summarize_data_catalog MCP tool
+  - Destinations can target a Drive folder: paste a folder URL for Service Account destinations (validated on save — must be a Shared Drive folder the service account can write to), or pick one via the Google Drive Picker for OAuth destinations.
+  - The Picker requires a new `GOOGLE_PICKER_API_KEY` environment variable.
+  - The OAuth destination flow now also requests the `drive.file` scope — existing OAuth destinations must reconnect to grant it before folder placement and sharing work.
 
-  AI assistants connected to OWOX over MCP can now get a high-level summary of the current project's published Data Mart catalog. The summary includes the total Data Mart count and top published Data Marts ranked by relationship connectivity, report and trigger usage, and recent updates, with links and shortened descriptions — so users can understand what data is available and where to start.
+- e575e99: **Smart search for Data Marts, storages, and destinations**
 
-  Only Data Marts visible to the current project member are included. The tool does not query actual data rows, expose sample values, or compute data freshness.
+  Added semantic search functionality for finding project Data Marts, Storages, and Destinations from the project search index.
 
-- e8b87e3: # Add a get_data_mart_details_by_id MCP tool
+- e8b87e3: # **MCP tools**
+  - e8b87e3: Added **`summarize_data_catalog`** — high-level summary of the project's published Data Mart catalog: total count, top Data Marts ranked by relationship connectivity, report/trigger usage, and recent updates. Returns only Data Marts visible to the current member; does not query row data.
+  - e8b87e3: Added **`get_data_mart_details_by_id`** — a Data Mart's id, name, description, and output schema fields, including `joined_fields` (blended fields with qualified names, source Data Mart, and allowed aggregations).
+  - f680592: Added **`query_data_mart`** — query a Data Mart directly: pick fields, filter (pre-join slices and post-join filters), aggregate (`SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, percentiles), bucket dates by day/week/month/quarter/year, and get server-side totals. Runs against the warehouse, recorded in Run History (query definition and SQL only, never row values), and costs credits per call.
+  - 7e3ce65: Added **`get_data_mart_reports`** — list reports tied to a Data Mart, including destination, owner, all run schedules (cron, timezone, active flag), last run time, and last run status.
+  - c1485c0: Added **`add_report`** — create a report exporting a Data Mart to a Google Sheets destination; a new sheet is created and linked automatically. Currently supports Google Sheets only.
+  - 4fe2c6e: Added **`update_report`** — rename a report or change its exported fields; anything not mentioned (destination, filters, sorting, owners, schedules) stays unchanged.
+  - 5ed5a23: Added **`run_report` and `get_report_run_status`** — start a report run by id (returns immediately with report id and run id; data delivers to the report's push destination), then poll status (running, success, failed, cancelled, interrupted, restricted) with `queued_at`, `started_at`, and `raw_status`. Status responses include `should_poll` and `stop_reason` guidance, recommending ~15-second polling intervals. Pull-based destinations (Data Studio, HTTP Data API) can't be run this way. Starting a run requires `mcp:write`; checking status only requires `mcp:read`.
+  - b8732c5: Added **`delete_report`** — marked destructive so assistants confirm before calling. The underlying Data Mart, destination, and already-exported documents are unaffected.
+  - e8499d4: Added **report run schedule management** — four tools to list, create, update, and delete recurring report run schedules by trigger id, respecting project and report permissions. Creating, updating, or deleting requires both `mcp:read` and `mcp:write`.
+  - 5f7dbcf: Added **`list_destinations`** — list available destinations with name, type, owner, and shared-for-use status.
+  - 9f2ca93: Added **`add_destination`** — create a new destination. Email-based destinations (email, Slack, Teams, Google Chat) and Looker Studio are created and ready immediately; Google Sheets destinations require the user to connect their Google account via a linked in-app page. Every destination created this way starts unshared until a human reviews and shares it.
 
-  AI assistants connected to OWOX over MCP can now inspect a selected Data Mart's metadata before querying it. The tool returns the Data Mart id, name, description, and available output schema fields, so the assistant can use exact field names instead of guessing when preparing `query_data_mart` calls.
+- 964d886: **Protect unsaved Output Schema changes from being lost**
 
-  Only Data Marts the current project member can access are returned. The tool does not query actual data rows, sample values, owners, or freshness details.
+  When a Data Mart's Output Schema has unsaved changes, a prompt now appears before any action that would replace it, with three choices: **Save & continue**, **Discard & continue**, or **Cancel**. Triggered by generating field aliases or descriptions with AI, refreshing the schema, publishing the Data Mart, updating the input source, or leaving the page.
 
-- f680592: # Add a query_data_mart MCP tool and expose blended fields in data mart details
-
-  AI assistants connected to OWOX over MCP can now query a data mart directly with the new `query_data_mart` tool: pick fields, filter (pre-join slices and post-join filters), aggregate (SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, percentiles), bucket dates by day/week/month/quarter/year, and get server-side totals over all matching rows. Results come back as a compact, header-once table. Each call runs against your warehouse and is recorded in Run History (query definition and executed SQL only — never row values). Every call costs credits.
-
-  `get_data_mart_details_by_id` now also returns `joined_fields` — the fields contributed by blended/joined data marts, with their qualified names, source data mart, and allowed aggregations — so the assistant can discover, query, and slice on blended fields. Only fields from joined data marts you can report on are returned.
-
-- 7e3ce65: # Add a get_data_mart_reports MCP tool
-
-  AI assistants connected to OWOX over MCP can now list the reports tied to a data mart. Each report includes its destination, owner, all of its run schedules (a report can have several, each with a cron expression, timezone, and active flag), when it last ran, and the status of that last run — so you can review your reports without leaving the assistant.
-
-  Only reports on data marts you have access to are returned.
-
-- c1485c0: # Add an add_report MCP tool
-
-  AI assistants connected to OWOX over MCP can now create a report that exports a data mart to a Google Sheets destination. A new Google Sheet is created automatically and the report is linked to it, so you get ready-to-open report and sheet links without leaving the assistant.
-
-  You choose which fields to include (or all of them). The tool currently supports Google Sheets destinations.
-
-- 4fe2c6e: # Add an update_report MCP tool
-
-  AI assistants connected to OWOX over MCP can now update an existing report: rename it and/or change which data mart fields it exports. Everything you don't mention — destination, filters, sorting, owners, schedules — stays exactly as it was.
-
-  Only reports you're allowed to edit can be updated.
-
-- 5ed5a23: # Add run_report and get_report_run_status MCP tools
-
-  AI assistants connected to OWOX over MCP can now run a report by its id: `run_report` starts the run and returns immediately with just the report id and run id, while data is delivered to the report's push destination (Google Sheets, Email, Slack, Microsoft Teams, or Google Chat). `get_report_run_status` then reports the current outcome for that run — still running, success, failed with an error message, cancelled, interrupted, or restricted — along with `queued_at`, nullable `started_at`, and the backend `raw_status`.
-
-  While a run is in progress, the status response also carries `should_poll`, `stop_reason`, and an explicit guidance message that recommends polling about every 15 seconds. Assistants keep checking while `should_poll` is true, but can stop and show the run ids when a run stays queued too long or appears stuck.
-
-  Pull-based consumers — Data Studio and the HTTP Data API — fetch data themselves, so such reports cannot be run through `run_report`. Runs are billed as standard Report Runs for the destination, not as MCP queries. Starting a run requires the mcp:write scope; checking its status only requires mcp:read.
-
-- b8732c5: # Add a delete_report MCP tool
-
-  AI assistants connected to OWOX over MCP can now delete a report on your behalf. The report stops running and disappears from the project; the underlying data mart, destination, and any already-exported documents are not affected.
-
-  The tool is marked as destructive so assistants ask for your confirmation before calling it, and only reports you're allowed to manage can be deleted.
-
-- e8499d4: # Add MCP tools for managing report run schedules
-
-  Let MCP clients (such as AI assistants) manage recurring report runs directly from a conversation, without opening the OWOX UI. The MCP host now exposes four tools: list every report run schedule in the current project (with the trigger id, the report and data mart it belongs to, cron expression, timezone, next run time, and whether the current user may edit or delete it); create a new schedule for a report without replacing existing schedules; update one existing schedule by its trigger id; and delete a schedule by its trigger id while leaving the report itself intact. All actions respect the caller's project and report permissions, and creating, updating, or deleting a schedule requires both the `mcp:read` and `mcp:write` scopes.
-
-- 5f7dbcf: # Add a list_destinations MCP tool
-
-  AI assistants connected to OWOX over MCP can now list the destinations available in your active project. Each entry includes its name, type (Google Sheets, Looker Studio, Slack, Email, Microsoft Teams, or Google Chat), owner, and whether it's currently shared for use — so the assistant can pick the right target before creating a report on your behalf, or tell you a destination it just created still needs to be shared first.
-
-  Only destinations you can access are returned.
-
-- 9f2ca93: # Add an add_destination MCP tool
-
-  AI assistants connected to OWOX over MCP can now create a new report-delivery destination on your behalf instead of only choosing from existing ones.
-
-  For email-based destinations (email, Slack, Microsoft Teams, Google Chat) and Looker Studio, the destination is created directly and is ready to use right away. For Google Sheets, the assistant hands you a link to a simple in-app page where you sign in (if needed) and connect your Google account — the destination is created automatically once you approve access.
-
-  Every destination created this way starts unshared, so a human reviews and shares it (Configure destination → Sharing) before it can be used in reports.
-
-- 2a71167: # Automatic retry and clearer error messages for Criteo Ads imports
-
-  Previously, a temporary server error from Criteo would fail the whole import immediately, and the logs only showed a raw stack trace with no explanation of what went wrong. Now, Criteo Ads imports automatically retry on server errors, rate limits, and network issues, so brief outages on Criteo's side no longer stop your import. When an import does fail, the logs now include a short summary — the HTTP status, the provider's own error message, and a note when the failure looks temporary — so you can tell at a glance whether it's worth just re-running the import.
-
-- e575e99: # Add search functionality
-
-  Add search functionality for finding project data marts, storages, and destinations from the project search index.
-
-- 662871c: # API-key exchange and auth context
+- 662871c: **API-key exchange and auth context**
 
   Project member API keys can now be exchanged for IDP access tokens in Better Auth and the development Null IDP. Exchanged tokens are bound to the API key ID and are rejected from API-key management, project-member administration, user provisioning, Intercom identity, and MCP OAuth authorization endpoints.
 
-  `@owox/api-client` now exposes `client.auth.getContext()`, and `owox-ctl status` includes the project and member context resolved from the exchanged token without exposing key secrets. The auth-context endpoint uses IDP token introspection, and Better Auth refreshes API-key token context from current user and membership state during introspection.
+  - `@owox/api-client` now exposes `client.auth.getContext()`; `owox-ctl status` includes the project and member context resolved from the exchanged token, without exposing key secrets.
+  - The auth-context endpoint uses IDP token introspection, and Better Auth refreshes API-key token context from current user and membership state during introspection.
+  - Exchanged tokens include the project title used by auth-context responses, and now expire after 15 minutes, so clients re-exchange the underlying API key instead of holding indefinitely valid access tokens.
+  - Magic links now carry the encrypted invite role through the callback path, so callback query normalization no longer drops the role before the user is added to the project.
 
-  Better Auth exchanged API-key tokens now include the project title used by auth-context responses.
+- 2a71167: **Automatic retry and clearer error messages for Criteo Ads imports**
 
-  Better Auth exchanged API-key tokens now expire after 15 minutes, allowing clients to re-exchange the underlying API key instead of accepting already-issued access tokens indefinitely.
+  Criteo Ads imports now automatically retry on server errors, rate limits, and network issues, so brief outages on Criteo's side no longer stop an import. When an import still fails, logs now include the HTTP status, the provider's own error message, and a note when the failure looks temporary. Previously a temporary server error failed the whole import immediately with only a raw stack trace in the logs.
 
-  Better Auth magic links now carry the encrypted invite role in the callback path so Better Auth callback query normalization does not drop the role before the user is added to the project.
+- d80b20d: **Report Column Picker search and layout improvements**
 
-- 36fb4d3: # Data Mart report aggregations
+  - Added a search bar that works across native and blended Data Mart columns.
+  - Clear empty state when no matching columns are found.
+  - Reorganized toolbar for easier access to selection controls and search.
+  - Search works together with **Show selected only** and **Select all**.
 
-  Reports can now aggregate Data Mart data server-side, across all supported storages (BigQuery, Athena, Snowflake, Redshift, Databricks):
-  - **Group-by + metric functions** — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, and percentiles `P25`/`P50`/`P75`/`P95`, rendered with the correct per-dialect SQL. Group-by is implied: every selected column without an aggregation rule becomes a grouping key.
-  - **Date bucketing (`dateTruncConfig`)** — group a date/timestamp dimension by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR` (e.g. "revenue by month"), with an optional per-rule IANA `timeZone` so the value is converted to that zone before truncation (absent = no conversion). Rendered with the correct per-dialect SQL.
-  - **Aggregated column naming** — aggregated outputs are named `<column> | <TOKEN>` (an uppercase, spreadsheet-style function token, e.g. `revenue | SUM`, `customer_id | COUNTUNIQUE`) and carry the function's effective type.
-  - **Multiple aggregations per column** — a column can carry several functions, each rendered as its own output column (e.g. `SUM` and `AVG` of `amount`).
-  - **Auto Row Count** — aggregated reports automatically include a `Row Count` (`COUNT(*)`) column (no toggle).
-  - **Unique Count (`uniqueCountConfig`)** — an opt-in `COUNT(DISTINCT <primary key>)` metric (composite primary keys supported via per-dialect concatenation), rejected at save time when the Data Mart has no primary key.
-  - **Post-aggregation filtering (`HAVING`)** — a filter targeting an aggregated output column (a filter rule that carries its aggregate function) is applied as `HAVING` over the aggregate expression, auto-routed apart from row-level `WHERE` filters; the `(column, function)` pair must match a configured aggregation.
-  - **Joined (blended) Data Marts** — post-join aggregation over the joined result (an outer `GROUP BY`), in addition to the existing pre-join join-rollup.
-  - **Totals** — a per-column summary computed over the full filtered dataset (no grouping) as a DWH-side **separate query**: every selected numeric field is aggregated by all of its allowed functions (e.g. `SUM`/`AVG`/`MIN`/`MAX` of `cost`). Surfaced through the **HTTP Data API** (nested in its run subtree, never merged into the row stream); push destinations (Google Sheets, Email/Slack/Teams/Chat) don't compute totals. Row Count and Unique Count are not part of totals.
-  - **Data-mart-level governance** — each schema field carries a dimension/metric role plus a type-derived set of **supported** aggregations (the menu the field may use — e.g. percentiles only for numerics) and an **on-by-default** subset, with a per-field override; reports may only aggregate with a function the field allows.
-  - **Report aggregation UI** — a dedicated **AGG** control (next to output controls) plus a per-field AGG icon configure grouping, multi-aggregation, date bucketing, and timezone.
+- 19a666c: **Published OWOX Data Marts MCP in ChatGPT Apps**
 
-  Backend changes: three additive nullable report columns (`aggregationConfig`, `dateTruncConfig`, `uniqueCountConfig`), request/response API + OpenAPI contract, and save-time validation (column projection required for aggregated/date-trunc reports, function allowed for the field and numeric where required, date-trunc requires a date column, HAVING filters must target a configured aggregation and may not be pushed pre-join, `COUNT_DISTINCT`/`STRING_AGG` rejected on non-groupable `other`-category types, Unique Count requires a primary key).
-
-  **Deployment ordering:** the aggregate-function list is mirrored by the separate `google-sheets-extension` report picker, which has no compile-time guard against drift. The API change is additive and safe new-server / old-client, so **deploy the backend (this package) before** shipping an extension build that exposes new aggregation options — that avoids a new client requesting a function an old server doesn't yet accept.
-
-- 19a666c: # Add OpenAI Apps domain-verification endpoint for the MCP host
-
-  Serve the OpenAI Apps verification token as `text/plain` (HTTP 200) at the origin-root well-known path `GET /.well-known/openai-apps-challenge`, so the OWOX MCP server can pass OpenAI's domain verification during app submission. The endpoint is public (no auth, served at the host root rather than under `/api`) and returns 404 until the token is configured via the new `MCP_OPENAI_APPS_CHALLENGE_TOKEN` environment variable.
-
-- d80b20d: # Improved the Report Column Picker experience by adding a column search and refining the layout
-  - Added a search bar to quickly find report columns.
-  - Search works across native and blended Data Mart columns.
-  - Added a clear empty state when no matching columns are found.
-  - Reorganized the toolbar to make selection controls and search easier to find.
-  - Search works together with **Show selected only** and **Select all** options.
+  [OWOX Data Marts MCP in ChatGPT Apps catalog](https://chatgpt.com/apps/owox-data-marts/asdk_app_6a3e81be8f8481918e1e2cd1d7ea09c4)
 
 ### Patch Changes 0.29.0
 
