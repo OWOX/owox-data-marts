@@ -8,7 +8,7 @@ Use the MCP server when you want an AI assistant â€” such as Claude or ChatGPT â
 
 - An active OWOX Data Marts project with at least one data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart.
 - One of the supported clients: Claude Desktop, Claude web (claude.ai), or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
-- A client plan that allows custom MCP connectors. Adding a custom MCP server like OWOX may require a paid plan in Claude or ChatGPT; check your client's current plan requirements.
+- A client plan that allows MCP connectors. Adding an MCP server like OWOX may require a paid plan in Claude or ChatGPT; check your client's current plan requirements.
 
 ## Step 1: Connect your AI assistant
 
@@ -65,20 +65,18 @@ Save the file and restart Claude Desktop. On restart, Claude detects the server 
 
 ### ChatGPT
 
-1. Open ChatGPT and go to **Apps**.
-2. Find **OWOX Data Marts** in the list of apps and click **Connect**.
+1. Open ChatGPT and go to **Plugins**.
+2. Find **OWOX Data Marts** in the list of plugins and click **Install plugin**.
 3. Click **Sign in with OWOX Data Marts**. ChatGPT opens an authorization window. Follow the steps in [Step 2](#step-2-authorize-access).
 4. You will see **OWOX Data Marts is installed**, indicating the integration is connected.
-5. Click **Start chat**.
-6. In a new chat, select or enable the OWOX app if ChatGPT does not use it automatically.
+5. Click **Try in chat**.
+6. In a new chat, select or enable the OWOX plugin if ChatGPT does not use it automatically.
 
-![ChatGPT Apps settings showing the OWOX Data Marts app ready to connect](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/05a6dc37-a438-40ff-3e59-7b3eb6fddd00/public)
+![ChatGPT Plugins settings showing the OWOX Data Marts plugin ready to connect](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/df3ecfbb-1c59-423c-06ad-bf16261e9500/public)
 
-![ChatGPT authorization screen with the Sign in with OWOX Data Marts button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f3b62a61-679f-46cf-b7b9-e00d11bd9900/public)
+![ChatGPT authorization screen with the Sign in with OWOX Data Marts button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/bf383601-ad2b-4870-3703-b78dd49fdf00/public)
 
-![ChatGPT confirmation message showing that OWOX Data Marts is installed](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0a1eeda5-030d-4687-1d59-c0369abc5e00/public)
-
-![ChatGPT chat composer with the OWOX Data Marts app available for a new chat](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a23e1f57-76eb-460a-b7ff-50e15098d000/public)
+![ChatGPT chat composer with the OWOX Data Marts plugin available for a new chat](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/55bbd278-3784-40b0-fe98-4a16d1006c00/public)
 
 ## Step 2: Authorize access
 
