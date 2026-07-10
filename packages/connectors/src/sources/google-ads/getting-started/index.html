@@ -139,7 +139,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </blockquote>
 </li>
 <li>
-<p>Fill in the required fields depending on your chosen authentication type.<br>
+<p>Enter your <strong>Login Customer ID</strong> if you access the selected customer through a Manager (MCC) account.</p>
+<blockquote>
+<p>This is the ID of the Manager (MCC) account. Leave it empty when authenticating directly as the same account.</p>
+</blockquote>
+</li>
+<li>
+<p>Fill in the required fields depending on your chosen authentication type.
 (If you need help obtaining any of these values, please refer to the detailed instructions in the <a href="/packages/connectors/src/sources/google-ads/credentials/">CREDENTIALS</a> guide.)</p>
 </li>
 </ol>
@@ -158,7 +164,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>Fill in the remaining fields:
 <ul>
 <li><strong>Customer ID</strong> – the ID of the <strong>ad account</strong> you want to retrieve data from.</li>
-<li><strong>Login Customer ID</strong> <em>(optional)</em> – the ID of your <strong>Manager (MCC)</strong> account, if accessing data through a manager account.</li>
 </ul>
 </li>
 </ol>
@@ -170,9 +175,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <ul>
 <li><strong>Customer ID</strong> – enter the ID of the <strong>ad account</strong> you want to retrieve data from.
 You can find it in the top-right corner when viewing the specific ad account in Google Ads.</li>
-<li><strong>Login Customer ID</strong> – enter the ID of your <strong>Manager (MCC)</strong> account.
-You can find it in the top-right corner when you are logged into your MCC account.
-<em>(Format: <code dir="auto">123-456-7890</code> or <code dir="auto">1234567890</code>)</em></li>
 <li><strong>Refresh Token</strong> – paste the refresh token you generated using <strong>OAuth Playground</strong> in the Credentials guide.</li>
 <li><strong>Client ID</strong> – enter the Client ID from the OAuth client you created in <strong>Google Cloud Console → Google Auth Platform → Clients</strong>.</li>
 <li><strong>Client Secret</strong> – enter the Client Secret shown when creating your OAuth client, or use the value stored in the downloaded JSON.</li>
@@ -184,8 +186,6 @@ You can find it in the top-right corner when you are logged into your MCC accoun
 You can find it in the top-right corner when viewing the specific ad account in Google Ads.</li>
 <li><strong>Service Account Key</strong> – paste the full JSON key file content you created in <strong>Google Cloud Console → IAM &#x26; Admin → Service Accounts → Manage Keys</strong>.</li>
 <li><strong>Developer Token</strong> – paste the Developer Token from your <strong>Google Ads API Center</strong> in your MCC account.</li>
-<li><strong>Login Customer ID</strong> – enter the ID of your <strong>Manager (MCC)</strong> account, found in the top-right corner of your MCC dashboard.
-<em>(Format: <code dir="auto">123-456-7890</code> or <code dir="auto">1234567890</code>)</em></li>
 </ul>
 <p>Leave all other fields as default, then click <strong>Next</strong> to continue.</p>
 <p><img alt="Google Ads Input Source Connector" loading="lazy" decoding="async" width="2858" height="1272" src="/_astro/bank-connector.BM4JXoFH_Z1BDacy.webp" srcset=""></p>
@@ -200,7 +200,7 @@ You can find it in the top-right corner when viewing the specific ad account in 
 </ol>
 <blockquote>
 <p>⚠️ <strong>Important Notice:</strong><br>
-If you select any <strong>stats endpoint</strong> (e.g., <em>Campaign Stats</em>, <em>Ad Group Stats</em>, <em>Keyword Stats</em>, etc.), the <strong>Customer ID</strong> and <strong>Login Customer ID</strong> must be <strong>different</strong>.<br>
+If you select any <strong>stats endpoint</strong> (e.g., <em>Campaign Stats</em>, <em>Ad Group Stats</em>, <em>Keyword Stats</em>, etc.), the <strong>Customer ID</strong> must be an <strong>ad account</strong>, not your MCC. When you set a <strong>Login Customer ID</strong>, it must be <strong>different</strong> from the Customer ID; when querying the ad account directly, leave <strong>Login Customer ID</strong> empty.
 Stats data <strong>cannot be retrieved from an MCC (manager) account</strong> — you must specify an <strong>ad account’s Customer ID</strong> as the data source.<br>
 All <strong>non-stats endpoints</strong> allow data retrieval using an MCC Customer ID.</p>
 </blockquote>
