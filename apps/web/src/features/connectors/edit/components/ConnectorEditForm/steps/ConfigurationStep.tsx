@@ -31,12 +31,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isTopLevelMigrationTarget(spec: ConnectorSpecificationResponseApiDto): boolean {
+  const attributes = spec.attributes ?? [];
+
+  return (
+    !spec.oneOf &&
+    spec.name !== 'Fields' &&
+    !attributes.includes(ConnectorSpecificationAttribute.DEPRECATED) &&
+    !attributes.includes(ConnectorSpecificationAttribute.HIDE_IN_CONFIG_FORM)
+  );
+}
+
 function migrateNestedConfigValuesToTopLevel(
   config: Record<string, unknown>,
   specs: ConnectorSpecificationResponseApiDto[]
 ): Record<string, unknown> {
   const nextConfig = { ...config };
-  const topLevelFields = specs.filter(spec => !spec.oneOf).map(spec => spec.name);
+  const topLevelFields = specs.filter(isTopLevelMigrationTarget).map(spec => spec.name);
 
   for (const spec of specs) {
     if (!spec.oneOf) continue;
@@ -274,7 +285,11 @@ export function ConfigurationStep({
   // 3. Non-required fields without default value
   // 4. All others (non-required with default value)
   const sortedSpecifications = [...connectorSpecification]
-    .filter(spec => spec.name !== 'Fields' && !spec.attributes?.includes('HIDE_IN_CONFIG_FORM'))
+    .filter(
+      spec =>
+        spec.name !== 'Fields' &&
+        !spec.attributes?.includes(ConnectorSpecificationAttribute.HIDE_IN_CONFIG_FORM)
+    )
     .sort((a, b) => {
       const getPriority = (spec: ConnectorSpecificationResponseApiDto) => {
         if (spec.attributes?.includes(ConnectorSpecificationAttribute.PINNED)) {
