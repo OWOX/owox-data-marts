@@ -130,8 +130,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>Select a storage.</li>
 <li>Click <strong>Create Data Mart</strong>.</li>
 </ol>
-<p>If you have no storage yet, click <strong>New Storage</strong>.</p>
-<p>You can create the storage now and configure it later.</p>
+<p>If you have no storage yet, click <strong>New Storage</strong>. You can create the storage now and configure it later.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2e1163df-bd1c-4825-4ce9-c6f66f11b500/public" alt="OWOX Data Mart creation screen with title and storage fields"></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="set-up-the-connector">Set Up the Connector</h2><a class="sl-anchor-link" href="#set-up-the-connector"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Set Up the Connector”</span></a></div>
 <ol>
@@ -139,21 +138,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>Choose <strong>Facebook Ads</strong>.</li>
 <li>Choose your authentication method.</li>
 </ol>
-<p>For OAuth, click <strong>Continue with Facebook</strong>.</p>
-<p>Then sign in with a Facebook user who can access the ad account.</p>
-<p>If the button does not appear, use the <strong>Access Token</strong> method.</p>
+<p>For OAuth, click <strong>Continue with Facebook</strong>, then sign in with a Facebook user who can access the ad account. If the button does not appear, use the <strong>Access Token</strong> method.</p>
 <p>For manual authentication, fill in these fields:</p>
 <ul>
 <li><strong>Access Token</strong>: paste the token from <a href="/packages/connectors/src/sources/facebook-marketing/credentials/">Credentials</a>.</li>
 <li><strong>App ID</strong>: enter your Meta App ID.</li>
 <li><strong>App Secret</strong>: enter your Meta App Secret.</li>
 </ul>
-<p>Then fill in <strong>Account IDs</strong>.</p>
-<p>Use numeric ad account IDs only.</p>
-<p>Do not include the <code dir="auto">act_</code> prefix.</p>
-<p>You can find the ID in <a href="https://adsmanager.facebook.com/adsmanager/manage/accounts" rel="noopener noreferrer" target="_blank">Meta Ads Manager</a> under <strong>Account Overview</strong>.</p>
-<p>To import from multiple accounts, separate IDs with commas or semicolons.</p>
-<p>The authorized Facebook user must access every listed account.</p>
+<p>Then fill in <strong>Account IDs</strong>. Use numeric ad account IDs only, without the <code dir="auto">act_</code> prefix. You can find the ID in <a href="https://adsmanager.facebook.com/adsmanager/manage/accounts" rel="noopener noreferrer" target="_blank">Meta Ads Manager</a> under <strong>Account Overview</strong>. To import from multiple accounts, separate IDs with commas or semicolons. The authorized Facebook user must access every listed account.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9336bfac-506a-4590-f0fa-4a3ca7d16300/public" alt="Facebook Ads connector setup screen with OAuth and manual authentication options"></p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/06f507fa-8000-461e-51e0-0063179d2e00/public" alt="Facebook Ads connector fields for access token, App ID, App Secret, and Account ID"></p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/788a7c18-78ed-48b6-39ba-7e57998df300/public" alt="Facebook Ads connector configuration screen after entering account credentials"></p>
@@ -168,19 +160,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <p>OWOX writes the connector tables into this destination. Your storage sets the field label, such as <strong>Dataset</strong> for BigQuery or <strong>Database</strong> for Amazon Redshift. For your storage, see <a href="https://docs.owox.com/docs/storages/supported-storages/" rel="noopener noreferrer" target="_blank">Supported Storages</a>.</p>
 <p>For spend, clicks, impressions, conversions, and ROAS, choose <strong>Ad Account Insights</strong>.</p>
 <p>For endpoint details, see <a href="/packages/connectors/src/sources/facebook-marketing/endpoints-and-fields/">Endpoints and Fields</a>.</p>
-<p>If OWOX disables <strong>Publish &#x26; Run Data Mart</strong>, check the storage.</p>
-<p>OWOX cannot publish a Data Mart until the selected storage has valid settings.</p>
-<p>See <a href="https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage" rel="noopener noreferrer" target="_blank">Storage Management</a>.</p>
+<p>If OWOX disables <strong>Publish &#x26; Run Data Mart</strong>, check the storage. OWOX cannot publish a Data Mart until the selected storage has valid settings. See <a href="https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage" rel="noopener noreferrer" target="_blank">Storage Management</a>.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5975a655-aeea-4ec6-d5f6-f74cb5db4500/public" alt="Configure Data Import screen with Facebook Ads endpoint, fields, and dataset settings"></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="run-the-data-mart">Run the Data Mart</h2><a class="sl-anchor-link" href="#run-the-data-mart"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Run the Data Mart”</span></a></div>
-<p>You can run the Data Mart manually after setup.</p>
-<p>You can also <a href="https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/" rel="noopener noreferrer" target="_blank">schedule connector runs</a>.</p>
+<p>You can run the Data Mart manually after setup. You can also <a href="https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/" rel="noopener noreferrer" target="_blank">schedule connector runs</a>.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="incremental-load">Incremental Load</h3><a class="sl-anchor-link" href="#incremental-load"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Incremental Load”</span></a></div>
 <p>Choose <strong>Manual run → Incremental load</strong>.</p>
-<p>On the first incremental run, OWOX imports data from the first day of the previous month through today.</p>
-<p>After a successful incremental run, OWOX stores the last requested date.</p>
-<p>On later incremental runs, OWOX starts from that date minus <strong>Reimport Lookback Window</strong>.</p>
-<p>This lookback helps refresh recently changed Facebook Ads metrics.</p>
+<p>On the first incremental run, OWOX imports data from the first day of the previous month through today. After a successful incremental run, OWOX stores the last requested date. On later incremental runs, OWOX starts from that date minus <strong>Reimport Lookback Window</strong>. This lookback helps refresh recently changed Facebook Ads metrics.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e7e0db3e-5088-4372-515c-ae22e961a200/public" alt="Manual run menu showing the Incremental load option"></p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/17cb8336-c759-4d38-aa90-a3c80c2dab00/public" alt="Incremental load confirmation dialog for importing the current day&#x27;s data"></p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1e87e59d-19b7-48e9-2a22-e29147d8b500/public" alt="Reimport Lookback Window setting for additional days in incremental loads"></p>
@@ -191,19 +177,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>Select <strong>End Date</strong>.</li>
 <li>Click <strong>Run</strong>.</li>
 </ol>
-<p>OWOX imports both the start date and the end date.</p>
-<p>If you leave <strong>End Date</strong> empty, OWOX uses today.</p>
+<p>OWOX imports both the start date and the end date. If you leave <strong>End Date</strong> empty, OWOX uses today.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b8a71ff2-60a1-4b8e-135b-4bf8b30d4600/public" alt="Backfill dialog with Start Date, End Date, and Run button"></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="check-the-result">Check the Result</h2><a class="sl-anchor-link" href="#check-the-result"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Check the Result”</span></a></div>
-<p>Open <strong>Run history</strong>.</p>
-<p>The run has finished when the status shows <strong>Success</strong>.</p>
+<p>Open <strong>Run history</strong>. The run has finished when the status shows <strong>Success</strong>.</p>
 <p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/da9ea591-9924-4465-091b-90a65c827800/public" alt="Run history tab showing a successful Facebook Ads import"></p>
-<p>You can query the imported tables in the dataset you selected.</p>
-<p>You can also send the data to a destination.</p>
-<p>See <a href="https://docs.owox.com/docs/destinations/manage-destinations/" rel="noopener noreferrer" target="_blank">Destination Management</a> and <a href="https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/" rel="noopener noreferrer" target="_blank">Google Sheets</a>.</p>
+<p>You can query the imported tables in the dataset you selected. You can also send the data to a destination. See <a href="https://docs.owox.com/docs/destinations/manage-destinations/" rel="noopener noreferrer" target="_blank">Destination Management</a> and <a href="https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/" rel="noopener noreferrer" target="_blank">Google Sheets</a>.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="troubleshooting">Troubleshooting</h2><a class="sl-anchor-link" href="#troubleshooting"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Troubleshooting”</span></a></div>
-<p>If a run fails, open <strong>Run history</strong>.</p>
-<p>Then match the Meta error with <a href="/packages/connectors/src/sources/facebook-marketing/troubleshooting/">Troubleshooting</a>.</p>
+<p>If a run fails, open <strong>Run history</strong>. Then match the Meta error with <a href="/packages/connectors/src/sources/facebook-marketing/troubleshooting/">Troubleshooting</a>.</p>
 <p>For credential setup errors, see <a href="/packages/connectors/src/sources/facebook-marketing/credentials/#troubleshooting-credential-setup">Credentials</a>.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="support">Support</h2><a class="sl-anchor-link" href="#support"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Support”</span></a></div>
 <ol>
