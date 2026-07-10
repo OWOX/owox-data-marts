@@ -11,6 +11,8 @@ import { McpAuthGuard } from './mcp/auth/mcp-auth.guard';
 import { McpConfigService } from './mcp/config/mcp.config';
 import { McpMetadataController } from './mcp/controllers/mcp-metadata.controller';
 import { McpTransportController } from './mcp/controllers/mcp-transport.controller';
+import { McpBusExtrasModule } from './mcp/observability/mcp-bus-extras.module';
+import { McpCallInstrumentation } from './mcp/observability/mcp-call-instrumentation';
 import { McpSdkServerFactory } from './mcp/sdk/mcp-sdk-server.factory';
 import { McpStreamableHttpTransportHandler } from './mcp/sdk/mcp-streamable-http-transport.handler';
 import { McpInstructionsService } from './mcp/instructions/mcp-instructions.service';
@@ -21,7 +23,14 @@ import {
 import { McpToolRegistry } from './mcp/tools/mcp-tool.registry';
 
 @Module({
-  imports: [IdpModule, DataMartsModule, CommonModule, McpResourceModule, ProjectSettingsModule],
+  imports: [
+    IdpModule,
+    DataMartsModule,
+    CommonModule,
+    McpResourceModule,
+    ProjectSettingsModule,
+    McpBusExtrasModule,
+  ],
   controllers: [McpMetadataController, McpTransportController],
   providers: [
     McpConfigService,
@@ -35,6 +44,7 @@ import { McpToolRegistry } from './mcp/tools/mcp-tool.registry';
     ...MCP_TOOL_PROVIDER_CLASSES,
     MCP_TOOL_DEFINITIONS_PROVIDER,
     McpToolRegistry,
+    McpCallInstrumentation,
     McpSdkServerFactory,
     McpInstructionsService,
     McpStreamableHttpTransportHandler,

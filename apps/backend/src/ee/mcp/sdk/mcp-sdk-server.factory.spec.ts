@@ -10,6 +10,10 @@ const mockServer = {
 };
 const mockMcpServer = jest.fn(() => mockServer);
 
+const passthroughInstrumentation = {
+  wrap: (_name: string, cb: unknown) => cb,
+} as never;
+
 describe('McpSdkServerFactory', () => {
   const context: McpAuthContext = {
     clientId: 'mcp-client-1',
@@ -58,7 +62,8 @@ describe('McpSdkServerFactory', () => {
     const McpSdkServerFactory = await loadFactory();
     const factory = new McpSdkServerFactory(
       new McpConfigService({ get: jest.fn() } as never),
-      new McpToolRegistry([tool])
+      new McpToolRegistry([tool]),
+      passthroughInstrumentation
     );
 
     expect(factory.create(context)).toBe(mockServer);
@@ -99,7 +104,8 @@ describe('McpSdkServerFactory', () => {
     const McpSdkServerFactory = await loadFactory();
     const factory = new McpSdkServerFactory(
       new McpConfigService({ get: jest.fn() } as never),
-      new McpToolRegistry([tool])
+      new McpToolRegistry([tool]),
+      passthroughInstrumentation
     );
 
     factory.create(context);
@@ -109,6 +115,31 @@ describe('McpSdkServerFactory', () => {
       content: [{ type: 'text', text: 'ok' }],
     });
     expect(handler).toHaveBeenCalledWith({ query: 'orders' }, context, undefined);
+  });
+
+  it('routes every tool callback through instrumentation.wrap (choke point)', async () => {
+    const wrapped = jest.fn();
+    const wrap = jest.fn((_name: string, _cb: unknown) => wrapped);
+    const tool = {
+      name: 'list_data_marts',
+      description: 'List data marts',
+      zodSchema: { query: z.string().optional() },
+      requiredScopes: ['mcp:read'],
+      handler: jest.fn(),
+    } as McpToolDefinition<{ query?: string }>;
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([tool]),
+      { wrap } as never
+    );
+
+    factory.create(context);
+
+    // Deleting the instrumentation.wrap(...) call in the factory must fail here.
+    expect(wrap).toHaveBeenCalledWith('list_data_marts', expect.any(Function));
+    // The callback handed to the SDK is the one wrap() returned — instrumentation is not bypassed.
+    expect(mockRegisterTool.mock.calls[0][2]).toBe(wrapped);
   });
 
   it('rejects tool calls when token context lacks required scope', async () => {
@@ -122,7 +153,8 @@ describe('McpSdkServerFactory', () => {
     const McpSdkServerFactory = await loadFactory();
     const factory = new McpSdkServerFactory(
       new McpConfigService({ get: jest.fn() } as never),
-      new McpToolRegistry([tool])
+      new McpToolRegistry([tool]),
+      passthroughInstrumentation
     );
 
     factory.create(context);

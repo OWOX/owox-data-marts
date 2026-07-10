@@ -6,6 +6,7 @@ import { PostHogTransport } from './transports/posthog-transport.js';
 import { resolvePostHogConfig } from './posthog-config.js';
 import { resolveEventBusConfig } from './config.js';
 import { castError } from '../../utils/castError.js';
+import type { PayloadOffloader } from '../blob-store/payload-offloader.js';
 
 /**
  * Non-transactional fan-out event bus
@@ -14,7 +15,10 @@ export class EventBus {
   private readonly transports: readonly EventTransport[];
   private readonly logger = LoggerFactory.createNamedLogger('EventBusTransport');
 
-  constructor(transports: readonly EventTransport[]) {
+  constructor(
+    transports: readonly EventTransport[],
+    private readonly offloader?: PayloadOffloader
+  ) {
     this.transports = transports;
   }
 
@@ -23,6 +27,14 @@ export class EventBus {
    * one failure is logged and won't break the others.
    */
   async produceEvent<TPayload extends object>(event: BaseEvent<TPayload>): Promise<void> {
+    if (this.offloader) {
+      try {
+        await this.offloader.apply(event.payload as Record<string, unknown>);
+      } catch (error) {
+        this.logger.warn(`Payload offload failed for ${event.name}`, { error: castError(error) });
+      }
+    }
+
     const results = await Promise.allSettled(this.transports.map(t => t.send(event)));
 
     const isRejected = <T>(r: PromiseSettledResult<T>): r is PromiseRejectedResult =>
@@ -56,9 +68,22 @@ export class EventBus {
 }
 
 /**
+ * Extra wiring injected by the composition root on top of the env-driven transports
+ * (e.g. logger/posthog). Lets a Layer A caller (e.g. the backend's MCP wiring) add
+ * domain-specific transports and an offloader without this package knowing about them.
+ */
+export interface EventBusExtras {
+  extraTransports?: EventTransport[];
+  offloader?: PayloadOffloader;
+}
+
+/**
  * Create EventBus instance using env configuration.
  */
-export function createEventBusFromEnv(env: NodeJS.ProcessEnv = process.env): EventBus {
+export function createEventBusFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  extras: EventBusExtras = {}
+): EventBus {
   const config = resolveEventBusConfig(env);
 
   const transports: EventTransport[] = [];
@@ -75,5 +100,7 @@ export function createEventBusFromEnv(env: NodeJS.ProcessEnv = process.env): Eve
     }
   }
 
-  return new EventBus(transports);
+  if (extras.extraTransports) transports.push(...extras.extraTransports);
+
+  return new EventBus(transports, extras.offloader);
 }

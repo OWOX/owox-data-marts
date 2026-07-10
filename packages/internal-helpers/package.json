@@ -52,12 +52,46 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@google-cloud/opentelemetry-cloud-trace-exporter": "^3.0.0",
+    "@google-cloud/storage": "^7.21.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@opentelemetry/sdk-trace-node": "^2.9.0",
     "@owox/eslint-config": "*",
     "@owox/prettier-config": "*",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.7",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6"
+  },
+  "peerDependencies": {
+    "@google-cloud/opentelemetry-cloud-trace-exporter": "^3.0.0",
+    "@google-cloud/storage": "^7.21.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@opentelemetry/sdk-trace-node": "^2.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/opentelemetry-cloud-trace-exporter": {
+      "optional": true
+    },
+    "@google-cloud/storage": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-http": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-base": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-node": {
+      "optional": true
+    }
   },
   "files": [
     "dist",

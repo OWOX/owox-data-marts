@@ -21,6 +21,7 @@ import { Test } from '@nestjs/testing';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import { CommonModule } from '../../../common/common.module';
+import { ClsContextService } from '../../../common/logger/cls-context.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { SEARCH_FACADE } from '../../../common/search/search.facade';
 import { MCP_DATA_DESTINATIONS_FACADE } from '../../../data-marts/facades/mcp-data-destinations.facade';
@@ -80,6 +81,10 @@ describe('MCP tool providers', () => {
         {
           provide: SystemTimeService,
           useValue: { now: () => new Date('2026-07-01T10:00:00.000Z') },
+        },
+        {
+          provide: ClsContextService,
+          useValue: { get: () => undefined, set: () => {}, update: () => {} },
         },
       ],
     }).compile();
