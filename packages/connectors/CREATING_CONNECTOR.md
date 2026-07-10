@@ -152,6 +152,7 @@ Configuration parameters are defined in the Source constructor using `config.mer
 - `default` — default value if not provided
 - `label` — human-readable label for UI
 - `description` — detailed description for documentation
+- `options` — allowed values for a fixed-choice parameter; used by the UI to render a selector
 
 **Special Attributes:**
 
@@ -312,11 +313,37 @@ constructor(config) {
           type: 'numeric string'
         }
       },
+      uniqueKeys: ['field1'],
+      defaultFields: ['field2'],
+      destinationName: 'example_endpoint',
       limit: 100 // optional: pagination limit
     }
   };
 }
 ```
+
+`uniqueKeys` defines the fields used to merge rows into the destination. The field selector keeps these fields selected so users cannot create an invalid import schema.
+
+If a node's unique keys depend on the connector `DataLevel` configuration value, add `uniqueKeysByDataLevel` to the node schema returned by `getFieldsSchema()`:
+
+```javascript
+getFieldsSchema() {
+  const schema = super.getFieldsSchema();
+
+  schema['endpoint-name'] = {
+    ...schema['endpoint-name'],
+    uniqueKeysByDataLevel: {
+      DAILY: ['date'],
+      CAMPAIGN: ['campaign_id', 'date'],
+      AD: ['ad_id', 'date']
+    }
+  };
+
+  return schema;
+}
+```
+
+Keep runtime merge keys aligned with the schema. If you expose `uniqueKeysByDataLevel` for the UI, the connector should also choose the same keys when creating storage and validating requested fields.
 
 ## 6. Testing Your Connector
 

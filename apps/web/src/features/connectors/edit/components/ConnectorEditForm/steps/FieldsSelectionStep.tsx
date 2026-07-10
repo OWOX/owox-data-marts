@@ -1,5 +1,5 @@
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
-import { Search, KeyRound, ArrowDownZA, ArrowUpAZ, ArrowUpDown, X } from 'lucide-react';
+import { Search, KeyRound, ArrowDownZA, ArrowUpAZ, ArrowUpDown, Info, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppWizardStepSection,
@@ -52,12 +52,17 @@ export function FieldsSelectionStep({
     [selectedFieldData?.fields]
   );
   const dataLevel = configuration?.DataLevel;
+  const selectedDataLevel = typeof dataLevel === 'string' ? dataLevel : null;
   const uniqueKeys = useMemo(() => {
-    if (typeof dataLevel === 'string' && selectedFieldData?.uniqueKeysByDataLevel?.[dataLevel]) {
-      return selectedFieldData.uniqueKeysByDataLevel[dataLevel];
+    if (selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]) {
+      return selectedFieldData.uniqueKeysByDataLevel[selectedDataLevel];
     }
     return selectedFieldData?.uniqueKeys ?? [];
-  }, [selectedFieldData, dataLevel]);
+  }, [selectedFieldData, selectedDataLevel]);
+  const showDataLevelFieldsTip =
+    selectedDataLevel &&
+    (selectedField === 'ad_insights' || selectedField === 'ad_insights_by_country') &&
+    Boolean(selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]);
 
   const originalIndexByName = useMemo(() => {
     const indexMap = new Map<string, number>();
@@ -272,6 +277,24 @@ export function FieldsSelectionStep({
         <AppWizardStepSection
           title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for "${selectedField}" data`}
         >
+          {showDataLevelFieldsTip && (
+            <div className='border-border bg-muted/30 text-muted-foreground flex gap-3 rounded-md border px-3 py-2 text-sm'>
+              <Info className='mt-0.5 h-4 w-4 shrink-0' aria-hidden='true' />
+              <div className='space-y-1'>
+                <p>
+                  Required fields depend on Data Level. Current Data Level:{' '}
+                  <span className='text-foreground font-medium'>{selectedDataLevel}</span>.
+                </p>
+                <p>
+                  OWOX keeps{' '}
+                  <span className='text-foreground font-medium'>{uniqueKeys.join(', ')}</span>{' '}
+                  selected so rows merge correctly.
+                </p>
+                <p>Change Data Level in connector settings before selecting fields.</p>
+              </div>
+            </div>
+          )}
+
           <AppWizardStepCards>
             {filteredFields.map(field => {
               const isUniqueKey = uniqueKeys.includes(field.name);

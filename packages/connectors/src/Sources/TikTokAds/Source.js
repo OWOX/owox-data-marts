@@ -105,7 +105,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string",
         default: "AUCTION_AD",
         label: "Data Level",
-        description: "Data level for ad_insights reports",
+        description: "Data level for ad_insights reports. Changing this on a connector that already has data can produce incorrect merges into the existing destination table — use a new destination if you change it.",
         options: TIKTOK_ADS_DATA_LEVELS,
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },

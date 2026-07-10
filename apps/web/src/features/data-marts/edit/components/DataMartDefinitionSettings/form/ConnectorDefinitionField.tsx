@@ -107,6 +107,7 @@ export function ConnectorDefinitionField({
             source: {
               ...currentDefinition.connector.source,
               configuration: updatedConfigurations,
+              fields: connector.source.fields,
             },
           },
         };

@@ -2,6 +2,7 @@ import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { DataStorageType } from '../../../../data-storage';
+import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import {
   ConnectorSelectionStep,
   ConfigurationStep,
@@ -14,6 +15,9 @@ import type { ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
 import { trackEvent } from '../../../../../utils';
+
+const DATA_LEVEL_DEFAULT = 'AUCTION_AD';
+const DATA_LEVEL_DEPENDENT_TIKTOK_NODES = new Set(['ad_insights', 'ad_insights_by_country']);
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -83,6 +87,19 @@ export function ConnectorEditForm({
   );
 
   const totalSteps = steps.length;
+
+  const getDataLevel = (configuration?: Record<string, unknown>) => {
+    return typeof configuration?.DataLevel === 'string'
+      ? configuration.DataLevel
+      : DATA_LEVEL_DEFAULT;
+  };
+
+  const isDataLevelDependentTikTokNode = (connectorName?: string, nodeName?: string) => {
+    return (
+      connectorName === 'TikTokAds' &&
+      Boolean(nodeName && DATA_LEVEL_DEPENDENT_TIKTOK_NODES.has(nodeName))
+    );
+  };
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -160,6 +177,13 @@ export function ConnectorEditForm({
         if (mode === 'fields-only') {
           void loadFieldsSafely(existingConnectorDef.name);
         }
+        if (
+          configurationOnly &&
+          source.configuration.length > 0 &&
+          isDataLevelDependentTikTokNode(existingConnectorDef.name, source.node)
+        ) {
+          void loadFieldsSafely(existingConnectorDef.name);
+        }
       }
     }
 
@@ -180,6 +204,43 @@ export function ConnectorEditForm({
     loadFieldsSafely,
     selectedConnector,
   ]);
+
+  const selectedNodeForConfiguration = existingConnector?.source.node ?? selectedNode;
+  const currentDataLevel = getDataLevel(connectorConfiguration);
+  const originalDataLevel = getDataLevel(existingConnector?.source.configuration[0]);
+  const isDataLevelReconciliationRelevant =
+    configurationOnly &&
+    Boolean(existingConnector?.source.configuration.length) &&
+    isDataLevelDependentTikTokNode(existingConnector?.source.name, selectedNodeForConfiguration);
+  const hasDataLevelChanged =
+    isDataLevelReconciliationRelevant && currentDataLevel !== originalDataLevel;
+  const requiredFieldsForCurrentDataLevel = useMemo(() => {
+    if (!hasDataLevelChanged) return [];
+
+    const selectedNodeSchema = connectorFields?.find(
+      field => field.name === selectedNodeForConfiguration
+    );
+
+    return selectedNodeSchema?.uniqueKeysByDataLevel?.[currentDataLevel] ?? [];
+  }, [connectorFields, currentDataLevel, hasDataLevelChanged, selectedNodeForConfiguration]);
+  const fieldsAfterDataLevelReconciliation = useMemo(() => {
+    const fields = existingConnector?.source.fields ?? selectedFields;
+    if (!hasDataLevelChanged || requiredFieldsForCurrentDataLevel.length === 0) {
+      return fields;
+    }
+
+    return Array.from(new Set([...fields, ...requiredFieldsForCurrentDataLevel]));
+  }, [
+    existingConnector?.source.fields,
+    hasDataLevelChanged,
+    requiredFieldsForCurrentDataLevel,
+    selectedFields,
+  ]);
+  const fieldsAddedForDataLevel = useMemo(() => {
+    const existingFields = new Set(existingConnector?.source.fields ?? selectedFields);
+    return requiredFieldsForCurrentDataLevel.filter(fieldName => !existingFields.has(fieldName));
+  }, [existingConnector?.source.fields, requiredFieldsForCurrentDataLevel, selectedFields]);
+  const isDataLevelReconciliationPending = hasDataLevelChanged && connectorFields === null;
 
   const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
@@ -275,7 +336,9 @@ export function ConnectorEditForm({
 
   const canGoNext = () => {
     if (configurationOnly) {
-      return selectedConnector !== null && configurationIsValid;
+      return (
+        selectedConnector !== null && configurationIsValid && !isDataLevelReconciliationPending
+      );
     }
 
     if (mode === 'fields-only') {
@@ -417,7 +480,23 @@ export function ConnectorEditForm({
 
   return (
     <AppWizard>
-      <AppWizardLayout>{renderCurrentStep()}</AppWizardLayout>
+      <AppWizardLayout>
+        {renderCurrentStep()}
+
+        {hasDataLevelChanged && (
+          <Alert className='bg-background'>
+            <AlertDescription>
+              Data Level changed from <span className='font-medium'>{originalDataLevel}</span> to{' '}
+              <span className='font-medium'>{currentDataLevel}</span>.
+              {isDataLevelReconciliationPending
+                ? ' Loading field requirements before saving.'
+                : fieldsAddedForDataLevel.length > 0
+                  ? ` OWOX will also keep ${fieldsAddedForDataLevel.join(', ')} selected so this configuration can run with the new Data Level.`
+                  : ' The selected fields already include the required fields for the new Data Level.'}
+            </AlertDescription>
+          </Alert>
+        )}
+      </AppWizardLayout>
 
       <AppWizardActions variant='horizontal'>
         <StepNavigation
@@ -435,7 +514,7 @@ export function ConnectorEditForm({
                   name: selectedConnector.name,
                   configuration: [connectorConfiguration],
                   node: existingConnector?.source.node ?? selectedNode,
-                  fields: existingConnector?.source.fields ?? selectedFields,
+                  fields: fieldsAfterDataLevelReconciliation,
                 },
                 storage: existingConnector?.storage ?? {
                   fullyQualifiedName: existingConnector?.storage.fullyQualifiedName ?? '',
