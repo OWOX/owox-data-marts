@@ -23,7 +23,10 @@ Before proceeding, please make sure that:
 3. Enter your **Customer ID**.
    > ⚠️ This is the ID of the account from which you want to retrieve data.
 
-4. Fill in the required fields depending on your chosen authentication type.  
+4. Enter your **Login Customer ID** if you access the selected customer through a Manager (MCC) account.
+   > This is the ID of the Manager (MCC) account. Leave it empty when authenticating directly as the same account.
+
+5. Fill in the required fields depending on your chosen authentication type.
 (If you need help obtaining any of these values, please refer to the detailed instructions in the [CREDENTIALS](CREDENTIALS.md) guide.)
 
 ### For **OAuth2 Authentication** (with OAuth button)
@@ -38,7 +41,6 @@ If your OWOX Data Marts instance has OAuth pre-configured by an administrator, y
 4. After successful authorization, you will see **"Connected as your-email\@example.com"**.
 5. Fill in the remaining fields:
    - **Customer ID** – the ID of the **ad account** you want to retrieve data from.
-   - **Login Customer ID** *(optional)* – the ID of your **Manager (MCC)** account, if accessing data through a manager account.
 
 > ℹ️ The Developer Token, Client ID, and Client Secret are managed by your instance administrator via environment variables and do not need to be entered manually.
 
@@ -48,9 +50,6 @@ If OAuth is not pre-configured, you can enter credentials manually:
 
 - **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.
   You can find it in the top-right corner when viewing the specific ad account in Google Ads.
-- **Login Customer ID** – enter the ID of your **Manager (MCC)** account.
-  You can find it in the top-right corner when you are logged into your MCC account.
-   *(Format: `123-456-7890` or `1234567890`)*
 - **Refresh Token** – paste the refresh token you generated using **OAuth Playground** in the Credentials guide.
 - **Client ID** – enter the Client ID from the OAuth client you created in **Google Cloud Console → Google Auth Platform → Clients**.
 - **Client Secret** – enter the Client Secret shown when creating your OAuth client, or use the value stored in the downloaded JSON.
@@ -62,8 +61,6 @@ If OAuth is not pre-configured, you can enter credentials manually:
   You can find it in the top-right corner when viewing the specific ad account in Google Ads.
 - **Service Account Key** – paste the full JSON key file content you created in **Google Cloud Console → IAM & Admin → Service Accounts → Manage Keys**.
 - **Developer Token** – paste the Developer Token from your **Google Ads API Center** in your MCC account.
-- **Login Customer ID** – enter the ID of your **Manager (MCC)** account, found in the top-right corner of your MCC dashboard.
- *(Format: `123-456-7890` or `1234567890`)*
 
 Leave all other fields as default, then click **Next** to continue.  
 
@@ -81,7 +78,7 @@ Leave all other fields as default, then click **Next** to continue.
 4. Click **Finish**, then **Publish Data Mart**.
 
 > ⚠️ **Important Notice:**  
-> If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** and **Login Customer ID** must be **different**.  
+> If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** must be an **ad account**, not your MCC. When you set a **Login Customer ID**, it must be **different** from the Customer ID; when querying the ad account directly, leave **Login Customer ID** empty.
 > Stats data **cannot be retrieved from an MCC (manager) account** — you must specify an **ad account’s Customer ID** as the data source.  
 > All **non-stats endpoints** allow data retrieval using an MCC Customer ID.
 

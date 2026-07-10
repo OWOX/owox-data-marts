@@ -12,7 +12,15 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string", 
         label: "Customer ID",
-        description: "Google Ads Customer ID (format: 123-456-7890 or 1234567890)"
+        description: "Google Ads Customer ID (format: 123-456-7890 or 1234567890)",
+        placeholder: "Enter Customer ID"
+      },
+      LoginCustomerId: {
+        requiredType: "string",
+        label: "Login Customer ID",
+        description: "Optional when authenticating as the same account. Provide the manager account ID (format: 123-456-7890 or 1234567890) when acting on behalf of other accounts.",
+        placeholder: "Enter Login Customer ID",
+        attributes: [CONFIG_ATTRIBUTES.PINNED]
       },
       AuthType: {
         requiredType: "object",
@@ -90,11 +98,6 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
               }
             },
             items: {
-              LoginCustomerId: {
-                requiredType: "string",
-                label: "Login Customer ID",
-                description: "Optional when authenticating as the same account. Provide the manager account ID (format: 123-456-7890 or 1234567890) when acting on behalf of other accounts."
-              },
               RefreshToken: {
                 isRequired: true,
                 requiredType: "string",
@@ -142,12 +145,6 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 label: "Developer Token",
                 description: "Google Ads API Developer Token",
                 attributes: [CONFIG_ATTRIBUTES.SECRET]
-              },
-              LoginCustomerId: {
-                isRequired: true,
-                requiredType: "string",
-                label: "Login Customer ID",
-                description: "ID of manager account (format: 123-456-7890 or 1234567890). Required for accessing client accounts through a manager account."
               }
             }
           }
@@ -443,7 +440,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requestBody.pageToken = nextPageToken;
       }
       
-      const loginCustomerIdRaw = this.config.AuthType.items?.LoginCustomerId?.value;
+      const topLevelLoginCustomerId = this.config.LoginCustomerId?.value;
+      const loginCustomerIdRaw =
+        topLevelLoginCustomerId !== undefined
+          ? topLevelLoginCustomerId
+          : this.config.AuthType?.items?.LoginCustomerId?.value;
       const loginCustomerId = loginCustomerIdRaw
         ? FormatUtils.parseIds(loginCustomerIdRaw, { stripCharacters: '-' })[0]
         : null;

@@ -15,6 +15,7 @@ import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRe
 import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
 import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 import { trackEvent } from '../../../../../../utils';
+import { ConnectorSpecificationAttribute } from '../../../../shared/enums/connector-specification-attribute.enum';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -24,6 +25,49 @@ interface ConfigurationStepProps {
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
   isEditingExisting?: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isTopLevelMigrationTarget(spec: ConnectorSpecificationResponseApiDto): boolean {
+  const attributes = spec.attributes ?? [];
+
+  return (
+    !spec.oneOf &&
+    spec.name !== 'Fields' &&
+    !attributes.includes(ConnectorSpecificationAttribute.DEPRECATED) &&
+    !attributes.includes(ConnectorSpecificationAttribute.HIDE_IN_CONFIG_FORM)
+  );
+}
+
+function migrateNestedConfigValuesToTopLevel(
+  config: Record<string, unknown>,
+  specs: ConnectorSpecificationResponseApiDto[]
+): Record<string, unknown> {
+  const nextConfig = { ...config };
+  const topLevelFields = specs.filter(isTopLevelMigrationTarget).map(spec => spec.name);
+
+  for (const spec of specs) {
+    if (!spec.oneOf) continue;
+
+    const oneOfConfig = nextConfig[spec.name];
+    if (!isRecord(oneOfConfig)) continue;
+
+    for (const optionConfig of Object.values(oneOfConfig)) {
+      if (!isRecord(optionConfig)) continue;
+
+      for (const fieldName of topLevelFields) {
+        if (nextConfig[fieldName] !== undefined) continue;
+        if (Object.prototype.hasOwnProperty.call(optionConfig, fieldName)) {
+          nextConfig[fieldName] = optionConfig[fieldName];
+        }
+      }
+    }
+  }
+
+  return nextConfig;
 }
 
 export function ConfigurationStep({
@@ -53,7 +97,10 @@ export function ConfigurationStep({
     if (connectorSpecification) {
       updatingFromParentRef.current = true;
 
-      const config: Record<string, unknown> = { ...(initialConfiguration ?? {}) };
+      const config = migrateNestedConfigValuesToTopLevel(
+        { ...(initialConfiguration ?? {}) },
+        connectorSpecification
+      );
 
       connectorSpecification.forEach(spec => {
         const isSecret = Array.isArray(spec.attributes)
@@ -81,15 +128,18 @@ export function ConfigurationStep({
     if (
       initializedRef.current &&
       initialConfiguration &&
-      Object.keys(initialConfiguration).length > 0
+      Object.keys(initialConfiguration).length > 0 &&
+      connectorSpecification
     ) {
       updatingFromParentRef.current = true;
-      setConfiguration({ ...initialConfiguration });
+      setConfiguration(
+        migrateNestedConfigValuesToTopLevel({ ...initialConfiguration }, connectorSpecification)
+      );
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
     }
-  }, [initialConfiguration]);
+  }, [initialConfiguration, connectorSpecification]);
 
   useEffect(() => {
     if (
@@ -230,14 +280,21 @@ export function ConfigurationStep({
   }
 
   // Sort specifications by priority:
-  // 1. Required fields without default value
+  // 1. Pinned fields and required fields without default value
   // 2. Required fields with default value
   // 3. Non-required fields without default value
   // 4. All others (non-required with default value)
   const sortedSpecifications = [...connectorSpecification]
-    .filter(spec => spec.name !== 'Fields' && !spec.attributes?.includes('HIDE_IN_CONFIG_FORM'))
+    .filter(
+      spec =>
+        spec.name !== 'Fields' &&
+        !spec.attributes?.includes(ConnectorSpecificationAttribute.HIDE_IN_CONFIG_FORM)
+    )
     .sort((a, b) => {
       const getPriority = (spec: ConnectorSpecificationResponseApiDto) => {
+        if (spec.attributes?.includes(ConnectorSpecificationAttribute.PINNED)) {
+          return 1;
+        }
         const hasDefault = spec.default != null && spec.default !== '';
         if (spec.required && !hasDefault) return 1;
         if (spec.required && hasDefault) return 2;
