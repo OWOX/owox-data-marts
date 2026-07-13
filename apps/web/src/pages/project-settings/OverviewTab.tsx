@@ -8,6 +8,7 @@ import {
   CircleHelp,
   CircleMinus,
   ExternalLink,
+  Plug,
   Settings,
 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
@@ -157,6 +158,7 @@ export function OverviewTab() {
   ]
     .filter(Boolean)
     .join(' · ');
+  const mcpServerUrl = user?.mcpServerUrl ?? '';
 
   return (
     <div className='flex flex-col gap-4'>
@@ -255,6 +257,46 @@ export function OverviewTab() {
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
+
+      {mcpServerUrl && (
+        <CollapsibleCard collapsible name='project-mcp-server'>
+          <CollapsibleCardHeader>
+            <CollapsibleCardHeaderTitle icon={Plug} tooltip='Project-specific MCP server URL'>
+              MCP server
+            </CollapsibleCardHeaderTitle>
+          </CollapsibleCardHeader>
+          <CollapsibleCardContent>
+            <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+              <p className='text-muted-foreground text-sm'>
+                For a single-project setup, use the published OWOX MCP server in Claude, Codex,
+                ChatGPT, and similar tools. For multi-project workflows, use this project-specific
+                URL as a custom MCP server. See the{' '}
+                <a
+                  href='https://docs.owox.com/docs/getting-started/setup-guide/mcp/'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-primary hover:underline'
+                >
+                  MCP setup guide
+                </a>
+                .
+              </p>
+              <div className='flex items-center gap-2'>
+                <span className='font-mono text-xs break-all'>{mcpServerUrl}</span>
+                <CopyButton
+                  text={mcpServerUrl}
+                  section='project-mcp-url'
+                  variant={CopyButtonVariant.DEFAULT}
+                  copiedSection={copiedSection}
+                  onCopy={handleCopy}
+                  iconOnly={true}
+                />
+              </div>
+            </div>
+          </CollapsibleCardContent>
+          <CollapsibleCardFooter></CollapsibleCardFooter>
+        </CollapsibleCard>
+      )}
 
       {isOwoxIdpProvider && (
         <CollapsibleCard collapsible name='project-legacy-platform'>

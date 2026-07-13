@@ -11,6 +11,7 @@ export interface OAuthRegisteredClient {
   clientId: string;
   clientName?: string;
   userId?: string;
+  resource?: string;
   status?: OAuthDynamicClientStatus;
   redirectUris: string[];
   scopes: McpScope[];
@@ -30,6 +31,7 @@ export class OAuthClientRegistry {
       clientId: client.clientId,
       clientName: client.clientName ?? null,
       userId: client.userId ?? null,
+      resource: client.resource ?? null,
       status: client.status ?? 'pending',
       redirectUris: client.redirectUris,
       scopes: client.scopes,
@@ -61,6 +63,7 @@ export class OAuthClientRegistry {
       clientId: client.clientId,
       clientName: client.clientName ?? undefined,
       userId: client.userId ?? undefined,
+      resource: client.resource ?? undefined,
       status: client.status,
       redirectUris: client.redirectUris,
       scopes: client.scopes,

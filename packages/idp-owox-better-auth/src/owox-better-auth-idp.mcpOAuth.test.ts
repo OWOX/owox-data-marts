@@ -29,6 +29,44 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       identityClient,
     }) as OwoxBetterAuthIdp;
 
+  it('adds project-specific MCP server URL to user API payload', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+      tokenFacade: {
+        parseToken: jest.fn().mockResolvedValue({
+          userId: 'user-1',
+          projectId,
+          email: 'user@example.com',
+          roles: ['admin'],
+        }),
+      },
+      onboardingService: {
+        getAnswersForPayload: jest.fn().mockResolvedValue([]),
+      },
+      config: {
+        mcp: {
+          publicBaseUrl: 'https://mcp.owox.com',
+        },
+      },
+    }) as OwoxBetterAuthIdp;
+    const request = {
+      headers: { 'x-owox-authorization': 'Bearer access-token' },
+    } as unknown as Request;
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    } as unknown as Response;
+
+    await provider.userApiMiddleware(request, response, jest.fn());
+
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId,
+        mcpServerUrl: `https://${projectId}.mcp.owox.com/mcp`,
+      })
+    );
+  });
+
   it('delegates authorization code creation to Identity OWOX client', async () => {
     const identityClient = {
       createMcpOAuthAuthorizationCode: jest.fn().mockResolvedValue({

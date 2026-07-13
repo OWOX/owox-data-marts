@@ -1,7 +1,7 @@
 import axios from 'axios';
-import type { AccessTokenResponse, AuthError, Projects, TokenPayload, User } from '../types';
+import type { AccessTokenResponse, AuthError, CurrentUserResponse, Projects, User } from '../types';
 import { isSafePath, RedirectStorageService } from './redirect-storage.service';
-import { tokenPayloadToUser } from './auth.service.ts';
+import { currentUserResponseToUser } from './auth.service.ts';
 
 /**
  * Auth API endpoints configuration
@@ -146,12 +146,12 @@ export async function refreshAccessToken(): Promise<AccessTokenResponse> {
 }
 
 export async function getUserApi(token: string): Promise<User> {
-  const response = await authClient.get<TokenPayload>(AUTH_ENDPOINTS.API_USER, {
+  const response = await authClient.get<CurrentUserResponse>(AUTH_ENDPOINTS.API_USER, {
     headers: {
       'X-OWOX-Authorization': `Bearer ${token}`,
     },
   });
-  return tokenPayloadToUser(response.data);
+  return currentUserResponseToUser(response.data);
 }
 
 export async function getProjectsApi(token: string): Promise<Projects> {

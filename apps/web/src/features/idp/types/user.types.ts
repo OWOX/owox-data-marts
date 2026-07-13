@@ -19,6 +19,7 @@ export interface User {
   roles?: Role[];
   projectId: string;
   projectTitle?: string;
+  mcpServerUrl?: string;
   onboarding?: OnboardingAnswer[];
 }
 

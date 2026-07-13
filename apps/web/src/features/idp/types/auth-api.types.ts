@@ -9,9 +9,11 @@ export interface AccessTokenResponse {
 }
 
 /**
- * Token introspection response - matches Payload from IdP Protocol
+ * Current user API response.
+ *
+ * This is assembled from the access token payload plus additional UI context.
  */
-export interface TokenPayload {
+export interface CurrentUserResponse {
   userId: string;
   projectId: string;
   email?: string;
@@ -20,6 +22,7 @@ export interface TokenPayload {
   roles?: Role[];
   projectTitle?: string;
   onboarding?: OnboardingAnswer[];
+  mcpServerUrl?: string;
 }
 
 /**

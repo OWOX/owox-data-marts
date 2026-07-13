@@ -32,7 +32,8 @@ export class OAuthDynamicClientService {
   ) {}
 
   async register(
-    request: OAuthDynamicClientRegistrationRequest
+    request: OAuthDynamicClientRegistrationRequest,
+    resource: string
   ): Promise<OAuthDynamicClientRegistrationResponse> {
     if (!this.config.isDynamicClientRegistrationEnabled) {
       throw new BadRequestException('Dynamic Client Registration is disabled');
@@ -69,6 +70,7 @@ export class OAuthDynamicClientService {
     const client = await this.clientRegistry.register({
       clientId,
       clientName: request.client_name,
+      resource,
       redirectUris,
       scopes,
       createdAt: new Date(),

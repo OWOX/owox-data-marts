@@ -6,13 +6,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import { McpConfigService } from '../config/mcp.config';
 
 @Catch(UnauthorizedException)
 export class McpAuthExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(McpAuthExceptionFilter.name);
 
-  constructor(private readonly config: McpConfigService) {}
+  constructor(
+    private readonly config: McpConfigService,
+    private readonly resourceResolver: McpResourceResolverService
+  ) {}
 
   catch(exception: UnauthorizedException, host: ArgumentsHost): void {
     const http = host.switchToHttp();
@@ -35,7 +39,7 @@ export class McpAuthExceptionFilter implements ExceptionFilter {
       this.logger.warn('MCP auth rejected', metadata);
     }
 
-    response.setHeader('WWW-Authenticate', this.getChallengeHeader());
+    response.setHeader('WWW-Authenticate', this.getChallengeHeader(request));
     response.status(401).json({
       statusCode: 401,
       message,
@@ -48,8 +52,13 @@ export class McpAuthExceptionFilter implements ExceptionFilter {
     return Array.isArray(header) ? header[0] : header;
   }
 
-  private getChallengeHeader(): string {
-    return `Bearer resource_metadata="${this.config.protectedResourceMetadataUrl}", scope="${this.config.scopes.join(' ')}"`;
+  private getChallengeHeader(request: Request | undefined): string {
+    const resourceContext = request ? this.resourceResolver.tryResolveRequest(request) : null;
+    const metadataUrl = resourceContext
+      ? `${resourceContext.publicBaseUrl}/.well-known/oauth-protected-resource`
+      : this.config.protectedResourceMetadataUrl;
+
+    return `Bearer resource_metadata="${metadataUrl}", scope="${this.config.scopes.join(' ')}"`;
   }
 
   private isExpectedAnonymousProbe(request: Request | undefined, message: string): boolean {

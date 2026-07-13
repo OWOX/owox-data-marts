@@ -72,6 +72,22 @@ export class OAuthProjectSelectionService {
     };
   }
 
+  async resolveProjectHostMember(
+    provider: IdpProvider,
+    context: AuthorizationContext,
+    projects: Projects,
+    projectId: string
+  ): Promise<McpOAuthProjectMemberContext> {
+    const matches = this.filterSelectableProjects(projects).filter(
+      project => project.id === projectId
+    );
+    if (matches.length !== 1) {
+      throw new BadRequestException('project from MCP resource is not available for user');
+    }
+
+    return this.resolveSelectedProjectMember(provider, context, projects, matches[0].id);
+  }
+
   renderSelectionPage(input: RenderSelectionPageInput): string {
     const hiddenFields = this.renderHiddenFields(input.authorizationRequest);
     const projects = this.filterSelectableProjects(input.projects);
@@ -398,7 +414,6 @@ export class OAuthProjectSelectionService {
       response_type: 'code',
       client_id: request.clientId,
       redirect_uri: request.redirectUri,
-      resource: request.resource,
       scope: request.scopes.join(' '),
       state: request.state,
       code_challenge: request.codeChallenge,
