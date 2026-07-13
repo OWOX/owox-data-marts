@@ -290,7 +290,7 @@ export function FieldsSelectionStep({
                   <span className='text-foreground font-medium'>{uniqueKeys.join(', ')}</span>{' '}
                   selected so rows merge correctly.
                 </p>
-                <p>Change Data Level in connector settings before selecting fields.</p>
+                <p>If needed, change Data Level in connector settings before selecting fields.</p>
               </div>
             </div>
           )}
