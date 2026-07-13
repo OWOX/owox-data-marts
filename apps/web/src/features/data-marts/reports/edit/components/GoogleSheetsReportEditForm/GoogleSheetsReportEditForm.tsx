@@ -455,13 +455,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                 type='button'
                                 variant='ghost'
                                 size='sm'
-                                className='size-8 p-0'
                                 onClick={() => {
                                   window.open(documentUrl.trim(), '_blank', 'noopener,noreferrer');
                                 }}
                                 aria-label='Open document in new tab'
                               >
-                                <ExternalLink className='h-3.5 w-3.5' strokeWidth={1.5} />
+                                <ExternalLink
+                                  className='h-3.5 w-3.5'
+                                  strokeWidth={1.5}
+                                  aria-hidden='true'
+                                />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side='top' align='center' role='tooltip'>
@@ -471,7 +474,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         )}
                         {!isValidDocumentUrl && (
                           <>
-                            <span className='text-muted-foreground/75 text-sm'>or</span>
+                            <span className='text-muted-foreground text-sm'>or</span>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -484,7 +487,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                   {isCreatingSheet ? (
                                     <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
                                   ) : (
-                                    <Plus className='h-4 w-4' />
+                                    <Plus className='h-4 w-4' aria-hidden='true' />
                                   )}
                                   New Sheet
                                 </Button>
