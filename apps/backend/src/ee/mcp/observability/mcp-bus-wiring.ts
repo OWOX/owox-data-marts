@@ -140,9 +140,11 @@ export function buildMcpBusExtras(env: NodeJS.ProcessEnv = process.env): McpBusE
       value: otelFlag,
     });
   }
+  const mcpBusName = env.MCP_LOG_EVENT_BUS_NAME?.trim() || 'McpEventBus';
   return {
     extraTransports,
     offloader: buildMcpOffloader(env),
+    loggerNameResolver: event => (event.name.startsWith('mcp.') ? mcpBusName : undefined),
     // Flush the OTLP exporter's pending batch on shutdown; hooks live in this closure, not module state.
     async shutdown() {
       const hooks = shutdowns.splice(0);

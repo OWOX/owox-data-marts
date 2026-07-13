@@ -5,7 +5,7 @@ import { ClsContextService } from '../../../common/logger/cls-context.service';
 import type { McpAuthenticatedRequest } from '../auth/mcp-auth-context';
 import { McpAuthExceptionFilter } from '../auth/mcp-auth.exception-filter';
 import { McpAuthGuard } from '../auth/mcp-auth.guard';
-import { MCP_LOG_CONTEXT_KEY, MCP_REQUEST_META_KEY } from '../observability/mcp-log-context';
+import { MCP_LOG_CONTEXT_KEY } from '../observability/mcp-log-context';
 import { McpStreamableHttpTransportHandler } from '../sdk/mcp-streamable-http-transport.handler';
 
 // Above query_data_mart's 3-min deadline so the global socket-idle timeout (SERVER_TIMEOUT_MS)
@@ -35,7 +35,6 @@ export class McpTransportController {
 
     const requestId = randomUUID();
     const requestSessionId = this.getRequestedSessionId(request);
-    const requestMeta = this.extractRequestMeta(body);
 
     await this.clsContextService.runWithContext(
       MCP_LOG_CONTEXT_KEY,
@@ -51,8 +50,6 @@ export class McpTransportController {
         traceparent: this.firstHeader(request, 'traceparent'),
       },
       async () => {
-        if (requestMeta) this.clsContextService.set(MCP_REQUEST_META_KEY, requestMeta);
-
         const startedAt = Date.now();
         const rpc = this.getJsonRpcSummary(body);
 
@@ -106,21 +103,6 @@ export class McpTransportController {
 
   private getRequestedSessionId(request: McpAuthenticatedRequest): string | undefined {
     return this.firstHeader(request, 'mcp-session-id');
-  }
-
-  private extractRequestMeta(body: unknown): Record<string, unknown> | undefined {
-    if (Array.isArray(body)) {
-      for (const item of body) {
-        const meta = this.extractRequestMeta(item);
-        if (meta) return meta;
-      }
-      return undefined;
-    }
-    if (!body || typeof body !== 'object') return undefined;
-    const params = (body as { params?: unknown }).params;
-    if (!params || typeof params !== 'object') return undefined;
-    const meta = (params as { _meta?: unknown })._meta;
-    return meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : undefined;
   }
 
   private isExpectedStandaloneSseRejection(

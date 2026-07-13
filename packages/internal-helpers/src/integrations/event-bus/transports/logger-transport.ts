@@ -3,15 +3,29 @@ import type { BaseEvent } from '../base-event.js';
 import type { Logger } from '../../../logging/types.js';
 import { buildOwoxMessage } from '../message-format.js';
 
-/**
- * Simple transport that writes events to the application logger.
- */
+export interface LoggerTransportOptions {
+  /** Resolve the logger name per event (→ `jsonPayload.name`); undefined ⇒ the default name. */
+  resolveLoggerName?: (event: BaseEvent<Record<string, unknown>>) => string | undefined;
+}
+
 export class LoggerTransport implements EventTransport {
   public readonly name = 'logger' as const;
-  private readonly logger: Logger;
+  private readonly cache = new Map<string, Logger>();
 
-  constructor(logger: Logger) {
-    this.logger = logger;
+  constructor(
+    private readonly createLogger: (name: string) => Logger,
+    private readonly defaultName: string,
+    private readonly options: LoggerTransportOptions = {}
+  ) {}
+
+  private loggerFor(event: BaseEvent<Record<string, unknown>>): Logger {
+    const name = this.options.resolveLoggerName?.(event) ?? this.defaultName;
+    let logger = this.cache.get(name);
+    if (!logger) {
+      logger = this.createLogger(name);
+      this.cache.set(name, logger);
+    }
+    return logger;
   }
 
   async send(event: BaseEvent<Record<string, unknown>>): Promise<void> {
@@ -28,7 +42,6 @@ export class LoggerTransport implements EventTransport {
       event: buildOwoxMessage(body),
     };
 
-    // Emit structured message in logs
-    this.logger.info('Event', message as unknown as Record<string, unknown>);
+    this.loggerFor(event).info('Event', message as unknown as Record<string, unknown>);
   }
 }

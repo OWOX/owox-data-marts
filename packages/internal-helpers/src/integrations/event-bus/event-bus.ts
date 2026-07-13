@@ -75,6 +75,8 @@ export class EventBus {
 export interface EventBusExtras {
   extraTransports?: EventTransport[];
   offloader?: PayloadOffloader;
+  /** Route matching events to a different logger name (→ `jsonPayload.name`); undefined ⇒ default. */
+  loggerNameResolver?: (event: BaseEvent<Record<string, unknown>>) => string | undefined;
 }
 
 /**
@@ -90,7 +92,13 @@ export function createEventBusFromEnv(
   for (const name of config.enabledTransports) {
     switch (name) {
       case 'logger':
-        transports.push(new LoggerTransport(LoggerFactory.createNamedLogger('EventBus')));
+        transports.push(
+          new LoggerTransport(
+            loggerName => LoggerFactory.createNamedLogger(loggerName),
+            'EventBus',
+            { resolveLoggerName: extras.loggerNameResolver }
+          )
+        );
         break;
       case 'posthog':
         transports.push(new PostHogTransport(resolvePostHogConfig(env)));

@@ -86,6 +86,19 @@ describe('mcp-bus-wiring', () => {
     await expect(extras.shutdown()).resolves.toBeUndefined();
   });
 
+  it('loggerNameResolver routes mcp.* to McpEventBus and leaves other events on the default', () => {
+    const resolve = buildMcpBusExtras({} as NodeJS.ProcessEnv).loggerNameResolver!;
+    expect(resolve({ name: 'mcp.tool_call' } as never)).toBe('McpEventBus');
+    expect(resolve({ name: 'insights.generated' } as never)).toBeUndefined();
+  });
+
+  it('MCP_LOG_EVENT_BUS_NAME overrides the MCP logger name', () => {
+    const resolve = buildMcpBusExtras({
+      MCP_LOG_EVENT_BUS_NAME: 'CustomMcpBus',
+    } as NodeJS.ProcessEnv).loggerNameResolver!;
+    expect(resolve({ name: 'mcp.tool_call' } as never)).toBe('CustomMcpBus');
+  });
+
   it('buildMcpBusExtras keeps the gcs sink when MCP_LOG_INLINE_MAX_BYTES is invalid but the bucket is valid', () => {
     const bad = buildMcpBusExtras({
       MCP_LOG_GCS_BUCKET: 'b',

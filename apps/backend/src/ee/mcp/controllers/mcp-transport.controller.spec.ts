@@ -1,7 +1,6 @@
 import type { ClsContextService } from '../../../common/logger/cls-context.service';
 import { DEFAULT_QUERY_DEADLINE_MS } from '../../../data-marts/use-cases/query-data-mart.service';
 import type { McpAuthenticatedRequest } from '../auth/mcp-auth-context';
-import { MCP_REQUEST_META_KEY } from '../observability/mcp-log-context';
 import type { McpStreamableHttpTransportHandler } from '../sdk/mcp-streamable-http-transport.handler';
 import { McpTransportController, MCP_REQUEST_SOCKET_TIMEOUT_MS } from './mcp-transport.controller';
 
@@ -95,7 +94,7 @@ describe('McpTransportController', () => {
     );
   });
 
-  it('threads params._meta into a dedicated CLS slot, not the auto-attached log context', async () => {
+  it('does not extract params._meta request-wide (per-call _meta comes from the SDK extra)', async () => {
     const { controller, cls } = createController();
     const request = {
       mcpContext,
@@ -112,7 +111,9 @@ describe('McpTransportController', () => {
 
     await controller.handleMcp(request, response as never, body);
 
-    expect(cls.set).toHaveBeenCalledWith(MCP_REQUEST_META_KEY, { 'openai/session': 'conv-abc' });
+    // _meta is no longer stashed request-wide — that would misattribute every call in a batch to
+    // the first message's conversation. It's read per-call from the SDK `extra` instead.
+    expect(cls.set).not.toHaveBeenCalled();
     const context = (cls.runWithContext as jest.Mock).mock.calls[0][1];
     expect(context.meta).toBeUndefined();
   });

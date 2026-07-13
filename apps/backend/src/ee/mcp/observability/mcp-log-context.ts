@@ -14,5 +14,3 @@ export interface McpLogContext {
 }
 
 export const MCP_LOG_CONTEXT_KEY = createClsKey<McpLogContext>(MCP_LOG_CONTEXT);
-
-export const MCP_REQUEST_META_KEY = createClsKey<Record<string, unknown>>('McpRequestMeta');
