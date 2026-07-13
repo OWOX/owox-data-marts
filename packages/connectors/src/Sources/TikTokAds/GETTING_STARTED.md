@@ -23,7 +23,7 @@ Before proceeding, please make sure that:
    - **Access Token** – paste the token you generated earlier.  
    - **App ID** and **App Secret** – available in the **Basic Information** section of your TikTok app.  
    - **Advertiser ID** – paste the ID you received together with the access token, or retrieve it directly from [TikTok Ads Manager](https://ads.tiktok.com/).  
-4. Open **Advanced** settings if you need a performance reporting grain other than the default. **Data Level** applies to `ad_insights` and `ad_insights_by_country` and supports:
+4. Set **Data Level** if you need a performance reporting grain other than the default. It applies to `ad_insights` and `ad_insights_by_country` and supports:
    - `AUCTION_ADVERTISER`
    - `AUCTION_CAMPAIGN`
    - `AUCTION_ADGROUP`
