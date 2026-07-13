@@ -44,6 +44,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     const dateTruncs = queryOptions?.dateTruncs ?? [];
     const rowCount = queryOptions?.rowCount === true;
     const uniqueCount = queryOptions?.uniqueCount === true;
+    const hasExplicitProjection = (queryOptions?.columns?.length ?? 0) > 0;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
@@ -55,7 +56,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
-    if (!hasOutputControls) {
+    if (!hasOutputControls && !hasExplicitProjection) {
       // Backward-compatible path.
       if (isSqlDefinition(definition) && !queryOptions?.columns?.length) {
         return definition.sqlQuery;
@@ -67,7 +68,10 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     }
 
     // Alias the source so the table short name is no longer a row STRUCT range variable.
-    const fromClause = `${this.resolveFromClauseWithOutputControls(definition, queryOptions)} AS ${BigQueryQueryBuilder.FROM_ALIAS}`;
+    const sourceFromClause = hasOutputControls
+      ? this.resolveFromClauseWithOutputControls(definition, queryOptions)
+      : this.resolveFromClauseWithoutOutputControls(definition);
+    const fromClause = `${sourceFromClause} AS ${BigQueryQueryBuilder.FROM_ALIAS}`;
     const qualifyColumn = (column: string) =>
       `${BigQueryQueryBuilder.FROM_ALIAS}.${escapeBigQueryIdentifier(column)}`;
     // Field types let the renderer compare the date part of TIMESTAMP/DATETIME
@@ -120,10 +124,10 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       };
     }
 
-    return {
-      sql: `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`,
-      params: [...where.params, ...orderBy.params, ...limit.params],
-    };
+    const sql = `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+    return hasOutputControls
+      ? { sql, params: [...where.params, ...orderBy.params, ...limit.params] }
+      : sql;
   }
 
   private resolveFromClauseWithoutOutputControls(definition: DataMartDefinition): string {

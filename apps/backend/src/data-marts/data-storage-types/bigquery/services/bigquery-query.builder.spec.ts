@@ -67,21 +67,32 @@ describe('BigQueryQueryBuilder', () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['campaign_name', 'date_column'],
       });
-      expect(sql).toBe('SELECT\n  `campaign_name`,\n  `date_column`\nFROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe(
+        'SELECT\n  `campaign_name`,\n  `date_column`\nFROM `proj`.`dataset`.`tbl` AS main'
+      );
     });
 
     it('escapes nested RECORD paths as backtick-separated parts', async () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['address.city', 'user_id'],
       });
-      expect(sql).toBe('SELECT\n  `address`.`city`,\n  `user_id`\nFROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe(
+        'SELECT\n  `address`.`city`,\n  `user_id`\nFROM `proj`.`dataset`.`tbl` AS main'
+      );
+    });
+
+    it('aliases FROM when a projected column matches the table short name', async () => {
+      const sql = await builder.buildQuery(tableDefinition('proj.shop_data.country'), {
+        columns: ['country'],
+      });
+      expect(sql).toBe('SELECT\n  `country`\nFROM `proj`.`shop_data`.`country` AS main');
     });
 
     it('wraps SQL definition queries when columns are provided', async () => {
       const sql = await builder.buildQuery(sqlDefinition('SELECT a, b, c FROM t;'), {
         columns: ['a', 'c'],
       });
-      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (SELECT a, b, c FROM t)');
+      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (SELECT a, b, c FROM t) AS main');
     });
 
     it('ignores empty columns list and falls back to SELECT *', async () => {
@@ -138,12 +149,12 @@ describe('BigQueryQueryBuilder', () => {
       expect(result.params).toEqual([{ name: 'p0', value: 'Canada' }]);
     });
 
-    it('returns plain string when there are no output controls (sort only undefined)', async () => {
+    it('returns plain string with aliased FROM for explicit projection only', async () => {
       const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['a'],
       });
       expect(typeof result).toBe('string');
-      expect(result).toBe('SELECT\n  `a`\nFROM `proj`.`dataset`.`tbl`');
+      expect(result).toBe('SELECT\n  `a`\nFROM `proj`.`dataset`.`tbl` AS main');
     });
 
     it('uses mainTableReference for SQL-def with output controls', async () => {
