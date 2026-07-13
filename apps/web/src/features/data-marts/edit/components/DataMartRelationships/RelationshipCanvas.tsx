@@ -1,14 +1,41 @@
 import { Badge } from '@owox/ui/components/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ExternalLink, Info, Locate, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { GetSchemes } from 'rete';
-import { ClassicPreset, NodeEditor } from 'rete';
-import { AreaExtensions, AreaPlugin } from 'rete-area-plugin';
-import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
-import { type MinimapExtra, MinimapPlugin } from 'rete-minimap-plugin';
-import { Presets as ReactPresets, type ReactArea2D, ReactPlugin } from 'rete-react-plugin';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Background,
+  BackgroundVariant,
+  Handle,
+  MiniMap,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  getBezierPath,
+  useReactFlow,
+  useStore,
+  type Edge,
+  type EdgeProps,
+  type Node,
+  type NodeProps,
+  type Viewport,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { Button } from '../../../../../shared/components/Button';
+import { useProjectRoute } from '../../../../../shared/hooks';
+import {
+  DIMMED_OPACITY,
+  EDGE_COLOR,
+  EDGE_STROKE_WIDTH,
+  EDGE_WARNING_DASH,
+  HIGHLIGHT_COLOR,
+  NODE_BORDER_COLOR,
+  NODE_PULSE_KEYFRAMES,
+  SOCKET_STYLE,
+  STATIC_NODE_STYLE,
+  WARNING_COLOR,
+} from '../../../shared/canvas/constants';
+import { computeCanvasHighlight, NO_HIGHLIGHT } from '../../../shared/canvas/highlight';
+import { clampCanvasViewport, getCanvasGraphBounds } from '../../../shared/canvas/viewport';
 import type {
   DataMartRelationship,
   RelationshipGraph,
@@ -20,9 +47,10 @@ import {
   hasRelationshipWarning,
 } from './relationship-warning-state';
 import {
+  GRAPH_ZOOM_MAX,
   getGraphZoomRange,
   getNextGraphZoom,
-  isGraphZoomAllowed,
+  type GraphZoomRange,
 } from './relationship-canvas-zoom';
 
 interface RelationshipCanvasProps {
@@ -39,109 +67,78 @@ interface RelationshipCanvasProps {
   style?: React.CSSProperties;
 }
 
-const SOCKET = new ClassicPreset.Socket('rel');
 const NODE_W = 240;
 const SRC_H = 48;
 const TGT_H = 74;
 const H_GAP = 280;
 const V_GAP = 24;
-const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
-const HIGHLIGHT_COLOR = '#3b82f6'; // blue-500
-const DRAFT_COLOR = '#f97316'; // orange-500
 const FIT_VIEW_SCALE = 0.85;
+const FIT_VIEW_PADDING = 1 / FIT_VIEW_SCALE - 1;
+const GRAPH_ZOOM_MIN = 0.05;
+const GRAPH_PAN_PADDING = 150;
 
-class DMNode extends ClassicPreset.Node {
-  width = NODE_W;
-  height = SRC_H;
+export interface RelationshipNodeData {
   isSource: boolean;
-  dmId: string;
-  depth: number;
+  label: string;
   targetAlias?: string;
   fieldCount?: number;
   description?: string | null;
-  onOpenExternal?: () => void;
   isDraft: boolean;
   isBlocked: boolean;
   isJoinNotConfigured: boolean;
   isCycleStub: boolean;
   userHasAccess: boolean;
-  highlighted = false;
-  dimmed = false;
-
-  constructor(
-    label: string,
-    dmId: string,
-    isSource: boolean,
-    depth: number,
-    opts: {
-      userHasAccess: boolean;
-      targetAlias?: string;
-      fieldCount?: number;
-      description?: string | null;
-      onOpenExternal?: () => void;
-      isDraft?: boolean;
-      isBlocked?: boolean;
-      isJoinNotConfigured?: boolean;
-      isCycleStub?: boolean;
-    }
-  ) {
-    super(label);
-    this.dmId = dmId;
-    this.isSource = isSource;
-    this.depth = depth;
-    this.targetAlias = opts.targetAlias;
-    this.fieldCount = opts.fieldCount;
-    this.description = opts.description;
-    this.onOpenExternal = opts.onOpenExternal;
-    this.isDraft = opts.isDraft ?? false;
-    this.isBlocked = opts.isBlocked ?? false;
-    this.isJoinNotConfigured = opts.isJoinNotConfigured ?? false;
-    this.isCycleStub = opts.isCycleStub ?? false;
-    this.userHasAccess = opts.userHasAccess;
-    if (!isSource) this.height = TGT_H;
-  }
+  hasOutgoing: boolean;
+  highlighted: boolean;
+  dimmed: boolean;
+  onOpenExternal: () => void;
 }
 
-type Schemes = GetSchemes<DMNode, ClassicPreset.Connection<ClassicPreset.Node, ClassicPreset.Node>>;
-type AreaExtra = ReactArea2D<Schemes> | MinimapExtra;
+export type RelationshipFlowNodeType = Node<
+  RelationshipNodeData & Record<string, unknown>,
+  'relationshipNode'
+>;
 
-const { RefSocket } = ReactPresets.classic;
+interface RelationshipEdgeData {
+  warning: boolean;
+  dimmed: boolean;
+}
 
-function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Schemes>) => void }) {
-  const n = props.data;
+type RelationshipFlowEdgeType = Edge<
+  RelationshipEdgeData & Record<string, unknown>,
+  'relationshipEdge'
+> & { data: RelationshipEdgeData };
 
+export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeType>) {
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
-    n.onOpenExternal?.();
+    data.onOpenExternal();
   }
 
-  const outputs = Object.entries(n.outputs);
-  const inputs = Object.entries(n.inputs);
-
-  if (n.isSource) {
+  if (data.isSource) {
     return (
       <div
         className='text-primary flex items-center'
         style={{
-          width: n.width,
-          height: n.height,
+          width: NODE_W,
+          height: SRC_H,
           borderRadius: 8,
-          border: `2px solid ${n.highlighted ? HIGHLIGHT_COLOR : n.isDraft ? DRAFT_COLOR : NODE_BORDER}`,
-          boxShadow: n.highlighted
+          border: `2px solid ${data.highlighted ? HIGHLIGHT_COLOR : data.isDraft ? WARNING_COLOR : NODE_BORDER_COLOR}`,
+          boxShadow: data.highlighted
             ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
             : '0 1px 4px 0 rgba(0,0,0,0.12)',
           background: '#eff6ff',
           fontSize: 13,
           fontWeight: 600,
           position: 'relative',
-          opacity: n.dimmed ? 0.15 : 1,
-          filter: n.dimmed ? 'grayscale(0.8)' : undefined,
-          animation: n.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
+          opacity: data.dimmed ? DIMMED_OPACITY : 1,
+          filter: data.dimmed ? 'grayscale(0.8)' : undefined,
+          animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
           transition: 'opacity 0.2s, filter 0.2s',
         }}
       >
-        {n.isDraft && (
+        {data.isDraft && (
           <span
             style={{
               position: 'absolute',
@@ -149,55 +146,49 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
               right: 4,
               fontSize: 10,
               fontWeight: 600,
-              color: DRAFT_COLOR,
+              color: WARNING_COLOR,
               lineHeight: 1,
             }}
           >
             Draft
           </span>
         )}
-        <div className='truncate' style={{ flex: 1, padding: '0 14px' }} title={n.label}>
-          {n.label}
+        <div className='truncate' style={{ flex: 1, padding: '0 14px' }} title={data.label}>
+          {data.label}
         </div>
-        {outputs.map(
-          ([key, output]) =>
-            output && (
-              <div key={key} style={{ position: 'absolute', right: -5, top: '50%', marginTop: -5 }}>
-                <RefSocket
-                  name='output-socket'
-                  side='output'
-                  socketKey={key}
-                  nodeId={n.id}
-                  emit={props.emit}
-                  payload={output.socket}
-                />
-              </div>
-            )
+        {data.hasOutgoing && (
+          <Handle
+            type='source'
+            position={Position.Right}
+            isConnectable={false}
+            style={SOCKET_STYLE}
+          />
         )}
       </div>
     );
   }
 
-  const borderColor = hasRelationshipWarning(n) ? DRAFT_COLOR : NODE_BORDER;
-  const badgeLabel = getRelationshipWarningLabel(n);
+  const borderColor = hasRelationshipWarning(data) ? WARNING_COLOR : NODE_BORDER_COLOR;
+  const badgeLabel = getRelationshipWarningLabel(data);
+  const openExternalLabel = `Open ${data.label} in new tab`;
 
   return (
     <div
-      title={n.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
+      title={data.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
       style={{
-        width: n.width,
-        height: n.height,
+        width: NODE_W,
+        height: TGT_H,
         borderRadius: 8,
-        border: `2px solid ${n.highlighted ? HIGHLIGHT_COLOR : borderColor}`,
+        border: `2px solid ${data.highlighted ? HIGHLIGHT_COLOR : borderColor}`,
         background: 'var(--background)',
-        boxShadow: n.highlighted
+        boxShadow: data.highlighted
           ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
           : '0 1px 4px 0 rgba(0,0,0,0.12)',
         cursor: 'default',
         position: 'relative',
-        opacity: n.dimmed ? 0.15 : 1,
-        filter: n.dimmed ? 'grayscale(0.8)' : undefined,
-        animation: n.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
+        opacity: data.dimmed ? DIMMED_OPACITY : 1,
+        filter: data.dimmed ? 'grayscale(0.8)' : undefined,
+        animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
@@ -209,7 +200,7 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
             right: 4,
             fontSize: 10,
             fontWeight: 600,
-            color: DRAFT_COLOR,
+            color: WARNING_COLOR,
             lineHeight: 1,
             whiteSpace: 'nowrap',
           }}
@@ -217,24 +208,7 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           {badgeLabel}
         </span>
       )}
-      {inputs.map(
-        ([key, input]) =>
-          input && (
-            <div
-              key={key}
-              style={{ position: 'absolute', left: -5, top: '50%', marginTop: -5, zIndex: 1 }}
-            >
-              <RefSocket
-                name='input-socket'
-                side='input'
-                socketKey={key}
-                nodeId={n.id}
-                emit={props.emit}
-                payload={input.socket}
-              />
-            </div>
-          )
-      )}
+      <Handle type='target' position={Position.Left} isConnectable={false} style={SOCKET_STYLE} />
       <div
         className='bg-muted flex items-center justify-between'
         style={{
@@ -245,30 +219,42 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
         }}
       >
         <span className='flex min-w-0 items-center gap-1.5'>
-          <span className='truncate' title={n.label}>
-            {n.label}
+          <span className='truncate' title={data.label}>
+            {data.label}
           </span>
-          {!n.userHasAccess && <NoAccessIndicatorNative />}
+          {!data.userHasAccess && <NoAccessIndicatorNative />}
         </span>
         <div className='ml-2 flex shrink-0 items-center gap-0.5'>
-          {n.description && (
-            <span
-              className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
-              title={n.description}
-            >
-              <Info style={{ width: 14, height: 14 }} />
-            </span>
+          {data.description && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type='button'
+                  className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
+                  aria-label={`Description for ${data.label}`}
+                  onPointerDown={event => {
+                    event.stopPropagation();
+                  }}
+                >
+                  <Info style={{ width: 14, height: 14 }} aria-hidden='true' />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side='top' align='center' role='tooltip'>
+                {data.description}
+              </TooltipContent>
+            </Tooltip>
           )}
           <button
+            type='button'
             className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
             onPointerDown={e => {
               e.stopPropagation();
             }}
             onClick={handleExtClick}
-            title='Open in new tab'
-            aria-label='Open in new tab'
+            title={openExternalLabel}
+            aria-label={openExternalLabel}
           >
-            <ExternalLink style={{ width: 14, height: 14 }} />
+            <ExternalLink style={{ width: 14, height: 14 }} aria-hidden='true' />
           </button>
         </div>
       </div>
@@ -276,64 +262,116 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
         className='text-muted-foreground flex items-center gap-2'
         style={{ padding: '6px 14px 8px', fontSize: 11, minWidth: 0 }}
       >
-        {n.targetAlias && (
+        {data.targetAlias && (
           <Badge
             variant='secondary'
             className='inline-block max-w-[120px] truncate px-1.5 py-0 text-[10px]'
-            title={n.targetAlias}
+            title={data.targetAlias}
           >
-            {n.targetAlias}
+            {data.targetAlias}
           </Badge>
         )}
         <span className='ml-auto shrink-0'>
-          {n.fieldCount ?? 0} field{n.fieldCount !== 1 ? 's' : ''}
+          {data.fieldCount ?? 0} field{data.fieldCount !== 1 ? 's' : ''}
         </span>
       </div>
-      {outputs.map(
-        ([key, output]) =>
-          output && (
-            <div
-              key={key}
-              style={{ position: 'absolute', right: -5, top: '50%', marginTop: -5, zIndex: 1 }}
-            >
-              <RefSocket
-                name='output-socket'
-                side='output'
-                socketKey={key}
-                nodeId={n.id}
-                emit={props.emit}
-                payload={output.socket}
-              />
-            </div>
-          )
+      {data.hasOutgoing && (
+        <Handle
+          type='source'
+          position={Position.Right}
+          isConnectable={false}
+          style={SOCKET_STYLE}
+        />
       )}
     </div>
   );
 }
 
-function SocketComponent() {
+function RelationshipFlowEdge({
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+}: EdgeProps<RelationshipFlowEdgeType>) {
+  const [path] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+  const color = data.warning ? WARNING_COLOR : EDGE_COLOR;
+
   return (
-    <div
-      style={{
-        width: 10,
-        height: 10,
-        borderRadius: '50%',
-        background: NODE_BORDER,
-        border: '2px solid var(--background)',
-      }}
+    <path
+      d={path}
+      fill='none'
+      strokeWidth={EDGE_STROKE_WIDTH}
+      stroke={color}
+      strokeDasharray={data.warning ? EDGE_WARNING_DASH : undefined}
+      opacity={data.dimmed ? DIMMED_OPACITY : 1}
+      style={{ transition: 'opacity 0.2s' }}
     />
   );
 }
 
-interface EditorHandle {
-  destroy: () => void;
-  fitView: () => Promise<void>;
-  zoomBy: (delta: number) => Promise<void>;
-  highlightNodes: (query: string) => void;
+const nodeTypes = { relationshipNode: RelationshipFlowNode };
+const edgeTypes = { relationshipEdge: RelationshipFlowEdge };
+
+interface NodeInfo {
+  dmId: string;
+  title: string;
+  description?: string | null;
+  depth: number;
+  isSource: boolean;
+  userHasAccess: boolean;
+  targetAlias?: string;
+  fieldCount?: number;
+  isDraft?: boolean;
+  isBlocked?: boolean;
+  isJoinNotConfigured?: boolean;
+  isCycleStub?: boolean;
 }
 
-async function setupEditor(
-  container: HTMLElement,
+interface EdgeInfo {
+  sourceId: string;
+  targetId: string;
+}
+
+interface RelationshipFlowGraph {
+  nodes: RelationshipFlowNodeType[];
+  edges: RelationshipFlowEdgeType[];
+}
+
+function getRelationshipFlowGraphIdentity(graph: RelationshipFlowGraph): string {
+  return JSON.stringify([
+    graph.nodes.map(node => [
+      node.id,
+      node.position.x,
+      node.position.y,
+      node.width,
+      node.height,
+      node.data.isSource,
+      node.data.label,
+      node.data.targetAlias,
+      node.data.fieldCount,
+      node.data.description,
+      node.data.isDraft,
+      node.data.isBlocked,
+      node.data.isJoinNotConfigured,
+      node.data.isCycleStub,
+      node.data.userHasAccess,
+      node.data.hasOutgoing,
+    ]),
+    graph.edges.map(edge => [edge.id, edge.source, edge.target, edge.data.warning]),
+  ]);
+}
+
+function buildRelationshipFlow(
   dataMartId: string,
   dataMartTitle: string,
   dataMartDescription: string | null | undefined,
@@ -342,110 +380,14 @@ async function setupEditor(
   graph: RelationshipGraph | null,
   fieldCounts: Map<string, number> | undefined,
   onOpenExternal: (targetDmId: string) => void
-): Promise<EditorHandle> {
-  const editor = new NodeEditor<Schemes>();
-  const area = new AreaPlugin<Schemes, AreaExtra>(container);
-  const connPlugin = new ConnectionPlugin<Schemes, AreaExtra>();
-  const render = new ReactPlugin<Schemes, AreaExtra>({ createRoot });
-  const minimap = new MinimapPlugin<Schemes>();
-
-  const { useConnection } = ReactPresets.classic;
-
-  function DraftAwareConnection(props: {
-    data: Schemes['Connection'] & { isLoop?: boolean };
-    styles?: () => unknown;
-  }) {
-    const { path } = useConnection();
-    if (!path) return null;
-    const src = editor.getNode(props.data.source);
-    const tgt = editor.getNode(props.data.target);
-    const orange =
-      src?.isDraft === true ||
-      src?.isBlocked === true ||
-      src?.isJoinNotConfigured === true ||
-      src?.isCycleStub === true ||
-      tgt?.isDraft === true ||
-      tgt?.isBlocked === true ||
-      tgt?.isJoinNotConfigured === true ||
-      tgt?.isCycleStub === true;
-    const bothDimmed =
-      (src?.dimmed === true || src === undefined) && (tgt?.dimmed === true || tgt === undefined);
-
-    return (
-      <svg
-        data-testid='connection'
-        style={{
-          overflow: 'visible',
-          position: 'absolute',
-          pointerEvents: 'none',
-          width: 9999,
-          height: 9999,
-        }}
-      >
-        <path
-          d={path}
-          fill='none'
-          strokeWidth='5px'
-          stroke={orange ? DRAFT_COLOR : 'steelblue'}
-          strokeDasharray={orange ? '8 4' : undefined}
-          opacity={bothDimmed ? 0.15 : 1}
-          style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
-        />
-      </svg>
-    );
-  }
-
-  render.addPreset(
-    ReactPresets.classic.setup({
-      customize: {
-        node() {
-          return NodeComponent;
-        },
-        socket() {
-          return SocketComponent;
-        },
-        connection() {
-          return DraftAwareConnection;
-        },
-      },
-    })
-  );
-  render.addPreset(ReactPresets.minimap.setup());
-  connPlugin.addPreset(ConnectionPresets.classic.setup());
-
-  editor.use(area);
-  area.use(connPlugin);
-  area.use(render);
-  area.use(minimap);
-
-  interface NodeInfo {
-    id: string;
-    dmId: string;
-    title: string;
-    description?: string | null;
-    depth: number;
-    isSource: boolean;
-    userHasAccess: boolean;
-    targetAlias?: string;
-    fieldCount?: number;
-    isDraft?: boolean;
-    isBlocked?: boolean;
-    isJoinNotConfigured?: boolean;
-    isCycleStub?: boolean;
-  }
-  interface EdgeInfo {
-    sourceId: string;
-    targetId: string;
-  }
-
+): RelationshipFlowGraph {
   const nodeInfos = new Map<string, NodeInfo>();
-  const edges: EdgeInfo[] = [];
+  const edgeInfos: EdgeInfo[] = [];
   const hasOutgoing = new Set<string>();
 
   const rootIsDraft = dataMartStatus === 'DRAFT';
 
   nodeInfos.set(dataMartId, {
-    id: dataMartId,
     dmId: dataMartId,
     title: dataMartTitle,
     description: dataMartDescription,
@@ -462,15 +404,14 @@ async function setupEditor(
   function addEdgeAndNode(
     parentNodeKey: string,
     dmId: string,
-    info: Omit<NodeInfo, 'id' | 'dmId'>,
+    info: Omit<NodeInfo, 'dmId'>,
     aliasPath: string
-  ): string {
+  ): void {
     const nodeKey = `${dmId}-${nodeCounter++}`;
-    edges.push({ sourceId: parentNodeKey, targetId: nodeKey });
+    edgeInfos.push({ sourceId: parentNodeKey, targetId: nodeKey });
     hasOutgoing.add(parentNodeKey);
-    nodeInfos.set(nodeKey, { id: nodeKey, dmId, ...info });
+    nodeInfos.set(nodeKey, { dmId, ...info });
     aliasPathToNodeKey.set(aliasPath, nodeKey);
-    return nodeKey;
   }
 
   if (graph) {
@@ -521,179 +462,112 @@ async function setupEditor(
     }
   }
 
-  const nodeMap = new Map<string, DMNode>();
-  const columns = new Map<number, DMNode[]>();
-
+  const columns = new Map<number, string[]>();
+  const heights = new Map<string, number>();
   for (const [nodeKey, info] of nodeInfos) {
-    const node = new DMNode(info.title, info.dmId, info.isSource, info.depth, {
-      targetAlias: info.targetAlias,
-      fieldCount: info.fieldCount,
-      description: info.description,
-      isDraft: info.isDraft,
-      isBlocked: info.isBlocked,
-      isJoinNotConfigured: info.isJoinNotConfigured,
-      isCycleStub: info.isCycleStub,
-      userHasAccess: info.userHasAccess,
-      onOpenExternal: () => {
-        onOpenExternal(info.dmId);
-      },
-    });
-
-    if (hasOutgoing.has(nodeKey) && !info.isCycleStub) {
-      node.addOutput('out', new ClassicPreset.Output(SOCKET));
-    }
-    if (!info.isSource) {
-      node.addInput('in', new ClassicPreset.Input(SOCKET));
-    }
-
-    await editor.addNode(node);
-    nodeMap.set(nodeKey, node);
-
+    heights.set(nodeKey, info.isSource ? SRC_H : TGT_H);
     const col = columns.get(info.depth) ?? [];
     if (!columns.has(info.depth)) columns.set(info.depth, col);
-    col.push(node);
+    col.push(nodeKey);
   }
 
-  for (const edge of edges) {
-    const src = nodeMap.get(edge.sourceId);
-    const tgt = nodeMap.get(edge.targetId);
-    if (src && tgt) {
-      await editor.addConnection(
-        new ClassicPreset.Connection(
-          src as ClassicPreset.Node,
-          'out',
-          tgt as ClassicPreset.Node,
-          'in'
-        )
-      );
-    }
-  }
-
+  const positions = new Map<string, { x: number; y: number }>();
   const maxDepth = Math.max(...Array.from(columns.keys()));
 
   for (let d = 0; d <= maxDepth; d++) {
     const col = columns.get(d) ?? [];
     let y = 0;
 
-    for (const node of col) {
-      await area.translate(node.id, { x: d * (NODE_W + H_GAP), y });
-      y += node.height + V_GAP;
+    for (const nodeKey of col) {
+      positions.set(nodeKey, { x: d * (NODE_W + H_GAP), y });
+      y += (heights.get(nodeKey) ?? TGT_H) + V_GAP;
     }
 
     if (d === 0 && col.length === 1) {
+      const rootKey = col[0];
       const nextCol = columns.get(1) ?? [];
-      const nextH = nextCol.reduce((s, n) => s + n.height + V_GAP, -V_GAP);
-      await area.translate(col[0].id, {
-        x: 0,
-        y: Math.max(0, nextH / 2 - col[0].height / 2),
-      });
+      const nextH = nextCol.reduce((s, k) => s + (heights.get(k) ?? TGT_H) + V_GAP, -V_GAP);
+      const rootH = heights.get(rootKey) ?? SRC_H;
+      positions.set(rootKey, { x: 0, y: Math.max(0, nextH / 2 - rootH / 2) });
     }
   }
 
-  const BASE_GRID = 16;
-  const updateGrid = () => {
-    const { x, y, k } = area.area.transform;
-    const size = BASE_GRID * k;
-    container.style.backgroundSize = `${size}px ${size}px`;
-    container.style.backgroundPosition = `${x}px ${y}px`;
-  };
+  const nodes: RelationshipFlowNodeType[] = [];
+  for (const [nodeKey, info] of nodeInfos) {
+    nodes.push({
+      id: nodeKey,
+      type: 'relationshipNode',
+      position: positions.get(nodeKey) ?? { x: 0, y: 0 },
+      width: NODE_W,
+      height: heights.get(nodeKey) ?? TGT_H,
+      draggable: false,
+      selectable: false,
+      focusable: false,
+      style: STATIC_NODE_STYLE,
+      data: {
+        isSource: info.isSource,
+        label: info.title,
+        targetAlias: info.targetAlias,
+        fieldCount: info.fieldCount,
+        description: info.description,
+        isDraft: info.isDraft ?? false,
+        isBlocked: info.isBlocked ?? false,
+        isJoinNotConfigured: info.isJoinNotConfigured ?? false,
+        isCycleStub: info.isCycleStub ?? false,
+        userHasAccess: info.userHasAccess,
+        hasOutgoing: hasOutgoing.has(nodeKey) && !info.isCycleStub,
+        highlighted: false,
+        dimmed: false,
+        onOpenExternal: () => {
+          onOpenExternal(info.dmId);
+        },
+      },
+    });
+  }
 
-  let zoomRange = getGraphZoomRange(area.area.transform.k);
+  const edges: RelationshipFlowEdgeType[] = [];
+  for (const edge of edgeInfos) {
+    const src = nodeInfos.get(edge.sourceId);
+    const tgt = nodeInfos.get(edge.targetId);
+    if (!src || !tgt) continue;
+    const warning =
+      src.isDraft === true ||
+      src.isBlocked === true ||
+      src.isJoinNotConfigured === true ||
+      src.isCycleStub === true ||
+      tgt.isDraft === true ||
+      tgt.isBlocked === true ||
+      tgt.isJoinNotConfigured === true ||
+      tgt.isCycleStub === true;
 
-  const updateZoomRangeFromCurrentTransform = () => {
-    zoomRange = getGraphZoomRange(area.area.transform.k);
-  };
+    edges.push({
+      id: `${edge.sourceId}->${edge.targetId}`,
+      type: 'relationshipEdge',
+      source: edge.sourceId,
+      target: edge.targetId,
+      focusable: false,
+      selectable: false,
+      data: { warning, dimmed: false },
+    });
+  }
 
-  let isFittingView = false;
-
-  const fitView = async () => {
-    isFittingView = true;
-    try {
-      await AreaExtensions.zoomAt(area, editor.getNodes(), { scale: FIT_VIEW_SCALE });
-    } finally {
-      isFittingView = false;
-    }
-    updateZoomRangeFromCurrentTransform();
-    updateGrid();
-  };
-  await fitView();
-
-  const zoomBy = async (delta: number) => {
-    const cx = container.clientWidth / 2;
-    const cy = container.clientHeight / 2;
-    const { k } = area.area.transform;
-    const next = getNextGraphZoom(k, delta, zoomRange);
-    if (!next) return;
-    await area.area.zoom(next.zoom, -cx * next.delta, -cy * next.delta);
-    updateGrid();
-  };
-
-  AreaExtensions.restrictor(area, {
-    translation: () => {
-      const { k } = area.area.transform;
-      const bb = AreaExtensions.getBoundingBox(area, editor.getNodes());
-      const rect = container.getBoundingClientRect();
-      const pad = 150;
-      return {
-        left: pad - bb.right * k,
-        right: rect.width - pad - bb.left * k,
-        top: pad - bb.bottom * k,
-        bottom: rect.height - pad - bb.top * k,
-      };
-    },
-  });
-
-  area.addPipe(ctx => {
-    if (ctx.type === 'zoom') {
-      if (ctx.data.source === 'dblclick') return undefined;
-      const nextK = ctx.data.zoom;
-      if (!isGraphZoomAllowed(nextK, zoomRange, { allowBelowMin: isFittingView })) {
-        return undefined;
-      }
-    }
-    if (ctx.type === 'nodetranslate') return undefined;
-    if (ctx.type === 'translated' || ctx.type === 'zoomed') {
-      updateGrid();
-    }
-    return ctx;
-  });
-
-  const highlightNodes = (query: string) => {
-    const q = query.toLowerCase();
-    const matching: DMNode[] = [];
-
-    for (const node of editor.getNodes()) {
-      const prev = { h: node.highlighted, d: node.dimmed };
-      node.highlighted = q !== '' && node.label.toLowerCase().includes(q);
-      node.dimmed = q !== '' && !node.highlighted;
-      if (node.highlighted) matching.push(node);
-      if (prev.h !== node.highlighted || prev.d !== node.dimmed) {
-        void area.update('node', node.id);
-      }
-    }
-
-    // Also update connections so they dim when both endpoints are dimmed
-    for (const conn of editor.getConnections()) {
-      void area.update('connection', conn.id);
-    }
-
-    if (matching.length > 0) {
-      // Keep the full-graph fit as the zoom-out floor; search only focuses matching nodes.
-      void AreaExtensions.zoomAt(area, matching, { scale: FIT_VIEW_SCALE });
-    }
-  };
-
-  return {
-    destroy: () => {
-      area.destroy();
-    },
-    fitView,
-    zoomBy,
-    highlightNodes,
-  };
+  return { nodes, edges };
 }
 
-export function RelationshipCanvas({
+interface RelationshipCanvasInnerProps {
+  dataMartId: string;
+  dataMartTitle: string;
+  dataMartDescription?: string | null;
+  dataMartStatus: string;
+  relationships: DataMartRelationship[];
+  relationshipGraph: RelationshipGraph | null;
+  connectedFieldCounts?: Map<string, number>;
+  searchQuery: string;
+  onRequestFullscreen?: () => void;
+  onOpenExternal: (targetId: string) => void;
+}
+
+function RelationshipCanvasInner({
   dataMartId,
   dataMartTitle,
   dataMartDescription,
@@ -703,26 +577,31 @@ export function RelationshipCanvas({
   connectedFieldCounts,
   searchQuery,
   onRequestFullscreen,
-  className,
-  style,
-}: RelationshipCanvasProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<EditorHandle | null>(null);
-  const searchQueryRef = useRef(searchQuery);
-  searchQueryRef.current = searchQuery;
+  onOpenExternal,
+}: RelationshipCanvasInnerProps) {
+  const reactFlow = useReactFlow<RelationshipFlowNodeType, RelationshipFlowEdgeType>();
+  const paneWidth = useStore(s => s.width);
+  const paneHeight = useStore(s => s.height);
+  const hasFitRef = useRef(false);
+  const userInteractedRef = useRef(false);
+  const [zoomRange, setZoomRange] = useState<GraphZoomRange>({
+    min: GRAPH_ZOOM_MIN,
+    max: GRAPH_ZOOM_MAX,
+  });
 
-  const handleOpenExternal = useCallback((targetId: string) => {
-    const basePath = window.location.pathname.replace(/\/data-marts\/.*/, '');
-    window.open(`${basePath}/data-marts/${targetId}/data-setup`, '_blank');
-  }, []);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || relationships.length === 0) return;
-
-    let cancelled = false;
-    void setupEditor(
-      el,
+  const graphResult = useMemo(
+    () =>
+      buildRelationshipFlow(
+        dataMartId,
+        dataMartTitle,
+        dataMartDescription,
+        dataMartStatus,
+        relationships,
+        relationshipGraph,
+        connectedFieldCounts,
+        onOpenExternal
+      ),
+    [
       dataMartId,
       dataMartTitle,
       dataMartDescription,
@@ -730,54 +609,128 @@ export function RelationshipCanvas({
       relationships,
       relationshipGraph,
       connectedFieldCounts,
-      handleOpenExternal
-    ).then(h => {
-      if (cancelled) {
-        h.destroy();
-        return;
-      }
-      editorRef.current = h;
-      if (searchQueryRef.current) {
-        h.highlightNodes(searchQueryRef.current);
-      }
-    });
+      onOpenExternal,
+    ]
+  );
 
-    return () => {
-      cancelled = true;
-      editorRef.current?.destroy();
-      editorRef.current = null;
-      el.replaceChildren();
-    };
-  }, [
-    dataMartId,
-    dataMartTitle,
-    dataMartDescription,
-    dataMartStatus,
-    relationships,
-    relationshipGraph,
-    connectedFieldCounts,
-    handleOpenExternal,
-  ]);
+  const graphIdentity = useMemo(() => getRelationshipFlowGraphIdentity(graphResult), [graphResult]);
+  const graphBounds = useMemo(() => getCanvasGraphBounds(graphResult.nodes), [graphResult.nodes]);
+  const previousGraphIdentityRef = useRef(graphIdentity);
 
   useEffect(() => {
-    editorRef.current?.highlightNodes(searchQuery);
-  }, [searchQuery]);
+    if (previousGraphIdentityRef.current === graphIdentity) return;
+    previousGraphIdentityRef.current = graphIdentity;
+    userInteractedRef.current = false;
+  }, [graphIdentity]);
 
-  if (relationships.length === 0) return null;
+  const highlightState = useMemo(
+    () =>
+      computeCanvasHighlight(
+        graphResult.nodes,
+        searchQuery,
+        node => node.id,
+        node => node.data.label
+      ),
+    [graphResult.nodes, searchQuery]
+  );
+
+  const flowNodes = useMemo(
+    () =>
+      graphResult.nodes.map(node => {
+        const state = highlightState.get(node.id) ?? NO_HIGHLIGHT;
+        return node.data.highlighted === state.highlighted && node.data.dimmed === state.dimmed
+          ? node
+          : { ...node, data: { ...node.data, ...state } };
+      }),
+    [graphResult.nodes, highlightState]
+  );
+
+  const flowEdges = useMemo(
+    () =>
+      graphResult.edges.map(edge => {
+        const dimmed =
+          (highlightState.get(edge.source)?.dimmed ?? false) &&
+          (highlightState.get(edge.target)?.dimmed ?? false);
+        return edge.data.dimmed === dimmed ? edge : { ...edge, data: { ...edge.data, dimmed } };
+      }),
+    [graphResult.edges, highlightState]
+  );
+
+  const highlightStateRef = useRef(highlightState);
+  highlightStateRef.current = highlightState;
+
+  const zoomToMatches = useCallback(() => {
+    const matchingIds = [...highlightStateRef.current.entries()]
+      .filter(([, s]) => s.highlighted)
+      .map(([id]) => id);
+    if (matchingIds.length === 0) return;
+    void reactFlow.fitView({
+      nodes: matchingIds.map(id => ({ id })),
+      duration: 300,
+      padding: FIT_VIEW_PADDING,
+    });
+  }, [reactFlow]);
+
+  const fitFull = useCallback(() => {
+    return reactFlow
+      .fitView({
+        minZoom: GRAPH_ZOOM_MIN,
+        maxZoom: GRAPH_ZOOM_MAX,
+        padding: FIT_VIEW_PADDING,
+      })
+      .then(() => {
+        setZoomRange(getGraphZoomRange(reactFlow.getZoom()));
+      });
+  }, [reactFlow]);
+
+  const markUserInteracted = useCallback(() => {
+    userInteractedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (paneWidth === 0 || paneHeight === 0) return;
+    if (userInteractedRef.current) return;
+    void fitFull().then(() => {
+      hasFitRef.current = true;
+      zoomToMatches();
+    });
+  }, [paneWidth, paneHeight, graphResult, fitFull, zoomToMatches]);
+
+  useEffect(() => {
+    if (!hasFitRef.current) return;
+    zoomToMatches();
+  }, [highlightState, zoomToMatches]);
+
+  const handleZoom = useCallback(
+    (delta: number) => {
+      markUserInteracted();
+      const next = getNextGraphZoom(reactFlow.getZoom(), delta, zoomRange);
+      if (!next) return;
+      void reactFlow.zoomTo(next.zoom, { duration: 150 });
+    },
+    [markUserInteracted, reactFlow, zoomRange]
+  );
+
+  const handleMove = useCallback(
+    (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
+      if (paneWidth === 0 || paneHeight === 0) return;
+
+      const clampedViewport = clampCanvasViewport(
+        viewport,
+        graphBounds,
+        paneWidth,
+        paneHeight,
+        GRAPH_PAN_PADDING
+      );
+      if (clampedViewport.x === viewport.x && clampedViewport.y === viewport.y) return;
+
+      void reactFlow.setViewport(clampedViewport);
+    },
+    [graphBounds, paneHeight, paneWidth, reactFlow]
+  );
 
   return (
-    <div
-      className={`rel-canvas relative overflow-hidden rounded-lg border ${className ?? ''}`}
-      style={style ?? { height: 480 }}
-    >
-      <style>{`
-        .rel-canvas svg path { stroke-width: 1.5px !important; }
-        .rel-canvas [data-testid="minimap"] { transform: scale(0.5); transform-origin: bottom right; }
-        @keyframes node-pulse {
-          0%, 100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25), 0 0 12px rgba(59, 130, 246, 0.4); }
-          50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.5); }
-        }
-      `}</style>
+    <>
       <div className='absolute top-3 right-3 z-10 flex items-start gap-2'>
         <div className='flex flex-col gap-1.5'>
           <Button
@@ -785,7 +738,8 @@ export function RelationshipCanvas({
             size='icon'
             className='h-12 w-12'
             onClick={() => {
-              void editorRef.current?.fitView();
+              markUserInteracted();
+              void fitFull();
             }}
             aria-label='Fit to view'
           >
@@ -796,7 +750,7 @@ export function RelationshipCanvas({
             size='icon'
             className='h-12 w-12'
             onClick={() => {
-              void editorRef.current?.zoomBy(0.25);
+              handleZoom(0.25);
             }}
             aria-label='Zoom in'
           >
@@ -807,7 +761,7 @@ export function RelationshipCanvas({
             size='icon'
             className='h-12 w-12'
             onClick={() => {
-              void editorRef.current?.zoomBy(-0.25);
+              handleZoom(-0.25);
             }}
             aria-label='Zoom out'
           >
@@ -827,15 +781,79 @@ export function RelationshipCanvas({
         </div>
       </div>
       <div
-        ref={containerRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          backgroundImage:
-            'linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)',
-          backgroundSize: '16px 16px',
-        }}
-      />
+        className='h-full w-full'
+        onPointerDownCapture={markUserInteracted}
+        onWheelCapture={markUserInteracted}
+      >
+        <ReactFlow
+          nodes={flowNodes}
+          edges={flowEdges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          edgesFocusable={false}
+          zoomOnDoubleClick={false}
+          minZoom={zoomRange.min}
+          maxZoom={zoomRange.max}
+          onMove={handleMove}
+          onMoveStart={(event: unknown) => {
+            if (event) markUserInteracted();
+          }}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <Background variant={BackgroundVariant.Lines} gap={16} color='rgba(0,0,0,0.06)' />
+          <MiniMap pannable zoomable style={{ width: 140, height: 100 }} />
+        </ReactFlow>
+      </div>
+    </>
+  );
+}
+
+export function RelationshipCanvas({
+  dataMartId,
+  dataMartTitle,
+  dataMartDescription,
+  dataMartStatus,
+  relationships,
+  relationshipGraph,
+  connectedFieldCounts,
+  searchQuery,
+  onRequestFullscreen,
+  className,
+  style,
+}: RelationshipCanvasProps) {
+  const { scope } = useProjectRoute();
+  const handleOpenExternal = useCallback(
+    (targetId: string) => {
+      window.open(scope(`/data-marts/${targetId}/data-setup`), '_blank');
+    },
+    [scope]
+  );
+
+  if (relationships.length === 0) return null;
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-lg border ${className ?? ''}`}
+      style={style ?? { height: 480 }}
+    >
+      <style>{NODE_PULSE_KEYFRAMES}</style>
+      <ReactFlowProvider>
+        <RelationshipCanvasInner
+          dataMartId={dataMartId}
+          dataMartTitle={dataMartTitle}
+          dataMartDescription={dataMartDescription}
+          dataMartStatus={dataMartStatus}
+          relationships={relationships}
+          relationshipGraph={relationshipGraph}
+          connectedFieldCounts={connectedFieldCounts}
+          searchQuery={searchQuery}
+          onRequestFullscreen={onRequestFullscreen}
+          onOpenExternal={handleOpenExternal}
+        />
+      </ReactFlowProvider>
     </div>
   );
 }

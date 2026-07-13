@@ -28,8 +28,9 @@ export class LocalStorageService {
    * @param type - Optional type hint for value conversion ('boolean' | 'json')
    * @returns The stored value converted to the specified type, or null if not found
    */
-  get(key: string, type?: 'boolean'): boolean | null;
-  get(key: string, type?: 'json'): Record<string, unknown> | null;
+  get(key: string): string | null;
+  get(key: string, type: 'boolean'): boolean | null;
+  get(key: string, type: 'json'): Record<string, unknown> | null;
   get(key: string, type?: 'boolean' | 'json'): StorageValueType {
     try {
       const value = localStorage.getItem(key);

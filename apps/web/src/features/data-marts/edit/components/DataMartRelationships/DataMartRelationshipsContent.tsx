@@ -42,9 +42,8 @@ import { RelationshipAccordionItem } from './RelationshipAccordionItem';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
 import { useTransientRelationships } from './useTransientRelationships';
 
-// `RelationshipCanvas` pulls in Rete.js and its plugins (~50 kB gzipped).
-// Load it only when the user switches to graph view so the default table
-// path keeps the main bundle small.
+// Load React Flow and the graph renderer only when the user switches to graph
+// view so the default table path keeps the main bundle small.
 const RelationshipCanvas = lazy(() =>
   import('./RelationshipCanvas').then(module => ({ default: module.RelationshipCanvas }))
 );

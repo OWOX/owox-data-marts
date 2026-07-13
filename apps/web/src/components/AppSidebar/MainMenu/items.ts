@@ -5,6 +5,7 @@ import {
   DatabaseIcon,
   FileText,
   HistoryIcon,
+  Network,
   Sparkles,
 } from 'lucide-react';
 import type { MainMenuItem } from './types';
@@ -15,6 +16,11 @@ export const MainMenuItems: MainMenuItem[] = [
     url: '/data-marts',
     icon: Box,
     children: [
+      {
+        title: 'Models',
+        url: '/data-marts/models',
+        icon: Network,
+      },
       {
         title: 'Reports',
         url: '/data-marts/reports',

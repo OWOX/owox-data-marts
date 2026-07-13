@@ -23,6 +23,21 @@ export class DataMartRelationshipRepository {
   ): Promise<DataMartRelationshipGraphEdgeRow[]> {
     if (sourceDataMartIds.length === 0) return [];
 
+    return this.buildGraphEdgeRowsQuery(projectId)
+      .andWhere('source.id IN (:...sourceDataMartIds)', { sourceDataMartIds })
+      .getRawMany<DataMartRelationshipGraphEdgeRow>();
+  }
+
+  async listGraphEdgeRowsByProjectIdAndStorageId(
+    projectId: string,
+    storageId: string
+  ): Promise<DataMartRelationshipGraphEdgeRow[]> {
+    return this.buildGraphEdgeRowsQuery(projectId)
+      .andWhere('relationship.dataStorage = :storageId', { storageId })
+      .getRawMany<DataMartRelationshipGraphEdgeRow>();
+  }
+
+  private buildGraphEdgeRowsQuery(projectId: string) {
     return this.repository
       .createQueryBuilder('relationship')
       .select('relationship.id', 'id')
@@ -32,8 +47,6 @@ export class DataMartRelationshipRepository {
       .innerJoin('relationship.sourceDataMart', 'source')
       .innerJoin('relationship.targetDataMart', 'target')
       .where('relationship.projectId = :projectId', { projectId })
-      .andWhere('source.id IN (:...sourceDataMartIds)', { sourceDataMartIds })
-      .orderBy('relationship.createdAt', 'ASC')
-      .getRawMany<DataMartRelationshipGraphEdgeRow>();
+      .orderBy('relationship.createdAt', 'ASC');
   }
 }

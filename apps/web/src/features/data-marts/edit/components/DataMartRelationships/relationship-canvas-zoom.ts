@@ -7,10 +7,6 @@ export interface GraphZoomRange {
   max: number;
 }
 
-interface GraphZoomAllowedOptions {
-  allowBelowMin?: boolean;
-}
-
 export function getGraphZoomRange(fittedZoom: number): GraphZoomRange {
   const safeFittedZoom =
     Number.isFinite(fittedZoom) && fittedZoom > 0
@@ -39,14 +35,4 @@ export function getNextGraphZoom(
     zoom,
     delta: zoom / currentZoom - 1,
   };
-}
-
-export function isGraphZoomAllowed(
-  zoom: number,
-  range: GraphZoomRange,
-  options: GraphZoomAllowedOptions = {}
-): boolean {
-  const min = options.allowBelowMin ? 0 : range.min - GRAPH_ZOOM_EPSILON;
-
-  return zoom >= min && zoom <= range.max + GRAPH_ZOOM_EPSILON;
 }

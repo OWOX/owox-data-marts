@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
@@ -10,7 +10,7 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
-import { buildContextGateSql } from '../utils/build-context-gate-sql';
+import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { DataMartSearchIndexInvalidationService } from './data-mart-search-index-invalidation.service';
 
 @Injectable()
@@ -105,37 +105,7 @@ export class DataMartService {
       .where('dm.projectId = :projectId', { projectId })
       .andWhere('dm.deletedAt IS NULL');
 
-    // Access filtering: non-admin sees only owned + shared
-    const isAdmin = options?.roles?.includes('admin');
-    if (!isAdmin && options?.userId) {
-      const isTu = options.roles?.includes('editor');
-      const roleScope: RoleScope = options?.roleScope ?? RoleScope.ENTIRE_PROJECT;
-      const contextGate = buildContextGateSql({
-        joinTable: 'data_mart_contexts',
-        entityIdColumn: 'data_mart_id',
-        entityAlias: 'dm',
-      });
-      const sharedClause = isTu
-        ? `(dm.availableForReporting = :isTrue OR dm.availableForMaintenance = :isTrue)`
-        : `dm.availableForReporting = :isTrue`;
-      qb.andWhere(
-        `(
-          EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :userId)
-          OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :userId)
-          OR (
-            ${sharedClause}
-            AND ${contextGate}
-          )
-        )`,
-        {
-          userId: options.userId,
-          isTrue: true,
-          roleScope,
-          entireProjectScope: RoleScope.ENTIRE_PROJECT,
-          projectId,
-        }
-      );
-    }
+    this.applyNonAdminVisibilityGate(qb, projectId, options);
 
     if (options?.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb.andWhere(
@@ -191,6 +161,72 @@ export class DataMartService {
       return item;
     });
     return { items, total };
+  }
+
+  private applyNonAdminVisibilityGate(
+    qb: SelectQueryBuilder<DataMart>,
+    projectId: string,
+    options?: { userId?: string; roles?: string[]; roleScope?: RoleScope }
+  ): void {
+    applyDataMartVisibilityFilter(qb, {
+      dataMartAlias: 'dm',
+      projectId,
+      userId: options?.userId,
+      roles: options?.roles,
+      roleScope: options?.roleScope,
+    });
+  }
+
+  private buildCanvasVisibleDataMartsQuery(
+    projectId: string,
+    storageId: string,
+    options?: { userId?: string; roles?: string[]; roleScope?: RoleScope }
+  ): SelectQueryBuilder<DataMart> {
+    const qb = this.dataMartRepository
+      .createQueryBuilder('dm')
+      .where('dm.projectId = :projectId', { projectId })
+      .andWhere('dm.storage = :storageId', { storageId })
+      .andWhere('dm.deletedAt IS NULL');
+
+    this.applyNonAdminVisibilityGate(qb, projectId, options);
+
+    return qb;
+  }
+
+  async findByProjectIdAndStorageIdForCanvas(
+    projectId: string,
+    storageId: string,
+    options?: {
+      userId?: string;
+      roles?: string[];
+      roleScope?: RoleScope;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<{ items: DataMart[]; total: number }> {
+    const qb = this.buildCanvasVisibleDataMartsQuery(projectId, storageId, options)
+      .select(['dm.id', 'dm.title', 'dm.status', 'dm.description', 'dm.schema'])
+      .orderBy('dm.title', 'ASC')
+      .addOrderBy('dm.id', 'ASC')
+      .take(options?.limit)
+      .skip(options?.offset);
+
+    const countQb = qb.clone().take(undefined).skip(undefined);
+    const [total, items] = await Promise.all([countQb.getCount(), qb.getMany()]);
+
+    return { items, total };
+  }
+
+  async findVisibleIdsByProjectIdAndStorageId(
+    projectId: string,
+    storageId: string,
+    options?: { userId?: string; roles?: string[]; roleScope?: RoleScope }
+  ): Promise<string[]> {
+    const rows = await this.buildCanvasVisibleDataMartsQuery(projectId, storageId, options)
+      .select('dm.id', 'id')
+      .getRawMany<{ id: string }>();
+
+    return rows.map(row => row.id);
   }
 
   async findByProjectIdAndDefinitionType(

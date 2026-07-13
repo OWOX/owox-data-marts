@@ -7,6 +7,7 @@ import DataMartInsightsPage from '../pages/data-marts/insights/DataMartInsightsP
 import DataMartReportsPage from '../pages/data-marts/reports/DataMartReportsPage.tsx';
 import DataMartRunsPage from '../pages/data-marts/runs/DataMartRunsPage.tsx';
 import DataMartSchedulesPage from '../pages/data-marts/schedules/DataMartSchedulesPage.tsx';
+import ModelCanvasPage from '../pages/data-marts/model-canvas/ModelCanvasPage.tsx';
 import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
@@ -81,6 +82,11 @@ const routes: RouteObject[] = [
       {
         path: 'data-marts/insights',
         element: <DataMartInsightsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/models',
+        element: <ModelCanvasPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {

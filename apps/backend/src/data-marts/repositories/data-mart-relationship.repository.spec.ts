@@ -68,4 +68,23 @@ describe('DataMartRelationshipRepository', () => {
 
     expect(repository.createQueryBuilder).not.toHaveBeenCalled();
   });
+
+  it('scopes storage graph rows by project and storage', async () => {
+    const qb = createQueryBuilder();
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    } as unknown as jest.Mocked<Repository<DataMartRelationship>>;
+    const graphRepository = new DataMartRelationshipRepository(repository);
+
+    await graphRepository.listGraphEdgeRowsByProjectIdAndStorageId('project-1', 'storage-1');
+
+    expect(qb.where).toHaveBeenCalledWith('relationship.projectId = :projectId', {
+      projectId: 'project-1',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('relationship.dataStorage = :storageId', {
+      storageId: 'storage-1',
+    });
+    expect(qb.orderBy).toHaveBeenCalledWith('relationship.createdAt', 'ASC');
+    expect(qb.getRawMany).toHaveBeenCalledTimes(1);
+  });
 });
