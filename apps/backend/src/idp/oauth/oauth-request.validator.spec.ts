@@ -50,18 +50,15 @@ describe('OAuthRequestValidator', () => {
   });
 
   it('accepts authorization request for registered client and exact redirect URI', async () => {
-    const result = await validator.validateAuthorizationRequest(
-      {
-        response_type: 'code',
-        client_id: 'mcp_dyn_123',
-        redirect_uri: 'http://127.0.0.1:5555/callback',
-        scope: 'mcp:read',
-        state: 'state-1',
-        code_challenge: 'challenge',
-        code_challenge_method: 'S256',
-      },
-      'https://mcp.owox.com/mcp'
-    );
+    const result = await validator.validateAuthorizationRequest({
+      response_type: 'code',
+      client_id: 'mcp_dyn_123',
+      redirect_uri: 'http://127.0.0.1:5555/callback',
+      scope: 'mcp:read',
+      state: 'state-1',
+      code_challenge: 'challenge',
+      code_challenge_method: 'S256',
+    });
 
     expect(result).toEqual({
       request: {
@@ -91,18 +88,15 @@ describe('OAuthRequestValidator', () => {
       scopes: ['mcp:read'],
       createdAt: new Date('2026-06-10T10:00:00.000Z'),
     });
-    const result = await validator.validateAuthorizationRequest(
-      {
-        response_type: 'code',
-        client_id: 'mcp_dyn_project',
-        redirect_uri: 'http://127.0.0.1:5555/callback',
-        scope: 'mcp:read',
-        state: 'state-1',
-        code_challenge: 'challenge',
-        code_challenge_method: 'S256',
-      },
-      `https://${projectId}.mcp.owox.com/mcp`
-    );
+    const result = await validator.validateAuthorizationRequest({
+      response_type: 'code',
+      client_id: 'mcp_dyn_project',
+      redirect_uri: 'http://127.0.0.1:5555/callback',
+      scope: 'mcp:read',
+      state: 'state-1',
+      code_challenge: 'challenge',
+      code_challenge_method: 'S256',
+    });
 
     expect(result).toMatchObject({
       request: {
@@ -147,19 +141,16 @@ describe('OAuthRequestValidator', () => {
 
   it('accepts authorization requests with matching resource explicitly', async () => {
     await expect(
-      validator.validateAuthorizationRequest(
-        {
-          response_type: 'code',
-          client_id: 'mcp_dyn_123',
-          redirect_uri: 'http://127.0.0.1:5555/callback',
-          resource: 'https://mcp.owox.com/mcp',
-          scope: 'mcp:read',
-          state: 'state-1',
-          code_challenge: 'challenge',
-          code_challenge_method: 'S256',
-        },
-        'https://mcp.owox.com/mcp'
-      )
+      validator.validateAuthorizationRequest({
+        response_type: 'code',
+        client_id: 'mcp_dyn_123',
+        redirect_uri: 'http://127.0.0.1:5555/callback',
+        resource: 'https://mcp.owox.com/mcp',
+        scope: 'mcp:read',
+        state: 'state-1',
+        code_challenge: 'challenge',
+        code_challenge_method: 'S256',
+      })
     ).resolves.toMatchObject({ request: { resource: 'https://mcp.owox.com/mcp' } });
   });
 
@@ -180,18 +171,15 @@ describe('OAuthRequestValidator', () => {
 
   it('rejects redirect URI that is not registered exactly', async () => {
     await expect(
-      validator.validateAuthorizationRequest(
-        {
-          response_type: 'code',
-          client_id: 'mcp_dyn_123',
-          redirect_uri: 'http://127.0.0.1:5555/other',
-          scope: 'mcp:read',
-          state: 'state-1',
-          code_challenge: 'challenge',
-          code_challenge_method: 'S256',
-        },
-        'https://mcp.owox.com/mcp'
-      )
+      validator.validateAuthorizationRequest({
+        response_type: 'code',
+        client_id: 'mcp_dyn_123',
+        redirect_uri: 'http://127.0.0.1:5555/other',
+        scope: 'mcp:read',
+        state: 'state-1',
+        code_challenge: 'challenge',
+        code_challenge_method: 'S256',
+      })
     ).rejects.toThrow(BadRequestException);
   });
 

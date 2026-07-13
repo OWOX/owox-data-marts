@@ -16,7 +16,6 @@ import {
   type Payload,
 } from '@owox/idp-protocol';
 import type { AuthorizationContext } from '../../index';
-import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort, OAUTH_IDP_PORT } from '../oauth-idp.port';
@@ -34,8 +33,7 @@ export class OAuthAuthorizationController {
     private readonly idpProviderService: IdpProviderService,
     @Inject(OAUTH_IDP_PORT) private readonly oauthIdp: OAuthIdpPort,
     private readonly clientRegistry: OAuthClientRegistry,
-    private readonly projectSelectionService: OAuthProjectSelectionService,
-    private readonly resourceResolver: McpResourceResolverService
+    private readonly projectSelectionService: OAuthProjectSelectionService
   ) {}
 
   @Get('/authorize')
@@ -44,10 +42,7 @@ export class OAuthAuthorizationController {
     @Req() request: Request,
     @Res() response: Response
   ): Promise<void> {
-    const validated = await this.validator.validateAuthorizationRequest(
-      query,
-      this.resolveRequestResource(request)
-    );
+    const validated = await this.validator.validateAuthorizationRequest(query);
     const authorizationRequest = validated.request;
     const resourceContext = validated.resourceContext;
     const provider = this.idpProviderService.getProvider(request);
@@ -197,10 +192,6 @@ export class OAuthAuthorizationController {
   private getSelectedProjectId(query: Record<string, unknown>): string | undefined {
     const value = query.selected_project_id;
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-  }
-
-  private resolveRequestResource(request: Request): string | undefined {
-    return this.resourceResolver.tryResolveRequest(request)?.resource;
   }
 
   private getHeaderValue(request: Request, name: string): string | undefined {

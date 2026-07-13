@@ -30,8 +30,7 @@ export class OAuthRequestValidator {
   ) {}
 
   async validateAuthorizationRequest(
-    input: OAuthInput,
-    requestResource?: string
+    input: OAuthInput
   ): Promise<ValidatedOAuthAuthorizationRequest> {
     this.requireEquals(input.response_type, 'code', 'response_type must be code');
     this.requireEquals(input.code_challenge_method, 'S256', 'code_challenge_method must be S256');
@@ -41,11 +40,7 @@ export class OAuthRequestValidator {
     const state = this.requiredString(input.state, 'state');
     const codeChallenge = this.requiredString(input.code_challenge, 'code_challenge');
     const client = await this.getClient(clientId);
-    const { resource, resourceContext } = this.resolveClientResource(
-      client,
-      input.resource,
-      requestResource
-    );
+    const { resource, resourceContext } = this.resolveClientResource(client, input.resource);
 
     if (!client.redirectUris.includes(redirectUri)) {
       throw new BadRequestException('redirect_uri is not registered for client');

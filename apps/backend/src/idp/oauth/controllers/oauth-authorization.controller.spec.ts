@@ -5,7 +5,6 @@ import {
   type McpOAuthProjectMemberContext,
   type Payload,
 } from '@owox/idp-protocol';
-import { McpResourceResolverService } from '../../../mcp-resource/mcp-resource-resolver.service';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort } from '../oauth-idp.port';
@@ -123,10 +122,6 @@ describe('OAuthAuthorizationController', () => {
       resolveProjectHostMember: jest.fn().mockResolvedValue(projectMember),
       renderSelectionPage: jest.fn().mockReturnValue('<html>Select project</html>'),
     } as unknown as jest.Mocked<OAuthProjectSelectionService>;
-    const resourceResolver = {
-      tryResolveRequest: jest.fn().mockReturnValue(null),
-    } as unknown as jest.Mocked<McpResourceResolverService>;
-
     return {
       controller: new (OAuthAuthorizationController as unknown as new (
         ...args: unknown[]
@@ -136,8 +131,7 @@ describe('OAuthAuthorizationController', () => {
         idpProviderService,
         oauthIdp,
         clientRegistry,
-        projectSelectionService,
-        resourceResolver
+        projectSelectionService
       ),
       validator,
       projectMemberResolver,
@@ -145,7 +139,6 @@ describe('OAuthAuthorizationController', () => {
       oauthIdp,
       clientRegistry,
       projectSelectionService,
-      resourceResolver,
     };
   }
 
@@ -160,7 +153,7 @@ describe('OAuthAuthorizationController', () => {
 
     await controller.authorize({}, request, response as unknown as Response);
 
-    expect(validator.validateAuthorizationRequest).toHaveBeenCalledWith({}, undefined);
+    expect(validator.validateAuthorizationRequest).toHaveBeenCalledWith({});
     expect(response.redirect).toHaveBeenCalledTimes(1);
     const redirectUrl = response.redirect.mock.calls[0]?.[0] as string;
     expect(redirectUrl).toContain('/auth/sign-in?');
@@ -184,6 +177,33 @@ describe('OAuthAuthorizationController', () => {
     expect(JSON.stringify(loggedMetadata)).not.toContain('code_challenge');
     expect(JSON.stringify(loggedMetadata)).not.toContain('redirect_uri');
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('does not derive the MCP resource from the canonical authorization host', async () => {
+    const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
+    const projectAuthorizationRequest = {
+      ...authorizationRequest,
+      resource: `http://${projectId}.localhost:3000/mcp`,
+    };
+    const { controller, validator } = createController({
+      request: projectAuthorizationRequest,
+      resourceContext: {
+        kind: 'project',
+        resource: projectAuthorizationRequest.resource,
+        publicBaseUrl: `http://${projectId}.localhost:3000`,
+        projectId,
+      },
+    });
+    const response = createResponse();
+    const request = createRequest();
+    const query = {
+      client_id: 'client-1',
+      resource: projectAuthorizationRequest.resource,
+    };
+
+    await controller.authorize(query, request, response as unknown as Response);
+
+    expect(validator.validateAuthorizationRequest).toHaveBeenCalledWith(query);
   });
 
   it('issues authorization code for browser requests with refresh token cookie', async () => {
