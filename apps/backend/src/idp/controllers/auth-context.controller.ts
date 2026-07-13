@@ -3,8 +3,6 @@ import { ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger
 import { Auth, AuthContext } from '../decorators';
 import { AuthorizationContext, Role, Strategy } from '../types';
 
-type AuthContextResponse = AuthorizationContext;
-
 @Controller('auth/context')
 @ApiTags('Authentication')
 export class AuthContextController {
@@ -31,7 +29,7 @@ export class AuthContextController {
       },
     },
   })
-  getContext(@AuthContext() context: AuthorizationContext): AuthContextResponse {
+  getContext(@AuthContext() context: AuthorizationContext): AuthorizationContext {
     return {
       userId: context.userId,
       projectId: context.projectId,

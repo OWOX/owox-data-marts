@@ -1,6 +1,20 @@
-import { Controller, Get, Inject, Logger, Query, Req, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Inject,
+  Logger,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { AuthorizationError, type AuthResult, type Payload } from '@owox/idp-protocol';
+import {
+  AuthorizationError,
+  type AuthResult,
+  type McpOAuthProjectMemberContext,
+  type Payload,
+} from '@owox/idp-protocol';
 import type { AuthorizationContext } from '../../index';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
@@ -28,7 +42,9 @@ export class OAuthAuthorizationController {
     @Req() request: Request,
     @Res() response: Response
   ): Promise<void> {
-    const authorizationRequest = await this.validator.validateAuthorizationRequest(query);
+    const validated = await this.validator.validateAuthorizationRequest(query);
+    const authorizationRequest = validated.request;
+    const resourceContext = validated.resourceContext;
     const provider = this.idpProviderService.getProvider(request);
     const authorization = await this.resolveAuthorizationContext(provider, request, response);
     if (!authorization) {
@@ -44,25 +60,26 @@ export class OAuthAuthorizationController {
       await this.loadProjectsOrEmpty(provider, authorization.accessToken)
     );
     const selectedProjectId = this.getSelectedProjectId(query);
-    if (!selectedProjectId && projects.length > 1) {
-      response.type('html').send(
-        this.projectSelectionService.renderSelectionPage({
-          authorizationRequest,
-          projects,
-          currentProjectId: authorization.context.projectId,
-        })
-      );
+    const projectMember =
+      resourceContext.kind === 'project'
+        ? await this.resolveProjectHostMember(
+            provider,
+            authorization.context,
+            projects,
+            selectedProjectId,
+            resourceContext.projectId
+          )
+        : await this.resolveSharedProjectMember(
+            provider,
+            authorization.context,
+            projects,
+            selectedProjectId,
+            authorizationRequest,
+            response
+          );
+    if (!projectMember) {
       return;
     }
-
-    const projectMember = selectedProjectId
-      ? await this.projectSelectionService.resolveSelectedProjectMember(
-          provider,
-          authorization.context,
-          projects,
-          selectedProjectId
-        )
-      : this.projectMemberResolver.resolve(authorization.context);
 
     const authorizationCode = await this.oauthIdp.createAuthorizationCode(
       authorizationRequest,
@@ -72,6 +89,56 @@ export class OAuthAuthorizationController {
     redirectUrl.searchParams.set('code', authorizationCode.code);
     redirectUrl.searchParams.set('state', authorizationRequest.state);
     response.redirect(redirectUrl.toString());
+  }
+
+  private resolveProjectHostMember(
+    provider: ReturnType<IdpProviderService['getProvider']>,
+    context: AuthorizationContext,
+    projects: ReturnType<OAuthProjectSelectionService['filterSelectableProjects']>,
+    selectedProjectId: string | undefined,
+    projectId: string
+  ) {
+    if (selectedProjectId && selectedProjectId !== projectId) {
+      throw new BadRequestException('selected project conflicts with MCP resource');
+    }
+
+    return this.projectSelectionService.resolveProjectHostMember(
+      provider,
+      context,
+      projects,
+      projectId
+    );
+  }
+
+  private async resolveSharedProjectMember(
+    provider: ReturnType<IdpProviderService['getProvider']>,
+    context: AuthorizationContext,
+    projects: ReturnType<OAuthProjectSelectionService['filterSelectableProjects']>,
+    selectedProjectId: string | undefined,
+    authorizationRequest: Awaited<
+      ReturnType<OAuthRequestValidator['validateAuthorizationRequest']>
+    >['request'],
+    response: Response
+  ): Promise<McpOAuthProjectMemberContext | null> {
+    if (!selectedProjectId && projects.length > 1) {
+      response.type('html').send(
+        this.projectSelectionService.renderSelectionPage({
+          authorizationRequest,
+          projects,
+          currentProjectId: context.projectId,
+        })
+      );
+      return null;
+    }
+
+    return selectedProjectId
+      ? this.projectSelectionService.resolveSelectedProjectMember(
+          provider,
+          context,
+          projects,
+          selectedProjectId
+        )
+      : this.projectMemberResolver.resolve(context);
   }
 
   private async resolveAuthorizationContext(

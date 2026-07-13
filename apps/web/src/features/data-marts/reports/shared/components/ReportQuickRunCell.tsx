@@ -120,14 +120,14 @@ export function ReportQuickRunCell({ report, onRunSuccess }: ReportQuickRunCellP
             <Button
               onClick={handleRun}
               variant='ghost'
-              className='text-muted-foreground hover:text-primary h-8 w-8 p-0 opacity-60 transition-all duration-200 hover:opacity-100 disabled:opacity-30'
+              className='dm-card-table-body-row-actionbtn cursor-pointer transition-all disabled:opacity-30'
               disabled={!canRun || isActive}
               aria-label={isActive ? tooltipText : `Run report: ${report.title}`}
             >
               {isPending ? (
                 <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
               ) : (
-                <Play className='h-4 w-4' aria-hidden='true' />
+                <Play className='text-muted-foreground h-4 w-4' aria-hidden='true' />
               )}
             </Button>
           </TooltipTrigger>

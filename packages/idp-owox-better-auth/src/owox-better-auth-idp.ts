@@ -75,6 +75,8 @@ import {
   type AuthFlowParams,
 } from './utils/request-utils.js';
 
+const MCP_PROJECT_ID_PATTERN = /^[a-f0-9]{32}$/;
+
 /**
  * Main IdP implementation that wires core PKCE flow and Better Auth.
  */
@@ -628,8 +630,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       payload.userId,
       payload.projectId
     );
+    const mcpServerUrl = this.resolveMcpServerUrl(payload.projectId);
 
-    return res.json({ ...payload, onboarding });
+    return res.json({ ...payload, onboarding, ...(mcpServerUrl ? { mcpServerUrl } : {}) });
   }
 
   async projectsApiMiddleware(
@@ -666,6 +669,24 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   async verifyToken(token: string): Promise<Payload | null> {
     return this.tokenFacade.verifyToken(token);
+  }
+
+  private resolveMcpServerUrl(projectId: string): string | undefined {
+    if (!MCP_PROJECT_ID_PATTERN.test(projectId)) {
+      return undefined;
+    }
+
+    const publicBaseUrl = this.config.mcp?.publicBaseUrl;
+    if (!publicBaseUrl) {
+      return undefined;
+    }
+
+    try {
+      const parsed = new URL(publicBaseUrl);
+      return `${parsed.protocol}//${projectId}.${parsed.host}/mcp`;
+    } catch {
+      return undefined;
+    }
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResult> {

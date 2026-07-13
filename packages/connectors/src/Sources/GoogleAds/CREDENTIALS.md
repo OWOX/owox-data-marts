@@ -69,7 +69,7 @@ Choose your preferred method below.
 To use OAuth2 authentication for the Google Ads connector, you will need the following credentials:
 
 - **Customer ID** — the ID of the **Google Ads ad account** you want to retrieve data from (found in the top-right corner of the Google Ads UI).  
-- **Login Customer ID** — the ID of your **Google Ads Manager (MCC)** account.  
+- **Login Customer ID** _(optional)_ — the ID of your **Google Ads Manager (MCC)** account. Only needed when you access the ad account through a Manager (MCC) account; leave it empty when authenticating directly as the same account.
 - **Developer Token** — available in the **API Center** of your **Google Ads Manager (MCC)** account. If you don’t have a Developer Token yet, please see **[Step 1: Register in the API Center](#step-1-register-in-the-api-center)** at the beginning of this tutorial.
 
 In addition, OAuth2 requires the following:  
@@ -151,7 +151,7 @@ If you prefer to use Service Account authentication instead of OAuth2, follow th
 - **Developer Token** — copy it from the **API Center** in your **Manager (MCC)** account.
 If you don’t have a Developer Token yet, please see **[Step 1: Register in the API Center](#step-1-register-in-the-api-center)** at the beginning of this tutorial.  
 - **Customer ID** — copy it from the top-right corner of your **ad account** (the account from which you want to retrieve data).  
-- **Login Customer ID** — copy the ID of your **Manager (MCC)** account.  
+- **Login Customer ID** _(optional)_ — the ID of your **Manager (MCC)** account. Only needed when you access the ad account through a manager account; leave it empty when authenticating directly.
 
 ![Google Ads Developer Token](res/googleads_devtoken.png)
 

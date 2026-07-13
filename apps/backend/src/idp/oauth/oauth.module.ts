@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { McpResourceModule } from '../../mcp-resource/mcp-resource.module';
 import { OAuthAuthorizationController } from './controllers/oauth-authorization.controller';
 import { OAuthJwksController } from './controllers/oauth-jwks.controller';
 import { OAuthMetadataController } from './controllers/oauth-metadata.controller';
@@ -21,7 +22,10 @@ import { IdpProjectionsService } from '../services/idp-projections.service';
 import { IdpProviderService } from '../services/idp-provider.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserProjection, ProjectProjection, OAuthDynamicClient])],
+  imports: [
+    TypeOrmModule.forFeature([UserProjection, ProjectProjection, OAuthDynamicClient]),
+    McpResourceModule,
+  ],
   controllers: [
     OAuthAuthorizationController,
     OAuthJwksController,

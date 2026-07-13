@@ -14,13 +14,22 @@ Use the MCP server when you want an AI assistant — such as Claude or ChatGPT �
 
 Set up whichever assistant you use — you only need one. The client discovers the OAuth endpoints and registers itself automatically: there is no client ID, secret, or token to copy.
 
+You can use either MCP server URL:
+
+- **Shared MCP server:** `https://mcp.owox.com/mcp` — choose this when you want to select the project during authorization.
+- **Project-specific MCP server:** `https://{projectId}.mcp.owox.com/mcp` — choose this when OWOX UI or API gives you the project URL directly. The `projectId` is already in MD5 format; it is only a stable URL identifier and does not grant access by itself.
+
+Both URLs use the same OAuth flow and the same MCP tools. A project-specific URL skips the project selection screen, but authorization still succeeds only if the signed-in user is an active member of that project.
+
+If you connect project-specific MCP servers for multiple projects, give each connection a unique, recognizable name, such as `Marketing` or `Finance`. This makes it easier to select the right server and tell your assistant which project's MCP tools to use.
+
 ### Claude Desktop
 
 Newer versions of Claude Desktop add remote MCP servers through the in-app **Connectors** settings:
 
 1. Open Claude Desktop and go to **Settings → Connectors**.
 2. Click **Add custom connector**.
-3. Enter the MCP server URL:
+3. Enter the MCP server URL. Use the shared URL below, or replace it with your project-specific URL from OWOX:
 
    ```text
    https://mcp.owox.com/mcp
@@ -51,7 +60,7 @@ Save the file and restart Claude Desktop. On restart, Claude detects the server 
 
 1. Open [claude.ai](https://claude.ai) and go to **Settings → Connectors**.
 2. Click **Add custom connector**.
-3. Enter the MCP server URL:
+3. Enter the MCP server URL. Use the shared URL below, or replace it with your project-specific URL from OWOX:
 
    ```text
    https://mcp.owox.com/mcp
@@ -83,7 +92,7 @@ Save the file and restart Claude Desktop. On restart, Claude detects the server 
 When the MCP client connects for the first time, it opens a browser window to complete the OAuth 2.0 authorization flow. You only complete two interactive steps:
 
 1. **Sign in** to your OWOX account if you do not already have an active session.
-2. **Select a project** — if you belong to more than one project, a selection screen appears. Choose the project you want this MCP connection to use and click **Next**. If you belong to a single project, this step is skipped automatically.
+2. **Select a project** — for `https://mcp.owox.com/mcp`, if you belong to more than one project, a selection screen appears. Choose the project you want this MCP connection to use and click **Next**. If you use `https://{projectId}.mcp.owox.com/mcp`, this screen is skipped because the project is already part of the server URL.
 
 There is no separate permissions-consent screen. Once you sign in and select a project, the client receives an access token and uses it automatically for all subsequent requests. The token is bound to the project you selected and to the requested scope.
 
@@ -99,12 +108,12 @@ The assistant calls the `get_project_context` tool and replies with your project
 
 ## Switch projects or disconnect
 
-Project selection is fixed when you authorize, so switching projects means reconnecting. Where you manage the connection depends on the client:
+Project selection is fixed when you authorize, so switching projects means reconnecting with the shared server and selecting another project, or reconnecting with another project-specific server URL. Where you manage the connection depends on the client:
 
 - **Claude Desktop / Claude web:** **Settings → Connectors**, then open the OWOX connector to disconnect or reconnect it.
 - **ChatGPT:** **Settings → Apps**, then open the OWOX app to disconnect or reconnect it.
 
-To switch projects, disconnect, then reconnect and sign in again, choosing the project you want during authorization.
+To switch projects, disconnect, then reconnect and sign in again. If you use the shared server, choose the project during authorization. If you use a project-specific server, use the URL for the target project.
 
 ## Available tools
 
@@ -522,8 +531,9 @@ The MCP server rejects a request with `401` in these cases. Your AI client may s
 | ----------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `Missing MCP bearer token`                                  | No `Authorization: Bearer` header was sent.                     | Re-run authorization so the client obtains a token. A `GET /mcp` without a token (a client probe) is expected and harmless. |
 | `Invalid MCP bearer token`                                  | The token is expired, revoked, or invalid.                      | Disconnect and reconnect the MCP server to obtain a fresh token.                                                            |
-| `Invalid MCP resource`                                      | The token was issued for a different resource than this server. | Confirm the client points to the correct `/mcp` URL, then reconnect.                                                        |
-| `Missing MCP project context` / `Missing MCP project roles` | The token has no project selected or no active role in it.      | Reconnect and make sure you select a project where you are an active member.                                                |
+| `Invalid MCP resource`                                      | The token was issued for a different MCP server URL than this request. | Confirm the client points to the same `/mcp` URL used during authorization, then reconnect. |
+| `Invalid MCP project context` | A project-specific server URL does not match the project in the token. | Disconnect and reconnect using the project-specific URL for the target project. |
+| `Missing MCP project context` / `Missing MCP project roles` | The token has no project selected or no active role in it. | Reconnect and make sure you select a project, or use a project-specific URL for a project where you are an active member. |
 
 ### A tool reports `Missing MCP scope: mcp:write`
 
@@ -531,7 +541,7 @@ The token does not include the write scope required for tools that create, chang
 
 ### The wrong project is connected
 
-Project selection is fixed at authorization time. See [Switch projects or disconnect](#switch-projects-or-disconnect) for how to reconnect and choose a different project.
+Project selection is fixed at authorization time. See [Switch projects or disconnect](#switch-projects-or-disconnect) for how to reconnect and choose a different project or use another project-specific URL.
 
 ### A `query_data_mart` call fails
 

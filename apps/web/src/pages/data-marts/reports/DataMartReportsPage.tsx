@@ -40,6 +40,12 @@ import { buildProjectDataMartContextValue } from '../shared/projectDataMartConte
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
+import {
+  ReportGeneratedSqlAction,
+  ReportOpenDocumentAction,
+  ReportTitleCell,
+  reportTitleCellQuickActionClassName,
+} from '../../../features/data-marts/reports/shared/components';
 
 const PROJECT_REPORTS_TABLE_PAGE_SIZE = 15;
 const PROJECT_REPORTS_TABLE_ID = 'project-reports-table';
@@ -118,6 +124,38 @@ function buildProjectReportFilters(
       }),
     },
   ];
+}
+
+function ProjectReportTitleCell({ report }: { report: DataMartReport }) {
+  let quickActions: ReactNode = null;
+
+  switch (report.dataDestination.type) {
+    case DataDestinationType.GOOGLE_SHEETS:
+      quickActions = (
+        <>
+          <ReportOpenDocumentAction
+            report={report}
+            className={reportTitleCellQuickActionClassName}
+          />
+          <ReportGeneratedSqlAction
+            report={report}
+            className={reportTitleCellQuickActionClassName}
+          />
+        </>
+      );
+      break;
+
+    case DataDestinationType.EMAIL:
+    case DataDestinationType.SLACK:
+    case DataDestinationType.GOOGLE_CHAT:
+    case DataDestinationType.MS_TEAMS:
+      quickActions = (
+        <ReportGeneratedSqlAction report={report} className={reportTitleCellQuickActionClassName} />
+      );
+      break;
+  }
+
+  return <ReportTitleCell title={report.title} actions={quickActions} />;
 }
 
 interface ProjectReportActionsCellProps {
@@ -308,7 +346,7 @@ export default function DataMartReportsPage() {
           if (!title) {
             return <span className='text-muted-foreground'>—</span>;
           }
-          return <div className='overflow-hidden text-ellipsis'>{title}</div>;
+          return <ProjectReportTitleCell report={row.original} />;
         },
       },
       {
@@ -388,7 +426,7 @@ export default function DataMartReportsPage() {
       },
       {
         id: 'actions',
-        size: 130,
+        size: 50,
         enableResizing: false,
         enableSorting: false,
         header: ({ table }) => <ToggleColumnsHeader table={table} />,
