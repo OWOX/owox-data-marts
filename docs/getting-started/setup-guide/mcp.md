@@ -21,6 +21,8 @@ You can use either MCP server URL:
 
 Both URLs use the same OAuth flow and the same MCP tools. A project-specific URL skips the project selection screen, but authorization still succeeds only if the signed-in user is an active member of that project.
 
+If you connect project-specific MCP servers for multiple projects, give each connection a unique, recognizable name, such as `Marketing` or `Finance`. This makes it easier to select the right server and tell your assistant which project's MCP tools to use.
+
 ### Claude Desktop
 
 Newer versions of Claude Desktop add remote MCP servers through the in-app **Connectors** settings:
