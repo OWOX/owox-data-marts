@@ -101,8 +101,8 @@ describe('BigQueryQueryBuilder', () => {
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
       expect(result.sql).toContain('`a`,\n  `b`');
-      expect(result.sql).toContain('FROM `proj`.`dataset`.`tbl`');
-      expect(result.sql).toContain('WHERE `a` = @p0');
+      expect(result.sql).toContain('FROM `proj`.`dataset`.`tbl` AS main');
+      expect(result.sql).toContain('WHERE main.`a` = @p0');
       expect(result.params).toEqual([{ name: 'p0', value: 1 }]);
     });
 
@@ -117,8 +117,25 @@ describe('BigQueryQueryBuilder', () => {
       const sql = result.sql;
       expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
       expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-      expect(sql).toContain('ORDER BY\n  `a` ASC');
+      expect(sql).toContain('ORDER BY\n  main.`a` ASC');
       expect(sql).toContain('LIMIT 10');
+    });
+
+    it('aliases FROM and qualifies filter when column matches table short name (STRUCT collision)', async () => {
+      // Fibery 6685: unaliased FROM …`country` makes bare `country` a row STRUCT in WHERE.
+      const result = await builder.buildQuery(tableDefinition('proj.shop_data.country'), {
+        columns: ['order_id', 'country'],
+        filters: [{ column: 'country', operator: 'eq', value: 'Canada' }],
+      });
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toBe(
+        'SELECT\n' +
+          '  `order_id`,\n' +
+          '  `country`\n' +
+          'FROM `proj`.`shop_data`.`country` AS main\n' +
+          'WHERE main.`country` = @p0'
+      );
+      expect(result.params).toEqual([{ name: 'p0', value: 'Canada' }]);
     });
 
     it('returns plain string when there are no output controls (sort only undefined)', async () => {
@@ -136,9 +153,9 @@ describe('BigQueryQueryBuilder', () => {
         mainTableReference: '`proj`.`dataset`.`view_abc`',
       });
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`dataset`.`view_abc`');
+      expect(result.sql).toContain('FROM `proj`.`dataset`.`view_abc` AS main');
       expect(result.sql).not.toContain('SELECT 1');
-      expect(result.sql).toContain("(`x` IS NULL OR `x` = '')");
+      expect(result.sql).toContain("(main.`x` IS NULL OR main.`x` = '')");
     });
 
     it('throws when SQL-def has output controls but no mainTableReference', async () => {
@@ -160,7 +177,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`my_view`');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`my_view` AS main');
     });
 
     it('returns QueryBuildResult with correct FROM for connector definition', async () => {
@@ -169,7 +186,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl`');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl` AS main');
     });
 
     it('returns QueryBuildResult with correct FROM for table-pattern definition', async () => {
@@ -178,7 +195,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl_*`');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl_*` AS main');
     });
 
     it('handles limit 0 as "no limit" (limit !== null only when explicit positive)', async () => {

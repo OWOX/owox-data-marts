@@ -24,6 +24,16 @@ import { effectiveComparisonType } from '../../field-aggregation';
 export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
+  /**
+   * Correlation name for output-controls queries. Matches the blended CTE name (`main`).
+   *
+   * BigQuery treats an unaliased table's short name as the row STRUCT alias, so
+   * `FROM …country WHERE country = 'x'` compares STRUCT vs STRING. Aliasing the
+   * source removes that collision; WHERE/ORDER BY/HAVING are then qualified for
+   * an explicit column reference.
+   */
+  private static readonly FROM_ALIAS = 'main';
+
   constructor(private readonly clauseRenderer: BigQueryClauseRenderer) {}
 
   async buildQuery(
@@ -56,7 +66,10 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       );
     }
 
-    const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
+    // Alias the source so the table short name is no longer a row STRUCT range variable.
+    const fromClause = `${this.resolveFromClauseWithOutputControls(definition, queryOptions)} AS ${BigQueryQueryBuilder.FROM_ALIAS}`;
+    const qualifyColumn = (column: string) =>
+      `${BigQueryQueryBuilder.FROM_ALIAS}.${escapeBigQueryIdentifier(column)}`;
     // Field types let the renderer compare the date part of TIMESTAMP/DATETIME
     // columns against CURRENT_DATE() for relative_date filters (a bare TIMESTAMP =
     // DATE comparison is a type error in BigQuery).
@@ -66,15 +79,17 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       : undefined;
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
-      undefined,
+      qualifyColumn,
       'p',
       resolveColumnType
     );
-    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
+    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? [], qualifyColumn);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
     // Aggregations (or a date-trunc bucket / Row Count / Unique Count) replace the plain
     // SELECT list with `<dims>, FN(<metric>) AS …` and inject GROUP BY.
+    // SELECT/GROUP BY stay unqualified: after FROM … AS main, bare column names resolve
+    // to columns of main (no need to qualify projections — that path forces nested AS work).
     if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
       const agg = this.clauseRenderer.renderAggregatedSelect(
         queryOptions?.columns ?? [],
@@ -95,7 +110,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       );
       const having = this.clauseRenderer.renderHaving(
         queryOptions?.filters ?? [],
-        undefined,
+        qualifyColumn,
         'h',
         resolveColumnType
       );

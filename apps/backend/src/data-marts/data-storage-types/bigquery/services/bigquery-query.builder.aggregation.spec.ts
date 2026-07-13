@@ -34,7 +34,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       'SELECT\n' +
         '  `channel`,\n' +
         '  SUM(`revenue`) AS `revenue | SUM`\n' +
-        'FROM `proj`.`dataset`.`tbl`\n' +
+        'FROM `proj`.`dataset`.`tbl` AS main\n' +
         'GROUP BY\n' +
         '  `channel`'
     );
@@ -51,7 +51,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       'SELECT\n' +
         '  `day`,\n' +
         '  COUNT(DISTINCT `sessionId`) AS `sessionId | COUNTUNIQUE`\n' +
-        'FROM `p`.`d`.`t`\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
         'GROUP BY\n' +
         '  `day`\n' +
         'ORDER BY\n' +
@@ -70,7 +70,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       'SELECT\n' +
         '  `channel`,\n' +
         '  SUM(`revenue`) AS `revenue | SUM`\n' +
-        'FROM `p`.`d`.`t`\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
         'GROUP BY\n' +
         '  `channel`\n' +
         'ORDER BY\n' +
@@ -89,8 +89,8 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       'SELECT\n' +
         '  `channel`,\n' +
         '  SUM(`revenue`) AS `revenue | SUM`\n' +
-        'FROM `p`.`d`.`t`\n' +
-        'WHERE `channel` = @p0\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
+        'WHERE main.`channel` = @p0\n' +
         'GROUP BY\n' +
         '  `channel`'
     );
@@ -106,7 +106,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       'SELECT\n' +
         '  DATE_TRUNC(DATE(`date`), MONTH) AS `date`,\n' +
         '  SUM(`revenue`) AS `revenue | SUM`\n' +
-        'FROM `p`.`d`.`t`\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
         'GROUP BY\n' +
         '  DATE_TRUNC(DATE(`date`), MONTH)'
     );
@@ -120,7 +120,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
     expect(await sqlOf(result)).toBe(
       'SELECT\n' +
         '  DATE_TRUNC(DATE(`date`), YEAR) AS `date`\n' +
-        'FROM `p`.`d`.`t`\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
         'GROUP BY\n' +
         '  DATE_TRUNC(DATE(`date`), YEAR)'
     );
@@ -135,7 +135,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       'SELECT\n' +
         '  `channel`,\n' +
         '  COUNT(*) AS `Row Count`\n' +
-        'FROM `p`.`d`.`t`\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
         'GROUP BY\n' +
         '  `channel`'
     );
@@ -152,7 +152,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
         '  `channel`,\n' +
         '  SUM(`revenue`) AS `revenue | SUM`,\n' +
         '  COUNT(*) AS `Row Count`\n' +
-        'FROM `p`.`d`.`t`\n' +
+        'FROM `p`.`d`.`t` AS main\n' +
         'GROUP BY\n' +
         '  `channel`'
     );
@@ -166,7 +166,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
     });
     const sql = await sqlOf(result);
     expect(sql).toContain('GROUP BY\n  `channel`');
-    expect(sql).toContain('HAVING SUM(`revenue`) > @h0');
+    expect(sql).toContain('HAVING SUM(main.`revenue`) > @h0');
     // The only filter is post-aggregation → no WHERE; HAVING follows GROUP BY.
     expect(sql).not.toContain('WHERE');
     expect(sql.indexOf('GROUP BY')).toBeLessThan(sql.indexOf('HAVING'));
@@ -183,8 +183,8 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       ],
     });
     const sql = await sqlOf(result);
-    expect(sql).toContain('WHERE `channel` = @p0');
-    expect(sql).toContain('HAVING SUM(`revenue`) > @h0');
+    expect(sql).toContain('WHERE main.`channel` = @p0');
+    expect(sql).toContain('HAVING SUM(main.`revenue`) > @h0');
     // SQL clause order: WHERE < GROUP BY < HAVING.
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('GROUP BY'));
     expect(sql.indexOf('GROUP BY')).toBeLessThan(sql.indexOf('HAVING'));
@@ -205,7 +205,7 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       columnTypes: new Map([['order_date', 'DATE']]),
     });
     const sql = await sqlOf(result);
-    expect(sql).toContain('HAVING COUNT(DISTINCT `order_date`) >= @h0');
+    expect(sql).toContain('HAVING COUNT(DISTINCT main.`order_date`) >= @h0');
     expect(sql).not.toContain('CAST(@h0 AS DATE)');
   });
 
@@ -217,6 +217,6 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       columnTypes: new Map([['order_date', 'DATE']]),
     });
     const sql = await sqlOf(result);
-    expect(sql).toContain('HAVING MIN(`order_date`) >= CAST(@h0 AS DATE)');
+    expect(sql).toContain('HAVING MIN(main.`order_date`) >= CAST(@h0 AS DATE)');
   });
 });
