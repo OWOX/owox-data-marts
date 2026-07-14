@@ -245,6 +245,41 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
   //---- createTableIfItDoesntExist ----------------------------------
     async createTableIfItDoesntExist() {
 
+      const { query, existingColumns, fullTableName } = this._buildCreateTableQuery("CREATE TABLE IF NOT EXISTS");
+
+      await this.executeQuery(query);
+
+      this.existingColumns = existingColumns;
+
+      this.config.logMessage(`Table created: ${fullTableName}`);
+
+      // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
+      await this.addPrimaryKeyConstraint(fullTableName);
+
+    }
+  //----------------------------------------------------------------
+
+  //---- replaceTable ------------------------------------------------
+    async replaceTable() {
+
+      const { query, existingColumns, fullTableName } = this._buildCreateTableQuery("CREATE OR REPLACE TABLE");
+
+      await this.executeQuery(query);
+
+      this.existingColumns = existingColumns;
+
+      this.config.logMessage(`Table replaced: ${fullTableName}`);
+
+      await this.addPrimaryKeyConstraint(fullTableName);
+
+      return existingColumns;
+
+    }
+  //----------------------------------------------------------------
+
+  //---- _buildCreateTableQuery --------------------------------------
+    _buildCreateTableQuery(createStatement) {
+
       let columns = [];
       let existingColumns = {};
 
@@ -281,16 +316,34 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
 
       const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
 
-      let createTableQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (${columns.join(', ')})`;
+      let query = `${createStatement} ${fullTableName} (${columns.join(', ')})`;
 
-      await this.executeQuery(createTableQuery);
+      return { query, existingColumns, fullTableName };
 
-      this.existingColumns = existingColumns;
+    }
+  //----------------------------------------------------------------
 
-      this.config.logMessage(`Table created: ${fullTableName}`);
+  //---- replaceData -------------------------------------------------
+    async replaceData(data) {
 
-      // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
-      await this.addPrimaryKeyConstraint(fullTableName);
+      this.checkIfDatabricksIsConnected();
+
+      if (!this.session) {
+        await this.createConnection();
+        await this.testConnection();
+      }
+
+      await this.createCatalogAndSchemaIfNotExist();
+      await this.replaceTable();
+      this.updatedRecordsBuffer = {};
+
+      if (data.length) {
+        await this.saveData(data);
+      }
+
+      this.config.logMessage(
+        `Snapshot import completed for ${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}: ${data.length} rows`
+      );
 
     }
   //----------------------------------------------------------------

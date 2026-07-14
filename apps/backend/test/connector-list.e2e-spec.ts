@@ -16,8 +16,8 @@ describe('Connector List (e2e)', () => {
     await closeTestApp(app);
   });
 
-  // CAPI-01: GET /connectors returns all 14 connectors with name, title, logo, docUrl
-  it('GET /api/connectors - returns all 14 connectors with required fields', async () => {
+  // CAPI-01: GET /connectors returns all connectors with name, title, logo, docUrl
+  it('GET /api/connectors - returns all connectors with required fields', async () => {
     const res = await agent.get('/api/connectors').set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
@@ -35,7 +35,7 @@ describe('Connector List (e2e)', () => {
       expect('docUrl' in connector).toBe(true);
     });
 
-    // Verify all 14 connector names are present
+    // Verify all connector names are present
     const returnedNames = res.body.map((c: Record<string, unknown>) => c.name);
     ALL_CONNECTORS.forEach(name => {
       expect(returnedNames).toContain(name);

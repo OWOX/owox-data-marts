@@ -45,6 +45,7 @@ export const ALL_CONNECTORS = [
   'FacebookMarketing',
   'GitHub',
   'GoogleAds',
+  'GoogleSheets',
   'LinkedInAds',
   'LinkedInPages',
   'MicrosoftAds',

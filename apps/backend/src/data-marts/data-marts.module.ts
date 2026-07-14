@@ -150,6 +150,7 @@ import { ConnectorCredentialInjectorService } from './services/connector/connect
 import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
+import { PreviewFieldsConnectorService } from './use-cases/connector/preview-fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
 import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
@@ -657,6 +658,7 @@ import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.s
     ConnectorMapper,
     SpecificationConnectorService,
     FieldsConnectorService,
+    PreviewFieldsConnectorService,
     RunDataMartService,
     CancelDataMartRunService,
     SqlDryRunService,

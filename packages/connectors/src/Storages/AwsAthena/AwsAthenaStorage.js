@@ -202,7 +202,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       let columnType = this.getColumnType(columnName);
       let columnComment = this.getColumnComment(columnName);
       
-      columnDefinitions.push(`${columnName} ${columnType}${columnComment}`);
+      columnDefinitions.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnComment}`);
       existingColumns[columnName] = columnType;
     }
 
@@ -215,7 +215,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         let columnType = this.getColumnType(columnName);
         let columnComment = this.getColumnComment(columnName);
         
-        columnDefinitions.push(`${columnName} ${columnType}${columnComment}`);
+        columnDefinitions.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnComment}`);
         existingColumns[columnName] = columnType;
       }
     }
@@ -250,6 +250,52 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       });
   }
 
+  //---- dropTargetTable ----------------------------------------------
+  /**
+   * Drop the target table in Athena if it exists.
+   */
+  dropTargetTable() {
+    const query = `DROP TABLE IF EXISTS \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\``;
+
+    const params = {
+      QueryString: query,
+      ResultConfiguration: {
+        OutputLocation: this.config.AthenaOutputLocation.value
+      }
+    };
+
+    return this.executeQuery(params, 'ddl')
+      .then(() => {
+        this.config.logMessage(`Table \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\` dropped if it existed`);
+        return true;
+      });
+  }
+
+  //---- replaceData -------------------------------------------------
+  /**
+   * Replace destination table with the current source snapshot.
+   * @param {Array} data - Array of records to save
+   */
+  async replaceData(data) {
+    await this.createDatabaseIfNotExists();
+    await this.dropTargetTable();
+    await this.createTargetTable();
+
+    if (data.length) {
+      this.config.logMessage(`Saving ${data.length} snapshot records to Athena`);
+
+      const tempFolder = `${this.config.S3Prefix.value}_temp/${this.uploadSid}`;
+      await this.uploadDataToS3TempFolder(data, tempFolder);
+      const tempTableName = await this.createTempTable(tempFolder, this.uploadSid);
+      await this.mergeDataFromTempTable(tempTableName, this.uploadSid);
+      await this.cleanupTempResources(tempFolder, tempTableName);
+    }
+
+    this.config.logMessage(
+      `Snapshot import completed for \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\`: ${data.length} rows`
+    );
+  }
+
   //---- addNewColumns -------------------------------------------
   /**
    * Add new columns to the Athena table
@@ -265,7 +311,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         let columnType = this.getColumnType(columnName);
         let columnComment = this.getColumnComment(columnName);
  
-        columnsToAdd.push(`${columnName} ${columnType}${columnComment}`);
+        columnsToAdd.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnComment}`);
         this.existingColumns[columnName] = columnType;  
       }
     }
@@ -421,7 +467,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     let columnDefinitions = [];
     // Add all columns from the target table
     for (let columnName in this.existingColumns) {
-      columnDefinitions.push(`${columnName} ${this.existingColumns[columnName]}`);
+      columnDefinitions.push(`${this.quoteIdentifier(columnName)} ${this.existingColumns[columnName]}`);
     }
     
     const s3Location = `s3://${this.config.S3BucketName.value}/${tempFolder}`;
@@ -464,12 +510,12 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     const query = `
       MERGE INTO "${this.config.AthenaDatabaseName.value}"."${this.config.DestinationTableName.value}" tgt
       USING "${this.config.AthenaDatabaseName.value}"."${tempTableName}" src
-      ON ${this.uniqueKeyColumns.map(col => `tgt.${col} = src.${col}`).join(" AND ")}
+      ON ${this.uniqueKeyColumns.map(col => `tgt.${this.quoteIdentifier(col)} = src.${this.quoteIdentifier(col)}`).join(" AND ")}
       WHEN MATCHED THEN
-        UPDATE SET ${columnNames.map(col => `${col} = src.${col}`).join(", ")}
+        UPDATE SET ${columnNames.map(col => `${this.quoteIdentifier(col)} = src.${this.quoteIdentifier(col)}`).join(", ")}
       WHEN NOT MATCHED THEN
-        INSERT (${columnNames.join(", ")})
-        VALUES (${columnNames.map(col => `src.${col}`).join(", ")})
+        INSERT (${columnNames.map(col => this.quoteIdentifier(col)).join(", ")})
+        VALUES (${columnNames.map(col => `src.${this.quoteIdentifier(col)}`).join(", ")})
     `;
     
     const params = {
@@ -713,6 +759,17 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       .replace(/[\x00-\x1F]/g, ' ');   // Replace control chars with space
   }
 
+  //---- quoteIdentifier ---------------------------------------------
+  /**
+   * Quote an Athena identifier so spreadsheet headers that are SQL keywords
+   * remain valid column names.
+   * @param {string} identifier - Identifier to quote
+   * @returns {string} Quoted identifier
+   */
+  quoteIdentifier(identifier) {
+    return `"${String(identifier).replace(/"/g, '""')}"`;
+  }
+
   //---- _convertTypeToStorageType ------------------------------------
   /**
    * Converts generic type to Athena-specific type.
@@ -759,4 +816,4 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         throw new Error(`Unknown type: ${genericType}`);
     }
   }
-} 
+}

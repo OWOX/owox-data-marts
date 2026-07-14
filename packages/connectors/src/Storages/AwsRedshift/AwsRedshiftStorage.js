@@ -430,6 +430,50 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   }
   //----------------------------------------------------------------
 
+  //---- replaceTable -----------------------------------------------
+  /**
+   * Drop and recreate the target table so schema and rows match the source snapshot.
+   * @returns {Promise<Object>}
+   */
+  async replaceTable() {
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const tableName = stripQuotes(this.config.DestinationTableName.value);
+
+    if (!schemaName || !tableName) {
+      throw new Error('Schema name and table name are required but not provided');
+    }
+
+    await this.createSchemaIfNotExist();
+    await this.executeQuery(`DROP TABLE IF EXISTS "${schemaName}"."${tableName}"`, 'ddl');
+    this.existingColumns = {};
+
+    const existingColumns = await this.createTable();
+    this.config.logMessage(`Table "${schemaName}"."${tableName}" was replaced`);
+
+    return existingColumns;
+  }
+  //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+  /**
+   * Replace destination table with the current source snapshot.
+   * @param {Array} data - Array of records to save
+   * @returns {Promise<void>}
+   */
+  async replaceData(data) {
+    await this.checkConnection();
+    this.existingColumns = await this.replaceTable();
+
+    if (data.length) {
+      await this.saveData(data);
+    }
+
+    this.config.logMessage(
+      `Snapshot import completed for "${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}": ${data.length} rows`
+    );
+  }
+  //----------------------------------------------------------------
+
   //---- addNewColumns ----------------------------------------------
   /**
    * Add new columns to the Redshift table

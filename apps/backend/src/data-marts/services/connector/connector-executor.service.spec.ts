@@ -129,6 +129,7 @@ describe('ConnectorExecutorService', () => {
 
     const dataMartService = {
       actualizeSchema: jest.fn().mockResolvedValue(undefined),
+      updateConnectorSourceFields: jest.fn().mockResolvedValue(true),
     } as unknown as DataMartService;
 
     const connectorSourceCredentialsService = {
@@ -225,6 +226,80 @@ describe('ConnectorExecutorService', () => {
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+  });
+
+  it('persists sanitized Google Sheets fields emitted by a successful connector run', async () => {
+    const { service, processSpawner, emitMessage, emitSuccessMessage, dataMartService } =
+      createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'GoogleSheets',
+            node: 'sheet',
+            fields: ['custom_product_type', 'deleted_column'],
+            configuration: [{ _id: 'cfg-1', param: 'val' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.FIELDS_UPDATE,
+        at: new Date().toISOString(),
+        fields: [
+          '_owox_row_number',
+          '_owox_imported_at',
+          'custom_product_type',
+          'custom_product_type',
+          'matched_with',
+          ' ',
+        ],
+        toFormattedString: () => '[FIELDS] 6',
+      });
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(dataMartService.updateConnectorSourceFields).toHaveBeenCalledWith('dm-1', 'proj-1', [
+      '_owox_row_number',
+      '_owox_imported_at',
+      'custom_product_type',
+      'matched_with',
+    ]);
+  });
+
+  it('does not persist emitted fields when the Google Sheets connector run fails', async () => {
+    const { service, processSpawner, emitMessage, dataMartService } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'GoogleSheets',
+            node: 'sheet',
+            fields: ['custom_product_type', 'deleted_column'],
+            configuration: [{ _id: 'cfg-1', param: 'val' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.FIELDS_UPDATE,
+        at: new Date().toISOString(),
+        fields: ['_owox_row_number', '_owox_imported_at', 'custom_product_type'],
+        toFormattedString: () => '[FIELDS] 3',
+      });
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(dataMartService.updateConnectorSourceFields).not.toHaveBeenCalled();
   });
 
   it('does not mark a run successful when only import in-progress status is emitted', async () => {

@@ -303,6 +303,7 @@ export function OauthRenderFactory({
           />
         );
       case 'GoogleAds':
+      case 'GoogleSheets':
         return (
           <GoogleAdsOauthRender
             specification={specification}

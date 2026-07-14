@@ -181,6 +181,30 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- createTableIfItDoesntExist ----------------------------------
     async createTableIfItDoesntExist() {
 
+      const { query, existingColumns } = this._buildCreateTableQuery("CREATE TABLE IF NOT EXISTS");
+
+      await this.executeQuery(query);
+      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
+
+      return existingColumns;
+
+    }
+
+  //---- replaceTable ------------------------------------------------
+    async replaceTable() {
+
+      const { query, existingColumns } = this._buildCreateTableQuery("CREATE OR REPLACE TABLE");
+
+      await this.executeQuery(query);
+      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was replaced`);
+
+      return existingColumns;
+
+    }
+
+  //---- _buildCreateTableQuery --------------------------------------
+    _buildCreateTableQuery(createStatement) {
+
       let columns = [];
       let columnPartitioned = null;
       let existingColumns = {};
@@ -199,7 +223,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let columnType = this.getColumnType(columnName);
         
         if( "description" in this.schema[ columnName ] ) {
-          columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
+          columnDescription = ` OPTIONS(description="${this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"])}")`;
         }
 
         if( "GoogleBigQueryPartitioned" in this.schema[ columnName ] 
@@ -207,32 +231,46 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           columnPartitioned = columnName;
         }
 
-        columns.push(`${columnName} ${columnType}${columnDescription}`);
+        columns.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnDescription}`);
         
         existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
       }
 
-      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
+      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.map(columnName => this.quoteIdentifier(columnName)).join(",")}) NOT ENFORCED`);
 
       columns = columns.join(",\n");
 
       let query = `---- Creating table if it not exists -----\n`;
-      query += `CREATE TABLE IF NOT EXISTS \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` (\n${columns})`
+      query += `${createStatement} \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` (\n${columns})`
 
       if( columnPartitioned ) {
-        query += `\nPARTITION BY ${columnPartitioned}`;
+        query += `\nPARTITION BY ${this.quoteIdentifier(columnPartitioned)}`;
       }
 
       if( this.description ) {
-        query += `\nOPTIONS(description="${this.description}")`;
+        query += `\nOPTIONS(description="${this.obfuscateSpecialCharacters(this.description)}")`;
       }
 
-      await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
+      return { query, existingColumns };
 
-      return existingColumns;
+    }
 
+  //---- replaceData -------------------------------------------------
+    async replaceData(data) {
+
+      this.checkIfGoogleBigQueryIsConnected();
+      await this.createDatasetIfItDoesntExist();
+      this.existingColumns = await this.replaceTable();
+      this.updatedRecordsBuffer = {};
+
+      if (data.length) {
+        await this.saveData(data);
+      }
+
+      this.config.logMessage(
+        `Snapshot import completed for ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}: ${data.length} rows`
+      );
     }
 
 
@@ -274,7 +312,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             columnDescription = ` OPTIONS (description = "${this.schema[ columnName ]["description"]}")`;
           }
 
-          columns.push(`ADD COLUMN IF NOT EXISTS ${columnName} ${columnType}${columnDescription}`);
+          columns.push(`ADD COLUMN IF NOT EXISTS ${this.quoteIdentifier(columnName)} ${columnType}${columnDescription}`);
           this.existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
         }
@@ -477,9 +515,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           
           
           if (columnValue === null) {
-            fields.push(`SAFE_CAST(NULL AS ${columnType}) ${columnName}`);
+            fields.push(`SAFE_CAST(NULL AS ${columnType}) AS ${this.quoteIdentifier(columnName)}`);
           } else {
-            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${columnName}`);
+            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) AS ${this.quoteIdentifier(columnName)}`);
           }
 
         }
@@ -493,17 +531,17 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         ${rows.join("\n\nUNION ALL\n\n")}
       ) AS source
       
-      ON ${this.uniqueKeyColumns.map(item => ("target." + item + " = source." + item)).join("\n AND ")}
+      ON ${this.uniqueKeyColumns.map(item => (`target.${this.quoteIdentifier(item)} = source.${this.quoteIdentifier(item)}`)).join("\n AND ")}
 
         WHEN MATCHED THEN
         UPDATE SET
-          ${existingColumnsNames.map(item => "target." + item + " = source." + item).join(",\n")}
+          ${existingColumnsNames.map(item => `target.${this.quoteIdentifier(item)} = source.${this.quoteIdentifier(item)}`).join(",\n")}
         WHEN NOT MATCHED THEN
         INSERT (
-          ${existingColumnsNames.join(", ")}
+          ${existingColumnsNames.map(item => this.quoteIdentifier(item)).join(", ")}
         )
         VALUES (
-          ${existingColumnsNames.map(item => "source."+item).join(", ")}
+          ${existingColumnsNames.map(item => `source.${this.quoteIdentifier(item)}`).join(", ")}
         )`;
 
       return query;
@@ -566,6 +604,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   
       return String(inputString).replace(/\\/g, '\\\\').replace(/[\x00-\x1F]/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"'); 
   
+    }
+
+  //---- quoteIdentifier ---------------------------------------------
+    quoteIdentifier(identifier) {
+
+      return `\`${String(identifier).replace(/`/g, "\\`")}\``;
+
     }
 
   //---- getColumnType -----------------------------------------------
