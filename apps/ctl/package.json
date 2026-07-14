@@ -68,7 +68,7 @@
     "prepack": "oclif manifest",
     "prepublishOnly": "npm run lint && npm run typecheck",
     "pretest": "npm run build:dep",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "types": "dist/index.d.ts"
