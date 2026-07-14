@@ -320,7 +320,11 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       const payload = await response.getAsJson();
       return Array.isArray(payload.values) ? payload.values : [];
     } catch (error) {
-      throw new Error(this._buildSheetRequestErrorMessage(error));
+      throw new HttpRequestException({
+        message: this._buildSheetRequestErrorMessage(error),
+        statusCode: error?.statusCode,
+        payload: error?.payload,
+      });
     }
   }
 
@@ -356,7 +360,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   isValidToRetry(error) {
-    return error.statusCode === 429 || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN;
+    return !error?.statusCode
+      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
+      || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
   }
 
   _buildSheetRequestErrorMessage(error) {
