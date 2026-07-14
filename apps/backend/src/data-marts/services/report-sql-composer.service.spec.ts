@@ -482,10 +482,10 @@ describe('ReportSqlComposerService', () => {
       const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
 
       expect(result.sql).toContain('SELECT\n  `name`,\n  `amount`');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl` AS main');
-      expect(result.sql).toContain('WHERE main.`name` = @p0');
-      expect(result.sql).toContain('AND main.`amount` BETWEEN @p1 AND @p2');
-      expect(result.sql).toContain('ORDER BY\n  main.`amount` DESC');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl` AS src');
+      expect(result.sql).toContain('WHERE src.`name` = @p0');
+      expect(result.sql).toContain('AND src.`amount` BETWEEN @p1 AND @p2');
+      expect(result.sql).toContain('ORDER BY\n  src.`amount` DESC');
       expect(result.sql).toContain('LIMIT 50');
 
       // The full param array — proves no string interpolation of user values.
@@ -517,7 +517,7 @@ describe('ReportSqlComposerService', () => {
 
       const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
 
-      expect(result.sql).toContain('STRPOS(main.`name`, @p0) > 0');
+      expect(result.sql).toContain('STRPOS(src.`name`, @p0) > 0');
       expect(result.sql).not.toMatch(/LIKE/);
       expect(result.params).toEqual([{ name: 'p0', value: '100%' }]);
     });
@@ -542,7 +542,7 @@ describe('ReportSqlComposerService', () => {
       // QueryBuildResult shape so the executor handles it uniformly.
       expect(isQueryBuildResult({ sql: result.sql, params: result.params ?? [] })).toBe(true);
       expect(result.params).toEqual([]);
-      expect(result.sql).toContain("(main.`name` IS NULL OR main.`name` = '')");
+      expect(result.sql).toContain("(src.`name` IS NULL OR src.`name` = '')");
     });
   });
 

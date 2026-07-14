@@ -25,14 +25,14 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   /**
-   * Correlation name for output-controls queries. Matches the blended CTE name (`main`).
+   * Correlation name for flat output-controls / explicit-projection queries.
    *
    * BigQuery treats an unaliased table's short name as the row STRUCT alias, so
    * `FROM …country WHERE country = 'x'` compares STRUCT vs STRING. Aliasing the
    * source removes that collision; WHERE/ORDER BY/HAVING are then qualified for
    * an explicit column reference.
    */
-  private static readonly FROM_ALIAS = 'main';
+  private static readonly FROM_ALIAS = 'src';
 
   constructor(private readonly clauseRenderer: BigQueryClauseRenderer) {}
 
@@ -92,8 +92,8 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
 
     // Aggregations (or a date-trunc bucket / Row Count / Unique Count) replace the plain
     // SELECT list with `<dims>, FN(<metric>) AS …` and inject GROUP BY.
-    // SELECT/GROUP BY stay unqualified: after FROM … AS main, bare column names resolve
-    // to columns of main (no need to qualify projections — that path forces nested AS work).
+    // SELECT/GROUP BY stay unqualified: after FROM … AS src, bare column names resolve
+    // to columns of src (qualifying projections would force nested-RECORD AS work).
     if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
       const agg = this.clauseRenderer.renderAggregatedSelect(
         queryOptions?.columns ?? [],

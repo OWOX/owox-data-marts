@@ -112,14 +112,14 @@ describe('BigQueryQueryBuilder — simple-path edge cases', () => {
     const sql = result.sql;
 
     // FROM must reference the view (dot-separated FQN → backtick-quoted parts) with alias
-    expect(sql).toContain('FROM `proj`.`ds`.`my_analytics_view` AS main');
+    expect(sql).toContain('FROM `proj`.`ds`.`my_analytics_view` AS src');
 
     // WHERE must appear before ORDER BY
-    expect(sql).toContain('WHERE main.`revenue` >= @p0');
+    expect(sql).toContain('WHERE src.`revenue` >= @p0');
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
 
     // ORDER BY must appear before LIMIT
-    expect(sql).toContain('ORDER BY\n  main.`revenue` DESC');
+    expect(sql).toContain('ORDER BY\n  src.`revenue` DESC');
     expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
 
     // LIMIT at the end
