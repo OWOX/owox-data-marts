@@ -7,6 +7,11 @@ const vm = require('node:vm');
 function loadStorage(relativePath, className) {
   const context = vm.createContext({
     AbstractStorage: class AbstractStorage {},
+    BatchExecuteStatementCommand: class BatchExecuteStatementCommand {
+      constructor(input) {
+        this.input = input;
+      }
+    },
     Blob,
     console,
     require,
@@ -24,6 +29,18 @@ const GoogleBigQueryStorage = loadStorage(
 const AwsAthenaStorage = loadStorage(
   'src/Storages/AwsAthena/AwsAthenaStorage.js',
   'AwsAthenaStorage'
+);
+const DatabricksStorage = loadStorage(
+  'src/Storages/Databricks/DatabricksStorage.js',
+  'DatabricksStorage'
+);
+const SnowflakeStorage = loadStorage(
+  'src/Storages/Snowflake/SnowflakeStorage.js',
+  'SnowflakeStorage'
+);
+const AwsRedshiftStorage = loadStorage(
+  'src/Storages/AwsRedshift/AwsRedshiftStorage.js',
+  'AwsRedshiftStorage'
 );
 
 function value(value) {
@@ -223,4 +240,229 @@ test('Athena restores the live name when staging publication fails', async () =>
     ['live_table__owox_backup_run', 'live_table'],
   ]);
   assert.deepEqual(droppedTables, ['live_table__owox_temp_run', 'live_table__owox_staging_run']);
+});
+
+const cloneStorageCases = [
+  {
+    name: 'Databricks',
+    Storage: DatabricksStorage,
+    config: {
+      DatabricksCatalog: value('catalog'),
+      DatabricksSchema: value('schema'),
+      DestinationTableName: value('events'),
+    },
+    connectionProperty: 'session',
+    checkMethod: 'checkIfDatabricksIsConnected',
+    ensureMethod: 'createCatalogAndSchemaIfNotExist',
+    publicationPattern:
+      /^CREATE OR REPLACE TABLE `catalog`\.`schema`\.`events` DEEP CLONE `catalog`\.`schema`\.`events__owox_stage_[a-z0-9_]+`$/,
+  },
+  {
+    name: 'Snowflake',
+    Storage: SnowflakeStorage,
+    config: {
+      SnowflakeDatabase: value('DB'),
+      SnowflakeSchema: value('PUBLIC'),
+      DestinationTableName: value('events'),
+    },
+    connectionProperty: 'connection',
+    checkMethod: 'checkIfSnowflakeIsConnected',
+    ensureMethod: 'createDatabaseAndSchemaIfNotExist',
+    publicationPattern:
+      /^CREATE OR REPLACE TABLE DB\."PUBLIC"\."events" CLONE DB\."PUBLIC"\."events__owox_stage_[a-z0-9_]+" COPY GRANTS COPY TAGS$/,
+  },
+];
+
+function cloneStorage(testCase, { failLoad = false, stagedRowCount = 1 } = {}) {
+  const events = [];
+  const storage = Object.create(testCase.Storage.prototype);
+  const originalColumns = { previous: { type: 'STRING' } };
+  storage.config = { ...testCase.config, logMessage() {} };
+  storage.existingColumns = originalColumns;
+  storage.updatedRecordsBuffer = {};
+  storage[testCase.connectionProperty] = {};
+  storage[testCase.checkMethod] = () => {};
+  storage[testCase.ensureMethod] = async () => {};
+  storage.replaceTable = async () => {
+    events.push(`stage:${storage.config.DestinationTableName.value}`);
+    return { id: { type: 'BIGINT' } };
+  };
+  storage.saveData = async () => {
+    events.push(`load:${storage.config.DestinationTableName.value}`);
+    if (failLoad) throw new Error('load failed');
+  };
+  storage.executeQuery = async sql => {
+    events.push(sql);
+    if (sql.startsWith('SELECT COUNT(*) AS row_count')) {
+      return testCase.name === 'Snowflake'
+        ? [{ ROW_COUNT: stagedRowCount }]
+        : [{ row_count: stagedRowCount }];
+    }
+    return [];
+  };
+  return { storage, events, originalColumns };
+}
+
+for (const testCase of cloneStorageCases) {
+  test(`${testCase.name} publishes only after staging is loaded and validated`, async () => {
+    const { storage, events } = cloneStorage(testCase);
+
+    await storage.replaceData([{ id: 1 }]);
+
+    const validationIndex = events.findIndex(event =>
+      event.startsWith('SELECT COUNT(*) AS row_count')
+    );
+    const publicationIndex = events.findIndex(event => testCase.publicationPattern.test(event));
+    assert.match(events[0], /^stage:events__owox_stage_[a-z0-9_]+$/);
+    assert.match(events[1], /^load:events__owox_stage_[a-z0-9_]+$/);
+    assert.ok(validationIndex > 1);
+    assert.ok(publicationIndex > validationIndex);
+    assert.match(events.at(-1), /^DROP TABLE IF EXISTS/);
+    assert.equal(storage.config.DestinationTableName.value, 'events');
+  });
+
+  test(`${testCase.name} publishes an empty validated snapshot`, async () => {
+    const { storage, events } = cloneStorage(testCase, { stagedRowCount: 0 });
+
+    await storage.replaceData([]);
+
+    assert.equal(events.some(event => event.startsWith('load:')), false);
+    assert.ok(events.some(event => testCase.publicationPattern.test(event)));
+  });
+
+  test(`${testCase.name} preserves live state after a staging failure`, async () => {
+    const { storage, events, originalColumns } = cloneStorage(testCase, { failLoad: true });
+
+    await assert.rejects(storage.replaceData([{ id: 1 }]), /load failed/);
+
+    assert.equal(events.some(event => testCase.publicationPattern.test(event)), false);
+    assert.match(events.at(-1), /^DROP TABLE IF EXISTS/);
+    assert.equal(storage.config.DestinationTableName.value, 'events');
+    assert.equal(storage.existingColumns, originalColumns);
+  });
+
+  test(`${testCase.name} rejects a mismatched staged row count`, async () => {
+    const { storage, events, originalColumns } = cloneStorage(testCase, { stagedRowCount: 0 });
+
+    await assert.rejects(
+      storage.replaceData([{ id: 1 }]),
+      /Snapshot staging row count mismatch/
+    );
+
+    assert.equal(events.some(event => testCase.publicationPattern.test(event)), false);
+    assert.equal(storage.existingColumns, originalColumns);
+  });
+}
+
+function redshiftStorage(stagedRowCount = 1) {
+  const events = [];
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.config = {
+    Schema: value('analytics'),
+    DestinationTableName: value('events'),
+    logMessage() {},
+  };
+  storage.existingColumns = { previous: 'VARCHAR' };
+  storage.checkConnection = async () => {};
+  storage.createSchemaIfNotExist = async () => {};
+  storage.getAListOfExistingColumns = async () => ({ id: 'BIGINT' });
+  storage.getTableGrantStatements = async (_source, target) => [
+    `GRANT SELECT ON TABLE "analytics"."${target}" TO ROLE "reader"`,
+  ];
+  storage.createTable = async () => {
+    events.push(`stage:${storage.config.DestinationTableName.value}`);
+    return { id: 'BIGINT' };
+  };
+  storage.saveData = async () => {
+    events.push(`load:${storage.config.DestinationTableName.value}`);
+  };
+  storage.executeQueryWithResults = async sql => {
+    events.push(sql.trim());
+    return [{ row_count: stagedRowCount }];
+  };
+  storage.executeQuery = async sql => {
+    events.push(sql.trim());
+  };
+  storage.executeTransaction = async statements => {
+    events.push(...statements.map(sql => `transaction:${sql}`));
+  };
+  return { storage, events };
+}
+
+test('Redshift copies grants and transactionally publishes validated staging', async () => {
+  const { storage, events } = redshiftStorage();
+
+  await storage.replaceData([{ id: 1 }]);
+
+  assert.match(events[0], /^stage:events__owox_stage_[a-z0-9_]+$/);
+  assert.match(events[1], /^load:events__owox_stage_[a-z0-9_]+$/);
+  assert.match(events[2], /^SELECT COUNT\(\*\) AS row_count FROM "analytics"\./);
+  assert.match(events[3], /^GRANT SELECT ON TABLE "analytics"\."events__owox_stage_/);
+  assert.match(events[4], /^transaction:ALTER TABLE "analytics"\."events" RENAME TO/);
+  assert.match(events[5], /^transaction:ALTER TABLE "analytics"\."events__owox_stage_/);
+  assert.match(events[6], /^transaction:DROP TABLE "analytics"\."events__owox_backup_/);
+  assert.match(events.at(-1), /^DROP TABLE IF EXISTS "analytics"\."events__owox_stage_/);
+});
+
+test('Redshift preserves live state when staging validation fails', async () => {
+  const { storage, events } = redshiftStorage(0);
+  const originalColumns = storage.existingColumns;
+
+  await assert.rejects(storage.replaceData([{ id: 1 }]), /Snapshot staging row count mismatch/);
+
+  assert.equal(events.some(event => event.startsWith('transaction:')), false);
+  assert.equal(storage.config.DestinationTableName.value, 'events');
+  assert.equal(storage.existingColumns, originalColumns);
+});
+
+test('Redshift generates grants for the staging table', async () => {
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.config = { Schema: value('analytics') };
+  storage.executeQueryWithResults = async () => [
+    {
+      identity_name: 'reader role',
+      identity_type: 'role',
+      privilege_type: 'select',
+      admin_option: true,
+    },
+    {
+      identity_name: 'loader',
+      identity_type: 'user',
+      privilege_type: 'insert',
+      admin_option: false,
+    },
+  ];
+
+  assert.deepEqual(
+    await storage.getTableGrantStatements('events', 'events__owox_stage_run'),
+    [
+      'GRANT SELECT ON TABLE "analytics"."events__owox_stage_run" TO ROLE "reader role" WITH GRANT OPTION',
+      'GRANT INSERT ON TABLE "analytics"."events__owox_stage_run" TO "loader"',
+    ]
+  );
+});
+
+test('Redshift uses the Data API transactional batch for publication', async () => {
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.config = {
+    Database: value('warehouse'),
+    WorkgroupName: value('serverless'),
+    ClusterIdentifier: value(''),
+  };
+  let command;
+  storage.redshiftDataClient = {
+    send: async value => {
+      command = value;
+      return { Id: 'statement-id' };
+    },
+  };
+  storage.waitForQueryCompletion = async id => assert.equal(id, 'statement-id');
+
+  await storage.executeTransaction(['rename live', 'rename staging', 'drop backup']);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(command.input)), {
+    Sqls: ['rename live', 'rename staging', 'drop backup'],
+    Database: 'warehouse',
+    WorkgroupName: 'serverless',
+  });
 });

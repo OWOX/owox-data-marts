@@ -308,56 +308,21 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   }
   //----------------------------------------------------------------
 
-  //---- executeQueryInSession ---------------------------------------
-  async executeQueryInSession(sql, sessionId = null) {
+  //---- executeTransaction ------------------------------------------
+  async executeTransaction(sqlStatements) {
     const params = {
-      Sql: sql,
+      Sqls: sqlStatements,
       Database: this.config.Database.value,
-      SessionKeepAliveSeconds: 300
     };
 
-    if (sessionId) {
-      params.SessionId = sessionId;
-    } else if (this.config.WorkgroupName.value) {
+    if (this.config.WorkgroupName.value) {
       params.WorkgroupName = this.config.WorkgroupName.value;
     } else if (this.config.ClusterIdentifier.value) {
       params.ClusterIdentifier = this.config.ClusterIdentifier.value;
     }
 
-    const response = await this.redshiftDataClient.send(new ExecuteStatementCommand(params));
+    const response = await this.redshiftDataClient.send(new BatchExecuteStatementCommand(params));
     await this.waitForQueryCompletion(response.Id);
-
-    return response;
-  }
-  //----------------------------------------------------------------
-
-  //---- executeTransaction ------------------------------------------
-  async executeTransaction(sqlStatements) {
-    let sessionId = null;
-
-    try {
-      const beginResponse = await this.executeQueryInSession('BEGIN');
-      sessionId = beginResponse.SessionId;
-
-      if (!sessionId) {
-        throw new Error('Redshift Data API did not return a reusable session for snapshot publication');
-      }
-
-      for (const sql of sqlStatements) {
-        await this.executeQueryInSession(sql, sessionId);
-      }
-
-      await this.executeQueryInSession('COMMIT', sessionId);
-    } catch (error) {
-      if (sessionId) {
-        try {
-          await this.executeQueryInSession('ROLLBACK', sessionId);
-        } catch (rollbackError) {
-          this.config.logMessage(`Warning: Failed to roll back snapshot publication: ${rollbackError.message}`);
-        }
-      }
-      throw error;
-    }
   }
   //----------------------------------------------------------------
 
@@ -499,30 +464,6 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     this.config.logMessage(`Table "${schemaName}"."${tableName}" created`);
     await this.applyColumnComments(Object.keys(existingColumns));
     this.existingColumns = existingColumns;
-
-    return existingColumns;
-  }
-  //----------------------------------------------------------------
-
-  //---- replaceTable -----------------------------------------------
-  /**
-   * Drop and recreate the target table so schema and rows match the source snapshot.
-   * @returns {Promise<Object>}
-   */
-  async replaceTable() {
-    const schemaName = stripQuotes(this.config.Schema.value);
-    const tableName = stripQuotes(this.config.DestinationTableName.value);
-
-    if (!schemaName || !tableName) {
-      throw new Error('Schema name and table name are required but not provided');
-    }
-
-    await this.createSchemaIfNotExist();
-    await this.executeQuery(`DROP TABLE IF EXISTS "${schemaName}"."${tableName}"`, 'ddl');
-    this.existingColumns = {};
-
-    const existingColumns = await this.createTable();
-    this.config.logMessage(`Table "${schemaName}"."${tableName}" was replaced`);
 
     return existingColumns;
   }

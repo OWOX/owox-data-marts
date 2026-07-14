@@ -31,6 +31,7 @@ const {
 
 const {
   RedshiftDataClient,
+  BatchExecuteStatementCommand,
   ExecuteStatementCommand,
   DescribeStatementCommand,
   GetStatementResultCommand
@@ -60,6 +61,7 @@ global.ListBucketsCommand = ListBucketsCommand;
 
 // AWS Redshift
 global.RedshiftDataClient = RedshiftDataClient;
+global.BatchExecuteStatementCommand = BatchExecuteStatementCommand;
 global.ExecuteStatementCommand = ExecuteStatementCommand;
 global.DescribeStatementCommand = DescribeStatementCommand;
 global.GetStatementResultCommand = GetStatementResultCommand;
