@@ -92,9 +92,7 @@ describe('BigQueryQueryBuilder', () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.sales'), {
         columns: ['main', 'revenue'],
       });
-      expect(sql).toBe(
-        'SELECT\n  `main`,\n  `revenue`\nFROM `proj`.`dataset`.`sales` AS src'
-      );
+      expect(sql).toBe('SELECT\n  `main`,\n  `revenue`\nFROM `proj`.`dataset`.`sales` AS src');
       expect(sql).not.toMatch(/AS main(?:\s|$)/);
     });
 
