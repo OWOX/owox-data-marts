@@ -30,6 +30,8 @@ import { MCP_SCHEDULED_TRIGGERS_FACADE } from '../../../data-marts/facades/mcp-s
 import { DataMartsModule } from '../../../data-marts/data-marts.module';
 import { MCP_PROJECT_CONTEXT_FACADE } from '../../../idp/facades/mcp-project-context.facade';
 import { IdpModule } from '../../../idp/idp.module';
+import { ProjectSettingsModule } from '../../../project-settings/project-settings.module';
+import { PROJECT_SETTINGS_FACADE } from '../../../project-settings/facades/project-settings.facade';
 import { EeModule } from '../../ee.module';
 import { MCP_TOOL_DEFINITIONS, type McpToolDefinition } from './mcp-tool.definition';
 import { MCP_TOOL_DEFINITIONS_PROVIDER, MCP_TOOL_PROVIDER_CLASSES } from './mcp-tool.providers';
@@ -41,7 +43,7 @@ describe('MCP tool providers', () => {
 
   it('keeps the real EeModule import/export boundary wired for MCP tools', () => {
     expect(moduleMetadata(MODULE_METADATA.IMPORTS, EeModule)).toEqual(
-      expect.arrayContaining([IdpModule, DataMartsModule, CommonModule])
+      expect.arrayContaining([IdpModule, DataMartsModule, CommonModule, ProjectSettingsModule])
     );
     expect(moduleMetadata(MODULE_METADATA.EXPORTS, DataMartsModule)).toEqual(
       expect.arrayContaining([
@@ -55,6 +57,9 @@ describe('MCP tool providers', () => {
       MCP_PROJECT_CONTEXT_FACADE
     );
     expect(moduleMetadata(MODULE_METADATA.EXPORTS, CommonModule)).toContain(PublicOriginService);
+    expect(moduleMetadata(MODULE_METADATA.EXPORTS, ProjectSettingsModule)).toContain(
+      PROJECT_SETTINGS_FACADE
+    );
   });
 
   it('resolves report run tools through the real Nest provider wiring', async () => {

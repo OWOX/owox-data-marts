@@ -102,6 +102,12 @@ There is no separate permissions-consent screen. Once you sign in and select a p
 
 Access tokens are short-lived, and the client refreshes them automatically in the background — you stay connected without signing in again. You only need to reconnect manually if the refresh fails (for example, after your OWOX session is revoked) or when you want to switch projects.
 
+### Add project context for your assistant
+
+Project admins can provide business context, terminology, and project-specific conventions for AI assistants in **Project settings → Overview → Description**. OWOX includes this description in the MCP instructions when a client connects to the project.
+
+Do not put passwords, API keys, or other secrets in the description. All project members can see it, and connected MCP clients may send it to their AI provider. After changing the description, reconnect the MCP client so it initializes with the updated context.
+
 ## Step 3: Verify the connection
 
 Confirm everything works before relying on it. In your assistant, send:
@@ -430,7 +436,7 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 
 > **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, when each was last updated, and field-level metadata for a selected data mart), and the destinations available for reports — and, with `query_data_mart`, run a bounded query and read the resulting data rows and totals. With your confirmation, the assistant can also create a report to a Google Sheets destination (`add_report`), rename a report or change which fields it exports (`update_report`), delete a report (`delete_report`), and create, update, or delete a report's run schedules (`create_report_run_schedule`, `update_report_run_schedule`, `delete_report_run_schedule`) — these are the only actions that create or change anything. They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot change a data mart, destination, or project itself.
 >
-> **What is shared with your AI provider:** To answer your prompts, data-mart metadata (project and data-mart names, descriptions, status, fields, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. In addition, whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
+> **What is shared with your AI provider:** To answer your prompts, the project description and data-mart metadata (project and data-mart names, descriptions, status, fields, and your roles) are sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. In addition, whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 
 ## Troubleshooting
 

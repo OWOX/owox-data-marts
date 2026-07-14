@@ -34,6 +34,10 @@ import { useClipboard } from '../../hooks/useClipboard';
 import { useProjects } from '../../features/idp/hooks/useProjects';
 import { RequestStatus } from '../../shared/types/request-status';
 import type { ProjectStatus } from '../../features/idp/types';
+import { useIsAdmin } from '../../features/idp/hooks/useRole';
+import { useProjectSettings } from '../../features/project-settings/overview';
+import { InlineEditDescription } from '../../shared/components/InlineEditDescription';
+import { Skeleton } from '@owox/ui/components/skeleton';
 
 interface Stats {
   dataMarts: number | null;
@@ -140,6 +144,13 @@ export function OverviewTab() {
   }, []);
 
   const projectId = user?.projectId ?? '';
+  const isAdmin = useIsAdmin();
+  const {
+    settings: projectSettings,
+    isLoading: isProjectSettingsLoading,
+    error: projectSettingsError,
+    updateDescription,
+  } = useProjectSettings(projectId);
   const projectStatus = useMemo<ProjectStatus | undefined>(() => {
     if (!projectId) {
       return undefined;
@@ -162,10 +173,10 @@ export function OverviewTab() {
 
   return (
     <div className='flex flex-col gap-4'>
-      <CollapsibleCard collapsible name='project-description'>
+      <CollapsibleCard collapsible name='project-overview'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='About this project'>
-            Description
+            Overview
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
@@ -199,6 +210,31 @@ export function OverviewTab() {
                 )
               }
             />
+          </div>
+          <div className='mt-4 flex flex-col gap-2'>
+            <div>
+              <h3 className='text-foreground text-sm font-medium'>Description</h3>
+              <p className='text-muted-foreground mt-1 text-xs'>
+                Describe the project&apos;s business context, terminology, and conventions. This
+                description is shared with connected AI assistants through MCP. Do not include
+                secrets.
+              </p>
+            </div>
+            {isProjectSettingsLoading ? (
+              <Skeleton className='h-64 w-full' />
+            ) : (
+              <InlineEditDescription
+                description={projectSettings.description}
+                onUpdate={updateDescription}
+                placeholder='Add a description for this project...'
+                readOnly={!isAdmin || projectSettingsError !== null}
+              />
+            )}
+            {projectSettingsError && (
+              <p className='text-destructive text-xs' role='alert'>
+                {projectSettingsError}
+              </p>
+            )}
           </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>

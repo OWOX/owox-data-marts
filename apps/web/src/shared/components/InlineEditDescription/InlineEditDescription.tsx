@@ -18,6 +18,7 @@ interface InlineEditDescriptionProps {
   placeholder?: string;
   minWidth?: string;
   minHeight?: string;
+  readOnly?: boolean;
   /**
    * Optional action button rendered inside the editor while editing. May be a
    * render-function that receives `{ setValue }` so the action can write directly
@@ -33,6 +34,7 @@ export function InlineEditDescription({
   placeholder = 'Add description...',
   minWidth = '100%',
   minHeight = '256px',
+  readOnly = false,
   aiButton,
 }: InlineEditDescriptionProps) {
   const [editedDescription, setEditedDescription] = useState(description ?? '');
@@ -197,11 +199,14 @@ export function InlineEditDescription({
     <div className='flex w-full items-center gap-4 rounded-md border-b border-neutral-200 bg-white transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'>
       <div
         onClick={() => {
-          setIsEditing(true);
+          if (!readOnly) {
+            setIsEditing(true);
+          }
         }}
         className={cn(
-          'min-h-64 w-full cursor-pointer rounded whitespace-pre-wrap',
+          'min-h-64 w-full rounded whitespace-pre-wrap',
           'transition-colors duration-150',
+          readOnly ? 'cursor-default' : 'cursor-pointer',
           // Reserve right space equal to the AI-button column in edit mode so the
           // text wraps identically and doesn't shift when the user opens the editor.
           // Edit-mode reserves 48px on the right: wrapper p-2 right (8px) +

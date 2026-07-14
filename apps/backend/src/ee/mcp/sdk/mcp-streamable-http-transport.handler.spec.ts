@@ -1,4 +1,5 @@
 import type { McpAuthContext } from '../auth/mcp-auth-context';
+import type { McpInstructionsService } from '../instructions/mcp-instructions.service';
 import type { McpSdkServerFactory } from './mcp-sdk-server.factory';
 
 const mockHandleRequest = jest.fn();
@@ -52,11 +53,17 @@ describe('McpStreamableHttpTransportHandler', () => {
     json: jest.fn().mockReturnThis(),
   });
 
+  const createInstructionsService = () =>
+    ({
+      getInstructions: jest.fn().mockResolvedValue('OWOX instructions'),
+    }) as unknown as jest.Mocked<McpInstructionsService>;
+
   it('creates stateless SDK transport for no-session tool requests', async () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
+    const instructionsService = createInstructionsService();
     const McpStreamableHttpTransportHandler = await loadHandler();
-    const handler = new McpStreamableHttpTransportHandler(factory);
+    const handler = new McpStreamableHttpTransportHandler(factory, instructionsService);
     const request = { method: 'POST', headers: {} };
     const response = {};
     const body = { jsonrpc: '2.0', id: 2, method: 'tools/call', params: {} };
@@ -64,6 +71,7 @@ describe('McpStreamableHttpTransportHandler', () => {
     await handler.handleRequest(request as never, response as never, body, context);
 
     expect(factory.create).toHaveBeenCalledWith(context);
+    expect(instructionsService.getInstructions).not.toHaveBeenCalled();
     expect(server.connect).toHaveBeenCalledWith(mockTransportInstances[0]);
     expect(mockHandleRequest).toHaveBeenCalledWith(request, response, body);
     expect(mockTransportInstances[0].sessionId).toBeUndefined();
@@ -73,15 +81,17 @@ describe('McpStreamableHttpTransportHandler', () => {
   it('creates stateless SDK transport with JSON responses for initialize requests', async () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
+    const instructionsService = createInstructionsService();
     const McpStreamableHttpTransportHandler = await loadHandler();
-    const handler = new McpStreamableHttpTransportHandler(factory);
+    const handler = new McpStreamableHttpTransportHandler(factory, instructionsService);
     const request = { method: 'POST', headers: {} };
     const response = {};
     const body = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
 
     await handler.handleRequest(request as never, response as never, body, context);
 
-    expect(factory.create).toHaveBeenCalledWith(context);
+    expect(instructionsService.getInstructions).toHaveBeenCalledWith('project-1');
+    expect(factory.create).toHaveBeenCalledWith(context, 'OWOX instructions');
     expect(server.connect).toHaveBeenCalledWith(mockTransportInstances[0]);
     expect(mockHandleRequest).toHaveBeenCalledWith(request, response, body);
     expect(mockTransportInstances[0].sessionId).toBeUndefined();
@@ -93,7 +103,7 @@ describe('McpStreamableHttpTransportHandler', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpTransportHandler = await loadHandler();
-    const handler = new McpStreamableHttpTransportHandler(factory);
+    const handler = new McpStreamableHttpTransportHandler(factory, createInstructionsService());
     const response = createResponse();
 
     await handler.handleRequest(
@@ -127,7 +137,7 @@ describe('McpStreamableHttpTransportHandler', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpTransportHandler = await loadHandler();
-    const handler = new McpStreamableHttpTransportHandler(factory);
+    const handler = new McpStreamableHttpTransportHandler(factory, createInstructionsService());
     const request = { method: 'POST', headers: { 'mcp-session-id': 'stale-session' } };
     const response = {};
     const body = { jsonrpc: '2.0', id: 2, method: 'tools/call', params: {} };
@@ -145,7 +155,7 @@ describe('McpStreamableHttpTransportHandler', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpTransportHandler = await loadHandler();
-    const handler = new McpStreamableHttpTransportHandler(factory);
+    const handler = new McpStreamableHttpTransportHandler(factory, createInstructionsService());
     const request = { method: 'POST', headers: { 'mcp-session-id': 'stale-session' } };
     const response = {};
     const body = { jsonrpc: '2.0', id: 2, method: 'tools/call', params: {} };

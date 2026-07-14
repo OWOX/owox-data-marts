@@ -28,11 +28,14 @@ export class McpSdkServerFactory {
     private readonly toolRegistry: McpToolRegistry
   ) {}
 
-  create(mcpContext: McpAuthContext): McpServer {
-    const server = new McpServer({
+  create(mcpContext: McpAuthContext, instructions?: string): McpServer {
+    const serverInfo = {
       name: this.config.serverName,
       version: this.config.serverVersion,
-    });
+    };
+    const server = instructions
+      ? new McpServer(serverInfo, { instructions })
+      : new McpServer(serverInfo);
 
     const sdkToolRegistrar = server as unknown as McpSdkToolRegistrar;
 

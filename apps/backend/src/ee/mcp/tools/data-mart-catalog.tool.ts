@@ -16,7 +16,8 @@ type ListDataMartsInput = Record<string, never>;
 @Injectable()
 export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> {
   readonly name = 'list_data_marts';
-  readonly description = 'List data marts available to the current OWOX project member.';
+  readonly description =
+    'List data marts available to the current OWOX project member. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog.';
   readonly zodSchema = {};
   readonly outputSchema = {
     data_marts: z.array(

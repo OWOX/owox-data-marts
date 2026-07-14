@@ -131,4 +131,19 @@ describe('McpSdkServerFactory', () => {
     await expect(sdkHandler({})).rejects.toThrow('Missing MCP scope: mcp:write');
     expect(tool.handler).not.toHaveBeenCalled();
   });
+
+  it('passes composed instructions to the MCP SDK server', async () => {
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([])
+    );
+
+    factory.create(context, 'OWOX instructions');
+
+    expect(mockMcpServer).toHaveBeenCalledWith(
+      { name: 'owox-mcp', version: '0.1.0' },
+      { instructions: 'OWOX instructions' }
+    );
+  });
 });

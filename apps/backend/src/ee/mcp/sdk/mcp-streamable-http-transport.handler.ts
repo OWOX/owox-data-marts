@@ -2,13 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Request, Response } from 'express';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
+import { McpInstructionsService } from '../instructions/mcp-instructions.service';
 import { McpSdkServerFactory } from './mcp-sdk-server.factory';
 
 @Injectable()
 export class McpStreamableHttpTransportHandler {
   private readonly logger = new Logger(McpStreamableHttpTransportHandler.name);
 
-  constructor(private readonly serverFactory: McpSdkServerFactory) {}
+  constructor(
+    private readonly serverFactory: McpSdkServerFactory,
+    private readonly instructionsService: McpInstructionsService
+  ) {}
 
   async handleRequest(
     request: Request,
@@ -64,7 +68,12 @@ export class McpStreamableHttpTransportHandler {
       });
     };
 
-    const server = this.serverFactory.create(context);
+    const server = isInitialization
+      ? this.serverFactory.create(
+          context,
+          await this.instructionsService.getInstructions(context.projectId)
+        )
+      : this.serverFactory.create(context);
     await server.connect(transport);
 
     await transport.handleRequest(request as never, response as never, body);
