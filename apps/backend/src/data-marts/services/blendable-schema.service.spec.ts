@@ -13,6 +13,7 @@ import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { buildBlendedFieldUnifiedName } from './blended-field-name';
 
 const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
 
@@ -247,6 +248,50 @@ describe('BlendableSchemaService', () => {
       expect(ageField.type).toBe('INTEGER');
       // Numeric default: SUM, not STRING_AGG
       expect(ageField.aggregateFunction).toBe('SUM');
+    });
+
+    it('should hash nested struct field names so they do not collide with flat fields', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'customers',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Customers DM',
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'campaign_id', type: 'STRING' },
+              {
+                name: 'campaign',
+                type: 'RECORD',
+                fields: [{ name: 'id', type: 'STRING' }],
+              },
+            ],
+          } as unknown as DataMart['schema'],
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      const flat = result.blendedFields.find(f => f.originalFieldName === 'campaign_id');
+      const nested = result.blendedFields.find(f => f.originalFieldName === 'campaign.id');
+
+      expect(flat).toBeDefined();
+      expect(nested).toBeDefined();
+      expect(flat!.name).toBe('customers__campaign_id');
+      expect(nested!.name).toBe(
+        buildBlendedFieldUnifiedName('customers', 'customers', 'campaign.id')
+      );
+      expect(nested!.name).toBe('customers__campaign_id__b996a659');
+      expect(nested!.name).not.toBe(flat!.name);
+      expect(nested!.originalFieldName).toBe('campaign.id');
+      expect(nested!.aliasPath).toBe('customers');
     });
 
     it.each([

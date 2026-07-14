@@ -34,9 +34,12 @@ export interface BlendedColumnTypes {
 }
 
 /**
- * Flat resolution entry for one blended field, keyed by its unified name
- * (`<aliasPath with dots→_>__<originalFieldName with dots→_>`). Single source of
- * truth for resolving a unified column identifier back to the data it encodes.
+ * Flat resolution entry for one blended field, keyed by its unified name from
+ * `buildBlendedFieldUnifiedName`:
+ * - flat:   `<sqlPrefix>__<originalFieldName>`
+ * - nested: `<sqlPrefix>__<originalFieldName with dots→_>__<sha1(aliasPath|originalFieldName)[0:8]>`
+ * where `sqlPrefix` is `aliasPath` with dots→underscores. Single source of truth
+ * for resolving a unified column identifier back to the data it encodes.
  */
 export interface BlendedFieldEntry {
   aliasPath: string; // 'category.details'
