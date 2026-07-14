@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -52,6 +52,8 @@ export class UpdateDataMartDefinitionService {
     if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
       throw new BusinessViolationException('DataMart already has definition');
     }
+
+    this.validateConnectorConfigurationCount(command);
 
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       if (command.definitionType !== DataMartDefinitionType.SQL) {
@@ -160,5 +162,17 @@ export class UpdateDataMartDefinitionService {
     );
 
     return this.mapper.toDomainDto(dataMart);
+  }
+
+  private validateConnectorConfigurationCount(command: UpdateDataMartDefinitionCommand): void {
+    if (command.definitionType !== DataMartDefinitionType.CONNECTOR) {
+      return;
+    }
+
+    const definition = command.definition as ConnectorDefinition;
+    const source = definition?.connector?.source;
+    if (source?.name === 'GoogleSheets' && source.configuration?.length !== 1) {
+      throw new BadRequestException('GoogleSheets requires exactly one source configuration');
+    }
   }
 }

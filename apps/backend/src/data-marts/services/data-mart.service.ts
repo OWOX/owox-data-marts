@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { FindOperator, Raw, Repository, SelectQueryBuilder } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
@@ -13,6 +13,7 @@ import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { DataMartSearchIndexInvalidationService } from './data-mart-search-index-invalidation.service';
+import { createConnectorSourceFingerprint } from './connector/connector-source-fingerprint';
 
 @Injectable()
 export class DataMartService {
@@ -350,36 +351,82 @@ export class DataMartService {
   async updateConnectorSourceFields(
     id: string,
     projectId: string,
-    fields: string[]
+    fields: string[],
+    configurationIndex: number,
+    expectedSourceFingerprint: string
   ): Promise<boolean> {
     const dataMart = await this.getByIdAndProjectId(id, projectId);
     const definition = dataMart.definition;
 
-    if (!definition || !isConnectorDefinition(definition)) {
+    if (
+      !definition ||
+      !isConnectorDefinition(definition) ||
+      definition.connector.source.name !== 'GoogleSheets' ||
+      createConnectorSourceFingerprint(definition.connector.source) !== expectedSourceFingerprint
+    ) {
       return false;
     }
 
-    const currentFields = definition.connector.source.fields;
-    if (this.areStringArraysEqual(currentFields, fields)) {
+    const source = definition.connector.source;
+    const currentConfiguration = source.configuration[configurationIndex];
+    if (!currentConfiguration) {
       return false;
     }
+
+    const currentFields = source.fields;
+    const shouldSyncSelectedColumns = this.isExplicitFalse(currentConfiguration.ImportAllColumns);
+    const selectedColumns = fields.join(',');
+    const selectedColumnsChanged =
+      shouldSyncSelectedColumns && currentConfiguration.SelectedColumns !== selectedColumns;
+
+    if (this.areStringArraysEqual(currentFields, fields) && !selectedColumnsChanged) {
+      return false;
+    }
+
+    const configuration = selectedColumnsChanged
+      ? source.configuration.map((config, index) =>
+          index === configurationIndex ? { ...config, SelectedColumns: selectedColumns } : config
+        )
+      : source.configuration;
 
     const nextDefinition = {
       ...definition,
       connector: {
         ...definition.connector,
         source: {
-          ...definition.connector.source,
+          ...source,
           fields,
+          configuration,
         },
       },
     };
 
-    await this.dataMartRepository.update({ id, projectId }, { definition: nextDefinition });
-    return true;
+    const updateResult = await this.dataMartRepository.update(
+      {
+        id,
+        projectId,
+        modifiedAt: this.createModifiedAtUpdateCriterion(dataMart.modifiedAt),
+      },
+      { definition: nextDefinition }
+    );
+    return (updateResult.affected ?? 0) > 0;
+  }
+
+  private createModifiedAtUpdateCriterion(modifiedAt: Date): Date | FindOperator<Date> {
+    if (this.dataMartRepository.manager.connection.options.type !== 'better-sqlite3') {
+      return modifiedAt;
+    }
+
+    return Raw(alias => `datetime(${alias}) = datetime(:expectedModifiedAt)`, {
+      expectedModifiedAt: modifiedAt.toISOString(),
+    });
   }
 
   private areStringArraysEqual(left: string[], right: string[]): boolean {
     return left.length === right.length && left.every((value, index) => value === right[index]);
+  }
+
+  private isExplicitFalse(value: unknown): boolean {
+    return value === false || value === 0 || value === 'false' || value === '0';
   }
 }

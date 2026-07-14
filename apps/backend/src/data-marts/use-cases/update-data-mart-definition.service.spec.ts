@@ -3,7 +3,7 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UpdateDataMartDefinitionService } from './update-data-mart-definition.service';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -106,5 +106,65 @@ describe('UpdateDataMartDefinitionService', () => {
     );
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('rejects multiple GoogleSheets source configurations before processing secrets', async () => {
+    const { service, dataMartService } = createService();
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      {
+        connector: {
+          source: {
+            name: 'GoogleSheets',
+            node: 'sheet',
+            fields: ['name'],
+            configuration: [{ _id: 'config-1' }, { _id: 'config-2' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+      undefined,
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(BadRequestException);
+    expect(dataMartService.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps multiple configurations available for connectors other than GoogleSheets', async () => {
+    const { service, dataMartService, dataMart } = createService();
+    const definition = {
+      connector: {
+        source: {
+          name: 'GoogleAds',
+          node: 'campaigns',
+          fields: ['id'],
+          configuration: [{ _id: 'config-1' }, { _id: 'config-2' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      definition,
+      undefined,
+      undefined,
+      'user-1',
+      ['editor']
+    );
+    const connectorSecretService = service['connectorSecretService'] as any;
+    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
+    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
+
+    await service.run(command);
+
+    expect(dataMart.definition).toBe(definition);
+    expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
   });
 });

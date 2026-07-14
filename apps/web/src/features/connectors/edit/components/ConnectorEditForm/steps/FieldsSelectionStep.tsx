@@ -31,7 +31,7 @@ interface FieldsSelectionStepProps {
   onSelectAllFields: (fieldNames: string[], isSelected: boolean) => void;
   itemLabel?: string;
   searchPlaceholder?: string;
-  systemFieldNames?: string[];
+  autoSelectDefaultFields?: boolean;
 }
 
 export function FieldsSelectionStep({
@@ -44,7 +44,7 @@ export function FieldsSelectionStep({
   onSelectAllFields,
   itemLabel = 'fields',
   searchPlaceholder = 'Search field',
-  systemFieldNames = [],
+  autoSelectDefaultFields = true,
 }: FieldsSelectionStepProps) {
   const filterInputRef = useRef<HTMLInputElement>(null);
   const prevSelectedFieldRef = useRef<string | null>(null);
@@ -69,11 +69,7 @@ export function FieldsSelectionStep({
   const showDataLevelFieldsTip = Boolean(
     selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]
   );
-  const systemFieldNameSet = useMemo(() => new Set(systemFieldNames), [systemFieldNames]);
-  const lockedFieldNameSet = useMemo(
-    () => new Set([...uniqueKeys, ...systemFieldNames]),
-    [uniqueKeys, systemFieldNames]
-  );
+  const lockedFieldNameSet = useMemo(() => new Set(uniqueKeys), [uniqueKeys]);
 
   const originalIndexByName = useMemo(() => {
     const indexMap = new Map<string, number>();
@@ -127,7 +123,7 @@ export function FieldsSelectionStep({
       const hasFieldsBeyondUniqueKeys = selectedFields.some(
         f => !uniqueKeysSet.has(f) && availableFieldNamesSet.has(f)
       );
-      if (!hasFieldsBeyondUniqueKeys) {
+      if (autoSelectDefaultFields && !hasFieldsBeyondUniqueKeys) {
         const defaultFields = selectedFieldData?.defaultFields ?? [];
         defaultFields.forEach(fieldName => {
           if (availableFieldNamesSet.has(fieldName) && !selectedFieldsSet.has(fieldName)) {
@@ -148,6 +144,7 @@ export function FieldsSelectionStep({
     selectedFieldData,
     onSelectAllFields,
     selectedField,
+    autoSelectDefaultFields,
   ]);
 
   // HotKey for Selecting/Unselecting all fields
@@ -311,8 +308,7 @@ export function FieldsSelectionStep({
           <AppWizardStepCards>
             {filteredFields.map(field => {
               const isUniqueKey = uniqueKeys.includes(field.name);
-              const isSystemField = systemFieldNameSet.has(field.name);
-              const isLocked = isUniqueKey || isSystemField;
+              const isLocked = isUniqueKey;
               return (
                 <AppWizardStepCardItem
                   key={field.name}
@@ -333,12 +329,6 @@ export function FieldsSelectionStep({
                         <p className='flex items-center gap-2'>
                           <span className='font-semibold'>Unique key</span>{' '}
                           <KeyRound className='text-secondary h-3 w-3' />
-                        </p>
-                      )}
-                      {isSystemField && (
-                        <p>
-                          <span className='font-semibold'>System {itemLabel.slice(0, -1)}:</span>{' '}
-                          always included in the warehouse table
                         </p>
                       )}
                       <p>

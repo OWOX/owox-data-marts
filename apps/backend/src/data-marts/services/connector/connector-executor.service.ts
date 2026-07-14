@@ -33,6 +33,7 @@ import { ConnectorSourceConfigService } from './connector-source-config.service'
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
+import { createConnectorSourceFingerprint } from './connector-source-fingerprint';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -472,8 +473,8 @@ export class ConnectorExecutorService {
     const successfulResultsWithFields = configurationResults.filter(
       result => result.success && result.fieldsUpdate
     );
-    const successfulFieldsUpdate =
-      successfulResultsWithFields[successfulResultsWithFields.length - 1]?.fieldsUpdate;
+    const successfulResult = successfulResultsWithFields[successfulResultsWithFields.length - 1];
+    const successfulFieldsUpdate = successfulResult?.fieldsUpdate;
 
     if (!successfulFieldsUpdate) {
       return;
@@ -487,7 +488,9 @@ export class ConnectorExecutorService {
     const wasUpdated = await this.dataMartService.updateConnectorSourceFields(
       dataMart.id,
       dataMart.projectId,
-      nextFields
+      nextFields,
+      successfulResult.configIndex,
+      createConnectorSourceFingerprint(definition.connector.source)
     );
 
     if (!wasUpdated) {
@@ -503,13 +506,7 @@ export class ConnectorExecutorService {
   }
 
   private normalizeFieldsUpdate(fields: string[]): string[] {
-    return Array.from(
-      new Set(
-        fields
-          .map(field => field.trim())
-          .filter(field => field.length > 0)
-      )
-    );
+    return Array.from(new Set(fields.map(field => field.trim()).filter(field => field.length > 0)));
   }
 
   private async saveConnectorCredentials(

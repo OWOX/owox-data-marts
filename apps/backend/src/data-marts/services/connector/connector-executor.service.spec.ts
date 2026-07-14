@@ -264,12 +264,13 @@ describe('ConnectorExecutorService', () => {
 
     await service.executeInBackground(dataMart, createRun(), null);
 
-    expect(dataMartService.updateConnectorSourceFields).toHaveBeenCalledWith('dm-1', 'proj-1', [
-      '_owox_row_number',
-      '_owox_imported_at',
-      'custom_product_type',
-      'matched_with',
-    ]);
+    expect(dataMartService.updateConnectorSourceFields).toHaveBeenCalledWith(
+      'dm-1',
+      'proj-1',
+      ['_owox_row_number', '_owox_imported_at', 'custom_product_type', 'matched_with'],
+      0,
+      expect.any(String)
+    );
   });
 
   it('does not persist emitted fields when the Google Sheets connector run fails', async () => {

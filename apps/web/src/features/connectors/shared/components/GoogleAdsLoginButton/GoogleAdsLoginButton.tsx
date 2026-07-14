@@ -83,10 +83,7 @@ export function GoogleAdsLoginButton({
   disabled = false,
   children,
 }: GoogleAdsLoginButtonProps) {
-  const { openPopup, isLoading, error } = useOAuthPopup<
-    GoogleAdsLoginResponse,
-    GoogleAuthMessage
-  >({
+  const { openPopup, isLoading, error } = useOAuthPopup<GoogleAdsLoginResponse, GoogleAuthMessage>({
     redirectUri,
     buildAuthUrl: (state: string) => {
       const url = new URL(GOOGLE_AUTH_URL);

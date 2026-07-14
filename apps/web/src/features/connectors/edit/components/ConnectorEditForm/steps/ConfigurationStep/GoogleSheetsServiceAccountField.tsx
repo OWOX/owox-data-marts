@@ -4,10 +4,10 @@ import { Input } from '@owox/ui/components/input';
 import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { AppWizardStepLabel } from '@owox/ui/components/common/wizard';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Copy, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { getServiceAccountLink } from '../../../../../../../utils';
+import { Check, Copy } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
+import { getServiceAccountLink } from '../../../../../../../utils';
 import GoogleSheetsServiceAccountDescription from '../../../../../shared/components/FormDescriptions/GoogleSheetsServiceAccountDescription';
 
 interface GoogleSheetsServiceAccountFieldProps {
@@ -33,6 +33,7 @@ function getMetadataFromJson(value: string): ServiceAccountMetadata {
       client_id?: unknown;
       project_id?: unknown;
     };
+
     return {
       email: typeof parsed.client_email === 'string' ? parsed.client_email : undefined,
       clientId: typeof parsed.client_id === 'string' ? parsed.client_id : undefined,
@@ -47,6 +48,7 @@ function getLinkFromMetadata(metadata?: ServiceAccountMetadata) {
   if (!metadata?.email || !metadata.clientId || !metadata.projectId) {
     return null;
   }
+
   return {
     email: metadata.email,
     url: `https://console.cloud.google.com/iam-admin/serviceaccounts/details/${metadata.clientId}?project=${metadata.projectId}`,
@@ -66,13 +68,16 @@ export function GoogleSheetsServiceAccountField({
   const [isEditing, setIsEditing] = useState(false);
   const [stashedValue, setStashedValue] = useState(serviceAccountValue);
   const [stashedMetadata, setStashedMetadata] = useState<ServiceAccountMetadata>(metadata ?? {});
-  const [copied, setCopied] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const isMasked = serviceAccountValue === SECRET_MASK;
-  const serviceAccountLink = serviceAccountValue && !isMasked
-    ? getServiceAccountLink(serviceAccountValue)
-    : getLinkFromMetadata(metadata);
-  const canShowSavedState = !isEditing && (isMasked || serviceAccountLink);
+  const serviceAccountLink =
+    !isMasked && serviceAccountValue
+      ? getServiceAccountLink(serviceAccountValue)
+      : getLinkFromMetadata(metadata);
+  const canShowMaskedState = !isEditing && isMasked && serviceAccountLink === null;
+  const canShowServiceAccount = !isEditing && serviceAccountLink !== null;
+  const canShowSummary = canShowMaskedState || canShowServiceAccount;
 
   const handleEdit = () => {
     setStashedValue(serviceAccountValue);
@@ -88,15 +93,16 @@ export function GoogleSheetsServiceAccountField({
 
   const handleServiceAccountChange = (nextValue: string) => {
     onValueChange(nextValue, getMetadataFromJson(nextValue));
+    if (getServiceAccountLink(nextValue)) {
+      setIsEditing(false);
+    }
   };
 
-  const handleCopyEmail = () => {
-    if (!serviceAccountLink) return;
-    void navigator.clipboard.writeText(serviceAccountLink.email);
-    setCopied(true);
-    setTimeout(() => {
-      setCopied(false);
-    }, 2000);
+  const handleClear = () => {
+    setStashedValue(serviceAccountValue);
+    setStashedMetadata(metadata ?? {});
+    setIsEditing(true);
+    onValueChange('', {});
   };
 
   return (
@@ -110,10 +116,15 @@ export function GoogleSheetsServiceAccountField({
         >
           {title ?? 'Service Account'}
         </AppWizardStepLabel>
-        {!isEditing && serviceAccountValue && (
-          <Button variant='ghost' size='sm' type='button' onClick={handleEdit}>
-            Edit
-          </Button>
+        {canShowSummary && (
+          <div className='flex items-center gap-1'>
+            <Button variant='ghost' size='sm' type='button' onClick={handleEdit}>
+              Edit
+            </Button>
+            <Button variant='ghost' size='sm' type='button' onClick={handleClear}>
+              Clear
+            </Button>
+          </div>
         )}
         {isEditing && (
           <Button variant='ghost' size='sm' type='button' onClick={handleCancel}>
@@ -122,35 +133,35 @@ export function GoogleSheetsServiceAccountField({
         )}
       </div>
 
-      {canShowSavedState ? (
-        serviceAccountLink ? (
-          <div className='flex items-center gap-2'>
-            <ExternalAnchor href={serviceAccountLink.url} variant='field' className='flex-1 truncate'>
-              {serviceAccountLink.email}
-            </ExternalAnchor>
-            <button
-              type='button'
-              onClick={handleCopyEmail}
-              className='text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 rounded-md p-1 transition-colors'
-              aria-label='Copy email'
-            >
-              {copied ? (
-                <Check className='h-4 w-4 text-green-500' />
-              ) : (
-                <Copy className='h-4 w-4' />
-              )}
-            </button>
-          </div>
-        ) : (
-          <Input
-            id={itemName}
-            type='password'
-            value={SECRET_MASK}
-            readOnly
-            disabled
-            autoComplete='new-password'
-          />
-        )
+      {canShowMaskedState ? (
+        <Input
+          id={itemName}
+          type='password'
+          value={SECRET_MASK}
+          readOnly
+          disabled
+          autoComplete='new-password'
+        />
+      ) : canShowServiceAccount ? (
+        <div className='flex items-center gap-2'>
+          <ExternalAnchor href={serviceAccountLink.url} variant='field' className='flex-1 truncate'>
+            {serviceAccountLink.email}
+          </ExternalAnchor>
+          <button
+            type='button'
+            onClick={() => {
+              void navigator.clipboard.writeText(serviceAccountLink.email);
+              setIsCopied(true);
+              setTimeout(() => {
+                setIsCopied(false);
+              }, 2000);
+            }}
+            className='text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 rounded-md p-1 transition-colors'
+            aria-label='Copy service account email'
+          >
+            {isCopied ? <Check className='h-4 w-4 text-green-500' /> : <Copy className='h-4 w-4' />}
+          </button>
+        </div>
       ) : (
         <FileDropTextarea
           id={itemName}
@@ -168,7 +179,6 @@ export function GoogleSheetsServiceAccountField({
           }}
           onFileRead={content => {
             handleServiceAccountChange(content);
-            setIsEditing(false);
           }}
           onFileReject={error => {
             toast.error(error);

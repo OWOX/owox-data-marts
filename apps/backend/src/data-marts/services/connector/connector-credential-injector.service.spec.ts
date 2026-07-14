@@ -1,4 +1,11 @@
 // connector-credential-injector.service.spec.ts
+jest.mock('@owox/connectors', () => ({
+  Core: {
+    GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD: 'generated_refresh_token',
+    GENERATED_REFRESH_TOKEN_CONFIG_FIELD: 'GeneratedRefreshToken',
+  },
+}));
+
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
@@ -95,6 +102,22 @@ describe('ConnectorCredentialInjectorService', () => {
       expect(result).toHaveProperty('_source_credential_id');
     });
 
+    it('returns config unchanged when credential belongs to a different connector', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      const config = { _source_credential_id: 'cred-1' };
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        connectorName: 'GoogleAds',
+        credentials: { refresh_token: 'token' },
+      });
+
+      const result = await service.injectOAuthCredentials(config, 'GoogleSheets', 'proj-1');
+
+      expect(result).toEqual(config);
+    });
+
     it('injects credentials directly when no mapping found', async () => {
       const { service, connectorSourceCredentialsService, connectorService } = createService();
       const config = { _source_credential_id: 'cred-1' };
@@ -119,6 +142,64 @@ describe('ConnectorCredentialInjectorService', () => {
       expect(result.GeneratedRefreshToken).toEqual({ value: 'generated-refresh-token' });
       expect(result).not.toHaveProperty('generated_refresh_token');
       expect(result).not.toHaveProperty('_source_credential_id');
+    });
+  });
+
+  describe('injectCredentialsForPreview', () => {
+    it('rejects OAuth credentials issued for a different connector', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      const config = { AuthType: { oauth2: { _source_credential_id: 'cred-1' } } };
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        userId: 'user-1',
+        connectorName: 'GoogleAds',
+        credentials: { access_token: 'token' },
+      });
+
+      await expect(
+        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
+      ).rejects.toThrow('The selected credentials cannot be used for this preview');
+    });
+
+    it('allows a project editor to preview with project OAuth credentials', async () => {
+      const { service, connectorSourceCredentialsService, connectorService } = createService();
+      const config = { AuthType: { oauth2: { _source_credential_id: 'cred-1' } } };
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        userId: 'user-1',
+        connectorName: 'GoogleSheets',
+        credentials: { refresh_token: 'refresh-token' },
+        expiresAt: null,
+      });
+      (connectorSourceCredentialsService.isExpired as jest.Mock).mockResolvedValue(false);
+      (connectorService.getItemByFieldPath as jest.Mock).mockResolvedValue({
+        oauthParams: {
+          mapping: { RefreshToken: { key: 'refresh_token' } },
+        },
+      });
+
+      const result = await service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1');
+
+      expect(result).toEqual({ AuthType: { oauth2: { RefreshToken: 'refresh-token' } } });
+    });
+
+    it('rejects stored secrets owned by a different source configuration', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      const config = { _id: 'config-1', _secrets_id: 'secret-1' };
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secret-1',
+        projectId: 'proj-1',
+        connectorName: 'GoogleSheets',
+        dataMartId: 'dm-1',
+        configId: 'config-2',
+        credentials: { ServiceAccountKey: '{}' },
+      });
+
+      await expect(
+        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
+      ).rejects.toThrow('The selected credentials cannot be used for this preview');
     });
   });
 

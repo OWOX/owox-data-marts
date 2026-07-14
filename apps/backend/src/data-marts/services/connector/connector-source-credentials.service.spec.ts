@@ -240,6 +240,28 @@ describe('ConnectorSourceCredentialsService', () => {
         service.updateSecretsForConfig('cred-1', 'proj-1', { key: 'val' })
       ).rejects.toThrow('Unauthorized: secrets do not belong to this project');
     });
+
+    it('throws when connector configuration ownership does not match', async () => {
+      const { service, repository } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        connectorName: 'GoogleSheets',
+        dataMartId: 'dm-1',
+        configId: 'config-1',
+        credentials: {},
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValue(existing);
+
+      await expect(
+        service.updateSecretsForConfig(
+          'cred-1',
+          'proj-1',
+          { key: 'val' },
+          { connectorName: 'GoogleSheets', dataMartId: 'dm-1', configId: 'config-2' }
+        )
+      ).rejects.toThrow('Unauthorized: secrets do not belong to this connector configuration');
+    });
   });
 
   describe('updateCredentialFields', () => {

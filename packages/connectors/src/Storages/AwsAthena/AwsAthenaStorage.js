@@ -188,7 +188,11 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
   /**
    * Create the target table in Athena
    */
-  createTargetTable() {
+  createTargetTable(
+    tableName = this.config.DestinationTableName.value,
+    s3Prefix = this.config.S3Prefix.value,
+    updateStorageState = true
+  ) {
     let columnDefinitions = [];
     let existingColumns = {};
     
@@ -202,7 +206,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       let columnType = this.getColumnType(columnName);
       let columnComment = this.getColumnComment(columnName);
       
-      columnDefinitions.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnComment}`);
+      columnDefinitions.push(`${this.quoteDdlIdentifier(columnName)} ${columnType}${columnComment}`);
       existingColumns[columnName] = columnType;
     }
 
@@ -215,16 +219,16 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         let columnType = this.getColumnType(columnName);
         let columnComment = this.getColumnComment(columnName);
         
-        columnDefinitions.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnComment}`);
+        columnDefinitions.push(`${this.quoteDdlIdentifier(columnName)} ${columnType}${columnComment}`);
         existingColumns[columnName] = columnType;
       }
     }
     
-    const s3Location = `s3://${this.config.S3BucketName.value}/${this.config.S3Prefix.value}`;
+    const s3Location = `s3://${this.config.S3BucketName.value}/${s3Prefix}`;
     
     const query = `
       CREATE TABLE IF NOT EXISTS 
-      \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\` (
+      \`${this.config.AthenaDatabaseName.value}\`.\`${tableName}\` (
         ${columnDefinitions.join(",\n        ")}
       )
       LOCATION '${s3Location}'
@@ -244,8 +248,10 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     
     return this.executeQuery(params, 'ddl')
       .then(() => {
-        this.config.logMessage(`Table \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\` created`);
-        this.existingColumns = existingColumns;
+        this.config.logMessage(`Table \`${this.config.AthenaDatabaseName.value}\`.\`${tableName}\` created`);
+        if (updateStorageState) {
+          this.existingColumns = existingColumns;
+        }
         return existingColumns;
       });
   }
@@ -254,8 +260,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
   /**
    * Drop the target table in Athena if it exists.
    */
-  dropTargetTable() {
-    const query = `DROP TABLE IF EXISTS \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\``;
+  dropTargetTable(tableName = this.config.DestinationTableName.value) {
+    const query = `DROP TABLE IF EXISTS \`${this.config.AthenaDatabaseName.value}\`.\`${tableName}\``;
 
     const params = {
       QueryString: query,
@@ -266,7 +272,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
 
     return this.executeQuery(params, 'ddl')
       .then(() => {
-        this.config.logMessage(`Table \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\` dropped if it existed`);
+        this.config.logMessage(`Table \`${this.config.AthenaDatabaseName.value}\`.\`${tableName}\` dropped if it existed`);
         return true;
       });
   }
@@ -278,22 +284,140 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    */
   async replaceData(data) {
     await this.createDatabaseIfNotExists();
-    await this.dropTargetTable();
-    await this.createTargetTable();
+    const runId = this.createSnapshotRunId();
+    const liveTableName = this.config.DestinationTableName.value;
+    const stagingTableName = this.createSnapshotTableName("staging", runId);
+    const backupTableName = this.createSnapshotTableName("backup", runId);
+    const stagingPrefix = `${this.config.S3Prefix.value}_snapshot/${runId}`;
+    const tempFolder = `${this.config.S3Prefix.value}_temp/${runId}`;
+    const tempTableName = this.createSnapshotTableName("temp", runId);
+    let stagingTableCreated = false;
+    let backupTableCreated = false;
+    let snapshotPublished = false;
 
-    if (data.length) {
-      this.config.logMessage(`Saving ${data.length} snapshot records to Athena`);
+    try {
+      stagingTableCreated = true;
+      const stagingColumns = await this.createTargetTable(stagingTableName, stagingPrefix, false);
 
-      const tempFolder = `${this.config.S3Prefix.value}_temp/${this.uploadSid}`;
-      await this.uploadDataToS3TempFolder(data, tempFolder);
-      const tempTableName = await this.createTempTable(tempFolder, this.uploadSid);
-      await this.mergeDataFromTempTable(tempTableName, this.uploadSid);
-      await this.cleanupTempResources(tempFolder, tempTableName);
+      if (data.length) {
+        this.config.logMessage(`Saving ${data.length} snapshot records to Athena`);
+        await this.uploadDataToS3TempFolder(data, tempFolder);
+        await this.createTempTable(tempFolder, runId, stagingColumns, tempTableName);
+        await this.mergeDataFromTempTable(tempTableName, runId, stagingTableName, stagingColumns);
+      }
+
+      await this.validateSnapshotTable(stagingTableName, data);
+
+      if (await this.tableExists(liveTableName)) {
+        await this.renameTable(liveTableName, backupTableName);
+        backupTableCreated = true;
+      }
+
+      try {
+        await this.renameTable(stagingTableName, liveTableName);
+        stagingTableCreated = false;
+        snapshotPublished = true;
+      } catch (publishError) {
+        if (backupTableCreated) {
+          try {
+            await this.renameTable(backupTableName, liveTableName);
+            backupTableCreated = false;
+          } catch (rollbackError) {
+            this.config.logMessage(
+              `Athena snapshot publication failed and the live table remains in backup table ${backupTableName}: ${rollbackError.message}`
+            );
+            publishError.rollbackError = rollbackError;
+          }
+        }
+        throw publishError;
+      }
+
+      this.existingColumns = stagingColumns;
+      this.config.logMessage(
+        `Snapshot import completed for \`${this.config.AthenaDatabaseName.value}\`.\`${liveTableName}\`: ${data.length} rows`
+      );
+    } finally {
+      await this.cleanupSnapshotResources({
+        tempFolder,
+        tempTableName,
+        stagingTableName: stagingTableCreated ? stagingTableName : null,
+        backupTableName: snapshotPublished && backupTableCreated ? backupTableName : null
+      });
+    }
+  }
+
+  //---- snapshot helpers -------------------------------------------
+  createSnapshotRunId() {
+    return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  createSnapshotTableName(kind, runId) {
+    const suffix = `__owox_${kind}_${runId}`;
+    return `${this.config.DestinationTableName.value.slice(0, 255 - suffix.length)}${suffix}`;
+  }
+
+  tableExists(tableName) {
+    const tableNamePattern = String(tableName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedTableNamePattern = `^${tableNamePattern}$`.replace(/'/g, "''");
+    const params = {
+      QueryString: `SHOW TABLES IN \`${this.config.AthenaDatabaseName.value}\` '${escapedTableNamePattern}'`,
+      ResultConfiguration: {
+        OutputLocation: this.config.AthenaOutputLocation.value
+      }
+    };
+
+    return this.executeQuery(params, 'ddl').then(results => Boolean(results && results.length));
+  }
+
+  renameTable(fromTableName, toTableName) {
+    const params = {
+      QueryString: `ALTER TABLE \`${this.config.AthenaDatabaseName.value}\`.\`${fromTableName}\` RENAME TO \`${toTableName}\``,
+      ResultConfiguration: {
+        OutputLocation: this.config.AthenaOutputLocation.value
+      }
+    };
+
+    return this.executeQuery(params, 'ddl');
+  }
+
+  async validateSnapshotTable(tableName, data) {
+    const expectedRowCount = data.length;
+    const params = {
+      QueryString: `SELECT COUNT(*) AS "row_count" FROM "${this.config.AthenaDatabaseName.value}"."${tableName}"`,
+      ResultConfiguration: {
+        OutputLocation: this.config.AthenaOutputLocation.value
+      }
+    };
+    const results = await this.executeQuery(params, 'query');
+    const actualRowCount = results && results.length ? Number(results[0].row_count) : NaN;
+
+    if (!Number.isFinite(actualRowCount) || actualRowCount !== expectedRowCount) {
+      throw new Error(
+        `Athena snapshot validation failed for ${tableName}: expected ${expectedRowCount} rows, got ${Number.isFinite(actualRowCount) ? actualRowCount : "an unreadable count"}`
+      );
+    }
+  }
+
+  async cleanupSnapshotResources({ tempFolder, tempTableName, stagingTableName, backupTableName }) {
+    const cleanups = [
+      () => this.dropTempTable(tempTableName),
+      () => this.deleteS3TempFolder(tempFolder)
+    ];
+
+    if (stagingTableName) {
+      cleanups.push(() => this.dropTargetTable(stagingTableName));
+    }
+    if (backupTableName) {
+      cleanups.push(() => this.dropTargetTable(backupTableName));
     }
 
-    this.config.logMessage(
-      `Snapshot import completed for \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\`: ${data.length} rows`
-    );
+    for (const cleanup of cleanups) {
+      try {
+        await cleanup();
+      } catch (error) {
+        this.config.logMessage(`Could not clean up Athena snapshot resource: ${error.message}`);
+      }
+    }
   }
 
   //---- addNewColumns -------------------------------------------
@@ -311,7 +435,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         let columnType = this.getColumnType(columnName);
         let columnComment = this.getColumnComment(columnName);
  
-        columnsToAdd.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnComment}`);
+        columnsToAdd.push(`${this.quoteDdlIdentifier(columnName)} ${columnType}${columnComment}`);
         this.existingColumns[columnName] = columnType;  
       }
     }
@@ -461,13 +585,17 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {String} prefixSol - Prefix for unique table name
    * @returns {Promise<String>} - Name of the created temp table
    */
-  createTempTable(tempFolder, prefixSol) {
-    const tempTableName = `${this.config.DestinationTableName.value}_temp_${prefixSol}`;
+  createTempTable(
+    tempFolder,
+    prefixSol,
+    existingColumns = this.existingColumns,
+    tempTableName = `${this.config.DestinationTableName.value}_temp_${prefixSol}`
+  ) {
     
     let columnDefinitions = [];
     // Add all columns from the target table
-    for (let columnName in this.existingColumns) {
-      columnDefinitions.push(`${this.quoteIdentifier(columnName)} ${this.existingColumns[columnName]}`);
+    for (let columnName in existingColumns) {
+      columnDefinitions.push(`${this.quoteDdlIdentifier(columnName)} ${existingColumns[columnName]}`);
     }
     
     const s3Location = `s3://${this.config.S3BucketName.value}/${tempFolder}`;
@@ -503,12 +631,17 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {String} tempTableName - Name of the temporary table
    * @returns {Promise<String>} - Returns temp table name for cleanup
    */
-  mergeDataFromTempTable(tempTableName) {
-    const columnNames = Object.keys(this.existingColumns);
+  mergeDataFromTempTable(
+    tempTableName,
+    _prefixSol,
+    targetTableName = this.config.DestinationTableName.value,
+    existingColumns = this.existingColumns
+  ) {
+    const columnNames = Object.keys(existingColumns);
     
     // Build the MERGE query
     const query = `
-      MERGE INTO "${this.config.AthenaDatabaseName.value}"."${this.config.DestinationTableName.value}" tgt
+      MERGE INTO "${this.config.AthenaDatabaseName.value}"."${targetTableName}" tgt
       USING "${this.config.AthenaDatabaseName.value}"."${tempTableName}" src
       ON ${this.uniqueKeyColumns.map(col => `tgt.${this.quoteIdentifier(col)} = src.${this.quoteIdentifier(col)}`).join(" AND ")}
       WHEN MATCHED THEN
@@ -527,7 +660,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     
     return this.executeQuery(params, 'query')
       .then(() => {
-          this.config.logMessage(`Data merged from temporary table to \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\``);
+          this.config.logMessage(`Data merged from temporary table to \`${this.config.AthenaDatabaseName.value}\`.\`${targetTableName}\``);
         return tempTableName;
       });
   }
@@ -551,7 +684,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @returns {Promise}
    */
   dropTempTable(tempTableName) {
-    const query = `DROP TABLE \`${this.config.AthenaDatabaseName.value}\`.\`${tempTableName}\``;
+    const query = `DROP TABLE IF EXISTS \`${this.config.AthenaDatabaseName.value}\`.\`${tempTableName}\``;
     
     const params = {
       QueryString: query, 
@@ -573,34 +706,42 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {String} tempFolder - S3 folder with temporary data
    * @returns {Promise}
    */
-  deleteS3TempFolder(tempFolder) {
-    // First list all objects in the temp folder
-    const listParams = {
-      Bucket: this.config.S3BucketName.value,
-      Prefix: tempFolder
-    };
-    
-    return this.s3Client.send(new this.ListObjectsV2Command(listParams))
-      .then(data => {
-        if (!data.Contents || data.Contents.length === 0) {
-          return true;
+  async deleteS3TempFolder(tempFolder) {
+    const objects = [];
+    let continuationToken;
+
+    do {
+      const listParams = {
+        Bucket: this.config.S3BucketName.value,
+        Prefix: tempFolder,
+        ContinuationToken: continuationToken
+      };
+      const data = await this.s3Client.send(new this.ListObjectsV2Command(listParams));
+      objects.push(...(data.Contents || []));
+      continuationToken = data.IsTruncated ? data.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    for (let i = 0; i < objects.length; i += 1000) {
+      const batch = objects.slice(i, i + 1000);
+      const deleteParams = {
+        Bucket: this.config.S3BucketName.value,
+        Delete: {
+          Objects: batch.map(object => ({ Key: object.Key }))
         }
-        
-        // Create the delete request with the object keys
-        const deleteParams = {
-          Bucket: this.config.S3BucketName.value,
-          Delete: {
-            Objects: data.Contents.map(object => ({ Key: object.Key }))
-          }
-        };
-        
-        // Delete all objects in the temp folder
-        return this.s3Client.send(new this.DeleteObjectsCommand(deleteParams))
-          .then(() => {
-            this.config.logMessage(`Deleted ${data.Contents.length} temporary files from S3`);
-            return true;
-          });
-      });
+      };
+      const deleteResult = await this.s3Client.send(new this.DeleteObjectsCommand(deleteParams));
+      if (deleteResult.Errors?.length) {
+        const failedKeys = deleteResult.Errors
+          .map(error => error.Key || 'unknown key')
+          .join(', ');
+        throw new Error(`Failed to delete ${deleteResult.Errors.length} S3 objects: ${failedKeys}`);
+      }
+    }
+
+    if (objects.length) {
+      this.config.logMessage(`Deleted ${objects.length} temporary files from S3`);
+    }
+    return true;
   }
 
   //---- executeQuery -----------------------------------------
@@ -761,13 +902,22 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
 
   //---- quoteIdentifier ---------------------------------------------
   /**
-   * Quote an Athena identifier so spreadsheet headers that are SQL keywords
-   * remain valid column names.
+   * Quote an Athena identifier for Trino-compatible DML statements.
    * @param {string} identifier - Identifier to quote
    * @returns {string} Quoted identifier
    */
   quoteIdentifier(identifier) {
     return `"${String(identifier).replace(/"/g, '""')}"`;
+  }
+
+  //---- quoteDdlIdentifier ------------------------------------------
+  /**
+   * Quote an Athena identifier for Hive-compatible DDL statements.
+   * @param {string} identifier - Identifier to quote
+   * @returns {string} Backtick-quoted identifier
+   */
+  quoteDdlIdentifier(identifier) {
+    return `\`${String(identifier).replace(/`/g, '``')}\``;
   }
 
   //---- _convertTypeToStorageType ------------------------------------

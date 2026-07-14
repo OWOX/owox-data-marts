@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { createTestApp, closeTestApp, AUTH_HEADER, ALL_CONNECTORS } from '@owox/test-utils';
+import { ConnectorSourceCredentialsService } from '../src/data-marts/services/connector/connector-source-credentials.service';
 
 describe('Connector Fields (e2e)', () => {
   let app: INestApplication;
@@ -100,6 +101,32 @@ describe('Connector Fields (e2e)', () => {
       expect(res.status).toBe(400);
       expect(res.body.statusCode).toBe(400);
       expect(res.body.message).toContain("parameter 'AuthType' is required");
+    });
+
+    it('POST /api/connectors/GoogleSheets/fields/preview - rejects another connector credential', async () => {
+      const credentialsService = app.get(ConnectorSourceCredentialsService);
+      const credential = await credentialsService.createCredentials(
+        '0',
+        '0',
+        'GoogleAds',
+        { access_token: 'not-a-google-sheets-token' },
+        null
+      );
+
+      const res = await agent
+        .post('/api/connectors/GoogleSheets/fields/preview')
+        .send({
+          configuration: {
+            AuthType: { oauth2: { _source_credential_id: credential.id } },
+            SpreadsheetId: 'sheet-id',
+            SheetName: 'Sheet1',
+            HeaderRow: 1,
+          },
+        })
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('The selected credentials cannot be used for this preview');
     });
   });
 

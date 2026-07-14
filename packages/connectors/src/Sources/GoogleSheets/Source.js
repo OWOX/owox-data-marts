@@ -5,6 +5,11 @@
  * file that was distributed with this source code.
  */
 
+var GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES = 127;
+var GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS = 256;
+var GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
+var GOOGLE_SHEETS_MAX_RETRY_AFTER_MS = 300000;
+
 var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   constructor(config) {
     super(
@@ -152,13 +157,21 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
             'Infer warehouse column types from sheet values. Mixed columns fall back to STRING.',
           attributes: [CONFIG_ATTRIBUTES.ADVANCED],
         },
-        CreateEmptyTables: {
+        ImportAllColumns: {
           requiredType: 'boolean',
           default: true,
-          label: 'Create Empty Tables',
+          label: 'Import All Columns',
           description:
-            'Create the destination table from headers even when the sheet has no data rows',
-          attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+            'Import every current sheet column, including columns added after setup. Disable to use the explicit Fields selection.',
+          attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
+        },
+        SelectedColumns: {
+          requiredType: 'string',
+          default: '',
+          label: 'Selected Columns',
+          description:
+            'Persisted user column selection. Missing columns are removed after a successful refresh.',
+          attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
         },
         Fields: {
           requiredType: 'string',
@@ -246,9 +259,19 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     }
   }
 
-  async getAccessToken() {
-    if (this.accessToken && this.tokenExpiryTime && Date.now() < this.tokenExpiryTime) {
+  async getAccessToken({ forceRefresh = false, signal } = {}) {
+    if (
+      !forceRefresh &&
+      this.accessToken &&
+      this.tokenExpiryTime &&
+      Date.now() < this.tokenExpiryTime
+    ) {
       return this.accessToken;
+    }
+
+    if (forceRefresh) {
+      this.accessToken = null;
+      this.tokenExpiryTime = null;
     }
 
     const authType = this.config.AuthType?.value;
@@ -267,6 +290,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           client_secret: authConfig.ClientSecret.value,
           refresh_token: authConfig.RefreshToken.value,
         },
+        signal,
       });
     } else if (authType === 'service_account') {
       this.accessToken = await OAuthUtils.getServiceAccountToken({
@@ -274,6 +298,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         tokenUrl: 'https://oauth2.googleapis.com/token',
         serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        signal,
       });
     } else {
       throw new Error(`Unsupported Google Sheets authentication type: ${authType}`);
@@ -292,55 +317,157 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     return rows;
   }
 
-  async fetchFieldsSchema() {
-    const values = await this._fetchSheetValues();
-    const { columns, rows } = this._buildSheetSnapshot(values, false);
-    const schema = this._inferSchema(columns, rows);
+  async fetchFieldsSchema(signal) {
+    const values = await this._fetchSheetValues({ preview: true, signal });
+    const { columns, rows } = this._buildSheetSnapshot(values, false, {
+      returnedRangeStartRow: this._getHeaderRowNumber(),
+    });
+    const schema = this._inferSchema(columns, rows, { includeImportedAt: true });
 
     return this._buildFieldsSchema(schema, {
       includeTechnicalFields: true,
-      includeTechnicalFieldsInDefaultFields: false,
+      includeTechnicalFieldsInDefaultFields: true,
     });
   }
 
-  async _fetchSheetValues() {
-    const accessToken = await this.getAccessToken();
+  async _fetchSheetValues({ preview = false, signal } = {}) {
     const spreadsheetId = this._extractSpreadsheetId(this.config.SpreadsheetId.value);
-    const range = this._buildA1Range();
+    const range = this._buildA1Range({ preview });
     const encodedRange = encodeURIComponent(range);
     const url =
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}` +
       '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
 
-    try {
-      const response = await this.urlFetchWithRetry(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        muteHttpExceptions: true,
-      });
-      const payload = await response.getAsJson();
-      return Array.isArray(payload.values) ? payload.values : [];
-    } catch (error) {
-      throw new HttpRequestException({
-        message: this._buildSheetRequestErrorMessage(error),
-        statusCode: error?.statusCode,
-        payload: error?.payload,
-      });
+    for (let authorizationAttempt = 0; authorizationAttempt < 2; authorizationAttempt += 1) {
+      try {
+        signal?.throwIfAborted();
+        const accessToken = await this.getAccessToken({
+          forceRefresh: authorizationAttempt > 0,
+          signal,
+        });
+        const response = await this._fetchSheetResponse(url, accessToken, signal);
+        const payload = await response.getAsJson();
+        return Array.isArray(payload.values) ? payload.values : [];
+      } catch (error) {
+        if (error?.statusCode === HTTP_STATUS.UNAUTHORIZED && authorizationAttempt === 0) {
+          this.config.logMessage(
+            'Google Sheets access token was rejected; refreshing it and retrying once'
+          );
+          continue;
+        }
+
+        throw new HttpRequestException({
+          message: this._buildSheetRequestErrorMessage(error),
+          statusCode: error?.statusCode,
+          payload: error?.payload,
+        });
+      }
     }
+
+    return [];
   }
 
-  _buildSheetSnapshot(values, applySelectedFields) {
-    const headerRowNumber = Number(this.config.HeaderRow.value);
-    if (!Number.isInteger(headerRowNumber) || headerRowNumber < 1) {
-      throw new Error('Header Row must be a whole number greater than or equal to 1');
+  async _fetchSheetResponse(url, accessToken, signal) {
+    for (let attempt = 1; attempt <= this.config.MaxFetchRetries.value; attempt += 1) {
+      let response;
+
+      try {
+        signal?.throwIfAborted();
+        response = await HttpUtils.fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          muteHttpExceptions: true,
+          signal,
+        });
+        return await this._validateResponse(response);
+      } catch (error) {
+        if (error?.statusCode === HTTP_STATUS.UNAUTHORIZED) {
+          throw error;
+        }
+
+        if (!this._shouldRetry(error, attempt)) {
+          throw error;
+        }
+
+        const retryAfterMs = this._getRetryAfterMs(response);
+        const delay = retryAfterMs ?? this.calculateBackoff(attempt);
+        this.config.logMessage(
+          `Retrying Google Sheets request after ${Math.round(delay / 1000)}s`
+        );
+        await this._delayWithAbort(delay, signal);
+      }
     }
 
-    const headerIndex = headerRowNumber - 1;
+    throw new Error('Google Sheets request retry loop ended unexpectedly');
+  }
+
+  async _delayWithAbort(delay, signal) {
+    if (!signal) {
+      await AsyncUtils.delay(delay);
+      return;
+    }
+
+    signal.throwIfAborted();
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, delay);
+      const onAbort = () => {
+        clearTimeout(timeout);
+        reject(signal.reason || new Error('Google Sheets request was aborted'));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  _getRetryAfterMs(response) {
+    const headers = response?.getHeaders?.() || {};
+    const retryAfterEntry = Object.entries(headers).find(
+      ([headerName]) => headerName.toLowerCase() === 'retry-after'
+    );
+    if (!retryAfterEntry) {
+      return null;
+    }
+
+    const retryAfter = String(retryAfterEntry[1]).trim();
+    const seconds = Number(retryAfter);
+    const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
+
+    if (!Number.isFinite(delay)) {
+      return null;
+    }
+
+    return Math.min(Math.max(0, delay), GOOGLE_SHEETS_MAX_RETRY_AFTER_MS);
+  }
+
+  _buildSheetSnapshot(values, applySelectedFields, options = {}) {
+    const headerRowNumber = this._getHeaderRowNumber();
+
+    const rangeBounds = this._getConfiguredRangeBounds();
+    if (headerRowNumber < rangeBounds.startRow) {
+      throw new Error(
+        `Header Row ${headerRowNumber} is before the configured range, which starts at row ${rangeBounds.startRow}`
+      );
+    }
+    if (rangeBounds.endRow !== null && headerRowNumber > rangeBounds.endRow) {
+      throw new Error(
+        `Header Row ${headerRowNumber} is after the configured range, which ends at row ${rangeBounds.endRow}`
+      );
+    }
+
+    const returnedRangeStartRow = options.returnedRangeStartRow ?? rangeBounds.startRow;
+    const headerIndex = headerRowNumber - returnedRangeStartRow;
     const headerRow = values[headerIndex] || [];
-    const detectedColumns = this._buildColumnDefinitions(headerRow);
+    const dataRows = values.slice(headerIndex + 1);
+    const columnCount = Math.max(
+      headerRow.length,
+      ...dataRows.map(row => (Array.isArray(row) ? row.length : 0))
+    );
+    const detectedColumns = this._buildColumnDefinitions(headerRow, columnCount);
 
     if (detectedColumns.length === 0) {
       throw new Error(
-        `No headers found in row ${headerIndex + 1} of '${this.config.SheetName.value}'. ` +
+        `No columns found at header row ${headerRowNumber} of '${this.config.SheetName.value}'. ` +
           'Check the sheet tab name, optional range, and header row.'
       );
     }
@@ -352,17 +479,18 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       throw new Error('No columns selected for import');
     }
 
-    const dataRows = values.slice(headerIndex + 1);
-    const firstDataRowNumber = headerIndex + 2;
+    const firstDataRowNumber = headerRowNumber + 1;
     const rows = this._buildRows(dataRows, columns, firstDataRowNumber);
 
     return { columns, rows };
   }
 
   isValidToRetry(error) {
-    return !error?.statusCode
-      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
-      || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
+    return (
+      !error?.statusCode ||
+      error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN ||
+      error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS
+    );
   }
 
   _buildSheetRequestErrorMessage(error) {
@@ -462,56 +590,222 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     return match ? match[1] : rawValue;
   }
 
-  _buildA1Range() {
+  _buildA1Range({ preview = false } = {}) {
     const configuredRange = String(this.config.Range?.value || '').trim();
-    if (configuredRange && configuredRange.includes('!')) {
-      return configuredRange;
+    const gridRange = this._getConfiguredGridRange(configuredRange);
+    const sheetPrefix = `${this._quoteSheetName(this.config.SheetName.value)}!`;
+
+    if (!preview) {
+      return gridRange ? `${sheetPrefix}${gridRange}` : sheetPrefix.slice(0, -1);
     }
 
-    const sheetName = this._quoteSheetName(this.config.SheetName.value);
-    return configuredRange ? `${sheetName}!${configuredRange}` : sheetName;
+    const parsedBounds = this._parseA1GridRange(gridRange);
+    if (gridRange && !parsedBounds) {
+      return `${sheetPrefix}${gridRange}`;
+    }
+
+    const bounds = parsedBounds || {
+      startColumn: 1,
+      endColumn: null,
+      startRow: 1,
+      endRow: null,
+    };
+    const headerRow = this._getHeaderRowNumber();
+    this._validateHeaderWithinRange(headerRow, bounds);
+
+    const startColumn = bounds.startColumn || 1;
+    const endColumn = Math.min(
+      bounds.endColumn || startColumn + GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS - 1,
+      startColumn + GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS - 1
+    );
+    const endRow = Math.min(
+      bounds.endRow || headerRow + GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS,
+      headerRow + GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS
+    );
+
+    return (
+      `${sheetPrefix}${this._columnNumberToLetters(startColumn)}${headerRow}:` +
+      `${this._columnNumberToLetters(endColumn)}${endRow}`
+    );
   }
 
   _quoteSheetName(sheetName) {
     return `'${String(sheetName).replace(/'/g, "''")}'`;
   }
 
-  _buildColumnDefinitions(headerRow) {
-    const usedNames = {};
-    const reservedNames = new Set(['_owox_row_number', '_owox_imported_at']);
+  _getHeaderRowNumber() {
+    const headerRowNumber = Number(this.config.HeaderRow.value);
+    if (!Number.isInteger(headerRowNumber) || headerRowNumber < 1) {
+      throw new Error('Header Row must be a whole number greater than or equal to 1');
+    }
+    return headerRowNumber;
+  }
 
-    return headerRow
-      .map((header, index) => {
-        const originalName = header === undefined || header === null ? '' : String(header).trim();
-        const fallbackName = `column_${index + 1}`;
-        let normalizedName = this._normalizeColumnName(originalName || fallbackName);
+  _getConfiguredRangeBounds() {
+    const configuredRange = String(this.config.Range?.value || '').trim();
+    const gridRange = this._getConfiguredGridRange(configuredRange);
 
-        if (reservedNames.has(normalizedName)) {
-          normalizedName = `sheet_${normalizedName.replace(/^_+/, '')}`;
-        }
+    return (
+      this._parseA1GridRange(gridRange) || {
+        startColumn: 1,
+        endColumn: null,
+        startRow: 1,
+        endRow: null,
+      }
+    );
+  }
 
-        const uniqueName = this._deduplicateColumnName(normalizedName, usedNames);
-        return {
-          originalName,
-          name: uniqueName,
-          index,
-        };
-      })
-      .filter(column => column.name);
+  _getConfiguredGridRange(configuredRange) {
+    const separatorIndex = configuredRange.lastIndexOf('!');
+    if (separatorIndex < 0) {
+      return configuredRange;
+    }
+
+    const rangeSheetName = configuredRange
+      .slice(0, separatorIndex)
+      .replace(/^'(.*)'$/, '$1')
+      .replace(/''/g, "'");
+    const selectedSheetName = String(this.config.SheetName.value);
+    if (rangeSheetName !== selectedSheetName) {
+      throw new Error(
+        `Range must use the selected sheet '${selectedSheetName}', not '${rangeSheetName}'`
+      );
+    }
+
+    return configuredRange.slice(separatorIndex + 1);
+  }
+
+  _parseA1GridRange(gridRange) {
+    const value = String(gridRange || '')
+      .trim()
+      .replace(/\$/g, '');
+    if (!value) {
+      return null;
+    }
+
+    const cellRangeMatch = value.match(/^([A-Za-z]{1,3})(\d*)?(?::([A-Za-z]{1,3})(\d*)?)?$/);
+    if (cellRangeMatch) {
+      const hasEnd = cellRangeMatch[3] !== undefined;
+      const startRow = cellRangeMatch[2] ? Number(cellRangeMatch[2]) : 1;
+      const endRow = hasEnd && cellRangeMatch[4] ? Number(cellRangeMatch[4]) : null;
+      return {
+        startColumn: this._columnLettersToNumber(cellRangeMatch[1]),
+        endColumn: hasEnd
+          ? this._columnLettersToNumber(cellRangeMatch[3])
+          : this._columnLettersToNumber(cellRangeMatch[1]),
+        startRow,
+        endRow: hasEnd ? endRow : cellRangeMatch[2] ? startRow : null,
+      };
+    }
+
+    const rowRangeMatch = value.match(/^(\d+):(\d+)$/);
+    if (rowRangeMatch) {
+      return {
+        startColumn: 1,
+        endColumn: null,
+        startRow: Number(rowRangeMatch[1]),
+        endRow: Number(rowRangeMatch[2]),
+      };
+    }
+
+    return null;
+  }
+
+  _columnLettersToNumber(letters) {
+    return String(letters)
+      .toUpperCase()
+      .split('')
+      .reduce((columnNumber, character) => columnNumber * 26 + character.charCodeAt(0) - 64, 0);
+  }
+
+  _columnNumberToLetters(columnNumber) {
+    let value = columnNumber;
+    let letters = '';
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+      letters = String.fromCharCode(65 + remainder) + letters;
+      value = Math.floor((value - 1) / 26);
+    }
+    return letters;
+  }
+
+  _validateHeaderWithinRange(headerRow, bounds) {
+    if (headerRow < bounds.startRow) {
+      throw new Error(
+        `Header Row ${headerRow} is before the configured range, which starts at row ${bounds.startRow}`
+      );
+    }
+    if (bounds.endRow !== null && headerRow > bounds.endRow) {
+      throw new Error(
+        `Header Row ${headerRow} is after the configured range, which ends at row ${bounds.endRow}`
+      );
+    }
+  }
+
+  _buildColumnDefinitions(headerRow, columnCount = headerRow.length) {
+    const usedNames = new Set();
+    const reservedNames = new Set([
+      '_owox_row_number',
+      '_owox_imported_at',
+      'owox_row_number',
+      'owox_imported_at',
+    ]);
+
+    return Array.from({ length: columnCount }, (_, index) => {
+      const header = headerRow[index];
+      const originalName = header === undefined || header === null ? '' : String(header).trim();
+      const fallbackName = `column_${index + 1}`;
+      let normalizedName = this._normalizeColumnName(originalName || fallbackName);
+
+      if (reservedNames.has(normalizedName)) {
+        normalizedName = `sheet_${normalizedName.replace(/^_+/, '')}`;
+      }
+
+      const uniqueName = this._deduplicateColumnName(normalizedName, usedNames);
+      return {
+        originalName,
+        name: uniqueName,
+        index,
+        generated: !originalName,
+      };
+    }).filter(column => column.name);
   }
 
   _filterColumnsBySelectedFields(columns) {
-    const selectedFields = this._getSelectedSheetFieldNames();
-
-    if (selectedFields.length === 0) {
+    if (this._importsAllColumns()) {
       return columns;
     }
 
-    const matchedColumns = columns.filter(column => {
-      return selectedFields.some(selectedField =>
-        this._columnMatchesSelectedField(column, selectedField)
+    const selectedFields = this._getSelectedSheetFieldNames();
+
+    if (selectedFields.length === 0) {
+      throw new Error('No columns selected for import');
+    }
+
+    const matchedColumnNames = new Set();
+    const missingFields = [];
+
+    for (const selectedField of selectedFields) {
+      const normalizedSelectedField = this._normalizeMatchValue(selectedField);
+      const exactMatch = columns.find(
+        column => this._normalizeMatchValue(column.name) === normalizedSelectedField
       );
-    });
+      if (exactMatch) {
+        matchedColumnNames.add(exactMatch.name);
+        continue;
+      }
+
+      const aliasMatches = columns.filter(column =>
+        this._getColumnAliasMatchKeys(column).includes(normalizedSelectedField)
+      );
+      if (aliasMatches.length === 1) {
+        matchedColumnNames.add(aliasMatches[0].name);
+      } else {
+        missingFields.push(selectedField);
+      }
+    }
+
+    const matchedColumns = columns.filter(column => matchedColumnNames.has(column.name));
 
     if (matchedColumns.length === 0) {
       const availableColumns = this._formatAvailableColumns(columns);
@@ -520,10 +814,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           `Available columns: ${availableColumns}`
       );
     }
-
-    const missingFields = selectedFields.filter(selectedField => {
-      return !matchedColumns.some(column => this._columnMatchesSelectedField(column, selectedField));
-    });
 
     if (missingFields.length) {
       const availableColumns = this._formatAvailableColumns(columns);
@@ -541,6 +831,15 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getSelectedSheetFieldNames() {
+    const selectedColumnsValue = this.config.SelectedColumns?.value;
+    if (selectedColumnsValue) {
+      return String(selectedColumnsValue)
+        .split(',')
+        .map(field => field.trim())
+        .filter(Boolean)
+        .filter(fieldName => !this._isTechnicalField(fieldName));
+    }
+
     const fieldsValue = this.config.Fields?.value;
     if (!fieldsValue) {
       return [];
@@ -553,19 +852,22 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       .map(field => field.split(/\s+/))
       .filter(fieldParts => fieldParts.length === 2 && fieldParts[0] === 'sheet')
       .map(([, fieldName]) => fieldName)
+      .filter(fieldName => fieldName !== '*')
       .filter(fieldName => !this._isTechnicalField(fieldName));
   }
 
-  _columnMatchesSelectedField(column, selectedField) {
-    return this._getColumnMatchKeys(column).includes(this._normalizeMatchValue(selectedField));
+  _importsAllColumns() {
+    const value = this.config.ImportAllColumns?.value;
+
+    // Older persisted configurations and external callers can represent booleans
+    // as SQLite-style numbers or strings. Treat every explicit false value as subset mode.
+    return value !== false && value !== 0 && value !== 'false' && value !== '0';
   }
 
-  _getColumnMatchKeys(column) {
+  _getColumnAliasMatchKeys(column) {
     return [
-      column.name,
       column.originalName,
       this._normalizeColumnName(column.originalName || ''),
-      `column_${column.index + 1}`,
     ]
       .filter(Boolean)
       .map(value => this._normalizeMatchValue(value));
@@ -595,34 +897,40 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       name = `column_${name}`;
     }
 
-    return name.slice(0, 300);
+    return name.slice(0, GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES);
   }
 
   _deduplicateColumnName(name, usedNames) {
-    if (!usedNames[name]) {
-      usedNames[name] = 1;
+    if (!usedNames.has(name)) {
+      usedNames.add(name);
       return name;
     }
 
-    usedNames[name] += 1;
-    let candidate = `${name}_${usedNames[name]}`;
-    while (usedNames[candidate]) {
-      usedNames[name] += 1;
-      candidate = `${name}_${usedNames[name]}`;
-    }
-    usedNames[candidate] = 1;
+    let suffixNumber = 2;
+    let candidate;
+    do {
+      const suffix = `_${suffixNumber}`;
+      const base = name.slice(0, GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES - suffix.length);
+      candidate = `${base}${suffix}`;
+      suffixNumber += 1;
+    } while (usedNames.has(candidate));
+
+    usedNames.add(candidate);
     return candidate;
   }
 
   _buildRows(dataRows, columns, firstDataRowNumber) {
     const importedAt = new Date().toISOString();
+    const includeImportedAt = this._shouldIncludeImportedAt();
 
     return dataRows
       .map((row, index) => {
         const normalizedRow = {
           _owox_row_number: firstDataRowNumber + index,
-          _owox_imported_at: importedAt,
         };
+        if (includeImportedAt) {
+          normalizedRow._owox_imported_at = importedAt;
+        }
 
         columns.forEach(column => {
           normalizedRow[column.name] = this._normalizeCellValue(row[column.index]);
@@ -638,25 +946,22 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       return null;
     }
 
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      return trimmed === '' ? null : trimmed;
-    }
-
     return value;
   }
 
-  _inferSchema(columns, rows) {
+  _inferSchema(columns, rows, options = {}) {
     const fields = {
       _owox_row_number: {
         type: DATA_TYPES.INTEGER,
         description: 'Source sheet row number',
       },
-      _owox_imported_at: {
+    };
+    if (options.includeImportedAt || this._shouldIncludeImportedAt()) {
+      fields._owox_imported_at = {
         type: DATA_TYPES.TIMESTAMP,
         description: 'Timestamp when OWOX imported the sheet row',
-      },
-    };
+      };
+    }
 
     for (const column of columns) {
       const values = rows
@@ -670,6 +975,31 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     }
 
     return fields;
+  }
+
+  _shouldIncludeImportedAt() {
+    return this._getConfiguredFieldNames().includes('_owox_imported_at');
+  }
+
+  _getConfiguredFieldNames() {
+    const selectedColumnsValue = this.config.SelectedColumns?.value;
+    if (selectedColumnsValue) {
+      return String(selectedColumnsValue)
+        .split(',')
+        .map(field => field.trim())
+        .filter(Boolean);
+    }
+
+    const fieldsValue = this.config.Fields?.value;
+    if (!fieldsValue) {
+      return [];
+    }
+
+    return String(fieldsValue)
+      .split(',')
+      .map(field => field.trim().split(/\s+/))
+      .filter(fieldParts => fieldParts.length === 2 && fieldParts[0] === 'sheet')
+      .map(([, fieldName]) => fieldName);
   }
 
   _buildFieldDescription(column) {
@@ -700,51 +1030,18 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       return DATA_TYPES.NUMBER;
     }
 
-    if (values.every(value => this._isDate(value))) {
-      return DATA_TYPES.DATE;
-    }
-
-    if (values.every(value => this._isDateTime(value))) {
-      return DATA_TYPES.DATETIME;
-    }
-
-    if (values.every(value => this._isTimestamp(value))) {
-      return DATA_TYPES.TIMESTAMP;
-    }
-
     return DATA_TYPES.STRING;
   }
 
   _isBoolean(value) {
-    if (typeof value === 'boolean') {
-      return true;
-    }
-    return /^(true|false)$/i.test(String(value).trim());
+    return typeof value === 'boolean';
   }
 
   _isInteger(value) {
-    if (typeof value === 'number') {
-      return Number.isInteger(value);
-    }
-    return /^[-+]?\d+$/.test(String(value).trim());
+    return typeof value === 'number' && Number.isInteger(value);
   }
 
   _isNumber(value) {
-    if (typeof value === 'number') {
-      return Number.isFinite(value);
-    }
-    return /^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(String(value).trim());
-  }
-
-  _isDate(value) {
-    return /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
-  }
-
-  _isDateTime(value) {
-    return /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/.test(String(value).trim());
-  }
-
-  _isTimestamp(value) {
-    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z$/.test(String(value).trim());
+    return typeof value === 'number' && Number.isFinite(value);
   }
 };
