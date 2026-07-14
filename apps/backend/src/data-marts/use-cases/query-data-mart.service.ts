@@ -302,6 +302,7 @@ export class QueryDataMartService {
         rows: trimmed,
         truncated,
         totals,
+        executedSql: executionSqlQuery,
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

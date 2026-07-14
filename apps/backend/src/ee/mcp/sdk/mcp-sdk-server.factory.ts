@@ -5,6 +5,7 @@ import type { McpScope } from '@owox/idp-protocol';
 import type { ZodRawShape } from 'zod';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpConfigService } from '../config/mcp.config';
+import { McpCallInstrumentation } from '../observability/mcp-call-instrumentation';
 import type { McpToolResult } from '../tools/mcp-tool.definition';
 import { McpToolRegistry } from '../tools/mcp-tool.registry';
 
@@ -25,7 +26,8 @@ type McpSdkToolRegistrar = {
 export class McpSdkServerFactory {
   constructor(
     private readonly config: McpConfigService,
-    private readonly toolRegistry: McpToolRegistry
+    private readonly toolRegistry: McpToolRegistry,
+    private readonly instrumentation: McpCallInstrumentation
   ) {}
 
   create(mcpContext: McpAuthContext, instructions?: string): McpServer {
@@ -40,6 +42,13 @@ export class McpSdkServerFactory {
     const sdkToolRegistrar = server as unknown as McpSdkToolRegistrar;
 
     for (const tool of this.toolRegistry.getTools()) {
+      const wrapped = this.instrumentation.wrap(tool.name, async (input, extra) => {
+        this.assertScopes(mcpContext, tool.requiredScopes);
+        // extra.signal fires on client disconnect/cancel — thread it so an abandoned query stops
+        // waiting and is recorded CANCELLED (not billed) instead of running to completion.
+        return tool.handler(input, mcpContext, extra?.signal);
+      });
+
       sdkToolRegistrar.registerTool(
         tool.name,
         {
@@ -48,12 +57,7 @@ export class McpSdkServerFactory {
           ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
           ...(tool.annotations ? { annotations: tool.annotations } : {}),
         },
-        async (input, extra) => {
-          this.assertScopes(mcpContext, tool.requiredScopes);
-          // extra.signal fires on client disconnect/cancel — thread it so an abandoned query stops
-          // waiting and is recorded CANCELLED (not billed) instead of running to completion.
-          return tool.handler(input, mcpContext, extra?.signal);
-        }
+        wrapped
       );
     }
 

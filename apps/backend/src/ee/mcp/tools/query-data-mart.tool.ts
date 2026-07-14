@@ -10,6 +10,8 @@ import {
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
+import { ClsContextService } from '../../../common/logger/cls-context.service';
+import { MCP_TOOL_DIAGNOSTICS_KEY } from '../observability/mcp-tool-diagnostics';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
 import {
@@ -73,7 +75,8 @@ If truncated is true, not all matching rows were returned: narrow the query (few
 
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
-    private readonly dataMarts: McpDataMartsFacade
+    private readonly dataMarts: McpDataMartsFacade,
+    private readonly cls: ClsContextService
   ) {}
 
   // The SDK already validates against zodSchema before handler(); this strict re-parse guards
@@ -107,6 +110,14 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         },
         signal
       );
+
+      if (res.executedSql) {
+        try {
+          this.cls.update(MCP_TOOL_DIAGNOSTICS_KEY, { executedSql: res.executedSql });
+        } catch {
+          // diagnostics are best-effort; must never affect the query result
+        }
+      }
 
       const { tsv, rowCount, capped } = serializeTsvWithByteCap(
         res.columns,

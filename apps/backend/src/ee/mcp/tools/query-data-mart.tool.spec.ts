@@ -21,7 +21,8 @@ const AUTH_CTX = {
 
 describe('QueryDataMartTool', () => {
   const facade = { queryDataMart: jest.fn(), listDataMarts: jest.fn() };
-  const tool = new QueryDataMartTool(facade as never);
+  const cls = { update: jest.fn(), get: jest.fn(), set: jest.fn(), runWithContext: jest.fn() };
+  const tool = new QueryDataMartTool(facade as never, cls as never);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -99,6 +100,21 @@ describe('QueryDataMartTool', () => {
 
       expect(facade.queryDataMart).toHaveBeenCalledTimes(1);
       expect(facade.queryDataMart.mock.calls[0][1]).toBe(controller.signal);
+    });
+
+    it('writes executed SQL into MCP tool diagnostics (CLS)', async () => {
+      cls.update.mockClear();
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['id'],
+        rows: [['1']],
+        truncated: false,
+        totals: null,
+        executedSql: 'SELECT id FROM t',
+      });
+      await tool.handler({ data_mart_id: 'dm1', fields: ['id'] }, AUTH_CTX as never);
+      expect(cls.update).toHaveBeenCalledWith('McpToolDiagnostics', {
+        executedSql: 'SELECT id FROM t',
+      });
     });
   });
 

@@ -14,6 +14,7 @@ export * from './utils/formatDuration.js';
 export * from './utils/disableConditionalCaching.js';
 export * from './security/security-headers.js';
 export * from './integrations/event-bus/index.js';
+export { GcsBlobStore, type BlobStore, type PayloadSink } from './integrations/blob-store/index.js';
 export * from './integrations/email/index.js';
 export * from './utils/impersonatedIdToken.js';
 export * from './telemetry/is-telemetry-enabled.js';

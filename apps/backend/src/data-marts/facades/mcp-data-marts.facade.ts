@@ -65,6 +65,7 @@ export interface McpQueryDataMartResponse {
   rows: unknown[][];
   truncated: boolean;
   totals: Record<string, number | string | boolean | null> | null;
+  executedSql?: string;
 }
 
 export interface McpDataCatalogSummaryItem {
