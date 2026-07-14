@@ -66,7 +66,7 @@ describe('McpMetadataController', () => {
       } as never)
     ).toEqual({
       resource: 'https://8c90f0b0f314bf5f5d6f69d24fd7ee3b.mcp.owox.com/mcp',
-      authorization_servers: ['https://app.owox.com'],
+      authorization_servers: ['https://8c90f0b0f314bf5f5d6f69d24fd7ee3b.mcp.owox.com'],
       scopes_supported: ['mcp:read', 'mcp:write'],
       resource_documentation: 'https://docs.owox.com/mcp',
     });

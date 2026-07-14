@@ -33,9 +33,16 @@ export class McpMetadataController {
       throw new BadRequestException('invalid MCP resource');
     }
 
+    // Dynamic registration does not carry the protected resource. For project MCP,
+    // the project host keeps that context until /oauth/register binds the client.
+    const authorizationServer =
+      resourceContext.kind === 'project'
+        ? resourceContext.publicBaseUrl
+        : this.config.authorizationServer;
+
     return OAuthProtectedResourceMetadataSchema.parse({
       resource: resourceContext.resource,
-      authorization_servers: [this.config.authorizationServer],
+      authorization_servers: [authorizationServer],
       scopes_supported: this.config.scopes,
       resource_documentation: this.config.resourceDocumentationUrl,
     });

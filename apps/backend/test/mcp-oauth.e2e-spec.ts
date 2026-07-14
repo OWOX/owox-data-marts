@@ -9,8 +9,8 @@ describe('MCP OAuth discovery (e2e)', () => {
   const originalOwoxAuthPublicBaseUrl = process.env.OWOX_AUTH_PUBLIC_BASE_URL;
   const originalOpenaiAppsChallengeToken = process.env.MCP_OPENAI_APPS_CHALLENGE_TOKEN;
   const challengeToken = 'test-openai-apps-challenge-token';
-  const getMcpMetadata = (path: string) =>
-    agent.get(path).set('Host', 'mcp.owox.com').set('X-Forwarded-Proto', 'https');
+  const getMcpMetadata = (path: string, host = 'mcp.owox.com') =>
+    agent.get(path).set('Host', host).set('X-Forwarded-Proto', 'https');
 
   beforeAll(async () => {
     process.env.MCP_PUBLIC_BASE_URL = 'https://mcp.owox.com';
@@ -67,6 +67,18 @@ describe('MCP OAuth discovery (e2e)', () => {
         scopes_supported: ['mcp:read', 'mcp:write'],
       });
     }
+  });
+
+  it('keeps the project host as the authorization server for dynamic registration', async () => {
+    const projectHost = '8c90f0b0f314bf5f5d6f69d24fd7ee3b.mcp.owox.com';
+    const response = await getMcpMetadata('/.well-known/oauth-protected-resource', projectHost);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      resource: `https://${projectHost}/mcp`,
+      authorization_servers: [`https://${projectHost}`],
+      scopes_supported: ['mcp:read', 'mcp:write'],
+    });
   });
 
   it('publishes OAuth authorization-server metadata at root well-known path', async () => {
