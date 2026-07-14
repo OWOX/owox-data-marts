@@ -16,6 +16,10 @@ import { CopyConfigurationButton } from '../../../../../data-marts/edit/componen
 import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 import { trackEvent } from '../../../../../../utils';
 import { ConnectorSpecificationAttribute } from '../../../../shared/enums/connector-specification-attribute.enum';
+import {
+  GOOGLE_SHEETS_CONNECTOR_NAME,
+  hasValidGoogleSheetsServiceAccountConfiguration,
+} from '../../../../shared/utils/google-sheets-fields.utils';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -25,6 +29,7 @@ interface ConfigurationStepProps {
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
   isEditingExisting?: boolean;
+  disabled?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +83,7 @@ export function ConfigurationStep({
   initialConfiguration,
   loading = false,
   isEditingExisting = false,
+  disabled = false,
 }: ConfigurationStepProps) {
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
@@ -241,9 +247,13 @@ export function ConfigurationStep({
       const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
       const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name], spec));
 
-      return isValidOneOf && isValidRequired;
+      const hasValidServiceAccount =
+        connector.name !== GOOGLE_SHEETS_CONNECTOR_NAME ||
+        hasValidGoogleSheetsServiceAccountConfiguration(config);
+
+      return isValidOneOf && isValidRequired && hasValidServiceAccount;
     },
-    [validateValue, validateOneOfRecursive]
+    [connector.name, validateValue, validateOneOfRecursive]
   );
 
   const handleSecretEditToggle = (name: string, enable: boolean) => {
@@ -332,41 +342,43 @@ export function ConfigurationStep({
     <>
       <AppWizardStep>
         <StepperHeroBlock connector={connector} />
-        <AppWizardStepSection>
-          <div className='flex items-center justify-between'>
-            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
-              Configure Settings
-            </h3>
-            <CopyConfigurationButton
-              currentConnectorName={connector.name}
-              onCopyConfiguration={handleCopyConfiguration}
-              connectorSpecification={connectorSpecification}
-            />
-          </div>
-          {requiredFields.length > 0 && (
-            <ConfigurationListRender
-              items={requiredFields}
-              configuration={configuration}
-              onValueChange={handleValueChange}
-              onSecretEditToggle={handleSecretEditToggle}
-              secretEditing={secretEditing}
-              isEditingExisting={isEditingExisting}
-              connectorName={connector.name}
-            />
-          )}
-          {advancedFields.length > 0 && (
-            <ConfigurationListRender
-              collapsibleTitle='Advanced Settings'
-              items={advancedFields}
-              configuration={configuration}
-              onValueChange={handleValueChange}
-              onSecretEditToggle={handleSecretEditToggle}
-              secretEditing={secretEditing}
-              isEditingExisting={isEditingExisting}
-              connectorName={connector.name}
-            />
-          )}
-        </AppWizardStepSection>
+        <fieldset disabled={disabled} className='min-w-0'>
+          <AppWizardStepSection>
+            <div className='flex items-center justify-between'>
+              <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+                Configure Settings
+              </h3>
+              <CopyConfigurationButton
+                currentConnectorName={connector.name}
+                onCopyConfiguration={handleCopyConfiguration}
+                connectorSpecification={connectorSpecification}
+              />
+            </div>
+            {requiredFields.length > 0 && (
+              <ConfigurationListRender
+                items={requiredFields}
+                configuration={configuration}
+                onValueChange={handleValueChange}
+                onSecretEditToggle={handleSecretEditToggle}
+                secretEditing={secretEditing}
+                isEditingExisting={isEditingExisting}
+                connectorName={connector.name}
+              />
+            )}
+            {advancedFields.length > 0 && (
+              <ConfigurationListRender
+                collapsibleTitle='Advanced Settings'
+                items={advancedFields}
+                configuration={configuration}
+                onValueChange={handleValueChange}
+                onSecretEditToggle={handleSecretEditToggle}
+                secretEditing={secretEditing}
+                isEditingExisting={isEditingExisting}
+                connectorName={connector.name}
+              />
+            )}
+          </AppWizardStepSection>
+        </fieldset>
       </AppWizardStep>
     </>
   );

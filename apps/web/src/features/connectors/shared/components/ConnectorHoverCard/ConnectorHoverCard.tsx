@@ -32,7 +32,6 @@ import {
 } from '../../../../data-marts/shared';
 import { getRunDataInfo } from '../../../../data-marts/shared/utils/run-data.utils.ts';
 import { getStorageButtonText, openStorageConsole } from '../../../../data-storage';
-import { getConnectorEffectiveFields } from '../../utils/google-sheets-fields.utils';
 
 interface ConnectorHoverCardProps {
   connector: ConnectorConfig;
@@ -59,12 +58,9 @@ export const ConnectorHoverCard = React.memo(
     }, [connectorInfo?.logoBase64]);
 
     const descriptionText = useMemo(() => {
-      const fieldsCount = getConnectorEffectiveFields(
-        connector.source.name,
-        connector.source.fields
-      ).length.toString();
+      const fieldsCount = connector.source.fields.length.toString();
       return `${connector.source.node} • ${fieldsCount} fields`;
-    }, [connector.source.name, connector.source.node, connector.source.fields]);
+    }, [connector.source.node, connector.source.fields.length]);
 
     // Separate component for hover card content to isolate context usage
     const connectorFullyQualifiedName = connector.storage.fullyQualifiedName;

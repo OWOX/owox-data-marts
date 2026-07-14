@@ -1,6 +1,7 @@
 import { FieldsSelectionStep } from './FieldsSelectionStep.tsx';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
@@ -155,5 +156,47 @@ describe('FieldsSelectionStep — Data Level tip is node-name agnostic', () => {
     });
 
     expect(screen.queryByText(/Required fields depend on Data Level/)).not.toBeInTheDocument();
+  });
+});
+
+const googleSheetsConnector: ConnectorListItem = {
+  name: 'GoogleSheets',
+  displayName: 'Google Sheets',
+  description: '',
+  logoBase64: null,
+  docUrl: null,
+};
+
+describe('FieldsSelectionStep Google Sheets technical fields', () => {
+  it('uses ordinary unique-key behavior without locking _owox_imported_at', () => {
+    render(
+      <MemoryRouter>
+        <FieldsSelectionStep
+          connector={googleSheetsConnector}
+          connectorFields={[
+            {
+              name: 'sheet',
+              uniqueKeys: ['_owox_row_number'],
+              defaultFields: [],
+              fields: [
+                { name: '_owox_row_number', type: 'INTEGER' },
+                { name: '_owox_imported_at', type: 'TIMESTAMP' },
+                { name: 'Campaign', type: 'STRING' },
+              ],
+            },
+          ]}
+          selectedField='sheet'
+          selectedFields={['_owox_row_number']}
+          onFieldToggle={vi.fn()}
+          onSelectAllFields={vi.fn()}
+          itemLabel='columns'
+          autoSelectDefaultFields={false}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('checkbox', { name: '_owox_row_number' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: '_owox_imported_at' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'Campaign' })).toBeEnabled();
   });
 });

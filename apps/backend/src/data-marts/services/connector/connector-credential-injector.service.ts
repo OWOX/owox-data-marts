@@ -1,5 +1,5 @@
 // connector-credential-injector.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService } from './connector-secret.service';
@@ -29,6 +29,16 @@ export class ConnectorCredentialInjectorService {
       connectorName,
       projectId
     )) as Record<string, unknown>;
+  }
+
+  async injectCredentialsForPreview(
+    config: Record<string, unknown>,
+    connectorName: string,
+    projectId: string
+  ): Promise<Record<string, unknown>> {
+    await this.validatePreviewCredentialReferences(config, connectorName, projectId);
+    const configWithSecrets = await this.injectSecrets(config, projectId, { connectorName });
+    return this.injectOAuthCredentials(configWithSecrets, connectorName, projectId);
   }
 
   async refreshCredentialsForConfig(
@@ -69,9 +79,14 @@ export class ConnectorCredentialInjectorService {
           return obj;
         }
 
-        if (credentialsEntity.projectId !== projectId) {
+        if (
+          credentialsEntity.projectId !== projectId ||
+          credentialsEntity.connectorName !== connectorName ||
+          credentialsEntity.dataMartId ||
+          credentialsEntity.configId
+        ) {
           this.logger.warn(
-            `OAuth credentials ${credentialId} belong to project ${credentialsEntity.projectId}, not ${projectId}. Skipping injection.`
+            `OAuth credentials ${credentialId} cannot be used by ${connectorName} in project ${projectId}. Skipping injection.`
           );
           return obj;
         }
@@ -83,10 +98,7 @@ export class ConnectorCredentialInjectorService {
           );
         }
 
-        const spec = await this.connectorService.getItemByFieldPath(
-          credentialsEntity.connectorName,
-          currentPath
-        );
+        const spec = await this.connectorService.getItemByFieldPath(connectorName, currentPath);
 
         const mapping = spec.oauthParams?.mapping as Record<string, string> | undefined;
         const { _source_credential_id: _, ...restObj } = obj;
@@ -198,7 +210,8 @@ export class ConnectorCredentialInjectorService {
    */
   async injectSecrets(
     config: Record<string, unknown>,
-    projectId: string
+    projectId: string,
+    ownership?: { connectorName?: string; dataMartId?: string; configId?: string }
   ): Promise<Record<string, unknown>> {
     const secretsId = config._secrets_id as string | undefined;
 
@@ -217,9 +230,14 @@ export class ConnectorCredentialInjectorService {
         return config;
       }
 
-      if (secretsEntity.projectId !== projectId) {
+      const hasExpectedOwnership =
+        secretsEntity.projectId === projectId &&
+        (!ownership?.connectorName || secretsEntity.connectorName === ownership.connectorName) &&
+        (!ownership?.dataMartId || secretsEntity.dataMartId === ownership.dataMartId) &&
+        (!ownership?.configId || secretsEntity.configId === ownership.configId);
+      if (!hasExpectedOwnership) {
         this.logger.warn(
-          `Secrets ${secretsId} belong to project ${secretsEntity.projectId}, not ${projectId}. Skipping injection.`
+          `Secrets ${secretsId} do not belong to the requested connector configuration. Skipping injection.`
         );
         return config;
       }
@@ -257,5 +275,71 @@ export class ConnectorCredentialInjectorService {
       return credentials[config.key] ?? '';
     }
     return mappingConfig;
+  }
+
+  private async validatePreviewCredentialReferences(
+    config: Record<string, unknown>,
+    connectorName: string,
+    projectId: string
+  ): Promise<void> {
+    const configId = typeof config._id === 'string' ? config._id : undefined;
+    const references = this.collectPreviewCredentialReferences(config);
+
+    for (const reference of references) {
+      const credential = await this.connectorSourceCredentialsService.getCredentialsById(
+        reference.id
+      );
+      const belongsToRequestedConnector =
+        credential?.projectId === projectId && credential.connectorName === connectorName;
+
+      if (!credential || !belongsToRequestedConnector) {
+        throw new ForbiddenException('The selected credentials cannot be used for this preview');
+      }
+
+      if (reference.type === 'oauth') {
+        const isProjectOAuthCredential = !credential.dataMartId && !credential.configId;
+        if (!isProjectOAuthCredential) {
+          throw new ForbiddenException('The selected credentials cannot be used for this preview');
+        }
+      } else {
+        const isConfigOwnedSecret =
+          Boolean(credential.dataMartId) &&
+          Boolean(credential.configId) &&
+          Boolean(configId) &&
+          credential.configId === configId;
+        if (!isConfigOwnedSecret) {
+          throw new ForbiddenException('The selected credentials cannot be used for this preview');
+        }
+      }
+    }
+  }
+
+  private collectPreviewCredentialReferences(
+    value: unknown,
+    references = new Map<string, { id: string; type: 'oauth' | 'secrets' }>()
+  ): Array<{ id: string; type: 'oauth' | 'secrets' }> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return Array.from(references.values());
+    }
+
+    const obj = value as Record<string, unknown>;
+    if (typeof obj._source_credential_id === 'string') {
+      references.set(`oauth:${obj._source_credential_id}`, {
+        id: obj._source_credential_id,
+        type: 'oauth',
+      });
+    }
+    if (typeof obj._secrets_id === 'string') {
+      references.set(`secrets:${obj._secrets_id}`, {
+        id: obj._secrets_id,
+        type: 'secrets',
+      });
+    }
+
+    for (const child of Object.values(obj)) {
+      this.collectPreviewCredentialReferences(child, references);
+    }
+
+    return Array.from(references.values());
   }
 }

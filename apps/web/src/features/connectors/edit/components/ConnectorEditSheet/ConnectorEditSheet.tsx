@@ -84,6 +84,7 @@ export function ConnectorEditSheet({
           initialStep={initialStep}
           preselectedConnector={preselectedConnector}
           onDirtyChange={handleFormDirtyChange}
+          isOpen={isOpen}
         />
         <UnsavedChangesConfirmationDialog
           open={showUnsavedDialog}

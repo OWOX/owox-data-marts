@@ -9,6 +9,27 @@ function stripQuotes(value) {
   return value ? value.replace(/^"|"$/g, '') : value;
 }
 
+function quoteIdentifier(value) {
+  return `"${stripQuotes(value).replace(/"/g, '""')}"`;
+}
+
+function escapeSqlLiteral(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function createSnapshotTableNames(tableName) {
+  const token = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  const stagingSuffix = `__owox_stage_${token}`;
+  const backupSuffix = `__owox_backup_${token}`;
+  const baseLength = Math.max(1, 127 - Math.max(stagingSuffix.length, backupSuffix.length));
+  const baseName = stripQuotes(tableName).slice(0, baseLength);
+
+  return {
+    stagingTableName: `${baseName}${stagingSuffix}`,
+    backupTableName: `${baseName}${backupSuffix}`
+  };
+}
+
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
   /**
@@ -287,6 +308,59 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   }
   //----------------------------------------------------------------
 
+  //---- executeQueryInSession ---------------------------------------
+  async executeQueryInSession(sql, sessionId = null) {
+    const params = {
+      Sql: sql,
+      Database: this.config.Database.value,
+      SessionKeepAliveSeconds: 300
+    };
+
+    if (sessionId) {
+      params.SessionId = sessionId;
+    } else if (this.config.WorkgroupName.value) {
+      params.WorkgroupName = this.config.WorkgroupName.value;
+    } else if (this.config.ClusterIdentifier.value) {
+      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    }
+
+    const response = await this.redshiftDataClient.send(new ExecuteStatementCommand(params));
+    await this.waitForQueryCompletion(response.Id);
+
+    return response;
+  }
+  //----------------------------------------------------------------
+
+  //---- executeTransaction ------------------------------------------
+  async executeTransaction(sqlStatements) {
+    let sessionId = null;
+
+    try {
+      const beginResponse = await this.executeQueryInSession('BEGIN');
+      sessionId = beginResponse.SessionId;
+
+      if (!sessionId) {
+        throw new Error('Redshift Data API did not return a reusable session for snapshot publication');
+      }
+
+      for (const sql of sqlStatements) {
+        await this.executeQueryInSession(sql, sessionId);
+      }
+
+      await this.executeQueryInSession('COMMIT', sessionId);
+    } catch (error) {
+      if (sessionId) {
+        try {
+          await this.executeQueryInSession('ROLLBACK', sessionId);
+        } catch (rollbackError) {
+          this.config.logMessage(`Warning: Failed to roll back snapshot publication: ${rollbackError.message}`);
+        }
+      }
+      throw error;
+    }
+  }
+  //----------------------------------------------------------------
+
   //---- waitForQueryCompletion -------------------------------------
   /**
    * Wait for query execution to complete
@@ -462,15 +536,134 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    */
   async replaceData(data) {
     await this.checkConnection();
-    this.existingColumns = await this.replaceTable();
+    await this.createSchemaIfNotExist();
 
-    if (data.length) {
-      await this.saveData(data);
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const configuredTableName = this.config.DestinationTableName.value;
+    const liveTableName = stripQuotes(configuredTableName);
+    const { stagingTableName, backupTableName } = createSnapshotTableNames(liveTableName);
+    const originalExistingColumns = this.existingColumns;
+    const liveColumns = await this.getAListOfExistingColumns();
+    const liveTableExists = Object.keys(liveColumns).length > 0;
+    const grantStatements = liveTableExists
+      ? await this.getTableGrantStatements(liveTableName, stagingTableName)
+      : [];
+    let published = false;
+
+    try {
+      this.config.DestinationTableName.value = stagingTableName;
+      this.existingColumns = {};
+      const stagedColumns = await this.createTable();
+
+      if (data.length) {
+        await this.saveData(data);
+      }
+
+      await this.validateSnapshotRowCount(stagingTableName, data.length);
+
+      for (const grantSql of grantStatements) {
+        await this.executeQuery(grantSql, 'ddl');
+      }
+
+      this.config.DestinationTableName.value = configuredTableName;
+
+      const publicationStatements = liveTableExists
+        ? [
+            `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} RENAME TO ${quoteIdentifier(backupTableName)}`,
+            `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`,
+            `DROP TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(backupTableName)}`
+          ]
+        : [
+            `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`
+          ];
+
+      await this.executeTransaction(publicationStatements);
+      this.existingColumns = stagedColumns;
+      published = true;
+
+      this.config.logMessage(
+        `Snapshot import completed for ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)}: ${data.length} rows`
+      );
+    } finally {
+      this.config.DestinationTableName.value = configuredTableName;
+      if (!published) {
+        this.existingColumns = originalExistingColumns;
+      }
+
+      try {
+        await this.executeQuery(
+          `DROP TABLE IF EXISTS ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)}`,
+          'ddl'
+        );
+      } catch (cleanupError) {
+        this.config.logMessage(
+          `Warning: Failed to clean up snapshot staging table ${quoteIdentifier(stagingTableName)}: ${cleanupError.message}`
+        );
+      }
+    }
+  }
+  //----------------------------------------------------------------
+
+  //---- validateSnapshotRowCount ------------------------------------
+  async validateSnapshotRowCount(tableName, expectedRowCount) {
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const rows = await this.executeQueryWithResults(
+      `SELECT COUNT(*) AS row_count FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}`
+    );
+    const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
+    const actualRowCount = Number(value);
+
+    if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
+      const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
+      throw new Error(
+        `Snapshot staging row count mismatch for ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}: expected ${expectedRowCount}, got ${actual}`
+      );
     }
 
-    this.config.logMessage(
-      `Snapshot import completed for "${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}": ${data.length} rows`
-    );
+    return actualRowCount;
+  }
+  //----------------------------------------------------------------
+
+  //---- getTableGrantStatements -------------------------------------
+  async getTableGrantStatements(sourceTableName, targetTableName) {
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const rows = await this.executeQueryWithResults(`
+      SELECT identity_name, identity_type, privilege_type, admin_option
+      FROM svv_relation_privileges
+      WHERE namespace_name = '${escapeSqlLiteral(schemaName)}'
+        AND relation_name = '${escapeSqlLiteral(sourceTableName)}'
+      ORDER BY identity_type, identity_name, privilege_type
+    `);
+    const targetTable = `${quoteIdentifier(schemaName)}.${quoteIdentifier(targetTableName)}`;
+
+    return rows.map(row => {
+      const identityName = row.identity_name ?? row.IDENTITY_NAME;
+      const identityType = String(row.identity_type ?? row.IDENTITY_TYPE).toUpperCase();
+      const privilege = String(row.privilege_type ?? row.PRIVILEGE_TYPE).toUpperCase();
+      const adminOption = row.admin_option ?? row.ADMIN_OPTION;
+
+      if (!/^[A-Z ]+$/.test(privilege)) {
+        throw new Error(`Unsupported Redshift table privilege: ${privilege}`);
+      }
+
+      let grantee;
+      if (identityType === 'PUBLIC') {
+        grantee = 'PUBLIC';
+      } else if (identityType === 'ROLE') {
+        grantee = `ROLE ${quoteIdentifier(identityName)}`;
+      } else if (identityType === 'GROUP') {
+        grantee = `GROUP ${quoteIdentifier(identityName)}`;
+      } else if (identityType === 'USER') {
+        grantee = quoteIdentifier(identityName);
+      } else {
+        throw new Error(`Unsupported Redshift grant identity type: ${identityType}`);
+      }
+
+      const withGrantOption = adminOption === true || String(adminOption).toLowerCase() === 'true'
+        ? ' WITH GRANT OPTION'
+        : '';
+      return `GRANT ${privilege} ON TABLE ${targetTable} TO ${grantee}${withGrantOption}`;
+    });
   }
   //----------------------------------------------------------------
 

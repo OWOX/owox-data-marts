@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ConfigurationStep } from './ConfigurationStep';
@@ -116,5 +117,73 @@ describe('ConfigurationStep', () => {
     const after = screen.getByLabelText(/Service Account Key/i);
     expect(after).toBe(before);
     expect(document.activeElement).toBe(before);
+  });
+});
+
+const googleSheetsConnector = {
+  name: 'GoogleSheets',
+  displayName: 'Google Sheets',
+  description: '',
+  logoBase64: null,
+  docUrl: null,
+};
+
+const connectorSpecification = [
+  {
+    name: 'SheetName',
+    title: 'Sheet Name',
+    requiredType: RequiredType.STRING,
+    required: true,
+  },
+];
+
+function ConfigurationHarness() {
+  const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
+
+  return (
+    <MemoryRouter>
+      <button
+        type='button'
+        onClick={() => {
+          setConfiguration({ SheetName: 'External Sheet' });
+        }}
+      >
+        Apply external configuration
+      </button>
+      <ConfigurationStep
+        connector={googleSheetsConnector}
+        connectorSpecification={connectorSpecification}
+        initialConfiguration={configuration}
+        onConfigurationChange={setConfiguration}
+      />
+    </MemoryRouter>
+  );
+}
+
+describe('ConfigurationStep state synchronization', () => {
+  it('still applies genuine external configuration changes', () => {
+    render(<ConfigurationHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply external configuration' }));
+
+    expect(screen.getByRole('textbox', { name: 'Sheet Name *' })).toHaveValue('External Sheet');
+  });
+
+  it('does not emit initial configuration back as a user edit', () => {
+    const onConfigurationChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ConfigurationStep
+          connector={googleSheetsConnector}
+          connectorSpecification={connectorSpecification}
+          initialConfiguration={{ SheetName: 'Existing Sheet' }}
+          onConfigurationChange={onConfigurationChange}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Sheet Name *' })).toHaveValue('Existing Sheet');
+    expect(onConfigurationChange).not.toHaveBeenCalled();
   });
 });

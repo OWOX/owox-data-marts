@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ConnectorActionType, useConnectorContext } from '../context';
 import { ConnectorApiService } from '../../api';
 import { mapConnectorListFromDto } from '../mappers/connector-list.mapper';
@@ -6,6 +6,15 @@ import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useConnector() {
   const { state, dispatch } = useConnectorContext();
+  const previewRequestIdRef = useRef(0);
+  const previewAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      previewRequestIdRef.current += 1;
+      previewAbortControllerRef.current?.abort();
+    };
+  }, []);
 
   const connectors = useMemo(() => {
     return mapConnectorListFromDto(state.connectors);
@@ -85,22 +94,40 @@ export function useConnector() {
 
   const previewConnectorFields = useCallback(
     async (connectorName: string, configuration: Record<string, unknown>) => {
+      const requestId = previewRequestIdRef.current + 1;
+      previewRequestIdRef.current = requestId;
+      previewAbortControllerRef.current?.abort();
+      const abortController = new AbortController();
+      previewAbortControllerRef.current = abortController;
+
       dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_START });
       try {
         const connectorApiService = new ConnectorApiService();
         const response = await connectorApiService.previewConnectorFields(
           connectorName,
-          configuration
+          configuration,
+          { signal: abortController.signal }
         );
+
+        if (requestId !== previewRequestIdRef.current) return null;
+
         dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS, payload: response });
         return response;
       } catch (error) {
+        if (requestId !== previewRequestIdRef.current || abortController.signal.aborted) {
+          return null;
+        }
+
         const message = error instanceof Error ? error.message : 'Unknown error';
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR,
           payload: message,
         });
         throw error;
+      } finally {
+        if (requestId === previewRequestIdRef.current) {
+          previewAbortControllerRef.current = null;
+        }
       }
     },
     [dispatch]

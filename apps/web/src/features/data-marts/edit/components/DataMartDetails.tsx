@@ -32,7 +32,7 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
-import { useSchemaUnsavedGuard } from '../model';
+import { useRefreshDataMartAfterConnectorRun, useSchemaUnsavedGuard } from '../model';
 import {
   countSuccessfulManualConnectorRuns,
   findTerminalTrackedManualConnectorRun,
@@ -84,6 +84,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     getErrorMessage,
     runs,
     getDataMart,
+    refreshDataMart,
     isManualRunTriggered,
     manualRunId,
     resetManualRunTriggered,
@@ -111,6 +112,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
   const hasActiveDataQualityRun = isDataQualityActivityState(dataQualitySummary?.state);
   const runActivityLabel = getDataMartRunActivityLabel(hasActiveRuns, hasActiveDataQualityRun);
+
+  useRefreshDataMartAfterConnectorRun({
+    dataMartId,
+    isConnector,
+    isManualRunTriggered,
+    runs,
+    refreshDataMart,
+  });
 
   const onActualizeSuccess = useCallback(() => {
     if (!dataMartId) return;

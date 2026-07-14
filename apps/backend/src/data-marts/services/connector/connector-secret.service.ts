@@ -354,7 +354,8 @@ export class ConnectorSecretService {
             await this.connectorSourceCredentialsService.updateSecretsForConfig(
               existingSecretsId,
               projectId,
-              secrets
+              secrets,
+              { connectorName, dataMartId, configId }
             );
           }
         } else {

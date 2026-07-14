@@ -6,33 +6,31 @@
  */
 
 var GoogleSheetsConnector = class GoogleSheetsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
+  constructor(config, source, storageName = 'GoogleBigQueryStorage', runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
   }
 
   async startImportProcess() {
-    const nodeName = "sheet";
+    const nodeName = 'sheet';
     const data = await this.source.fetchData();
     const fields = Object.keys(this.source.fieldsSchema[nodeName].fields);
 
     this.config.Fields = {
       ...(this.config.Fields || {}),
-      value: fields.map(field => `${nodeName} ${field}`).join(", ")
+      value: fields.map(field => `${nodeName} ${field}`).join(', '),
     };
     this.config.updateFields(fields);
 
     this.config.logMessage(
       data.length
         ? `${data.length} rows were fetched from Google Sheets`
-        : "No data rows were fetched from Google Sheets"
+        : 'No data rows were fetched from Google Sheets'
     );
 
-    if (data.length || this.config.CreateEmptyTables?.value) {
-      const storage = await this.getStorageByNode(nodeName);
-      await storage.replaceData(data);
-    }
+    const storage = await this.getStorageByNode(nodeName);
+    await storage.replaceData(data);
   }
 
   async getStorageByNode(nodeName) {
@@ -41,7 +39,7 @@ var GoogleSheetsConnector = class GoogleSheetsConnector extends AbstractConnecto
       throw new Error(`Node '${nodeName}' is not defined in Google Sheets schema`);
     }
 
-    if (!("uniqueKeys" in nodeSchema)) {
+    if (!('uniqueKeys' in nodeSchema)) {
       throw new Error(`Unique keys for '${nodeName}' are not defined in the fields schema`);
     }
 
@@ -49,7 +47,7 @@ var GoogleSheetsConnector = class GoogleSheetsConnector extends AbstractConnecto
       this.config.mergeParameters({
         DestinationSheetName: { value: nodeSchema.destinationName },
         DestinationTableName: {
-          value: this.getDestinationName(nodeName, this.config, nodeSchema.destinationName)
+          value: this.getDestinationName(nodeName, this.config, nodeSchema.destinationName),
         },
       }),
       nodeSchema.uniqueKeys,

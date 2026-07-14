@@ -4,6 +4,7 @@ import type { DataMart } from '../entities/data-mart.entity';
 import { DataSource, EntitySchema, type Repository } from 'typeorm';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { RoleScope } from '../enums/role-scope.enum';
+import { createConnectorSourceFingerprint } from './connector/connector-source-fingerprint';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -17,7 +18,12 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
 }
 
 describe('DataMartService schema actualization', () => {
-  let repository: { findOne: jest.Mock; save: jest.Mock };
+  let repository: {
+    findOne: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+    manager: { connection: { options: { type: string } } };
+  };
   let schemaProvider: { getActualDataMartSchema: jest.Mock };
   let schemaMerger: { mergeSchemas: jest.Mock };
   let searchIndexInvalidation: { scheduleDataMartSchemaChanged: jest.Mock };
@@ -27,6 +33,8 @@ describe('DataMartService schema actualization', () => {
     repository = {
       findOne: jest.fn(),
       save: jest.fn(async (dataMart: DataMart) => dataMart),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      manager: { connection: { options: { type: 'mysql' } } },
     };
     schemaProvider = {
       getActualDataMartSchema: jest.fn().mockResolvedValue({ fields: [{ name: 'amount' }] }),
@@ -85,6 +93,230 @@ describe('DataMartService schema actualization', () => {
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('queue down'));
     warnSpy.mockRestore();
+  });
+
+  it('does not overwrite fields when the connector configuration changed during a run', async () => {
+    const sourceAtRunStart = {
+      name: 'GoogleSheets',
+      node: 'sheet',
+      fields: ['old_field'],
+      configuration: [{ _id: 'config-1', SpreadsheetId: 'original-sheet' }],
+    };
+    repository.findOne.mockResolvedValue(
+      makeDataMart({
+        modifiedAt: new Date('2026-07-14T10:00:00.000Z'),
+        definition: {
+          connector: {
+            source: {
+              ...sourceAtRunStart,
+              configuration: [{ _id: 'config-1', SpreadsheetId: 'new-sheet' }],
+            },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      })
+    );
+
+    const updated = await service.updateConnectorSourceFields(
+      'dm-1',
+      'proj-1',
+      ['discovered_field'],
+      0,
+      createConnectorSourceFingerprint(sourceAtRunStart)
+    );
+
+    expect(updated).toBe(false);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('reports a concurrent field edit when the conditional update loses the race', async () => {
+    const sourceAtRunStart = {
+      name: 'GoogleSheets',
+      node: 'sheet',
+      fields: ['old_field'],
+      configuration: [{ _id: 'config-1', SpreadsheetId: 'sheet-1' }],
+    };
+    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
+    repository.findOne.mockResolvedValue(
+      makeDataMart({
+        modifiedAt,
+        definition: {
+          connector: {
+            source: sourceAtRunStart,
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      })
+    );
+    repository.update.mockResolvedValue({ affected: 0 });
+
+    const updated = await service.updateConnectorSourceFields(
+      'dm-1',
+      'proj-1',
+      ['discovered_field'],
+      0,
+      createConnectorSourceFingerprint(sourceAtRunStart)
+    );
+
+    expect(updated).toBe(false);
+    expect(repository.update).toHaveBeenCalledWith(
+      {
+        id: 'dm-1',
+        projectId: 'proj-1',
+        modifiedAt,
+      },
+      expect.objectContaining({ definition: expect.any(Object) })
+    );
+  });
+
+  it('prunes missing Google Sheets selections after a successful subset refresh', async () => {
+    const sourceAtRunStart = {
+      name: 'GoogleSheets',
+      node: 'sheet',
+      fields: ['_owox_row_number', 'product_keys', 'test1'],
+      configuration: [
+        {
+          _id: 'config-1',
+          ImportAllColumns: false,
+          SelectedColumns: '_owox_row_number,product_keys,test1,column_5,rows_with_session',
+        },
+      ],
+    };
+    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
+    repository.findOne.mockResolvedValue(
+      makeDataMart({
+        modifiedAt,
+        definition: {
+          connector: {
+            source: sourceAtRunStart,
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      })
+    );
+
+    const updated = await service.updateConnectorSourceFields(
+      'dm-1',
+      'proj-1',
+      ['_owox_row_number', 'product_keys', 'test1'],
+      0,
+      createConnectorSourceFingerprint(sourceAtRunStart)
+    );
+
+    expect(updated).toBe(true);
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1', modifiedAt },
+      {
+        definition: {
+          connector: {
+            source: {
+              ...sourceAtRunStart,
+              configuration: [
+                {
+                  ...sourceAtRunStart.configuration[0],
+                  SelectedColumns: '_owox_row_number,product_keys,test1',
+                },
+              ],
+            },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      }
+    );
+  });
+
+  it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
+    const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
+      name: 'ConditionalUpdateTest',
+      tableName: 'conditional_update_test',
+      columns: {
+        id: { type: String, primary: true },
+        modifiedAt: { type: Date },
+        value: { type: String },
+      },
+    });
+    const dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [entitySchema],
+      synchronize: true,
+    });
+
+    await dataSource.initialize();
+    try {
+      await dataSource.query(
+        "INSERT INTO conditional_update_test (id, modifiedAt, value) VALUES ('dm-1', '2026-07-14 10:00:00', 'old')"
+      );
+      const sqliteRepository = dataSource.getRepository(entitySchema);
+      const sqliteService = new DataMartService(
+        sqliteRepository as any,
+        schemaProvider as any,
+        schemaMerger as any
+      );
+      const modifiedAtCriterion = sqliteService['createModifiedAtUpdateCriterion'](
+        new Date('2026-07-14T10:00:00.000Z')
+      );
+
+      const result = await sqliteRepository.update(
+        { id: 'dm-1', modifiedAt: modifiedAtCriterion },
+        { value: 'updated' }
+      );
+
+      expect(result.affected).toBe(1);
+      await expect(sqliteRepository.findOneByOrFail({ id: 'dm-1' })).resolves.toMatchObject({
+        value: 'updated',
+      });
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('does not rewrite the saved selection in all-columns mode', async () => {
+    const sourceAtRunStart = {
+      name: 'GoogleSheets',
+      node: 'sheet',
+      fields: ['old_field'],
+      configuration: [
+        {
+          _id: 'config-1',
+          ImportAllColumns: true,
+          SelectedColumns: '_owox_row_number,old_field',
+        },
+      ],
+    };
+    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
+    repository.findOne.mockResolvedValue(
+      makeDataMart({
+        modifiedAt,
+        definition: {
+          connector: {
+            source: sourceAtRunStart,
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      })
+    );
+
+    const updated = await service.updateConnectorSourceFields(
+      'dm-1',
+      'proj-1',
+      ['new_field'],
+      0,
+      createConnectorSourceFingerprint(sourceAtRunStart)
+    );
+
+    expect(updated).toBe(true);
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1', modifiedAt },
+      {
+        definition: {
+          connector: {
+            source: { ...sourceAtRunStart, fields: ['new_field'] },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      }
+    );
   });
 });
 

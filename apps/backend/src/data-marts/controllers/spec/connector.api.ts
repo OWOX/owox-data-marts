@@ -49,7 +49,10 @@ export function PreviewConnectorFieldsSpec() {
     ApiBody({ type: ConnectorFieldsPreviewRequestApiDto }),
     ApiOkResponse({ type: ConnectorFieldsResponseApiDto, isArray: true }),
     ApiResponse({ status: 400, description: 'Unable to preview connector fields' }),
-    ApiResponse({ status: 404, description: 'Connector not found' })
+    ApiResponse({ status: 403, description: 'Connector credentials cannot access the resource' }),
+    ApiResponse({ status: 404, description: 'Connector not found' }),
+    ApiResponse({ status: 502, description: 'Connector provider is unavailable' }),
+    ApiResponse({ status: 504, description: 'Connector field preview timed out' })
   );
 }
 
