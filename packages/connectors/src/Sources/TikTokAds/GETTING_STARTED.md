@@ -65,7 +65,7 @@ You can add any supported metrics to the required fields, but do not remove the 
 3. Specify the **dataset** where the data will be stored (or leave the default).  
 4. Click **Finish**, then **Publish Data Mart**.
 
-See [Data Level for Performance Nodes](README.md#data-level-for-performance-nodes) in the README for the full required-fields table per level.
+For the full required-fields table per level, see the **Data Level for Performance Nodes** section in [README](README.md).
 
 ![TikTok Ads Publish Data Mart](res/tiktok_ads_publish.png)
 
