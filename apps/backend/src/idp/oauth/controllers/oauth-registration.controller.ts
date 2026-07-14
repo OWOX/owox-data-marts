@@ -5,21 +5,39 @@ import {
   OAuthDynamicClientRegistrationRequest,
   OAuthDynamicClientService,
 } from '../oauth-dynamic-client.service';
+import { OAuthConfigService } from '../oauth-config.service';
 
 @Controller('/oauth')
 export class OAuthRegistrationController {
   constructor(
     private readonly dynamicClientService: OAuthDynamicClientService,
-    private readonly resourceResolver: McpResourceResolverService
+    private readonly resourceResolver: McpResourceResolverService,
+    private readonly config: OAuthConfigService
   ) {}
 
   @Post('/register')
   register(@Body() body: OAuthDynamicClientRegistrationRequest, @Req() request: Request) {
     const resourceContext = this.resourceResolver.tryResolveRequest(request);
-    if (!resourceContext) {
+    const resource =
+      resourceContext?.resource ?? this.getSharedResourceForAuthorizationServer(request);
+    if (!resource) {
       throw new BadRequestException('dynamic client registration requires an MCP resource host');
     }
 
-    return this.dynamicClientService.register(body, resourceContext.resource);
+    return this.dynamicClientService.register(body, resource);
+  }
+
+  private getSharedResourceForAuthorizationServer(request: Request): string | null {
+    const host = request.host ?? request.headers.host;
+    if (!host) {
+      return null;
+    }
+
+    try {
+      const requestOrigin = new URL(`${request.protocol ?? 'https'}://${host}`).origin;
+      return requestOrigin === new URL(this.config.issuer).origin ? this.config.resource : null;
+    } catch {
+      return null;
+    }
   }
 }

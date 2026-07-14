@@ -9,6 +9,8 @@ import { OAuthRegistrationController } from './oauth-registration.controller';
 
 function makeConfig(overrides: Partial<OAuthConfigService> = {}): OAuthConfigService {
   return {
+    issuer: 'https://app.owox.com',
+    resource: 'https://mcp.owox.com/mcp',
     isDynamicClientRegistrationEnabled: true,
     scopes: ['mcp:read', 'mcp:write'],
     allowedRedirectOrigins: [],
@@ -42,7 +44,8 @@ function makeController(config = makeConfig(), registry = makeClientRegistry()) 
   return {
     controller: new OAuthRegistrationController(
       new OAuthDynamicClientService(config, registry),
-      resolver
+      resolver,
+      config
     ),
     registry,
   };
@@ -99,7 +102,24 @@ describe('OAuthRegistrationController', () => {
     );
   });
 
-  it('rejects dynamic registration outside an MCP resource host', async () => {
+  it('binds shared MCP resource when registration follows canonical authorization-server metadata', async () => {
+    const { controller, registry } = makeController();
+    const registerSpy = jest.spyOn(registry, 'register');
+
+    await controller.register(
+      {
+        redirect_uris: ['http://127.0.0.1:5555/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+      makeRequest('app.owox.com')
+    );
+
+    expect(registerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ resource: 'https://mcp.owox.com/mcp' })
+    );
+  });
+
+  it('rejects dynamic registration outside MCP and canonical authorization-server hosts', async () => {
     const { controller } = makeController();
 
     expect(() =>
@@ -108,7 +128,7 @@ describe('OAuthRegistrationController', () => {
           redirect_uris: ['http://127.0.0.1:5555/callback'],
           token_endpoint_auth_method: 'none',
         },
-        makeRequest('app.owox.com')
+        makeRequest('example.com')
       )
     ).toThrow('dynamic client registration requires an MCP resource host');
   });
