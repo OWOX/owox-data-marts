@@ -24,6 +24,16 @@ import { effectiveComparisonType } from '../../field-aggregation';
 export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
+  /**
+   * Correlation name for flat output-controls / explicit-projection queries.
+   *
+   * BigQuery treats an unaliased table's short name as the row STRUCT alias, so
+   * `FROM …country WHERE country = 'x'` compares STRUCT vs STRING. Aliasing the
+   * source removes that collision; WHERE/ORDER BY/HAVING are then qualified for
+   * an explicit column reference.
+   */
+  private static readonly FROM_ALIAS = 'src';
+
   constructor(private readonly clauseRenderer: BigQueryClauseRenderer) {}
 
   async buildQuery(
@@ -34,6 +44,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     const dateTruncs = queryOptions?.dateTruncs ?? [];
     const rowCount = queryOptions?.rowCount === true;
     const uniqueCount = queryOptions?.uniqueCount === true;
+    const hasExplicitProjection = (queryOptions?.columns?.length ?? 0) > 0;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
@@ -45,7 +56,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
-    if (!hasOutputControls) {
+    if (!hasOutputControls && !hasExplicitProjection) {
       // Backward-compatible path.
       if (isSqlDefinition(definition) && !queryOptions?.columns?.length) {
         return definition.sqlQuery;
@@ -56,7 +67,13 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       );
     }
 
-    const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
+    // Alias the source so the table short name is no longer a row STRUCT range variable.
+    const sourceFromClause = hasOutputControls
+      ? this.resolveFromClauseWithOutputControls(definition, queryOptions)
+      : this.resolveFromClauseWithoutOutputControls(definition);
+    const fromClause = `${sourceFromClause} AS ${BigQueryQueryBuilder.FROM_ALIAS}`;
+    const qualifyColumn = (column: string) =>
+      `${BigQueryQueryBuilder.FROM_ALIAS}.${escapeBigQueryIdentifier(column)}`;
     // Field types let the renderer compare the date part of TIMESTAMP/DATETIME
     // columns against CURRENT_DATE() for relative_date filters (a bare TIMESTAMP =
     // DATE comparison is a type error in BigQuery).
@@ -66,15 +83,17 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       : undefined;
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
-      undefined,
+      qualifyColumn,
       'p',
       resolveColumnType
     );
-    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
+    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? [], qualifyColumn);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
     // Aggregations (or a date-trunc bucket / Row Count / Unique Count) replace the plain
     // SELECT list with `<dims>, FN(<metric>) AS …` and inject GROUP BY.
+    // SELECT/GROUP BY stay unqualified: after FROM … AS src, bare column names resolve
+    // to columns of src (qualifying projections would force nested-RECORD AS work).
     if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
       const agg = this.clauseRenderer.renderAggregatedSelect(
         queryOptions?.columns ?? [],
@@ -95,7 +114,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       );
       const having = this.clauseRenderer.renderHaving(
         queryOptions?.filters ?? [],
-        undefined,
+        qualifyColumn,
         'h',
         resolveColumnType
       );
@@ -105,10 +124,10 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       };
     }
 
-    return {
-      sql: `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`,
-      params: [...where.params, ...orderBy.params, ...limit.params],
-    };
+    const sql = `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+    return hasOutputControls
+      ? { sql, params: [...where.params, ...orderBy.params, ...limit.params] }
+      : sql;
   }
 
   private resolveFromClauseWithoutOutputControls(definition: DataMartDefinition): string {

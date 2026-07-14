@@ -315,7 +315,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       ]);
       expect(result!.sql).toContain('SUM(`revenue`) AS `revenue | SUM`');
       expect(result!.sql).toContain('MAX(`quantity`) AS `quantity | MAX`');
-      expect(result!.sql).toContain('WHERE `channel` = @p0');
+      expect(result!.sql).toContain('WHERE src.`channel` = @p0');
       expect(result!.sql).not.toMatch(/GROUP BY/);
       expect(result!.sql).not.toMatch(/ORDER BY/);
       expect(result!.sql).not.toMatch(/LIMIT/);
@@ -381,7 +381,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
 
       const result = await service.composeTotals(report, {} as never);
 
-      expect(result!.sql).toContain('WHERE `channel` = @p0');
+      expect(result!.sql).toContain('WHERE src.`channel` = @p0');
       expect(result!.sql).not.toMatch(/HAVING/);
       expect(result!.sql).not.toMatch(/GROUP BY/);
     });

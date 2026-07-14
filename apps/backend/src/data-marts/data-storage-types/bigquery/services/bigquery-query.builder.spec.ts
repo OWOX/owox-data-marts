@@ -67,21 +67,40 @@ describe('BigQueryQueryBuilder', () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['campaign_name', 'date_column'],
       });
-      expect(sql).toBe('SELECT\n  `campaign_name`,\n  `date_column`\nFROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe(
+        'SELECT\n  `campaign_name`,\n  `date_column`\nFROM `proj`.`dataset`.`tbl` AS src'
+      );
     });
 
     it('escapes nested RECORD paths as backtick-separated parts', async () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['address.city', 'user_id'],
       });
-      expect(sql).toBe('SELECT\n  `address`.`city`,\n  `user_id`\nFROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe(
+        'SELECT\n  `address`.`city`,\n  `user_id`\nFROM `proj`.`dataset`.`tbl` AS src'
+      );
+    });
+
+    it('aliases FROM when a projected column matches the table short name', async () => {
+      const sql = await builder.buildQuery(tableDefinition('proj.shop_data.country'), {
+        columns: ['country'],
+      });
+      expect(sql).toBe('SELECT\n  `country`\nFROM `proj`.`shop_data`.`country` AS src');
+    });
+
+    it('does not use AS main so a projected column named main stays a column, not row STRUCT', async () => {
+      const sql = await builder.buildQuery(tableDefinition('proj.dataset.sales'), {
+        columns: ['main', 'revenue'],
+      });
+      expect(sql).toBe('SELECT\n  `main`,\n  `revenue`\nFROM `proj`.`dataset`.`sales` AS src');
+      expect(sql).not.toMatch(/AS main(?:\s|$)/);
     });
 
     it('wraps SQL definition queries when columns are provided', async () => {
       const sql = await builder.buildQuery(sqlDefinition('SELECT a, b, c FROM t;'), {
         columns: ['a', 'c'],
       });
-      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (SELECT a, b, c FROM t)');
+      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (SELECT a, b, c FROM t) AS src');
     });
 
     it('ignores empty columns list and falls back to SELECT *', async () => {
@@ -101,8 +120,8 @@ describe('BigQueryQueryBuilder', () => {
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
       expect(result.sql).toContain('`a`,\n  `b`');
-      expect(result.sql).toContain('FROM `proj`.`dataset`.`tbl`');
-      expect(result.sql).toContain('WHERE `a` = @p0');
+      expect(result.sql).toContain('FROM `proj`.`dataset`.`tbl` AS src');
+      expect(result.sql).toContain('WHERE src.`a` = @p0');
       expect(result.params).toEqual([{ name: 'p0', value: 1 }]);
     });
 
@@ -117,16 +136,33 @@ describe('BigQueryQueryBuilder', () => {
       const sql = result.sql;
       expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
       expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-      expect(sql).toContain('ORDER BY\n  `a` ASC');
+      expect(sql).toContain('ORDER BY\n  src.`a` ASC');
       expect(sql).toContain('LIMIT 10');
     });
 
-    it('returns plain string when there are no output controls (sort only undefined)', async () => {
+    it('aliases FROM and qualifies filter when column matches table short name (STRUCT collision)', async () => {
+      // Fibery 6685: unaliased FROM …`country` makes bare `country` a row STRUCT in WHERE.
+      const result = await builder.buildQuery(tableDefinition('proj.shop_data.country'), {
+        columns: ['order_id', 'country'],
+        filters: [{ column: 'country', operator: 'eq', value: 'Canada' }],
+      });
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toBe(
+        'SELECT\n' +
+          '  `order_id`,\n' +
+          '  `country`\n' +
+          'FROM `proj`.`shop_data`.`country` AS src\n' +
+          'WHERE src.`country` = @p0'
+      );
+      expect(result.params).toEqual([{ name: 'p0', value: 'Canada' }]);
+    });
+
+    it('returns plain string with aliased FROM for explicit projection only', async () => {
       const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['a'],
       });
       expect(typeof result).toBe('string');
-      expect(result).toBe('SELECT\n  `a`\nFROM `proj`.`dataset`.`tbl`');
+      expect(result).toBe('SELECT\n  `a`\nFROM `proj`.`dataset`.`tbl` AS src');
     });
 
     it('uses mainTableReference for SQL-def with output controls', async () => {
@@ -136,9 +172,9 @@ describe('BigQueryQueryBuilder', () => {
         mainTableReference: '`proj`.`dataset`.`view_abc`',
       });
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`dataset`.`view_abc`');
+      expect(result.sql).toContain('FROM `proj`.`dataset`.`view_abc` AS src');
       expect(result.sql).not.toContain('SELECT 1');
-      expect(result.sql).toContain("(`x` IS NULL OR `x` = '')");
+      expect(result.sql).toContain("(src.`x` IS NULL OR src.`x` = '')");
     });
 
     it('throws when SQL-def has output controls but no mainTableReference', async () => {
@@ -160,7 +196,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`my_view`');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`my_view` AS src');
     });
 
     it('returns QueryBuildResult with correct FROM for connector definition', async () => {
@@ -169,7 +205,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl`');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl` AS src');
     });
 
     it('returns QueryBuildResult with correct FROM for table-pattern definition', async () => {
@@ -178,7 +214,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl_*`');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl_*` AS src');
     });
 
     it('handles limit 0 as "no limit" (limit !== null only when explicit positive)', async () => {
