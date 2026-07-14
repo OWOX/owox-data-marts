@@ -28,7 +28,7 @@ type SearchDataMartsInput = z.infer<typeof inputSchema>;
 export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInput> {
   readonly name = 'get_relevant_data_marts_by_prompt';
   readonly description =
-    'Find relevant non-draft data marts in the current OWOX project from a natural-language prompt, limited to data marts visible to the current MCP user. Use this when the user asks to find, discover, or search published data marts by title, description, business meaning, schema fields, or metrics. This tool returns only data marts, not data storages or destinations, and it intentionally excludes draft data marts.';
+    'Find relevant non-draft data marts in the current OWOX project from a natural-language prompt, limited to data marts visible to the current MCP user. This is the default discovery step for a concrete analytical question when the data mart has not already been confirmed. Use it when the user asks to find, discover, or search published data marts by title, description, business meaning, schema fields, or metrics. This tool returns only data marts, not data storages or destinations, and it intentionally excludes draft data marts.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     data_marts: z.array(

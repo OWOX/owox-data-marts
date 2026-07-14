@@ -51,6 +51,7 @@ export async function createTestApp(
 
   // Set up express with NullIdpProvider (mirrors main.ts setup)
   const expressApp = (express.default || express)();
+  expressApp.set('trust proxy', 1);
   const idpProvider = new NullIdpProvider();
   await idpProvider.initialize();
   expressApp.set('idp', idpProvider);

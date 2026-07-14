@@ -35,7 +35,7 @@ export class McpMetadataController {
 
     return OAuthProtectedResourceMetadataSchema.parse({
       resource: resourceContext.resource,
-      authorization_servers: [resourceContext.publicBaseUrl],
+      authorization_servers: [this.config.authorizationServer],
       scopes_supported: this.config.scopes,
       resource_documentation: this.config.resourceDocumentationUrl,
     });

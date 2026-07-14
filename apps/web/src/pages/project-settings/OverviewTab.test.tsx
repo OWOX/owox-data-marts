@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectsContextType } from '../../features/idp/context/ProjectContext.types';
@@ -30,12 +30,29 @@ const settingsFlags = vi.hoisted(() => ({
   } as Record<string, unknown>,
 }));
 
+const projectSettings = vi.hoisted(() => ({
+  value: {
+    settings: { description: 'Revenue means net revenue.' },
+    isLoading: false,
+    error: null as string | null,
+    updateDescription: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock('../../features/idp/hooks/useAuthState', () => ({
   useUser: () => currentUser.value,
 }));
 
 vi.mock('../../features/idp/hooks/useProjects', () => ({
   useProjects: () => projectsContext.value,
+}));
+
+vi.mock('../../features/idp/hooks/useRole', () => ({
+  useIsAdmin: () => currentUser.value?.roles?.includes('admin') ?? false,
+}));
+
+vi.mock('../../features/project-settings/overview', () => ({
+  useProjectSettings: () => projectSettings.value,
 }));
 
 vi.mock('../../app/store/hooks', () => ({
@@ -86,6 +103,12 @@ describe('OverviewTab project status', () => {
     clipboard.handleCopy.mockClear();
     settingsFlags.value = {
       IDP_PROVIDER: 'owox-better-auth',
+    };
+    projectSettings.value = {
+      settings: { description: 'Revenue means net revenue.' },
+      isLoading: false,
+      error: null,
+      updateDescription: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -166,6 +189,52 @@ describe('OverviewTab project status', () => {
 
     expect(screen.queryByText('MCP server')).not.toBeInTheDocument();
     expect(screen.queryByText('https://blocked-project.mcp.owox.com/mcp')).not.toBeInTheDocument();
+  });
+
+  it('renders project description as a separate collapsible block after At a glance', () => {
+    renderOverview();
+
+    const atAGlanceHeading = screen.getByText('At a glance');
+    const descriptionHeading = screen.getByText('Description');
+
+    expect(
+      Boolean(
+        atAGlanceHeading.compareDocumentPosition(descriptionHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
+    expect(
+      screen.getByText(/business context, goals, terminology, and conventions/i)
+    ).toBeInTheDocument();
+  });
+
+  it('saves the project description with the same inline editor flow as a data mart', async () => {
+    renderOverview();
+
+    fireEvent.click(screen.getByText('Revenue means net revenue.'));
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: '  Revenue excludes taxes.  ' } });
+    fireEvent.blur(textarea);
+
+    await waitFor(() => {
+      expect(projectSettings.value.updateDescription).toHaveBeenCalledWith(
+        'Revenue excludes taxes.'
+      );
+    });
+  });
+
+  it('shows the project description as read-only to non-admin users', () => {
+    currentUser.value = {
+      id: 'user-2',
+      roles: ['viewer'],
+      projectId: 'blocked-project',
+      projectTitle: 'Blocked Project',
+    };
+    renderOverview();
+
+    fireEvent.click(screen.getByText('Revenue means net revenue.'));
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });
 
