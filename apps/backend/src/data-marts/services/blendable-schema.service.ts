@@ -20,6 +20,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { buildBlendedFieldUnifiedName } from './blended-field-name';
 
 export interface BlendableSchemaAccessor {
   userId: string;
@@ -245,9 +246,7 @@ export class BlendableSchemaService {
         const fieldOverride = sourceConfig?.fields?.[field.name];
 
         const dto = new BlendedFieldDto();
-        // Replace dots in nested struct field paths (e.g. `struct.field`) with
-        // underscores so the resulting alias is a valid SQL identifier.
-        dto.name = `${sqlPrefix}__${field.name.replace(/\./g, '_')}`;
+        dto.name = buildBlendedFieldUnifiedName(currentPath, sqlPrefix, field.name);
         dto.aliasPath = currentPath;
         dto.outputPrefix = displayPrefix;
         dto.sourceRelationshipId = rel.id;
