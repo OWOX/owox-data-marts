@@ -66,4 +66,21 @@ describe('ModelCanvasFlowNode', () => {
 
     expect(onOpenExternal).toHaveBeenCalledOnce();
   });
+
+  it('uses a non-submit external action button', () => {
+    renderNode();
+
+    expect(screen.getByRole('button', { name: 'Open Orders in new tab' })).toHaveAttribute(
+      'type',
+      'button'
+    );
+  });
+
+  it('hides the decorative external-link icon from assistive technology', () => {
+    renderNode();
+
+    const externalAction = screen.getByRole('button', { name: 'Open Orders in new tab' });
+
+    expect(externalAction.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
 });

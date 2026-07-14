@@ -827,7 +827,7 @@ export function RelationshipCanvas({
   const { scope } = useProjectRoute();
   const handleOpenExternal = useCallback(
     (targetId: string) => {
-      window.open(scope(`/data-marts/${targetId}/data-setup`), '_blank');
+      window.open(scope(`/data-marts/${targetId}/data-setup`), '_blank', 'noopener,noreferrer');
     },
     [scope]
   );

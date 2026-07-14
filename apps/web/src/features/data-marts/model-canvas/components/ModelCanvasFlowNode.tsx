@@ -123,6 +123,7 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
             </Tooltip>
           )}
           <button
+            type='button'
             className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
             onPointerDown={e => {
               e.stopPropagation();
@@ -131,7 +132,7 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
             title={openExternalLabel}
             aria-label={openExternalLabel}
           >
-            <ExternalLink style={{ width: 14, height: 14 }} />
+            <ExternalLink style={{ width: 14, height: 14 }} aria-hidden='true' />
           </button>
         </div>
       </div>

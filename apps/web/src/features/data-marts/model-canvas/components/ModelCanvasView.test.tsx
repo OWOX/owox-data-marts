@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DataMartStatus } from '../../shared/enums';
+import type { ModelCanvasData } from '../model/types';
 import { ModelCanvasView } from './ModelCanvasView';
 
 const viewState = vi.hoisted(() => ({
@@ -22,7 +24,7 @@ const viewState = vi.hoisted(() => ({
     error: null,
   },
   canvasHook: {
-    data: undefined as { nodes: []; edges: [] } | undefined,
+    data: undefined as ModelCanvasData | undefined,
     isLoading: false,
     error: null as unknown,
   },
@@ -65,6 +67,19 @@ vi.mock('./ModelCanvasToolbar', () => ({
   ModelCanvasToolbar: () => null,
 }));
 
+vi.mock('./ModelCanvas', () => ({
+  default: ({ onOpenDataMart }: { onOpenDataMart: (dataMartId: string) => void }) => (
+    <button
+      type='button'
+      onClick={() => {
+        onOpenDataMart('mart-1');
+      }}
+    >
+      Open Orders
+    </button>
+  ),
+}));
+
 vi.mock('@owox/ui/components/common/skeleton-list', () => ({
   SkeletonList: () => <div>Loading canvas</div>,
 }));
@@ -98,6 +113,49 @@ describe('ModelCanvasView', () => {
     viewState.canvasHook.data = undefined;
     viewState.canvasHook.isLoading = false;
     viewState.canvasHook.error = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens data marts in a tab without exposing the opener or referrer', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    viewState.canvasHook.data = {
+      nodes: [
+        {
+          id: 'mart-1',
+          title: 'Orders',
+          status: DataMartStatus.PUBLISHED,
+          description: null,
+          fieldCount: 3,
+        },
+        {
+          id: 'mart-2',
+          title: 'Customers',
+          status: DataMartStatus.PUBLISHED,
+          description: null,
+          fieldCount: 2,
+        },
+      ],
+      edges: [
+        {
+          id: 'edge-1',
+          sourceDataMartId: 'mart-1',
+          targetDataMartId: 'mart-2',
+          joinConditions: [],
+        },
+      ],
+    };
+
+    render(<ModelCanvasView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Orders' }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      '/data-marts/mart-1/data-setup',
+      '_blank',
+      'noopener,noreferrer'
+    );
   });
 
   it('shows a stable fallback when the canvas request fails without an Axios response', async () => {

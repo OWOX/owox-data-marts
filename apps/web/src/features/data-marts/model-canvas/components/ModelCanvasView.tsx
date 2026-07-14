@@ -135,7 +135,11 @@ function ModelCanvasViewContent() {
             edges={renderEdges}
             searchQuery={filters.searchQuery}
             onOpenDataMart={dataMartId => {
-              window.open(scope(`/data-marts/${dataMartId}/data-setup`), '_blank');
+              window.open(
+                scope(`/data-marts/${dataMartId}/data-setup`),
+                '_blank',
+                'noopener,noreferrer'
+              );
             }}
             style={canvasStyle}
           />

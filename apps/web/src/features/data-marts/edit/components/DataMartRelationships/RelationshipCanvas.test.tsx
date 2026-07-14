@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
 
@@ -8,9 +8,14 @@ interface ReactFlowStubProps {
   children?: ReactNode;
   minZoom?: number;
   nodes?: {
+    id: string;
     position: { x: number; y: number };
     width?: number;
     height?: number;
+    data: {
+      isSource: boolean;
+      onOpenExternal: () => void;
+    };
   }[];
   onMove?: (event: unknown, viewport: ViewportStub) => void;
   onMoveStart?: (event: unknown) => void;
@@ -71,6 +76,30 @@ describe('RelationshipCanvas viewport', () => {
     reactFlowHarness.store.width = 800;
     reactFlowHarness.store.height = 600;
     reactFlowHarness.scope.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens relationship targets without exposing the opener or referrer', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+    const targetNode = reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
+    expect(targetNode).toBeDefined();
+
+    targetNode?.data.onOpenExternal();
+
+    expect(openSpy).toHaveBeenCalledWith(
+      '/data-marts/target-1/data-setup',
+      '_blank',
+      'noopener,noreferrer'
+    );
   });
 
   it('passes the low zoom floor to a full fit after the interactive floor was raised', async () => {
