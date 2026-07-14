@@ -190,18 +190,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
     }
 
-  //---- replaceTable ------------------------------------------------
-    async replaceTable(tableName = this.config.DestinationTableName.value) {
-
-      const { query, existingColumns } = this._buildCreateTableQuery("CREATE OR REPLACE TABLE", tableName);
-
-      await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${tableName} was replaced`);
-
-      return existingColumns;
-
-    }
-
   //---- _buildCreateTableQuery --------------------------------------
     _buildCreateTableQuery(createStatement, tableName = this.config.DestinationTableName.value) {
 
