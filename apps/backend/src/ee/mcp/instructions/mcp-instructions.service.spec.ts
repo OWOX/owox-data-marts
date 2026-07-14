@@ -1,8 +1,13 @@
+import { Logger } from '@nestjs/common';
 import type { ProjectSettingsFacade } from '../../../project-settings/facades/project-settings.facade';
 import { McpInstructionsService } from './mcp-instructions.service';
 import { composeMcpInstructions, MCP_SYSTEM_INSTRUCTIONS } from './mcp-system-instructions';
 
 describe('MCP instructions', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('returns only system instructions when the project description is empty', () => {
     expect(composeMcpInstructions(null)).toBe(MCP_SYSTEM_INSTRUCTIONS);
     expect(composeMcpInstructions('   ')).toBe(MCP_SYSTEM_INSTRUCTIONS);
@@ -27,5 +32,20 @@ describe('MCP instructions', () => {
 
     await expect(service.getInstructions('project-1')).resolves.toContain('Use fiscal weeks.');
     expect(projectSettings.getDescription).toHaveBeenCalledWith('project-1');
+  });
+
+  it('falls back to system instructions when the project description cannot be loaded', async () => {
+    const error = new Error('settings unavailable');
+    const projectSettings = {
+      getDescription: jest.fn().mockRejectedValue(error),
+    } as unknown as jest.Mocked<ProjectSettingsFacade>;
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const service = new McpInstructionsService(projectSettings);
+
+    await expect(service.getInstructions('project-1')).resolves.toBe(MCP_SYSTEM_INSTRUCTIONS);
+    expect(warn).toHaveBeenCalledWith('Failed to load project-specific MCP instructions', {
+      projectId: 'project-1',
+      error: 'settings unavailable',
+    });
   });
 });

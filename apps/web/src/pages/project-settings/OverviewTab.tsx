@@ -270,7 +270,7 @@ export function OverviewTab() {
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
 
-      <CollapsibleCard collapsible name='project-description'>
+      <CollapsibleCard collapsible name='project-business-context'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={FileText}
