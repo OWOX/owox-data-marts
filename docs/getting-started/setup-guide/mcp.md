@@ -133,6 +133,7 @@ Returns a high-level summary of the published data mart catalog available to thi
 | `project_id`                           | Project identifier                                                          |
 | `data_mart_count`                      | Number of published data marts visible to you                               |
 | `top_data_marts_by_connectivity`       | Data marts ranked by configured relationship connectivity                   |
+| `_instruction`                         | Internal guidance for the assistant on how to summarize the returned catalog |
 
 Each `top_data_marts_by_connectivity` item includes `id`, `title`, `description`, `url`, `relationship_count`, `reports_count`, `triggers_count`, and `updated_at`.
 
@@ -258,7 +259,7 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | `id`                     | Destination identifier                                                                                    |
 | `name`                   | Destination name                                                                                          |
 | `type`                   | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
-| `owner`                  | The user who created the destination                                                                      |
+| `owner`                  | The user who created the destination, or `null` when unavailable                                          |
 | `connectedGoogleAccount` | For Google Sheets destinations, the Google account that completed OAuth consent                           |
 | `createdAt`              | Destination creation timestamp                                                                            |
 
@@ -357,7 +358,7 @@ Checks the current status of a report run started with `run_report`.
 | `started_at`  | Timestamp when execution started, if available                                                                   |
 | `raw_status`  | Backend run status                                                                                               |
 | `error`       | Error message for failed runs, otherwise `null`                                                                  |
-| `message`     | Polling guidance for the assistant, including when a run is taking longer than usual or may be stuck              |
+| `message`     | Polling guidance for the assistant, including when a run is taking longer than usual or may be stuck; `null` when the run has reached a terminal status |
 
 Report runs can take several minutes. While `should_poll` is `true`, the assistant should call `get_report_run_status` again, ideally waiting about 15 seconds between checks if the client supports waiting.
 
