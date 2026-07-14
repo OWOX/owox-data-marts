@@ -279,6 +279,38 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
   //---- createTableIfItDoesntExist ----------------------------------
     async createTableIfItDoesntExist() {
 
+      const { query, existingColumns } = this._buildCreateTableQuery("CREATE TABLE IF NOT EXISTS");
+
+      await this.executeQuery(query);
+
+      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
+      const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
+      this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} was created`);
+
+      return existingColumns;
+
+    }
+  //----------------------------------------------------------------
+
+  //---- replaceTable ------------------------------------------------
+    async replaceTable() {
+
+      const { query, existingColumns } = this._buildCreateTableQuery("CREATE OR REPLACE TABLE");
+
+      await this.executeQuery(query);
+
+      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
+      const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
+      this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} was replaced`);
+
+      return existingColumns;
+
+    }
+  //----------------------------------------------------------------
+
+  //---- _buildCreateTableQuery --------------------------------------
+    _buildCreateTableQuery(createStatement) {
+
       let columns = [];
       let existingColumns = {};
 
@@ -313,17 +345,39 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
       const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
-      let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} (\n  ${columnsStr}\n)`;
+      let query = `${createStatement} ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} (\n  ${columnsStr}\n)`;
 
       if( this.description ) {
         const escapedTableDescription = this.obfuscateSpecialCharacters(this.description);
         query += `\nCOMMENT = '${escapedTableDescription}'`;
       }
 
-      await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} was created`);
+      return { query, existingColumns };
 
-      return existingColumns;
+    }
+  //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+    async replaceData(data) {
+
+      this.checkIfSnowflakeIsConnected();
+
+      if (!this.connection) {
+        await this.createConnection();
+        await this.testConnection();
+      }
+
+      await this.createDatabaseAndSchemaIfNotExist();
+      this.existingColumns = await this.replaceTable();
+      this.updatedRecordsBuffer = {};
+
+      if (data.length) {
+        await this.saveData(data);
+      }
+
+      this.config.logMessage(
+        `Snapshot import completed for ${this.config.SnowflakeDatabase.value}.${quoteIdentifier(this.config.SnowflakeSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}: ${data.length} rows`
+      );
 
     }
   //----------------------------------------------------------------

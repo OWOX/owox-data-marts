@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFormContext, type Control } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { type DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
@@ -25,6 +25,13 @@ import {
 } from '../../../../../connectors/edit/components/ConnectorDefinitionField';
 import { ConnectorEditSheet } from '../../../../../connectors/edit/components/ConnectorEditSheet/ConnectorEditSheet';
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
+import { ConnectorApiService } from '../../../../../connectors/shared/api';
+import type { AxiosRequestConfig } from '../../../../../../app/api';
+import {
+  GOOGLE_SHEETS_CONNECTOR_NAME,
+  getConnectorEffectiveFields,
+  getGoogleSheetsSelectedFieldsForAvailableColumns,
+} from '../../../../../connectors/shared/utils/google-sheets-fields.utils';
 import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
 import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog/ConfirmationDialog';
@@ -36,6 +43,62 @@ interface ConnectorDefinitionFieldProps {
   preset?: string;
   autoOpen?: boolean;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
+}
+
+interface EditFieldsButtonLabelProps {
+  connectorDef: ConnectorDefinitionConfig;
+}
+
+function EditFieldsButtonLabel({ connectorDef }: EditFieldsButtonLabelProps) {
+  const connectorName = connectorDef.connector.source.name;
+  const selectedFields = connectorDef.connector.source.fields;
+  const previewConfigurationKey = useMemo(
+    () => JSON.stringify(connectorDef.connector.source.configuration[0] ?? {}),
+    [connectorDef.connector.source.configuration]
+  );
+  const [previewFieldNames, setPreviewFieldNames] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (connectorName !== GOOGLE_SHEETS_CONNECTOR_NAME) {
+      setPreviewFieldNames(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadPreviewFieldNames = async () => {
+      try {
+        const connectorApiService = new ConnectorApiService();
+        const previewFields = await connectorApiService.previewConnectorFields(
+          connectorName,
+          JSON.parse(previewConfigurationKey) as Record<string, unknown>,
+          { skipErrorToast: true } as AxiosRequestConfig
+        );
+        const fieldNames = previewFields[0]?.fields?.map(field => field.name) ?? [];
+
+        if (!isCancelled) {
+          setPreviewFieldNames(fieldNames.length > 0 ? fieldNames : null);
+        }
+      } catch {
+        if (!isCancelled) {
+          setPreviewFieldNames(null);
+        }
+      }
+    };
+
+    void loadPreviewFieldNames();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [connectorName, previewConfigurationKey]);
+
+  const fieldsCount =
+    connectorName === GOOGLE_SHEETS_CONNECTOR_NAME && previewFieldNames
+      ? getGoogleSheetsSelectedFieldsForAvailableColumns(selectedFields, previewFieldNames).length
+      : getConnectorEffectiveFields(connectorName, selectedFields).length;
+
+  return <span>Edit Fields ({String(fieldsCount)})</span>;
 }
 
 export function ConnectorDefinitionField({
@@ -147,7 +210,6 @@ export function ConnectorDefinitionField({
   };
 
   const renderEditFieldsButton = (connectorDef: ConnectorDefinitionConfig) => {
-    const fieldsCount = connectorDef.connector.source.fields.length;
     return (
       <Button
         type='button'
@@ -157,7 +219,7 @@ export function ConnectorDefinitionField({
         }}
       >
         <Edit3 className='h-4 w-4' />
-        <span>Edit Fields ({String(fieldsCount)})</span>
+        <EditFieldsButtonLabel connectorDef={connectorDef} />
       </Button>
     );
   };

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
+import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
 import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -396,5 +397,41 @@ export class DataMartService {
         `Failed to schedule search index invalidation for data mart ${dataMart.id}: ${message}`
       );
     }
+  }
+
+  async updateConnectorSourceFields(
+    id: string,
+    projectId: string,
+    fields: string[]
+  ): Promise<boolean> {
+    const dataMart = await this.getByIdAndProjectId(id, projectId);
+    const definition = dataMart.definition;
+
+    if (!definition || !isConnectorDefinition(definition)) {
+      return false;
+    }
+
+    const currentFields = definition.connector.source.fields;
+    if (this.areStringArraysEqual(currentFields, fields)) {
+      return false;
+    }
+
+    const nextDefinition = {
+      ...definition,
+      connector: {
+        ...definition.connector,
+        source: {
+          ...definition.connector.source,
+          fields,
+        },
+      },
+    };
+
+    await this.dataMartRepository.update({ id, projectId }, { definition: nextDefinition });
+    return true;
+  }
+
+  private areStringArraysEqual(left: string[], right: string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
   }
 }

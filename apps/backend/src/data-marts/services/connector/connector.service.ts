@@ -30,6 +30,8 @@ interface ConnectorConfigField {
   isRequired: boolean;
   options?: unknown[];
   placeholder?: string;
+  minimum?: number;
+  maximum?: number;
   attributes?: Core.CONFIG_ATTRIBUTES[];
   oneOf?: ConnectorSpecificationOneOf[];
 }
@@ -469,6 +471,8 @@ export class ConnectorService {
         required: config[key].isRequired,
         options: config[key].options,
         placeholder: config[key].placeholder,
+        minimum: config[key].minimum,
+        maximum: config[key].maximum,
         attributes: config[key].attributes,
         oneOf: config[key].oneOf?.map(oneOf => {
           return {
@@ -488,6 +492,8 @@ export class ConnectorService {
                   required: itemValue.isRequired,
                   options: itemValue.options,
                   placeholder: itemValue.placeholder,
+                  minimum: itemValue.minimum,
+                  maximum: itemValue.maximum,
                   attributes: itemValue.attributes,
                 };
                 return acc;

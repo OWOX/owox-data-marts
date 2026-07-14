@@ -6,6 +6,10 @@ interface GoogleAdsLoginButtonProps {
   redirectUri: string;
   onSuccess: (response: GoogleAdsLoginResponse) => void;
   onError?: (error: Error) => void;
+  scope?: string;
+  serviceName?: string;
+  successMessageType?: string;
+  errorMessageType?: string;
   disabled?: boolean;
   children?: React.ReactNode;
 }
@@ -14,13 +18,18 @@ export interface GoogleAdsLoginResponse {
   code: string;
 }
 
-type GoogleAdsAuthMessage =
-  | { type: 'GOOGLE_ADS_AUTH_SUCCESS'; code: string; state: string | null }
-  | { type: 'GOOGLE_ADS_AUTH_ERROR'; error: string };
+interface GoogleAuthMessage {
+  type: string;
+  code?: string;
+  state?: string | null;
+  error?: string;
+}
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const SCOPE =
   'https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email';
+const DEFAULT_SUCCESS_MESSAGE_TYPE = 'GOOGLE_ADS_AUTH_SUCCESS';
+const DEFAULT_ERROR_MESSAGE_TYPE = 'GOOGLE_ADS_AUTH_ERROR';
 
 const GoogleLogo = () => (
   <svg className='h-5 w-5 shrink-0' viewBox='0 0 24 24'>
@@ -43,15 +52,19 @@ const GoogleLogo = () => (
   </svg>
 );
 
-function isGoogleAdsAuthMessage(data: unknown): data is GoogleAdsAuthMessage {
+function isGoogleAuthMessage(
+  data: unknown,
+  successMessageType: string,
+  errorMessageType: string
+): data is GoogleAuthMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
 
-  if (msg.type === 'GOOGLE_ADS_AUTH_SUCCESS') {
+  if (msg.type === successMessageType) {
     return typeof msg.code === 'string';
   }
 
-  if (msg.type === 'GOOGLE_ADS_AUTH_ERROR') {
+  if (msg.type === errorMessageType) {
     return typeof msg.error === 'string';
   }
 
@@ -63,12 +76,16 @@ export function GoogleAdsLoginButton({
   redirectUri,
   onSuccess,
   onError,
+  scope = SCOPE,
+  serviceName = 'Google Ads',
+  successMessageType = DEFAULT_SUCCESS_MESSAGE_TYPE,
+  errorMessageType = DEFAULT_ERROR_MESSAGE_TYPE,
   disabled = false,
   children,
 }: GoogleAdsLoginButtonProps) {
   const { openPopup, isLoading, error } = useOAuthPopup<
     GoogleAdsLoginResponse,
-    GoogleAdsAuthMessage
+    GoogleAuthMessage
   >({
     redirectUri,
     buildAuthUrl: (state: string) => {
@@ -76,7 +93,7 @@ export function GoogleAdsLoginButton({
       url.searchParams.set('client_id', clientId);
       url.searchParams.set('response_type', 'code');
       url.searchParams.set('redirect_uri', redirectUri);
-      url.searchParams.set('scope', SCOPE);
+      url.searchParams.set('scope', scope);
       url.searchParams.set('state', state);
       url.searchParams.set('access_type', 'offline');
       url.searchParams.set('prompt', 'consent');
@@ -84,15 +101,15 @@ export function GoogleAdsLoginButton({
     },
     onSuccess,
     onError,
-    isAuthMessage: isGoogleAdsAuthMessage,
-    getSuccessResponse: (msg: GoogleAdsAuthMessage) => {
-      if (msg.type === 'GOOGLE_ADS_AUTH_SUCCESS') {
+    isAuthMessage: data => isGoogleAuthMessage(data, successMessageType, errorMessageType),
+    getSuccessResponse: (msg: GoogleAuthMessage) => {
+      if (msg.type === successMessageType && msg.code) {
         return { code: msg.code };
       }
       throw new Error('Invalid response');
     },
-    getErrorMessage: (msg: GoogleAdsAuthMessage) => {
-      if (msg.type === 'GOOGLE_ADS_AUTH_ERROR') {
+    getErrorMessage: (msg: GoogleAuthMessage) => {
+      if (msg.type === errorMessageType && msg.error) {
         return msg.error;
       }
       return 'Unknown error';
@@ -101,7 +118,7 @@ export function GoogleAdsLoginButton({
 
   const handleLogin = () => {
     if (!clientId || !redirectUri) {
-      onError?.(new Error('Google Ads OAuth configuration is incomplete'));
+      onError?.(new Error(`${serviceName} OAuth configuration is incomplete`));
       return;
     }
     openPopup();

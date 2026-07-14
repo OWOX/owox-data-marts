@@ -130,6 +130,20 @@ class AbstractStorage {
       throw new Error("Method saveData() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+    /**
+     * Replace the destination table with the provided snapshot.
+     * Snapshot-oriented sources use this when deleted source rows/columns must
+     * be removed from storage on refresh.
+     * @param {data} array of assoc objects with records to save
+     * @returns {Promise<void>}
+     */
+    async replaceData(data) {
+
+      throw new Error(`${this.constructor.name} does not support snapshot table replacement`);
+    }
+    //----------------------------------------------------------------
   
   //---- saveRecordsAddedToBuffer ------------------------------------
     /**

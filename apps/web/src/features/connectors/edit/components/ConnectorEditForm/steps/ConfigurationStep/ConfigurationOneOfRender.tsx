@@ -5,6 +5,7 @@ import { TabsContent } from '@owox/ui/components/tabs';
 import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
 import { NestedConfigurationField } from './NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
+import { GoogleSheetsServiceAccountField } from './GoogleSheetsServiceAccountField';
 
 interface ConfigurationOneOfRenderProps {
   specification: ConnectorSpecificationResponseApiDto;
@@ -79,6 +80,23 @@ export function ConfigurationOneOfRender({
     });
   };
 
+  const handleNestedValuesChange = (option: string, values: Record<string, unknown>) => {
+    const currentObjectValue = (
+      configuration[specification.name] && typeof configuration[specification.name] === 'object'
+        ? configuration[specification.name]
+        : {}
+    ) as Record<string, unknown>;
+
+    onValueChange(specification.name, {
+      [option]: {
+        ...(typeof currentObjectValue[option] === 'object' && currentObjectValue[option] !== null
+          ? (currentObjectValue[option] as Record<string, unknown>)
+          : {}),
+        ...values,
+      },
+    });
+  };
+
   const handleFieldSecretEditToggle = (option: string, itemName: string, enable: boolean) => {
     setFieldSecretEditing(prev => ({ ...prev, [itemName]: enable }));
     handleNestedValueChange(option, itemName, enable ? '' : SECRET_MASK);
@@ -121,6 +139,47 @@ export function ConfigurationOneOfRender({
                   optionConfiguration[option.value] !== null
                     ? (optionConfiguration[option.value] as Record<string, unknown>)
                     : {};
+                const isGoogleSheetsServiceAccountField =
+                  connectorName === 'GoogleSheets' &&
+                  specification.name === 'AuthType' &&
+                  option.value === 'service_account' &&
+                  itemName === 'ServiceAccountKey';
+
+                if (isGoogleSheetsServiceAccountField) {
+                  return (
+                    <GoogleSheetsServiceAccountField
+                      key={itemName}
+                      itemName={itemName}
+                      title={itemSpec.title}
+                      description={itemSpec.description}
+                      value={nestedConfiguration[itemName]}
+                      metadata={{
+                        email:
+                          typeof nestedConfiguration.ServiceAccountEmail === 'string'
+                            ? nestedConfiguration.ServiceAccountEmail
+                            : undefined,
+                        clientId:
+                          typeof nestedConfiguration.ServiceAccountClientId === 'string'
+                            ? nestedConfiguration.ServiceAccountClientId
+                            : undefined,
+                        projectId:
+                          typeof nestedConfiguration.ServiceAccountProjectId === 'string'
+                            ? nestedConfiguration.ServiceAccountProjectId
+                            : undefined,
+                      }}
+                      isEditingExisting={isEditingExisting}
+                      onValueChange={(value, metadata) => {
+                        handleNestedValuesChange(option.value, {
+                          [itemName]: value,
+                          ServiceAccountEmail: metadata.email ?? '',
+                          ServiceAccountClientId: metadata.clientId ?? '',
+                          ServiceAccountProjectId: metadata.projectId ?? '',
+                        });
+                      }}
+                    />
+                  );
+                }
+
                 return (
                   <NestedConfigurationField
                     key={itemName}

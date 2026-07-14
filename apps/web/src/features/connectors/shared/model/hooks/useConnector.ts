@@ -83,6 +83,29 @@ export function useConnector() {
     [dispatch]
   );
 
+  const previewConnectorFields = useCallback(
+    async (connectorName: string, configuration: Record<string, unknown>) => {
+      dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_START });
+      try {
+        const connectorApiService = new ConnectorApiService();
+        const response = await connectorApiService.previewConnectorFields(
+          connectorName,
+          configuration
+        );
+        dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS, payload: response });
+        return response;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        dispatch({
+          type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR,
+          payload: message,
+        });
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
   return {
     connectors,
     connectorSpecification: state.connectorSpecification,
@@ -94,5 +117,6 @@ export function useConnector() {
     fetchAvailableConnectors,
     fetchConnectorSpecification,
     fetchConnectorFields,
+    previewConnectorFields,
   };
 }

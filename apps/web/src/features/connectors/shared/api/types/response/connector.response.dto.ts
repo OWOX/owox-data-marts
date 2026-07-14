@@ -17,6 +17,8 @@ export interface ConnectorSpecificationItemResponseApiDto {
   required?: boolean;
   options?: string[];
   placeholder?: string;
+  minimum?: number;
+  maximum?: number;
   attributes?: string[];
 }
 

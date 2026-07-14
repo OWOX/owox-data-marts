@@ -29,6 +29,9 @@ interface FieldsSelectionStepProps {
   configuration?: Record<string, unknown>;
   onFieldToggle: (fieldName: string, isChecked: boolean) => void;
   onSelectAllFields: (fieldNames: string[], isSelected: boolean) => void;
+  itemLabel?: string;
+  searchPlaceholder?: string;
+  systemFieldNames?: string[];
 }
 
 export function FieldsSelectionStep({
@@ -39,6 +42,9 @@ export function FieldsSelectionStep({
   configuration,
   onFieldToggle,
   onSelectAllFields,
+  itemLabel = 'fields',
+  searchPlaceholder = 'Search field',
+  systemFieldNames = [],
 }: FieldsSelectionStepProps) {
   const filterInputRef = useRef<HTMLInputElement>(null);
   const prevSelectedFieldRef = useRef<string | null>(null);
@@ -62,6 +68,11 @@ export function FieldsSelectionStep({
   }, [selectedFieldData?.uniqueKeys, selectedFieldData?.uniqueKeysByDataLevel, selectedDataLevel]);
   const showDataLevelFieldsTip = Boolean(
     selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]
+  );
+  const systemFieldNameSet = useMemo(() => new Set(systemFieldNames), [systemFieldNames]);
+  const lockedFieldNameSet = useMemo(
+    () => new Set([...uniqueKeys, ...systemFieldNames]),
+    [uniqueKeys, systemFieldNames]
   );
 
   const originalIndexByName = useMemo(() => {
@@ -93,9 +104,9 @@ export function FieldsSelectionStep({
   }, [availableFields, filterText, uniqueKeys, sortOrder, originalIndexByName]);
 
   const availableFieldNames = availableFields.map(field => field.name);
-  const selectedTotalCount = selectedFields.filter(fieldName =>
-    availableFieldNames.includes(fieldName)
-  ).length;
+  const selectedTotalCount = availableFields.filter(field => {
+    return selectedFields.includes(field.name) || lockedFieldNameSet.has(field.name);
+  }).length;
 
   useEffect(() => {
     const availableFieldNamesSet = new Set(availableFields.map(f => f.name));
@@ -153,7 +164,9 @@ export function FieldsSelectionStep({
       if (isHotkeyPressed) {
         event.preventDefault();
 
-        const availableNames = availableFields.map(field => field.name);
+        const availableNames = availableFields
+          .map(field => field.name)
+          .filter(fieldName => !lockedFieldNameSet.has(fieldName));
         const notYetSelected = availableNames.filter(name => !selectedFields.includes(name));
         const shouldSelectAll = notYetSelected.length > 0;
 
@@ -165,7 +178,7 @@ export function FieldsSelectionStep({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [availableFields, selectedFields, onFieldToggle, onSelectAllFields]);
+  }, [availableFields, lockedFieldNameSet, selectedFields, onFieldToggle, onSelectAllFields]);
 
   if (!selectedField || !connectorFields) {
     return (
@@ -211,7 +224,7 @@ export function FieldsSelectionStep({
             <input
               ref={filterInputRef}
               type='text'
-              placeholder='Search field'
+              placeholder={searchPlaceholder}
               value={filterText}
               onChange={e => {
                 setFilterText(e.target.value);
@@ -275,7 +288,7 @@ export function FieldsSelectionStep({
         {/* end: Search & Sorting */}
 
         <AppWizardStepSection
-          title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for "${selectedField}" data`}
+          title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} ${itemLabel} for "${selectedField}" data`}
         >
           {showDataLevelFieldsTip && (
             <div className='border-border bg-muted/30 text-muted-foreground flex gap-3 rounded-md border px-3 py-2 text-sm'>
@@ -298,6 +311,8 @@ export function FieldsSelectionStep({
           <AppWizardStepCards>
             {filteredFields.map(field => {
               const isUniqueKey = uniqueKeys.includes(field.name);
+              const isSystemField = systemFieldNameSet.has(field.name);
+              const isLocked = isUniqueKey || isSystemField;
               return (
                 <AppWizardStepCardItem
                   key={field.name}
@@ -305,9 +320,9 @@ export function FieldsSelectionStep({
                   id={`field-${field.name}`}
                   name='selectedFields'
                   value={field.name}
-                  checked={selectedFields.includes(field.name)}
-                  selected={selectedFields.includes(field.name) || isUniqueKey}
-                  disabled={isUniqueKey}
+                  checked={selectedFields.includes(field.name) || isLocked}
+                  selected={selectedFields.includes(field.name) || isLocked}
+                  disabled={isLocked}
                   onChange={checked => {
                     onFieldToggle(field.name, checked as boolean);
                   }}
@@ -318,6 +333,12 @@ export function FieldsSelectionStep({
                         <p className='flex items-center gap-2'>
                           <span className='font-semibold'>Unique key</span>{' '}
                           <KeyRound className='text-secondary h-3 w-3' />
+                        </p>
+                      )}
+                      {isSystemField && (
+                        <p>
+                          <span className='font-semibold'>System {itemLabel.slice(0, -1)}:</span>{' '}
+                          always included in the warehouse table
                         </p>
                       )}
                       <p>
@@ -344,9 +365,9 @@ export function FieldsSelectionStep({
               </div>
             )}
           </AppWizardStepCards>
-
-          <OpenIssueLink label='Need another field?' />
         </AppWizardStepSection>
+
+        <OpenIssueLink label={`Need another ${itemLabel === 'columns' ? 'column' : 'field'}?`} />
       </>
     </AppWizardStep>
   );

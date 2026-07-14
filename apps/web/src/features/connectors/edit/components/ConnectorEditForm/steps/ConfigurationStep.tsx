@@ -169,18 +169,25 @@ export function ConfigurationStep({
     }));
   };
 
-  const validateValue = useCallback((value: unknown): boolean => {
-    if (value === null || value === undefined) return false;
-    if (typeof value === 'string' && value.trim() === '') return false;
-    if (typeof value === 'number' && isNaN(value)) return false;
-    if (Array.isArray(value) && value.length === 0) return false;
+  const validateValue = useCallback(
+    (value: unknown, spec?: ConnectorSpecificationResponseApiDto): boolean => {
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string' && value.trim() === '') return false;
+      if (typeof value === 'number') {
+        if (isNaN(value)) return false;
+        if (spec?.minimum !== undefined && value < spec.minimum) return false;
+        if (spec?.maximum !== undefined && value > spec.maximum) return false;
+      }
+      if (Array.isArray(value) && value.length === 0) return false;
 
-    return true;
-  }, []);
+      return true;
+    },
+    []
+  );
 
   const validateOneOfRecursive = useCallback(
     (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
-      if (typeof value !== 'object' || value === null) return validateValue(value);
+      if (typeof value !== 'object' || value === null) return validateValue(value, spec);
 
       if (spec.attributes?.includes('OAUTH_FLOW') && '_source_credential_id' in value) {
         return true;
@@ -201,7 +208,7 @@ export function ConfigurationStep({
               if (requiredItems.length > 0) {
                 return requiredItems.every(([itemName]) => {
                   const itemValue = (oneOfValue as Record<string, unknown>)[itemName];
-                  return validateValue(itemValue);
+                  return validateValue(itemValue, oneOf.items[itemName]);
                 });
               }
             }
@@ -217,7 +224,7 @@ export function ConfigurationStep({
         });
       }
 
-      return validateValue((value as Record<string, unknown>)[spec.name]);
+      return validateValue((value as Record<string, unknown>)[spec.name], spec);
     },
     [validateValue]
   );
@@ -232,7 +239,7 @@ export function ConfigurationStep({
           : requiredOneOfSpecs.some(spec => validateOneOfRecursive(config[spec.name], spec));
 
       const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
-      const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name]));
+      const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name], spec));
 
       return isValidOneOf && isValidRequired;
     },
