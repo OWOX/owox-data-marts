@@ -362,7 +362,14 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   }
 
   /**
-   * Get unique key fields for a node, accounting for data-level dependent dimensions
+   * Get unique key fields for a node, accounting for data-level dependent dimensions.
+   *
+   * advertiser_id is always included for the insights nodes: AdvertiserIDs can list
+   * several advertisers that all write into the same destination table (one storage
+   * instance is cached per node in Connector.js), and at AUCTION_ADVERTISER there is no
+   * other dimension to tell two advertisers' same-day rows apart, so the MERGE key would
+   * collide across advertisers without it. campaign_id/adgroup_id/ad_id are unique
+   * platform-wide, so this is a no-op (redundant-but-harmless) at the other data levels.
    *
    * @param {string} nodeName - The node name (e.g. ad_insights, ad_insights_by_country)
    * @param {string} dataLevel - The reporting data level (only relevant for insights nodes)
@@ -370,10 +377,11 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
    */
   getUniqueKeysForNode(nodeName, dataLevel) {
     if (nodeName === 'ad_insights') {
-      return this.getDimensionsForDataLevel(dataLevel);
+      return this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'advertiser_id');
     }
     if (nodeName === 'ad_insights_by_country') {
-      return this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'country_code');
+      const dimensions = this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'country_code');
+      return this.populateDimensions(dimensions, 'advertiser_id');
     }
     return this.fieldsSchema[nodeName].uniqueKeys;
   }
@@ -381,28 +389,22 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   /**
    * Get fields schema, adding a uniqueKeysByDataLevel map to insights nodes so the
    * config UI can pin the correct fields for whichever DataLevel the user picks
-   * (e.g. AUCTION_ADVERTISER doesn't require ad_id, only AUCTION_AD does).
+   * (e.g. AUCTION_ADVERTISER doesn't require ad_id, only AUCTION_AD does). Reuses
+   * getUniqueKeysForNode so the UI can never drift from the actual merge/validation keys.
    *
    * @return {object} - Fields schema, keyed by node name
    */
   getFieldsSchema() {
     const schema = super.getFieldsSchema();
 
-    const uniqueKeysByDataLevel = {};
-    for (const level of TIKTOK_ADS_DATA_LEVELS) {
-      uniqueKeysByDataLevel[level] = this.getDimensionsForDataLevel(level);
-    }
+    for (const nodeName of ['ad_insights', 'ad_insights_by_country']) {
+      if (!schema[nodeName]) continue;
 
-    if (schema.ad_insights) {
-      schema.ad_insights = { ...schema.ad_insights, uniqueKeysByDataLevel };
-    }
-
-    if (schema.ad_insights_by_country) {
-      const byCountryUniqueKeysByDataLevel = {};
+      const uniqueKeysByDataLevel = {};
       for (const level of TIKTOK_ADS_DATA_LEVELS) {
-        byCountryUniqueKeysByDataLevel[level] = this.populateDimensions(uniqueKeysByDataLevel[level], 'country_code');
+        uniqueKeysByDataLevel[level] = this.getUniqueKeysForNode(nodeName, level);
       }
-      schema.ad_insights_by_country = { ...schema.ad_insights_by_country, uniqueKeysByDataLevel: byCountryUniqueKeysByDataLevel };
+      schema[nodeName] = { ...schema[nodeName], uniqueKeysByDataLevel };
     }
 
     return schema;
@@ -442,11 +444,12 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Validate that required unique fields are included
     if (this.fieldsSchema[nodeName].uniqueKeys) {
-      const nodeDataLevel = (nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country')
-        ? this.getValidatedDataLevel()
-        : null;
+      const isInsightsNode = nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country';
+      const nodeDataLevel = isInsightsNode ? this.getValidatedDataLevel() : null;
       const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeDataLevel);
-      const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
+      const missingKeys = uniqueKeys.filter(
+        key => !(isInsightsNode && key === 'advertiser_id') && !fields.includes(key)
+      );
 
       if (missingKeys.length > 0) {
         throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
@@ -657,19 +660,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     // Filter out any extremely large fields or fields not in schema
     const processedRecord = {};
 
-    // First ensure uniqueKey fields are always included
-    if (schema[nodeName].uniqueKeys) {
-      for (const keyField of schema[nodeName].uniqueKeys) {
-        if (keyField in record) {
-          processedRecord[keyField] = record[keyField];
-        }
-        else if (keyField === 'advertiser_id' && nodeName === 'ad_insights') {
-          processedRecord['advertiser_id'] = this.currentAdvertiserId || '';
-        }
-      }
-    }
-
-    // Next add all other fields defined in the schema
+    // Add all fields defined in the schema. Every node's uniqueKeys are themselves schema
+    // fields (verified across advertiser/campaigns/ad_groups/ads/ad_insights*/audiences),
+    // and advertiser_id is force-set onto the record above for ad_insights/
+    // ad_insights_by_country/audiences, so no separate "ensure uniqueKeys" pass is needed.
     for (let field in schema[nodeName].fields) {
       if (field in record && !processedRecord[field]) {
         processedRecord[field] = record[field];

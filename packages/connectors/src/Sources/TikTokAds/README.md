@@ -24,10 +24,12 @@ To begin, check out [**GETTING STARTED.md**](GETTING_STARTED.md) for step-by-ste
 
 | Data Level | `ad_insights` unique key fields | `ad_insights_by_country` unique key fields |
 | --- | --- | --- |
-| `AUCTION_ADVERTISER` | `stat_time_day` | `stat_time_day`, `country_code` |
-| `AUCTION_CAMPAIGN` | `campaign_id`, `stat_time_day` | `campaign_id`, `stat_time_day`, `country_code` |
-| `AUCTION_ADGROUP` | `adgroup_id`, `stat_time_day` | `adgroup_id`, `stat_time_day`, `country_code` |
-| `AUCTION_AD` | `ad_id`, `stat_time_day` | `ad_id`, `stat_time_day`, `country_code` |
+| `AUCTION_ADVERTISER` | `stat_time_day`, `advertiser_id` | `stat_time_day`, `country_code`, `advertiser_id` |
+| `AUCTION_CAMPAIGN` | `campaign_id`, `stat_time_day`, `advertiser_id` | `campaign_id`, `stat_time_day`, `country_code`, `advertiser_id` |
+| `AUCTION_ADGROUP` | `adgroup_id`, `stat_time_day`, `advertiser_id` | `adgroup_id`, `stat_time_day`, `country_code`, `advertiser_id` |
+| `AUCTION_AD` | `ad_id`, `stat_time_day`, `advertiser_id` | `ad_id`, `stat_time_day`, `country_code`, `advertiser_id` |
+
+`advertiser_id` is always a unique key: `AdvertiserIDs` can list several advertisers writing into the same destination table, and only `advertiser_id` tells their rows apart at `AUCTION_ADVERTISER`, which has no other per-advertiser dimension.
 
 The field selector keeps the required unique-key fields selected for the chosen data level, so choose the data level before customizing fields. If a connector has already loaded data, changing `Data Level` can make new rows merge against a different key structure in the same destination table. Use a new Data Mart or destination table when changing the reporting grain.
 

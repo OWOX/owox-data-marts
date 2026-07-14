@@ -101,13 +101,21 @@ export function ConnectorDefinitionField({
         const updatedConfigurations = [...currentDefinition.connector.source.configuration];
         updatedConfigurations[configIndex] = connector.source.configuration[0] || {};
 
+        // connector.source.fields may add fields required by a changed config parameter
+        // (e.g. TikTok Ads Data Level). Union rather than overwrite so editing
+        // configuration can never drop previously selected fields, regardless of what
+        // triggered the update.
+        const updatedFields = Array.from(
+          new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
+        );
+
         const updatedDefinition: ConnectorDefinitionConfig = {
           connector: {
             ...currentDefinition.connector,
             source: {
               ...currentDefinition.connector.source,
               configuration: updatedConfigurations,
-              fields: connector.source.fields,
+              fields: updatedFields,
             },
           },
         };

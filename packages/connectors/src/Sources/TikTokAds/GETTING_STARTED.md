@@ -46,15 +46,17 @@ Before proceeding, please make sure that:
 
 Choose **Data Level** before selecting fields. For `ad_insights` and `ad_insights_by_country`, TikTok returns rows at the selected reporting grain, and OWOX pins the matching unique-key fields so rows can be merged correctly.
 
-Use `AUCTION_AD` when you need daily metrics per ad. Keep `ad_id` and `stat_time_day` selected.
+Use `AUCTION_AD` when you need daily metrics per ad. Keep `ad_id`, `stat_time_day`, and `advertiser_id` selected.
 
-Use `AUCTION_ADGROUP` when you need daily metrics per ad group. Keep `adgroup_id` and `stat_time_day` selected.
+Use `AUCTION_ADGROUP` when you need daily metrics per ad group. Keep `adgroup_id`, `stat_time_day`, and `advertiser_id` selected.
 
-Use `AUCTION_CAMPAIGN` when you need daily metrics per campaign. Keep `campaign_id` and `stat_time_day` selected.
+Use `AUCTION_CAMPAIGN` when you need daily metrics per campaign. Keep `campaign_id`, `stat_time_day`, and `advertiser_id` selected.
 
-Use `AUCTION_ADVERTISER` when you need advertiser-level daily totals. Keep `stat_time_day` selected.
+Use `AUCTION_ADVERTISER` when you need advertiser-level daily totals. Keep `stat_time_day` and `advertiser_id` selected.
 
 Use `ad_insights_by_country` when you also need a geographic breakdown. It follows the same **Data Level** grain and adds `country_code` to the required fields.
+
+`advertiser_id` is always required: if **Advertiser IDs** lists more than one advertiser, they write into the same destination table, and `advertiser_id` is what keeps their rows from merging into each other.
 
 You can add any supported metrics to the required fields, but do not remove the required fields from the schema. If you change **Data Level** after data has already been loaded, use a new Data Mart or destination table.
 
@@ -63,12 +65,7 @@ You can add any supported metrics to the required fields, but do not remove the 
 3. Specify the **dataset** where the data will be stored (or leave the default).  
 4. Click **Finish**, then **Publish Data Mart**.
 
-| Data Level | Required fields for `ad_insights` | Required fields for `ad_insights_by_country` |
-| --- | --- | --- |
-| `AUCTION_ADVERTISER` | `stat_time_day` | `stat_time_day`, `country_code` |
-| `AUCTION_CAMPAIGN` | `campaign_id`, `stat_time_day` | `campaign_id`, `stat_time_day`, `country_code` |
-| `AUCTION_ADGROUP` | `adgroup_id`, `stat_time_day` | `adgroup_id`, `stat_time_day`, `country_code` |
-| `AUCTION_AD` | `ad_id`, `stat_time_day` | `ad_id`, `stat_time_day`, `country_code` |
+See [Data Level for Performance Nodes](README.md#data-level-for-performance-nodes) in the README for the full required-fields table per level.
 
 ![TikTok Ads Publish Data Mart](res/tiktok_ads_publish.png)
 

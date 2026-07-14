@@ -14,6 +14,7 @@ import type { ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
 import { trackEvent } from '../../../../../utils';
+import { DATA_LEVEL_CONFIG_KEY } from '../../../shared/constants/connector-config';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -179,12 +180,13 @@ export function ConnectorEditForm({
 
   // Union the persisted fields with whatever the chosen DataLevel requires (e.g. TikTok
   // ad_insights needs ad_id at AUCTION_AD). No-op for nodes without uniqueKeysByDataLevel.
-  // ponytail: best-effort — if fields haven't loaded yet the run fails loudly with
-  // "Missing required unique fields"; acceptable since changing DataLevel on existing data
-  // is already discouraged in the field's description.
+  // Falls back to the unchanged fields if connectorFields hasn't loaded yet, but that
+  // window isn't user-reachable: loadFieldsSafely is always triggered for an existing
+  // connector, and the Save button is disabled via isLoading={... || loadingFields} at
+  // the <StepNavigation> call site below until that fetch settles.
   const fieldsForSave = useMemo(() => {
     const fields = existingConnector?.source.fields ?? selectedFields;
-    const dataLevel = connectorConfiguration.DataLevel;
+    const dataLevel = connectorConfiguration[DATA_LEVEL_CONFIG_KEY];
     if (typeof dataLevel !== 'string') return fields;
 
     const node = existingConnector?.source.node ?? selectedNode;

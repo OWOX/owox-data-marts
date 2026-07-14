@@ -19,6 +19,7 @@ import { ConnectorFieldSortOrder } from '../../../../shared/types';
 import { OpenIssueLink, StepperHeroBlock } from '../components';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import { Unplug } from 'lucide-react';
+import { DATA_LEVEL_CONFIG_KEY } from '../../../../shared/constants/connector-config';
 
 interface FieldsSelectionStepProps {
   connector: ConnectorListItem;
@@ -51,7 +52,7 @@ export function FieldsSelectionStep({
     () => selectedFieldData?.fields ?? [],
     [selectedFieldData?.fields]
   );
-  const dataLevel = configuration?.DataLevel;
+  const dataLevel = configuration?.[DATA_LEVEL_CONFIG_KEY];
   const selectedDataLevel = typeof dataLevel === 'string' ? dataLevel : null;
   const uniqueKeys = useMemo(() => {
     if (selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]) {
@@ -59,10 +60,9 @@ export function FieldsSelectionStep({
     }
     return selectedFieldData?.uniqueKeys ?? [];
   }, [selectedFieldData, selectedDataLevel]);
-  const showDataLevelFieldsTip =
-    selectedDataLevel &&
-    (selectedField === 'ad_insights' || selectedField === 'ad_insights_by_country') &&
-    Boolean(selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]);
+  const showDataLevelFieldsTip = Boolean(
+    selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]
+  );
 
   const originalIndexByName = useMemo(() => {
     const indexMap = new Map<string, number>();
