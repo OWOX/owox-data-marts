@@ -8,6 +8,7 @@ import {
   CircleHelp,
   CircleMinus,
   ExternalLink,
+  FileText,
   Plug,
   Settings,
 } from 'lucide-react';
@@ -211,31 +212,6 @@ export function OverviewTab() {
               }
             />
           </div>
-          <div className='mt-4 flex flex-col gap-2'>
-            <div>
-              <h3 className='text-foreground text-sm font-medium'>Description</h3>
-              <p className='text-muted-foreground mt-1 text-xs'>
-                Describe the project&apos;s business context, terminology, and conventions. This
-                description is shared with connected AI assistants through MCP. Do not include
-                secrets.
-              </p>
-            </div>
-            {isProjectSettingsLoading ? (
-              <Skeleton className='h-64 w-full' />
-            ) : (
-              <InlineEditDescription
-                description={projectSettings.description}
-                onUpdate={updateDescription}
-                placeholder='Add a description for this project...'
-                readOnly={!isAdmin || projectSettingsError !== null}
-              />
-            )}
-            {projectSettingsError && (
-              <p className='text-destructive text-xs' role='alert'>
-                {projectSettingsError}
-              </p>
-            )}
-          </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
@@ -289,6 +265,42 @@ export function OverviewTab() {
               hint={memberRoleBreakdown || undefined}
               to={scope('/project-settings/members')}
             />
+          </div>
+        </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
+
+      <CollapsibleCard collapsible name='project-description'>
+        <CollapsibleCardHeader>
+          <CollapsibleCardHeaderTitle
+            icon={FileText}
+            tooltip='Business context shared with connected AI assistants'
+          >
+            Description
+          </CollapsibleCardHeaderTitle>
+        </CollapsibleCardHeader>
+        <CollapsibleCardContent>
+          <div className='flex flex-col gap-2'>
+            <p className='text-muted-foreground text-xs'>
+              Describe the project&apos;s business context, goals, terminology, and conventions.
+              This description is shared with connected AI assistants through MCP. Do not include
+              secrets.
+            </p>
+            {isProjectSettingsLoading ? (
+              <Skeleton className='h-64 w-full' />
+            ) : (
+              <InlineEditDescription
+                description={projectSettings.description}
+                onUpdate={updateDescription}
+                placeholder='Add a description for this project...'
+                readOnly={!isAdmin || projectSettingsError !== null}
+              />
+            )}
+            {projectSettingsError && (
+              <p className='text-destructive text-xs' role='alert'>
+                {projectSettingsError}
+              </p>
+            )}
           </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>

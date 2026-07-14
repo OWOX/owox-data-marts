@@ -9,6 +9,8 @@ describe('MCP OAuth discovery (e2e)', () => {
   const originalOwoxAuthPublicBaseUrl = process.env.OWOX_AUTH_PUBLIC_BASE_URL;
   const originalOpenaiAppsChallengeToken = process.env.MCP_OPENAI_APPS_CHALLENGE_TOKEN;
   const challengeToken = 'test-openai-apps-challenge-token';
+  const getMcpMetadata = (path: string) =>
+    agent.get(path).set('Host', 'mcp.owox.com').set('X-Forwarded-Proto', 'https');
 
   beforeAll(async () => {
     process.env.MCP_PUBLIC_BASE_URL = 'https://mcp.owox.com';
@@ -41,7 +43,7 @@ describe('MCP OAuth discovery (e2e)', () => {
   });
 
   it('publishes OAuth protected-resource metadata at root well-known path', async () => {
-    const response = await agent.get('/.well-known/oauth-protected-resource');
+    const response = await getMcpMetadata('/.well-known/oauth-protected-resource');
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -56,7 +58,7 @@ describe('MCP OAuth discovery (e2e)', () => {
       '/.well-known/oauth-protected-resource/mcp',
       '/mcp/.well-known/oauth-protected-resource',
     ]) {
-      const response = await agent.get(path);
+      const response = await getMcpMetadata(path);
 
       expect(response.status).toBe(200);
       expect(response.body).toMatchObject({

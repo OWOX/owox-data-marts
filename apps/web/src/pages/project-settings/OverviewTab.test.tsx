@@ -191,6 +191,23 @@ describe('OverviewTab project status', () => {
     expect(screen.queryByText('https://blocked-project.mcp.owox.com/mcp')).not.toBeInTheDocument();
   });
 
+  it('renders project description as a separate collapsible block after At a glance', () => {
+    renderOverview();
+
+    const atAGlanceHeading = screen.getByText('At a glance');
+    const descriptionHeading = screen.getByText('Description');
+
+    expect(
+      Boolean(
+        atAGlanceHeading.compareDocumentPosition(descriptionHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
+    expect(
+      screen.getByText(/business context, goals, terminology, and conventions/i)
+    ).toBeInTheDocument();
+  });
+
   it('saves the project description with the same inline editor flow as a data mart', async () => {
     renderOverview();
 
