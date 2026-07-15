@@ -62,7 +62,7 @@ const noop = () => {
 };
 
 describe('RelationshipAccordionItem — No primary key badge', () => {
-  it('renders the "No primary key" badge when the target data mart has no primary key', () => {
+  it('renders the "No primary key" badge as the amber AttentionBadge, not the orange WarningBadge', () => {
     const row = buildRow({
       relationship: buildRelationship({
         targetDataMart: {
@@ -90,7 +90,12 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
       />
     );
 
-    expect(screen.getByText('No primary key')).toBeInTheDocument();
+    const badge = screen.getByText('No primary key');
+    expect(badge).toBeInTheDocument();
+    const badgeEl = badge.closest('[class*="border-amber"]');
+    expect(badgeEl).toBeTruthy();
+    expect(badgeEl?.className).not.toContain('border-orange');
+    expect(badgeEl?.querySelector('.lucide-triangle-alert')).toBeTruthy();
   });
 
   it('does not render the badge when the target data mart has a primary key', () => {
@@ -142,7 +147,9 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
       />
     );
 
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    const draftBadge = screen.getByText('Draft');
+    expect(draftBadge).toBeInTheDocument();
+    expect(draftBadge.className).toContain('border-orange');
     expect(screen.queryByText('No primary key')).not.toBeInTheDocument();
   });
 

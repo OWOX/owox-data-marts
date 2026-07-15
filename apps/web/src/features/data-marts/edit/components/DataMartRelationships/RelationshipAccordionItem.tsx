@@ -12,7 +12,15 @@ import { Switch } from '@owox/ui/components/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  Columns3,
+  ExternalLink,
+  GitMerge,
+  Info,
+  MoreHorizontal,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
@@ -45,6 +53,24 @@ function WarningBadge({
       variant='outline'
       className={cn('shrink-0 border-orange-400 text-[10px] text-orange-500', className)}
     >
+      {children}
+    </Badge>
+  );
+}
+
+/** Lower-severity than WarningBadge: "works — heads up" rather than "non-functional". */
+function AttentionBadge({
+  className,
+  children,
+  ...props
+}: Omit<ComponentProps<typeof Badge>, 'variant'>) {
+  return (
+    <Badge
+      {...props}
+      variant='outline'
+      className={cn('shrink-0 border-amber-400 text-[10px] text-amber-500', className)}
+    >
+      <TriangleAlert size={12} className='mr-1' />
       {children}
     </Badge>
   );
@@ -269,7 +295,7 @@ export function RelationshipAccordionItem({
                   !row.isCycleStub && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <WarningBadge>No primary key</WarningBadge>
+                        <AttentionBadge>No primary key</AttentionBadge>
                       </TooltipTrigger>
                       <TooltipContent side='top' className='max-w-xs'>
                         {MISSING_PRIMARY_KEY_TOOLTIP}
