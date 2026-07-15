@@ -881,6 +881,18 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     expect(screen.getByText('Unique count')).toBeInTheDocument();
   });
 
+  it('renders the Unique count label in the same monospace font as the native field rows', () => {
+    // The native field rows (e.g. `field.name`) render in font-mono; the virtual
+    // Unique count row must not visually diverge from them (#6733.4 font fix).
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByText('Unique count').className).toMatch(/font-mono/);
+  });
+
   it('does NOT render the Unique count row when the schema has no PK field', () => {
     renderPicker(noPkSchema(), ['col_a', 'col_b'], {
       storageType: DataStorageType.GOOGLE_BIGQUERY,

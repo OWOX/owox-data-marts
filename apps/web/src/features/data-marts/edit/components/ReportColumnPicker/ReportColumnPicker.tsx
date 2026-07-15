@@ -1298,7 +1298,7 @@ export function ReportColumnPicker({
                 });
               }}
             />
-            <span className='min-w-0 truncate text-xs'>Unique count</span>
+            <span className='min-w-0 truncate font-mono text-xs'>Unique count</span>
             {effectiveOutputConfig.uniqueCountConfig && (
               <span className='ml-auto flex items-center'>
                 <Tooltip>
