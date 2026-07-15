@@ -11,4 +11,5 @@ export enum DataMartRunType {
   AI_ASSISTANT = 'AI_ASSISTANT',
   HTTP_DATA = 'HTTP_DATA',
   MCP_QUERY = 'MCP_QUERY',
+  DATA_QUALITY = 'DATA_QUALITY',
 }

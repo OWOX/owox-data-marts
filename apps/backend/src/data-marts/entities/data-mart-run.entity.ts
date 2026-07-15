@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  OneToOne,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
@@ -16,6 +17,7 @@ import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-m
 import { DataMartRunInsightDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../dto/schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
+import { DataQualityRun } from './data-quality-run.entity';
 
 @Entity()
 export class DataMartRun implements CreatorAwareEntity {
@@ -82,4 +84,7 @@ export class DataMartRun implements CreatorAwareEntity {
 
   @Column({ type: 'json', nullable: true })
   additionalParams?: Record<string, unknown> | null;
+
+  @OneToOne(() => DataQualityRun, dataQualityRun => dataQualityRun.dataMartRun)
+  dataQualityRun?: DataQualityRun;
 }

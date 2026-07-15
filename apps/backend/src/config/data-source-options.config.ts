@@ -107,7 +107,7 @@ export function createDataSourceOptions(config: ConfigService): DataSourceOption
 
   const baseOptions = {
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-    migrations: [__dirname + '/../migrations/[0-9]*-*.{ts,js}'],
+    migrations: [__dirname + '/../migrations/[0-9]*-!(*.spec).{ts,js}'],
     logger: new CustomDataSourceLogger(
       createLogger('TypeORM'),
       resolveLoggerOptions(config.get<string>('TYPEORM_LOGGING', 'error'))
