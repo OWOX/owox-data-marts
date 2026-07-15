@@ -653,6 +653,8 @@ describe('StreamHttpDataService', () => {
       columnSelector: { mode: 'explicit' as const, explicit: ['date', 'revenue'] },
       filter: undefined,
       sort: undefined,
+      aggregation: undefined,
+      dateTrunc: undefined,
       limit: 5,
     });
     await service.stream(fakeCommand(), mockResponse());
@@ -695,6 +697,171 @@ describe('StreamHttpDataService', () => {
     );
   });
 
+  it('composes SQL when only an aggregation is requested (no filter/sort/limit)', async () => {
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation,
+      dateTrunc: undefined,
+      limit: undefined,
+    } as never);
+
+    await service.stream(fakeCommand(), mockResponse());
+
+    expect(sqlComposer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ aggregationConfig: aggregation }),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('composes SQL when only a date bucket is requested (no filter/sort/limit)', async () => {
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation: undefined,
+      dateTrunc,
+      limit: undefined,
+    } as never);
+
+    await service.stream(fakeCommand(), mockResponse());
+
+    expect(sqlComposer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ dateTruncConfig: dateTrunc }),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('passes aggregation and date-trunc columns to the column validator', async () => {
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation,
+      dateTrunc,
+      limit: undefined,
+    } as never);
+
+    await service.stream(fakeCommand(), mockResponse());
+
+    expect(columnValidator.validate).toHaveBeenCalledWith(
+      expect.objectContaining({ aggregation, dateTrunc }),
+      expect.anything()
+    );
+  });
+
+  it('records decoded aggregation/dateTrunc in the run metadata', async () => {
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation,
+      dateTrunc,
+      limit: undefined,
+    } as never);
+
+    await service.stream(fakeCommand(), mockResponse());
+
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.SUCCESS,
+        metadata: expect.objectContaining({ aggregation, dateTrunc }),
+      })
+    );
+  });
+
+  it('streams the aggregated (renamed) headers and Row Count, not the raw requested columns', async () => {
+    // The reader renames an aggregated column's header to its "<column> | <FN>" output label and
+    // appends Row Count (see resolveReportDataHeaders). The stream must project rows by those
+    // resolved header names, else the aggregated metric is emitted as null and Row Count is dropped.
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation,
+      dateTrunc: undefined,
+      limit: undefined,
+    } as never);
+    reader.prepareReportData.mockResolvedValueOnce(
+      new ReportDataDescription([
+        new ReportDataHeader('date'),
+        new ReportDataHeader('revenue | SUM'),
+        new ReportDataHeader('Row Count'),
+      ])
+    );
+    reader.readReportDataBatch.mockResolvedValueOnce(
+      new ReportDataBatch([['2026-05-01', 93, 2]], null)
+    );
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    expect(res._writes).toEqual(['{"date":"2026-05-01","revenue | SUM":93,"Row Count":2}\n']);
+  });
+
+  it('streams a date-bucket-only request by the requested column names (headers are not renamed)', async () => {
+    // date-trunc keeps its output alias equal to the column name (DATE_TRUNC(...) AS date), so the
+    // resolved headers still match the requested columns → requested-column projection is correct.
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation: undefined,
+      dateTrunc,
+      limit: undefined,
+    } as never);
+    reader.prepareReportData.mockResolvedValueOnce(
+      new ReportDataDescription([new ReportDataHeader('date'), new ReportDataHeader('revenue')])
+    );
+    reader.readReportDataBatch.mockResolvedValueOnce(
+      new ReportDataBatch([['2026-05-01', 42]], null)
+    );
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    expect(res._writes).toEqual(['{"date":"2026-05-01","revenue":42}\n']);
+  });
+
+  it('streams aggregation + date-bucket by the resolved (renamed) header names', async () => {
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation,
+      dateTrunc,
+      limit: undefined,
+    } as never);
+    reader.prepareReportData.mockResolvedValueOnce(
+      new ReportDataDescription([
+        new ReportDataHeader('date'),
+        new ReportDataHeader('revenue | SUM'),
+        new ReportDataHeader('Row Count'),
+      ])
+    );
+    reader.readReportDataBatch.mockResolvedValueOnce(
+      new ReportDataBatch([['2026-01-01', 300, 3]], null)
+    );
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    expect(res._writes).toEqual(['{"date":"2026-01-01","revenue | SUM":300,"Row Count":3}\n']);
+  });
+
   it('rejects via the read/abort race when the client disconnects during a pending first batch read', async () => {
     reader.readReportDataBatch.mockImplementationOnce(() => new Promise<never>(() => {}));
     const res = mockResponse();
@@ -718,6 +885,8 @@ describe('StreamHttpDataService', () => {
       columnSelector: { mode: 'allBlendable' as const },
       filter: undefined,
       sort: undefined,
+      aggregation: undefined,
+      dateTrunc: undefined,
       limit: undefined,
     });
     columnResolver.resolve.mockReturnValueOnce(['date', 'revenue', 'orders__cost']);
@@ -749,6 +918,8 @@ describe('StreamHttpDataService', () => {
       columnSelector: { mode: 'allBlendable' as const },
       filter: undefined,
       sort: undefined,
+      aggregation: undefined,
+      dateTrunc: undefined,
       limit: undefined,
     });
     blendableSchema.computeBlendableSchema.mockResolvedValueOnce({

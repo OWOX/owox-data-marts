@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { FilterConfig } from '../../dto/schemas/filter-config.schema';
 import { SortConfig } from '../../dto/schemas/sort-config.schema';
+import { AggregationConfig } from '../../dto/schemas/aggregation-config.schema';
+import { DateTruncConfig } from '../../dto/schemas/date-trunc-config.schema';
 import { ReportingColumns } from './http-data-column-sets.util';
 
 export interface HttpDataColumnValidationInput {
   selectedColumns: string[];
   filter?: FilterConfig;
   sort?: SortConfig;
+  aggregation?: AggregationConfig;
+  dateTrunc?: DateTruncConfig;
 }
 
 @Injectable()
@@ -35,6 +39,12 @@ export class HttpDataColumnValidator {
       }
     }
     for (const rule of input.sort ?? []) {
+      referenced.add(rule.column);
+    }
+    for (const rule of input.aggregation ?? []) {
+      referenced.add(rule.column);
+    }
+    for (const rule of input.dateTrunc ?? []) {
       referenced.add(rule.column);
     }
     return referenced;

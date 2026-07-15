@@ -43,6 +43,41 @@ describe('HttpDataColumnValidator', () => {
     ).toThrow(BusinessViolationException);
   });
 
+  it('validates aggregation columns for existence', () => {
+    expect(() =>
+      validator.validate(
+        {
+          selectedColumns: ['date', 'revenue'],
+          aggregation: [{ column: 'revenue', function: 'SUM' }],
+        },
+        columns
+      )
+    ).not.toThrow();
+
+    expect(() =>
+      validator.validate(
+        { selectedColumns: ['date'], aggregation: [{ column: 'ghost', function: 'SUM' }] },
+        columns
+      )
+    ).toThrow(BusinessViolationException);
+  });
+
+  it('validates date-trunc columns for existence', () => {
+    expect(() =>
+      validator.validate(
+        { selectedColumns: ['date'], dateTrunc: [{ column: 'date', unit: 'MONTH' }] },
+        columns
+      )
+    ).not.toThrow();
+
+    expect(() =>
+      validator.validate(
+        { selectedColumns: ['date'], dateTrunc: [{ column: 'ghost', unit: 'MONTH' }] },
+        columns
+      )
+    ).toThrow(BusinessViolationException);
+  });
+
   it('ignores pre-join filter columns (resolved by aliasPath downstream, not by name here)', () => {
     expect(() =>
       validator.validate(

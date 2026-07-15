@@ -66,6 +66,8 @@ const data = await client.dataMarts.traverseData('dm_123', {
   column: ['Revenue: net = USD'],
   filter: [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }],
   sort: [{ column: 'Event Date (local)', direction: 'asc' }],
+  aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
+  dateTrunc: [{ column: 'Event Date (local)', unit: 'MONTH' }],
   limit: 1000,
 });
 
@@ -88,6 +90,8 @@ Column selection uses two separate fields:
 Do not pass comma-separated column lists. Column names are opaque strings and may contain commas, equals signs, spaces, quotes, or other symbols.
 
 Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` with `aliasPath` only when filtering a joined source before it is joined into the result.
+
+Use `aggregation` and `dateTrunc` arrays to group the streamed rows, with the same rule shapes as report output controls. `aggregation` takes `{ column, function }` rules; `function` is any report aggregate function — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE`, or a percentile (`P25`, `P50`, `P75`, `P95`). `dateTrunc` takes `{ column, unit, timeZone? }` rules that bucket a date/timestamp dimension by `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`. Any selected column without an aggregation rule becomes a grouping key. Aggregation and `dateTrunc` require an explicit `column` list — they cannot combine with `columns: '*'` or `columns: '**'` (a wildcard would group by every column). The streamed row keys are the resolved labels: an aggregated column becomes `"<column> | <TOKEN>"` (plus a `"Row Count"` column), where `<TOKEN>` is an uppercase spreadsheet-style token — most match the function name, but `COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes `STRINGAGG`, and `ANY_VALUE` becomes `ANYVALUE`.
 
 ## List storages
 

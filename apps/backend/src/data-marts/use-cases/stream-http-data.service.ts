@@ -19,7 +19,7 @@ import {
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
-import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
+import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { DataMart } from '../entities/data-mart.entity';
@@ -128,7 +128,13 @@ export class StreamHttpDataService {
       };
       const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
       this.columnValidator.validate(
-        { selectedColumns: columns, filter: query.filter, sort: query.sort },
+        {
+          selectedColumns: columns,
+          filter: query.filter,
+          sort: query.sort,
+          aggregation: query.aggregation,
+          dateTrunc: query.dateTrunc,
+        },
         reportingColumns
       );
       await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
@@ -138,6 +144,8 @@ export class StreamHttpDataService {
         columnConfig: columns,
         filterConfig: query.filter,
         sortConfig: query.sort,
+        aggregationConfig: query.aggregation,
+        dateTruncConfig: query.dateTrunc,
         limitConfig: limit ?? null,
       };
 
@@ -152,9 +160,7 @@ export class StreamHttpDataService {
 
       let sqlOverride: string | undefined = decision.blendedSql;
       let sqlOverrideParams = decision.params;
-      const hasOutputControls =
-        (query.filter?.length ?? 0) > 0 || (query.sort?.length ?? 0) > 0 || limit != null;
-      if (!decision.needsBlending && hasOutputControls) {
+      if (!decision.needsBlending && hasOutputControls(readPlan)) {
         const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
@@ -165,6 +171,8 @@ export class StreamHttpDataService {
         columns,
         filter: query.filter,
         sort: query.sort,
+        aggregation: query.aggregation,
+        dateTrunc: query.dateTrunc,
         limit,
       };
 
@@ -182,11 +190,22 @@ export class StreamHttpDataService {
       // once the first chunk is flushed. BEST-EFFORT — a failure must never break the stream.
       const totals = await this.computeTotalsBestEffort(readPlan, accessor, dataMart);
 
+      // An aggregation renames each aggregated column's header to its "<column> | <FN>" output
+      // label and appends Row Count, so the resolved headers no longer match the raw requested
+      // column names. Project by the resolved header names in that case (mirroring the report
+      // reader / query_data_mart), else the aggregated metric would stream as null and Row Count
+      // would be dropped. A plain or date-bucketed-only request keeps the requested-column
+      // projection (its headers are unchanged), preserving the "requested names as keys" contract.
+      const outputColumns =
+        (readPlan.aggregationConfig?.length ?? 0) > 0
+          ? description.dataHeaders.map(header => header.name)
+          : columns;
+
       const { rowCount, bytesWritten } = await this.streamRows(
         res,
         reader,
         description.dataHeaders,
-        columns,
+        outputColumns,
         runId
       );
 

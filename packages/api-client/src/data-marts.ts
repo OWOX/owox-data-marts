@@ -14,6 +14,8 @@ export type TraverseDataOptions = {
   column?: string[];
   filter?: unknown[] | null;
   sort?: unknown[] | null;
+  aggregation?: unknown[] | null;
+  dateTrunc?: unknown[] | null;
   limit?: number;
 };
 
@@ -68,6 +70,12 @@ function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams |
   }
   if (options.sort != null) {
     query.append('sort', encodeBase64UrlJson(options.sort));
+  }
+  if (options.aggregation != null) {
+    query.append('aggregation', encodeBase64UrlJson(options.aggregation));
+  }
+  if (options.dateTrunc != null) {
+    query.append('dateTrunc', encodeBase64UrlJson(options.dateTrunc));
   }
   if (options.limit !== undefined) {
     query.append('limit', String(options.limit));

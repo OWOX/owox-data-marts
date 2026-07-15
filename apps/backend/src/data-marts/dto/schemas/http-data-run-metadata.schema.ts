@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { FilterConfigSchema } from './filter-config.schema';
 import { SortConfigSchema } from './sort-config.schema';
+import { AggregationConfigSchema } from './aggregation-config.schema';
+import { DateTruncConfigSchema } from './date-trunc-config.schema';
 
 export const HTTP_DATA_FORMAT = 'ndjson' as const;
 
@@ -16,6 +18,8 @@ export const HttpDataRunMetadataSchema = z.object({
   columns: z.array(z.string()),
   filter: FilterConfigSchema.optional(),
   sort: SortConfigSchema.optional(),
+  aggregation: AggregationConfigSchema.optional(),
+  dateTrunc: DateTruncConfigSchema.optional(),
   limit: z.number().int().positive().optional(),
   dataDescription: z.object({ dataHeaders: z.array(DataHeaderSchema) }).optional(),
   rowCount: z.number().int().nonnegative().optional(),
