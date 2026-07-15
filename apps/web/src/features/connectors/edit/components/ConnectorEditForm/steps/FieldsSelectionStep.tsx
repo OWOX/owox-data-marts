@@ -59,7 +59,7 @@ export function FieldsSelectionStep({
       return selectedFieldData.uniqueKeysByDataLevel[selectedDataLevel];
     }
     return selectedFieldData?.uniqueKeys ?? [];
-  }, [selectedFieldData, selectedDataLevel]);
+  }, [selectedFieldData?.uniqueKeys, selectedFieldData?.uniqueKeysByDataLevel, selectedDataLevel]);
   const showDataLevelFieldsTip = Boolean(
     selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]
   );

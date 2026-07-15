@@ -145,6 +145,9 @@ describe('fetchData unique-key validation', () => {
           advertiser_id: {},
         },
       },
+      // Non-insights node so getUniqueKeysForNode's static fallback path stays exercisable
+      // if a future test targets a catalog node.
+      ads: { uniqueKeys: ['ad_id'], fields: { ad_id: {} } },
     },
     config: {},
     getValidatedDataLevel: () => 'AUCTION_AD',

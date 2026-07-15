@@ -383,7 +383,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       const dimensions = this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'country_code');
       return this.populateDimensions(dimensions, 'advertiser_id');
     }
-    return this.fieldsSchema[nodeName].uniqueKeys;
+    return this.fieldsSchema[nodeName]?.uniqueKeys ?? [];
   }
 
   /**
