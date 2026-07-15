@@ -31,7 +31,8 @@ interface EditorState {
   betweenFrom: string;
   betweenTo: string;
   relativeKind: RelativeDatePreset['kind'];
-  relativeN: number;
+  /** Raw text so the field can be emptied while editing; parsed/validated in buildRule. */
+  relativeN: string;
 }
 
 const RELATIVE_KINDS: { value: RelativeDatePreset['kind']; label: string }[] = [
@@ -60,7 +61,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
     betweenFrom: '',
     betweenTo: '',
     relativeKind: 'today',
-    relativeN: 7,
+    relativeN: '7',
   };
   if (!rule) return state;
   state.op = rule.operator as FilterOperator;
@@ -69,7 +70,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
     state.betweenTo = String(rule.value.to);
   } else if (rule.operator === 'relative_date') {
     state.relativeKind = rule.value.kind;
-    if ('n' in rule.value) state.relativeN = rule.value.n;
+    if ('n' in rule.value) state.relativeN = String(rule.value.n);
   } else if (!NO_VALUE_OPS.has(rule.operator as FilterOperator)) {
     const value = (rule as { value: string | number | boolean }).value;
     state.scalar = String(value);
@@ -110,13 +111,14 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
 
   if (op === 'relative_date') {
     if (state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') {
-      if (!Number.isInteger(state.relativeN) || state.relativeN <= 0 || state.relativeN > 3650) {
+      const n = Number(state.relativeN);
+      if (state.relativeN === '' || !Number.isInteger(n) || n <= 0 || n > 3650) {
         throw new Error('N must be between 1 and 3650');
       }
       return {
         column,
         operator: 'relative_date',
-        value: { kind: state.relativeKind, n: state.relativeN },
+        value: { kind: state.relativeKind, n },
       };
     }
     return { column, operator: 'relative_date', value: { kind: state.relativeKind } };
@@ -263,7 +265,7 @@ export function FilterValueEditor({
               max={3650}
               value={state.relativeN}
               onChange={e => {
-                setState(s => ({ ...s, relativeN: Number(e.target.value) || 0 }));
+                setState(s => ({ ...s, relativeN: e.target.value }));
               }}
             />
           )}
