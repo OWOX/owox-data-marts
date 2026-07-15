@@ -101,6 +101,8 @@ export function RowFilterIcon({
     : undefined;
 
   // Delete affordances for single-item edit mode (no "Active …" list is shown there).
+  // Unlike apply, delete reads the live index: editFilter/editSlice is the original rule
+  // (still a member of the array), not a post-edit draft, so indexOf stays valid — no snapshot ref needed.
   const deleteEditedFilter = editFilter
     ? () => {
         const idx = activeRules.indexOf(editFilter);
