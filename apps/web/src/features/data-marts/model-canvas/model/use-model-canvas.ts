@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { modelCanvasService } from '../api/model-canvas.service';
+import { dataQualityPollingInterval } from '../../data-quality/model/data-quality.model';
 import type { ModelCanvasData } from './types';
 
 export function useModelCanvas(storageId: string | null) {
@@ -10,7 +11,7 @@ export function useModelCanvas(storageId: string | null) {
     queryKey: ['model-canvas', projectId, storageId],
     queryFn: async ({ signal }): Promise<ModelCanvasData> => {
       const id = storageId ?? '';
-      const config = { signal };
+      const config = { signal, skipLoadingIndicator: true, skipErrorToast: true };
       const [nodes, edges] = await Promise.all([
         modelCanvasService.getDataMarts(id, config),
         modelCanvasService.getEdges(id, config),
@@ -18,5 +19,11 @@ export function useModelCanvas(storageId: string | null) {
       return { nodes, edges };
     },
     enabled: Boolean(storageId),
+    refetchInterval: query =>
+      query.state.data?.nodes.some(
+        node => dataQualityPollingInterval(node.qualitySummary.state) !== false
+      )
+        ? 2_000
+        : false,
   });
 }

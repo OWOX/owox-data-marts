@@ -27,4 +27,22 @@ describe('getRunSummaryParts', () => {
     expect(description).toBe('Manual MCP query run');
     expect(title).toBe('');
   });
+
+  it('labels DATA_QUALITY runs and exposes their lightweight finding summary', () => {
+    const run = {
+      type: DataMartRunType.DATA_QUALITY,
+      triggerType: 'manual',
+      qualitySummary: {
+        state: 'ISSUES',
+        warningFindings: 2,
+        errorFindings: 0,
+        noticeFindings: 0,
+      },
+    } as unknown as DataMartRunItem;
+
+    const [description, title] = getRunSummaryParts(run, null);
+
+    expect(description).toBe('Manual data quality run');
+    expect(title).toBe('2 warning findings');
+  });
 });

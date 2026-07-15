@@ -55,6 +55,8 @@ interface ModelCanvasProps {
   edges: CanvasRenderEdge[];
   searchQuery: string;
   onOpenDataMart: (dataMartId: string) => void;
+  onOpenQuality: (dataMartId: string) => void;
+  onRunQuality: (dataMartId: string) => Promise<void>;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -91,6 +93,8 @@ interface FlowNodeParams {
   highlight: CanvasHighlightState;
   direction: CanvasDirection;
   onOpenExternal: () => void;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
@@ -116,6 +120,9 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       dimmed: highlight.dimmed,
       direction: params.direction,
       onOpenExternal: params.onOpenExternal,
+      qualitySummary: node.qualitySummary,
+      onOpenQuality: params.onOpenQuality,
+      onRunQuality: params.onRunQuality,
     },
   };
 }
@@ -166,15 +173,28 @@ interface ModelCanvasInnerProps {
   edges: CanvasRenderEdge[];
   searchQuery: string;
   onOpenDataMart: (dataMartId: string) => void;
+  onOpenQuality: (dataMartId: string) => void;
+  onRunQuality: (dataMartId: string) => Promise<void>;
 }
 
-function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCanvasInnerProps) {
+function ModelCanvasInner({
+  nodes,
+  edges,
+  searchQuery,
+  onOpenDataMart,
+  onOpenQuality,
+  onRunQuality,
+}: ModelCanvasInnerProps) {
   const reactFlow = useReactFlow<ModelCanvasFlowNodeType, ModelCanvasFlowEdgeType>();
   const paneWidth = useStore(state => state.width);
   const paneHeight = useStore(state => state.height);
 
   const onOpenDataMartRef = useRef(onOpenDataMart);
   onOpenDataMartRef.current = onOpenDataMart;
+  const onOpenQualityRef = useRef(onOpenQuality);
+  onOpenQualityRef.current = onOpenQuality;
+  const onRunQualityRef = useRef(onRunQuality);
+  onRunQualityRef.current = onRunQuality;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
   const searchQueryRef = useRef(searchQuery);
@@ -232,6 +252,10 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
           onOpenExternal: () => {
             onOpenDataMartRef.current(node.id);
           },
+          onOpenQuality: () => {
+            onOpenQualityRef.current(node.id);
+          },
+          onRunQuality: () => onRunQualityRef.current(node.id),
         })
       )
     );
@@ -453,6 +477,8 @@ export default function ModelCanvas({
   edges,
   searchQuery,
   onOpenDataMart,
+  onOpenQuality,
+  onRunQuality,
   className,
   style,
 }: ModelCanvasProps) {
@@ -470,6 +496,8 @@ export default function ModelCanvas({
           edges={edges}
           searchQuery={searchQuery}
           onOpenDataMart={onOpenDataMart}
+          onOpenQuality={onOpenQuality}
+          onRunQuality={onRunQuality}
         />
       </ReactFlowProvider>
     </div>

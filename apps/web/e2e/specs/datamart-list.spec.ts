@@ -64,6 +64,21 @@ test.describe('DataMart List with data', () => {
     // Both datamarts should appear in the table
     await expect(page.getByText(draftTitle)).toBeVisible();
     await expect(page.getByText(publishedTitle)).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Quality' })).toBeVisible();
+  });
+
+  test('selected-items toolbar shows Data Quality eligibility (DLIST-DQ)', async ({ page }) => {
+    await page.goto('/ui/0/data-marts');
+    await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
+
+    const row = page.locator('tr', { hasText: publishedTitle });
+    await row.getByRole('checkbox', { name: 'Select row' }).click();
+    await page.getByTestId(TESTIDS.runSelectedDataQuality).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Run Data Quality' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(publishedTitle)).toBeVisible();
+    await expect(dialog.getByText(/Eligible|Ineligible/)).toBeVisible({ timeout: 10000 });
   });
 
   test('search filters datamarts by title (DLIST-02)', async ({ page }) => {

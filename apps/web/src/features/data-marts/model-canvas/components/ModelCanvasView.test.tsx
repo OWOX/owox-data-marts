@@ -27,7 +27,14 @@ const viewState = vi.hoisted(() => ({
     data: undefined as ModelCanvasData | undefined,
     isLoading: false,
     error: null as unknown,
+    refetch: vi.fn().mockResolvedValue(undefined),
   },
+  navigate: vi.fn(),
+}));
+
+const dataQualityServiceMock = vi.hoisted(() => ({
+  getConfig: vi.fn(),
+  startRun: vi.fn(),
 }));
 
 vi.mock('../../../data-storage/shared/model/hooks/useDataStorage', () => ({
@@ -60,7 +67,11 @@ vi.mock('../model/use-model-canvas-filters', () => ({
 }));
 
 vi.mock('../../../../shared/hooks', () => ({
-  useProjectRoute: () => ({ scope: (path: string) => path }),
+  useProjectRoute: () => ({ scope: (path: string) => path, navigate: viewState.navigate }),
+}));
+
+vi.mock('../../data-quality/api/data-quality.service', () => ({
+  dataQualityService: dataQualityServiceMock,
 }));
 
 vi.mock('./ModelCanvasToolbar', () => ({
@@ -68,15 +79,31 @@ vi.mock('./ModelCanvasToolbar', () => ({
 }));
 
 vi.mock('./ModelCanvas', () => ({
-  default: ({ onOpenDataMart }: { onOpenDataMart: (dataMartId: string) => void }) => (
-    <button
-      type='button'
-      onClick={() => {
-        onOpenDataMart('mart-1');
-      }}
-    >
-      Open Orders
-    </button>
+  default: ({
+    onOpenDataMart,
+    onOpenQuality,
+    onRunQuality,
+  }: {
+    onOpenDataMart: (dataMartId: string) => void;
+    onOpenQuality?: (dataMartId: string) => void;
+    onRunQuality?: (dataMartId: string) => Promise<void>;
+  }) => (
+    <>
+      <button
+        type='button'
+        onClick={() => {
+          onOpenDataMart('mart-1');
+        }}
+      >
+        Open Orders
+      </button>
+      <button type='button' onClick={() => onOpenQuality?.('mart-1')}>
+        Open Quality Orders
+      </button>
+      <button type='button' onClick={() => void onRunQuality?.('mart-1')}>
+        Run Quality Orders
+      </button>
+    </>
   ),
 }));
 
@@ -113,6 +140,25 @@ describe('ModelCanvasView', () => {
     viewState.canvasHook.data = undefined;
     viewState.canvasHook.isLoading = false;
     viewState.canvasHook.error = null;
+    viewState.canvasHook.refetch.mockResolvedValue(undefined);
+    dataQualityServiceMock.getConfig.mockResolvedValue({
+      savedConfig: null,
+      effectiveConfig: { timezone: 'UTC', rules: [] },
+      source: 'DEFAULT',
+      permissions: { canEdit: true, canRun: true },
+      runEligibility: { eligible: true, code: null, activeRunId: null },
+      availableChecks: [],
+      relationships: [],
+    });
+    dataQualityServiceMock.startRun.mockResolvedValue({
+      id: 'run-1',
+      dataMartRunId: 'run-1',
+      summary: {},
+      results: [],
+      createdAt: null,
+      startedAt: null,
+      finishedAt: null,
+    });
   });
 
   afterEach(() => {
@@ -129,6 +175,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 3,
+          qualitySummary: buildQualitySummary(),
         },
         {
           id: 'mart-2',
@@ -136,6 +183,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 2,
+          qualitySummary: buildQualitySummary(),
         },
       ],
       edges: [
@@ -156,6 +204,28 @@ describe('ModelCanvasView', () => {
       '_blank',
       'noopener,noreferrer'
     );
+  });
+
+  it('opens the Data Mart Quality tab in the current project route', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+
+    render(<ModelCanvasView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Quality Orders' }));
+
+    expect(viewState.navigate).toHaveBeenCalledWith('/data-marts/mart-1/quality');
+  });
+
+  it('checks backend capability before starting Quality and refreshes canvas summaries', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+
+    render(<ModelCanvasView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Quality Orders' }));
+
+    await waitFor(() => {
+      expect(dataQualityServiceMock.getConfig).toHaveBeenCalledWith('mart-1');
+      expect(dataQualityServiceMock.startRun).toHaveBeenCalledWith('mart-1');
+    });
+    expect(viewState.canvasHook.refetch).toHaveBeenCalledOnce();
   });
 
   it('shows a stable fallback when the canvas request fails without an Axios response', async () => {
@@ -258,3 +328,53 @@ describe('ModelCanvasView', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+function buildCanvasData(): ModelCanvasData {
+  return {
+    nodes: [
+      {
+        id: 'mart-1',
+        title: 'Orders',
+        status: DataMartStatus.PUBLISHED,
+        description: null,
+        fieldCount: 3,
+        qualitySummary: buildQualitySummary(),
+      },
+      {
+        id: 'mart-2',
+        title: 'Customers',
+        status: DataMartStatus.PUBLISHED,
+        description: null,
+        fieldCount: 2,
+        qualitySummary: buildQualitySummary(),
+      },
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        sourceDataMartId: 'mart-1',
+        targetDataMartId: 'mart-2',
+        joinConditions: [],
+      },
+    ],
+  };
+}
+
+function buildQualitySummary() {
+  return {
+    state: 'NEVER_RUN' as const,
+    enabledChecks: 1,
+    totalChecks: 0,
+    passedChecks: 0,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+    dataMartRunId: null,
+    lastRunAt: null,
+  };
+}

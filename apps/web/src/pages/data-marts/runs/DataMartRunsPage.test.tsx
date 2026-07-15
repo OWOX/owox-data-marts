@@ -2,10 +2,12 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  type DataQualityCompactSummary,
   DataMartRunStatus,
   DataMartRunTriggerType,
   DataMartRunType,
 } from '../../../features/data-marts/shared';
+import type { ProjectDataMartRunResponseDto } from '../../../features/data-marts/shared/types/api/response/data-mart-run.response.dto';
 import { dataMartService } from '../../../features/data-marts/shared';
 import { getConnectorInfoByName } from '../../../features/connectors/shared/utils';
 import DataMartRunsPage from './DataMartRunsPage';
@@ -111,6 +113,39 @@ describe('DataMartRunsPage', () => {
     expect(getConnectorInfoByName).not.toHaveBeenCalled();
   });
 
+  it('renders a lightweight Data Quality summary in project-wide history', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns).mockResolvedValueOnce({
+      runs: [
+        buildProjectRun({
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: {
+            state: 'ISSUES',
+            enabledChecks: 2,
+            totalChecks: 2,
+            passedChecks: 1,
+            failedChecks: 1,
+            notApplicableChecks: 0,
+            errorChecks: 0,
+            noticeFindings: 0,
+            warningFindings: 1,
+            errorFindings: 0,
+            violationCount: 4,
+            highestSeverity: 'warning',
+            dataMartRunId: 'run-1',
+            lastRunAt: '2026-06-05T10:01:00.000Z',
+          },
+        }),
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Manual data quality run')).toBeInTheDocument();
+    expect(screen.getByText('1 warning finding')).toBeInTheDocument();
+    expect(document.querySelector('.lucide-shield-check')).toBeInTheDocument();
+  });
+
   it('refreshes the first page while a loaded run is not final and stops after completion', async () => {
     vi.useFakeTimers();
     vi.mocked(dataMartService.getProjectDataMartRuns)
@@ -175,7 +210,17 @@ function renderPage() {
   );
 }
 
-function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMartRunStatus }) {
+function buildProjectRun({
+  id = 'run-1',
+  status,
+  type = DataMartRunType.CONNECTOR,
+  qualitySummary = null,
+}: {
+  id?: string;
+  status: DataMartRunStatus;
+  type?: DataMartRunType;
+  qualitySummary?: DataQualityCompactSummary | null;
+}): ProjectDataMartRunResponseDto {
   return {
     id,
     dataMartId: 'dm-1',
@@ -196,7 +241,7 @@ function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMa
         },
       },
     },
-    type: DataMartRunType.CONNECTOR,
+    type,
     runType: DataMartRunTriggerType.MANUAL,
     startedAt: '2026-06-05T10:00:00.000Z',
     finishedAt: status === DataMartRunStatus.SUCCESS ? '2026-06-05T10:01:00.000Z' : null,
@@ -209,6 +254,7 @@ function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMa
     aiSourceDefinition: null,
     createdByUser: null,
     additionalParams: null,
+    qualitySummary,
     dataMart: {
       id: 'dm-1',
       title: 'Marketing Mart',

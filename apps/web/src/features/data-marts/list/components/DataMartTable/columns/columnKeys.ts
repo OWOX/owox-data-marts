@@ -3,6 +3,7 @@ export enum DataMartColumnKey {
   DEFINITION_TYPE = 'definitionType',
   STORAGE_TYPE = 'storageType',
   STATUS = 'status',
+  QUALITY = 'quality',
   TRIGGERS_COUNT = 'triggersCount',
   REPORTS_COUNT = 'reportsCount',
   CREATED_AT = 'createdAt',

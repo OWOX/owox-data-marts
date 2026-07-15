@@ -13,4 +13,12 @@ describe('TypeIcon', () => {
     expect(svg).toBeInTheDocument();
     expect(svg).toHaveClass('text-brand-blue-500');
   });
+
+  it('renders a distinct icon for DATA_QUALITY runs', () => {
+    const { container } = render(
+      <TypeIcon type={DataMartRunType.DATA_QUALITY} base64Icon={null} />
+    );
+
+    expect(container.querySelector('.lucide-shield-check')).toBeInTheDocument();
+  });
 });

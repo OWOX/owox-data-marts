@@ -7,3 +7,4 @@ export { StructuredLogsView } from './StructuredLogsView';
 export { RawLogsView } from './RawLogsView';
 export { ConfigurationView } from './ConfigurationView';
 export { RunItem } from './RunItem';
+export { DataQualityRunHistoryDetails } from './DataQualityRunHistoryDetails';

@@ -1,26 +1,52 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useDataMartListContext } from '../context';
 import { mapDataMartListFromDto } from '../mappers/data-mart-list.mapper.ts';
 import { dataMartService } from '../../../shared';
 import { trackEvent } from '../../../../../utils/data-layer';
+import { dataQualityPollingInterval } from '../../../data-quality/model/data-quality.model';
 
 export function useDataMartList() {
   const { state, dispatch } = useDataMartListContext();
 
-  const loadDataMarts = useCallback(async () => {
-    dispatch({ type: 'SET_LOADING' });
+  const loadDataMarts = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      if (!options.silent) dispatch({ type: 'SET_LOADING' });
 
-    try {
-      const response = await dataMartService.getDataMarts();
-      const listItems = mapDataMartListFromDto(response);
-      dispatch({ type: 'SET_ITEMS', payload: listItems });
-    } catch (error) {
-      dispatch({
-        type: 'SET_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to load data marts',
+      try {
+        const response = await dataMartService.getDataMarts(
+          options.silent ? { skipLoadingIndicator: true, skipErrorToast: true } : undefined
+        );
+        const listItems = mapDataMartListFromDto(response);
+        dispatch({ type: 'SET_ITEMS', payload: listItems });
+      } catch (error) {
+        if (options.silent) return;
+        dispatch({
+          type: 'SET_ERROR',
+          payload: error instanceof Error ? error.message : 'Failed to load data marts',
+        });
+      }
+    },
+    [dispatch]
+  );
+
+  const hasActiveQualityRun = state.items.some(
+    item => dataQualityPollingInterval(item.qualitySummary.state) !== false
+  );
+
+  useEffect(() => {
+    if (!hasActiveQualityRun) return;
+    let requestInFlight = false;
+    const intervalId = setInterval(() => {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      void loadDataMarts({ silent: true }).finally(() => {
+        requestInFlight = false;
       });
-    }
-  }, [dispatch]);
+    }, 2_000);
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [hasActiveQualityRun, loadDataMarts]);
 
   const deleteDataMart = useCallback(
     async (id: string) => {

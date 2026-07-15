@@ -2,12 +2,13 @@ import { test, expect } from '../fixtures/base';
 import type { ConsoleMessage } from '@playwright/test';
 import { ApiHelpers } from '../fixtures/api-helpers';
 
-// The 5 always-visible tabs. Insights and Next Insights tabs are gated by
+// The 6 always-visible tabs. Insights and Next Insights tabs are gated by
 // feature flags (INSIGHTS_ENABLED, INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS) and
 // are not visible in standalone mode where /api/flags returns {}.
 const ALWAYS_VISIBLE_TABS = [
   { name: 'Overview', path: 'overview' },
   { name: 'Data Setup', path: 'data-setup' },
+  { name: 'Quality', path: 'quality' },
   { name: 'Destinations', path: 'reports' },
   { name: 'Triggers', path: 'triggers' },
   { name: 'Run History', path: 'run-history' },
@@ -29,7 +30,7 @@ test.describe('DataMart Detail Tabs Navigation', () => {
     await page.close();
   });
 
-  test('all 5 visible tabs render without console errors and show expected content', async ({
+  test('all 6 visible tabs render without console errors and show expected content', async ({
     page,
   }) => {
     // Collect console errors during navigation
@@ -79,6 +80,10 @@ test.describe('DataMart Detail Tabs Navigation', () => {
         case 'Data Setup':
           // Data Setup shows storage, input source, and output schema cards
           await expect(page.getByTestId('datamartTabDataSetup')).toBeVisible();
+          break;
+
+        case 'Quality':
+          await expect(page.getByTestId('datamartTabQuality')).toBeVisible();
           break;
 
         case 'Destinations':

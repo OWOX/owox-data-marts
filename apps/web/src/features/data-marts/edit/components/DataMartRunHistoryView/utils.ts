@@ -167,6 +167,10 @@ export const getRunSummaryParts = (
     case DataMartRunType.MCP_QUERY:
       runType = 'MCP query';
       break;
+    case DataMartRunType.DATA_QUALITY:
+      runType = 'data quality';
+      title = getDataQualitySummaryLabel(run);
+      break;
     default:
       break;
   }
@@ -175,6 +179,39 @@ export const getRunSummaryParts = (
 
   return [runDescription, title];
 };
+
+function getDataQualitySummaryLabel(run: DataMartRunItem): string {
+  const summary = run.qualitySummary;
+  if (!summary) return '';
+  const findings: [number, string][] = [
+    [summary.errorFindings, 'error'],
+    [summary.warningFindings, 'warning'],
+    [summary.noticeFindings, 'notice'],
+  ];
+  const finding = findings.find(([count]) => count > 0);
+  if (finding) {
+    const [count, severity] = finding;
+    return `${String(count)} ${severity} finding${count === 1 ? '' : 's'}`;
+  }
+  switch (summary.state) {
+    case 'PASSED':
+      return 'All checks passed';
+    case 'QUEUED':
+      return 'Queued';
+    case 'RUNNING':
+      return 'Running';
+    case 'EXECUTION_FAILED':
+      return 'Execution failed';
+    case 'CANCELLED':
+      return 'Cancelled';
+    case 'ALL_DISABLED':
+      return 'All checks disabled';
+    case 'NEVER_RUN':
+      return 'Never run';
+    default:
+      return '';
+  }
+}
 
 export const downloadLogs = (run: {
   id: string;

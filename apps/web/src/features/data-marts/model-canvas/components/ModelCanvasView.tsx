@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../../app/api';
 import { Button } from '../../../../shared/components/Button';
@@ -10,6 +11,7 @@ import { mergeBidirectionalEdges } from '../model/graph/merge-bidirectional-edge
 import { useModelCanvas } from '../model/use-model-canvas';
 import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
+import { dataQualityService } from '../../data-quality/api/data-quality.service';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
 
@@ -42,10 +44,12 @@ function ModelCanvasViewContent() {
   const storageLoadGenerationRef = useRef(0);
   const mountedRef = useRef(false);
   const filters = useModelCanvasFilters();
-  const { scope } = useProjectRoute();
+  const { navigate, scope } = useProjectRoute();
   const storageKnown =
     Boolean(filters.storageId) && dataStorages.some(s => s.id === filters.storageId);
-  const { data, isLoading, error } = useModelCanvas(storageKnown ? filters.storageId : null);
+  const { data, isLoading, error, refetch } = useModelCanvas(
+    storageKnown ? filters.storageId : null
+  );
 
   const loadDataStorages = useCallback(async () => {
     const generation = ++storageLoadGenerationRef.current;
@@ -83,6 +87,27 @@ function ModelCanvasViewContent() {
   );
 
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
+
+  const runQuality = useCallback(
+    async (dataMartId: string) => {
+      try {
+        const config = await dataQualityService.getConfig(dataMartId);
+        if (!config.permissions.canRun) {
+          const reason = config.runEligibility.code
+            ? QUALITY_ELIGIBILITY_MESSAGES[config.runEligibility.code]
+            : undefined;
+          toast.error(reason ?? 'This Data Mart is not eligible for a Quality run');
+          return;
+        }
+        await dataQualityService.startRun(dataMartId);
+        toast.success('Data Quality run queued');
+        await refetch();
+      } catch (caught) {
+        toast.error(extractApiError(caught).message ?? 'Failed to start Data Quality run');
+      }
+    },
+    [refetch]
+  );
 
   return (
     <div className='dm-card p-4'>
@@ -141,6 +166,10 @@ function ModelCanvasViewContent() {
                 'noopener,noreferrer'
               );
             }}
+            onOpenQuality={dataMartId => {
+              navigate(`/data-marts/${dataMartId}/quality`);
+            }}
+            onRunQuality={runQuality}
             style={canvasStyle}
           />
         </Suspense>
@@ -148,6 +177,14 @@ function ModelCanvasViewContent() {
     </div>
   );
 }
+
+const QUALITY_ELIGIBILITY_MESSAGES: Record<string, string> = {
+  NOT_PUBLISHED: 'Publish this Data Mart before running Quality',
+  OUTPUT_SCHEMA_REQUIRED: 'Output Schema is required before running Quality',
+  DEFINITION_REQUIRED: 'A data definition is required before running Quality',
+  NO_APPLICABLE_CHECKS: 'Enable at least one applicable Quality check',
+  ACTIVE_RUN: 'A Data Quality run is already active',
+};
 
 export function ModelCanvasView() {
   return (

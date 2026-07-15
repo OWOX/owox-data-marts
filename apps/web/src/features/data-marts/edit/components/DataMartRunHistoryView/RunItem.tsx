@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Box, ChevronDown } from 'lucide-react';
 import { UserReference } from '../../../../../shared/components/UserReference';
 import { StatusBadge } from './StatusBadge';
@@ -22,6 +22,10 @@ import { useClipboard } from '../../../../../hooks/useClipboard';
 import { TypeIcon } from './TypeIcon';
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { DataMartRunType } from '../../../shared';
+import { DataQualityRunHistoryDetails } from './DataQualityRunHistoryDetails';
+import { canCancelDataMartRun } from './cancellable-runs';
+import { CancelRunButton } from './CancelRunButton';
 
 interface RunItemProps {
   run: DataMartRunItem;
@@ -55,6 +59,8 @@ export function RunItem({
   dataMartRef,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
+  const { projectId = '' } = useParams<{ projectId: string }>();
+  const isDataQualityRun = run.type === DataMartRunType.DATA_QUALITY;
 
   const filteredLogs = useMemo(() => {
     if (run.logs.length === 0 && run.errors.length === 0) return [];
@@ -215,17 +221,42 @@ export function RunItem({
             />
           </div>
 
-          <LogControls
-            logViewType={logViewType}
-            setLogViewType={setLogViewType}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            run={run}
-            cancelDataMartRun={cancelDataMartRun}
-            dataMartId={dataMartId}
-          />
+          {isDataQualityRun && dataMartId ? (
+            <>
+              {canCancelDataMartRun(run.type, run.status) && (
+                <div className='flex justify-end'>
+                  <CancelRunButton
+                    runId={run.id}
+                    dataMartId={dataMartId}
+                    cancelDataMartRun={cancelDataMartRun}
+                    variant='destructive'
+                    className='flex items-center gap-2'
+                    iconClassName='h-4 w-4'
+                    labelClassName='inline'
+                  />
+                </div>
+              )}
+              <DataQualityRunHistoryDetails
+                projectId={projectId}
+                dataMartId={dataMartId}
+                runId={run.id}
+              />
+            </>
+          ) : (
+            <>
+              <LogControls
+                logViewType={logViewType}
+                setLogViewType={setLogViewType}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                run={run}
+                cancelDataMartRun={cancelDataMartRun}
+                dataMartId={dataMartId}
+              />
 
-          {renderLogsContent()}
+              {renderLogsContent()}
+            </>
+          )}
         </div>
       )}
     </div>

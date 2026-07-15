@@ -9,6 +9,8 @@ import {
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
+import type { DataQualityCompactSummary } from '../../shared/types';
+import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 
 export const NODE_WIDTH = 240;
 export const NODE_HEIGHT = 74;
@@ -24,6 +26,9 @@ export interface ModelCanvasFlowNodeData {
   dimmed: boolean;
   direction: CanvasDirection;
   onOpenExternal: () => void;
+  qualitySummary: DataQualityCompactSummary;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 export type ModelCanvasFlowNodeType = Node<
@@ -137,9 +142,15 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         </div>
       </div>
       <div
-        className='text-muted-foreground flex items-center'
+        className='text-muted-foreground flex items-center gap-2'
         style={{ padding: '6px 14px 8px', fontSize: 11, minWidth: 0 }}
       >
+        <DataQualityCanvasStatusIcon
+          dataMartTitle={data.title}
+          summary={data.qualitySummary}
+          onOpenQuality={data.onOpenQuality}
+          onRunQuality={data.onRunQuality}
+        />
         <span className='ml-auto shrink-0'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>

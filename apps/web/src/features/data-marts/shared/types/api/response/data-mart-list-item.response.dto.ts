@@ -1,6 +1,7 @@
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { DataMartDefinitionType, DataMartStatus } from '../../../enums';
 import type { DataMartListItemStorageDto } from './data-mart-list-item-storage.dto';
+import type { DataQualityCompactSummary } from '../../../types/data-quality-summary.types';
 
 /**
  * Lightweight data mart response DTO for list endpoint
@@ -22,4 +23,5 @@ export interface DataMartListItemResponseDto {
   contexts?: { id: string; name: string }[];
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
+  qualitySummary: DataQualityCompactSummary;
 }

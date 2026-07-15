@@ -10,7 +10,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { CircleCheckBig, Import, Plus, Trash2 } from 'lucide-react';
+import { CircleCheckBig, Import, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
@@ -40,6 +40,7 @@ import {
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 import { PromoBlock } from '../../../../../shared/components/PromoBlock/PromoBlock';
 import { GoogleBigQueryIcon } from '../../../../../shared/icons/google-bigquery-icon';
+import { RunDataQualityBatchDialog } from '../RunDataQualityBatchDialog';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -91,6 +92,8 @@ export function DataMartTable<TData, TValue>({
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showBulkCreateFromStorage, setShowBulkCreateFromStorage] = useState(false);
+  const [showRunQuality, setShowRunQuality] = useState(false);
+  const [qualityBatchDataMarts, setQualityBatchDataMarts] = useState<DataMartListItem[]>([]);
 
   // Show onboarding video if the user has not seen it yet
   const shouldShowOnboarding = !isLoading && data.length === 0;
@@ -308,6 +311,21 @@ export function DataMartTable<TData, TValue>({
                     <CircleCheckBig className='h-4 w-4' />
                     <span className='hidden md:block'>Publish</span>
                   </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => {
+                      setQualityBatchDataMarts(
+                        selectedRows.map(row => row.original as DataMartListItem)
+                      );
+                      setShowRunQuality(true);
+                    }}
+                    title='Run Data Quality for selected data marts'
+                    data-testid='run-selected-data-quality'
+                  >
+                    <ShieldCheck className='h-4 w-4' />
+                    <span className='hidden md:block'>Run Quality</span>
+                  </Button>
                 </div>
               )}
               {/* Filters */}
@@ -357,6 +375,17 @@ export function DataMartTable<TData, TValue>({
           onCreated={() => {
             void refetchDataMarts();
           }}
+        />
+
+        <RunDataQualityBatchDialog
+          open={showRunQuality}
+          onOpenChange={next => {
+            setShowRunQuality(next);
+            if (!next) setQualityBatchDataMarts([]);
+          }}
+          dataMarts={qualityBatchDataMarts}
+          projectId={projectId}
+          onCompleted={refetchDataMarts}
         />
 
         {/* Delete Confirmation Dialog */}

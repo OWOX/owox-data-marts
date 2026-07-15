@@ -15,6 +15,14 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
+vi.mock('./DataQualityRunHistoryDetails', () => ({
+  DataQualityRunHistoryDetails: (props: {
+    projectId: string;
+    dataMartId: string;
+    runId: string;
+  }) => <div data-testid='quality-history-detail'>{JSON.stringify(props)}</div>,
+}));
+
 const createRun = (overrides: Partial<DataMartRunItem> = {}): DataMartRunItem =>
   ({
     id: 'run-1',
@@ -36,6 +44,7 @@ const createRun = (overrides: Partial<DataMartRunItem> = {}): DataMartRunItem =>
     aiAssistantDefinition: null,
     createdByUser: null,
     additionalParams: null,
+    qualitySummary: null,
     ...overrides,
   }) as DataMartRunItem;
 
@@ -285,4 +294,43 @@ describe('RunItem', () => {
     );
     expect(screen.getByText('2026-06-07 18:35:00').closest('.flex-wrap')).not.toBeNull();
   });
+
+  it('shows the lightweight Quality summary without loading full details while collapsed', () => {
+    renderRunItem(createQualityRun(), false);
+
+    expect(screen.getByText('1 warning finding')).toBeInTheDocument();
+    expect(screen.queryByTestId('quality-history-detail')).not.toBeInTheDocument();
+  });
+
+  it('mounts the full Quality detail loader only when expanded', () => {
+    renderRunItem(createQualityRun(), true);
+
+    expect(screen.getByTestId('quality-history-detail')).toHaveTextContent('"dataMartId":"dm-1"');
+    expect(screen.getByTestId('quality-history-detail')).toHaveTextContent('"runId":"run-1"');
+    expect(screen.queryByText('Structured')).not.toBeInTheDocument();
+  });
 });
+
+function createQualityRun(): DataMartRunItem {
+  return createRun({
+    type: DataMartRunType.DATA_QUALITY,
+    status: DataMartRunStatus.SUCCESS,
+    finishedAt: new Date('2026-06-04T12:01:00.000Z'),
+    qualitySummary: {
+      state: 'ISSUES',
+      enabledChecks: 2,
+      totalChecks: 2,
+      passedChecks: 1,
+      failedChecks: 1,
+      notApplicableChecks: 0,
+      errorChecks: 0,
+      noticeFindings: 0,
+      warningFindings: 1,
+      errorFindings: 0,
+      violationCount: 3,
+      highestSeverity: 'warning',
+      dataMartRunId: 'run-1',
+      lastRunAt: '2026-06-04T12:01:00.000Z',
+    },
+  });
+}

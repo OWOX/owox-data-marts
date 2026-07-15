@@ -1,4 +1,5 @@
 import type { DataMartStatus } from '../../shared/enums';
+import type { DataQualityCompactSummary } from '../../shared/types';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -11,6 +12,7 @@ export interface ModelCanvasNode {
   status: DataMartStatus;
   description: string | null;
   fieldCount: number;
+  qualitySummary: DataQualityCompactSummary;
 }
 
 export interface ModelCanvasEdge {

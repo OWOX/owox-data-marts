@@ -7,6 +7,7 @@ const CANCELLABLE_RUN_TYPES = new Set<DataMartRunType>([
   DataMartRunType.SLACK,
   DataMartRunType.MS_TEAMS,
   DataMartRunType.GOOGLE_CHAT,
+  DataMartRunType.DATA_QUALITY,
 ]);
 
 const CANCELLABLE_RUN_STATUSES = new Set<DataMartRunStatus>([

@@ -1,4 +1,4 @@
-import { Bot, Code, Database, FileText, Plug, Sparkles } from 'lucide-react';
+import { Bot, Code, Database, FileText, Plug, ShieldCheck, Sparkles } from 'lucide-react';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../../data-destination';
 import { DataMartRunType } from '../../../shared';
 import { RawBase64Icon } from '../../../../../shared/icons';
@@ -57,6 +57,9 @@ export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
     }
     case DataMartRunType.MCP_QUERY: {
       return <Plug className='text-brand-blue-500' size={iconSize} />;
+    }
+    case DataMartRunType.DATA_QUALITY: {
+      return <ShieldCheck className='text-brand-blue-500' size={iconSize} />;
     }
     default:
       return <Database className='text-muted-foreground' size={iconSize} />;

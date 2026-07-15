@@ -5,6 +5,7 @@ export const dataMartColumnLabels: Record<DataMartColumnKey, string> = {
   [DataMartColumnKey.DEFINITION_TYPE]: 'Input Source',
   [DataMartColumnKey.STORAGE_TYPE]: 'Storage',
   [DataMartColumnKey.STATUS]: 'Status',
+  [DataMartColumnKey.QUALITY]: 'Quality',
   [DataMartColumnKey.TRIGGERS_COUNT]: 'Triggers',
   [DataMartColumnKey.REPORTS_COUNT]: 'Reports',
   [DataMartColumnKey.CREATED_AT]: 'Created At',

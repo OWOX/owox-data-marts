@@ -16,6 +16,10 @@ interface ReactFlowStubProps {
     position: { x: number; y: number };
     width?: number;
     height?: number;
+    data?: {
+      onOpenQuality?: () => void;
+      onRunQuality?: () => Promise<void>;
+    };
   }[];
   onMove?: (event: unknown, viewport: ViewportStub) => void;
 }
@@ -74,6 +78,7 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
           },
           {
             id: 'customers',
@@ -81,11 +86,14 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 2,
+            qualitySummary: buildQualitySummary(),
           },
         ]}
         edges={[]}
         searchQuery='orders'
         onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -117,6 +125,7 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
           },
           {
             id: 'customers',
@@ -124,11 +133,14 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 2,
+            qualitySummary: buildQualitySummary(),
           },
         ]}
         edges={[]}
         searchQuery=''
         onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -147,4 +159,56 @@ describe('ModelCanvas', () => {
       zoom: 1,
     });
   });
+
+  it('binds Quality navigation and run actions to the matching Data Mart id', async () => {
+    const onOpenQuality = vi.fn();
+    const onRunQuality = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ModelCanvas
+        nodes={[
+          {
+            id: 'orders',
+            title: 'Orders',
+            status: DataMartStatus.PUBLISHED,
+            description: null,
+            fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={onOpenQuality}
+        onRunQuality={onRunQuality}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes).toHaveLength(1);
+    });
+    reactFlow.latestProps?.nodes?.[0].data?.onOpenQuality?.();
+    await reactFlow.latestProps?.nodes?.[0].data?.onRunQuality?.();
+
+    expect(onOpenQuality).toHaveBeenCalledWith('orders');
+    expect(onRunQuality).toHaveBeenCalledWith('orders');
+  });
 });
+
+function buildQualitySummary() {
+  return {
+    state: 'NEVER_RUN' as const,
+    enabledChecks: 1,
+    totalChecks: 0,
+    passedChecks: 0,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+    dataMartRunId: null,
+    lastRunAt: null,
+  };
+}
