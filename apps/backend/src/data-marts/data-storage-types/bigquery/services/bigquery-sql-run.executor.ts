@@ -11,6 +11,7 @@ import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definit
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
+import { wrapProviderError } from '../../utils/provider-error.utils';
 
 @Injectable()
 export class BigQuerySqlRunExecutor implements SqlRunExecutor {
@@ -48,7 +49,7 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
       }
     }
 
-    const { jobId } = await adapter.executeQuery(sql, params);
+    const { jobId } = await adapter.executeQuery(sql, params, undefined, options?.signal);
     const job = await adapter.getJob(jobId);
 
     await job.promise();
@@ -56,7 +57,7 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
     const { status, configuration } = job.metadata;
     if (status?.errorResult) {
       const err = status.errorResult;
-      throw new Error(`BigQuery job failed [${err.reason}]: ${err.message}`);
+      throw wrapProviderError(`BigQuery job failed [${err.reason}]: ${err.message}`, err);
     }
 
     const destinationTable = configuration.query.destinationTable;

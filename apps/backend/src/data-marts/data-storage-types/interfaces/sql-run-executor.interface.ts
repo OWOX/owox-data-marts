@@ -9,6 +9,7 @@ import type { SqlParameter } from '../utils/sql-clause-renderer';
 export interface SqlRunExecuteOptions {
   maxRowsPerBatch?: number;
   params?: SqlParameter[];
+  signal?: AbortSignal;
 }
 
 /**

@@ -3,6 +3,7 @@ import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
   DataQualityCanonicalType,
+  isDataQualityGroupingTypeSupported,
   normalizeDataQualityType,
 } from '../data-quality/data-quality-sql-dialect';
 import {
@@ -63,6 +64,7 @@ interface CurrentField {
   isPrimaryKey: boolean;
   type: string;
   requiresFlattening: boolean;
+  isTopLevel: boolean;
 }
 
 const NESTED_COLLECTION_FIELD_REASON =
@@ -115,6 +117,7 @@ function deriveSystemPreset(
   definitionType: DataMartDefinitionType | null | undefined
 ): EffectiveDataQualityConfig {
   const fields = collectCurrentFields(schema?.fields ?? []);
+  const storageType = storageTypeForSchema(schema);
   const primaryKeyFields = fields.filter(field => field.isPrimaryKey);
   const primaryKeyIds = new Set(primaryKeyFields.map(field => field.id));
   const hasUnsafePrimaryKey = primaryKeyFields.some(field => field.requiresFlattening);
@@ -128,14 +131,25 @@ function deriveSystemPreset(
     )
   );
   const rules: EffectiveDataQualityRuleConfig[] = [];
+  const topLevelFields = fields.filter(field => field.isTopLevel);
+  const unsupportedDuplicateField = topLevelFields.find(
+    field =>
+      !isDataQualityGroupingTypeSupported(
+        storageType ? normalizeDataQualityType(storageType, field.type) : null
+      )
+  );
 
   for (const category of TABLE_CATEGORIES) {
     const scope: DataQualityCheckScope = { type: DataQualityScope.DATA_MART };
     const hasPrimaryKey = primaryKeyIds.size > 0;
     const freshnessApplicability = getDataMartFreshnessApplicability(category, definitionType);
+    const duplicateRowsApplicable =
+      category !== DataQualityCategory.DUPLICATE_ROWS ||
+      (topLevelFields.length > 0 && unsupportedDuplicateField === undefined);
     const isApplicable =
       (category !== DataQualityCategory.PK_UNIQUENESS || (hasPrimaryKey && !hasUnsafePrimaryKey)) &&
-      freshnessApplicability.isApplicable;
+      freshnessApplicability.isApplicable &&
+      duplicateRowsApplicable;
     rules.push(
       createRule(category, scope, {
         enabled:
@@ -148,7 +162,11 @@ function deriveSystemPreset(
             ? 'No primary key fields are configured in the current Output Schema'
             : category === DataQualityCategory.PK_UNIQUENESS && hasUnsafePrimaryKey
               ? NESTED_COLLECTION_FIELD_REASON
-              : freshnessApplicability.reason,
+              : category === DataQualityCategory.DUPLICATE_ROWS && topLevelFields.length === 0
+                ? 'No connected materialized Output Schema fields are available'
+                : category === DataQualityCategory.DUPLICATE_ROWS && unsupportedDuplicateField
+                  ? `Field ${unsupportedDuplicateField.id} cannot be canonicalized for duplicate comparison`
+                  : freshnessApplicability.reason,
       })
     );
   }
@@ -258,7 +276,8 @@ function createRule(
 function collectCurrentFields(
   fields: readonly DataMartSchemaField[],
   prefix = '',
-  ancestorRequiresFlattening = false
+  ancestorRequiresFlattening = false,
+  isTopLevel = true
 ): CurrentField[] {
   const result: CurrentField[] = [];
   for (const field of fields) {
@@ -269,13 +288,15 @@ function collectCurrentFields(
       isPrimaryKey: Boolean(field.isPrimaryKey),
       type: String(field.type),
       requiresFlattening: ancestorRequiresFlattening,
+      isTopLevel,
     });
     if ('fields' in field && field.fields?.length) {
       result.push(
         ...collectCurrentFields(
           field.fields,
           id,
-          ancestorRequiresFlattening || descendantsRequireFlattening(field)
+          ancestorRequiresFlattening || descendantsRequireFlattening(field),
+          false
         )
       );
     }
@@ -316,6 +337,18 @@ function getFieldApplicability(
     type === DataQualityCanonicalType.INTEGER ||
     type === DataQualityCanonicalType.FLOAT ||
     type === DataQualityCanonicalType.DECIMAL;
+  const groupingCompatible = isDataQualityGroupingTypeSupported(type);
+
+  if (
+    (category === DataQualityCategory.COLUMN_UNIQUENESS ||
+      category === DataQualityCategory.CONSTANT_COLUMN) &&
+    !groupingCompatible
+  ) {
+    return {
+      isApplicable: false,
+      reason: `${category} requires an Output Schema field that can be canonicalized for grouping`,
+    };
+  }
 
   if (
     (category === DataQualityCategory.DATA_FRESHNESS ||

@@ -1,5 +1,9 @@
 import { ModuleRef } from '@nestjs/core';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import {
+  DATA_QUALITY_SQL_DIALECTS,
+  DataQualitySqlDialect,
+} from '../data-quality/data-quality-sql-dialect';
 import { AthenaApiAdapterFactory } from './athena/adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from './athena/adapters/s3-api-adapter.factory';
 import { AthenaAccessValidator } from './athena/services/athena-access.validator';
@@ -136,6 +140,7 @@ export const SQL_DRY_RUN_EXECUTOR_RESOLVER = Symbol('SQL_DRY_RUN_EXECUTOR_RESOLV
 export const SQL_RUN_EXECUTOR_RESOLVER = Symbol('SQL_RUN_EXECUTOR_RESOLVER');
 export const CREATE_VIEW_EXECUTOR_RESOLVER = Symbol('CREATE_VIEW_EXECUTOR_RESOLVER');
 export const IDENTIFIER_ESCAPER_RESOLVER = Symbol('IDENTIFIER_ESCAPER_RESOLVER');
+export const DATA_QUALITY_SQL_DIALECT_RESOLVER = Symbol('DATA_QUALITY_SQL_DIALECT_RESOLVER');
 
 const accessValidatorProviders = [
   BigQueryAccessValidator,
@@ -288,6 +293,13 @@ export const dataStorageResolverProviders = [
   ...legacyBigQueryProviders,
   ...blendedQueryBuilderProviders,
   ...storageResourceBrowserProviders,
+  ...DATA_QUALITY_SQL_DIALECTS,
+  {
+    provide: DATA_QUALITY_SQL_DIALECT_RESOLVER,
+    useFactory: (...dialects: DataQualitySqlDialect[]) =>
+      new TypeResolver<DataStorageType, DataQualitySqlDialect>(dialects),
+    inject: [...DATA_QUALITY_SQL_DIALECTS],
+  },
   {
     provide: STORAGE_RESOURCE_BROWSER_RESOLVER,
     useFactory: (...providers: IStorageResourceBrowserProvider[]) =>

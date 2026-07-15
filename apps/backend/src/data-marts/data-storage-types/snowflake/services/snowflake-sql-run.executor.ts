@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SqlRunExecutor } from '../../interfaces/sql-run-executor.interface';
+import { SqlRunExecutor, SqlRunExecuteOptions } from '../../interfaces/sql-run-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageConfig } from '../../data-storage-config.type';
@@ -24,7 +24,7 @@ export class SnowflakeSqlRunExecutor implements SqlRunExecutor {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: { maxRowsPerBatch?: number }
+    options?: SqlRunExecuteOptions
   ): AsyncIterable<SqlRunBatch<Row>> {
     if (!isSnowflakeCredentials(credentials)) {
       throw new Error('Snowflake storage credentials expected');
@@ -39,7 +39,7 @@ export class SnowflakeSqlRunExecutor implements SqlRunExecutor {
     }
 
     try {
-      const { rows, metadata } = await adapter.executeQuery(sql);
+      const { rows, metadata } = await adapter.executeQuery(sql, false, undefined, options?.signal);
       const columns = metadata?.columns?.map(column => column.name).filter(Boolean);
 
       if (!rows || rows.length === 0) {

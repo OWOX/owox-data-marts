@@ -5,6 +5,7 @@ import type IOperation from '@databricks/sql/dist/contracts/IOperation';
 import type IDBSQLLogger from '@databricks/sql/dist/contracts/IDBSQLLogger';
 import { LogLevel } from '@databricks/sql/dist/contracts/IDBSQLLogger';
 import { castError } from '@owox/internal-helpers';
+import { wrapProviderError } from '../../utils/provider-error.utils';
 import { DatabricksConfig } from '../schemas/databricks-config.schema';
 import { DatabricksCredentials } from '../schemas/databricks-credentials.schema';
 import { DatabricksQueryMetadata } from '../interfaces/databricks-query-metadata';
@@ -320,8 +321,9 @@ export class DatabricksApiAdapter {
       this.logger.debug(`Query cursor opened, queryId: ${queryId}`);
       return this.createCursor(operation, queryId);
     } catch (error) {
-      throw new Error(
-        `${DatabricksApiAdapter.DATABRICKS_QUERY_ERROR_PREFIX} ${castError(error).message}, ${query}`
+      throw wrapProviderError(
+        `${DatabricksApiAdapter.DATABRICKS_QUERY_ERROR_PREFIX} ${castError(error).message}, ${query}`,
+        error
       );
     }
   }

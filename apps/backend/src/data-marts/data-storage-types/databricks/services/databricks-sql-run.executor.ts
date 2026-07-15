@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
-import { SqlRunExecutor } from '../../interfaces/sql-run-executor.interface';
+import { SqlRunExecutor, SqlRunExecuteOptions } from '../../interfaces/sql-run-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageConfig } from '../../data-storage-config.type';
@@ -27,7 +27,7 @@ export class DatabricksSqlRunExecutor implements SqlRunExecutor {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: { maxRowsPerBatch?: number }
+    options?: SqlRunExecuteOptions
   ): AsyncIterable<SqlRunBatch<Row>> {
     if (!isDatabricksCredentials(credentials)) {
       throw new Error('Databricks storage credentials expected');

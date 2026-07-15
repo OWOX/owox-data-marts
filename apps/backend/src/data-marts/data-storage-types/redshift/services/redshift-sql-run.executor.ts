@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SqlRunExecutor } from '../../interfaces/sql-run-executor.interface';
+import { SqlRunExecutor, SqlRunExecuteOptions } from '../../interfaces/sql-run-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
@@ -20,7 +20,7 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
     config: DataStorageConfig,
     _definition: DataMartDefinition,
     sql: string | undefined,
-    _options?: { maxRowsPerBatch?: number }
+    _options?: SqlRunExecuteOptions
   ): AsyncIterable<SqlRunBatch<Row>> {
     if (!isRedshiftConfig(config)) {
       throw new Error('Incompatible data storage config');
@@ -42,16 +42,22 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
 
     let nextToken: string | undefined = undefined;
     let columns: string[] | undefined;
+    let columnMetadata: SqlRunBatch['columnMetadata'];
 
     do {
       const results = await adapter.getQueryResults(statementId, nextToken);
       if (!columns) {
         columns = results.ColumnMetadata?.map(meta => meta.name || '').filter(Boolean);
+        columnMetadata = results.ColumnMetadata?.map(meta => ({
+          name: meta.name ?? null,
+          label: meta.label ?? null,
+          typeName: meta.typeName ?? null,
+        }));
       }
 
       if (!results.Records || results.Records.length === 0) {
         if (nextToken === undefined) {
-          yield new SqlRunBatch([], null, columns ?? null);
+          yield new SqlRunBatch([], null, columns ?? null, columnMetadata ?? null);
         }
         break;
       }
@@ -80,7 +86,7 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
         return row as Row;
       });
 
-      yield new SqlRunBatch(rows, results.NextToken, columns);
+      yield new SqlRunBatch(rows, results.NextToken, columns, columnMetadata);
 
       nextToken = results.NextToken;
     } while (nextToken);

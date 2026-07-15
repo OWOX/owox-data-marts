@@ -1,0 +1,2575 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`DataQualityCheckCompiler matches the 12-plan SQL contract snapshot for AWS_ATHENA 1`] = `
+[
+  {
+    "category": "empty_table",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 1 ELSE 0 END AS violation_count, 1 AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "pk_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "duplicate_rows",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, json_format(CAST("payload" AS JSON)) AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", json_format(CAST("payload" AS JSON)), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, json_format(CAST("payload" AS JSON)) AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", json_format(CAST("payload" AS JSON)), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, json_format(CAST("payload" AS JSON)) AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", json_format(CAST("payload" AS JSON)), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "null_rate",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN CASE WHEN row_count = 0 THEN NULL ELSE CAST(null_count AS DOUBLE) * 100 / row_count END > 5 THEN null_count ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s."amount" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE s."amount" IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE CAST(null_count AS DOUBLE) * 100 / row_count END > 5
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE s."amount" IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE CAST(null_count AS DOUBLE) * 100 / row_count END > 5",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "column_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s."customer_id" IS NOT DISTINCT FROM g.dq_value WHERE s."customer_id" IS NOT NULL)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s."customer_id" IS NOT DISTINCT FROM g.dq_value WHERE s."customer_id" IS NOT NULL)
+SELECT v."customer_id" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s."customer_id" IS NOT DISTINCT FROM g.dq_value WHERE s."customer_id" IS NOT NULL)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "constant_column",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN distinct_count = 1 THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s."secret" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "type_mismatch",
+    "queries": [
+      {
+        "purpose": "TYPE_INTROSPECTION",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT typeof((SELECT arbitrary("amount") FROM dq_source)) AS actual_type",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT s."amount" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s WHERE s."amount" IS NOT NULL
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "-- Expected Output Schema type: BIGINT
+WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT typeof((SELECT arbitrary("amount") FROM dq_source)) AS actual_type",
+    "strategy": "TYPE_MISMATCH",
+  },
+  {
+    "category": "data_freshness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN max_value IS NULL THEN 1 WHEN max_value AT TIME ZONE 'Europe/Kyiv' < current_timestamp - INTERVAL '86400' SECOND THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT s."updated_at" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value AT TIME ZONE 'Europe/Kyiv' < current_timestamp - INTERVAL '86400' SECOND) AND s."updated_at" IS NOT DISTINCT FROM max_value
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value AT TIME ZONE 'Europe/Kyiv' < current_timestamp - INTERVAL '86400' SECOND) AND s."updated_at" IS NOT DISTINCT FROM max_value",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "future_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > CAST(current_timestamp AT TIME ZONE 'Europe/Kyiv' AS DATE))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > CAST(current_timestamp AT TIME ZONE 'Europe/Kyiv' AS DATE))
+SELECT v."event_date" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > CAST(current_timestamp AT TIME ZONE 'Europe/Kyiv' AS DATE))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "negative_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT v."amount" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "relationship_integrity",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT v."tenant_id" AS dq_join_0, v."customer_id" AS dq_join_1, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "reverse_relationship",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT v."tenant_id" AS dq_join_0, v."id" AS dq_join_1, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+]
+`;
+
+exports[`DataQualityCheckCompiler matches the 12-plan SQL contract snapshot for AWS_REDSHIFT 1`] = `
+[
+  {
+    "category": "empty_table",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 1 ELSE 0 END AS violation_count, 1 AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "pk_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "duplicate_rows",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, JSON_SERIALIZE("payload") AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", JSON_SERIALIZE("payload"), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, JSON_SERIALIZE("payload") AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", JSON_SERIALIZE("payload"), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, JSON_SERIALIZE("payload") AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", JSON_SERIALIZE("payload"), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "null_rate",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN CASE WHEN row_count = 0 THEN NULL ELSE null_count::DOUBLE PRECISION * 100 / row_count END > 5 THEN null_count ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s."amount" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE s."amount" IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE null_count::DOUBLE PRECISION * 100 / row_count END > 5
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE s."amount" IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE null_count::DOUBLE PRECISION * 100 / row_count END > 5",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "column_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON (s."customer_id" = g.dq_value OR (s."customer_id" IS NULL AND g.dq_value IS NULL)) WHERE s."customer_id" IS NOT NULL)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON (s."customer_id" = g.dq_value OR (s."customer_id" IS NULL AND g.dq_value IS NULL)) WHERE s."customer_id" IS NOT NULL)
+SELECT v."customer_id" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON (s."customer_id" = g.dq_value OR (s."customer_id" IS NULL AND g.dq_value IS NULL)) WHERE s."customer_id" IS NOT NULL)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "constant_column",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN distinct_count = 1 THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s."secret" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "type_mismatch",
+    "queries": [
+      {
+        "purpose": "TYPE_INTROSPECTION",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT "amount" AS dq_value FROM dq_source WHERE 1 = 0",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT s."amount" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s WHERE s."amount" IS NOT NULL
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "-- Expected Output Schema type: BIGINT
+WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT "amount" AS dq_value FROM dq_source WHERE 1 = 0",
+    "strategy": "TYPE_MISMATCH",
+  },
+  {
+    "category": "data_freshness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN max_value IS NULL THEN 1 WHEN CONVERT_TIMEZONE('Europe/Kyiv', 'UTC', max_value) < DATEADD(millisecond, -86400000, CONVERT_TIMEZONE(CURRENT_SETTING('timezone'), 'UTC', GETDATE())) THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT s."updated_at" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR CONVERT_TIMEZONE('Europe/Kyiv', 'UTC', max_value) < DATEADD(millisecond, -86400000, CONVERT_TIMEZONE(CURRENT_SETTING('timezone'), 'UTC', GETDATE()))) AND (s."updated_at" = max_value OR (s."updated_at" IS NULL AND max_value IS NULL))
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR CONVERT_TIMEZONE('Europe/Kyiv', 'UTC', max_value) < DATEADD(millisecond, -86400000, CONVERT_TIMEZONE(CURRENT_SETTING('timezone'), 'UTC', GETDATE()))) AND (s."updated_at" = max_value OR (s."updated_at" IS NULL AND max_value IS NULL))",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "future_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > CAST(CONVERT_TIMEZONE(CURRENT_SETTING('timezone'), 'Europe/Kyiv', GETDATE()) AS DATE))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > CAST(CONVERT_TIMEZONE(CURRENT_SETTING('timezone'), 'Europe/Kyiv', GETDATE()) AS DATE))
+SELECT v."event_date" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > CAST(CONVERT_TIMEZONE(CURRENT_SETTING('timezone'), 'Europe/Kyiv', GETDATE()) AS DATE))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "negative_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT v."amount" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "relationship_integrity",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE (s."tenant_id" = t."tenant_id" OR (s."tenant_id" IS NULL AND t."tenant_id" IS NULL)) AND (s."customer_id" = t."id" OR (s."customer_id" IS NULL AND t."id" IS NULL))))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE (s."tenant_id" = t."tenant_id" OR (s."tenant_id" IS NULL AND t."tenant_id" IS NULL)) AND (s."customer_id" = t."id" OR (s."customer_id" IS NULL AND t."id" IS NULL))))
+SELECT v."tenant_id" AS dq_join_0, v."customer_id" AS dq_join_1, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE (s."tenant_id" = t."tenant_id" OR (s."tenant_id" IS NULL AND t."tenant_id" IS NULL)) AND (s."customer_id" = t."id" OR (s."customer_id" IS NULL AND t."id" IS NULL))))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "reverse_relationship",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE (s."tenant_id" = t."tenant_id" OR (s."tenant_id" IS NULL AND t."tenant_id" IS NULL)) AND (s."customer_id" = t."id" OR (s."customer_id" IS NULL AND t."id" IS NULL))))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE (s."tenant_id" = t."tenant_id" OR (s."tenant_id" IS NULL AND t."tenant_id" IS NULL)) AND (s."customer_id" = t."id" OR (s."customer_id" IS NULL AND t."id" IS NULL))))
+SELECT v."tenant_id" AS dq_join_0, v."id" AS dq_join_1, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE (s."tenant_id" = t."tenant_id" OR (s."tenant_id" IS NULL AND t."tenant_id" IS NULL)) AND (s."customer_id" = t."id" OR (s."customer_id" IS NULL AND t."id" IS NULL))))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+]
+`;
+
+exports[`DataQualityCheckCompiler matches the 12-plan SQL contract snapshot for DATABRICKS 1`] = `
+[
+  {
+    "category": "empty_table",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 1 ELSE 0 END AS violation_count, 1 AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "pk_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "duplicate_rows",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, to_json(\`payload\`) AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, to_json(\`payload\`), \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, to_json(\`payload\`) AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, to_json(\`payload\`), \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, to_json(\`payload\`) AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, to_json(\`payload\`), \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "null_rate",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN CASE WHEN row_count = 0 THEN NULL ELSE CAST(null_count AS DOUBLE) * 100 / row_count END > 5 THEN null_count ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.\`amount\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE s.\`amount\` IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE CAST(null_count AS DOUBLE) * 100 / row_count END > 5
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE s.\`amount\` IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE CAST(null_count AS DOUBLE) * 100 / row_count END > 5",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "column_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` <=> g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` <=> g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT v.\`customer_id\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` <=> g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "constant_column",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN distinct_count = 1 THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.\`secret\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "type_mismatch",
+    "queries": [
+      {
+        "purpose": "TYPE_INTROSPECTION",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT typeof((SELECT first(\`amount\`, true) FROM dq_source)) AS actual_type",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT s.\`amount\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s WHERE s.\`amount\` IS NOT NULL
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "-- Expected Output Schema type: BIGINT
+WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT typeof((SELECT first(\`amount\`, true) FROM dq_source)) AS actual_type",
+    "strategy": "TYPE_MISMATCH",
+  },
+  {
+    "category": "data_freshness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN max_value IS NULL THEN 1 WHEN max_value < current_timestamp() - INTERVAL 86400 SECONDS THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT s.\`updated_at\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value < current_timestamp() - INTERVAL 86400 SECONDS) AND s.\`updated_at\` <=> max_value
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value < current_timestamp() - INTERVAL 86400 SECONDS) AND s.\`updated_at\` <=> max_value",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "future_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > TO_DATE(from_utc_timestamp(current_timestamp(), 'Europe/Kyiv')))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > TO_DATE(from_utc_timestamp(current_timestamp(), 'Europe/Kyiv')))
+SELECT v.\`event_date\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > TO_DATE(from_utc_timestamp(current_timestamp(), 'Europe/Kyiv')))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "negative_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT v.\`amount\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "relationship_integrity",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` <=> t.\`tenant_id\` AND s.\`customer_id\` <=> t.\`id\`))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` <=> t.\`tenant_id\` AND s.\`customer_id\` <=> t.\`id\`))
+SELECT v.\`tenant_id\` AS dq_join_0, v.\`customer_id\` AS dq_join_1, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` <=> t.\`tenant_id\` AND s.\`customer_id\` <=> t.\`id\`))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "reverse_relationship",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` <=> t.\`tenant_id\` AND s.\`customer_id\` <=> t.\`id\`))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` <=> t.\`tenant_id\` AND s.\`customer_id\` <=> t.\`id\`))
+SELECT v.\`tenant_id\` AS dq_join_0, v.\`id\` AS dq_join_1, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` <=> t.\`tenant_id\` AND s.\`customer_id\` <=> t.\`id\`))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+]
+`;
+
+exports[`DataQualityCheckCompiler matches the 12-plan SQL contract snapshot for GOOGLE_BIGQUERY 1`] = `
+[
+  {
+    "category": "empty_table",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 1 ELSE 0 END AS violation_count, 1 AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "pk_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "duplicate_rows",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END, \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END, \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END, \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "null_rate",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN SAFE_DIVIDE(null_count, row_count) * 100 > 5 THEN null_count ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.\`amount\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE s.\`amount\` IS NULL AND row_count > 0 AND SAFE_DIVIDE(null_count, row_count) * 100 > 5
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE s.\`amount\` IS NULL AND row_count > 0 AND SAFE_DIVIDE(null_count, row_count) * 100 > 5",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "column_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` IS NOT DISTINCT FROM g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` IS NOT DISTINCT FROM g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT v.\`customer_id\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` IS NOT DISTINCT FROM g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "constant_column",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN distinct_count = 1 THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.\`secret\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "type_mismatch",
+    "queries": [
+      {
+        "purpose": "TYPE_INTROSPECTION",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT TYPEOF((SELECT ANY_VALUE(\`amount\`) FROM dq_source)) AS actual_type",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT s.\`amount\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s WHERE s.\`amount\` IS NOT NULL
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "-- Expected Output Schema type: INTEGER (NULLABLE)
+WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT TYPEOF((SELECT ANY_VALUE(\`amount\`) FROM dq_source)) AS actual_type",
+    "strategy": "TYPE_MISMATCH",
+  },
+  {
+    "category": "data_freshness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN max_value IS NULL THEN 1 WHEN max_value < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 86400000 MILLISECOND) THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT s.\`updated_at\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 86400000 MILLISECOND)) AND s.\`updated_at\` IS NOT DISTINCT FROM max_value
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 86400000 MILLISECOND)) AND s.\`updated_at\` IS NOT DISTINCT FROM max_value",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "future_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > CURRENT_DATE('Europe/Kyiv'))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > CURRENT_DATE('Europe/Kyiv'))
+SELECT v.\`event_date\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > CURRENT_DATE('Europe/Kyiv'))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "negative_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT v.\`amount\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "relationship_integrity",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT v.\`tenant_id\` AS dq_join_0, v.\`customer_id\` AS dq_join_1, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "reverse_relationship",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT v.\`tenant_id\` AS dq_join_0, v.\`id\` AS dq_join_1, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+]
+`;
+
+exports[`DataQualityCheckCompiler matches the 12-plan SQL contract snapshot for LEGACY_GOOGLE_BIGQUERY 1`] = `
+[
+  {
+    "category": "empty_table",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 1 ELSE 0 END AS violation_count, 1 AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "pk_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_pk_0, \`tenant_id\` AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`id\` IS NOT NULL AND \`tenant_id\` IS NOT NULL
+  GROUP BY \`id\`, \`tenant_id\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "duplicate_rows",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END, \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END, \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`id\` AS dq_col_0, \`tenant_id\` AS dq_col_1, \`customer_id\` AS dq_col_2, \`amount\` AS dq_col_3, \`updated_at\` AS dq_col_4, \`event_date\` AS dq_col_5, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END AS dq_col_6, \`secret\` AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY \`id\`, \`tenant_id\`, \`customer_id\`, \`amount\`, \`updated_at\`, \`event_date\`, CASE WHEN \`payload\` IS NULL THEN 'sql:null' ELSE CONCAT('json:', TO_JSON_STRING(\`payload\`)) END, \`secret\`
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "null_rate",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN SAFE_DIVIDE(null_count, row_count) * 100 > 5 THEN null_count ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.\`amount\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE s.\`amount\` IS NULL AND row_count > 0 AND SAFE_DIVIDE(null_count, row_count) * 100 > 5
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN \`amount\` IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE s.\`amount\` IS NULL AND row_count > 0 AND SAFE_DIVIDE(null_count, row_count) * 100 > 5",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "column_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` IS NOT DISTINCT FROM g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` IS NOT DISTINCT FROM g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT v.\`customer_id\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT \`customer_id\` AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE \`customer_id\` IS NOT NULL
+  GROUP BY \`customer_id\`
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s.\`customer_id\` IS NOT DISTINCT FROM g.dq_value WHERE s.\`customer_id\` IS NOT NULL)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "constant_column",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN distinct_count = 1 THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.\`secret\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT \`secret\`) + CASE WHEN COUNT(*) > COUNT(\`secret\`) THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "type_mismatch",
+    "queries": [
+      {
+        "purpose": "TYPE_INTROSPECTION",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT TYPEOF((SELECT ANY_VALUE(\`amount\`) FROM dq_source)) AS actual_type",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT s.\`amount\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s WHERE s.\`amount\` IS NOT NULL
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "-- Expected Output Schema type: INTEGER (NULLABLE)
+WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT TYPEOF((SELECT ANY_VALUE(\`amount\`) FROM dq_source)) AS actual_type",
+    "strategy": "TYPE_MISMATCH",
+  },
+  {
+    "category": "data_freshness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN max_value IS NULL THEN 1 WHEN max_value < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 86400000 MILLISECOND) THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT s.\`updated_at\` AS dq_value, s.\`id\` AS dq_pk_0, s.\`tenant_id\` AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 86400000 MILLISECOND)) AND s.\`updated_at\` IS NOT DISTINCT FROM max_value
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX(\`updated_at\`) AS max_value FROM dq_source)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR max_value < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 86400000 MILLISECOND)) AND s.\`updated_at\` IS NOT DISTINCT FROM max_value",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "future_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > CURRENT_DATE('Europe/Kyiv'))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > CURRENT_DATE('Europe/Kyiv'))
+SELECT v.\`event_date\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`event_date\` IS NOT NULL AND \`event_date\` > CURRENT_DATE('Europe/Kyiv'))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "negative_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT v.\`amount\` AS dq_value, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE \`amount\` IS NOT NULL AND \`amount\` < 0)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "relationship_integrity",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT v.\`tenant_id\` AS dq_join_0, v.\`customer_id\` AS dq_join_1, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s.\`tenant_id\` IS NOT NULL AND s.\`customer_id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "reverse_relationship",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT v.\`tenant_id\` AS dq_join_0, v.\`id\` AS dq_join_1, v.\`id\` AS dq_pk_0, v.\`tenant_id\` AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t.\`tenant_id\` IS NOT NULL AND t.\`id\` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s.\`tenant_id\` IS NOT DISTINCT FROM t.\`tenant_id\` AND s.\`customer_id\` IS NOT DISTINCT FROM t.\`id\`))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+]
+`;
+
+exports[`DataQualityCheckCompiler matches the 12-plan SQL contract snapshot for SNOWFLAKE 1`] = `
+[
+  {
+    "category": "empty_table",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 1 ELSE 0 END AS violation_count, 1 AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count FROM dq_source)
+SELECT 1 AS empty_table FROM dq_stats WHERE row_count = 0",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "pk_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_pk_0, "tenant_id" AS dq_pk_1, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "id" IS NOT NULL AND "tenant_id" IS NOT NULL
+  GROUP BY "id", "tenant_id"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "duplicate_rows",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, TO_JSON("payload") AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", TO_JSON("payload"), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, TO_JSON("payload") AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", TO_JSON("payload"), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "id" AS dq_col_0, "tenant_id" AS dq_col_1, "customer_id" AS dq_col_2, "amount" AS dq_col_3, "updated_at" AS dq_col_4, "event_date" AS dq_col_5, TO_JSON("payload") AS dq_col_6, "secret" AS dq_col_7, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  GROUP BY "id", "tenant_id", "customer_id", "amount", "updated_at", "event_date", TO_JSON("payload"), "secret"
+  HAVING COUNT(*) > 1
+)
+SELECT * FROM dq_duplicate_groups",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "null_rate",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN CASE WHEN row_count = 0 THEN NULL ELSE null_count::DOUBLE * 100 / row_count END > 5 THEN null_count ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s."amount" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE s."amount" IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE null_count::DOUBLE * 100 / row_count END > 5
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, SUM(CASE WHEN "amount" IS NULL THEN 1 ELSE 0 END) AS null_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE s."amount" IS NULL AND row_count > 0 AND CASE WHEN row_count = 0 THEN NULL ELSE null_count::DOUBLE * 100 / row_count END > 5",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "column_uniqueness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s."customer_id" IS NOT DISTINCT FROM g.dq_value WHERE s."customer_id" IS NOT NULL)
+SELECT COALESCE(SUM(dq_extra_rows), 0) AS violation_count, 1 AS is_applicable FROM dq_duplicate_groups",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s."customer_id" IS NOT DISTINCT FROM g.dq_value WHERE s."customer_id" IS NOT NULL)
+SELECT v."customer_id" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_duplicate_groups AS (
+  SELECT "customer_id" AS dq_value, COUNT(*) - 1 AS dq_extra_rows
+  FROM dq_source
+  WHERE "customer_id" IS NOT NULL
+  GROUP BY "customer_id"
+  HAVING COUNT(*) > 1
+),
+dq_violations AS (SELECT s.* FROM dq_source s JOIN dq_duplicate_groups g ON s."customer_id" IS NOT DISTINCT FROM g.dq_value WHERE s."customer_id" IS NOT NULL)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "constant_column",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN distinct_count = 1 THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s."secret" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (
+  SELECT COUNT(*) AS row_count, COUNT(DISTINCT "secret") + CASE WHEN COUNT(*) > COUNT("secret") THEN 1 ELSE 0 END AS distinct_count
+  FROM dq_source
+)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND distinct_count = 1",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "type_mismatch",
+    "queries": [
+      {
+        "purpose": "TYPE_INTROSPECTION",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT SYSTEM$TYPEOF((SELECT ANY_VALUE("amount") FROM dq_source)) AS actual_type",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT s."amount" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s WHERE s."amount" IS NOT NULL
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "-- Expected Output Schema type: INTEGER
+WITH dq_source AS (
+SELECT * FROM analytics.source_table
+)
+SELECT SYSTEM$TYPEOF((SELECT ANY_VALUE("amount") FROM dq_source)) AS actual_type",
+    "strategy": "TYPE_MISMATCH",
+  },
+  {
+    "category": "data_freshness",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT CASE WHEN row_count = 0 THEN 0 WHEN max_value IS NULL THEN 1 WHEN CONVERT_TIMEZONE('Europe/Kyiv', 'UTC', max_value) < DATEADD(millisecond, -86400000, CAST(CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) AS TIMESTAMP_NTZ)) THEN 1 ELSE 0 END AS violation_count, CASE WHEN row_count = 0 THEN 0 ELSE 1 END AS is_applicable FROM dq_stats",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT s."updated_at" AS dq_value, s."id" AS dq_pk_0, s."tenant_id" AS dq_pk_1 FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR CONVERT_TIMEZONE('Europe/Kyiv', 'UTC', max_value) < DATEADD(millisecond, -86400000, CAST(CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) AS TIMESTAMP_NTZ))) AND s."updated_at" IS NOT DISTINCT FROM max_value
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_stats AS (SELECT COUNT(*) AS row_count, MAX("updated_at") AS max_value FROM dq_source)
+SELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE row_count > 0 AND (max_value IS NULL OR CONVERT_TIMEZONE('Europe/Kyiv', 'UTC', max_value) < DATEADD(millisecond, -86400000, CAST(CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) AS TIMESTAMP_NTZ))) AND s."updated_at" IS NOT DISTINCT FROM max_value",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "future_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > TO_DATE(CONVERT_TIMEZONE('Europe/Kyiv', CURRENT_TIMESTAMP())))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > TO_DATE(CONVERT_TIMEZONE('Europe/Kyiv', CURRENT_TIMESTAMP())))
+SELECT v."event_date" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "event_date" IS NOT NULL AND "event_date" > TO_DATE(CONVERT_TIMEZONE('Europe/Kyiv', CURRENT_TIMESTAMP())))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "negative_values",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT v."amount" AS dq_value, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_violations AS (SELECT * FROM dq_source WHERE "amount" IS NOT NULL AND "amount" < 0)
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "relationship_integrity",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT v."tenant_id" AS dq_join_0, v."customer_id" AS dq_join_1, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT s.* FROM dq_source s WHERE s."tenant_id" IS NOT NULL AND s."customer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_target t WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+  {
+    "category": "reverse_relationship",
+    "queries": [
+      {
+        "purpose": "MEASUREMENT",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT COUNT(*) AS violation_count, 1 AS is_applicable FROM dq_violations",
+      },
+      {
+        "purpose": "EXAMPLES",
+        "sql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT v."tenant_id" AS dq_join_0, v."id" AS dq_join_1, v."id" AS dq_pk_0, v."tenant_id" AS dq_pk_1 FROM dq_violations v
+LIMIT 3",
+      },
+    ],
+    "reproductionSql": "WITH dq_source AS (
+SELECT * FROM analytics.source_table
+),
+dq_target AS (
+SELECT * FROM analytics.target_table
+),
+dq_violations AS (SELECT t.* FROM dq_target t WHERE t."tenant_id" IS NOT NULL AND t."id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dq_source s WHERE s."tenant_id" IS NOT DISTINCT FROM t."tenant_id" AND s."customer_id" IS NOT DISTINCT FROM t."id"))
+SELECT * FROM dq_violations",
+    "strategy": "COUNT",
+  },
+]
+`;

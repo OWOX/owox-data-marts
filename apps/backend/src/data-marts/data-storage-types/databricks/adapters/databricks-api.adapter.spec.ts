@@ -45,4 +45,26 @@ describe('DatabricksApiAdapter', () => {
     );
     expect(cursor.close).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves provider error identity when wrapping a failed statement', async () => {
+    const providerError = Object.assign(new Error('Table or view not found'), {
+      code: 'TABLE_OR_VIEW_NOT_FOUND',
+      errorCode: 'TABLE_OR_VIEW_NOT_FOUND',
+      reason: 'TABLE_OR_VIEW_NOT_FOUND',
+    });
+    const adapter = new DatabricksApiAdapter(credentials, config);
+    const session = {
+      executeStatement: jest.fn().mockRejectedValue(providerError),
+    };
+    Object.defineProperty(adapter, 'ensureConnection', {
+      value: jest.fn().mockResolvedValue(session),
+    });
+
+    await expect(adapter.openQueryCursor('SELECT * FROM missing')).rejects.toMatchObject({
+      code: 'TABLE_OR_VIEW_NOT_FOUND',
+      errorCode: 'TABLE_OR_VIEW_NOT_FOUND',
+      reason: 'TABLE_OR_VIEW_NOT_FOUND',
+      cause: providerError,
+    });
+  });
 });

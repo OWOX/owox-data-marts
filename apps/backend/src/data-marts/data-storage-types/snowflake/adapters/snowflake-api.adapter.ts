@@ -6,6 +6,7 @@ import { SnowflakeAuthMethod } from '../enums/snowflake-auth-method.enum';
 import { SnowflakeQueryMetadata } from '../interfaces/snowflake-query-metadata';
 import { SnowflakeQueryExplainJsonResponse } from '../interfaces/snowflake-query-explain-json-response';
 import { escapeSnowflakeIdentifier } from '../utils/snowflake-identifier.utils';
+import { wrapProviderError } from '../../utils/provider-error.utils';
 
 /**
  * Adapter for Snowflake API operations
@@ -133,8 +134,9 @@ export class SnowflakeApiAdapter {
           cleanup();
           if (err) {
             reject(
-              new Error(
-                `${SnowflakeApiAdapter.SNOWFLAKE_QUERY_ERROR_PREFIX} ${err.message}, ${query}`
+              wrapProviderError(
+                `${SnowflakeApiAdapter.SNOWFLAKE_QUERY_ERROR_PREFIX} ${err.message}, ${query}`,
+                err
               )
             );
           } else {

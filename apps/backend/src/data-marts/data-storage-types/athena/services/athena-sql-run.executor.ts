@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SqlRunExecutor } from '../../interfaces/sql-run-executor.interface';
+import { SqlRunExecutor, SqlRunExecuteOptions } from '../../interfaces/sql-run-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageConfig } from '../../data-storage-config.type';
@@ -28,7 +28,7 @@ export class AthenaSqlRunExecutor implements SqlRunExecutor {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: { maxRowsPerBatch?: number }
+    options?: SqlRunExecuteOptions
   ): AsyncGenerator<SqlRunBatch<Row>> {
     if (!isAthenaCredentials(credentials)) {
       throw new Error('Athena storage credentials expected');

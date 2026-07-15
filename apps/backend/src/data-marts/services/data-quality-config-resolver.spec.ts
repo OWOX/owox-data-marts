@@ -205,6 +205,14 @@ describe('resolveEffectiveDataQualityConfig', () => {
     ).toMatchObject({ enabled: false, isApplicable: false });
   });
 
+  it('marks duplicate rows not applicable when no materialized fields exist', () => {
+    const result = resolveForDefinition(null, schema(), []);
+
+    expect(
+      findRule(result, DataQualityCategory.DUPLICATE_ROWS, DataQualityScope.DATA_MART)
+    ).toMatchObject({ isApplicable: false, notApplicableReason: expect.any(String) });
+  });
+
   it('derives field applicability from provider-normalized Output Schema types', () => {
     const result = resolveForDefinition(
       null,
@@ -252,6 +260,45 @@ describe('resolveEffectiveDataQualityConfig', () => {
       findRule(result, DataQualityCategory.DATA_FRESHNESS, DataQualityScope.FIELD, 'local_datetime')
     ).toMatchObject({ isApplicable: false });
   });
+
+  it.each([
+    ['bigquery-data-mart-schema', 'GEOGRAPHY'],
+    ['redshift-data-mart-schema', 'GEOMETRY'],
+  ])(
+    'marks grouping checks not applicable when %s fields cannot be canonicalized',
+    (schemaType, spatialType) => {
+      const outputSchema = {
+        type: schemaType,
+        fields: [
+          {
+            name: 'location',
+            type: spatialType,
+            status: DataMartSchemaFieldStatus.CONNECTED,
+            isPrimaryKey: false,
+            isHiddenForReporting: false,
+            ...(schemaType === 'bigquery-data-mart-schema'
+              ? { mode: BigQueryFieldMode.NULLABLE }
+              : {}),
+          },
+        ],
+      } as DataMartSchema;
+
+      const result = resolveForDefinition(null, outputSchema, []);
+
+      expect(
+        findRule(result, DataQualityCategory.DUPLICATE_ROWS, DataQualityScope.DATA_MART)
+      ).toMatchObject({ isApplicable: false, notApplicableReason: expect.any(String) });
+      for (const category of [
+        DataQualityCategory.COLUMN_UNIQUENESS,
+        DataQualityCategory.CONSTANT_COLUMN,
+      ]) {
+        expect(findRule(result, category, DataQualityScope.FIELD, 'location')).toMatchObject({
+          isApplicable: false,
+          notApplicableReason: expect.any(String),
+        });
+      }
+    }
+  );
 
   it('preserves descendants of a repeated BigQuery record but marks every field check not applicable', () => {
     const outputSchema = {

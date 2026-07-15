@@ -105,4 +105,27 @@ describe('SnowflakeApiAdapter STATEMENT_TIMEOUT_IN_SECONDS (Phase 3)', () => {
 
     expect(cancel).not.toHaveBeenCalled();
   });
+
+  it('preserves provider error identity when wrapping a failed query', async () => {
+    const providerError = Object.assign(new Error('Object does not exist'), {
+      code: '002003',
+      errorCode: 'OBJECT_NOT_FOUND',
+      reason: 'OBJECT_NOT_FOUND',
+    });
+    mockConnection.execute.mockImplementation((opts: { complete: (...a: unknown[]) => void }) => {
+      opts.complete(providerError, stmt, []);
+      return { cancel: jest.fn() };
+    });
+    const adapter = new SnowflakeApiAdapter(
+      { authMethod: SnowflakeAuthMethod.PASSWORD, username: 'u', password: 'p' } as never,
+      { account: 'a', warehouse: 'w' } as never
+    );
+
+    await expect(adapter.executeQuery('SELECT * FROM missing')).rejects.toMatchObject({
+      code: '002003',
+      errorCode: 'OBJECT_NOT_FOUND',
+      reason: 'OBJECT_NOT_FOUND',
+      cause: providerError,
+    });
+  });
 });
