@@ -36,14 +36,20 @@ export function useColumnVisibility<TData>(columns: ColumnDef<TData>[]) {
     [columns]
   );
 
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
+  const [columnVisibility, setColumnVisibility] =
+    useState<Record<string, boolean>>(defaultHiddenColumns);
 
-  /**
-   * Initialize column visibility with default hidden columns
-   */
+  // `columns` is rebuilt on every render (new array/object identities), so
+  // `defaultHiddenColumns` never stays referentially equal even when its content
+  // doesn't change. Key off the actual set of hidden column ids instead, so this
+  // effect only re-applies defaults when that set genuinely changes - otherwise it
+  // would keep clobbering the user's manual show/hide toggles on every re-render.
+  const defaultHiddenColumnsKey = Object.keys(defaultHiddenColumns).sort().join(',');
+
   useEffect(() => {
     setColumnVisibility(defaultHiddenColumns);
-  }, [defaultHiddenColumns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultHiddenColumnsKey]);
 
   return {
     columnVisibility,
