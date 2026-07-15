@@ -49,6 +49,21 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
    */
   protected abstract getTriggerRunIdField(): string;
 
+  /**
+   * Run states which become terminal when their trigger has disappeared after the grace period.
+   * Most run handlers only create orphaned PENDING runs. Handlers that intentionally keep a run
+   * RUNNING while retrying pre-execution work can extend this list.
+   */
+  protected getOrphanedRunStatuses(): DataMartRunStatus[] {
+    return [DataMartRunStatus.PENDING];
+  }
+
+  protected getOrphanedRunError(_run: DataMartRun): string {
+    return 'The run was not started because the maximum number of concurrent runs for this project was reached. Please wait for the current runs to finish and try again.';
+  }
+
+  protected async onOrphanedRunFailed(_run: DataMartRun): Promise<void> {}
+
   protected async cancelTriggerIfRunAlreadyCancelled(trigger: T): Promise<boolean> {
     const dataMartRunId = this.getTriggerDataMartRunId(trigger);
     const existingRun = await this.dataMartRunService.findById(dataMartRunId);
@@ -124,33 +139,37 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
   }
 
   /**
-   * Finds PENDING DataMartRun records that have no corresponding trigger
-   * and marks them as FAILED. This handles the case where a trigger is deleted
-   * by TTL cleanup while the run is still pending.
+   * Finds active DataMartRun records that have no corresponding trigger and marks them as FAILED.
+   * This handles triggers removed by TTL cleanup without leaving their runs permanently active.
    */
   private async cleanupOrphanedRuns(): Promise<void> {
     try {
       const gracePeriod = new Date(Date.now() - ORPHANED_RUN_GRACE_PERIOD_MS);
       const runTypes = this.getRunTypes();
+      const statuses = this.getOrphanedRunStatuses();
       const TriggerClass = this.getTriggerEntityClass();
       const triggerRunIdField = this.getTriggerRunIdField();
 
       const orphanedRuns = await this.dataMartRunRepository
         .createQueryBuilder('run')
         .leftJoin(TriggerClass, 'trigger', `trigger.${triggerRunIdField} = run.id`)
-        .where('run.status = :status', { status: DataMartRunStatus.PENDING })
+        .where('run.status IN (:...statuses)', { statuses })
         .andWhere('run.type IN (:...types)', { types: runTypes })
         .andWhere('run.createdAt <= :gracePeriod', { gracePeriod })
         .andWhere('trigger.id IS NULL')
         .getMany();
 
       for (const run of orphanedRuns) {
+        const orphanedStatus = run.status;
+        const orphanedError = this.getOrphanedRunError(run);
         run.status = DataMartRunStatus.FAILED;
-        run.errors = [
-          'The run was not started because the maximum number of concurrent runs for this project was reached. Please wait for the current runs to finish and try again.',
-        ];
+        run.finishedAt = new Date(Date.now());
+        run.errors = [orphanedError];
+        // Persist dependent state first. If it fails, the active parent row remains eligible for
+        // the next cleanup pass instead of becoming terminal with a stale child summary.
+        await this.onOrphanedRunFailed(run);
         await this.dataMartRunRepository.save(run);
-        this.logger.warn(`Orphaned PENDING run ${run.id} marked as FAILED`);
+        this.logger.warn(`Orphaned ${orphanedStatus} run ${run.id} marked as FAILED`);
       }
     } catch (error) {
       this.logger.error(

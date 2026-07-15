@@ -102,13 +102,19 @@ import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
 import { DataMartRun } from './entities/data-mart-run.entity';
+import { DataQualityRun } from './entities/data-quality-run.entity';
+import { DataQualityCheckResult } from './entities/data-quality-check-result.entity';
+import { DataQualityRunTrigger } from './entities/data-quality-run-trigger.entity';
 import { AiAssistantSession } from './entities/ai-assistant-session.entity';
 import { AiAssistantMessage } from './entities/ai-assistant-message.entity';
 import { AiAssistantContext } from './entities/ai-assistant-context.entity';
 import { AiAssistantRunTrigger } from './entities/ai-assistant-run-trigger.entity';
 import { AiAssistantApplyAction } from './entities/ai-assistant-apply-action.entity';
 import { dataStorageFacadesProviders } from './data-storage-types/data-storage-facades';
-import { dataStorageResolverProviders } from './data-storage-types/data-storage-providers';
+import {
+  DATA_QUALITY_SQL_DIALECT_RESOLVER,
+  dataStorageResolverProviders,
+} from './data-storage-types/data-storage-providers';
 import { dataDestinationFacadesProviders } from './data-destination-types/data-destination-facades';
 import { dataDestinationResolverProviders } from './data-destination-types/data-destination-providers';
 import { DataDestinationSecretKeyRotatorFacade } from './data-destination-types/facades/data-destination-secret-key-rotator.facade';
@@ -411,6 +417,23 @@ import { ModelCanvasController } from './controllers/model-canvas.controller';
 import { ModelCanvasMapper } from './mappers/model-canvas.mapper';
 import { GetModelCanvasDataMartsService } from './use-cases/get-model-canvas-data-marts.service';
 import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.service';
+import { DataQualityQueryExecutorService } from './data-quality/data-quality-query-executor.service';
+import {
+  DataQualityBatchController,
+  DataQualityController,
+} from './controllers/data-quality.controller';
+import { DataQualityApiMapper } from './mappers/data-quality-api.mapper';
+import { DataQualityApiService } from './services/data-quality-api.service';
+import { DataQualitySummaryService } from './services/data-quality-summary.service';
+import { DataQualityRunService } from './services/data-quality-run.service';
+import { DataQualityRunTriggerService } from './services/data-quality-run-trigger.service';
+import { DataQualityRunTriggerHandlerService } from './services/data-quality-run-trigger-handler.service';
+import { RunDataQualityService } from './use-cases/run-data-quality.service';
+import { DataQualityCheckCompiler } from './data-quality/data-quality-check-compiler';
+import { DataQualityResultParser } from './data-quality/data-quality-result-parser';
+import { DataQualitySqlDialect } from './data-quality/data-quality-sql-dialect';
+import { TypeResolver } from '../common/resolver/type-resolver';
+import { DataStorageType } from './data-storage-types/enums/data-storage-type.enum';
 
 @Module({
   imports: [
@@ -435,6 +458,9 @@ import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.s
       InsightTemplate,
       InsightTemplateSourceEntity,
       DataMartRun,
+      DataQualityRun,
+      DataQualityCheckResult,
+      DataQualityRunTrigger,
       DataMartScheduledTrigger,
       ConnectorState,
       ReportDataCache,
@@ -472,6 +498,8 @@ import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.s
     IdpModule,
   ],
   controllers: [
+    DataQualityBatchController,
+    DataQualityController,
     ProjectDataMartRunsController,
     ProjectScheduledTriggersController,
     ProjectInsightTemplatesController,
@@ -516,6 +544,28 @@ import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.s
     ...scheduledTriggerFacadesProviders,
     ...aiInsightsProviders,
     DataMartService,
+    DataQualityQueryExecutorService,
+    {
+      provide: DataQualityCheckCompiler,
+      useFactory: (
+        resolver: TypeResolver<DataStorageType, DataQualitySqlDialect>
+      ): DataQualityCheckCompiler => new DataQualityCheckCompiler(resolver),
+      inject: [DATA_QUALITY_SQL_DIALECT_RESOLVER],
+    },
+    {
+      provide: DataQualityResultParser,
+      useFactory: (
+        resolver: TypeResolver<DataStorageType, DataQualitySqlDialect>
+      ): DataQualityResultParser => new DataQualityResultParser(resolver),
+      inject: [DATA_QUALITY_SQL_DIALECT_RESOLVER],
+    },
+    DataQualityRunService,
+    DataQualityRunTriggerService,
+    RunDataQualityService,
+    DataQualityRunTriggerHandlerService,
+    DataQualityApiMapper,
+    DataQualityApiService,
+    DataQualitySummaryService,
     McpDataCatalogSummaryService,
     CreateDataMartService,
     ListDataMartsService,

@@ -2,9 +2,10 @@ import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { ConnectorRunTrigger } from '../entities/connector-run-trigger.entity';
 import { ReportRunTrigger } from '../entities/report-run-trigger.entity';
+import { DataQualityRunTrigger } from '../entities/data-quality-run-trigger.entity';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 
-type DataMartRunTrigger = ConnectorRunTrigger | ReportRunTrigger;
+type DataMartRunTrigger = ConnectorRunTrigger | ReportRunTrigger | DataQualityRunTrigger;
 
 export async function stopRunTriggersForRun<T extends DataMartRunTrigger>(
   repository: Pick<Repository<T>, 'update'>,

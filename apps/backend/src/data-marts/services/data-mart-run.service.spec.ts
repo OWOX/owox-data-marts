@@ -77,6 +77,7 @@ function createService() {
 function createQueryBuilderMock() {
   const qb = {
     innerJoin: jest.fn(),
+    leftJoinAndSelect: jest.fn(),
     where: jest.fn(),
     andWhere: jest.fn(),
     select: jest.fn(),
@@ -90,6 +91,7 @@ function createQueryBuilderMock() {
 
   for (const method of [
     'innerJoin',
+    'leftJoinAndSelect',
     'where',
     'andWhere',
     'select',
@@ -138,7 +140,13 @@ describe('DataMartRunService', () => {
       expect(pageQb.addOrderBy).toHaveBeenCalledWith('run.id', 'DESC');
       expect(pageQb.limit).toHaveBeenCalledWith(50);
       expect(pageQb.offset).toHaveBeenCalledWith(100);
-      expect(rowsQb.select).toHaveBeenCalledWith(['run', 'dataMart.id', 'dataMart.title']);
+      expect(rowsQb.leftJoinAndSelect).toHaveBeenCalledWith('run.dataQualityRun', 'dataQualityRun');
+      expect(rowsQb.select).toHaveBeenCalledWith([
+        'run',
+        'dataMart.id',
+        'dataMart.title',
+        'dataQualityRun',
+      ]);
       expect(rowsQb.where).toHaveBeenCalledWith('run.id IN (:...runIds)', {
         runIds: ['run-2', 'run-1'],
       });

@@ -7,6 +7,7 @@ import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
 import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { DataQualitySummaryDto } from './data-quality.dto';
 
 export class DataMartDto {
   constructor(
@@ -29,6 +30,7 @@ export class DataMartDto {
     public readonly availableForReporting: boolean = true,
     public readonly availableForMaintenance: boolean = true,
     public readonly blendedFieldsConfig?: BlendedFieldsConfig,
-    public readonly contexts: ContextSummary[] = []
+    public readonly contexts: ContextSummary[] = [],
+    public readonly qualitySummary: DataQualitySummaryDto | null = null
   ) {}
 }

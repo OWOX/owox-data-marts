@@ -19,6 +19,8 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { ConnectorRunTriggerService } from '../services/connector/connector-run-trigger.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
 import { ReportService } from '../services/report.service';
+import { DataQualityRunService } from '../services/data-quality-run.service';
+import { DataQualityRunTriggerService } from '../services/data-quality-run-trigger.service';
 
 describe('CancelDataMartRunService', () => {
   const createService = () => {
@@ -31,7 +33,11 @@ describe('CancelDataMartRunService', () => {
 
     const dataMartRunService = {
       getByIdAndDataMartId: jest.fn(),
-      markAsCancelled: jest.fn().mockResolvedValue(true),
+      markAsCancelled: jest.fn().mockImplementation(async run => {
+        run.status = DataMartRunStatus.CANCELLED;
+        run.finishedAt = new Date('2026-07-15T10:00:00.000Z');
+        return true;
+      }),
     } as unknown as DataMartRunService;
 
     const connectorRunTriggerService = {
@@ -41,6 +47,14 @@ describe('CancelDataMartRunService', () => {
     const reportRunTriggerService = {
       stopTriggersForRun: jest.fn().mockResolvedValue(undefined),
     } as unknown as ReportRunTriggerService;
+
+    const dataQualityRunTriggerService = {
+      stopTriggersForRun: jest.fn().mockResolvedValue(undefined),
+    } as unknown as DataQualityRunTriggerService;
+
+    const dataQualityRunService = {
+      markAsCancelled: jest.fn().mockResolvedValue(undefined),
+    } as unknown as DataQualityRunService;
 
     const reportService = {
       markRunAsCancelled: jest.fn().mockResolvedValue(undefined),
@@ -55,6 +69,8 @@ describe('CancelDataMartRunService', () => {
       dataMartRunService,
       connectorRunTriggerService,
       reportRunTriggerService,
+      dataQualityRunTriggerService,
+      dataQualityRunService,
       reportService,
       accessDecisionService
     );
@@ -65,6 +81,8 @@ describe('CancelDataMartRunService', () => {
       dataMartRunService,
       connectorRunTriggerService,
       reportRunTriggerService,
+      dataQualityRunTriggerService,
+      dataQualityRunService,
       reportService,
       accessDecisionService,
     };
@@ -110,6 +128,27 @@ describe('CancelDataMartRunService', () => {
     expect(dataMartRunService.markAsCancelled).toHaveBeenCalledWith(run);
     expect(reportRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-1');
     expect(reportService.markRunAsCancelled).toHaveBeenCalledWith('report-1');
+  });
+
+  it('cancels a pending Data Quality run, summary, and trigger transactionally', async () => {
+    const { service, dataMartRunService, dataQualityRunService, dataQualityRunTriggerService } =
+      createService();
+    const run = {
+      id: 'run-1',
+      dataMartId: 'dm-1',
+      type: DataMartRunType.DATA_QUALITY,
+      status: DataMartRunStatus.PENDING,
+      finishedAt: null,
+    };
+    (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(run);
+
+    await service.run(command);
+
+    expect(dataQualityRunService.markAsCancelled).toHaveBeenCalledWith(
+      'run-1',
+      new Date('2026-07-15T10:00:00.000Z')
+    );
+    expect(dataQualityRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-1');
   });
 
   it('rejects unsupported run types', async () => {

@@ -14,6 +14,8 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { ConnectorRunTriggerService } from '../services/connector/connector-run-trigger.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
+import { DataQualityRunTriggerService } from '../services/data-quality-run-trigger.service';
+import { DataQualityRunService } from '../services/data-quality-run.service';
 import { ReportService } from '../services/report.service';
 import {
   isCancellableDataMartRunStatus,
@@ -27,6 +29,8 @@ export class CancelDataMartRunService {
     private readonly dataMartRunService: DataMartRunService,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
     private readonly reportRunTriggerService: ReportRunTriggerService,
+    private readonly dataQualityRunTriggerService: DataQualityRunTriggerService,
+    private readonly dataQualityRunService: DataQualityRunService,
     private readonly reportService: ReportService,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
@@ -60,7 +64,9 @@ export class CancelDataMartRunService {
     }
 
     if (!this.isSupportedRunType(run.type)) {
-      throw new BadRequestException('Only connector and standard report runs can be cancelled');
+      throw new BadRequestException(
+        'Only connector, standard report, and Data Quality runs can be cancelled'
+      );
     }
 
     if (!isCancellableDataMartRunStatus(run.status)) {
@@ -73,6 +79,16 @@ export class CancelDataMartRunService {
       return;
     }
 
+    if (run.type === DataMartRunType.DATA_QUALITY) {
+      await this.markActiveRunAsCancelled(run);
+      if (!run.finishedAt) {
+        throw new ConflictException('Cancelled Data Quality run is missing finish time');
+      }
+      await this.dataQualityRunService.markAsCancelled(run.id, run.finishedAt);
+      await this.dataQualityRunTriggerService.stopTriggersForRun(run.id);
+      return;
+    }
+
     const reportId = this.getStandardReportRunReportId(run);
     await this.markActiveRunAsCancelled(run);
     await this.reportRunTriggerService.stopTriggersForRun(run.id);
@@ -80,7 +96,11 @@ export class CancelDataMartRunService {
   }
 
   private isSupportedRunType(type: DataMartRunType): boolean {
-    return type === DataMartRunType.CONNECTOR || this.isStandardReportRun(type);
+    return (
+      type === DataMartRunType.CONNECTOR ||
+      type === DataMartRunType.DATA_QUALITY ||
+      this.isStandardReportRun(type)
+    );
   }
 
   private isStandardReportRun(type: DataMartRunType): boolean {

@@ -97,6 +97,8 @@ const canvasDataMartSchema = new EntitySchema<DataMart>({
     projectId: { type: String },
     storage: { name: 'storageId', type: String },
     schema: { type: 'simple-json', nullable: true },
+    definitionType: { type: String, nullable: true },
+    dataQualityConfig: { type: 'simple-json', nullable: true },
     status: { type: String },
     description: { type: String, nullable: true },
     availableForReporting: { type: Boolean, default: false },

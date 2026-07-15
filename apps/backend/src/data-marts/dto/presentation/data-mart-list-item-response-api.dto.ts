@@ -5,6 +5,7 @@ import { UserProjection } from '../schemas/user-projection.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { DataMartListItemStorageApiDto } from './data-mart-list-item-storage-api.dto';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { CompactDataQualitySummaryApiDto } from './data-quality-api.dto';
 
 export class DataMartListItemResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -57,4 +58,7 @@ export class DataMartListItemResponseApiDto {
 
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
+
+  @ApiProperty({ type: CompactDataQualitySummaryApiDto })
+  qualitySummary: CompactDataQualitySummaryApiDto;
 }

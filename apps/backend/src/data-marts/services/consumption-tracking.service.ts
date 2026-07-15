@@ -10,6 +10,8 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
 import { ConnectorService } from './connector/connector.service';
 
+export type ConsumptionPublishStatus = 'DISABLED' | 'PUBLISHED';
+
 @Injectable()
 export class ConsumptionTrackingService {
   private readonly logger = new Logger(ConsumptionTrackingService.name);
@@ -139,6 +141,46 @@ export class ConsumptionTrackingService {
       inputSource: connectorTitle ? connectorTitle : connectorName,
       processRunId: connectorRunId,
     });
+  }
+
+  public async registerDataQualityRunConsumption(
+    dataMart: DataMart,
+    dataMartRunId: string,
+    startedAt: Date
+  ): Promise<ConsumptionPublishStatus> {
+    if (!this.pubSubService || !this.connectorRunConsumptionTopic) {
+      this.logger.debug('Data Quality run consumption tracking is not configured, skipping...');
+      return 'DISABLED';
+    }
+
+    const command = {
+      ...this.baseDataMartConsumptionPayload(dataMart),
+      inputSource: 'Data Quality',
+      // In the existing Process Run topic contract, processRunId is the logical
+      // idempotency key. Reusing the persisted DataMartRun id makes crash retries
+      // publish the same identity without introducing an incompatible payload field.
+      processRunId: dataMartRunId,
+      runTime: startedAt.toISOString(),
+    };
+
+    try {
+      const messageId = await this.pubSubService.publishMessageWithDefaultWrap(
+        this.connectorRunConsumptionTopic,
+        command
+      );
+      this.logger.log(
+        `Sent Data Quality consumption command to PubSub. Message: ${messageId}. Topic: ${this.connectorRunConsumptionTopic}. CMD: ${JSON.stringify(command)}`
+      );
+      return 'PUBLISHED';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Failed to send Data Quality consumption command to PubSub: ${message}. Topic: ${this.connectorRunConsumptionTopic}. CMD: ${JSON.stringify(command)}`,
+        stack
+      );
+      throw error;
+    }
   }
 
   public async registerSheetsReportRunConsumption(

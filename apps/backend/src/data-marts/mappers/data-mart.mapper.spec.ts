@@ -5,6 +5,7 @@ import { ConnectorSecretService } from '../services/connector/connector-secret.s
 import { DataMartRun as DataMartRunEntity } from '../entities/data-mart-run.entity';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 
 describe('DataMartMapper', () => {
   let mapper: DataMartMapper;
@@ -82,6 +83,80 @@ describe('DataMartMapper', () => {
       expect(mappedItem.report?.id).toEqual(latestReportRun.id);
 
       expect(mappedItem.insight).toBeNull();
+    });
+
+    it('does not classify DATA_QUALITY or another non-report run as report health', () => {
+      const userProjections = new UserProjectionsListDto([]);
+      const latestRuns = [
+        {
+          id: 'dq-run',
+          dataMartId: 'mart-1',
+          type: DataMartRunType.DATA_QUALITY,
+          createdAt: new Date(),
+        },
+        {
+          id: 'mcp-run',
+          dataMartId: 'mart-1',
+          type: DataMartRunType.MCP_QUERY,
+          createdAt: new Date(),
+        },
+      ] as DataMartRunEntity[];
+
+      const [item] = mapper.toBatchHealthStatusDomainResponse(
+        ['mart-1'],
+        latestRuns,
+        userProjections
+      ).items;
+
+      expect(item.report).toBeNull();
+    });
+  });
+
+  describe('Data Quality run history summary', () => {
+    it('maps the compact summary when the run history query loaded the DQ relation', () => {
+      const entity = {
+        id: 'run-dq',
+        status: 'SUCCESS',
+        type: DataMartRunType.DATA_QUALITY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+        finishedAt: new Date('2026-05-28T10:01:00Z'),
+        dataQualityRun: {
+          summary: {
+            state: DataQualitySummaryState.ISSUES,
+            enabledChecks: 2,
+            totalChecks: 2,
+            passedChecks: 1,
+            failedChecks: 1,
+            notApplicableChecks: 0,
+            errorChecks: 0,
+            noticeFindings: 0,
+            warningFindings: 1,
+            errorFindings: 0,
+            violationCount: 4,
+            highestSeverity: 'warning',
+          },
+        },
+      } as unknown as DataMartRunEntity;
+
+      expect(mapper.toDataMartRunDto(entity).qualitySummary).toMatchObject({
+        dataMartRunId: 'run-dq',
+        lastRunAt: new Date('2026-05-28T10:01:00Z'),
+        state: DataQualitySummaryState.ISSUES,
+      });
+    });
+
+    it('keeps the summary null for non-DQ history rows', () => {
+      const entity = {
+        id: 'run-report',
+        status: 'SUCCESS',
+        type: DataMartRunType.EMAIL,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        createdAt: new Date(),
+      } as unknown as DataMartRunEntity;
+      expect(mapper.toDataMartRunDto(entity).qualitySummary).toBeNull();
     });
   });
 

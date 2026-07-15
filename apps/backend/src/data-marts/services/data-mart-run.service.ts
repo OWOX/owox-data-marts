@@ -150,6 +150,7 @@ export class DataMartRunService {
   ): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { dataMartId },
+      relations: { dataQualityRun: true },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
@@ -194,7 +195,8 @@ export class DataMartRunService {
     const runs = await this.dataMartRunRepository
       .createQueryBuilder('run')
       .innerJoin('run.dataMart', 'dataMart')
-      .select(['run', 'dataMart.id', 'dataMart.title'])
+      .leftJoinAndSelect('run.dataQualityRun', 'dataQualityRun')
+      .select(['run', 'dataMart.id', 'dataMart.title', 'dataQualityRun'])
       .where('run.id IN (:...runIds)', { runIds })
       .getMany();
 
@@ -259,10 +261,12 @@ export class DataMartRunService {
   ): Promise<DataMartRun | null> {
     return this.dataMartRunRepository.findOne({
       where: { id: runId, dataMartId },
+      relations: { dataQualityRun: true },
     });
   }
 
   public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
+    const finishedAt = this.systemClock.now();
     const result = await this.dataMartRunRepository.update(
       {
         id: dataMartRun.id,
@@ -270,11 +274,15 @@ export class DataMartRunService {
       },
       {
         status: DataMartRunStatus.CANCELLED,
-        finishedAt: this.systemClock.now(),
+        finishedAt,
       }
     );
-
-    return (result.affected ?? 0) > 0;
+    const cancelled = (result.affected ?? 0) > 0;
+    if (cancelled) {
+      dataMartRun.status = DataMartRunStatus.CANCELLED;
+      dataMartRun.finishedAt = finishedAt;
+    }
+    return cancelled;
   }
 
   /**

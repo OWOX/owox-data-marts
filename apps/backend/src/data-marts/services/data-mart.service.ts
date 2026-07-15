@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
@@ -55,6 +55,15 @@ export class DataMartService {
     return this.dataMartRepository.findOne({ where: { id }, withDeleted });
   }
 
+  async findByIdsAndProjectId(ids: readonly string[], projectId: string): Promise<DataMart[]> {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return [];
+    return this.dataMartRepository.find({
+      where: { id: In(uniqueIds), projectId },
+      select: ['id'],
+    });
+  }
+
   async findByProjectIdForList(
     projectId: string,
     options?: {
@@ -83,6 +92,8 @@ export class DataMartService {
         'dm.status',
         'dm.description',
         'dm.definitionType',
+        'dm.schema',
+        'dm.dataQualityConfig',
         'dm.createdById',
         'dm.createdAt',
         'dm.modifiedAt',
@@ -205,7 +216,15 @@ export class DataMartService {
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.buildCanvasVisibleDataMartsQuery(projectId, storageId, options)
-      .select(['dm.id', 'dm.title', 'dm.status', 'dm.description', 'dm.schema'])
+      .select([
+        'dm.id',
+        'dm.title',
+        'dm.status',
+        'dm.description',
+        'dm.schema',
+        'dm.definitionType',
+        'dm.dataQualityConfig',
+      ])
       .orderBy('dm.title', 'ASC')
       .addOrderBy('dm.id', 'ASC')
       .take(options?.limit)
