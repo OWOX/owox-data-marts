@@ -324,8 +324,18 @@ describe('buildMcpToolCallEvent', () => {
     const ev = buildMcpToolCallEvent(baseParams({ context: { userId: 'u1' }, meta }));
     const p = ev.payload as Record<string, unknown>;
     expect(p['meta_truncated']).toBe(true);
-    expect(p['meta_k0']).toBe(0);
+    // Numeric meta is coerced to string (stable fixed-schema sink column); meta_truncated stays boolean.
+    expect(p['meta_k0']).toBe('0');
     expect(p['meta_k99']).toBeUndefined();
+  });
+
+  it('coerces numeric/boolean meta values to strings (fixed-schema sink safety)', () => {
+    const ev = buildMcpToolCallEvent(
+      baseParams({ context: { userId: 'u1' }, meta: { retries: 5, verbose: true } })
+    );
+    const p = ev.payload as Record<string, unknown>;
+    expect(p['meta_retries']).toBe('5');
+    expect(p['meta_verbose']).toBe('true');
   });
 
   it('a falsy thrown value (e.g. empty string) still counts as an error', () => {
