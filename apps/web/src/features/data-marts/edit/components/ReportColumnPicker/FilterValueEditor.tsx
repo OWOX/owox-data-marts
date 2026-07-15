@@ -111,8 +111,9 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
 
   if (op === 'relative_date') {
     if (state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') {
-      const n = Number(state.relativeN);
-      if (state.relativeN === '' || !Number.isInteger(n) || n <= 0 || n > 3650) {
+      const trimmed = state.relativeN.trim();
+      const n = Number(trimmed);
+      if (trimmed === '' || !Number.isInteger(n) || n <= 0 || n > 3650) {
         throw new Error('N must be between 1 and 3650');
       }
       return {
