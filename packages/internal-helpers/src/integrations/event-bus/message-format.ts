@@ -6,12 +6,12 @@ import { z } from 'zod';
  *   "version": "1.0",
  *   "body": { ... },
  *   "order": 123456, // timestamp with millis
- *   "producer": { "name": "owox-data-mats" }
+ *   "producer": { "name": "owox-data-marts" }
  * }
  */
 
 const MESSAGE_VERSION = '1.0' as const;
-const DEFAULT_PRODUCER_NAME = 'owox-data-mats' as const;
+const DEFAULT_PRODUCER_NAME = 'owox-data-marts' as const;
 
 export interface ProducerInfo {
   name: string;
