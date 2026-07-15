@@ -292,6 +292,7 @@ export function RelationshipAccordionItem({
                   rel.joinConditions.length
                 ) &&
                   rel.targetDataMart.status !== 'DRAFT' &&
+                  !row.isBlocked &&
                   !row.isCycleStub && (
                     <Tooltip>
                       <TooltipTrigger asChild>

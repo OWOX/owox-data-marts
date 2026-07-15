@@ -153,6 +153,41 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
     expect(screen.queryByText('No primary key')).not.toBeInTheDocument();
   });
 
+  it('does not render the badge when the relationship is Blocked (Blocked badge takes precedence)', () => {
+    const row = buildRow({
+      isBlocked: true,
+      relationship: buildRelationship({
+        targetDataMart: {
+          id: 'target-dm-1',
+          title: 'Target DM',
+          status: 'PUBLISHED',
+          userHasAccess: true,
+          hasPrimaryKey: false,
+        },
+      }),
+    });
+
+    render(
+      <RelationshipAccordionItem
+        row={row}
+        source={null}
+        dataMartId='dm-1'
+        storageId='storage-1'
+        siblingAliases={[]}
+        onDelete={noopAsync}
+        onRelationshipUpdated={noop}
+        onAliasChange={noop}
+        onHideForReportingChange={noop}
+        onFieldOverrideChange={noop}
+      />
+    );
+
+    // A non-functional (Blocked) join must not also raise the "works, heads up"
+    // attention — matches the canvas single-indicator precedence.
+    expect(screen.getByText('Blocked')).toBeInTheDocument();
+    expect(screen.queryByText('No primary key')).not.toBeInTheDocument();
+  });
+
   it('does not render the badge when the relationship has no join conditions', () => {
     const row = buildRow({
       relationship: buildRelationship({
