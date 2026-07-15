@@ -17,7 +17,25 @@ describe('PayloadOffloader', () => {
     };
     await offloader.apply(payload);
     expect(payload[OFFLOAD_KEY]).toBeUndefined();
-    expect(payload['result']).toEqual({ rows: 2 });
+    // Object values are JSON-stringified so a fixed-schema sink sees a stable STRING column.
+    expect(payload['result']).toBe('{"rows":2}');
+  });
+
+  it('inline: object/array значення стрінгіфаяться, скаляри — як є', async () => {
+    const offloader = new PayloadOffloader({ sink: 'inline', inlineMaxBytes: 4096 });
+    const payload: Record<string, unknown> = {
+      [OFFLOAD_KEY]: {
+        owox_request_id: 'r1', // scalar string
+        returned_rows: 5, // scalar number
+        arguments: { filters: [{ value: 'churned' }] }, // polymorphic object → JSON string
+        result: [{ a: 1 }], // array → JSON string
+      },
+    };
+    await offloader.apply(payload);
+    expect(payload['owox_request_id']).toBe('r1');
+    expect(payload['returned_rows']).toBe(5);
+    expect(payload['arguments']).toBe('{"filters":[{"value":"churned"}]}');
+    expect(payload['result']).toBe('[{"a":1}]');
   });
 
   it('inline: завеликий bulky не інлайниться, лишає маркери', async () => {

@@ -17,6 +17,18 @@ export interface PayloadOffloaderConfig {
 }
 
 /**
+ * Inline a blob's fields into the record, JSON-stringifying object/array values. A fixed-schema
+ * sink (e.g. Cloud Logging → BigQuery auto-schema) would otherwise infer per-payload nested
+ * columns whose types collide across events (a filter value seen as FLOAT, then "churned") and
+ * drop the whole stream. Stringified fields land as a stable STRING column instead.
+ */
+function inlineBlob(payload: Record<string, unknown>, blob: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(blob)) {
+    payload[k] = v !== null && typeof v === 'object' ? JSON.stringify(v) : v;
+  }
+}
+
+/**
  * Moves a payload's bulky fields (under {@link OFFLOAD_KEY}) out of the inline record.
  * Generic — knows nothing about MCP. Mutates the passed payload in place and never throws:
  * offload failure degrades to a marker, the record is still emitted.
@@ -42,7 +54,7 @@ export class PayloadOffloader {
 
       if (this.config.sink === 'inline' || !this.config.blobStore || !this.config.pathBuilder) {
         if (bytes <= this.config.inlineMaxBytes) {
-          Object.assign(payload, blob as Record<string, unknown>);
+          inlineBlob(payload, blob as Record<string, unknown>);
         } else {
           payload['owox_payload_truncated'] = true;
           payload['owox_payload_bytes'] = bytes;
@@ -53,7 +65,7 @@ export class PayloadOffloader {
       // gcs sink: small payloads stay inline (queryable in logs/traces); only oversized ones
       // are offloaded to keep the log line and span attributes bounded.
       if (bytes <= this.config.inlineMaxBytes) {
-        Object.assign(payload, blob as Record<string, unknown>);
+        inlineBlob(payload, blob as Record<string, unknown>);
         return;
       }
 

@@ -82,8 +82,8 @@ function computePseudoConversationId(
   return createHash('sha256').update(seed).digest('hex').slice(0, 32);
 }
 
-function flattenMeta(meta?: Record<string, unknown>): Record<string, string | number | boolean> {
-  const out: Record<string, string | number | boolean> = {};
+function flattenMeta(meta?: Record<string, unknown>): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = {};
   if (!meta) return out;
   const entries = Object.entries(meta);
   for (const [k, v] of entries.slice(0, MAX_META_KEYS)) {
@@ -93,10 +93,7 @@ function flattenMeta(meta?: Record<string, unknown>): Record<string, string | nu
       out[key] = REDACTED;
       continue;
     }
-    if (typeof v === 'number' || typeof v === 'boolean') {
-      out[key] = v;
-      continue;
-    }
+    // Coerce to string: a meta value numeric in one event and a string in another would split a fixed-schema sink column.
     const str = typeof v === 'string' ? v : JSON.stringify(redact(v));
     out[key] =
       str.length > MAX_META_VALUE_LEN ? `${str.slice(0, MAX_META_VALUE_LEN)}…[truncated]` : str;
