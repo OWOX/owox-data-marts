@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '@owox/ui/components/button';
 import { Label } from '@owox/ui/components/label';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import type { FilterRule } from '../../../shared/types/output-config';
 import { operatorLabelFor } from './output-controls-operators';
 import { summarizeFilterRule } from './filter-rule-summary';
@@ -23,6 +23,8 @@ export interface FilterEditorPopoverProps {
   onCancel?: () => void;
   existingRules?: readonly FilterRule[];
   onRemoveExistingAt?: (index: number) => void;
+  /** Delete the single filter being edited; shown as a header trash action (edit mode only). */
+  onDelete?: () => void;
 }
 
 export function FilterEditorPopover(props: FilterEditorPopoverProps) {
@@ -72,10 +74,26 @@ export function FilterEditorPopover(props: FilterEditorPopoverProps) {
     <Popover open={props.open} onOpenChange={props.onOpenChange}>
       <PopoverTrigger asChild>{props.trigger}</PopoverTrigger>
       <PopoverContent className='w-72 space-y-3'>
-        <div>
-          <div className='text-sm font-medium'>{props.displayLabel ?? props.column}</div>
-          {props.dataMartName && (
-            <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+        <div className='flex items-start justify-between gap-2'>
+          <div className='min-w-0'>
+            <div className='text-sm font-medium'>{props.displayLabel ?? props.column}</div>
+            {props.dataMartName && (
+              <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+            )}
+          </div>
+          {props.onDelete && (
+            <Button
+              variant='ghost'
+              size='sm'
+              className='text-muted-foreground hover:text-destructive -mt-1 -mr-1 h-6 w-6 shrink-0 p-0'
+              onClick={() => {
+                props.onDelete?.();
+                props.onOpenChange(false);
+              }}
+              aria-label='Delete filter'
+            >
+              <Trash2 className='h-4 w-4' />
+            </Button>
           )}
         </div>
 

@@ -179,4 +179,65 @@ describe('RowFilterIcon — remove-only popup', () => {
     expect(screen.getByRole('button', { name: /^(Apply|Add)$/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
   });
+
+  it('editing a single existing filter exposes a Delete filter button that removes it', () => {
+    const onRemoveAt = vi.fn();
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[filterRule]}
+        onAdd={() => undefined}
+        onReplaceAt={() => undefined}
+        onRemoveAt={onRemoveAt}
+      />
+    );
+
+    // Single-filter edit mode renders the editor (no "Active filters" list), so the
+    // delete affordance must live in the editor header.
+    expect(screen.queryByText('Active filters')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete filter' }));
+    expect(onRemoveAt).toHaveBeenCalledWith(0);
+  });
+
+  it('does not show a Delete filter button when adding a new filter (nothing to delete)', () => {
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onReplaceAt={() => undefined}
+        onRemoveAt={() => undefined}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Delete filter' })).not.toBeInTheDocument();
+  });
+
+  it('editing a single existing slice exposes a Delete slice button that removes it', () => {
+    const onRemoveSliceAt = vi.fn();
+    render(
+      <RowFilterIcon
+        column='b__hidden_field'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onRemoveAt={() => undefined}
+        sliceIconProps={{
+          unifiedFieldName: 'b__hidden_field',
+          existingSlices: [sliceRule],
+          existingSliceIndices: [3],
+          onAddSlice: () => undefined,
+          onRemoveSliceAt,
+          onReplaceSliceAt: () => undefined,
+        }}
+      />
+    );
+
+    // Slice tab is the default here (no filters, one slice) and opens in edit mode.
+    expect(screen.queryByText('Active slices')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete slice' }));
+    expect(onRemoveSliceAt).toHaveBeenCalledWith(3);
+  });
 });

@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '@owox/ui/components/button';
 import { Label } from '@owox/ui/components/label';
-import { X, Layers } from 'lucide-react';
+import { X, Layers, Trash2 } from 'lucide-react';
 import type { FilterRule } from '../../../shared/types/output-config';
 import { operatorLabelFor } from './output-controls-operators';
 import { summarizeFilterRule } from './filter-rule-summary';
@@ -20,6 +20,8 @@ interface SliceOnlyProps {
   existingSlicesForColumn?: readonly FilterRule[];
   onRemoveExistingAt?: (index: number) => void;
   initialRule?: FilterRule;
+  /** Delete the single slice being edited; shown as a header trash action (edit mode only). */
+  onDelete?: () => void;
 }
 
 export interface FilterOrSliceEditorPopoverProps {
@@ -133,17 +135,34 @@ function TabbedPopover(props: TabbedPopoverProps) {
   const hasExistingFilters = !!props.filterProps.existingRules?.length;
   const hasExistingSlices = !!props.sliceProps.existingSlicesForColumn?.length;
   const applyLabel = (tab === 'filter' ? hasExistingFilters : hasExistingSlices) ? 'Add' : 'Apply';
+  const activeDelete = tab === 'filter' ? props.filterProps.onDelete : props.sliceProps.onDelete;
 
   return (
     <Popover open={props.open} onOpenChange={props.onOpenChange}>
       <PopoverTrigger asChild>{props.trigger}</PopoverTrigger>
       <PopoverContent className='w-72 space-y-3'>
-        <div>
-          <div className='text-sm font-medium'>
-            {props.displayLabel ?? (tab === 'slice' ? props.sliceColumn : props.column)}
+        <div className='flex items-start justify-between gap-2'>
+          <div className='min-w-0'>
+            <div className='text-sm font-medium'>
+              {props.displayLabel ?? (tab === 'slice' ? props.sliceColumn : props.column)}
+            </div>
+            {props.dataMartName && (
+              <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+            )}
           </div>
-          {props.dataMartName && (
-            <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+          {activeDelete && (
+            <Button
+              variant='ghost'
+              size='sm'
+              className='text-muted-foreground hover:text-destructive -mt-1 -mr-1 h-6 w-6 shrink-0 p-0'
+              onClick={() => {
+                activeDelete();
+                props.onOpenChange(false);
+              }}
+              aria-label={tab === 'filter' ? 'Delete filter' : 'Delete slice'}
+            >
+              <Trash2 className='h-4 w-4' />
+            </Button>
           )}
         </div>
 

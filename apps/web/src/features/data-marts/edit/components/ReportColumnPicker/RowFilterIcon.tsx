@@ -100,6 +100,21 @@ export function RowFilterIcon({
       }
     : undefined;
 
+  // Delete affordances for single-item edit mode (no "Active …" list is shown there).
+  const deleteEditedFilter = editFilter
+    ? () => {
+        const idx = activeRules.indexOf(editFilter);
+        if (idx >= 0) onRemoveAt(idx);
+      }
+    : undefined;
+  const deleteEditedSlice =
+    editSlice && sliceIconProps
+      ? () => {
+          const idx = sliceIconProps.existingSlices.indexOf(editSlice);
+          if (idx >= 0) sliceIconProps.onRemoveSliceAt(sliceIconProps.existingSliceIndices[idx]);
+        }
+      : undefined;
+
   const trigger = (
     <button
       type='button'
@@ -161,6 +176,7 @@ export function RowFilterIcon({
           initialRule: editFilter,
           existingRules: editFilter ? [] : activeRules,
           onRemoveExistingAt: onRemoveAt,
+          onDelete: deleteEditedFilter,
         }}
         sliceProps={{
           onApply: handleSliceApply,
@@ -169,6 +185,7 @@ export function RowFilterIcon({
           onRemoveExistingAt: localIdx => {
             sliceIconProps.onRemoveSliceAt(sliceIconProps.existingSliceIndices[localIdx]);
           },
+          onDelete: deleteEditedSlice,
         }}
         trigger={trigger}
       />
@@ -187,6 +204,7 @@ export function RowFilterIcon({
       initialRule={editFilter}
       existingRules={editFilter ? [] : activeRules}
       onRemoveExistingAt={onRemoveAt}
+      onDelete={deleteEditedFilter}
       trigger={trigger}
     />
   );
