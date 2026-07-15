@@ -9,6 +9,11 @@ export class BlendedFieldDto {
   targetAlias: string;
   originalFieldName: string;
   type: string;
+  /**
+   * The RAW source-field type, before the dedup effective-type resolution overwrites `type`.
+   * The web needs it to recompute effective types for type-preserving dedups (#6733).
+   */
+  sourceFieldType: string;
   alias: string;
   description: string;
   isHidden: boolean;

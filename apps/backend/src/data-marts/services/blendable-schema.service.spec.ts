@@ -14,6 +14,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { buildBlendedFieldUnifiedName } from './blended-field-name';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
 
@@ -27,7 +28,10 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
     status: DataMartStatus.PUBLISHED,
     createdAt: new Date(),
     modifiedAt: new Date(),
-    storage: { id: 'storage-1' } as unknown as DataMart['storage'],
+    storage: {
+      id: 'storage-1',
+      type: DataStorageType.GOOGLE_BIGQUERY,
+    } as unknown as DataMart['storage'],
     ...overrides,
   } as DataMart;
 }
@@ -537,6 +541,127 @@ describe('BlendableSchemaService', () => {
       // explicit empty array → none allowed (NOT the default)
       const notesField = result.blendedFields.find(f => f.originalFieldName === 'notes')!;
       expect(notesField.postJoinAggregations).toEqual([]);
+    });
+
+    it('types a COUNT_DISTINCT-dedup blended field as integer and offers arithmetic aggregations by default (#6733)', async () => {
+      // Kolya's funnel: a STRING hitId deduplicated with COUNT_DISTINCT yields a per-join-key
+      // INTEGER count. Its post-join available aggregations must therefore follow the INTEGER
+      // (dedup-output) type, not the raw STRING — so SUM/AVG/MIN/MAX are offered (SUM the default)
+      // and the report can correctly sum the per-session counts.
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'events',
+            alias: 'ev',
+            fields: { hitId: { aggregateFunction: 'COUNT_DISTINCT' } },
+          },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'events',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Events',
+          schema: makeSchema([{ name: 'hitId', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+      const hitField = result.blendedFields.find(f => f.originalFieldName === 'hitId')!;
+
+      // effective (dedup-output) type is the storage integer type, not the raw STRING
+      expect(hitField.type).toBe('INTEGER');
+      // the RAW source type is carried alongside so the web can recompute effective types
+      // for type-preserving dedups (#6733 C1)
+      expect(hitField.sourceFieldType).toBe('STRING');
+      // integer governance defaults → arithmetic funcs available, SUM first (default-active)
+      expect(hitField.postJoinAggregations).toEqual(['SUM', 'AVG', 'MIN', 'MAX']);
+    });
+
+    it('types a NUMERIC field deduped with AVG as the storage float type, carrying the raw numeric sourceFieldType (#6733)', async () => {
+      // AVG widens its effective type to the storage's float type even when the raw column is
+      // already numeric (e.g. FLOAT deduped AVG must still resolve through getFloatType, not
+      // pass the raw type through unchanged like SUM/MIN/MAX/ANY_VALUE do).
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'ord',
+            fields: { amount: { aggregateFunction: 'AVG' } },
+          },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([{ name: 'amount', type: 'FLOAT' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+      const amountField = result.blendedFields.find(f => f.originalFieldName === 'amount')!;
+
+      // effective (dedup-output) type is the storage FLOAT type
+      expect(amountField.type).toBe('FLOAT');
+      // the RAW source type is carried alongside, unchanged
+      expect(amountField.sourceFieldType).toBe('FLOAT');
+    });
+
+    it('types a NUMERIC field deduped with STRING_AGG as the storage string type, carrying the raw numeric sourceFieldType (#6733)', async () => {
+      // STRING_AGG on a NUMERIC field (an analyst override) recategorizes the effective type to
+      // the storage's string type — a case getStringType must resolve, and one where the RAW
+      // sourceFieldType (NUMERIC) diverges sharply from the effective type (STRING).
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'ord',
+            fields: { code: { aggregateFunction: 'STRING_AGG' } },
+          },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([{ name: 'code', type: 'NUMERIC' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+      const codeField = result.blendedFields.find(f => f.originalFieldName === 'code')!;
+
+      // effective (dedup-output) type is the storage STRING type
+      expect(codeField.type).toBe('STRING');
+      // the RAW source type is carried alongside, unchanged
+      expect(codeField.sourceFieldType).toBe('NUMERIC');
     });
 
     it('throws a clear error when a relationship targets a soft-deleted data mart', async () => {

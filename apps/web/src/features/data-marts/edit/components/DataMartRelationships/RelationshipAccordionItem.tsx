@@ -28,7 +28,11 @@ import type {
 import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
 import { JoinSettingsForm } from './JoinSettingsForm';
 import { NoAccessIndicator } from './NoAccessIndicator';
-import { CYCLE_STUB_TOOLTIP } from './relationship-warning-state';
+import {
+  CYCLE_STUB_TOOLTIP,
+  isMissingPrimaryKeyWarning,
+  MISSING_PRIMARY_KEY_TOOLTIP,
+} from './relationship-warning-state';
 
 function WarningBadge({
   className,
@@ -257,6 +261,21 @@ export function RelationshipAccordionItem({
                 {row.isBlocked && rel.targetDataMart.status !== 'DRAFT' && (
                   <WarningBadge>Blocked</WarningBadge>
                 )}
+                {isMissingPrimaryKeyWarning(
+                  rel.targetDataMart.hasPrimaryKey,
+                  rel.joinConditions.length
+                ) &&
+                  rel.targetDataMart.status !== 'DRAFT' &&
+                  !row.isCycleStub && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <WarningBadge>No primary key</WarningBadge>
+                      </TooltipTrigger>
+                      <TooltipContent side='top' className='max-w-xs'>
+                        {MISSING_PRIMARY_KEY_TOOLTIP}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 {row.isCycleStub && (
                   <Tooltip>
                     <TooltipTrigger asChild>

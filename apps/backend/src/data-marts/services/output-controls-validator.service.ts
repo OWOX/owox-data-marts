@@ -197,7 +197,11 @@ export class OutputControlsValidatorService {
           });
           continue;
         }
-        this.validateRuleAgainstType(rule, f.type, f.aliasPath, errors);
+        // Pre-join slices run on the raw column in the `*_raw` CTE BEFORE dedup, so they
+        // type-check by the RAW source type, not the dedup effective `type` (e.g. a STRING
+        // deduped COUNT_DISTINCT is effective INTEGER but a `contains` slice is valid). The
+        // post-join branch below correctly keeps the effective type.
+        this.validateRuleAgainstType(rule, f.sourceFieldType ?? f.type, f.aliasPath, errors);
       } else {
         const type = homeFieldTypes.get(rule.column);
         if (type === undefined) {

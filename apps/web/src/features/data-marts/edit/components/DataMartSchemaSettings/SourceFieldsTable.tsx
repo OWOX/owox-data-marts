@@ -25,6 +25,11 @@ import {
   type BlendedField,
   type BlendedFieldOverride,
 } from '../../../shared/types/relationship.types';
+import {
+  effectiveAggregationType,
+  resolveFieldGovernance,
+  sameAggregationCategory,
+} from '../../../shared/utils/aggregation-governance';
 import { useDebounce } from '../../../../../hooks/useDebounce';
 
 type FilterMode = 'all' | 'visible' | 'hidden';
@@ -118,7 +123,7 @@ export function SourceFieldsTable({
       result = result.filter(
         f =>
           f.originalFieldName.toLowerCase().includes(q) ||
-          f.type.toLowerCase().includes(q) ||
+          (f.sourceFieldType ?? f.type).toLowerCase().includes(q) ||
           f.alias.toLowerCase().includes(q) ||
           f.description.toLowerCase().includes(q)
       );
@@ -291,15 +296,35 @@ export function SourceFieldsTable({
                     className='text-muted-foreground'
                     style={{ paddingTop: 8, paddingBottom: 8 }}
                   >
-                    {field.type}
+                    {field.sourceFieldType ?? field.type}
                   </TableCell>
                   <TableCell style={{ paddingTop: 8, paddingBottom: 8 }}>
                     <Select
                       value={field.aggregateFunction}
                       onValueChange={value => {
-                        onFieldOverrideChange(field.originalFieldName, {
-                          aggregateFunction: value as AggregateFunction,
-                        });
+                        const aggregateFunction = value as AggregateFunction;
+                        const override: Partial<BlendedFieldOverride> = { aggregateFunction };
+                        // Reset the analyst-allowed set to the new effective type's default ONLY
+                        // when the dedup change crosses aggregation categories (e.g. string→number):
+                        // that surfaces SUM for an integer-producing dedup instead of pruning to
+                        // "none". A same-category change (SUM→MIN) must keep the analyst's current
+                        // selection — omit postJoinAggregations so it is not silently re-expanded.
+                        const rawType = field.sourceFieldType ?? field.type;
+                        if (
+                          field.postJoinAggregations !== undefined &&
+                          !sameAggregationCategory(
+                            effectiveAggregationType(rawType, field.aggregateFunction),
+                            effectiveAggregationType(rawType, aggregateFunction)
+                          )
+                        ) {
+                          const newEffectiveType = effectiveAggregationType(
+                            rawType,
+                            aggregateFunction
+                          );
+                          override.postJoinAggregations =
+                            resolveFieldGovernance(newEffectiveType).allowedAggregations;
+                        }
+                        onFieldOverrideChange(field.originalFieldName, override);
                       }}
                     >
                       <SelectTrigger size='sm' className='h-8 w-full'>
@@ -317,7 +342,10 @@ export function SourceFieldsTable({
                   <TableCell style={{ paddingTop: 8, paddingBottom: 8 }}>
                     <AllowedAggregationsSelect
                       value={field.postJoinAggregations ?? []}
-                      fieldType={field.type}
+                      fieldType={effectiveAggregationType(
+                        field.sourceFieldType ?? field.type,
+                        field.aggregateFunction
+                      )}
                       onChange={next => {
                         onFieldOverrideChange(field.originalFieldName, {
                           postJoinAggregations: next,

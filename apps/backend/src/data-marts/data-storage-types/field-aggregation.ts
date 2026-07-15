@@ -73,6 +73,12 @@ export function integerTypeFor(storageType: DataStorageType): StorageFieldType {
       return RedshiftFieldType.INTEGER;
     case DataStorageType.DATABRICKS:
       return DatabricksFieldType.INT;
+    default: {
+      // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
+      // never silently return undefined.
+      const _exhaustive: never = storageType;
+      throw new Error(`integerTypeFor: unhandled storage type ${String(_exhaustive)}`);
+    }
   }
 }
 
@@ -111,5 +117,11 @@ function getStringType(storageType: DataStorageType): StorageFieldType {
       return RedshiftFieldType.VARCHAR;
     case DataStorageType.DATABRICKS:
       return DatabricksFieldType.STRING;
+    default: {
+      // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
+      // never silently return undefined.
+      const _exhaustive: never = storageType;
+      throw new Error(`getStringType: unhandled storage type ${String(_exhaustive)}`);
+    }
   }
 }

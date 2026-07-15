@@ -281,6 +281,69 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([{ code: 'FILTER_COLUMN_UNKNOWN', column: 'native_field' }]);
     });
 
+    it('type-checks a pre-join slice by the RAW sourceFieldType, not the dedup effective type', () => {
+      // A STRING `hitId` deduped COUNT_DISTINCT has effective type INTEGER but a RAW type of
+      // STRING. The pre-join slice runs on the raw column BEFORE dedup, so a string operator
+      // (`contains`) must be accepted against the raw STRING type — not rejected as an
+      // INVALID_OPERATOR_FOR_TYPE against the effective INTEGER type (the #6733 regression).
+      const indexCountDistinct = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__hitId',
+            aliasPath: 'users',
+            originalFieldName: 'hitId',
+            type: BigQueryFieldType.INTEGER,
+            sourceFieldType: BigQueryFieldType.STRING,
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const errors = svc.validateFilters(
+        [{ column: 'users__hitId', operator: 'contains', value: 'x', placement: 'pre-join' }],
+        new Map(),
+        indexCountDistinct
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('type-checks a pre-join slice by the RAW sourceFieldType in the RESTRICTIVE direction too (NUMERIC raw, STRING_AGG-effective STRING)', () => {
+      // A NUMERIC `code` deduped STRING_AGG has an effective type of STRING but a RAW type of
+      // NUMERIC. If the pre-join slice mistakenly type-checked against the effective STRING type,
+      // a string operator (`contains`) would be wrongly ACCEPTED even though the raw column is
+      // numeric before dedup. It must be rejected against the RAW NUMERIC type, while a numeric
+      // operator (`gt`) is accepted.
+      const indexStringAgg = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'orders__code',
+            aliasPath: 'orders',
+            originalFieldName: 'code',
+            type: BigQueryFieldType.STRING,
+            sourceFieldType: BigQueryFieldType.NUMERIC,
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      } as never);
+
+      const stringOpErrors = svc.validateFilters(
+        [{ column: 'orders__code', operator: 'contains', value: 'x', placement: 'pre-join' }],
+        new Map(),
+        indexStringAgg
+      );
+      expect(stringOpErrors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'orders__code',
+        type: BigQueryFieldType.NUMERIC,
+      });
+
+      const numberOpErrors = svc.validateFilters(
+        [{ column: 'orders__code', operator: 'gt', value: 1, placement: 'pre-join' }],
+        new Map(),
+        indexStringAgg
+      );
+      expect(numberOpErrors).toEqual([]);
+    });
+
     it('rejects invalid operator for type on pre-join column', () => {
       const indexWithInt = buildBlendedFieldIndex({
         blendedFields: [

@@ -134,7 +134,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
           );
         }
         const internal: FilterRule = { ...rule, column: f.originalFieldName };
-        preJoinTypeByRule.set(internal, f.type);
+        // Pre-join slices cast against the RAW source type (the raw column pre-dedup), not the
+        // dedup effective `type` — e.g. a raw DATE deduped COUNT_DISTINCT still casts as DATE.
+        preJoinTypeByRule.set(internal, f.sourceFieldType ?? f.type);
         const list = preJoinByCte.get(f.cteName) ?? [];
         list.push(internal);
         preJoinByCte.set(f.cteName, list);

@@ -156,3 +156,43 @@ describe('integerTypeFor (Row Count header type)', () => {
     expect(integerTypeFor(storageType)).toBe(expected);
   });
 });
+
+// COUNT/COUNT_DISTINCT widen to the storage integer type via the exported integerTypeFor
+// switch. It must be exhaustive just like getFloatType: every current storage type resolves
+// a defined integer type, and an unhandled (future) storage type must fail loudly, not
+// silently return undefined.
+describe('integer-type resolution is exhaustive (integerTypeFor)', () => {
+  it.each(Object.values(DataStorageType))('returns a defined integer type for %s', storageType => {
+    const result = integerTypeFor(storageType as DataStorageType);
+    expect(result).toBeDefined();
+  });
+
+  it('throws for an unhandled storage type instead of returning undefined', () => {
+    expect(() => integerTypeFor('NOT_A_STORAGE' as DataStorageType)).toThrow();
+  });
+});
+
+// STRING_AGG widens to the storage string type via the (private) getStringType switch. It
+// must be exhaustive just like getFloatType: every current storage type resolves a defined
+// string type, and an unhandled (future) storage type must fail loudly, not silently return
+// undefined.
+describe('string-type resolution is exhaustive (getStringType via STRING_AGG)', () => {
+  it.each(Object.values(DataStorageType))('returns a defined string type for %s', storageType => {
+    const result = computeEffectiveType(
+      BigQueryFieldType.STRING,
+      'STRING_AGG',
+      storageType as DataStorageType
+    );
+    expect(result).toBeDefined();
+  });
+
+  it('throws for an unhandled storage type instead of returning undefined', () => {
+    expect(() =>
+      computeEffectiveType(
+        BigQueryFieldType.STRING,
+        'STRING_AGG',
+        'NOT_A_STORAGE' as DataStorageType
+      )
+    ).toThrow();
+  });
+});
