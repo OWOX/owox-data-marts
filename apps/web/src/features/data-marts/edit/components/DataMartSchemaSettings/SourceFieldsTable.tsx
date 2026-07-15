@@ -307,11 +307,13 @@ export function SourceFieldsTable({
                         // Reset the analyst-allowed set to the new effective type's default ONLY
                         // when the dedup change crosses aggregation categories (e.g. string→number):
                         // that surfaces SUM for an integer-producing dedup instead of pruning to
-                        // "none". A same-category change (SUM→MIN) must keep the analyst's current
-                        // selection — omit postJoinAggregations so it is not silently re-expanded.
+                        // "none". A same-category change (SUM→MIN) keeps the current selection; and
+                        // an explicit empty set (`[]` = analyst turned all off) is preserved, never
+                        // silently re-enabled — omit postJoinAggregations in both cases.
                         const rawType = field.sourceFieldType ?? field.type;
                         if (
                           field.postJoinAggregations !== undefined &&
+                          field.postJoinAggregations.length > 0 &&
                           !sameAggregationCategory(
                             effectiveAggregationType(rawType, field.aggregateFunction),
                             effectiveAggregationType(rawType, aggregateFunction)

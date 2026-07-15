@@ -321,6 +321,39 @@ describe('SourceFieldsTable — available aggregations follow the dedup EFFECTIV
     expect(payload).not.toHaveProperty('postJoinAggregations');
   });
 
+  it('a category-changing dedup PRESERVES an explicit empty set (analyst turned all off)', async () => {
+    // `[]` is a deliberate "none allowed" choice, distinct from "unset". A dedup change that
+    // crosses categories must NOT silently re-enable aggregations the analyst switched off —
+    // the override omits postJoinAggregations so the explicit `[]` stands (product decision).
+    const onFieldOverrideChange = vi.fn();
+    const fields = [
+      buildBlendedField({
+        originalFieldName: 'hitId',
+        type: 'STRING',
+        sourceFieldType: 'STRING',
+        aggregateFunction: 'STRING_AGG',
+        postJoinAggregations: [],
+      }),
+    ];
+    render(<SourceFieldsTable fields={fields} onFieldOverrideChange={onFieldOverrideChange} />);
+
+    const dedupTrigger = screen.getByRole('combobox');
+    fireEvent.pointerDown(dedupTrigger, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+
+    const countDistinctOption = await within(document.body).findByRole('option', {
+      name: 'COUNT_DISTINCT',
+    });
+    fireEvent.click(countDistinctOption);
+
+    await waitFor(() => {
+      expect(onFieldOverrideChange).toHaveBeenCalledWith('hitId', {
+        aggregateFunction: 'COUNT_DISTINCT',
+      });
+    });
+    const [, payload] = onFieldOverrideChange.mock.calls[0] as [string, Record<string, unknown>];
+    expect(payload).not.toHaveProperty('postJoinAggregations');
+  });
+
   it('shows the RAW sourceFieldType in the Data type cell, not the dedup effective type', () => {
     // A STRING field deduped COUNT_DISTINCT has an effective `type` of INTEGER; the authoring
     // table must still display the analyst's RAW type (STRING), not the effective INTEGER.
