@@ -1,6 +1,7 @@
 import type { RouteObject } from 'react-router-dom';
 import DataMartOverviewContent from '../../pages/data-marts/edit/DataMartOverviewContent.tsx';
 import DataMartDataSetupContent from '../../pages/data-marts/edit/DataMartDataSetupContent.tsx';
+import DataMartQualityContent from '../../pages/data-marts/edit/DataMartQualityContent.tsx';
 import DataMartDestinationsContent from '../../pages/data-marts/edit/DataMartDestinationsContent.tsx';
 import DataMartRunHistoryContent from '../../pages/data-marts/edit/DataMartRunHistoryContent.tsx';
 import DataMartInsightsContent from '../../pages/data-marts/edit/DataMartInsightsContent.tsx';
@@ -21,6 +22,11 @@ export const dataMartDetailsRoutes: RouteObject[] = [
   {
     path: 'data-setup',
     element: <DataMartDataSetupContent />,
+    errorElement: <LayoutErrorBoundary />,
+  },
+  {
+    path: 'quality',
+    element: <DataMartQualityContent />,
     errorElement: <LayoutErrorBoundary />,
   },
   {

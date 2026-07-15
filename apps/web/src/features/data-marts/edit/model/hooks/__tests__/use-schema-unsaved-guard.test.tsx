@@ -113,6 +113,22 @@ describe('useSchemaUnsavedGuard', () => {
     expect(h.get().dialog.intent).toBe('ai');
   });
 
+  it('exposes the registered change label to the shared dialog', () => {
+    const h = makeWrapper();
+    render(h);
+    act(() => {
+      h.get().registerSchemaGuard({
+        ...dirtyRegistration(),
+        changeLabel: 'Data Quality configuration',
+      });
+    });
+    act(() => {
+      h.get().runGuarded(vi.fn(), { intent: 'navigation' });
+    });
+
+    expect(h.get().dialog.changeLabel).toBe('Data Quality configuration');
+  });
+
   it('Save & continue saves then runs the action with the saved schema', async () => {
     const h = makeWrapper();
     render(h);

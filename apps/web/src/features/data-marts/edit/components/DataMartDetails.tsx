@@ -147,6 +147,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
+    { name: 'Quality', path: 'quality' },
     ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights-v2' }] : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
@@ -628,6 +629,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       <SchemaUnsavedChangesDialog
         open={schemaGuard.dialog.open}
         intent={schemaGuard.dialog.intent}
+        changeLabel={schemaGuard.dialog.changeLabel}
         isSaving={schemaGuard.dialog.isSaving}
         onSaveAndContinue={schemaGuard.dialog.onSaveAndContinue}
         onDiscardAndContinue={schemaGuard.dialog.onDiscardAndContinue}

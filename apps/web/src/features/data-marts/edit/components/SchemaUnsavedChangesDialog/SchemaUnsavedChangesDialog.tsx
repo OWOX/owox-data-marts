@@ -13,6 +13,7 @@ import type { SchemaGuardIntent } from '../../model';
 interface SchemaUnsavedChangesDialogProps {
   open: boolean;
   intent: SchemaGuardIntent;
+  changeLabel?: string;
   isSaving?: boolean;
   onSaveAndContinue: () => void;
   onDiscardAndContinue: () => void;
@@ -34,12 +35,20 @@ const DESCRIPTIONS: Record<SchemaGuardIntent, string> = {
 export function SchemaUnsavedChangesDialog({
   open,
   intent,
+  changeLabel = 'schema',
   isSaving = false,
   onSaveAndContinue,
   onDiscardAndContinue,
   onCancel,
 }: SchemaUnsavedChangesDialogProps) {
   const verb = intent === 'navigation' ? 'leave' : 'continue';
+  const isSchemaChange = changeLabel === 'schema';
+  const description =
+    intent === 'navigation'
+      ? `You have unsaved ${changeLabel} changes. Save to keep them, or discard them to leave this page.`
+      : isSchemaChange
+        ? DESCRIPTIONS[intent]
+        : `You have unsaved ${changeLabel} changes. Save to keep them, or discard them to continue.`;
   return (
     <AlertDialog
       open={open}
@@ -54,8 +63,8 @@ export function SchemaUnsavedChangesDialog({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Unsaved schema changes</AlertDialogTitle>
-          <AlertDialogDescription>{DESCRIPTIONS[intent]}</AlertDialogDescription>
+          <AlertDialogTitle>Unsaved {changeLabel} changes</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSaving}>Cancel</AlertDialogCancel>

@@ -7,6 +7,7 @@ export type SchemaGuardIntent = 'ai' | 'refresh' | 'publish' | 'definition' | 'n
 export type ResolvedSchema = DataMartSchema | null | undefined;
 
 export interface SchemaGuardRegistration {
+  changeLabel?: string;
   isDirty: () => boolean;
   getSchema: () => ResolvedSchema;
   save: () => Promise<ResolvedSchema>;
@@ -22,6 +23,7 @@ export interface SchemaUnsavedGuard {
   dialog: {
     open: boolean;
     intent: SchemaGuardIntent;
+    changeLabel: string;
     isSaving: boolean;
     onSaveAndContinue: () => void;
     onDiscardAndContinue: () => void;
@@ -153,6 +155,14 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
     isSchemaDirty,
     registerSchemaGuard,
     runGuarded,
-    dialog: { open, intent, isSaving, onSaveAndContinue, onDiscardAndContinue, onCancel },
+    dialog: {
+      open,
+      intent,
+      changeLabel: registrationRef.current?.changeLabel ?? 'schema',
+      isSaving,
+      onSaveAndContinue,
+      onDiscardAndContinue,
+      onCancel,
+    },
   };
 }
