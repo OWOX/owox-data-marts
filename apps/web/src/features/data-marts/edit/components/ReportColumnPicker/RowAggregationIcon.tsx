@@ -26,6 +26,10 @@ interface RowAggregationIconProps {
    * default hover-gating would leave nothing to reveal the icon.
    */
   alwaysVisible?: boolean;
+  /** Open the editor immediately on mount (the dropdown's pending "add" entry). */
+  autoOpen?: boolean;
+  /** Fired whenever the editor closes, so a pending selection can be reset. */
+  onClose?: () => void;
   onApplyDraft: (draft: AggregationDraft) => void;
 }
 
@@ -39,11 +43,18 @@ export function RowAggregationIcon({
   activeBucket,
   activeTimeZone,
   alwaysVisible = false,
+  autoOpen = false,
+  onClose,
   onApplyDraft,
 }: RowAggregationIconProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const count = activeFunctions.length + (activeBucket !== null ? 1 : 0);
   const isActive = count > 0;
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) onClose?.();
+  };
 
   const trigger = (
     <button
@@ -65,7 +76,7 @@ export function RowAggregationIcon({
   return (
     <AggregationEditorPopover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       trigger={trigger}
       column={column}
       fieldType={fieldType}
