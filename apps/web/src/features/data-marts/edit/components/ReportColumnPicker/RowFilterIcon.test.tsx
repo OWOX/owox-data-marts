@@ -240,4 +240,54 @@ describe('RowFilterIcon — remove-only popup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete slice' }));
     expect(onRemoveSliceAt).toHaveBeenCalledWith(3);
   });
+
+  it('does not show the header Delete button with 2+ filters (list mode owns removal via per-row X)', () => {
+    const filterRule2 = { column: 'ghost__col', operator: 'contains', value: 'z' } as FilterRule;
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[filterRule, filterRule2]}
+        onAdd={() => undefined}
+        onReplaceAt={() => undefined}
+        onRemoveAt={() => undefined}
+      />
+    );
+
+    // Multi-item mode shows the "Active filters" list (each row its own X) — the
+    // single-item header trash must NOT also appear.
+    expect(screen.getByText('Active filters')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove filter' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Delete filter' })).not.toBeInTheDocument();
+  });
+
+  it('does not show the header Delete button with 2+ slices (list mode owns removal via per-row X)', () => {
+    const sliceRule2 = {
+      column: 'b__hidden_field',
+      operator: 'contains',
+      value: 'z',
+      placement: 'pre-join',
+    } as FilterRule;
+    render(
+      <RowFilterIcon
+        column='b__hidden_field'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onRemoveAt={() => undefined}
+        sliceIconProps={{
+          unifiedFieldName: 'b__hidden_field',
+          existingSlices: [sliceRule, sliceRule2],
+          existingSliceIndices: [3, 5],
+          onAddSlice: () => undefined,
+          onRemoveSliceAt: () => undefined,
+          onReplaceSliceAt: () => undefined,
+        }}
+      />
+    );
+
+    expect(screen.getByText('Active slices')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove slice' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Delete slice' })).not.toBeInTheDocument();
+  });
 });
