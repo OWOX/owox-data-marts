@@ -17,6 +17,7 @@ vi.mock('../../../features/idp', () => ({
 
 describe('MainMenu', () => {
   it.each([
+    ['Models', '/ui/project-1/data-marts/models'],
     ['Reports', '/ui/project-1/data-marts/reports'],
     ['Insights', '/ui/project-1/data-marts/insights'],
     ['Triggers', '/ui/project-1/data-marts/schedules'],
@@ -35,6 +36,7 @@ describe('MainMenu', () => {
 
     expect(labels).toEqual([
       'Data Marts',
+      'Models',
       'Reports',
       'Insights',
       'Triggers',

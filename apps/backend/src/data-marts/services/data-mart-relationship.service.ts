@@ -66,6 +66,18 @@ export class DataMartRelationshipService {
     return rows.map(row => this.mapper.toGraphEdgeDto(row));
   }
 
+  async findGraphEdgesByStorageId(
+    storageId: string,
+    projectId: string
+  ): Promise<DataMartRelationshipGraphEdgeDto[]> {
+    const rows = await this.relationshipRepository.listGraphEdgeRowsByProjectIdAndStorageId(
+      projectId,
+      storageId
+    );
+
+    return rows.map(row => this.mapper.toGraphEdgeDto(row));
+  }
+
   async findSourceDataMartIdsByTargetDataMartId(
     targetDataMartId: string,
     projectId: string

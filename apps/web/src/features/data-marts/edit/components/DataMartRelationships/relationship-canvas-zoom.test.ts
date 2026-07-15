@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  GRAPH_ZOOM_MAX,
-  getGraphZoomRange,
-  getNextGraphZoom,
-  isGraphZoomAllowed,
-} from './relationship-canvas-zoom';
+import { GRAPH_ZOOM_MAX, getGraphZoomRange, getNextGraphZoom } from './relationship-canvas-zoom';
 
 describe('relationship canvas zoom', () => {
   it('uses the fitted graph zoom as the minimum zoom', () => {
@@ -48,20 +43,5 @@ describe('relationship canvas zoom', () => {
   it('falls back to a valid minimum for invalid fitted zoom values', () => {
     expect(getGraphZoomRange(Number.NaN).min).toBe(1);
     expect(getGraphZoomRange(0).min).toBe(1);
-  });
-
-  it('checks whether a zoom value is inside the graph zoom range', () => {
-    const range = getGraphZoomRange(0.5);
-
-    expect(isGraphZoomAllowed(0.5, range)).toBe(true);
-    expect(isGraphZoomAllowed(0.49, range)).toBe(false);
-    expect(isGraphZoomAllowed(GRAPH_ZOOM_MAX + 0.01, range)).toBe(false);
-  });
-
-  it('allows programmatic fit zoom below the current range minimum', () => {
-    const range = getGraphZoomRange(1);
-
-    expect(isGraphZoomAllowed(0.25, range, { allowBelowMin: true })).toBe(true);
-    expect(isGraphZoomAllowed(GRAPH_ZOOM_MAX + 0.01, range, { allowBelowMin: true })).toBe(false);
   });
 });

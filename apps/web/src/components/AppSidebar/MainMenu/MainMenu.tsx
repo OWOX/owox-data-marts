@@ -14,6 +14,7 @@ import { MainMenuItems } from './items';
 import type { MainMenuItem } from './types';
 
 const PROJECT_WIDE_DATA_MART_PATHS = [
+  '/data-marts/models',
   '/data-marts/runs',
   '/data-marts/schedules',
   '/data-marts/reports',

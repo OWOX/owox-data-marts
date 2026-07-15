@@ -407,6 +407,10 @@ import { UpdateProjectMemberApiKeyService } from './use-cases/project-member-api
 import { RevokeProjectMemberApiKeyService } from './use-cases/project-member-api-keys/revoke-project-member-api-key.service';
 import { ProjectMemberApiKeysMapper } from './mappers/project-member-api-keys.mapper';
 import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-member-api-keys.module';
+import { ModelCanvasController } from './controllers/model-canvas.controller';
+import { ModelCanvasMapper } from './mappers/model-canvas.mapper';
+import { GetModelCanvasDataMartsService } from './use-cases/get-model-canvas-data-marts.service';
+import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.service';
 
 @Module({
   imports: [
@@ -495,6 +499,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     LegacyDataMartsSyncController,
     ProjectSetupProgressController,
     DataMartRelationshipController,
+    ModelCanvasController,
     DataStorageRelationshipController,
     ContextController,
     ProjectMembersController,
@@ -514,6 +519,8 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     McpDataCatalogSummaryService,
     CreateDataMartService,
     ListDataMartsService,
+    GetModelCanvasDataMartsService,
+    GetModelCanvasEdgesService,
     QueryDataMartService,
     SummarizeMcpDataCatalogService,
     {
@@ -789,6 +796,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ReportSqlComposerService,
     ReportTotalsService,
     RelationshipMapper,
+    ModelCanvasMapper,
     McpDataCatalogSummaryMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,

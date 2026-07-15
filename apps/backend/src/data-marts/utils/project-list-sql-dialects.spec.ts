@@ -5,8 +5,10 @@ import { Report } from '../entities/report.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
+import { DataMart } from '../entities/data-mart.entity';
 import { RoleScope } from '../enums/role-scope.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { DataMartService } from '../services/data-mart.service';
 import { applyDataMartVisibilityFilter } from './apply-data-mart-visibility-filter';
 
 type Dialect = 'better-sqlite3' | 'mysql';
@@ -109,6 +111,34 @@ function buildProjectInsightTemplateQuery(dataSource: DataSource) {
   return applyViewerVisibility(qb);
 }
 
+function buildCanvasDataMartQuery(dataSource: DataSource) {
+  const service = new DataMartService(
+    dataSource.getRepository(DataMart),
+    null as never,
+    null as never,
+    null as never
+  );
+  const queryBuilderService = service as unknown as {
+    buildCanvasVisibleDataMartsQuery: (
+      projectId: string,
+      storageId: string,
+      options: { userId: string; roles: string[]; roleScope: RoleScope }
+    ) => SelectQueryBuilder<DataMart>;
+  };
+
+  return queryBuilderService
+    .buildCanvasVisibleDataMartsQuery('project-1', 'storage-1', {
+      userId: 'user-1',
+      roles: ['viewer'],
+      roleScope: RoleScope.SELECTED_CONTEXTS,
+    })
+    .select(['dm.id', 'dm.title', 'dm.status', 'dm.description', 'dm.schema'])
+    .orderBy('dm.title', 'ASC')
+    .addOrderBy('dm.id', 'ASC')
+    .take(1_000)
+    .skip(0);
+}
+
 describe('project Data Mart list SQL dialects', () => {
   const unsupportedDialectPatterns = [
     /\bILIKE\b/i,
@@ -128,6 +158,7 @@ describe('project Data Mart list SQL dialects', () => {
         buildProjectRunQuery(dataSource),
         buildProjectScheduledTriggerQuery(dataSource),
         buildProjectInsightTemplateQuery(dataSource),
+        buildCanvasDataMartQuery(dataSource),
       ];
 
       for (const qb of queries) {
@@ -139,6 +170,9 @@ describe('project Data Mart list SQL dialects', () => {
       }
 
       expect(buildProjectInsightTemplateQuery(dataSource).getSql()).not.toContain('sourceEntities');
+      const canvasSql = buildCanvasDataMartQuery(dataSource).getSql();
+      expect(canvasSql).toContain('storageId');
+      expect(canvasSql).toContain('data_mart_contexts');
     }
   );
 });
