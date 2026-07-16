@@ -46,7 +46,7 @@ When building the query:
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
 Choosing between slices and filters (both are row-level predicates applied to raw values BEFORE any aggregation — neither can threshold an aggregated total; there is no HAVING):
-- slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join.
+- slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join. A slice runs on the field's ORIGINAL value, so when get_data_mart_details lists a "sliceType" for the field, use operators valid for that pre-join type (not the field's blended-result "type").
 - filters (post-join): row-level criteria on the blended result — use for anything on the MAIN data mart's fields or on a joined field. A filter on a field you also aggregate restricts which raw rows feed the aggregate (e.g. filter revenue > 0 → SUM over positive rows), NOT the group total.
 - Rule: pre-narrowing a joined data mart's rows → slices; any other raw-row criterion → filters.
 - Filtering by an aggregated total (e.g. "groups whose SUM(revenue) > 100") is NOT supported — return all groups with their totals and let the caller compare.
@@ -232,7 +232,14 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     if (err instanceof BadRequestException) {
       const body = err.getResponse() as Record<string, unknown> | undefined;
       const errors = (body?.['details'] as Record<string, unknown> | undefined)?.['errors'] as
-        | Array<{ code?: string; column?: string; function?: string }>
+        | Array<{
+            code?: string;
+            column?: string;
+            function?: string;
+            type?: string;
+            operator?: string;
+            aliasPath?: string;
+          }>
         | undefined;
 
       // Wrong field name — point at the schema.
@@ -284,6 +291,32 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         return toStructuredToolError(
           'aggregation_not_allowed',
           `Aggregation not permitted on the requested field(s)${detail ? `: ${detail}` : ''}. This data mart's output controls restrict which aggregate functions each field allows (or the same field+function was requested twice). Choose a different aggregation, or ask an admin to enable it — the field name(s) are correct, so do not re-fetch the schema.`
+        );
+      }
+
+      // Filter/slice operator not valid for the field's type. A slice carries an aliasPath (it runs
+      // pre-join on the field's RAW type), so point the model at the field's `sliceType`.
+      const badOperator = errors?.filter(e => e.code === 'INVALID_OPERATOR_FOR_TYPE') ?? [];
+      if (badOperator.length > 0) {
+        const detail = [
+          ...new Set(
+            badOperator.map(e =>
+              e.operator && e.column
+                ? `${e.operator} on ${e.column} (${e.type ?? 'unknown type'})`
+                : e.column
+            )
+          ),
+        ]
+          .filter(Boolean)
+          .join('; ');
+        const hasSlice = badOperator.some(e => e.aliasPath);
+        return toStructuredToolError(
+          'invalid_operator',
+          `Operator not valid for the field's type: ${detail}. ${
+            hasSlice
+              ? 'A slice filters a joined field on its PRE-JOIN values, so use an operator valid for that field’s "sliceType" from get_data_mart_details, not its blended-result "type". '
+              : ''
+          }Choose an operator that matches the field type and retry.`
         );
       }
     }

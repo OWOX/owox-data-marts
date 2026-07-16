@@ -362,6 +362,41 @@ describe('QueryDataMartTool', () => {
       expect(msg).toContain('ts');
     });
 
+    it('maps INVALID_OPERATOR_FOR_TYPE on a slice → invalid_operator with pre-join guidance', async () => {
+      // A slice runs pre-join, so the validator checks the operator against the field's RAW type
+      // (STRING here) and carries an aliasPath. The tool must point the model at `sliceType`.
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'ga__campaign_name',
+              type: 'STRING',
+              operator: 'gt',
+              aliasPath: 'ga',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['ga__campaign_name'],
+          slices: [{ field: 'ga__campaign_name', operator: 'gt', value: 1 }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('ga__campaign_name');
+      expect(msg).toMatch(/sliceType|pre-join/i);
+    });
+
     it('maps ProjectOperationBlockedException (BI_PROJECT_NOT_ACTIVE) → project_inactive', async () => {
       facade.queryDataMart.mockRejectedValue(
         new ProjectOperationBlockedException([ProjectBlockedReason.BI_PROJECT_NOT_ACTIVE])

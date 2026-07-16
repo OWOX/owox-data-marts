@@ -125,6 +125,10 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,
+          // Expose the raw type only when the dedup changed it — slices run pre-join on the raw value.
+          ...(f.sourceFieldType && f.sourceFieldType !== f.type
+            ? { sliceType: f.sourceFieldType }
+            : {}),
           ...(f.postJoinAggregations?.length
             ? { allowedAggregations: f.postJoinAggregations }
             : {}),
