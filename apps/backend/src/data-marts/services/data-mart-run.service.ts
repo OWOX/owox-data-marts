@@ -150,7 +150,6 @@ export class DataMartRunService {
   ): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { dataMartId },
-      relations: { dataQualityRun: true },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
@@ -195,8 +194,7 @@ export class DataMartRunService {
     const runs = await this.dataMartRunRepository
       .createQueryBuilder('run')
       .innerJoin('run.dataMart', 'dataMart')
-      .leftJoinAndSelect('run.dataQualityRun', 'dataQualityRun')
-      .select(['run', 'dataMart.id', 'dataMart.title', 'dataQualityRun'])
+      .select(['run', 'dataMart.id', 'dataMart.title'])
       .where('run.id IN (:...runIds)', { runIds })
       .getMany();
 
@@ -259,10 +257,13 @@ export class DataMartRunService {
     runId: string,
     dataMartId: string
   ): Promise<DataMartRun | null> {
-    return this.dataMartRunRepository.findOne({
-      where: { id: runId, dataMartId },
-      relations: { dataQualityRun: true },
-    });
+    return this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .addSelect('run.dataQualitySnapshot')
+      .addSelect('run.dataQualityResults')
+      .where('run.id = :runId', { runId })
+      .andWhere('run.dataMartId = :dataMartId', { dataMartId })
+      .getOne();
   }
 
   public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {

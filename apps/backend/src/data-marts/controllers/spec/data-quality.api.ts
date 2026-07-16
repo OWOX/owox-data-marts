@@ -17,7 +17,6 @@ import {
   BatchRunDataQualityResponseApiDto,
   DataQualityConfigResponseApiDto,
   DataQualityConfigValueApiDto,
-  DataQualityRunResponseApiDto,
   LatestDataQualityRunResponseApiDto,
   RunDataQualityRequestApiDto,
   RunDataQualityResponseApiDto,
@@ -89,16 +88,6 @@ export function GetLatestDataQualityRunSpec() {
         oneOf: [{ $ref: getSchemaPath(LatestDataQualityRunResponseApiDto) }, { type: 'null' }],
       },
     }),
-    readErrors()
-  );
-}
-
-export function GetDataQualityRunDetailSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Get a full Data Quality run report' }),
-    dataMartParam(),
-    ApiParam({ name: 'runId', description: 'Public DataMartRun id' }),
-    ApiOkResponse({ type: DataQualityRunResponseApiDto }),
     readErrors()
   );
 }

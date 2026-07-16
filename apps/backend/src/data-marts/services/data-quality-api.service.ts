@@ -1,7 +1,6 @@
-import { ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { RunType } from '../../common/scheduler/shared/types';
 import { AuthorizationContext } from '../../idp';
-import { DataQualityRunDto } from '../dto/domain/data-quality.dto';
 import {
   BatchRunDataQualityResponseApiDto,
   DataQualityBatchErrorCode,
@@ -10,21 +9,22 @@ import {
   DataQualityConfigSource,
   DataQualityRunEligibilityApiDto,
   DataQualityRunEligibilityCode,
-  DataQualityRunResponseApiDto,
   LatestDataQualityRunResponseApiDto,
   RunDataQualityResponseApiDto,
 } from '../dto/presentation/data-quality-api.dto';
-import { RunDataQualityInput } from '../mappers/data-quality-api.mapper';
+import { DataQualityApiMapper, RunDataQualityInput } from '../mappers/data-quality-api.mapper';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
-import { DataQualityRun } from '../entities/data-quality-run.entity';
 import { AccessDecisionService, Action, EntityType } from './access-decision';
 import { DataMartService } from './data-mart.service';
-import { DataQualityConfig } from '../dto/schemas/data-quality/data-quality-config.schema';
+import {
+  DataQualityConfig,
+  EffectiveDataQualityConfig,
+} from '../dto/schemas/data-quality/data-quality-config.schema';
 import { DataQualityRunService } from './data-quality-run.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
-import { EffectiveDataQualityConfig } from '../dto/schemas/data-quality/data-quality-config.schema';
+import { DataQualityRelationshipSnapshot } from '../dto/schemas/data-quality/data-quality-run.schema';
 
 const BATCH_CONCURRENCY = 8;
 const NOT_FOUND_OR_FORBIDDEN_MESSAGE = 'Data Mart was not found or is not accessible';
@@ -34,7 +34,8 @@ export class DataQualityApiService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly runService: DataQualityRunService
+    private readonly runService: DataQualityRunService,
+    private readonly mapper: DataQualityApiMapper
   ) {}
 
   async getConfig(
@@ -65,6 +66,7 @@ export class DataQualityApiService {
       savedConfig: state.savedConfig,
       effectiveConfig,
       availableChecks: Object.values(DataQualityCategory),
+      relationships: toRelationshipMetadata(state.relationshipSnapshots),
       canEdit,
       canRun: canEdit && runEligibility.eligible,
       runEligibility,
@@ -100,6 +102,7 @@ export class DataQualityApiService {
       savedConfig: state.savedConfig,
       effectiveConfig,
       availableChecks: Object.values(DataQualityCategory),
+      relationships: toRelationshipMetadata(state.relationshipSnapshots),
       canEdit: true,
       canRun: runEligibility.eligible,
       runEligibility,
@@ -170,23 +173,7 @@ export class DataQualityApiService {
   ): Promise<LatestDataQualityRunResponseApiDto | null> {
     await this.requireAccess(context, dataMartId, Action.SEE);
     const run = await this.runService.getLatest(dataMartId);
-    return run ? toLatestResponse(run) : null;
-  }
-
-  async getDetail(
-    context: AuthorizationContext,
-    dataMartId: string,
-    dataMartRunId: string
-  ): Promise<DataQualityRunResponseApiDto> {
-    await this.requireAccess(context, dataMartId, Action.SEE);
-    const run = await this.runService.getDetail(dataMartId, dataMartRunId);
-    if (!run) throw new NotFoundException('Data Quality run not found');
-
-    const accessByTargetId = await this.getRelationshipTargetAccess(
-      context,
-      run.relationshipSnapshots.map(snapshot => snapshot.targetDataMartId)
-    );
-    return toDetailResponse(run, accessByTargetId);
+    return run ? this.mapper.toLatestResponse(run) : null;
   }
 
   private async requireAccess(
@@ -242,74 +229,9 @@ export class DataQualityApiService {
   }
 }
 
-function toLatestResponse(run: DataQualityRun): LatestDataQualityRunResponseApiDto {
-  return {
-    runId: run.dataMartRunId,
-    summary: run.summary,
-    createdAt: run.createdAt,
-    startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
-  };
-}
-
-function toDetailResponse(
-  run: DataQualityRun,
-  accessByTargetId: ReadonlyMap<string, boolean>
-): DataQualityRunResponseApiDto {
-  const targetIdByRelationshipId = new Map(
-    run.relationshipSnapshots.map(snapshot => [snapshot.id, snapshot.targetDataMartId])
-  );
-  const dto: DataQualityRunDto = {
-    id: run.id,
-    dataMartRunId: run.dataMartRunId,
-    snapshot: {
-      config: run.configSnapshot,
-      schema: run.schemaSnapshot,
-      relationships: run.relationshipSnapshots,
-      timezone: run.timezone,
-    },
-    summary: run.summary,
-    results: (run.results ?? []).map(result => {
-      const targetId =
-        result.scope.type === DataQualityScope.RELATIONSHIP
-          ? targetIdByRelationshipId.get(result.scope.relationshipId)
-          : undefined;
-      const redact = targetId !== undefined && accessByTargetId.get(targetId) !== true;
-      return {
-        id: result.id,
-        dataQualityRunId: result.dataQualityRunId,
-        ruleKey: result.ruleKey,
-        category: result.category,
-        scope: result.scope,
-        severity: result.severity,
-        status: result.status,
-        violationCount: result.violationCount,
-        description: result.description,
-        examples: redact ? [] : result.examples,
-        executedSql: redact ? [] : result.executedSql,
-        reproductionSql: redact ? null : result.reproductionSql,
-        error:
-          result.errorMessage == null
-            ? null
-            : {
-                code: result.errorCode ?? null,
-                message: result.errorMessage,
-                details: result.errorDetails ?? null,
-              },
-        createdAt: result.createdAt,
-        redacted: redact,
-      };
-    }),
-    createdAt: run.createdAt,
-    startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
-  };
-  return dto;
-}
-
 function applyRelationshipTargetAccess(
   config: EffectiveDataQualityConfig,
-  relationships: DataQualityRun['relationshipSnapshots'],
+  relationships: DataQualityRelationshipSnapshot[],
   accessByTargetId: ReadonlyMap<string, boolean>
 ): EffectiveDataQualityConfig {
   const targetIdByRelationshipId = new Map(
@@ -328,6 +250,17 @@ function applyRelationshipTargetAccess(
       };
     }),
   };
+}
+
+function toRelationshipMetadata(relationships: readonly DataQualityRelationshipSnapshot[]) {
+  return relationships.map(relationship => ({
+    id: relationship.id,
+    targetAlias: relationship.targetAlias,
+    joinConditions: relationship.joinConditions.map(condition => ({
+      sourceFieldName: condition.sourceFieldName,
+      targetFieldName: condition.targetFieldName,
+    })),
+  }));
 }
 
 function getRunEligibility(

@@ -25,7 +25,6 @@ describe('DataQuality controllers', () => {
     run: jest.fn(),
     runBatch: jest.fn(),
     getLatest: jest.fn(),
-    getDetail: jest.fn(),
   };
   const mapper = new DataQualityApiMapper();
   const controller = new DataQualityController(service as unknown as DataQualityApiService, mapper);
@@ -64,12 +63,11 @@ describe('DataQuality controllers', () => {
     );
   });
 
-  it('delegates latest and detail using the public DataMartRun id', async () => {
+  it('keeps latest and does not expose a DQ-specific detail handler', async () => {
     service.getLatest.mockResolvedValue(null);
-    service.getDetail.mockResolvedValue({ dataMartRunId: 'run-1' });
     await expect(controller.getLatest(context, 'dm-1')).resolves.toBeNull();
-    await expect(controller.getDetail(context, 'dm-1', 'run-1')).resolves.toEqual({
-      dataMartRunId: 'run-1',
-    });
+    expect(
+      (DataQualityController.prototype as unknown as { getDetail?: unknown }).getDetail
+    ).toBeUndefined();
   });
 });

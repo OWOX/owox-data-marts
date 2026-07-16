@@ -1,5 +1,7 @@
 import { ListProjectDataMartRunsCommand } from '../dto/domain/list-project-data-mart-runs.command';
 import type { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ListProjectDataMartRunsService } from './list-project-data-mart-runs.service';
 
@@ -13,7 +15,17 @@ describe('ListProjectDataMartRunsService', () => {
     },
   };
 
-  const runDto = { id: 'run-1', dataMartId: 'dm-1' } as DataMartRunDto;
+  const runDto = {
+    id: 'run-1',
+    dataMartId: 'dm-1',
+    type: DataMartRunType.DATA_QUALITY,
+    qualitySummary: {
+      state: DataQualitySummaryState.PASSED,
+      dataMartRunId: 'run-1',
+      lastRunAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+    dataQuality: null,
+  } as DataMartRunDto;
 
   const createService = () => {
     const dataMartRunService = {
@@ -79,6 +91,13 @@ describe('ListProjectDataMartRunsService', () => {
         },
       },
     ]);
+    expect(result[0].run.qualitySummary).toMatchObject({
+      state: DataQualitySummaryState.PASSED,
+      dataMartRunId: 'run-1',
+    });
+    expect(result[0].run.dataQuality).toBeNull();
+    expect(result[0].run).not.toHaveProperty('snapshot');
+    expect(result[0].run).not.toHaveProperty('results');
   });
 
   it('uses entire-project scope without loading role scope for admin users', async () => {

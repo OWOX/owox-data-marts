@@ -3,14 +3,22 @@ import {
   EffectiveDataQualityConfig,
 } from '../schemas/data-quality/data-quality-config.schema';
 import {
-  DataQualityCheckResultSnapshot,
   DataQualityRunSnapshot,
+  DataQualityStoredCheckResult,
   DataQualitySummary,
 } from '../schemas/data-quality/data-quality-run.schema';
+import { JoinCondition } from '../schemas/join-condition.schema';
+
+export interface DataQualityRelationshipMetadataDto {
+  id: string;
+  targetAlias: string;
+  joinConditions: JoinCondition[];
+}
 
 export interface DataQualityConfigDto {
   savedConfig: DataQualityConfig | null;
   effectiveConfig: EffectiveDataQualityConfig;
+  relationships: DataQualityRelationshipMetadataDto[];
   canEdit: boolean;
   canRun: boolean;
 }
@@ -20,24 +28,17 @@ export interface DataQualitySummaryDto extends DataQualitySummary {
   lastRunAt: Date | null;
 }
 
-export interface DataQualityCheckResultDto extends DataQualityCheckResultSnapshot {
-  dataQualityRunId: string;
-  createdAt: Date;
-  redacted?: boolean;
+export interface DataQualityCheckResultDto extends DataQualityStoredCheckResult {
+  redacted: boolean;
 }
 
-export interface DataQualityRunDto {
-  id: string;
-  dataMartRunId: string;
+export interface DataQualityRunDetailsDto {
   snapshot: DataQualityRunSnapshot;
   summary: DataQualitySummary;
-  results: DataQualityCheckResultDto[];
-  createdAt: Date;
-  startedAt: Date | null;
-  finishedAt: Date | null;
+  results: DataQualityStoredCheckResult[];
 }
 
 export type DataQualityConfigApiDto = DataQualityConfigDto;
 export type DataQualitySummaryApiDto = DataQualitySummaryDto;
 export type DataQualityCheckResultApiDto = DataQualityCheckResultDto;
-export type DataQualityRunApiDto = DataQualityRunDto;
+export type DataQualityRunDetailsApiDto = DataQualityRunDetailsDto;

@@ -113,7 +113,7 @@ describe('DataMartMapper', () => {
   });
 
   describe('Data Quality run history summary', () => {
-    it('maps the compact summary when the run history query loaded the DQ relation', () => {
+    it('maps the compact summary from the DataMartRun row', () => {
       const entity = {
         id: 'run-dq',
         status: 'SUCCESS',
@@ -122,21 +122,19 @@ describe('DataMartMapper', () => {
         dataMartId: 'dm-1',
         createdAt: new Date('2026-05-28T10:00:00Z'),
         finishedAt: new Date('2026-05-28T10:01:00Z'),
-        dataQualityRun: {
-          summary: {
-            state: DataQualitySummaryState.ISSUES,
-            enabledChecks: 2,
-            totalChecks: 2,
-            passedChecks: 1,
-            failedChecks: 1,
-            notApplicableChecks: 0,
-            errorChecks: 0,
-            noticeFindings: 0,
-            warningFindings: 1,
-            errorFindings: 0,
-            violationCount: 4,
-            highestSeverity: 'warning',
-          },
+        dataQualitySummary: {
+          state: DataQualitySummaryState.ISSUES,
+          enabledChecks: 2,
+          totalChecks: 2,
+          passedChecks: 1,
+          failedChecks: 1,
+          notApplicableChecks: 0,
+          errorChecks: 0,
+          noticeFindings: 0,
+          warningFindings: 1,
+          errorFindings: 0,
+          violationCount: 4,
+          highestSeverity: 'warning',
         },
       } as unknown as DataMartRunEntity;
 
@@ -157,6 +155,94 @@ describe('DataMartMapper', () => {
         createdAt: new Date(),
       } as unknown as DataMartRunEntity;
       expect(mapper.toDataMartRunDto(entity).qualitySummary).toBeNull();
+    });
+
+    it('keeps heavy DQ detail out of Data Mart and project list rows', async () => {
+      const dataQuality = {
+        snapshot: { config: { timezone: 'UTC', rules: [] }, relationships: [] },
+        summary: { state: DataQualitySummaryState.PASSED },
+        results: [{ ruleKey: 'empty_table:data_mart', executedSql: ['SELECT secret'] }],
+      };
+      const run = {
+        id: 'run-dq',
+        status: 'SUCCESS',
+        type: DataMartRunType.DATA_QUALITY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        definitionRun: { type: 'table' },
+        reportId: null,
+        reportDefinition: null,
+        insightId: null,
+        insightDefinition: null,
+        insightTemplateId: null,
+        insightTemplateDefinition: null,
+        aiSourceDefinition: null,
+        logs: [],
+        errors: [],
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+        startedAt: null,
+        finishedAt: null,
+        createdByUser: null,
+        additionalParams: null,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+        dataQuality,
+      } as never;
+
+      const [dataMartList, projectList] = await Promise.all([
+        mapper.toRunsResponse([run]),
+        mapper.toProjectRunsResponse([
+          { run, dataMart: { id: 'dm-1', title: 'Data Mart' } } as never,
+        ]),
+      ]);
+
+      expect(dataMartList.runs[0]).toMatchObject({
+        type: DataMartRunType.DATA_QUALITY,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+      });
+      expect(dataMartList.runs[0]).not.toHaveProperty('dataQuality');
+      expect(dataMartList.runs[0]).not.toHaveProperty('snapshot');
+      expect(dataMartList.runs[0]).not.toHaveProperty('results');
+      expect(projectList.runs[0]).toMatchObject({
+        type: DataMartRunType.DATA_QUALITY,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+      });
+      expect(projectList.runs[0]).not.toHaveProperty('dataQuality');
+      expect(projectList.runs[0]).not.toHaveProperty('snapshot');
+      expect(projectList.runs[0]).not.toHaveProperty('results');
+    });
+
+    it('includes full DQ data only in a generic run detail response', async () => {
+      const dataQuality = {
+        snapshot: { config: { timezone: 'UTC', rules: [] }, relationships: [] },
+        summary: { state: DataQualitySummaryState.PASSED },
+        results: [],
+      };
+      const run = {
+        id: 'run-dq',
+        status: 'SUCCESS',
+        type: DataMartRunType.DATA_QUALITY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        definitionRun: { type: 'table' },
+        reportId: null,
+        reportDefinition: null,
+        insightId: null,
+        insightDefinition: null,
+        insightTemplateId: null,
+        insightTemplateDefinition: null,
+        aiSourceDefinition: null,
+        logs: [],
+        errors: [],
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+        startedAt: null,
+        finishedAt: null,
+        createdByUser: null,
+        additionalParams: null,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+        dataQuality,
+      } as never;
+
+      await expect(mapper.toRunResponse(run)).resolves.toMatchObject({ dataQuality });
     });
   });
 

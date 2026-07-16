@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { DataMartRun } from '../schemas/data-mart-run/data-mart-run.schema';
+import { DataMartRunListItemResponseApiDto } from './data-mart-run-response-api.dto';
 
 export class DataMartRunsResponseApiDto {
-  @ApiProperty()
-  runs: DataMartRun[];
+  @ApiProperty({ type: [DataMartRunListItemResponseApiDto] })
+  runs: DataMartRunListItemResponseApiDto[];
 }

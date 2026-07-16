@@ -1,6 +1,10 @@
 import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString } from 'class-validator';
-import { DataQualityConfigApiDto, DataQualityRunApiDto } from '../domain/data-quality.dto';
+import {
+  DataQualityConfigApiDto,
+  DataQualityRelationshipMetadataDto,
+  DataQualityRunDetailsDto,
+} from '../domain/data-quality.dto';
 import {
   DataQualityCheckScope,
   DataQualityConfig,
@@ -9,10 +13,10 @@ import {
   EffectiveDataQualityRuleConfig,
 } from '../schemas/data-quality/data-quality-config.schema';
 import {
-  DataQualityCheckResultSnapshot,
   DataQualityMappedError,
   DataQualityResultExample,
   DataQualityRunSnapshot,
+  DataQualityStoredCheckResult,
   DataQualitySummary,
 } from '../schemas/data-quality/data-quality-run.schema';
 import { DataQualityCategory } from '../../enums/data-quality-category.enum';
@@ -20,6 +24,8 @@ import { DataQualityCheckStatus } from '../../enums/data-quality-check-status.en
 import { DataQualityScope } from '../../enums/data-quality-scope.enum';
 import { DataQualitySeverity } from '../../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../../enums/data-quality-summary-state.enum';
+import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
+import { JoinCondition } from '../schemas/join-condition.schema';
 
 export enum DataQualityConfigSource {
   DEFAULT = 'DEFAULT',
@@ -119,6 +125,25 @@ export class EffectiveDataQualityConfigValueApiDto implements EffectiveDataQuali
   rules: EffectiveDataQualityRuleConfig[];
 }
 
+export class DataQualityRelationshipJoinConditionApiDto implements JoinCondition {
+  @ApiProperty({ example: 'customer_id' })
+  sourceFieldName: string;
+
+  @ApiProperty({ example: 'id' })
+  targetFieldName: string;
+}
+
+export class DataQualityRelationshipMetadataApiDto implements DataQualityRelationshipMetadataDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'customers' })
+  targetAlias: string;
+
+  @ApiProperty({ type: [DataQualityRelationshipJoinConditionApiDto] })
+  joinConditions: DataQualityRelationshipJoinConditionApiDto[];
+}
+
 export class DataQualityConfigResponseApiDto implements DataQualityConfigApiDto {
   @ApiProperty({ enum: DataQualityConfigSource })
   source: DataQualityConfigSource;
@@ -131,6 +156,9 @@ export class DataQualityConfigResponseApiDto implements DataQualityConfigApiDto 
 
   @ApiProperty({ enum: DataQualityCategory, isArray: true })
   availableChecks: DataQualityCategory[];
+
+  @ApiProperty({ type: [DataQualityRelationshipMetadataApiDto] })
+  relationships: DataQualityRelationshipMetadataApiDto[];
 
   @ApiProperty()
   canEdit: boolean;
@@ -272,7 +300,7 @@ export class DataQualityMappedErrorApiDto implements DataQualityMappedError {
   details: Record<string, unknown> | null;
 }
 
-export class DataQualityCheckResultResponseApiDto implements DataQualityCheckResultSnapshot {
+export class DataQualityCheckResultResponseApiDto implements DataQualityStoredCheckResult {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
@@ -309,11 +337,8 @@ export class DataQualityCheckResultResponseApiDto implements DataQualityCheckRes
   @ApiProperty({ type: DataQualityMappedErrorApiDto, nullable: true })
   error: DataQualityMappedError | null;
 
-  @ApiProperty({ format: 'uuid' })
-  dataQualityRunId: string;
-
   @ApiProperty({ type: String, format: 'date-time' })
-  createdAt: Date;
+  createdAt: string;
 
   @ApiProperty({ description: 'Sensitive relationship details were hidden by target access' })
   redacted: boolean;
@@ -331,15 +356,12 @@ export class DataQualityRunSnapshotApiDto implements DataQualityRunSnapshot {
 
   @ApiProperty({ example: 'UTC' })
   timezone: string;
+
+  @ApiProperty({ enum: DataMartDefinitionType, enumName: 'DataMartDefinitionType' })
+  definitionType: DataMartDefinitionType;
 }
 
-export class DataQualityRunResponseApiDto implements DataQualityRunApiDto {
-  @ApiProperty({ format: 'uuid', description: 'Internal Data Quality run id' })
-  id: string;
-
-  @ApiProperty({ format: 'uuid', description: 'Public run id' })
-  dataMartRunId: string;
-
+export class DataQualityRunDetailsResponseApiDto implements DataQualityRunDetailsDto {
   @ApiProperty({ type: DataQualityRunSnapshotApiDto })
   snapshot: DataQualityRunSnapshot;
 
@@ -347,16 +369,7 @@ export class DataQualityRunResponseApiDto implements DataQualityRunApiDto {
   summary: DataQualitySummary;
 
   @ApiProperty({ type: [DataQualityCheckResultResponseApiDto] })
-  results: DataQualityRunApiDto['results'];
-
-  @ApiProperty({ type: String, format: 'date-time' })
-  createdAt: Date;
-
-  @ApiProperty({ type: String, format: 'date-time', nullable: true })
-  startedAt: Date | null;
-
-  @ApiProperty({ type: String, format: 'date-time', nullable: true })
-  finishedAt: Date | null;
+  results: DataQualityCheckResultResponseApiDto[];
 }
 
 export class LatestDataQualityRunResponseApiDto {

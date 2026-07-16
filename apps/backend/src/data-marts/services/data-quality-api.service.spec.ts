@@ -1,13 +1,12 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { RunType } from '../../common/scheduler/shared/types';
 import { AuthorizationContext } from '../../idp';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
-import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { DataMart } from '../entities/data-mart.entity';
-import { DataQualityRun } from '../entities/data-quality-run.entity';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { AccessDecisionService, Action, EntityType } from './access-decision';
 import { DataMartService } from './data-mart.service';
 import { DataQualityApiService } from './data-quality-api.service';
@@ -18,6 +17,8 @@ import {
 } from '../dto/presentation/data-quality-api.dto';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataQualityApiMapper } from '../mappers/data-quality-api.mapper';
 
 describe('DataQualityApiService', () => {
   const context = {
@@ -46,13 +47,13 @@ describe('DataQualityApiService', () => {
     replaceConfig: jest.fn(),
     enqueue: jest.fn(),
     getLatest: jest.fn(),
-    getDetail: jest.fn(),
     getActiveRunId: jest.fn(),
   };
   const service = new DataQualityApiService(
     dataMartService as unknown as DataMartService,
     accessDecisionService as unknown as AccessDecisionService,
-    runService as unknown as DataQualityRunService
+    runService as unknown as DataQualityRunService,
+    new DataQualityApiMapper()
   );
 
   const effectiveConfig = {
@@ -118,6 +119,29 @@ describe('DataQualityApiService', () => {
     expect(response.availableChecks).toEqual(
       expect.arrayContaining(Object.values(DataQualityCategory))
     );
+    expect(response.relationships).toEqual([
+      {
+        id: 'rel-1',
+        targetAlias: 'target',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      },
+    ]);
+  });
+
+  it('returns the same minimal relationship metadata after replacing config', async () => {
+    const response = await service.replaceConfig(context, 'dm-1', null);
+
+    expect(runService.replaceConfig).toHaveBeenCalledWith('dm-1', 'project-1', null);
+    expect(response.relationships).toEqual([
+      {
+        id: 'rel-1',
+        targetAlias: 'target',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      },
+    ]);
+    expect(response.relationships[0]).not.toHaveProperty('sourceDataMartId');
+    expect(response.relationships[0]).not.toHaveProperty('targetDataMartId');
+    expect(response.relationships[0]).not.toHaveProperty('targetAccessible');
   });
 
   it('makes canRun eligibility-aware for drafts, all-disabled configs, and active runs', async () => {
@@ -213,20 +237,20 @@ describe('DataQualityApiService', () => {
     });
   });
 
-  it('redacts relationship SQL/examples without SEE on the target', async () => {
-    accessDecisionService.canAccessMany.mockResolvedValue(new Map([['target-1', false]]));
-    runService.getDetail.mockResolvedValue(qualityRun());
+  it('maps latest from the parent run and keeps it compact', async () => {
+    runService.getLatest.mockResolvedValue(qualityRun());
 
-    const response = await service.getDetail(context, 'dm-1', 'run-1');
+    const response = await service.getLatest(context, 'dm-1');
 
-    expect(response.results[0]).toMatchObject({
-      examples: [],
-      executedSql: [],
-      reproductionSql: null,
-      violationCount: 2,
-      status: DataQualityCheckStatus.FAILED,
-      redacted: true,
+    expect(response).toMatchObject({
+      runId: 'run-1',
+      summary: { state: DataQualitySummaryState.ISSUES, violationCount: 2 },
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      startedAt: new Date('2026-01-01T00:00:01Z'),
+      finishedAt: new Date('2026-01-01T00:00:02Z'),
     });
+    expect(response).not.toHaveProperty('snapshot');
+    expect(response).not.toHaveProperty('results');
   });
 
   it('returns a typed non-leaking, stable partial batch result', async () => {
@@ -267,29 +291,12 @@ describe('DataQualityApiService', () => {
     ]);
   });
 
-  it('returns 404 for a run outside the requested Data Mart', async () => {
-    runService.getDetail.mockResolvedValue(null);
-    await expect(service.getDetail(context, 'dm-1', 'other-run')).rejects.toBeInstanceOf(
-      NotFoundException
-    );
-  });
-
-  function qualityRun(): DataQualityRun {
+  function qualityRun(): DataMartRun {
     return {
-      id: 'quality-1',
-      dataMartRunId: 'run-1',
-      dataMartRun: {
-        id: 'run-1',
-        dataMartId: 'dm-1',
-        createdAt: new Date('2026-01-01T00:00:00Z'),
-        startedAt: new Date('2026-01-01T00:00:01Z'),
-        finishedAt: new Date('2026-01-01T00:00:02Z'),
-      },
-      configSnapshot: effectiveConfig,
-      schemaSnapshot: null,
-      relationshipSnapshots: configState.relationshipSnapshots,
-      timezone: 'UTC',
-      summary: {
+      id: 'run-1',
+      dataMartId: 'dm-1',
+      type: DataMartRunType.DATA_QUALITY,
+      dataQualitySummary: {
         state: DataQualitySummaryState.ISSUES,
         enabledChecks: 1,
         totalChecks: 1,
@@ -303,29 +310,9 @@ describe('DataQualityApiService', () => {
         violationCount: 2,
         highestSeverity: DataQualitySeverity.WARNING,
       },
-      results: [
-        {
-          id: 'result-1',
-          dataQualityRunId: 'quality-1',
-          ruleKey: 'relationship_integrity:relationship:rel-1',
-          category: DataQualityCategory.RELATIONSHIP_INTEGRITY,
-          scope: { type: DataQualityScope.RELATIONSHIP, relationshipId: 'rel-1' },
-          severity: DataQualitySeverity.WARNING,
-          status: DataQualityCheckStatus.FAILED,
-          violationCount: 2,
-          description: 'orphans',
-          examples: [{ values: { id: 1 } }],
-          executedSql: ['select secret'],
-          reproductionSql: 'select secret',
-          errorCode: null,
-          errorMessage: null,
-          errorDetails: null,
-          createdAt: new Date('2026-01-01T00:00:02Z'),
-        },
-      ],
       createdAt: new Date('2026-01-01T00:00:00Z'),
       startedAt: new Date('2026-01-01T00:00:01Z'),
       finishedAt: new Date('2026-01-01T00:00:02Z'),
-    } as DataQualityRun;
+    } as DataMartRun;
   }
 });

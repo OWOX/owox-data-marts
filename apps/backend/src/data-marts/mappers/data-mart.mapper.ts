@@ -68,7 +68,7 @@ import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
-import { DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
+import { DataQualityRunDetailsDto, DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
 import { createNoRunDataQualitySummary } from '../services/data-quality-summary.service';
 
 const REPORT_RUN_TYPES = new Set<DataMartRunType>([
@@ -530,7 +530,8 @@ export class DataMartMapper {
 
   toDataMartRunDto(
     entity: DataMartRun,
-    userProjection: UserProjectionDto | null = null
+    userProjection: UserProjectionDto | null = null,
+    dataQuality: DataQualityRunDetailsDto | null = null
   ): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
@@ -553,13 +554,14 @@ export class DataMartMapper {
       entity.finishedAt || null,
       userProjection,
       entity.additionalParams ?? null,
-      entity.dataQualityRun
+      entity.dataQualitySummary
         ? {
-            ...entity.dataQualityRun.summary,
+            ...entity.dataQualitySummary,
             dataMartRunId: entity.id,
             lastRunAt: entity.finishedAt ?? entity.startedAt ?? entity.createdAt,
           }
-        : null
+        : null,
+      dataQuality
     );
   }
 
@@ -688,6 +690,7 @@ export class DataMartMapper {
       additionalParams: this.maskAdditionalParams(run),
       totals: this.extractTotals(run),
       qualitySummary: run.qualitySummary,
+      dataQuality: run.dataQuality,
     };
   }
 

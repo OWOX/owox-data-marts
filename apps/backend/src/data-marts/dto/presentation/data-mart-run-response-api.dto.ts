@@ -7,11 +7,15 @@ import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-
 import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
-import { CompactDataQualitySummaryApiDto } from './data-quality-api.dto';
+import { DataQualityRunDetailsDto } from '../domain/data-quality.dto';
+import {
+  CompactDataQualitySummaryApiDto,
+  DataQualityRunDetailsResponseApiDto,
+} from './data-quality-api.dto';
 
 export type DataMartRunAiSourceResponseDefinition = Omit<DataMartRunAiSourceDefinition, 'trace'>;
 
-export class DataMartRunResponseApiDto {
+export class DataMartRunListItemResponseApiDto {
   @ApiProperty({ example: '0b0f5a1e-6f66-4a7d-8b8d-123456789abc' })
   id: string;
 
@@ -25,7 +29,7 @@ export class DataMartRunResponseApiDto {
 
   @ApiProperty({
     example: 'CONNECTOR',
-    description: 'Run type (connector, report, insight)',
+    description: 'Run type (connector, report, insight, data quality)',
     enum: DataMartRunType,
     enumName: 'DataMartRunType',
   })
@@ -162,8 +166,13 @@ export class DataMartRunResponseApiDto {
     required: false,
     nullable: true,
   })
-  totals: Record<string, number | string | boolean | null> | null;
+  totals?: Record<string, number | string | boolean | null> | null;
 
   @ApiProperty({ type: CompactDataQualitySummaryApiDto, required: false, nullable: true })
   qualitySummary: CompactDataQualitySummaryApiDto | null;
+}
+
+export class DataMartRunResponseApiDto extends DataMartRunListItemResponseApiDto {
+  @ApiProperty({ type: DataQualityRunDetailsResponseApiDto, required: false, nullable: true })
+  dataQuality?: DataQualityRunDetailsDto | null;
 }

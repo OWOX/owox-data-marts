@@ -6,18 +6,32 @@ import {
   DataQualityCheckResultResponseApiDto,
   DataQualityConfigResponseApiDto,
   DataQualityConfigValueApiDto,
-  DataQualityRunResponseApiDto,
+  DataQualityRunDetailsResponseApiDto,
   LatestDataQualityRunResponseApiDto,
 } from './data-quality-api.dto';
+import {
+  DataMartRunListItemResponseApiDto,
+  DataMartRunResponseApiDto,
+} from './data-mart-run-response-api.dto';
+import { DataMartRunsResponseApiDto } from './data-mart-runs-response-api.dto';
+import {
+  ProjectDataMartRunResponseApiDto,
+  ProjectDataMartRunsResponseApiDto,
+} from './project-data-mart-runs-response-api.dto';
 
 @Controller('data-quality-schema-test')
 @ApiExtraModels(
   DataQualityConfigValueApiDto,
   DataQualityConfigResponseApiDto,
   LatestDataQualityRunResponseApiDto,
-  DataQualityRunResponseApiDto,
+  DataQualityRunDetailsResponseApiDto,
   DataQualityCheckResultResponseApiDto,
-  BatchRunDataQualityResponseApiDto
+  BatchRunDataQualityResponseApiDto,
+  DataMartRunResponseApiDto,
+  DataMartRunListItemResponseApiDto,
+  DataMartRunsResponseApiDto,
+  ProjectDataMartRunResponseApiDto,
+  ProjectDataMartRunsResponseApiDto
 )
 class DataQualitySchemaTestController {
   @Get()
@@ -51,9 +65,50 @@ describe('Data Quality OpenAPI contracts', () => {
       expect.objectContaining({ runId: expect.any(Object), summary: expect.any(Object) })
     );
     expect(schemas.LatestDataQualityRunResponseApiDto.properties).not.toHaveProperty('results');
+    expect(schemas.DataMartRunResponseApiDto.properties).toHaveProperty('dataQuality');
+    expect(schemas.DataMartRunListItemResponseApiDto.properties).toHaveProperty('qualitySummary');
+    expect(schemas.DataMartRunListItemResponseApiDto.properties).not.toHaveProperty('dataQuality');
+    expect(schemas.ProjectDataMartRunResponseApiDto.properties).not.toHaveProperty('dataQuality');
+    expect(schemas.DataMartRunsResponseApiDto.properties?.runs).toMatchObject({
+      items: { $ref: expect.stringContaining('DataMartRunListItemResponseApiDto') },
+    });
+    expect(schemas.ProjectDataMartRunsResponseApiDto.properties?.runs).toMatchObject({
+      items: { $ref: expect.stringContaining('ProjectDataMartRunResponseApiDto') },
+    });
+    expect(schemas.DataQualityRunDetailsResponseApiDto.properties).toEqual(
+      expect.objectContaining({
+        snapshot: expect.any(Object),
+        summary: expect.any(Object),
+        results: expect.any(Object),
+      })
+    );
     expect(schemas.DataQualityCheckResultResponseApiDto.properties).toHaveProperty('redacted');
+    expect(schemas.DataQualityCheckResultResponseApiDto.properties).not.toHaveProperty(
+      'dataQualityRunId'
+    );
+    expect(schemas.DataQualityRunSnapshotApiDto.properties).toHaveProperty('definitionType');
     expect(schemas.DataQualityConfigResponseApiDto.properties).toEqual(
-      expect.objectContaining({ canEdit: expect.any(Object), canRun: expect.any(Object) })
+      expect.objectContaining({
+        canEdit: expect.any(Object),
+        canRun: expect.any(Object),
+        relationships: expect.any(Object),
+      })
+    );
+    expect(schemas.DataQualityRelationshipMetadataApiDto.properties).toEqual(
+      expect.objectContaining({
+        id: expect.any(Object),
+        targetAlias: expect.any(Object),
+        joinConditions: expect.any(Object),
+      })
+    );
+    expect(schemas.DataQualityRelationshipMetadataApiDto.properties).not.toHaveProperty(
+      'targetDataMartId'
+    );
+    expect(schemas.DataQualityRelationshipJoinConditionApiDto.properties).toEqual(
+      expect.objectContaining({
+        sourceFieldName: expect.any(Object),
+        targetFieldName: expect.any(Object),
+      })
     );
   });
 });

@@ -5,7 +5,6 @@ import {
   BatchRunDataQualityRequestApiDto,
   BatchRunDataQualityResponseApiDto,
   DataQualityConfigResponseApiDto,
-  DataQualityRunResponseApiDto,
   LatestDataQualityRunResponseApiDto,
   RunDataQualityRequestApiDto,
   RunDataQualityResponseApiDto,
@@ -14,7 +13,6 @@ import { DataQualityApiMapper } from '../mappers/data-quality-api.mapper';
 import { DataQualityApiService } from '../services/data-quality-api.service';
 import {
   GetDataQualityConfigSpec,
-  GetDataQualityRunDetailSpec,
   GetLatestDataQualityRunSpec,
   ReplaceDataQualityConfigSpec,
   RunDataQualityBatchSpec,
@@ -89,16 +87,5 @@ export class DataQualityController {
     @Param('dataMartId') dataMartId: string
   ): Promise<LatestDataQualityRunResponseApiDto | null> {
     return this.service.getLatest(context, dataMartId);
-  }
-
-  @Auth(Role.viewer(Strategy.PARSE))
-  @Get('runs/:runId')
-  @GetDataQualityRunDetailSpec()
-  getDetail(
-    @AuthContext() context: AuthorizationContext,
-    @Param('dataMartId') dataMartId: string,
-    @Param('runId') runId: string
-  ): Promise<DataQualityRunResponseApiDto> {
-    return this.service.getDetail(context, dataMartId, runId);
   }
 }
