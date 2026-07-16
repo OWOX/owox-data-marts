@@ -14,7 +14,7 @@ import type { ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
 import { trackEvent } from '../../../../../utils';
-import { DATA_LEVEL_CONFIG_KEY } from '../../../shared/constants/connector-config';
+import { resolveEffectiveDataLevel } from '../../../shared/constants/connector-config';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -178,7 +178,12 @@ export function ConnectorEditForm({
     selectedConnector,
   ]);
 
-  // Union the persisted fields with whatever the chosen DataLevel requires (e.g. TikTok
+  const effectiveDataLevel = useMemo(
+    () => resolveEffectiveDataLevel(connectorConfiguration, connectorSpecification),
+    [connectorConfiguration, connectorSpecification]
+  );
+
+  // Union the persisted fields with whatever the effective DataLevel requires (e.g. TikTok
   // ad_insights needs ad_id at AUCTION_AD). No-op for nodes without uniqueKeysByDataLevel.
   // Falls back to the unchanged fields if connectorFields hasn't loaded yet, but that
   // window isn't user-reachable: loadFieldsSafely is always triggered for an existing
@@ -186,15 +191,14 @@ export function ConnectorEditForm({
   // the <StepNavigation> call site below until that fetch settles.
   const fieldsForSave = useMemo(() => {
     const fields = existingConnector?.source.fields ?? selectedFields;
-    const dataLevel = connectorConfiguration[DATA_LEVEL_CONFIG_KEY];
-    if (typeof dataLevel !== 'string') return fields;
+    if (!effectiveDataLevel) return fields;
 
     const node = existingConnector?.source.node ?? selectedNode;
     const required = connectorFields?.find(f => f.name === node)?.uniqueKeysByDataLevel?.[
-      dataLevel
+      effectiveDataLevel
     ];
     return required?.length ? Array.from(new Set([...fields, ...required])) : fields;
-  }, [existingConnector, selectedFields, selectedNode, connectorConfiguration, connectorFields]);
+  }, [existingConnector, selectedFields, selectedNode, effectiveDataLevel, connectorFields]);
 
   const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
