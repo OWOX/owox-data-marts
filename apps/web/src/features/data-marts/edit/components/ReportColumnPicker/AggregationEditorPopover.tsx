@@ -136,6 +136,15 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
   }
 
   const bucketActive = isDate && bucket !== null;
+  // A brand-new column (nothing pre-selected) must choose a function or bucket — an
+  // empty Apply would silently discard it. Editing an existing selection keeps Apply
+  // enabled so clearing it and applying removes the rule.
+  const hadInitialSelection =
+    (props.initialFunctions?.length ?? 0) > 0 || (props.initialBucket ?? null) !== null;
+  const canApply =
+    props.allowedAggregations.some(fn => functions.includes(fn)) ||
+    bucketActive ||
+    hadInitialSelection;
 
   return (
     <Popover open={props.open} onOpenChange={props.onOpenChange}>
@@ -235,7 +244,7 @@ export function AggregationEditorPopover(props: AggregationEditorPopoverProps) {
           <Button variant='outline' size='sm' onClick={handleCancel}>
             Cancel
           </Button>
-          <Button size='sm' onClick={handleApply}>
+          <Button size='sm' onClick={handleApply} disabled={!canApply}>
             Apply
           </Button>
         </div>

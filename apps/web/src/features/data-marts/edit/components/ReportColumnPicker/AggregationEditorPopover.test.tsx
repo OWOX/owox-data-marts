@@ -252,3 +252,68 @@ describe('AggregationEditorPopover — date bucket time zone', () => {
     expect(screen.getByLabelText('Time zone')).toBeInTheDocument();
   });
 });
+
+describe('AggregationEditorPopover — Apply gating', () => {
+  it('disables Apply for a brand-new column until a function is chosen (no silent discard)', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='orders.revenue'
+        fieldType='INTEGER'
+        allowedAggregations={NUMERIC_ALLOWED}
+        onApply={vi.fn()}
+      />
+    );
+
+    const apply = screen.getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText('SUM'));
+    expect(apply).not.toBeDisabled();
+  });
+
+  it('disables Apply for a brand-new date column until a bucket or function is chosen', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='orders.ordered_at'
+        fieldType='TIMESTAMP'
+        allowedAggregations={DATE_ALLOWED}
+        onApply={vi.fn()}
+      />
+    );
+
+    const apply = screen.getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Group by bucket'), { target: { value: 'WEEK' } });
+    expect(apply).not.toBeDisabled();
+  });
+
+  it('keeps Apply enabled when editing an existing selection so clearing it removes the rule', () => {
+    render(
+      <AggregationEditorPopover
+        open
+        onOpenChange={() => undefined}
+        trigger={<button>open</button>}
+        column='orders.revenue'
+        fieldType='INTEGER'
+        allowedAggregations={NUMERIC_ALLOWED}
+        initialFunctions={['SUM']}
+        onApply={vi.fn()}
+      />
+    );
+
+    const apply = screen.getByRole('button', { name: 'Apply' });
+    expect(apply).not.toBeDisabled();
+
+    // Unchecking the only function leaves Apply enabled — applying the empty draft
+    // is the intended "remove" path for an existing rule.
+    fireEvent.click(screen.getByLabelText('SUM'));
+    expect(apply).not.toBeDisabled();
+  });
+});

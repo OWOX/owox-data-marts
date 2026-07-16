@@ -179,4 +179,115 @@ describe('RowFilterIcon — remove-only popup', () => {
     expect(screen.getByRole('button', { name: /^(Apply|Add)$/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
   });
+
+  it('editing a single existing filter exposes a Delete filter button that removes it', () => {
+    const onRemoveAt = vi.fn();
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[filterRule]}
+        onAdd={() => undefined}
+        onReplaceAt={() => undefined}
+        onRemoveAt={onRemoveAt}
+      />
+    );
+
+    // Single-filter edit mode renders the editor (no "Active filters" list), so the
+    // delete affordance must live in the editor header.
+    expect(screen.queryByText('Active filters')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete filter' }));
+    expect(onRemoveAt).toHaveBeenCalledWith(0);
+  });
+
+  it('does not show a Delete filter button when adding a new filter (nothing to delete)', () => {
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onReplaceAt={() => undefined}
+        onRemoveAt={() => undefined}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Delete filter' })).not.toBeInTheDocument();
+  });
+
+  it('editing a single existing slice exposes a Delete slice button that removes it', () => {
+    const onRemoveSliceAt = vi.fn();
+    render(
+      <RowFilterIcon
+        column='b__hidden_field'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onRemoveAt={() => undefined}
+        sliceIconProps={{
+          unifiedFieldName: 'b__hidden_field',
+          existingSlices: [sliceRule],
+          existingSliceIndices: [3],
+          onAddSlice: () => undefined,
+          onRemoveSliceAt,
+          onReplaceSliceAt: () => undefined,
+        }}
+      />
+    );
+
+    // Slice tab is the default here (no filters, one slice) and opens in edit mode.
+    expect(screen.queryByText('Active slices')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete slice' }));
+    expect(onRemoveSliceAt).toHaveBeenCalledWith(3);
+  });
+
+  it('does not show the header Delete button with 2+ filters (list mode owns removal via per-row X)', () => {
+    const filterRule2 = { column: 'ghost__col', operator: 'contains', value: 'z' } as FilterRule;
+    render(
+      <RowFilterIcon
+        column='native_one'
+        fieldType='STRING'
+        activeRules={[filterRule, filterRule2]}
+        onAdd={() => undefined}
+        onReplaceAt={() => undefined}
+        onRemoveAt={() => undefined}
+      />
+    );
+
+    // Multi-item mode shows the "Active filters" list (each row its own X) — the
+    // single-item header trash must NOT also appear.
+    expect(screen.getByText('Active filters')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove filter' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Delete filter' })).not.toBeInTheDocument();
+  });
+
+  it('does not show the header Delete button with 2+ slices (list mode owns removal via per-row X)', () => {
+    const sliceRule2 = {
+      column: 'b__hidden_field',
+      operator: 'contains',
+      value: 'z',
+      placement: 'pre-join',
+    } as FilterRule;
+    render(
+      <RowFilterIcon
+        column='b__hidden_field'
+        fieldType='STRING'
+        activeRules={[]}
+        onAdd={() => undefined}
+        onRemoveAt={() => undefined}
+        sliceIconProps={{
+          unifiedFieldName: 'b__hidden_field',
+          existingSlices: [sliceRule, sliceRule2],
+          existingSliceIndices: [3, 5],
+          onAddSlice: () => undefined,
+          onRemoveSliceAt: () => undefined,
+          onReplaceSliceAt: () => undefined,
+        }}
+      />
+    );
+
+    expect(screen.getByText('Active slices')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove slice' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Delete slice' })).not.toBeInTheDocument();
+  });
 });

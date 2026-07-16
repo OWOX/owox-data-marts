@@ -201,6 +201,7 @@ function AggregationSection({
       <div className='mt-2'>
         {pendingColumn ? (
           <RowAggregationIcon
+            key={pendingColumn.name}
             column={pendingColumn.name}
             fieldType={pendingColumn.type}
             displayLabel={pendingColumn.label}
@@ -209,6 +210,10 @@ function AggregationSection({
             activeFunctions={functionsForColumn(pendingColumn.name, aggregations)}
             activeBucket={bucketForColumn(pendingColumn.name, dateTrunc)}
             alwaysVisible
+            autoOpen
+            onClose={() => {
+              setPendingColumn(null);
+            }}
             onApplyDraft={draft => {
               const next = applyAggregationDraft(
                 pendingColumn.name,

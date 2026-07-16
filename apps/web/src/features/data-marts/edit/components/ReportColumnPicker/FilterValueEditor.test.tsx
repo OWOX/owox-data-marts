@@ -452,6 +452,26 @@ describe('FilterValueEditor — relative_date operator', () => {
 
     expect(lastCall(onChange)).toBeNull();
   });
+
+  it('clearing the Last-N input leaves it empty instead of snapping back to 0 (Backspace bug)', () => {
+    // Regression: the field coerced '' → 0 and re-rendered "0", so Backspace could
+    // never empty it. It must stay empty so the user can type a fresh value.
+    const { onChange } = renderEditor({
+      fieldType: DATE_TYPE,
+      initialRule: {
+        column: COL,
+        operator: 'relative_date',
+        value: { kind: 'last_n_days', n: 30 },
+      },
+    });
+
+    const input = screen.getByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '' } });
+
+    expect((input as HTMLInputElement).value).toBe('');
+    // An empty N is invalid → no rule emitted.
+    expect(lastCall(onChange)).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
