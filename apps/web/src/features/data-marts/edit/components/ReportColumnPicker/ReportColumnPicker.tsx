@@ -286,6 +286,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       <RowFilterIcon
         column={field.name}
         fieldType={filterableType}
+        sliceFieldType={field.sourceFieldType ?? field.type}
         displayLabel={fieldDisplayLabel(field.alias, field.originalFieldName)}
         dataMartName={dataMartName}
         activeRules={columnFilters.rules}
@@ -733,7 +734,9 @@ export function ReportColumnPicker({
       entry.columns.push({
         id: field.name,
         name: field.originalFieldName,
-        type: field.type,
+        // joinedSources feeds the Output settings → Slices surface only. Slices run pre-join on the
+        // raw value, so use the raw source type (not the post-dedup effective `field.type`).
+        type: field.sourceFieldType ?? field.type,
         alias: field.alias,
       });
     }
