@@ -180,6 +180,39 @@ describe('DataMartsApi.traverseData', () => {
     ).toEqual(sort);
   });
 
+  it('encodes aggregation and dateTrunc as base64url query params', async () => {
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        request.url.startsWith('/api/external/http-data/data-marts/dm-1.ndjson')
+      ) {
+        return createNdjsonResponse(['{"date":"2026-05-01"}\n'], { 'x-owox-run-id': 'run-1' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await client.dataMarts.traverseData('dm-1', { aggregation, dateTrunc });
+
+    const request = fetchMock.requests.find(({ method }) => method === 'GET');
+    expect(request).toBeDefined();
+    const url = new URL(`${apiOrigin}${request?.url}`);
+    expect(
+      JSON.parse(Buffer.from(url.searchParams.get('aggregation')!, 'base64url').toString('utf8'))
+    ).toEqual(aggregation);
+    expect(
+      JSON.parse(Buffer.from(url.searchParams.get('dateTrunc')!, 'base64url').toString('utf8'))
+    ).toEqual(dateTrunc);
+  });
+
   it('reports malformed NDJSON lines with line and run context', async () => {
     const fetchMock = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {

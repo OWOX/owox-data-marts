@@ -82,4 +82,33 @@ describe('data-marts stream', () => {
       '--sort must be valid JSON'
     );
   });
+
+  it('parses aggregation and date-bucket flags as JSON arrays for traversal options', () => {
+    expect(
+      buildTraverseDataOptions({
+        columns: '*',
+        column: ['revenue'],
+        aggregation: '[{"column":"revenue","function":"SUM"}]',
+        'date-bucket': '[{"column":"date","unit":"MONTH"}]',
+        limit: 1000,
+      })
+    ).toEqual({
+      columns: '*',
+      column: ['revenue'],
+      filter: undefined,
+      sort: undefined,
+      aggregation: [{ column: 'revenue', function: 'SUM' }],
+      dateTrunc: [{ column: 'date', unit: 'MONTH' }],
+      limit: 1000,
+    });
+  });
+
+  it('rejects malformed aggregation and date-bucket JSON flags before opening the stream', () => {
+    expect(() => buildTraverseDataOptions({ aggregation: '{"column":"revenue"}' })).toThrow(
+      '--aggregation must be a JSON array'
+    );
+    expect(() => buildTraverseDataOptions({ 'date-bucket': 'not-json' })).toThrow(
+      '--date-bucket must be valid JSON'
+    );
+  });
 });

@@ -26,6 +26,8 @@ interface HttpRunView {
       columns?: string[];
       filter?: Array<{ column: string; operator: string; value: string }>;
       sort?: Array<{ column: string; direction: string }>;
+      aggregation?: Array<{ column: string; function: string }>;
+      dateTrunc?: Array<{ column: string; unit: string; timeZone?: string }>;
       limit?: number;
       completed?: boolean;
       rowCount?: number;
@@ -50,14 +52,36 @@ const MOCK_ROWS: unknown[][] = [
 // Reset to null before each output-controls happy-path test.
 let capturedPrepareOptions: Record<string, unknown> | null = null;
 
+// Aggregated result the mock reader returns when a request carries an aggregation: [dimension,
+// metric, Row Count] positional row, matching the [date, "revenue | SUM", "Row Count"] header set.
+const MOCK_AGGREGATED_ROWS: unknown[][] = [['2026-05-01', 999, MOCK_ROWS.length]];
+
 function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataStorageReportReader {
+  // Simulate the real reader's aggregated-header resolution: an aggregation renames each aggregated
+  // column to "<column> | <FN>" and appends Row Count (see resolveReportDataHeaders), so the stream
+  // must project rows by those resolved names, not the raw requested columns.
+  let aggregated = false;
   return {
     type: DataStorageType.GOOGLE_BIGQUERY,
     prepareReportData: jest.fn(async (_plan: unknown, options: unknown) => {
       capturedPrepareOptions = options as Record<string, unknown>;
-      return new ReportDataDescription(headers, rows.length);
+      const aggregations =
+        (options as { aggregationConfig?: Array<{ column: string; function: string }> })
+          ?.aggregationConfig ?? [];
+      aggregated = aggregations.length > 0;
+      if (!aggregated) return new ReportDataDescription(headers, rows.length);
+      const renamed = headers.map(header => {
+        const fn = aggregations.find(a => a.column === header.name)?.function;
+        return fn ? new ReportDataHeader(`${header.name} | ${fn}`) : header;
+      });
+      return new ReportDataDescription(
+        [...renamed, new ReportDataHeader('Row Count')],
+        MOCK_AGGREGATED_ROWS.length
+      );
     }),
-    readReportDataBatch: jest.fn(async () => new ReportDataBatch(rows, null)),
+    readReportDataBatch: jest.fn(
+      async () => new ReportDataBatch(aggregated ? MOCK_AGGREGATED_ROWS : rows, null)
+    ),
     finalize: jest.fn(async () => undefined),
     getState: jest.fn(() => null),
     initFromState: jest.fn(async () => undefined),
@@ -73,10 +97,11 @@ function buildMockResolver(reader: DataStorageReportReader) {
 function buildMockBlendableSchema() {
   return {
     computeBlendableSchema: jest.fn(async () => ({
-      // Include field types so OutputControlsValidatorService can validate
-      // filter operators against column types (e.g. 'eq' is valid for STRING).
+      // Include field types so OutputControlsValidatorService can validate operators and
+      // date-trunc against column types: `date` is a DATE (so date buckets are valid, and `eq`
+      // is still accepted for it), `revenue` is NUMERIC (so `SUM` is valid).
       nativeFields: [
-        { name: 'date', type: 'STRING' },
+        { name: 'date', type: 'DATE' },
         { name: 'revenue', type: 'NUMERIC' },
       ],
       blendedFields: [],
@@ -190,6 +215,39 @@ describe('HTTP Data API (e2e)', () => {
     it('returns 400 for unknown column', async () => {
       const res = await agent
         .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=ghost`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for an unknown column in an aggregation rule', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const aggregation = b64([{ column: 'ghost', function: 'SUM' }]);
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&column=revenue&aggregation=${aggregation}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for an unknown column in a date-trunc rule', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const dateTrunc = b64([{ column: 'ghost', unit: 'MONTH' }]);
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&dateTrunc=${dateTrunc}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when an aggregation is combined with a wildcard column selector', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const aggregation = b64([{ column: 'revenue', function: 'SUM' }]);
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?columns=*&aggregation=${aggregation}`
+        )
         .set(AUTH_HEADER);
       expect(res.status).toBe(400);
     });
@@ -381,6 +439,70 @@ describe('HTTP Data API (e2e)', () => {
       expect(httpData?.filter).toEqual(filter);
       expect(httpData?.sort).toEqual(sort);
       expect(httpData?.limit).toBe(5);
+      expect(httpData?.completed).toBe(true);
+    });
+
+    it('groups by an aggregation and records it in the persisted HTTP_DATA run metadata', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const aggregation = [{ column: 'revenue', function: 'SUM' }];
+      const aggregationParam = b64(aggregation);
+
+      const before = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+      const beforeHttpRuns = ((before.body?.runs ?? []) as Array<{ type: string }>).filter(
+        r => r.type === 'HTTP_DATA'
+      ).length;
+
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&column=revenue&aggregation=${aggregationParam}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      // The streamed rows carry the resolved aggregated header name and Row Count — the requested
+      // `revenue` column is NOT emitted as a bare (null) key.
+      expect(parseNdjson(res.text)).toEqual([
+        { date: '2026-05-01', 'revenue | SUM': 999, 'Row Count': MOCK_ROWS.length },
+      ]);
+
+      const after = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+      const httpRuns: HttpRunView[] = (after.body?.runs ?? []).filter(
+        (r: HttpRunView) => r.type === 'HTTP_DATA'
+      );
+      expect(httpRuns.length).toBe(beforeHttpRuns + 1);
+
+      const newest = httpRuns[0];
+      const httpData = newest.additionalParams?.httpData;
+      expect(httpData?.aggregation).toEqual(aggregation);
+      expect(httpData?.completed).toBe(true);
+    });
+
+    it('records aggregation + date bucket in the persisted HTTP_DATA run metadata', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const aggregation = [{ column: 'revenue', function: 'SUM' }];
+      const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+
+      const before = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+      const beforeHttpRuns = ((before.body?.runs ?? []) as Array<{ type: string }>).filter(
+        r => r.type === 'HTTP_DATA'
+      ).length;
+
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&column=revenue` +
+            `&aggregation=${b64(aggregation)}&dateTrunc=${b64(dateTrunc)}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+
+      const after = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+      const httpRuns: HttpRunView[] = (after.body?.runs ?? []).filter(
+        (r: HttpRunView) => r.type === 'HTTP_DATA'
+      );
+      expect(httpRuns.length).toBe(beforeHttpRuns + 1);
+
+      const httpData = httpRuns[0].additionalParams?.httpData;
+      expect(httpData?.aggregation).toEqual(aggregation);
+      expect(httpData?.dateTrunc).toEqual(dateTrunc);
       expect(httpData?.completed).toBe(true);
     });
 

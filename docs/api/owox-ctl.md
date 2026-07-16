@@ -145,6 +145,11 @@ owox-ctl data-marts stream dm_123 \
   --columns '**' \
   --filter '[{"placement":"pre-join","aliasPath":"users","column":"country","operator":"eq","value":"US"}]' \
   --limit 1000
+owox-ctl data-marts stream dm_123 \
+  --column 'date' \
+  --column 'revenue' \
+  --date-bucket '[{"column":"date","unit":"MONTH"}]' \
+  --aggregation '[{"column":"revenue","function":"SUM"}]'
 ```
 
 Use `--columns '*'` or `--columns '**'` for column-set selectors. Quote `*` and `**` so your shell does not expand them.
@@ -158,6 +163,10 @@ Use `--filter` and `--sort` with JSON arrays. Column names inside filter and sor
 For normal filters on the streamed output, omit `placement` or use `"placement":"post-join"`.
 
 Use `"placement":"pre-join"` only when you need to filter a joined source before it is joined into the result. In that case `aliasPath` identifies which joined source path the filter applies to, for example `"users"` or `"users.profiles"`. Pre-join filters are advanced joined-field filters; they require `aliasPath`, and `aliasPath` is not valid for normal post-join filters.
+
+Use `--aggregation` and `--date-bucket` with JSON arrays to group the streamed rows, with the same rule shapes as report output controls. `--aggregation` takes `{ "column", "function" }` rules; `function` is any report aggregate function — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE`, or a percentile (`P25`, `P50`, `P75`, `P95`). `--date-bucket` takes `{ "column", "unit", "timeZone"? }` rules that truncate a date/timestamp dimension to `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`. Any selected column that has no aggregation rule becomes a grouping key, so aggregating over `revenue` while selecting `date` groups the totals by `date`.
+
+Aggregation and date buckets require an explicit `--column` projection; they cannot combine with `--columns '*'` or `--columns '**'`, because a wildcard selection would turn every column into a grouping key. For a single grand total, select only the aggregated column (no grouping keys → one row). When you aggregate, the streamed row keys are the resolved output labels — an aggregated column becomes `"<column> | <TOKEN>"` and a `"Row Count"` column is appended. `<TOKEN>` is an uppercase spreadsheet-style token for the function: most match the function name, but `COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes `STRINGAGG`, and `ANY_VALUE` becomes `ANYVALUE`.
 
 ## Use owox-ctl with AI agents
 

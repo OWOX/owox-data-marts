@@ -19,7 +19,14 @@ export function StreamHttpDataSpec() {
         '`columns=**`; exact column names use repeated `column` parameters. Row objects ' +
         'use resolved column names as keys in the requested order. Omit both `columns` ' +
         'and `column`, or pass `columns=*`, for all native columns. Pass `columns=**` ' +
-        'for all native plus all reporting-visible blended columns. Authenticated ' +
+        'for all native plus all reporting-visible blended columns. When `aggregation` or ' +
+        '`dateTrunc` is used the row keys are the RESOLVED output labels — an aggregated ' +
+        'column becomes `"<column> | <TOKEN>"`, where `<TOKEN>` is an uppercase ' +
+        'spreadsheet-style token for the function (most match the function name, but ' +
+        '`COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes ' +
+        '`STRINGAGG`, `ANY_VALUE` becomes `ANYVALUE`), and a synthetic `"Row Count"` column is ' +
+        'appended — and an explicit `column` projection is required (a wildcard selector ' +
+        'would group by every column). Authenticated ' +
         'with the ODM member token via `x-owox-authorization`. Creates one DataMartRun ' +
         'of type HTTP_DATA per request, available through the run history endpoint.',
     }),
@@ -83,6 +90,32 @@ export function StreamHttpDataSpec() {
       example: 'W3siY29sdW1uIjoiZGF0ZSIsImRpcmVjdGlvbiI6ImRlc2MifV0',
     }),
     ApiQuery({
+      name: 'aggregation',
+      description:
+        'Optional base64url-encoded JSON matching the `AggregationConfig` schema (same rule shape ' +
+        'as Reports: an array of `{ column, function }`). Any selected column without an ' +
+        'aggregation rule becomes a grouping key. Encode the JSON array with base64url ' +
+        '(URL-safe base64: `-`/`_` instead of `+`/`/`, no `=` padding). ' +
+        'Example JSON: `[{"column":"revenue","function":"SUM"}]` → ' +
+        'base64url `W3siY29sdW1uIjoicmV2ZW51ZSIsImZ1bmN0aW9uIjoiU1VNIn1d`.',
+      required: false,
+      type: String,
+      example: 'W3siY29sdW1uIjoicmV2ZW51ZSIsImZ1bmN0aW9uIjoiU1VNIn1d',
+    }),
+    ApiQuery({
+      name: 'dateTrunc',
+      description:
+        'Optional base64url-encoded JSON matching the `DateTruncConfig` schema (same rule shape ' +
+        'as Reports: an array of `{ column, unit, timeZone? }`), bucketing a date/timestamp ' +
+        'dimension by a calendar unit (DAY/WEEK/MONTH/QUARTER/YEAR). Encode the JSON array with ' +
+        'base64url (URL-safe base64: `-`/`_` instead of `+`/`/`, no `=` padding). ' +
+        'Example JSON: `[{"column":"date","unit":"MONTH"}]` → ' +
+        'base64url `W3siY29sdW1uIjoiZGF0ZSIsInVuaXQiOiJNT05USCJ9XQ`.',
+      required: false,
+      type: String,
+      example: 'W3siY29sdW1uIjoiZGF0ZSIsInVuaXQiOiJNT05USCJ9XQ',
+    }),
+    ApiQuery({
       name: 'limit',
       description: 'Optional row cap (positive integer).',
       required: false,
@@ -113,8 +146,10 @@ export function StreamHttpDataSpec() {
     ApiResponse({
       status: 400,
       description:
-        'Invalid request: unknown column, forbidden pagination parameter ' +
-        '(`pageToken`/`offset`), malformed filter/sort/limit, or unsupported storage type.',
+        'Invalid request: unknown column (including in an aggregation or dateTrunc rule), ' +
+        'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
+        'filter/sort/aggregation/dateTrunc/limit, aggregation or dateTrunc without an explicit ' +
+        '`column` projection, or unsupported storage type.',
     }),
     ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
     ApiResponse({

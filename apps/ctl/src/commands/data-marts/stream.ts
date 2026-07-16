@@ -20,12 +20,14 @@ type DataMartsStreamFlags = {
   column?: string[];
   filter?: string;
   sort?: string;
+  aggregation?: string;
+  'date-bucket'?: string;
   limit?: number;
 };
 
 function parseJsonArrayFlag(
   value: string | undefined,
-  flagName: '--filter' | '--sort'
+  flagName: '--filter' | '--sort' | '--aggregation' | '--date-bucket'
 ): unknown[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -51,6 +53,8 @@ export function buildTraverseDataOptions(flags: DataMartsStreamFlags): TraverseD
     column: flags.column,
     filter: parseJsonArrayFlag(flags.filter, '--filter'),
     sort: parseJsonArrayFlag(flags.sort, '--sort'),
+    aggregation: parseJsonArrayFlag(flags.aggregation, '--aggregation'),
+    dateTrunc: parseJsonArrayFlag(flags['date-bucket'], '--date-bucket'),
     limit: flags.limit,
   };
 }
@@ -104,6 +108,14 @@ export default class DataMartsStream extends BaseCommand {
     }),
     sort: Flags.string({
       description: 'Sort config as a JSON array',
+    }),
+    aggregation: Flags.string({
+      description:
+        'Aggregation config as a JSON array of {column, function}. Any selected column without a rule becomes a grouping key.',
+    }),
+    'date-bucket': Flags.string({
+      description:
+        'Date-bucket config as a JSON array of {column, unit, timeZone?}, truncating a date/timestamp dimension by DAY/WEEK/MONTH/QUARTER/YEAR.',
     }),
   };
 
