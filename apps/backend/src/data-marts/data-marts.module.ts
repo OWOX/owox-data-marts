@@ -102,8 +102,6 @@ import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
 import { DataMartRun } from './entities/data-mart-run.entity';
-import { DataQualityRun } from './entities/data-quality-run.entity';
-import { DataQualityCheckResult } from './entities/data-quality-check-result.entity';
 import { DataQualityRunTrigger } from './entities/data-quality-run-trigger.entity';
 import { AiAssistantSession } from './entities/ai-assistant-session.entity';
 import { AiAssistantMessage } from './entities/ai-assistant-message.entity';
@@ -458,8 +456,6 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
       InsightTemplate,
       InsightTemplateSourceEntity,
       DataMartRun,
-      DataQualityRun,
-      DataQualityCheckResult,
       DataQualityRunTrigger,
       DataMartScheduledTrigger,
       ConnectorState,

@@ -4,6 +4,7 @@ import { DataQualityCategory } from '../../../enums/data-quality-category.enum';
 import { DataQualityCheckStatus } from '../../../enums/data-quality-check-status.enum';
 import { DataQualitySeverity } from '../../../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../../../enums/data-quality-summary-state.enum';
+import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import { JoinConditionsSchema } from '../join-condition.schema';
 import {
   DataQualityCheckScopeSchema,
@@ -59,6 +60,7 @@ export const DataQualityRunSnapshotSchema = z
     schema: DataMartSchemaSchema.nullable(),
     relationships: z.array(DataQualityRelationshipSnapshotSchema),
     timezone: DataQualityTimezoneSchema,
+    definitionType: z.nativeEnum(DataMartDefinitionType),
   })
   .strict();
 
@@ -92,3 +94,25 @@ export const DataQualityCheckResultSchema = z
   .strict();
 
 export type DataQualityCheckResultSnapshot = z.infer<typeof DataQualityCheckResultSchema>;
+
+export const DataQualityStoredCheckResultSchema = DataQualityCheckResultSchema.extend({
+  createdAt: z.string().datetime(),
+});
+
+export type DataQualityStoredCheckResult = z.infer<typeof DataQualityStoredCheckResultSchema>;
+
+export const DataQualityStoredCheckResultsSchema = z
+  .array(DataQualityStoredCheckResultSchema)
+  .superRefine((results, context) => {
+    const keys = new Set<string>();
+    results.forEach((result, index) => {
+      if (keys.has(result.ruleKey)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'ruleKey'],
+          message: 'Data Quality result rule keys must be unique',
+        });
+      }
+      keys.add(result.ruleKey);
+    });
+  });

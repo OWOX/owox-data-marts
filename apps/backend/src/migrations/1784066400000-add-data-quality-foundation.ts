@@ -10,10 +10,15 @@ export class AddDataQualityFoundation1784066400000 implements MigrationInterface
   public readonly name = 'AddDataQualityFoundation1784066400000';
 
   private readonly DATA_MART_TABLE = 'data_mart';
-  private readonly DATA_QUALITY_RUN_TABLE = 'data_quality_run';
-  private readonly DATA_QUALITY_CHECK_RESULT_TABLE = 'data_quality_check_result';
+  private readonly DATA_MART_RUN_TABLE = 'data_mart_run';
   private readonly DATA_QUALITY_RUN_TRIGGER_TABLE = 'data_quality_run_triggers';
   private readonly CONFIG_COLUMN = 'dataQualityConfig';
+  private readonly DATA_MART_RUN_COLUMNS = [
+    { name: 'dataQualitySnapshot', type: 'json' },
+    { name: 'dataQualitySummary', type: 'json' },
+    { name: 'dataQualityResults', type: 'json' },
+    { name: 'dataQualityConsumptionPublishedAt', type: 'datetime' },
+  ] as const;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const dataMartTable = await getTable(queryRunner, this.DATA_MART_TABLE);
@@ -28,11 +33,14 @@ export class AddDataQualityFoundation1784066400000 implements MigrationInterface
       );
     }
 
-    if (!(await queryRunner.hasTable(this.DATA_QUALITY_RUN_TABLE))) {
-      await queryRunner.createTable(this.createDataQualityRunTable());
-    }
-    if (!(await queryRunner.hasTable(this.DATA_QUALITY_CHECK_RESULT_TABLE))) {
-      await queryRunner.createTable(this.createDataQualityCheckResultTable());
+    const dataMartRunTable = await getTable(queryRunner, this.DATA_MART_RUN_TABLE);
+    for (const column of this.DATA_MART_RUN_COLUMNS) {
+      if (!dataMartRunTable.columns.some(existing => existing.name === column.name)) {
+        await queryRunner.addColumn(
+          dataMartRunTable,
+          new TableColumn({ ...column, isNullable: true })
+        );
+      }
     }
     if (!(await queryRunner.hasTable(this.DATA_QUALITY_RUN_TRIGGER_TABLE))) {
       await queryRunner.createTable(this.createDataQualityRunTriggerTable());
@@ -50,98 +58,18 @@ export class AddDataQualityFoundation1784066400000 implements MigrationInterface
     if (await queryRunner.hasTable(this.DATA_QUALITY_RUN_TRIGGER_TABLE)) {
       await softDropTable(queryRunner, this.DATA_QUALITY_RUN_TRIGGER_TABLE);
     }
-    if (await queryRunner.hasTable(this.DATA_QUALITY_CHECK_RESULT_TABLE)) {
-      await softDropTable(queryRunner, this.DATA_QUALITY_CHECK_RESULT_TABLE);
-    }
-    if (await queryRunner.hasTable(this.DATA_QUALITY_RUN_TABLE)) {
-      await softDropTable(queryRunner, this.DATA_QUALITY_RUN_TABLE);
+
+    const dataMartRunTable = await getTable(queryRunner, this.DATA_MART_RUN_TABLE);
+    for (const column of [...this.DATA_MART_RUN_COLUMNS].reverse()) {
+      if (dataMartRunTable.columns.some(existing => existing.name === column.name)) {
+        await queryRunner.dropColumn(dataMartRunTable, column.name);
+      }
     }
 
     const dataMartTable = await getTable(queryRunner, this.DATA_MART_TABLE);
     if (dataMartTable.columns.some(column => column.name === this.CONFIG_COLUMN)) {
       await queryRunner.dropColumn(dataMartTable, this.CONFIG_COLUMN);
     }
-  }
-
-  private createDataQualityRunTable(): Table {
-    return new Table({
-      name: this.DATA_QUALITY_RUN_TABLE,
-      columns: [
-        { name: 'id', type: 'varchar', length: '36', isPrimary: true },
-        {
-          name: 'dataMartRunId',
-          type: 'varchar',
-          length: '36',
-          isNullable: false,
-          isUnique: true,
-        },
-        { name: 'configSnapshot', type: 'json', isNullable: false },
-        { name: 'schemaSnapshot', type: 'json', isNullable: true },
-        { name: 'relationshipSnapshots', type: 'json', isNullable: false },
-        { name: 'definitionTypeSnapshot', type: 'varchar', isNullable: false },
-        { name: 'timezone', type: 'varchar', length: '255', isNullable: false },
-        { name: 'summary', type: 'json', isNullable: false },
-        { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
-        { name: 'modifiedAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
-        { name: 'startedAt', type: 'datetime', isNullable: true },
-        { name: 'finishedAt', type: 'datetime', isNullable: true },
-        { name: 'consumptionPublishedAt', type: 'datetime', isNullable: true },
-      ],
-      foreignKeys: [
-        {
-          columnNames: ['dataMartRunId'],
-          referencedTableName: 'data_mart_run',
-          referencedColumnNames: ['id'],
-          onDelete: 'CASCADE',
-          onUpdate: 'NO ACTION',
-        },
-      ],
-    });
-  }
-
-  private createDataQualityCheckResultTable(): Table {
-    return new Table({
-      name: this.DATA_QUALITY_CHECK_RESULT_TABLE,
-      columns: [
-        { name: 'id', type: 'varchar', length: '36', isPrimary: true },
-        { name: 'dataQualityRunId', type: 'varchar', length: '36', isNullable: false },
-        { name: 'ruleKey', type: 'text', isNullable: false },
-        { name: 'ruleKeyHash', type: 'varchar', length: '64', isNullable: false },
-        { name: 'category', type: 'varchar', length: '64', isNullable: false },
-        { name: 'scope', type: 'json', isNullable: false },
-        { name: 'severity', type: 'varchar', length: '16', isNullable: false },
-        { name: 'status', type: 'varchar', length: '32', isNullable: false },
-        { name: 'violationCount', type: 'bigint', isNullable: false, default: 0 },
-        { name: 'description', type: 'text', isNullable: false },
-        { name: 'examples', type: 'json', isNullable: false },
-        { name: 'executedSql', type: 'json', isNullable: false },
-        { name: 'reproductionSql', type: 'text', isNullable: true },
-        { name: 'errorCode', type: 'varchar', length: '255', isNullable: true },
-        { name: 'errorMessage', type: 'text', isNullable: true },
-        { name: 'errorDetails', type: 'json', isNullable: true },
-        { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
-      ],
-      foreignKeys: [
-        {
-          columnNames: ['dataQualityRunId'],
-          referencedTableName: this.DATA_QUALITY_RUN_TABLE,
-          referencedColumnNames: ['id'],
-          onDelete: 'CASCADE',
-          onUpdate: 'NO ACTION',
-        },
-      ],
-      indices: [
-        new TableIndex({
-          name: 'IDX_data_quality_check_result_run',
-          columnNames: ['dataQualityRunId'],
-        }),
-        new TableIndex({
-          name: 'UQ_data_quality_result_rule',
-          columnNames: ['dataQualityRunId', 'ruleKeyHash'],
-          isUnique: true,
-        }),
-      ],
-    });
   }
 
   private createDataQualityRunTriggerTable(): Table {

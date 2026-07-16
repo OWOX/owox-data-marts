@@ -5,7 +5,6 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
-  OneToOne,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
@@ -17,7 +16,15 @@ import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-m
 import { DataMartRunInsightDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../dto/schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
-import { DataQualityRun } from './data-quality-run.entity';
+import { createZodTransformer } from '../../common/zod/zod-transformer';
+import {
+  DataQualityRunSnapshot,
+  DataQualityRunSnapshotSchema,
+  DataQualityStoredCheckResult,
+  DataQualityStoredCheckResultsSchema,
+  DataQualitySummary,
+  DataQualitySummarySchema,
+} from '../dto/schemas/data-quality/data-quality-run.schema';
 
 @Entity()
 export class DataMartRun implements CreatorAwareEntity {
@@ -85,6 +92,35 @@ export class DataMartRun implements CreatorAwareEntity {
   @Column({ type: 'json', nullable: true })
   additionalParams?: Record<string, unknown> | null;
 
-  @OneToOne(() => DataQualityRun, dataQualityRun => dataQualityRun.dataMartRun)
-  dataQualityRun?: DataQualityRun;
+  @Column({
+    type: 'json',
+    nullable: true,
+    select: false,
+    transformer: createZodTransformer<DataQualityRunSnapshot | null>(
+      DataQualityRunSnapshotSchema,
+      false
+    ),
+  })
+  dataQualitySnapshot?: DataQualityRunSnapshot | null;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    transformer: createZodTransformer<DataQualitySummary | null>(DataQualitySummarySchema, false),
+  })
+  dataQualitySummary?: DataQualitySummary | null;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    select: false,
+    transformer: createZodTransformer<DataQualityStoredCheckResult[] | null>(
+      DataQualityStoredCheckResultsSchema,
+      false
+    ),
+  })
+  dataQualityResults?: DataQualityStoredCheckResult[] | null;
+
+  @Column({ type: 'datetime', nullable: true, select: false })
+  dataQualityConsumptionPublishedAt?: Date | null;
 }

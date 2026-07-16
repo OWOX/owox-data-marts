@@ -8,8 +8,6 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { createAllDisabledDataQualityConfig } from '../dto/schemas/data-quality/data-quality-config.schema';
 import { DataMart } from './data-mart.entity';
 import { DataMartRun } from './data-mart-run.entity';
-import { DataQualityCheckResult } from './data-quality-check-result.entity';
-import { DataQualityRun } from './data-quality-run.entity';
 import { DataQualityRunTrigger } from './data-quality-run-trigger.entity';
 
 describe('data quality entity metadata', () => {
@@ -41,28 +39,6 @@ describe('data quality entity metadata', () => {
     ).toThrow();
   });
 
-  it('models DataQualityRun as a cascading one-to-one child of DataMartRun', () => {
-    const relation = getMetadataArgsStorage().relations.find(
-      item => item.target === DataQualityRun && item.propertyName === 'dataMartRun'
-    );
-    expect(relation).toMatchObject({ relationType: 'one-to-one' });
-    expect(relation?.options).toMatchObject({ onDelete: 'CASCADE' });
-    expect(column(DataQualityRun, 'dataMartRunId').options.unique).toBe(true);
-
-    const inverse = getMetadataArgsStorage().relations.find(
-      item => item.target === DataMartRun && item.propertyName === 'dataQualityRun'
-    );
-    expect(inverse?.relationType).toBe('one-to-one');
-    expect(column(DataQualityRun, 'consumptionPublishedAt').options).toMatchObject({
-      type: 'datetime',
-      nullable: true,
-    });
-    expect(column(DataQualityRun, 'definitionTypeSnapshot').options).toMatchObject({
-      type: 'varchar',
-      nullable: false,
-    });
-  });
-
   it('persists a one-shot Data Quality run trigger using the shared trigger contract', () => {
     const entity = getMetadataArgsStorage().tables.find(
       item => item.target === DataQualityRunTrigger
@@ -76,62 +52,38 @@ describe('data quality entity metadata', () => {
     expect(column(DataQualityRunTrigger, 'runType').options).toMatchObject({ type: 'varchar' });
   });
 
-  it('models check results as cascading children and validates JSON payloads', () => {
-    const relation = getMetadataArgsStorage().relations.find(
-      item => item.target === DataQualityCheckResult && item.propertyName === 'dataQualityRun'
-    );
-    expect(relation).toMatchObject({ relationType: 'many-to-one' });
-    expect(relation?.options).toMatchObject({ onDelete: 'CASCADE' });
-    expect(
-      getMetadataArgsStorage().indices.find(
-        item =>
-          item.target === DataQualityCheckResult && item.name === 'UQ_data_quality_result_rule'
-      )
-    ).toMatchObject({ columns: ['dataQualityRunId', 'ruleKeyHash'] });
+  it('stores strict nullable Data Quality payloads directly on DataMartRun', () => {
+    const snapshotColumn = column(DataMartRun, 'dataQualitySnapshot');
+    const summaryColumn = column(DataMartRun, 'dataQualitySummary');
+    const resultsColumn = column(DataMartRun, 'dataQualityResults');
+    const consumptionColumn = column(DataMartRun, 'dataQualityConsumptionPublishedAt');
 
-    const result = new DataQualityCheckResult();
-    result.ruleKey = 'null_rate:field:email';
-    result.category = DataQualityCategory.NULL_RATE;
-    result.scope = { type: DataQualityScope.FIELD, fieldId: 'email' };
-    result.severity = DataQualitySeverity.NOTICE;
-    result.status = DataQualityCheckStatus.FAILED;
-    result.violationCount = 2;
-    result.description = 'Email contains null values';
-    result.examples = [{ values: { email: null } }];
-    result.executedSql = ['SELECT COUNT(*) FROM source'];
-    result.reproductionSql = 'SELECT * FROM source WHERE email IS NULL';
-    result.updateRuleKeyHash();
+    expect(snapshotColumn.options).toMatchObject({
+      type: 'json',
+      nullable: true,
+      select: false,
+    });
+    expect(summaryColumn.options).toMatchObject({ type: 'json', nullable: true });
+    expect(summaryColumn.options.select ?? true).toBe(true);
+    expect(resultsColumn.options).toMatchObject({
+      type: 'json',
+      nullable: true,
+      select: false,
+    });
+    expect(consumptionColumn.options).toMatchObject({
+      type: 'datetime',
+      nullable: true,
+      select: false,
+    });
 
-    expect(result.severity).toBe('notice');
-    expect(result.ruleKeyHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(column(DataQualityCheckResult, 'ruleKey').options).toMatchObject({
-      type: 'text',
-    });
-    expect(column(DataQualityCheckResult, 'ruleKeyHash').options).toMatchObject({
-      type: 'varchar',
-      length: 64,
-    });
-    expect(column(DataQualityCheckResult, 'violationCount').options).toMatchObject({
-      type: 'bigint',
-    });
-    expect(transformer(DataQualityCheckResult, 'violationCount').from('2147483648')).toBe(
-      2_147_483_648
-    );
-    expect(column(DataQualityCheckResult, 'severity').options).toMatchObject({ type: 'varchar' });
-    expect(transformer(DataQualityCheckResult, 'scope').to(result.scope)).toEqual(result.scope);
-    expect(transformer(DataQualityCheckResult, 'examples').to(result.examples)).toEqual(
-      result.examples
-    );
-  });
-
-  it('serializes config, schema, relationships, and summary snapshots', () => {
-    const run = new DataQualityRun();
-    run.configSnapshot = createAllDisabledDataQualityConfig();
-    run.schemaSnapshot = null;
-    run.relationshipSnapshots = [];
-    run.definitionTypeSnapshot = DataMartDefinitionType.TABLE;
-    run.timezone = 'UTC';
-    run.summary = {
+    const snapshot = {
+      config: createAllDisabledDataQualityConfig(),
+      schema: null,
+      relationships: [],
+      timezone: 'UTC',
+      definitionType: DataMartDefinitionType.TABLE,
+    };
+    const summary = {
       state: DataQualitySummaryState.NEVER_RUN,
       enabledChecks: 0,
       totalChecks: 0,
@@ -145,14 +97,44 @@ describe('data quality entity metadata', () => {
       violationCount: 0,
       highestSeverity: null,
     };
+    const storedResult = {
+      id: 'result-1',
+      ruleKey: 'null_rate:field:email',
+      category: DataQualityCategory.NULL_RATE,
+      scope: { type: DataQualityScope.FIELD, fieldId: 'email' },
+      severity: DataQualitySeverity.NOTICE,
+      status: DataQualityCheckStatus.FAILED,
+      violationCount: 2,
+      description: 'Email contains null values',
+      examples: [{ values: { email: null } }],
+      executedSql: ['SELECT COUNT(*) FROM source'],
+      reproductionSql: 'SELECT * FROM source WHERE email IS NULL',
+      error: null,
+      createdAt: '2026-07-16T10:00:00.000Z',
+    };
 
-    expect(transformer(DataQualityRun, 'configSnapshot').to(run.configSnapshot)).toEqual(
-      run.configSnapshot
-    );
-    expect(transformer(DataQualityRun, 'schemaSnapshot').to(run.schemaSnapshot)).toBeNull();
-    expect(
-      transformer(DataQualityRun, 'relationshipSnapshots').to(run.relationshipSnapshots)
-    ).toEqual([]);
-    expect(transformer(DataQualityRun, 'summary').to(run.summary)).toEqual(run.summary);
+    expect(transformer(DataMartRun, 'dataQualitySnapshot').to(snapshot)).toEqual(snapshot);
+    expect(transformer(DataMartRun, 'dataQualitySnapshot').to(null)).toBeNull();
+    expect(() => {
+      const { definitionType: _, ...invalidSnapshot } = snapshot;
+      transformer(DataMartRun, 'dataQualitySnapshot').to(invalidSnapshot);
+    }).toThrow();
+    expect(transformer(DataMartRun, 'dataQualitySummary').to(summary)).toEqual(summary);
+    expect(transformer(DataMartRun, 'dataQualitySummary').to(null)).toBeNull();
+    expect(transformer(DataMartRun, 'dataQualityResults').to([storedResult])).toEqual([
+      storedResult,
+    ]);
+    expect(transformer(DataMartRun, 'dataQualityResults').to(null)).toBeNull();
+    expect(() =>
+      transformer(DataMartRun, 'dataQualityResults').to([
+        storedResult,
+        { ...storedResult, id: 'result-2' },
+      ])
+    ).toThrow('Data Quality result rule keys must be unique');
+    expect(() =>
+      transformer(DataMartRun, 'dataQualityResults').to([
+        { ...storedResult, createdAt: 'not-an-iso-datetime' },
+      ])
+    ).toThrow();
   });
 });

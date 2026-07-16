@@ -3,6 +3,7 @@ import { DataQualityCheckStatus } from '../../../enums/data-quality-check-status
 import { DataQualityScope } from '../../../enums/data-quality-scope.enum';
 import { DataQualitySeverity } from '../../../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../../../enums/data-quality-summary-state.enum';
+import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import { DataMartRunType } from '../../../enums/data-mart-run-type.enum';
 import {
   DataQualityConfigSchema,
@@ -390,6 +391,7 @@ describe('data quality run schemas', () => {
         },
       ],
       timezone: 'UTC',
+      definitionType: DataMartDefinitionType.TABLE,
     };
     expect(DataQualityRunSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });
