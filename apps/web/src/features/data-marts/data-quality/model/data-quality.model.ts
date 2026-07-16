@@ -4,6 +4,7 @@ import type {
   DataQualityStatusPresentation,
   DataQualitySummaryState,
   EffectiveDataQualityConfig,
+  EffectiveDataQualityRuleConfig,
 } from './types';
 
 export const DATA_QUALITY_CATEGORY_LABELS: Record<DataQualityCategory, string> = {
@@ -119,4 +120,74 @@ export function areDataQualityConfigsEqual(
   right: DataQualityConfig | null
 ): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export interface DataQualityFieldRuleGroup {
+  fieldId: string;
+  rules: EffectiveDataQualityRuleConfig[];
+}
+
+export interface DataQualitySelectableCheck {
+  key: string;
+  label: string;
+}
+
+export interface DataQualitySelectableField {
+  id: string;
+  label: string;
+  checks: DataQualitySelectableCheck[];
+}
+
+export function groupDataQualityFieldRules(
+  rules: readonly EffectiveDataQualityRuleConfig[]
+): DataQualityFieldRuleGroup[] {
+  const groups = new Map<string, EffectiveDataQualityRuleConfig[]>();
+
+  for (const rule of rules) {
+    if (rule.scope.type !== 'FIELD') continue;
+    const group = groups.get(rule.scope.fieldId) ?? [];
+    group.push(rule);
+    groups.set(rule.scope.fieldId, group);
+  }
+
+  return Array.from(groups, ([fieldId, fieldRules]) => ({ fieldId, rules: fieldRules })).sort(
+    (left, right) => left.fieldId.localeCompare(right.fieldId)
+  );
+}
+
+export function getDisplayedDataQualityFieldRuleKeys(
+  baseline: DataQualityConfig | null,
+  draft: DataQualityConfig | null
+): string[] {
+  const displayedRuleKeys = new Set<string>();
+
+  for (const config of [baseline, draft]) {
+    for (const rule of config?.rules ?? []) {
+      if (rule.enabled && rule.scope.type === 'FIELD') {
+        displayedRuleKeys.add(rule.key);
+      }
+    }
+  }
+
+  return Array.from(displayedRuleKeys).sort((left, right) => left.localeCompare(right));
+}
+
+export function getSelectableDataQualityFields(
+  rules: readonly EffectiveDataQualityRuleConfig[],
+  displayedRuleKeys: Iterable<string>
+): DataQualitySelectableField[] {
+  const displayed = new Set(displayedRuleKeys);
+
+  return groupDataQualityFieldRules(rules)
+    .map(group => ({
+      id: group.fieldId,
+      label: group.fieldId,
+      checks: group.rules
+        .filter(rule => rule.isApplicable && !displayed.has(rule.key))
+        .map(rule => ({
+          key: rule.key,
+          label: DATA_QUALITY_CATEGORY_LABELS[rule.category],
+        })),
+    }))
+    .filter(field => field.checks.length > 0);
 }

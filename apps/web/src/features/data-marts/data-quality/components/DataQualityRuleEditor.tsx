@@ -12,6 +12,9 @@ interface DataQualityRuleEditorProps {
   rule: EffectiveDataQualityRuleConfig;
   value: DataQualityRuleConfig;
   disabled: boolean;
+  showScopeLabel?: boolean;
+  scopeLabel?: string;
+  scopeDetails?: string[];
   onChange: (next: DataQualityRuleConfig) => void;
 }
 
@@ -21,6 +24,9 @@ export function DataQualityRuleEditor({
   rule,
   value,
   disabled,
+  showScopeLabel = true,
+  scopeLabel,
+  scopeDetails = [],
   onChange,
 }: DataQualityRuleEditorProps) {
   const title = DATA_QUALITY_CATEGORY_LABELS[rule.category];
@@ -44,7 +50,14 @@ export function DataQualityRuleEditor({
             />
             <div>
               <p className='text-sm font-medium'>{title}</p>
-              <p className='text-muted-foreground text-xs'>{dataQualityScopeLabel(rule.scope)}</p>
+              {showScopeLabel && (
+                <div className='text-muted-foreground text-xs'>
+                  <p>{scopeLabel ?? dataQualityScopeLabel(rule.scope)}</p>
+                  {scopeDetails.map(detail => (
+                    <p key={detail}>{detail}</p>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {!rule.isApplicable && (

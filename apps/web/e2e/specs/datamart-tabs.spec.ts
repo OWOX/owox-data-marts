@@ -8,7 +8,7 @@ import { ApiHelpers } from '../fixtures/api-helpers';
 const ALWAYS_VISIBLE_TABS = [
   { name: 'Overview', path: 'overview' },
   { name: 'Data Setup', path: 'data-setup' },
-  { name: 'Quality', path: 'quality' },
+  { name: 'Data Quality', path: 'quality' },
   { name: 'Destinations', path: 'reports' },
   { name: 'Triggers', path: 'triggers' },
   { name: 'Run History', path: 'run-history' },
@@ -82,7 +82,7 @@ test.describe('DataMart Detail Tabs Navigation', () => {
           await expect(page.getByTestId('datamartTabDataSetup')).toBeVisible();
           break;
 
-        case 'Quality':
+        case 'Data Quality':
           await expect(page.getByTestId('datamartTabQuality')).toBeVisible();
           break;
 

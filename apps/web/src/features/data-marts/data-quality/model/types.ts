@@ -79,6 +79,17 @@ export interface DataQualityRunEligibility {
   activeRunId: string | null;
 }
 
+export interface DataQualityRelationshipJoinCondition {
+  sourceFieldName: string;
+  targetFieldName: string;
+}
+
+export interface DataQualityRelationshipMetadata {
+  id: string;
+  targetAlias: string;
+  joinConditions: DataQualityRelationshipJoinCondition[];
+}
+
 export interface DataQualityConfigResponse {
   savedConfig: DataQualityConfig | null;
   effectiveConfig: EffectiveDataQualityConfig;
@@ -86,6 +97,7 @@ export interface DataQualityConfigResponse {
   permissions: DataQualityPermissions;
   runEligibility: DataQualityRunEligibility;
   availableChecks: DataQualityCategory[];
+  relationships: DataQualityRelationshipMetadata[];
 }
 
 export interface DataQualityResultExample {

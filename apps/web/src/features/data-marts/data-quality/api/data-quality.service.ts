@@ -22,6 +22,7 @@ interface RawDataQualityConfigResponse {
   permissions?: { canEdit?: boolean; canRun?: boolean };
   runEligibility?: DataQualityConfigResponse['runEligibility'];
   availableChecks?: DataQualityCategory[];
+  relationships?: DataQualityConfigResponse['relationships'];
 }
 
 type RawRunResponse = Omit<Partial<DataQualityRun>, 'createdAt' | 'startedAt' | 'finishedAt'> & {
@@ -148,6 +149,7 @@ function normalizeConfigResponse(
       activeRunId: null,
     },
     availableChecks: response.availableChecks ?? [],
+    relationships: response.relationships ?? [],
   };
 }
 

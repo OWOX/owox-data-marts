@@ -226,5 +226,6 @@ function buildConfigResponse(
     permissions: { canEdit: eligible, canRun: eligible },
     runEligibility: { eligible, code, activeRunId: null },
     availableChecks: [],
+    relationships: [],
   };
 }

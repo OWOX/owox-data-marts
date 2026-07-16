@@ -28,6 +28,7 @@ const configResponse: DataQualityConfigResponse = {
   permissions: { canEdit: true, canRun: true },
   runEligibility: { eligible: true, code: null, activeRunId: null },
   availableChecks: [],
+  relationships: [],
 };
 
 describe('useDataQualityWorkspace', () => {

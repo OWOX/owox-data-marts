@@ -7,14 +7,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '../../../../shared/components/Button';
 import { timezoneService } from '../../../../services';
-import { areDataQualityConfigsEqual, toStoredDataQualityConfig } from '../model/data-quality.model';
+import {
+  areDataQualityConfigsEqual,
+  getDisplayedDataQualityFieldRuleKeys,
+  getSelectableDataQualityFields,
+  toStoredDataQualityConfig,
+} from '../model/data-quality.model';
 import type {
   DataQualityCompactSummary,
   DataQualityConfig,
+  DataQualityRelationshipMetadata,
   DataQualityRuleConfig,
   EffectiveDataQualityRuleConfig,
 } from '../model/types';
 import { useDataQualityWorkspace } from '../model/use-data-quality-workspace';
+import { DataQualityFieldChecks } from './DataQualityFieldChecks';
 import { DataQualityResultCard } from './DataQualityResultCard';
 import { DataQualityRuleEditor } from './DataQualityRuleEditor';
 import { DataQualitySummaryPanel } from './DataQualitySummaryPanel';
@@ -32,6 +39,17 @@ interface DataQualityWorkspaceProps {
   dataMartId: string;
   qualitySummary?: DataQualityCompactSummary;
   registerUnsavedGuard?: (registration: QualityGuardRegistration | null) => void;
+}
+
+interface DataQualityEditorState {
+  workspaceKey: string;
+  draft: DataQualityConfig;
+  baseline: DataQualityConfig;
+}
+
+interface PendingConfigConfirmation {
+  workspaceKey: string;
+  staleConfig: DataQualityConfig;
 }
 
 const NEVER_RUN_SUMMARY = {
@@ -68,17 +86,42 @@ export function DataQualityWorkspace({
     startRun,
   } = useDataQualityWorkspace(projectId, dataMartId);
 
-  const [draft, setDraft] = useState<DataQualityConfig | null>(null);
-  const [baseline, setBaseline] = useState<DataQualityConfig | null>(null);
+  const workspaceKey = `${projectId}:${dataMartId}`;
+  const workspaceKeyRef = useRef(workspaceKey);
+  workspaceKeyRef.current = workspaceKey;
+  const [editor, setEditor] = useState<DataQualityEditorState | null>(null);
+  const pendingConfigConfirmationRef = useRef<PendingConfigConfirmation | null>(null);
+  const currentEditor = editor?.workspaceKey === workspaceKey ? editor : null;
+  const draft = currentEditor?.draft ?? null;
+  const baseline = currentEditor?.baseline ?? null;
   const draftRef = useRef<DataQualityConfig | null>(draft);
   draftRef.current = draft;
 
   useEffect(() => {
     if (!configResponse) return;
     const next = toStoredDataQualityConfig(configResponse.effectiveConfig);
-    setDraft(next);
-    setBaseline(next);
-  }, [configResponse]);
+    setEditor(current => {
+      if (current?.workspaceKey !== workspaceKey) {
+        pendingConfigConfirmationRef.current = null;
+        return { workspaceKey, draft: next, baseline: next };
+      }
+
+      const pending = pendingConfigConfirmationRef.current;
+      if (pending?.workspaceKey === workspaceKey) {
+        if (areDataQualityConfigsEqual(next, pending.staleConfig)) return current;
+        pendingConfigConfirmationRef.current = null;
+      }
+
+      if (!areDataQualityConfigsEqual(current.draft, current.baseline)) return current;
+      if (
+        areDataQualityConfigsEqual(current.draft, next) &&
+        areDataQualityConfigsEqual(current.baseline, next)
+      ) {
+        return current;
+      }
+      return { workspaceKey, draft: next, baseline: next };
+    });
+  }, [configResponse, workspaceKey]);
 
   const isDirty = !areDataQualityConfigsEqual(draft, baseline);
   const canEdit = configResponse?.permissions.canEdit ?? false;
@@ -90,14 +133,27 @@ export function DataQualityWorkspace({
   const handleSave = useCallback(async () => {
     const current = draftRef.current;
     if (!current) return;
-    await saveConfig(current);
-    setBaseline(current);
+    const response = await saveConfig(current);
+    const normalized = toStoredDataQualityConfig(response.effectiveConfig);
+    if (workspaceKeyRef.current !== workspaceKey) return;
+    pendingConfigConfirmationRef.current = null;
+    setEditor(editorState => {
+      if (editorState?.workspaceKey !== workspaceKey) return editorState;
+      const draftChangedDuringSave = !areDataQualityConfigsEqual(editorState.draft, current);
+      return {
+        workspaceKey,
+        draft: draftChangedDuringSave ? editorState.draft : normalized,
+        baseline: normalized,
+      };
+    });
     toast.success('Data Quality configuration saved');
-  }, [saveConfig]);
+  }, [saveConfig, workspaceKey]);
 
   const handleDiscard = useCallback(() => {
-    setDraft(baseline);
-  }, [baseline]);
+    setEditor(current =>
+      current?.workspaceKey === workspaceKey ? { ...current, draft: current.baseline } : current
+    );
+  }, [workspaceKey]);
 
   useEffect(() => {
     registerUnsavedGuard?.({
@@ -109,12 +165,12 @@ export function DataQualityWorkspace({
         return undefined;
       },
       discard: () => {
-        setDraft(baseline);
+        handleDiscard();
         return undefined;
       },
     });
     return () => registerUnsavedGuard?.(null);
-  }, [baseline, handleSave, registerUnsavedGuard, isDirty]);
+  }, [baseline, handleDiscard, handleSave, registerUnsavedGuard, isDirty]);
 
   const timezones = useMemo(() => {
     try {
@@ -125,6 +181,19 @@ export function DataQualityWorkspace({
       return Array.from(new Set(['UTC', 'Europe/Kyiv', draft?.timezone ?? 'UTC']));
     }
   }, [draft?.timezone]);
+
+  const fieldRules = useMemo(
+    () => configResponse?.effectiveConfig.rules.filter(rule => rule.scope.type === 'FIELD') ?? [],
+    [configResponse]
+  );
+  const displayedRuleKeys = useMemo(
+    () => getDisplayedDataQualityFieldRuleKeys(baseline, draft),
+    [baseline, draft]
+  );
+  const selectableFields = useMemo(
+    () => getSelectableDataQualityFields(fieldRules, displayedRuleKeys),
+    [displayedRuleKeys, fieldRules]
+  );
 
   if (isError) {
     return (
@@ -146,9 +215,15 @@ export function DataQualityWorkspace({
   }
 
   const updateRule = (key: string, next: DataQualityRuleConfig) => {
-    setDraft(current =>
-      current
-        ? { ...current, rules: current.rules.map(rule => (rule.key === key ? next : rule)) }
+    setEditor(current =>
+      current?.workspaceKey === workspaceKey
+        ? {
+            ...current,
+            draft: {
+              ...current.draft,
+              rules: current.draft.rules.map(rule => (rule.key === key ? next : rule)),
+            },
+          }
         : current
     );
   };
@@ -197,11 +272,39 @@ export function DataQualityWorkspace({
   const run = async () => {
     try {
       if (isDirty) {
-        await startRun(draft);
-        setBaseline(draft);
+        const submitted = draft;
+        const pendingConfirmation = {
+          workspaceKey,
+          staleConfig: toStoredDataQualityConfig(configResponse.effectiveConfig),
+        };
+        pendingConfigConfirmationRef.current = pendingConfirmation;
+        try {
+          await startRun(submitted);
+        } catch (error) {
+          if (pendingConfigConfirmationRef.current === pendingConfirmation) {
+            pendingConfigConfirmationRef.current = null;
+          }
+          throw error;
+        }
+        if (workspaceKeyRef.current !== workspaceKey) {
+          if (pendingConfigConfirmationRef.current === pendingConfirmation) {
+            pendingConfigConfirmationRef.current = null;
+          }
+          return;
+        }
+        // A refresh that was already in flight may have observed the old server value and
+        // cleared the first guard while this mutation was pending. Re-arm it after success so
+        // only that exact pre-submission value is ignored; the next distinct server config wins.
+        pendingConfigConfirmationRef.current = pendingConfirmation;
+        setEditor(current =>
+          current?.workspaceKey === workspaceKey
+            ? { workspaceKey, draft: submitted, baseline: submitted }
+            : current
+        );
         toast.success('Configuration saved and quality run queued');
       } else {
         await startRun();
+        if (workspaceKeyRef.current !== workspaceKey) return;
         toast.success('Quality run queued');
       }
     } catch (error) {
@@ -243,7 +346,12 @@ export function DataQualityWorkspace({
               value={draft.timezone}
               disabled={!canEdit || isMutationBusy}
               onChange={event => {
-                setDraft(current => current && { ...current, timezone: event.target.value });
+                const timezone = event.target.value;
+                setEditor(current =>
+                  current?.workspaceKey === workspaceKey
+                    ? { ...current, draft: { ...current.draft, timezone } }
+                    : current
+                );
               }}
             >
               {timezones.map(timezone => (
@@ -264,11 +372,27 @@ export function DataQualityWorkspace({
             disabled={!canEdit || isMutationBusy}
             onChange={updateRule}
           />
-          <RuleGroup
-            title='Field checks'
-            rules={configResponse.effectiveConfig.rules.filter(rule => rule.scope.type === 'FIELD')}
+          <DataQualityFieldChecks
+            rules={fieldRules}
             draft={draft}
+            displayedRuleKeys={displayedRuleKeys}
+            selectableFields={selectableFields}
             disabled={!canEdit || isMutationBusy}
+            onAddCheck={ruleKey => {
+              setEditor(current =>
+                current?.workspaceKey === workspaceKey
+                  ? {
+                      ...current,
+                      draft: {
+                        ...current.draft,
+                        rules: current.draft.rules.map(rule =>
+                          rule.key === ruleKey ? { ...rule, enabled: true } : rule
+                        ),
+                      },
+                    }
+                  : current
+              );
+            }}
             onChange={updateRule}
           />
           <RuleGroup
@@ -279,6 +403,9 @@ export function DataQualityWorkspace({
             draft={draft}
             disabled={!canEdit || isMutationBusy}
             onChange={updateRule}
+            getScopePresentation={rule =>
+              getRelationshipScopePresentation(rule, configResponse.relationships)
+            }
           />
         </CardContent>
       </Card>
@@ -354,9 +481,20 @@ interface RuleGroupProps {
   draft: DataQualityConfig;
   disabled: boolean;
   onChange: (key: string, next: DataQualityRuleConfig) => void;
+  getScopePresentation?: (rule: EffectiveDataQualityRuleConfig) => {
+    label: string;
+    details?: string[];
+  };
 }
 
-function RuleGroup({ title, rules, draft, disabled, onChange }: RuleGroupProps) {
+function RuleGroup({
+  title,
+  rules,
+  draft,
+  disabled,
+  onChange,
+  getScopePresentation,
+}: RuleGroupProps) {
   return (
     <section className='space-y-3'>
       <h3 className='text-sm font-semibold'>{title}</h3>
@@ -369,12 +507,15 @@ function RuleGroup({ title, rules, draft, disabled, onChange }: RuleGroupProps) 
           {rules.map(rule => {
             const value = draft.rules.find(item => item.key === rule.key);
             if (!value) return null;
+            const scopePresentation = getScopePresentation?.(rule);
             return (
               <DataQualityRuleEditor
                 key={rule.key}
                 rule={rule}
                 value={value}
                 disabled={disabled}
+                scopeLabel={scopePresentation?.label}
+                scopeDetails={scopePresentation?.details}
                 onChange={next => {
                   onChange(rule.key, next);
                 }}
@@ -385,4 +526,28 @@ function RuleGroup({ title, rules, draft, disabled, onChange }: RuleGroupProps) 
       )}
     </section>
   );
+}
+
+function getRelationshipScopePresentation(
+  rule: EffectiveDataQualityRuleConfig,
+  relationships: DataQualityRelationshipMetadata[]
+): { label: string; details?: string[] } {
+  if (rule.scope.type !== 'RELATIONSHIP') {
+    return { label: '' };
+  }
+
+  const relationshipId = rule.scope.relationshipId;
+  const relationship = relationships.find(item => item.id === relationshipId);
+  if (!relationship) {
+    return { label: `Relationship ID: ${relationshipId}` };
+  }
+
+  const joinMapping = relationship.joinConditions
+    .map(condition => `${condition.sourceFieldName} → ${condition.targetFieldName}`)
+    .join(', ');
+
+  return {
+    label: relationship.targetAlias,
+    details: [joinMapping, `Relationship ID: ${relationship.id}`].filter(Boolean),
+  };
 }

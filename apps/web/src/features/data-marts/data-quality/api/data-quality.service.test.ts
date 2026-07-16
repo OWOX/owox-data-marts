@@ -39,6 +39,13 @@ describe('DataQualityService', () => {
         savedConfig: null,
         effectiveConfig,
         availableChecks: ['empty_table', 'type_mismatch'],
+        relationships: [
+          {
+            id: 'rel-1',
+            targetAlias: 'orders',
+            joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+          },
+        ],
         canEdit: true,
         canRun: false,
         runEligibility: { eligible: false, code: 'NOT_PUBLISHED', activeRunId: null },
@@ -52,10 +59,29 @@ describe('DataQualityService', () => {
       permissions: { canEdit: true, canRun: false },
       runEligibility: { eligible: false, code: 'NOT_PUBLISHED', activeRunId: null },
       availableChecks: ['empty_table', 'type_mismatch'],
+      relationships: [
+        {
+          id: 'rel-1',
+          targetAlias: 'orders',
+          joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+        },
+      ],
     });
     expect(apiClient.get).toHaveBeenCalledWith('/data-marts/mart-1/data-quality/config', {
       params: undefined,
     });
+  });
+
+  it('defaults relationship display metadata for older config responses', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        savedConfig: null,
+        effectiveConfig,
+        availableChecks: [],
+      },
+    });
+
+    await expect(service.getConfig('mart-1')).resolves.toMatchObject({ relationships: [] });
   });
 
   it('sends only the unversioned stored config on save', async () => {

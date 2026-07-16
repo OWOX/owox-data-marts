@@ -45,6 +45,7 @@ describe('DataMartTable', () => {
         activeRunId: null,
       },
       availableChecks: [],
+      relationships: [],
     });
     const columns: ColumnDef<DataMartListItem>[] = [
       { accessorKey: 'title', header: 'Title', cell: ({ row }) => row.original.title },
