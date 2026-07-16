@@ -67,7 +67,9 @@ export class UpdateDataStorageService {
         command.projectId
       );
       if (!canManage) {
-        throw new ForbiddenException('You cannot manage owners of this Storage');
+        throw new ForbiddenException(
+          'You do not have permission to manage owners of this Storage. You must be an owner with the Technical User role, or a Project Admin.'
+        );
       }
     }
 
@@ -85,7 +87,9 @@ export class UpdateDataStorageService {
         command.projectId
       );
       if (!canConfigure) {
-        throw new ForbiddenException('You cannot configure sharing for this Storage');
+        throw new ForbiddenException(
+          'You do not have permission to configure sharing for this Storage. You must be an owner with the Technical User role, or a Project Admin.'
+        );
       }
     }
 
