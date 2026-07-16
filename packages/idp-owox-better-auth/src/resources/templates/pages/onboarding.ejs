@@ -151,7 +151,7 @@ const storageIcons = {
                 type="text"
                 id="storage-other-text"
                 maxlength="500"
-                placeholder="Tell us which storage..."
+                placeholder="Tell us which data warehouse..."
                 class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
             </div>
@@ -779,7 +779,7 @@ const storageIcons = {
     }
   }
 
-  // Shuffle primary storage: randomize DWH options only; fix OWOX (EU→US), "Don't know", then Other.
+  // Shuffle primary storage: randomize DWH options only; fix OWOX (EU→US), "Don't have it yet", then Other data warehouse.
   function shufflePrimaryStorageOptions() {
     const container = document.getElementById('q-primary-storage');
     if (!container) return;
