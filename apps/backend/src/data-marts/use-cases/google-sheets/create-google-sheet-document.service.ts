@@ -276,6 +276,18 @@ export class CreateGoogleSheetDocumentService {
         error
       );
     }
+    // A disabled Drive API also surfaces as 403, but no sharing change can fix it —
+    // replace the path's sharing hint with the one instruction that will.
+    const disabled = GoogleSheetsApiAdapter.driveApiDisabled(error);
+    if (disabled) {
+      throw new SheetFolderCreateFailedException(
+        destinationId,
+        error,
+        `The Google Drive API is not enabled in the Google Cloud project behind this destination's credentials. Enable it${
+          disabled.activationUrl ? ` at ${disabled.activationUrl}` : ''
+        } and try again — the Google Sheets API alone does not cover folder placement.`
+      );
+    }
     throw new SheetFolderCreateFailedException(destinationId, error, hint);
   }
 }

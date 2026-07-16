@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { DataDestinationCredentialService } from '../../../services/data-destination-credential.service';
 import { DestinationCredentialType } from '../../../enums/destination-credential-type.enum';
-import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
+import { FolderAccessFailure, GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { DestinationFolderAccessException } from '../../../exceptions/google-oauth.exceptions';
 
@@ -47,8 +47,12 @@ export class GoogleSheetsFolderValidator {
 
     if (!access.accessible) {
       throw new DestinationFolderAccessException(
-        `The Drive folder was not found or the service account (${saEmail}) is not a member of it. Add this account as a member of the Shared Drive with the Content Manager role (a sharing link alone is not enough).`,
-        { folderId }
+        GoogleSheetsFolderValidator.describeFailure(
+          access.failure,
+          saEmail,
+          serviceAccountKey.project_id
+        ),
+        { folderId, reason: access.failure?.reason }
       );
     }
     if (!access.isFolder) {
@@ -69,5 +73,39 @@ export class GoogleSheetsFolderValidator {
         { folderId }
       );
     }
+  }
+
+  /**
+   * Turns a lookup failure into remediation the user can act on. Each reason gets
+   * its own message: the three causes look identical from the outside (Drive just
+   * says "no"), so a single message would send users to re-check sharing even
+   * when sharing was never the problem.
+   */
+  private static describeFailure(
+    failure: FolderAccessFailure | undefined,
+    saEmail: string,
+    projectId: string
+  ): string {
+    if (failure?.reason === 'drive_api_disabled') {
+      const url =
+        failure.activationUrl ??
+        `https://console.cloud.google.com/apis/library/drive.googleapis.com?project=${projectId}`;
+      return (
+        `The Google Drive API is not enabled in the service account's Google Cloud project (${projectId}), ` +
+        `so OWOX cannot place documents in a Drive folder. Enable it at ${url}, wait a minute for it to take effect, then save again. ` +
+        `Note that having the Google Sheets API enabled is not enough — folder placement needs the Drive API as well.`
+      );
+    }
+    if (failure?.reason === 'forbidden') {
+      return (
+        `Google Drive denied the service account (${saEmail}) access to this folder. ` +
+        `Add it as a member of the Shared Drive with the Content Manager role (a sharing link alone is not enough), ` +
+        `and check that no Drive sharing policy in your organization blocks this account.`
+      );
+    }
+    return (
+      `The Drive folder was not found, or the service account (${saEmail}) is not a member of it. ` +
+      `Check that the folder URL is correct, and add this account as a member of the Shared Drive with the Content Manager role (a sharing link alone is not enough).`
+    );
   }
 }

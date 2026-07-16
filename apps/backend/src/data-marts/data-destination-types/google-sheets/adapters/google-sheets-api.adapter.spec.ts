@@ -381,4 +381,63 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
       expect(adapter.findOwoxColumnsMetadataForSheet([], 1)).toEqual([]);
     });
   });
+
+  describe('driveApiDisabled', () => {
+    /** The 403 Google returns when the Drive API is off in the caller's project. */
+    const serviceDisabledError = () =>
+      Object.assign(
+        new Error('Google Drive API has not been used in project 42 before or it is disabled.'),
+        {
+          response: {
+            status: 403,
+            data: {
+              error: {
+                status: 'PERMISSION_DENIED',
+                errors: [{ reason: 'accessNotConfigured' }],
+                details: [
+                  {
+                    reason: 'SERVICE_DISABLED',
+                    metadata: {
+                      activationUrl:
+                        'https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=42',
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }
+      );
+
+    it('recognizes a disabled Drive API and returns the activation URL', () => {
+      expect(GoogleSheetsApiAdapter.driveApiDisabled(serviceDisabledError())).toEqual({
+        activationUrl:
+          'https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=42',
+      });
+    });
+
+    it('recognizes it from the message alone when the body carries no reason codes', () => {
+      const error = new Error(
+        'Google Drive API has not been used in project 42 before or it is disabled.'
+      );
+      expect(GoogleSheetsApiAdapter.driveApiDisabled(error)).toEqual({ activationUrl: undefined });
+    });
+
+    it('ignores a genuine permission error', () => {
+      const error = Object.assign(new Error('The caller does not have permission'), {
+        response: {
+          status: 403,
+          data: { error: { status: 'PERMISSION_DENIED', errors: [{ reason: 'forbidden' }] } },
+        },
+      });
+      expect(GoogleSheetsApiAdapter.driveApiDisabled(error)).toBeUndefined();
+    });
+
+    it('ignores a missing-folder error', () => {
+      const error = Object.assign(new Error('File not found: abc'), {
+        response: { status: 404, data: { error: { errors: [{ reason: 'notFound' }] } } },
+      });
+      expect(GoogleSheetsApiAdapter.driveApiDisabled(error)).toBeUndefined();
+    });
+  });
 });

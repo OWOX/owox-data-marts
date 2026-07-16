@@ -26,6 +26,13 @@ jest.mock('../../data-destination-types/google-sheets/adapters/google-sheets-api
     }
     return undefined;
   };
+  // Delegate to the real classifier rather than re-implementing it: the whole
+  // point of these tests is that the service reacts to what Google actually sends.
+  const actual = jest.requireActual(
+    '../../data-destination-types/google-sheets/adapters/google-sheets-api.adapter'
+  );
+  (ctor as unknown as Record<string, unknown>).driveApiDisabled =
+    actual.GoogleSheetsApiAdapter.driveApiDisabled.bind(actual.GoogleSheetsApiAdapter);
   return { GoogleSheetsApiAdapter: ctor };
 });
 
@@ -322,6 +329,45 @@ describe('CreateGoogleSheetDocumentService', () => {
     await expect(
       service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'X'))
     ).rejects.toThrow(SheetFolderCreateFailedException);
+  });
+
+  it('tells the user to enable the Drive API instead of blaming folder sharing', async () => {
+    const { service } = createService(
+      buildDestination(DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT, { folderId: 'folder-1' }),
+      { type: 'google-sheets-credentials', serviceAccountKey: VALID_SA_KEY }
+    );
+    // A disabled Drive API arrives as a 403 — same status as a real permission
+    // problem, so the remediation must come from the error body, not the status.
+    mockCreateSpreadsheetInFolder.mockRejectedValue(
+      Object.assign(new Error('Google Drive API has not been used in project proj before'), {
+        response: {
+          status: 403,
+          data: {
+            error: {
+              errors: [{ reason: 'accessNotConfigured' }],
+              details: [
+                {
+                  reason: 'SERVICE_DISABLED',
+                  metadata: { activationUrl: 'https://console.developers.google.com/enable-drive' },
+                },
+              ],
+            },
+          },
+        },
+      })
+    );
+
+    const error = await service
+      .run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'X'))
+      .then(
+        () => undefined,
+        (e: unknown) => e as Error
+      );
+
+    expect(error).toBeInstanceOf(SheetFolderCreateFailedException);
+    expect(error?.message).toContain('Google Drive API is not enabled');
+    expect(error?.message).toContain('https://console.developers.google.com/enable-drive');
+    expect(error?.message).not.toContain('Content Manager');
   });
 
   it('surfaces a transient Drive error as GoogleApiException, not a folder error', async () => {

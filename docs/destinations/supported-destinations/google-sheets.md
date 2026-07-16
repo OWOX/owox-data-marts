@@ -17,7 +17,15 @@ To allow OWOX Data Marts to interact with Google Sheets, enable the Google Sheet
 2. Click **Enable** to activate the API for your project.
 3. If it's already enabled, you'll see the API dashboard — that's fine.
 
-#### 2. Create a Service Account and JSON Key
+#### 2. Enable the Google Drive API
+
+Enable the [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com/) in the **same** project if you want OWOX to create new spreadsheets for you inside a Drive folder.
+
+The Sheets API can read and write spreadsheets, but it cannot place a file into a folder — that is a Drive operation. If this API is off, saving a destination with a folder fails with a message telling you the Drive API is not enabled, and pointing at the page to enable it.
+
+> **Note:** After enabling, allow up to a minute for the change to propagate before retrying.
+
+#### 3. Create a Service Account and JSON Key
 
 A service account is required to authenticate OWOX Data Marts with Google Sheets.
 
@@ -61,6 +69,20 @@ Click **Connect Google Account** to authenticate using your personal Google acco
 #### 5. Finalize Setup
 
 Review your entries and click **Save** to integrate the **Destination**, or **Cancel** to discard changes.
+
+---
+
+## Troubleshooting Folder Access
+
+When a **Destination** has a Drive folder configured, OWOX checks that it can actually write there before saving, so problems surface at setup time instead of during a refresh. If the save fails, match the message below:
+
+- **"The Google Drive API is not enabled..."** — enable the [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com/) in the Cloud project named in the message (the one your service account key belongs to), wait a minute, then save again. The Google Sheets API being enabled does not cover folder placement.
+- **"The Drive folder was not found, or the service account is not a member..."** — check the folder URL you pasted, then open the folder's Shared Drive, click **Manage members**, and add the service account's email as a member.
+- **"Google Drive denied the service account access..."** — the account is known to Drive but not allowed in. Confirm its membership on the Shared Drive and check whether an organization-level Drive sharing policy blocks accounts outside your domain.
+- **"The service account cannot create files in this folder"** — it is a member, but with too weak a role. Change its role to **Content Manager**; **Viewer** and **Commenter** cannot create files.
+- **"The folder must be located in a Shared Drive"** — a service account has no My Drive storage of its own, so a file it creates in a My Drive folder would be owned by nobody and invisible to your team. Move the folder to a Shared Drive, or use OAuth instead.
+
+> **Note:** Adding the service account through a **sharing link** is not enough — it must be an explicit member of the Shared Drive, with its full `...iam.gserviceaccount.com` address.
 
 ---
 
