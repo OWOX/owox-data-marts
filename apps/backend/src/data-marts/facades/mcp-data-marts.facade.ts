@@ -1,6 +1,7 @@
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
 import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
+import type { SortConfig } from '../dto/schemas/sort-config.schema';
 
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
 
@@ -57,6 +58,7 @@ export interface McpQueryDataMartRequest {
   filterConfig?: FilterConfig;
   aggregationConfig?: AggregationConfig;
   dateTruncConfig?: DateTruncConfig;
+  sortConfig?: SortConfig;
   limit: number;
 }
 

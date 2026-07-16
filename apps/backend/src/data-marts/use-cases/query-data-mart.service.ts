@@ -113,6 +113,7 @@ export class QueryDataMartService {
       dataMart,
       columnConfig: r.fields,
       filterConfig: r.filterConfig ?? null,
+      sortConfig: r.sortConfig ?? null,
       aggregationConfig: r.aggregationConfig ?? null,
       dateTruncConfig: r.dateTruncConfig ?? null,
       limitConfig: overReadLimit,
@@ -124,6 +125,7 @@ export class QueryDataMartService {
     const queryMetadata = {
       fields: r.fields,
       ...(r.filterConfig ? { filters: r.filterConfig } : {}),
+      ...(r.sortConfig ? { sort: r.sortConfig } : {}),
       ...(r.aggregationConfig ? { aggregations: r.aggregationConfig } : {}),
       ...(r.dateTruncConfig ? { dateBuckets: r.dateTruncConfig } : {}),
       limit: r.limit,

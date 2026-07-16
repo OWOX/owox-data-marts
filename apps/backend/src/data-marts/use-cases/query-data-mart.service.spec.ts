@@ -152,6 +152,27 @@ describe('QueryDataMartService', () => {
     expect(reader.finalize).toHaveBeenCalledTimes(1);
   });
 
+  it('threads the request sortConfig into the composed read plan', async () => {
+    const { service, composer } = createService();
+
+    await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
+        limit: 100,
+      })
+    );
+
+    expect(composer.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ sortConfig: [{ column: 'revenue', direction: 'desc' }] }),
+      expect.anything()
+    );
+  });
+
   it('marks the result truncated when the reader returns more than the limit', async () => {
     const { service } = createService({
       batches: [
@@ -405,6 +426,29 @@ describe('QueryDataMartService', () => {
       expect(typeof call.runId).toBe('string');
       expect(call.runId).toHaveLength(36); // UUID v4
       expect(call.startedAt).toBeInstanceOf(Date);
+    });
+
+    it('includes the sort config in the persisted run metadata query', async () => {
+      const { service, dataMartRunService } = createService();
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          sortConfig: [{ column: 'revenue', direction: 'desc' }],
+          limit: 100,
+        })
+      );
+
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.metadata.query).toEqual({
+        fields: ['channel', 'revenue'],
+        sort: [{ column: 'revenue', direction: 'desc' }],
+        limit: 100,
+      });
     });
 
     it('records a SUCCESS run with truncated=true when rows exceed limit', async () => {

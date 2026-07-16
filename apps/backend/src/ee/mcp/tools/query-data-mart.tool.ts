@@ -20,6 +20,7 @@ import {
   mapMcpFiltersToRules,
   mapMcpAggregations,
   mapMcpDateBuckets,
+  mapMcpSort,
   UnsupportedOperatorError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
@@ -41,7 +42,8 @@ When building the query:
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
 - aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — but each data mart's output controls decide which functions a given field allows, so some may be rejected (pick another, or ask an admin to enable it). Group-by is implied by the non-aggregated fields you select.
 - date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
-- fields must list every column the query uses, INCLUDING any field named in aggregations or date_buckets — a field you aggregate or bucket but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
+- sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
+- fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
 Choosing between slices and filters (both are row-level predicates applied to raw values BEFORE any aggregation — neither can threshold an aggregated total; there is no HAVING):
 - slices (pre-join): narrow a JOINED data mart before it is blended in — criteria on a joined data mart's own fields only. Slices do NOT apply to the main data mart. More efficient — they reduce the joined volume before the join.
@@ -95,6 +97,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const filterConfig = mapMcpFiltersToRules(parsed.slices, parsed.filters);
       const aggregationConfig = mapMcpAggregations(parsed.aggregations);
       const dateTruncConfig = mapMcpDateBuckets(parsed.date_buckets);
+      const sortConfig = mapMcpSort(parsed.sort);
 
       const res = await this.dataMarts.queryDataMart(
         {
@@ -106,6 +109,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
           filterConfig,
           aggregationConfig,
           dateTruncConfig,
+          sortConfig,
           limit: parsed.limit ?? DEFAULT_LIMIT,
         },
         signal

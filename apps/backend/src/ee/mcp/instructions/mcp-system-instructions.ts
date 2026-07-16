@@ -5,7 +5,7 @@ For a concrete analytical question:
 2. If no useful result is returned, rephrase the search using different business terms and try again.
 3. If several data marts are plausible, ask the user which one to use.
 4. Call get_data_mart_details_by_id to obtain exact native and joined field names unless that schema is already available in the conversation.
-5. Call query_data_mart with only the fields, filters, aggregations, and date buckets needed to answer the question.
+5. Call query_data_mart with only the fields, filters, aggregations, date buckets, and sorting needed to answer the question.
 
 Discovery:
 - Use list_data_marts only when the user explicitly asks to list or browse data marts.

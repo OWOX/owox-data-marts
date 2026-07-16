@@ -379,6 +379,39 @@ describe('DataMartRunService', () => {
       expect(saved.errors).toBeNull();
     });
 
+    it('persists the sort config in the MCP_QUERY run metadata query (survives schema parse)', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const dm = fakeDataMart();
+      const record: McpQueryRunRecord = {
+        runId: 'run-mcp-sort',
+        dataMart: dm,
+        createdById: 'user-1',
+        startedAt: new Date('2026-07-01T10:00:00.000Z'),
+        status: DataMartRunStatus.SUCCESS,
+        metadata: {
+          columns: ['channel', 'revenue'],
+          rowCount: 2,
+          truncated: false,
+          query: {
+            fields: ['channel', 'revenue'],
+            sort: [{ column: 'revenue', direction: 'desc' }],
+            limit: 50,
+          },
+        },
+      };
+
+      await service.recordMcpQueryRun(record);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      expect(saved.additionalParams).toEqual({
+        mcpQuery: expect.objectContaining({
+          query: expect.objectContaining({
+            sort: [{ column: 'revenue', direction: 'desc' }],
+          }),
+        }),
+      });
+    });
+
     it('persists a FAILED MCP_QUERY run with errors', async () => {
       const { service, dataMartRunRepository } = createService();
       const dm = fakeDataMart();

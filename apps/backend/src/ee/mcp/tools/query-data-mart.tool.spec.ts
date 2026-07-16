@@ -83,6 +83,31 @@ describe('QueryDataMartTool', () => {
       expect(sc.truncated).toBe(true);
     });
 
+    it('maps sort rules to the facade sortConfig (field → column)', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['date', 'revenue'],
+        rows: [['2026-05-01', '10']],
+        truncated: false,
+        totals: null,
+      });
+
+      await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['date', 'revenue'],
+          sort: [{ field: 'revenue', direction: 'desc' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(facade.queryDataMart).toHaveBeenCalledTimes(1);
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          sortConfig: [{ column: 'revenue', direction: 'desc' }],
+        })
+      );
+    });
+
     it('forwards the request AbortSignal to the facade', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],

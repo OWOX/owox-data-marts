@@ -11,6 +11,7 @@ export const McpQueryRunMetadataSchema = z.object({
     .object({
       fields: z.array(z.string()),
       filters: z.array(z.unknown()).optional(),
+      sort: z.array(z.unknown()).optional(),
       aggregations: z.array(z.unknown()).optional(),
       dateBuckets: z.array(z.unknown()).optional(),
       limit: z.number().int().positive(),
