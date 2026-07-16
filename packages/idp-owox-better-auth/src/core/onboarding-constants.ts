@@ -93,6 +93,6 @@ export const PRIMARY_STORAGE_OPTIONS: OnboardingOption[] = [
   { value: PRIMARY_STORAGE_ANSWER.AZURE_SYNAPSE, label: 'Azure Synapse' },
   { value: PRIMARY_STORAGE_ANSWER.OWOX_CLOUD_EU, label: 'OWOX Cloud (EU)' },
   { value: PRIMARY_STORAGE_ANSWER.OWOX_CLOUD_US, label: 'OWOX Cloud (US)' },
-  { value: PRIMARY_STORAGE_ANSWER.DONT_KNOW, label: "Don't know" },
-  { value: PRIMARY_STORAGE_ANSWER.OTHER, label: 'Other' },
+  { value: PRIMARY_STORAGE_ANSWER.DONT_KNOW, label: "Don't have it yet" },
+  { value: PRIMARY_STORAGE_ANSWER.OTHER, label: 'Other data warehouse' },
 ];
