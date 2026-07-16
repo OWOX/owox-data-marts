@@ -1,6 +1,8 @@
 import type { AxiosRequestConfig } from '../../../../app/api/apiClient';
 import { ApiService } from '../../../../services';
+import { dataMartService } from '../../shared';
 import { toStoredDataQualityConfig } from '../model/data-quality.model';
+import { DataQualityRunDetailsMissingError } from '../model/types';
 import type {
   DataQualityCheckResult,
   DataQualityCategory,
@@ -22,11 +24,14 @@ interface RawDataQualityConfigResponse {
   availableChecks?: DataQualityCategory[];
 }
 
-type RawRunResponse = Partial<DataQualityRun> & {
+type RawRunResponse = Omit<Partial<DataQualityRun>, 'createdAt' | 'startedAt' | 'finishedAt'> & {
   runId?: string;
   run?: RawRunResponse;
   summary?: Partial<DataQualitySummary>;
   results?: DataQualityCheckResult[];
+  createdAt?: string | Date | null;
+  startedAt?: string | Date | null;
+  finishedAt?: string | Date | null;
 };
 
 export class DataQualityService extends ApiService {
@@ -91,12 +96,21 @@ export class DataQualityService extends ApiService {
     runId: string,
     config?: AxiosRequestConfig
   ): Promise<DataQualityRun> {
-    const response = await this.get<RawRunResponse>(
-      `/${dataMartId}/data-quality/runs/${runId}`,
-      undefined,
-      config
-    );
-    return normalizeRunResponse(response);
+    const response = await dataMartService.getDataMartRunById(dataMartId, runId, config);
+    if (!response.dataQuality) {
+      throw new DataQualityRunDetailsMissingError(runId);
+    }
+
+    return normalizeRunResponse({
+      id: response.id,
+      dataMartRunId: response.id,
+      summary: response.dataQuality.summary,
+      snapshot: response.dataQuality.snapshot,
+      results: response.dataQuality.results,
+      createdAt: response.createdAt,
+      startedAt: response.startedAt,
+      finishedAt: response.finishedAt,
+    });
   }
 }
 
@@ -145,15 +159,20 @@ function normalizeRunResponse(rawResponse: RawRunResponse): DataQualityRun {
   }
   const summary = normalizeSummary(response.summary);
   return {
-    id: response.id ?? publicRunId,
+    id: publicRunId,
     dataMartRunId: publicRunId,
     ...(response.snapshot ? { snapshot: response.snapshot } : {}),
     summary,
     results: response.results ?? [],
-    createdAt: response.createdAt ?? null,
-    startedAt: response.startedAt ?? null,
-    finishedAt: response.finishedAt ?? null,
+    createdAt: normalizeRunTimestamp(response.createdAt),
+    startedAt: normalizeRunTimestamp(response.startedAt),
+    finishedAt: normalizeRunTimestamp(response.finishedAt),
   };
+}
+
+function normalizeRunTimestamp(value: string | Date | null | undefined): string | null {
+  if (value instanceof Date) return value.toISOString();
+  return value ?? null;
 }
 
 function normalizeSummary(summary: Partial<DataQualitySummary> | undefined): DataQualitySummary {

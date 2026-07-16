@@ -2,9 +2,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dataQualityService } from '../api/data-quality.service';
-import { dataQualityQueryKeys, useDataQualityWorkspace } from './use-data-quality-workspace';
+import {
+  dataQualityQueryKeys,
+  useDataQualityRun,
+  useDataQualityWorkspace,
+} from './use-data-quality-workspace';
 import type { DataQualityConfigResponse, DataQualityRun } from './types';
 
 vi.mock('../api/data-quality.service', () => ({
@@ -38,6 +42,8 @@ describe('useDataQualityWorkspace', () => {
     vi.mocked(dataQualityService.replaceConfig).mockResolvedValue(configResponse);
     vi.mocked(dataQualityService.startRun).mockResolvedValue(buildRun('RUNNING'));
   });
+
+  afterEach(() => vi.useRealTimers());
 
   const wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -153,12 +159,64 @@ describe('useDataQualityWorkspace', () => {
       })
     );
   });
+
+  it('polls the selected exact run while active and stops after it becomes terminal', async () => {
+    vi.useFakeTimers();
+    vi.mocked(dataQualityService.getRun)
+      .mockResolvedValueOnce(buildRun('RUNNING', 'run-active'))
+      .mockResolvedValue(buildRun('PASSED', 'run-active'));
+    const { result } = renderHook(() => useDataQualityRun('project-1', 'mart-1', 'run-active'), {
+      wrapper,
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.data?.summary.state).toBe('RUNNING');
+    });
+    expect(dataQualityService.getRun).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    await vi.waitFor(() => {
+      expect(result.current.data?.summary.state).toBe('PASSED');
+    });
+    expect(dataQualityService.getRun).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(dataQualityService.getRun).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps exact-run cache and results isolated by project, Data Mart, and run id', async () => {
+    vi.mocked(dataQualityService.getRun).mockImplementation(async (_dataMartId, runId) =>
+      buildRun('PASSED', runId)
+    );
+    const { result } = renderHook(
+      () => ({
+        first: useDataQualityRun('project-1', 'mart-1', 'run-first'),
+        second: useDataQualityRun('project-2', 'mart-2', 'run-second'),
+      }),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.first.data?.id).toBe('run-first');
+      expect(result.current.second.data?.id).toBe('run-second');
+    });
+    expect(
+      client.getQueryData(dataQualityQueryKeys.run('project-1', 'mart-1', 'run-first'))
+    ).toEqual(expect.objectContaining({ id: 'run-first' }));
+    expect(
+      client.getQueryData(dataQualityQueryKeys.run('project-2', 'mart-2', 'run-second'))
+    ).toEqual(expect.objectContaining({ id: 'run-second' }));
+  });
 });
 
-function buildRun(state: 'RUNNING' | 'PASSED'): DataQualityRun {
+function buildRun(state: 'RUNNING' | 'PASSED', runId = 'run-1'): DataQualityRun {
   return {
-    id: 'quality-run-1',
-    dataMartRunId: 'run-1',
+    id: runId,
+    dataMartRunId: runId,
     summary: {
       state,
       enabledChecks: 1,

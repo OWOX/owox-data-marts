@@ -7,6 +7,7 @@ import type { DataMartRunAiAssistantDefinition } from './data-mart-run-ai-assist
 import { DataMartRunStatus } from '../../../shared';
 import type { UserProjection } from '../../../../../shared/types';
 import type { DataQualityCompactSummary } from '../../../shared/types';
+import type { DataQualityRunDetails } from '../../../data-quality/model/types';
 
 export interface DataMartRunItem {
   id: string;
@@ -33,6 +34,7 @@ export interface DataMartRunItem {
    * none. */
   totals: Record<string, number | string | boolean | null> | null;
   qualitySummary: DataQualityCompactSummary | null;
+  dataQuality: DataQualityRunDetails | null;
 }
 
 export interface DataMartRunDataMartRef {

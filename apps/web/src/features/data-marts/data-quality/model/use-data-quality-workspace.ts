@@ -44,6 +44,7 @@ export function useDataQualityRun(projectId: string, dataMartId: string, runId: 
     queryFn: ({ signal }) =>
       dataQualityService.getRun(dataMartId, runId ?? '', { signal, ...SILENT_QUERY_OPTIONS }),
     enabled: Boolean(projectId && dataMartId && runId),
+    refetchInterval: query => dataQualityPollingInterval(query.state.data?.summary.state),
   });
 }
 
@@ -54,7 +55,7 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
   const latestState = latestQuery.data?.summary.state;
   const detailRunId =
     latestQuery.data && latestState !== 'QUEUED' && latestState !== 'RUNNING'
-      ? latestQuery.data.dataMartRunId
+      ? latestQuery.data.id
       : null;
   const runQuery = useDataQualityRun(projectId, dataMartId, detailRunId);
 

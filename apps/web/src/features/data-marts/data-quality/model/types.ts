@@ -2,6 +2,7 @@ import type {
   DataQualitySeverity,
   DataQualitySummary,
 } from '../../shared/types/data-quality-summary.types';
+import type { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 
 export type {
   DataQualityCompactSummary,
@@ -99,7 +100,6 @@ export interface DataQualityMappedError {
 
 export interface DataQualityCheckResult {
   id: string;
-  dataQualityRunId?: string;
   ruleKey: string;
   category: DataQualityCategory;
   scope: DataQualityCheckScope;
@@ -120,12 +120,19 @@ export interface DataQualityRunSnapshot {
   schema: unknown;
   relationships: unknown[];
   timezone: string;
+  definitionType: DataMartDefinitionType;
+}
+
+export interface DataQualityRunDetails {
+  snapshot: DataQualityRunSnapshot;
+  summary: DataQualitySummary;
+  results: DataQualityCheckResult[];
 }
 
 export interface DataQualityRun {
-  /** Internal DQ run id when returned by detail; falls back to the public run id. */
-  id: string;
   /** Public DataMartRun id used by API routes and history. */
+  id: string;
+  /** Compatibility alias for the same public DataMartRun id. */
   dataMartRunId: string;
   snapshot?: DataQualityRunSnapshot;
   summary: DataQualitySummary;
@@ -133,6 +140,15 @@ export interface DataQualityRun {
   createdAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+}
+
+export class DataQualityRunDetailsMissingError extends Error {
+  readonly code = 'DATA_QUALITY_DETAILS_MISSING' as const;
+
+  constructor(readonly runId: string) {
+    super(`Data Quality details are unavailable for run ${runId}`);
+    this.name = 'DataQualityRunDetailsMissingError';
+  }
 }
 
 export interface DataQualityStatusPresentation {

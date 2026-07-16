@@ -7,6 +7,7 @@ import type {
   DataMartListItemResponseDto,
   DataMartListResponseDto,
   DataMartResponseDto,
+  DataMartRunResponseDto,
   DataMartRunListResponseDto,
   ProjectDataMartRunListResponseDto,
   SqlValidationResponseDto,
@@ -20,7 +21,6 @@ import type {
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
-import type { DataMartRunItem } from '../../edit';
 
 /**
  * Data Mart Service
@@ -146,10 +146,10 @@ export class DataMartService extends ApiService {
    * @param payload Payload for the manual run. If not provided, the data mart will be run with the default payload.
    * The payload is specific to the data mart definition type.
    * For example, for a connector data mart, the payload is the connector configuration fields with unknown structure.
-   * @returns Promise with updated data mart
+   * @returns Promise with the created run id
    */
-  async runDataMart(id: string, payload: Record<string, unknown>): Promise<DataMartResponseDto> {
-    return this.post<DataMartResponseDto>(`/${id}/manual-run`, { payload: payload });
+  async runDataMart(id: string, payload: Record<string, unknown>): Promise<{ runId: string }> {
+    return this.post<{ runId: string }>(`/${id}/manual-run`, { payload });
   }
 
   /**
@@ -340,8 +340,8 @@ export class DataMartService extends ApiService {
     dataMartId: string,
     runId: string,
     config?: AxiosRequestConfig
-  ): Promise<DataMartRunItem> {
-    return this.get<DataMartRunItem>(`/${dataMartId}/runs/${runId}`, undefined, config);
+  ): Promise<DataMartRunResponseDto> {
+    return this.get<DataMartRunResponseDto>(`/${dataMartId}/runs/${runId}`, undefined, config);
   }
 
   /**

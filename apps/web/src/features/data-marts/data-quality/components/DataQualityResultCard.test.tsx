@@ -6,7 +6,6 @@ import type { DataQualityCheckResult } from '../model/types';
 
 const result: DataQualityCheckResult = {
   id: 'result-1',
-  dataQualityRunId: 'quality-run-1',
   ruleKey: 'negative_values:field:amount',
   category: 'negative_values',
   scope: { type: 'FIELD', fieldId: 'amount' },

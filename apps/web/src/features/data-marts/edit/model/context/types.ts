@@ -23,6 +23,7 @@ export interface DataMartState {
   error: ApiError | null;
   runs: DataMartRunItem[];
   isManualRunTriggered: boolean;
+  manualRunId: string | null;
   hasMoreRunsToLoad: boolean;
   hasActiveRuns: boolean;
 }
@@ -57,8 +58,9 @@ export type DataMartAction =
   | { type: 'PUBLISH_DATA_MART_SUCCESS'; payload: DataMart }
   | { type: 'PUBLISH_DATA_MART_ERROR'; payload: ApiError }
   | { type: 'RUN_DATA_MART_START' }
-  | { type: 'RUN_DATA_MART_SUCCESS' }
+  | { type: 'RUN_DATA_MART_SUCCESS'; payload: string }
   | { type: 'RUN_DATA_MART_ERROR'; payload: ApiError }
+  | { type: 'CANCEL_DATA_MART_RUN_ERROR'; payload: ApiError }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_START' }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS'; payload: DataMart }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_ERROR'; payload: ApiError }
@@ -74,7 +76,7 @@ export type DataMartAction =
   | { type: 'UPDATE_DATA_MART_OWNERS_START' }
   | { type: 'UPDATE_DATA_MART_OWNERS_SUCCESS'; payload: DataMart }
   | { type: 'UPDATE_DATA_MART_OWNERS_ERROR'; payload: ApiError }
-  | { type: 'RESET_MANUAL_RUN_TRIGGERED' }
+  | { type: 'RESET_MANUAL_RUN_TRIGGERED'; payload?: DataMartRunItem }
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
@@ -93,7 +95,7 @@ export interface DataMartContextType extends DataMartState {
     definition: DataMartDefinitionConfig
   ) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
-  runDataMart: (data: RunDataMartRequestDto) => Promise<void>;
+  runDataMart: (data: RunDataMartRequestDto) => Promise<string | null>;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
   updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;
@@ -103,7 +105,11 @@ export interface DataMartContextType extends DataMartState {
     offset?: number,
     options?: { silent?: boolean }
   ) => Promise<DataMartRunItem[]>;
-  getDataMartRunById: (dataMartId: string, runId: string) => Promise<DataMartRunItem>;
+  getDataMartRunById: (
+    dataMartId: string,
+    runId: string,
+    options?: { silent?: boolean }
+  ) => Promise<DataMartRunItem>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
   updateDataMartOwners: (
     id: string,
@@ -116,6 +122,6 @@ export interface DataMartContextType extends DataMartState {
   runGuarded?: (action: GuardedAction, opts: { intent: SchemaGuardIntent }) => void;
   error: ApiError | null;
   getErrorMessage: () => string | null;
-  resetManualRunTriggered: () => void;
+  resetManualRunTriggered: (completedRun?: DataMartRunItem) => void;
   reset: () => void;
 }

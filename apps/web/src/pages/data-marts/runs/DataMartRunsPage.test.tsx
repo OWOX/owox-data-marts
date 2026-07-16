@@ -1,5 +1,6 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type DataQualityCompactSummary,
@@ -14,10 +15,15 @@ import DataMartRunsPage from './DataMartRunsPage';
 
 const dataMartServiceMock = vi.hoisted(() => ({
   getProjectDataMartRuns: vi.fn(),
+  getDataMartRunById: vi.fn(),
   cancelDataMartRun: vi.fn(),
 }));
 
 const getConnectorInfoByNameMock = vi.hoisted(() => vi.fn());
+
+const apiClientMock = vi.hoisted(() => ({
+  get: vi.fn(),
+}));
 
 vi.mock('../../../features/data-marts/shared', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../features/data-marts/shared')>();
@@ -29,6 +35,10 @@ vi.mock('../../../features/data-marts/shared', async importOriginal => {
 
 vi.mock('../../../features/connectors/shared/utils', () => ({
   getConnectorInfoByName: getConnectorInfoByNameMock,
+}));
+
+vi.mock('../../../app/api/apiClient', () => ({
+  default: apiClientMock,
 }));
 
 vi.mock('../../../features/idp', () => ({
@@ -45,6 +55,16 @@ vi.mock('../../../features/idp', () => ({
 describe('DataMartRunsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dataMartServiceMock.getDataMartRunById.mockImplementation(
+      (_dataMartId: string, runId: string) =>
+        Promise.resolve(buildGenericQualityRunDetail(runId, `Result for ${runId}`))
+    );
+    apiClientMock.get.mockImplementation((url: string) => {
+      const runId = url.includes('run-older') ? 'run-older' : 'run-latest';
+      return Promise.resolve({
+        data: buildGenericQualityRunDetail(runId, `Legacy result for ${runId}`),
+      });
+    });
     vi.mocked(getConnectorInfoByName).mockResolvedValue({
       name: 'FacebookMarketing',
       displayName: 'Facebook Marketing',
@@ -146,6 +166,43 @@ describe('DataMartRunsPage', () => {
     expect(document.querySelector('.lucide-shield-check')).toBeInTheDocument();
   });
 
+  it('requests only the expanded project-level Quality run through generic detail', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns).mockResolvedValueOnce({
+      runs: [
+        buildProjectRun({
+          id: 'run-latest',
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: buildQualitySummary('run-latest'),
+        }),
+        buildProjectRun({
+          id: 'run-older',
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: buildQualitySummary('run-older'),
+        }),
+      ],
+    });
+
+    renderPage();
+
+    const runRows = await screen.findAllByText('Manual data quality run');
+    expect(dataMartServiceMock.getDataMartRunById).not.toHaveBeenCalled();
+    expect(apiClientMock.get).not.toHaveBeenCalled();
+
+    fireEvent.click(runRows[1]);
+
+    expect(await screen.findByText('Result for run-older')).toBeInTheDocument();
+    expect(screen.queryByText('Result for run-latest')).not.toBeInTheDocument();
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledTimes(1);
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledWith(
+      'dm-1',
+      'run-older',
+      expect.objectContaining({ signal: expect.anything() })
+    );
+    expect(apiClientMock.get).not.toHaveBeenCalled();
+  });
+
   it('refreshes the first page while a loaded run is not final and stops after completion', async () => {
     vi.useFakeTimers();
     vi.mocked(dataMartService.getProjectDataMartRuns)
@@ -167,6 +224,7 @@ describe('DataMartRunsPage', () => {
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenCalledTimes(2);
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 0, {
       skipLoadingIndicator: true,
+      skipErrorToast: true,
     });
 
     await act(async () => {
@@ -203,11 +261,35 @@ describe('DataMartRunsPage', () => {
 });
 
 function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={['/ui/project-1/data-marts/runs']}>
-      <DataMartRunsPage />
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/ui/project-1/data-marts/runs']}>
+        <Routes>
+          <Route path='/ui/:projectId/data-marts/runs' element={<DataMartRunsPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
+}
+
+function buildQualitySummary(dataMartRunId: string): DataQualityCompactSummary {
+  return {
+    state: 'ISSUES',
+    enabledChecks: 1,
+    totalChecks: 1,
+    passedChecks: 0,
+    failedChecks: 1,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 1,
+    errorFindings: 0,
+    violationCount: 1,
+    highestSeverity: 'warning',
+    dataMartRunId,
+    lastRunAt: '2026-06-05T10:01:00.000Z',
+  };
 }
 
 function buildProjectRun({
@@ -258,6 +340,57 @@ function buildProjectRun({
     dataMart: {
       id: 'dm-1',
       title: 'Marketing Mart',
+    },
+  };
+}
+
+function buildGenericQualityRunDetail(runId: string, description: string) {
+  return {
+    id: runId,
+    type: DataMartRunType.DATA_QUALITY,
+    createdAt: '2026-06-05T10:00:00.000Z',
+    startedAt: '2026-06-05T10:00:00.000Z',
+    finishedAt: '2026-06-05T10:01:00.000Z',
+    dataQuality: {
+      snapshot: {
+        config: { timezone: 'UTC', rules: [] },
+        schema: { fields: [] },
+        relationships: [],
+        timezone: 'UTC',
+        definitionType: 'SQL',
+      },
+      summary: {
+        state: 'ISSUES',
+        enabledChecks: 1,
+        totalChecks: 1,
+        passedChecks: 0,
+        failedChecks: 1,
+        notApplicableChecks: 0,
+        errorChecks: 0,
+        noticeFindings: 0,
+        warningFindings: 1,
+        errorFindings: 0,
+        violationCount: 1,
+        highestSeverity: 'warning',
+      },
+      results: [
+        {
+          id: `result-${runId}`,
+          ruleKey: 'negative_values:field:amount',
+          category: 'negative_values',
+          scope: { type: 'FIELD', fieldId: 'amount' },
+          severity: 'warning',
+          status: 'FAILED',
+          violationCount: 1,
+          description,
+          examples: [],
+          executedSql: [],
+          reproductionSql: null,
+          error: null,
+          redacted: false,
+          createdAt: '2026-06-05T10:01:00.000Z',
+        },
+      ],
     },
   };
 }

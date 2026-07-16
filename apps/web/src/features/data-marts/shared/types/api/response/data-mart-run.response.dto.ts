@@ -9,6 +9,7 @@ import type {
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 import { DataMartRunStatus } from '../../../enums';
 import type { DataQualityCompactSummary } from '../../../types/data-quality-summary.types';
+import type { DataQualityRunDetails } from '../../../../data-quality/model/types';
 
 export interface DataMartRunResponseDto {
   id: string;
@@ -36,6 +37,7 @@ export interface DataMartRunResponseDto {
    * null/absent when none. */
   totals?: Record<string, number | string | boolean | null> | null;
   qualitySummary?: DataQualityCompactSummary | null;
+  dataQuality?: DataQualityRunDetails | null;
 }
 
 export interface ProjectDataMartRunRefResponseDto {

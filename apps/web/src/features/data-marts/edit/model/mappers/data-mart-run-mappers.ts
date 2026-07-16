@@ -43,6 +43,7 @@ export const mapDataMartRunResponseDtoToEntity = (
   additionalParams: dto.additionalParams ?? null,
   totals: dto.totals ?? null,
   qualitySummary: dto.qualitySummary ?? null,
+  dataQuality: dto.dataQuality ?? null,
 });
 
 export const mapDataMartRunListResponseDtoToEntity = (

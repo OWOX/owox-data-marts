@@ -13,7 +13,7 @@ describe('DataQualityRunHistoryDetails', () => {
   it('lazy-loads and renders the full snapshot, examples, and every executed SQL statement', () => {
     vi.mocked(useDataQualityRun).mockReturnValue({
       data: {
-        id: 'quality-run-1',
+        id: 'run-1',
         dataMartRunId: 'run-1',
         snapshot: {
           config: {
@@ -33,6 +33,7 @@ describe('DataQualityRunHistoryDetails', () => {
           schema: { fields: [{ id: 'amount', type: 'NUMBER' }] },
           relationships: [{ id: 'rel-1', targetDataMartId: 'mart-2' }],
           timezone: 'Europe/Kiev',
+          definitionType: 'SQL',
         },
         summary: {
           state: 'ISSUES',
@@ -91,4 +92,70 @@ describe('DataQualityRunHistoryDetails', () => {
     expect(screen.getByText('SELECT amount FROM source WHERE amount < 0')).toBeInTheDocument();
     expect(screen.getByText('SELECT * FROM source WHERE amount < 0')).toBeInTheDocument();
   });
+
+  it('renders the requested older run results instead of the latest run results', () => {
+    vi.mocked(useDataQualityRun).mockImplementation((_projectId, _dataMartId, runId) => {
+      const isOlderRun = runId === 'run-older';
+      return {
+        data: buildRun(runId ?? '', isOlderRun ? 'Older run finding' : 'Latest run finding'),
+        isLoading: false,
+        isError: false,
+        error: null,
+      } as unknown as ReturnType<typeof useDataQualityRun>;
+    });
+
+    const { rerender } = render(
+      <DataQualityRunHistoryDetails projectId='project-1' dataMartId='mart-1' runId='run-latest' />
+    );
+    expect(screen.getByText('Latest run finding')).toBeInTheDocument();
+
+    rerender(
+      <DataQualityRunHistoryDetails projectId='project-1' dataMartId='mart-1' runId='run-older' />
+    );
+
+    expect(screen.getByText('Older run finding')).toBeInTheDocument();
+    expect(screen.queryByText('Latest run finding')).not.toBeInTheDocument();
+    expect(useDataQualityRun).toHaveBeenLastCalledWith('project-1', 'mart-1', 'run-older');
+  });
 });
+
+function buildRun(runId: string, description: string) {
+  return {
+    id: runId,
+    dataMartRunId: runId,
+    summary: {
+      state: 'ISSUES' as const,
+      enabledChecks: 1,
+      totalChecks: 1,
+      passedChecks: 0,
+      failedChecks: 1,
+      notApplicableChecks: 0,
+      errorChecks: 0,
+      noticeFindings: 0,
+      warningFindings: 1,
+      errorFindings: 0,
+      violationCount: 1,
+      highestSeverity: 'warning' as const,
+    },
+    results: [
+      {
+        id: `result-${runId}`,
+        ruleKey: 'negative_values:field:amount',
+        category: 'negative_values' as const,
+        scope: { type: 'FIELD' as const, fieldId: 'amount' },
+        severity: 'warning' as const,
+        status: 'FAILED' as const,
+        violationCount: 1,
+        description,
+        examples: [],
+        executedSql: [],
+        reproductionSql: null,
+        error: null,
+        redacted: false,
+      },
+    ],
+    createdAt: '2026-07-15T12:00:00.000Z',
+    startedAt: '2026-07-15T12:00:01.000Z',
+    finishedAt: '2026-07-15T12:00:10.000Z',
+  };
+}
