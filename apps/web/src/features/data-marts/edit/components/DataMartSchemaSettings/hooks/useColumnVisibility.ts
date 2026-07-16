@@ -8,18 +8,35 @@ interface ExtendedColumnMeta<TData> extends ColumnMeta<TData, unknown> {
   title?: string;
 }
 
+function getColumnId<TData>(column: ColumnDef<TData>): string | undefined {
+  if (column.id) return column.id;
+  if ('accessorKey' in column && typeof column.accessorKey === 'string') {
+    return column.accessorKey;
+  }
+  return undefined;
+}
+
 /**
  * Loads the initial visibility for a storage key, layering any saved value over the
  * default-hidden set so unsaved columns fall back to their default state.
  */
 function loadColumnVisibility(
   storageKey: string | undefined,
-  defaultHiddenColumns: Record<string, boolean>
+  defaultHiddenColumns: Record<string, boolean>,
+  columnIds: readonly string[]
 ): Record<string, boolean> {
-  const saved = storageKey
-    ? (storageService.get(storageKey, 'json') as Record<string, boolean> | null)
-    : null;
-  return saved ? { ...defaultHiddenColumns, ...saved } : defaultHiddenColumns;
+  const savedRaw = storageKey ? storageService.get(storageKey, 'json') : null;
+  if (!savedRaw || typeof savedRaw !== 'object' || Array.isArray(savedRaw)) {
+    return defaultHiddenColumns;
+  }
+
+  const saved: Record<string, boolean> = {};
+  for (const id of columnIds) {
+    if (typeof savedRaw[id] === 'boolean') {
+      saved[id] = savedRaw[id];
+    }
+  }
+  return { ...defaultHiddenColumns, ...saved };
 }
 
 /**
@@ -29,6 +46,15 @@ function loadColumnVisibility(
  * @returns Object containing column visibility state and setter
  */
 export function useColumnVisibility<TData>(columns: ColumnDef<TData>[], storageKey?: string) {
+  const hideableColumnIds = useMemo(
+    () =>
+      columns
+        .filter(column => column.enableHiding !== false)
+        .map(getColumnId)
+        .filter((id): id is string => id !== undefined),
+    [columns]
+  );
+
   /**
    * Generates default hidden columns configuration
    */
@@ -38,14 +64,7 @@ export function useColumnVisibility<TData>(columns: ColumnDef<TData>[], storageK
         ? (Object.fromEntries(
             columns
               .filter(col => col.meta && (col.meta as ExtendedColumnMeta<TData>).hidden)
-              .map(col => [
-                'id' in col && col.id
-                  ? col.id
-                  : 'accessorKey' in col && typeof col.accessorKey === 'string'
-                    ? col.accessorKey
-                    : undefined,
-                false,
-              ])
+              .map(col => [getColumnId(col), false])
               .filter(([key]) => key !== undefined)
           ) as Record<string, boolean>)
         : {},
@@ -53,7 +72,7 @@ export function useColumnVisibility<TData>(columns: ColumnDef<TData>[], storageK
   );
 
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() =>
-    loadColumnVisibility(storageKey, defaultHiddenColumns)
+    loadColumnVisibility(storageKey, defaultHiddenColumns, hideableColumnIds)
   );
 
   // When storageKey changes for an already-mounted table (e.g. navigating between
@@ -63,7 +82,7 @@ export function useColumnVisibility<TData>(columns: ColumnDef<TData>[], storageK
   const [prevStorageKey, setPrevStorageKey] = useState(storageKey);
   if (storageKey !== prevStorageKey) {
     setPrevStorageKey(storageKey);
-    setColumnVisibility(loadColumnVisibility(storageKey, defaultHiddenColumns));
+    setColumnVisibility(loadColumnVisibility(storageKey, defaultHiddenColumns, hideableColumnIds));
   }
 
   // `columns` is rebuilt on every render (new array/object identities), so
