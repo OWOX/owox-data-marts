@@ -151,6 +151,7 @@ export function RowFilterIcon({
         trigger={trigger}
         column={column}
         fieldType={fieldType}
+        sliceFieldType={sliceFieldType}
         displayLabel={displayLabel}
         dataMartName={dataMartName}
         sliceColumn={sliceIconProps?.unifiedFieldName}
