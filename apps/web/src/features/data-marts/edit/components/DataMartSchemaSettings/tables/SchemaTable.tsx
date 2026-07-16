@@ -81,8 +81,8 @@ export function SchemaTable<T extends BaseSchemaField>({
   rowComponent = TableRow as ComponentType<RowComponentProps<Row<T>>>,
   getRowId,
 }: SchemaTableProps<T>) {
-  // Get schema actualization loading state from context
-  const { isSchemaActualizationLoading } = useOutletContext<DataMartContextType>();
+  // Get schema actualization loading state and current data mart from context
+  const { isSchemaActualizationLoading, dataMart } = useOutletContext<DataMartContextType>();
 
   // Use the columns provided by the parent component
   const columns = initialColumns;
@@ -91,8 +91,14 @@ export function SchemaTable<T extends BaseSchemaField>({
   const DragContext = dragContext;
   const RowComponent = rowComponent;
 
-  // Column visibility state
-  const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
+  // Column visibility state, persisted per data mart so it survives tab switches and reloads
+  const columnVisibilityStorageKey = dataMart?.id
+    ? `data-mart-schema-column-visibility-${dataMart.id}`
+    : undefined;
+  const { columnVisibility, setColumnVisibility } = useColumnVisibility(
+    columns,
+    columnVisibilityStorageKey
+  );
 
   // Create table instance
   const table = useReactTable<T>({

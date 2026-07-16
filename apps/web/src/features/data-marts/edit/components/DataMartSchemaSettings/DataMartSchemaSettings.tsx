@@ -8,6 +8,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useOutletContext } from 'react-router-dom';
 import type {
   AthenaSchemaField,
@@ -33,6 +34,115 @@ type BulkAiScope =
   | DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS
   | DataMartMetadataScope.ALL_FIELD_ALIASES;
 
+const normalizeMetadataValue = (value: string | undefined): string => value?.trim() ?? '';
+
+const isFilled = (value: string | undefined): boolean => normalizeMetadataValue(value) !== '';
+
+interface EditableMetadataField {
+  name: string;
+  alias?: string;
+  description?: string;
+}
+
+type GeneratedMetadata = Pick<EditableMetadataField, 'alias' | 'description'>;
+
+type MutableFieldArray<T extends readonly EditableMetadataField[]> =
+  T extends readonly (infer TField extends EditableMetadataField)[] ? TField[] : never;
+
+function countByName(fields: readonly EditableMetadataField[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const field of fields) {
+    counts.set(field.name, (counts.get(field.name) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Merges AI-generated alias/description values onto the live schema fields. A value
+ * is applied only when the field's property is empty AND unchanged since the request
+ * started (compared against `originalFields`), so edits or deliberate clears made
+ * while the slow generation call was in flight are never overwritten. Unchanged
+ * fields keep their original reference and `changed` reports whether anything was
+ * applied, letting callers skip a no-op schema update.
+ */
+function mergeGeneratedMetadata<TFields extends readonly EditableMetadataField[]>(
+  currentFields: TFields,
+  originalFields: readonly EditableMetadataField[],
+  generatedByName: ReadonlyMap<string, GeneratedMetadata>,
+  props: readonly ('alias' | 'description')[]
+): { fields: MutableFieldArray<TFields>; changed: boolean; duplicateNamesSkipped: boolean };
+function mergeGeneratedMetadata(
+  currentFields: readonly EditableMetadataField[],
+  originalFields: readonly EditableMetadataField[],
+  generatedByName: ReadonlyMap<string, GeneratedMetadata>,
+  props: readonly ('alias' | 'description')[]
+): { fields: EditableMetadataField[]; changed: boolean; duplicateNamesSkipped: boolean } {
+  const originalByName = new Map(originalFields.map(field => [field.name, field]));
+  // Fields, generated results, and the pre-generation snapshot are all matched by
+  // name (there is no stable field id). Names are user-editable and can briefly
+  // collide, so a duplicated name can't be attributed to a specific row - skip
+  // those to avoid applying AI output to the wrong field.
+  const currentNameCounts = countByName(currentFields);
+  const originalNameCounts = countByName(originalFields);
+  let changed = false;
+  let duplicateNamesSkipped = false;
+  const fields = currentFields.map(field => {
+    const gen = generatedByName.get(field.name);
+    if (!gen) return field;
+    if (currentNameCounts.get(field.name) !== 1 || originalNameCounts.get(field.name) !== 1) {
+      duplicateNamesSkipped = true;
+      return field;
+    }
+    const original = originalByName.get(field.name);
+    let next = field;
+    for (const prop of props) {
+      const value = gen[prop];
+      const unchanged =
+        !original || normalizeMetadataValue(field[prop]) === normalizeMetadataValue(original[prop]);
+      if (value && !isFilled(field[prop]) && unchanged) {
+        next = { ...next, [prop]: value };
+        changed = true;
+      }
+    }
+    return next;
+  });
+  return { fields, changed, duplicateNamesSkipped };
+}
+
+function showBulkMergeFeedback(
+  scope: BulkAiScope,
+  changed: boolean,
+  duplicateNamesSkipped: boolean
+): void {
+  if (duplicateNamesSkipped) {
+    toast(
+      changed
+        ? 'Some fields were skipped because duplicate field names cannot be matched reliably.'
+        : 'No generated field metadata was applied because duplicate field names cannot be matched reliably.'
+    );
+    return;
+  }
+  if (changed) return;
+
+  switch (scope) {
+    case DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS:
+      toast(
+        'No field descriptions were applied. Values may already be filled or fields may have changed during generation.'
+      );
+      break;
+    case DataMartMetadataScope.ALL_FIELD_ALIASES:
+      toast(
+        'No field aliases were applied. Values may already be filled or fields may have changed during generation.'
+      );
+      break;
+    case DataMartMetadataScope.ALL_FIELD_METADATA:
+      toast(
+        'No field aliases or descriptions were applied. Values may already be filled or fields may have changed during generation.'
+      );
+      break;
+  }
+}
+
 /**
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
@@ -57,6 +167,8 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
 
   const schemaRef = useRef(schema);
   schemaRef.current = schema;
+  const activeDataMartIdRef = useRef(dataMartId);
+  activeDataMartIdRef.current = dataMartId;
 
   const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
   const {
@@ -166,20 +278,28 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     [dataMartId, generateFieldDescription]
   );
 
-  const isFilled = (value: string | undefined): boolean => !!value && value.trim() !== '';
-
+  // The three bulk handlers all merge generated metadata onto the current live
+  // schema (schemaRef), preserving edits made during the slow generation call, and
+  // skip the schema update entirely when nothing was applied. See mergeGeneratedMetadata.
   const handleGenerateAllFieldDescriptions = useCallback(
     async (targetSchema: ResolvedSchema) => {
       if (!dataMartId || !targetSchema) return;
       const generated = await generateAllFieldDescriptions(dataMartId);
-      if (!generated) return;
-      const byName = new Map(generated.map(field => [field.name, field.description]));
-      const updated = targetSchema.fields.map(field => {
-        if (isFilled(field.description)) return field;
-        const description = byName.get(field.name);
-        return description ? { ...field, description } : field;
-      });
-      updateSchema(updated as typeof targetSchema.fields);
+      if (!generated || activeDataMartIdRef.current !== dataMartId) return;
+      const byName = new Map(generated.map(f => [f.name, { description: f.description }]));
+      const currentFields = schemaRef.current?.fields ?? targetSchema.fields;
+      const { fields, changed, duplicateNamesSkipped } = mergeGeneratedMetadata(
+        currentFields,
+        targetSchema.fields,
+        byName,
+        ['description']
+      );
+      if (changed) updateSchema(fields);
+      showBulkMergeFeedback(
+        DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS,
+        changed,
+        duplicateNamesSkipped
+      );
     },
     [dataMartId, generateAllFieldDescriptions, updateSchema]
   );
@@ -188,14 +308,21 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     async (targetSchema: ResolvedSchema) => {
       if (!dataMartId || !targetSchema) return;
       const generated = await generateAllFieldAliases(dataMartId);
-      if (!generated) return;
-      const byName = new Map(generated.map(field => [field.name, field.alias]));
-      const updated = targetSchema.fields.map(field => {
-        if (isFilled(field.alias)) return field;
-        const alias = byName.get(field.name);
-        return alias ? { ...field, alias } : field;
-      });
-      updateSchema(updated as typeof targetSchema.fields);
+      if (!generated || activeDataMartIdRef.current !== dataMartId) return;
+      const byName = new Map(generated.map(f => [f.name, { alias: f.alias }]));
+      const currentFields = schemaRef.current?.fields ?? targetSchema.fields;
+      const { fields, changed, duplicateNamesSkipped } = mergeGeneratedMetadata(
+        currentFields,
+        targetSchema.fields,
+        byName,
+        ['alias']
+      );
+      if (changed) updateSchema(fields);
+      showBulkMergeFeedback(
+        DataMartMetadataScope.ALL_FIELD_ALIASES,
+        changed,
+        duplicateNamesSkipped
+      );
     },
     [dataMartId, generateAllFieldAliases, updateSchema]
   );
@@ -204,17 +331,23 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     async (targetSchema: ResolvedSchema) => {
       if (!dataMartId || !targetSchema) return;
       const generated = await generateAllFieldMetadata(dataMartId);
-      if (!generated) return;
-      const byName = new Map(generated.map(field => [field.name, field]));
-      const updated = targetSchema.fields.map(field => {
-        const gen = byName.get(field.name);
-        if (!gen) return field;
-        const next = { ...field };
-        if (!isFilled(field.alias) && gen.alias) next.alias = gen.alias;
-        if (!isFilled(field.description) && gen.description) next.description = gen.description;
-        return next;
-      });
-      updateSchema(updated as typeof targetSchema.fields);
+      if (!generated || activeDataMartIdRef.current !== dataMartId) return;
+      const byName = new Map(
+        generated.map(f => [f.name, { alias: f.alias, description: f.description }])
+      );
+      const currentFields = schemaRef.current?.fields ?? targetSchema.fields;
+      const { fields, changed, duplicateNamesSkipped } = mergeGeneratedMetadata(
+        currentFields,
+        targetSchema.fields,
+        byName,
+        ['alias', 'description']
+      );
+      if (changed) updateSchema(fields);
+      showBulkMergeFeedback(
+        DataMartMetadataScope.ALL_FIELD_METADATA,
+        changed,
+        duplicateNamesSkipped
+      );
     },
     [dataMartId, generateAllFieldMetadata, updateSchema]
   );
