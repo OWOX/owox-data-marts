@@ -10,6 +10,7 @@ import {
   IANA_TIME_ZONE_PATTERN,
 } from '../../../data-marts/dto/schemas/date-trunc-config.schema';
 import type { DateTruncConfig } from '../../../data-marts/dto/schemas/date-trunc-config.schema';
+import type { SortConfig } from '../../../data-marts/dto/schemas/sort-config.schema';
 
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 20;
@@ -88,6 +89,11 @@ const McpDateBucketSchema = z.object({
   time_zone: z.string().min(1).regex(IANA_TIME_ZONE_PATTERN, 'Invalid IANA time zone').optional(),
 });
 
+const McpSortSchema = z.object({
+  field: z.string().min(1),
+  direction: z.enum(['asc', 'desc']),
+});
+
 export const queryDataMartInputSchema = z
   .object({
     data_mart_id: z
@@ -100,7 +106,7 @@ export const queryDataMartInputSchema = z
       .array(z.string().min(1))
       .min(1)
       .describe(
-        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations and date_buckets — a field you aggregate or bucket but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions.'
+        'Exact field names to return, copied verbatim from get_data_mart_details_by_id. MUST include every field named in aggregations, date_buckets, and sort — a field you aggregate, bucket, or sort but omit here is rejected. Fields here that are neither aggregated nor bucketed become group-by dimensions.'
       ),
     slices: z
       .array(makeMcpFilterSchema())
@@ -123,6 +129,12 @@ export const queryDataMartInputSchema = z
       .optional()
       .describe(
         'Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR. Each bucketed field must also appear in "fields".'
+      ),
+    sort: z
+      .array(McpSortSchema)
+      .optional()
+      .describe(
+        'Order the result rows. Each rule is { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also appear in "fields".'
       ),
     limit: z
       .number()
@@ -260,4 +272,11 @@ export function mapMcpDateBuckets(
       ...(b.time_zone !== undefined ? { timeZone: b.time_zone } : {}),
     };
   });
+}
+
+export function mapMcpSort(
+  sort: Array<{ field: string; direction: 'asc' | 'desc' }> = []
+): SortConfig {
+  if (!sort.length) return null;
+  return sort.map(s => ({ column: s.field, direction: s.direction }));
 }

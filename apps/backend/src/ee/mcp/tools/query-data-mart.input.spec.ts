@@ -3,6 +3,7 @@ import {
   mapMcpFiltersToRules,
   mapMcpAggregations,
   mapMcpDateBuckets,
+  mapMcpSort,
   queryDataMartInputSchema,
   SUPPORTED_MCP_OPERATORS,
   UNSUPPORTED_MCP_OPERATORS,
@@ -161,6 +162,52 @@ describe('mapMcpDateBuckets', () => {
     }
     expect(caught).toBeInstanceOf(Error);
     expect((caught as Error).name).toBe('UnsupportedDateBucketError');
+  });
+});
+
+describe('mapMcpSort', () => {
+  it('maps field/direction to the internal column/direction shape', () => {
+    expect(mapMcpSort([{ field: 'revenue', direction: 'desc' }])).toEqual([
+      { column: 'revenue', direction: 'desc' },
+    ]);
+  });
+
+  it('preserves the order of multiple sort rules', () => {
+    expect(
+      mapMcpSort([
+        { field: 'date', direction: 'asc' },
+        { field: 'revenue', direction: 'desc' },
+      ])
+    ).toEqual([
+      { column: 'date', direction: 'asc' },
+      { column: 'revenue', direction: 'desc' },
+    ]);
+  });
+
+  it('returns null for an empty or absent list', () => {
+    expect(mapMcpSort([])).toBeNull();
+    expect(mapMcpSort()).toBeNull();
+  });
+});
+
+describe('queryDataMartInputSchema sort validation', () => {
+  it('rejects an invalid sort direction at schema parse', () => {
+    expect(() =>
+      queryDataMartInputSchema.parse({
+        data_mart_id: 'dm1',
+        fields: ['f1'],
+        sort: [{ field: 'f1', direction: 'ascending' }],
+      })
+    ).toThrow();
+  });
+
+  it('accepts valid sort rules', () => {
+    const result = queryDataMartInputSchema.parse({
+      data_mart_id: 'dm1',
+      fields: ['f1'],
+      sort: [{ field: 'f1', direction: 'desc' }],
+    });
+    expect(result.sort?.[0]).toEqual({ field: 'f1', direction: 'desc' });
   });
 });
 
