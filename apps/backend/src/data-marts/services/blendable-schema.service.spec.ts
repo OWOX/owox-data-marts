@@ -285,9 +285,7 @@ describe('BlendableSchemaService', () => {
       expect(flat).toBeDefined();
       expect(nested).toBeDefined();
       expect(flat!.name).toBe('customers__campaign_id');
-      expect(nested!.name).toBe(
-        buildBlendedFieldUnifiedName('customers', 'customers', 'campaign.id')
-      );
+      expect(nested!.name).toBe(buildBlendedFieldUnifiedName('customers', 'campaign.id'));
       expect(nested!.name).toBe('customers__campaign_id__b996a659');
       expect(nested!.name).not.toBe(flat!.name);
       expect(nested!.originalFieldName).toBe('campaign.id');

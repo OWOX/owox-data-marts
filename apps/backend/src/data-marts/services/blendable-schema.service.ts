@@ -223,11 +223,10 @@ export class BlendableSchemaService {
       );
       const flatTargetFields = flattenSchemaFields(targetSchemaFields);
 
-      // `sqlPrefix` is SQL‑safe because each `targetAlias` segment in
-      // `currentPath` is validated against `^[a-z0-9_]+$` in the Join
-      // Settings form. `displayPrefix` is free‑form and must never flow
-      // into SQL identifiers.
-      const sqlPrefix = currentPath.replace(/\./g, '_');
+      // Each `targetAlias` segment in `currentPath` is validated against
+      // `^[a-z0-9_]+$` in the Join Settings form, so the SQL-safe prefix
+      // derived inside `buildBlendedFieldUnifiedName` is safe. `displayPrefix`
+      // is free-form and must never flow into SQL identifiers.
       const displayPrefix = sourceConfig?.alias ?? rel.targetDataMart.title;
 
       const availableSource = new AvailableSourceDto();
@@ -246,7 +245,7 @@ export class BlendableSchemaService {
         const fieldOverride = sourceConfig?.fields?.[field.name];
 
         const dto = new BlendedFieldDto();
-        dto.name = buildBlendedFieldUnifiedName(currentPath, sqlPrefix, field.name);
+        dto.name = buildBlendedFieldUnifiedName(currentPath, field.name);
         dto.aliasPath = currentPath;
         dto.outputPrefix = displayPrefix;
         dto.sourceRelationshipId = rel.id;

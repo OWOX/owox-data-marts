@@ -371,9 +371,10 @@ export class BlendedReportDataService {
     return chains;
   }
 
-  // Blended column refs are flat `<aliasPath>__<field>` strings; an alias rename or
-  // relationship removal orphans them, and unmatched names would otherwise be projected
-  // as native main columns — producing a cryptic storage error instead of this one.
+  // Blended column refs are unified names from `buildBlendedFieldUnifiedName`
+  // (flat: `<aliasPath>__<field>`; nested: same with a stable hash suffix). An alias
+  // rename or relationship removal orphans them, and unmatched names would otherwise
+  // be projected as native main columns — producing a cryptic storage error instead of this one.
   // Hidden fields are equally unavailable: schema-hidden ones are excluded from
   // reporting by definition, and blend-hidden ones are dropped from the final SELECT
   // while their data headers are still emitted — selecting either must fail here.
