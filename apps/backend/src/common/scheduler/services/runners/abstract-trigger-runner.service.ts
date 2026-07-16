@@ -2,10 +2,12 @@ import { Trigger } from '../../shared/entities/trigger.entity';
 import { TriggerStatus } from '../../shared/entities/trigger-status';
 import { TriggerHandler } from '../../shared/trigger-handler.interface';
 import { Logger } from '@nestjs/common';
-import { QueryFailedError, Repository } from 'typeorm';
+import { FindOptionsWhere, QueryFailedError, Repository } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { SystemTimeService } from '../system-time.service';
 import { TriggerRunnerService } from './trigger-runner.interface';
 import { GracefulShutdownService } from '../graceful-shutdown.service';
+import { TriggerExecutionOwnershipError } from '../../shared/trigger-execution-ownership.error';
 
 /**
  * Abstract base class for trigger runner services.
@@ -138,11 +140,30 @@ export abstract class AbstractTriggerRunnerService<
     this.abortControllersByTriggerId.set(trigger.id, abortController);
     try {
       await this.handler.handleTrigger(trigger, { signal: abortController.signal });
-      trigger.onSuccess(this.systemClock.now());
-      await repository.save(trigger);
+      await this.completeTrigger(trigger, repository);
     } finally {
       this.abortControllersByTriggerId.delete(trigger.id);
     }
+  }
+
+  private async completeTrigger(trigger: T, repository: Repository<T>): Promise<void> {
+    const expectedStatus = trigger.status;
+    const expectedVersion = trigger.version;
+    const stateBeforeCompletion = this.getTriggerColumnState(trigger, repository);
+    trigger.onSuccess(this.systemClock.now());
+    const stateAfterCompletion = this.getTriggerColumnState(trigger, repository);
+
+    // Some handlers deliberately persist a non-PROCESSING state (for example IDLE retry or
+    // CANCELLED) before returning. If onSuccess preserves it, a second runner write would be both
+    // redundant and capable of overwriting a newer scheduler epoch.
+    if (
+      expectedStatus !== TriggerStatus.PROCESSING &&
+      this.statesEqual(stateBeforeCompletion, stateAfterCompletion)
+    ) {
+      return;
+    }
+
+    await this.persistOwnedTriggerState(trigger, repository, expectedStatus, expectedVersion);
   }
 
   /**
@@ -173,6 +194,12 @@ export abstract class AbstractTriggerRunnerService<
     try {
       await this.markTriggerAsError(trigger, repository);
     } catch (secondaryError) {
+      if (secondaryError instanceof TriggerExecutionOwnershipError) {
+        this.logger.warn(
+          `[${this.handlerName}] Error cleanup lost execution ownership for trigger ${trigger.id}; newer state was preserved.`
+        );
+        return;
+      }
       this.logger.error(
         `[${this.handlerName}] Failed to mark trigger ${trigger.id} as error:`,
         secondaryError
@@ -193,8 +220,27 @@ export abstract class AbstractTriggerRunnerService<
     status: TriggerStatus,
     repository: Repository<T>
   ): Promise<void> {
+    const previousStatus = trigger.status;
+    const previousVersion = trigger.version;
+    const modifiedAt = this.systemClock.now();
+    const { affected } = await repository.update(
+      {
+        id: trigger.id,
+        status: previousStatus,
+        version: previousVersion,
+      } as FindOptionsWhere<T>,
+      {
+        status,
+        modifiedAt,
+        version: () => 'version + 1',
+      } as QueryDeepPartialEntity<T>
+    );
+    if (!affected) {
+      throw new TriggerExecutionOwnershipError(trigger.id, previousVersion);
+    }
     trigger.status = status;
-    await repository.save(trigger);
+    trigger.modifiedAt = modifiedAt;
+    trigger.version = previousVersion + 1;
   }
 
   /**
@@ -205,8 +251,79 @@ export abstract class AbstractTriggerRunnerService<
    * @returns A promise that resolves when the trigger has been marked
    */
   private async markTriggerAsError(trigger: T, repository: Repository<T>): Promise<void> {
+    const expectedStatus = trigger.status;
+    const expectedVersion = trigger.version;
+    const stateBeforeError = this.getTriggerColumnState(trigger, repository);
     trigger.onError(this.systemClock.now());
-    await repository.save(trigger);
+    const stateAfterError = this.getTriggerColumnState(trigger, repository);
+    if (
+      expectedStatus !== TriggerStatus.PROCESSING &&
+      this.statesEqual(stateBeforeError, stateAfterError)
+    ) {
+      return;
+    }
+    await this.persistOwnedTriggerState(trigger, repository, expectedStatus, expectedVersion);
+  }
+
+  private async persistOwnedTriggerState(
+    trigger: T,
+    repository: Repository<T>,
+    expectedStatus: TriggerStatus,
+    expectedVersion: number
+  ): Promise<void> {
+    const modifiedAt = this.systemClock.now();
+    const state = this.getTriggerColumnState(trigger, repository);
+    const { affected } = await repository.update(
+      {
+        id: trigger.id,
+        status: expectedStatus,
+        version: expectedVersion,
+      } as FindOptionsWhere<T>,
+      {
+        ...state,
+        modifiedAt,
+        version: () => 'version + 1',
+      } as QueryDeepPartialEntity<T>
+    );
+    if (!affected) {
+      throw new TriggerExecutionOwnershipError(trigger.id, expectedVersion);
+    }
+    trigger.modifiedAt = modifiedAt;
+    trigger.version = expectedVersion + 1;
+  }
+
+  private getTriggerColumnState(trigger: T, repository: Repository<T>): Record<string, unknown> {
+    const metadataColumns = repository.metadata?.columns;
+    if (metadataColumns?.length) {
+      return Object.fromEntries(
+        metadataColumns
+          .filter(
+            column =>
+              !column.isPrimary &&
+              !column.isVersion &&
+              !column.isCreateDate &&
+              !column.isUpdateDate &&
+              !column.isGenerated
+          )
+          .map(column => [column.propertyName, column.getEntityValue(trigger)])
+          .filter(([, value]) => value !== undefined)
+      );
+    }
+
+    // Unit-test repositories do not carry TypeORM metadata. Production repositories always do.
+    return Object.fromEntries(
+      Object.entries(trigger as unknown as Record<string, unknown>).filter(
+        ([key, value]) =>
+          !['id', 'version', 'createdAt', 'modifiedAt'].includes(key) &&
+          value !== undefined &&
+          typeof value !== 'function'
+      )
+    );
+  }
+
+  private statesEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+    const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+    return [...keys].every(key => Object.is(left[key], right[key]));
   }
 
   /**
@@ -221,6 +338,9 @@ export abstract class AbstractTriggerRunnerService<
    * @returns True if the error is a transient concurrency error, false otherwise
    */
   private isTransientConcurrencyError(error: unknown): boolean {
+    if (error instanceof TriggerExecutionOwnershipError) {
+      return true;
+    }
     if (!(error instanceof QueryFailedError)) {
       return false;
     }

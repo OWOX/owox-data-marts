@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { DataQualityRun } from '../entities/data-quality-run.entity';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import {
@@ -10,7 +10,6 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 
 describe('DataQualitySummaryService', () => {
   const qb = {
-    innerJoinAndSelect: jest.fn(),
     innerJoin: jest.fn(),
     leftJoin: jest.fn(),
     where: jest.fn(),
@@ -24,7 +23,7 @@ describe('DataQualitySummaryService', () => {
 
   const repository = {
     createQueryBuilder: jest.fn(() => qb),
-  } as unknown as Repository<DataQualityRun>;
+  } as unknown as Repository<DataMartRun>;
   const relationshipService = {
     findGraphEdgesByProjectIdAndSourceDataMartIds: jest.fn(),
   } as unknown as DataMartRelationshipService;
@@ -40,7 +39,12 @@ describe('DataQualitySummaryService', () => {
   it('uses the creation-ordered run id when two runs have the same createdAt', async () => {
     qb.getMany.mockResolvedValue([
       {
-        summary: {
+        id: 'run-b',
+        dataMartId: 'dm-b',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        startedAt: new Date('2026-01-01T00:01:00Z'),
+        finishedAt: new Date('2026-01-01T00:02:00Z'),
+        dataQualitySummary: {
           state: DataQualitySummaryState.ISSUES,
           enabledChecks: 2,
           totalChecks: 2,
@@ -54,13 +58,6 @@ describe('DataQualitySummaryService', () => {
           violationCount: 3,
           highestSeverity: DataQualitySeverity.WARNING,
         },
-        dataMartRun: {
-          id: 'run-b',
-          dataMartId: 'dm-b',
-          createdAt: new Date('2026-01-01T00:00:00Z'),
-          startedAt: new Date('2026-01-01T00:01:00Z'),
-          finishedAt: new Date('2026-01-01T00:02:00Z'),
-        },
       },
     ]);
 
@@ -71,16 +68,17 @@ describe('DataQualitySummaryService', () => {
       lastRunAt: new Date('2026-01-01T00:02:00Z'),
       state: DataQualitySummaryState.ISSUES,
     });
+    expect(repository.createQueryBuilder).toHaveBeenCalledWith('run');
     expect(qb.getMany).toHaveBeenCalledTimes(1);
     expect(qb.leftJoin).toHaveBeenCalledWith(
       expect.any(Function),
       'newerRun',
-      expect.stringContaining('newerRun.createdAt = dataMartRun.createdAt')
+      expect.stringContaining('newerRun.createdAt = run.createdAt')
     );
     expect(qb.leftJoin).toHaveBeenCalledWith(
       expect.any(Function),
       'newerRun',
-      expect.stringContaining('newerRun.id > dataMartRun.id')
+      expect.stringContaining('newerRun.id > run.id')
     );
     expect(qb.andWhere).toHaveBeenCalledWith('dataMart.projectId = :projectId');
     expect(qb.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('createdAt >='));

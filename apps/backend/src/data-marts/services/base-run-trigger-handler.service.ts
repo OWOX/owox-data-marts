@@ -64,6 +64,21 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
 
   protected async onOrphanedRunFailed(_run: DataMartRun): Promise<void> {}
 
+  protected async terminalizeOrphanedRun(
+    run: DataMartRun,
+    error: string,
+    finishedAt: Date
+  ): Promise<boolean> {
+    run.status = DataMartRunStatus.FAILED;
+    run.finishedAt = finishedAt;
+    run.errors = [error];
+    // Persist dependent state first. If it fails, the active parent row remains eligible for
+    // the next cleanup pass instead of becoming terminal with a stale child summary.
+    await this.onOrphanedRunFailed(run);
+    await this.dataMartRunRepository.save(run);
+    return true;
+  }
+
   protected async cancelTriggerIfRunAlreadyCancelled(trigger: T): Promise<boolean> {
     const dataMartRunId = this.getTriggerDataMartRunId(trigger);
     const existingRun = await this.dataMartRunService.findById(dataMartRunId);
@@ -162,14 +177,14 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
       for (const run of orphanedRuns) {
         const orphanedStatus = run.status;
         const orphanedError = this.getOrphanedRunError(run);
-        run.status = DataMartRunStatus.FAILED;
-        run.finishedAt = new Date(Date.now());
-        run.errors = [orphanedError];
-        // Persist dependent state first. If it fails, the active parent row remains eligible for
-        // the next cleanup pass instead of becoming terminal with a stale child summary.
-        await this.onOrphanedRunFailed(run);
-        await this.dataMartRunRepository.save(run);
-        this.logger.warn(`Orphaned ${orphanedStatus} run ${run.id} marked as FAILED`);
+        const terminalized = await this.terminalizeOrphanedRun(
+          run,
+          orphanedError,
+          new Date(Date.now())
+        );
+        if (terminalized) {
+          this.logger.warn(`Orphaned ${orphanedStatus} run ${run.id} marked as FAILED`);
+        }
       }
     } catch (error) {
       this.logger.error(

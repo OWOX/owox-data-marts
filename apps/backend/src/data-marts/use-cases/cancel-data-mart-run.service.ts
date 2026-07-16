@@ -14,7 +14,6 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { ConnectorRunTriggerService } from '../services/connector/connector-run-trigger.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
-import { DataQualityRunTriggerService } from '../services/data-quality-run-trigger.service';
 import { DataQualityRunService } from '../services/data-quality-run.service';
 import { ReportService } from '../services/report.service';
 import {
@@ -29,7 +28,6 @@ export class CancelDataMartRunService {
     private readonly dataMartRunService: DataMartRunService,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
     private readonly reportRunTriggerService: ReportRunTriggerService,
-    private readonly dataQualityRunTriggerService: DataQualityRunTriggerService,
     private readonly dataQualityRunService: DataQualityRunService,
     private readonly reportService: ReportService,
     private readonly accessDecisionService: AccessDecisionService
@@ -52,40 +50,31 @@ export class CancelDataMartRunService {
       }
     }
 
-    await this.cancelRunState(command);
-  }
-
-  @Transactional()
-  private async cancelRunState(command: CancelDataMartRunCommand): Promise<void> {
     const run = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.id);
-
     if (!run) {
       throw new NotFoundException('Data mart run not found');
     }
-
     if (!this.isSupportedRunType(run.type)) {
       throw new BadRequestException(
         'Only connector, standard report, and Data Quality runs can be cancelled'
       );
     }
-
     if (!isCancellableDataMartRunStatus(run.status)) {
       throw new ConflictException(`Cannot cancel data mart run in ${run.status} status`);
     }
-
-    if (run.type === DataMartRunType.CONNECTOR) {
-      await this.markActiveRunAsCancelled(run);
-      await this.connectorRunTriggerService.stopTriggersForRun(run.id);
+    if (run.type === DataMartRunType.DATA_QUALITY) {
+      await this.dataQualityRunService.cancelActiveRun(run.id, command.id);
       return;
     }
 
-    if (run.type === DataMartRunType.DATA_QUALITY) {
+    await this.cancelRunState(run);
+  }
+
+  @Transactional()
+  private async cancelRunState(run: DataMartRun): Promise<void> {
+    if (run.type === DataMartRunType.CONNECTOR) {
       await this.markActiveRunAsCancelled(run);
-      if (!run.finishedAt) {
-        throw new ConflictException('Cancelled Data Quality run is missing finish time');
-      }
-      await this.dataQualityRunService.markAsCancelled(run.id, run.finishedAt);
-      await this.dataQualityRunTriggerService.stopTriggersForRun(run.id);
+      await this.connectorRunTriggerService.stopTriggersForRun(run.id);
       return;
     }
 

@@ -190,6 +190,34 @@ describe('DataQualityQueryExecutorService', () => {
     expect(result.executions).toHaveLength(1);
   });
 
+  it('checks execution ownership before each SQL statement and propagates a lost fence', async () => {
+    const executeBatches = jest.fn((_type, _credentials, _config, _definition, sql: string) =>
+      (async function* () {
+        yield new SqlRunBatch([{ sql }], null, ['sql']);
+      })()
+    );
+    const { service, mapper } = createService(executeBatches);
+    const ownershipError = Object.assign(new Error('execution lease was lost'), {
+      name: 'TriggerExecutionOwnershipError',
+    });
+    const beforeExecuteQuery = jest
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(ownershipError);
+    const check = executableCheck('guarded', [
+      { purpose: DataQualityQueryPurpose.MEASUREMENT, sql: 'first-sql' },
+      { purpose: DataQualityQueryPurpose.EXAMPLES, sql: 'second-sql' },
+    ]);
+
+    await expect(
+      collect(service.executeChecks(dataMart, [check], { beforeExecuteQuery }))
+    ).rejects.toBe(ownershipError);
+
+    expect(beforeExecuteQuery).toHaveBeenCalledTimes(2);
+    expect(executeBatches.mock.calls.map(call => call[4])).toEqual(['first-sql']);
+    expect(mapper.toStorageReadError).not.toHaveBeenCalled();
+  });
+
   it('does not resolve credentials or execute SQL when already aborted', async () => {
     const executeBatches = jest.fn();
     const { service, credentialsResolver, mapper } = createService(executeBatches);

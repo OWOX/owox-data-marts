@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
 import { DataMartRun } from '../entities/data-mart-run.entity';
-import { DataQualityRun } from '../entities/data-quality-run.entity';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { DataMart } from '../entities/data-mart.entity';
@@ -13,8 +12,8 @@ import { resolveEffectiveDataQualityConfig } from './data-quality-config-resolve
 @Injectable()
 export class DataQualitySummaryService {
   constructor(
-    @InjectRepository(DataQualityRun)
-    private readonly repository: Repository<DataQualityRun>,
+    @InjectRepository(DataMartRun)
+    private readonly repository: Repository<DataMartRun>,
     private readonly relationshipService: DataMartRelationshipService
   ) {}
 
@@ -28,21 +27,20 @@ export class DataQualitySummaryService {
     // Anti-join selects exactly one latest run for each Data Mart. New Data Quality runs use
     // creation-ordered UUIDv7 ids as the tie-breaker when database timestamps have equal precision.
     const runs = await this.repository
-      .createQueryBuilder('dataQualityRun')
-      .innerJoinAndSelect('dataQualityRun.dataMartRun', 'dataMartRun')
-      .innerJoin('dataMartRun.dataMart', 'dataMart')
+      .createQueryBuilder('run')
+      .innerJoin('run.dataMart', 'dataMart')
       .leftJoin(
         DataMartRun,
         'newerRun',
-        `newerRun.dataMartId = dataMartRun.dataMartId
+        `newerRun.dataMartId = run.dataMartId
           AND newerRun.type = :dataQualityRunType
           AND (
-            newerRun.createdAt > dataMartRun.createdAt
-            OR (newerRun.createdAt = dataMartRun.createdAt AND newerRun.id > dataMartRun.id)
+            newerRun.createdAt > run.createdAt
+            OR (newerRun.createdAt = run.createdAt AND newerRun.id > run.id)
           )`
       )
-      .where('dataMartRun.dataMartId IN (:...dataMartIds)')
-      .andWhere('dataMartRun.type = :dataQualityRunType')
+      .where('run.dataMartId IN (:...dataMartIds)')
+      .andWhere('run.type = :dataQualityRunType')
       .andWhere('dataMart.projectId = :projectId')
       .andWhere('newerRun.id IS NULL')
       .setParameters({
@@ -52,9 +50,7 @@ export class DataQualitySummaryService {
       })
       .getMany();
 
-    return new Map(
-      runs.map(run => [run.dataMartRun.dataMartId, toCompactDataQualitySummary(run)] as const)
-    );
+    return new Map(runs.map(run => [run.dataMartId, toCompactDataQualitySummary(run)] as const));
   }
 
   async getCurrentByDataMarts(
@@ -101,12 +97,14 @@ export class DataQualitySummaryService {
   }
 }
 
-export function toCompactDataQualitySummary(run: DataQualityRun): DataQualitySummaryDto {
+export function toCompactDataQualitySummary(run: DataMartRun): DataQualitySummaryDto {
+  if (!run.dataQualitySummary) {
+    throw new Error(`Data Quality run ${run.id} is missing its summary`);
+  }
   return {
-    ...run.summary,
-    dataMartRunId: run.dataMartRun.id,
-    lastRunAt:
-      run.dataMartRun.finishedAt ?? run.dataMartRun.startedAt ?? run.dataMartRun.createdAt ?? null,
+    ...run.dataQualitySummary,
+    dataMartRunId: run.id,
+    lastRunAt: run.finishedAt ?? run.startedAt ?? run.createdAt ?? null,
   };
 }
 

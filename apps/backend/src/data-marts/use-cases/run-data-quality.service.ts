@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, IsNull, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { v7 as uuidv7 } from 'uuid';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import {
+  TriggerExecutionOwnership,
+  TriggerExecutionOwnershipError,
+} from '../../common/scheduler/shared/trigger-execution-ownership.error';
 import {
   DataQualityCheckCompiler,
   DataQualityCompiledCheck,
@@ -16,29 +21,59 @@ import {
   aggregateDataQualitySummary,
 } from '../data-quality/data-quality-result-parser';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
-import { DataQualityMappedError } from '../dto/schemas/data-quality/data-quality-run.schema';
+import { IdentifierEscaperFacade } from '../data-storage-types/facades/identifier-escaper.facade';
+import { QueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
+import {
+  ProviderErrorIdentity,
+  wrapProviderError,
+} from '../data-storage-types/utils/provider-error.utils';
+import {
+  DataQualityMappedError,
+  DataQualityRelationshipSnapshot,
+  DataQualityRunSnapshot,
+  DataQualityStoredCheckResult,
+} from '../dto/schemas/data-quality/data-quality-run.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
-import { DataQualityCheckResult } from '../entities/data-quality-check-result.entity';
-import { DataQualityRun } from '../entities/data-quality-run.entity';
+import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
-import { createDataQualityLifecycleSummary } from '../services/data-quality-run.service';
+import {
+  DataQualityConsumptionPublicationError,
+  DataQualityConsumptionService,
+} from '../services/data-quality-consumption.service';
+import { DataMartTableReferenceService } from '../services/data-mart-table-reference.service';
 
 interface ClaimedDataQualityRun {
   dataMartRun: DataMartRun;
-  qualityRun: DataQualityRun;
   dataMart: DataMart;
 }
 
-export class DataQualityConsumptionPublicationError extends Error {
+export class DataQualityResultPersistenceError extends Error {
   constructor(readonly cause: unknown) {
     super(cause instanceof Error ? cause.message : String(cause));
-    this.name = 'DataQualityConsumptionPublicationError';
+    this.name = 'DataQualityResultPersistenceError';
+  }
+}
+
+const DATA_QUALITY_TECHNICAL_VIEW_ERROR_MESSAGE = 'Failed to refresh Data Quality technical view';
+
+export class DataQualityTechnicalViewRefreshError extends Error implements ProviderErrorIdentity {
+  code?: unknown;
+  errorCode?: unknown;
+  reason?: unknown;
+
+  constructor(cause: unknown) {
+    const wrapped = wrapProviderError(DATA_QUALITY_TECHNICAL_VIEW_ERROR_MESSAGE, cause);
+    super(wrapped.message, { cause });
+    this.name = 'DataQualityTechnicalViewRefreshError';
+    this.code = wrapped.code;
+    this.errorCode = wrapped.errorCode;
+    this.reason = wrapped.reason;
   }
 }
 
@@ -46,66 +81,63 @@ export class DataQualityConsumptionPublicationError extends Error {
 export class RunDataQualityService {
   constructor(
     private readonly dataSource: DataSource,
-    @InjectRepository(DataMartRun)
-    private readonly dataMartRunRepository: Repository<DataMartRun>,
-    @InjectRepository(DataQualityRun)
-    private readonly dataQualityRunRepository: Repository<DataQualityRun>,
-    @InjectRepository(DataQualityCheckResult)
-    private readonly resultRepository: Repository<DataQualityCheckResult>,
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,
     private readonly queryBuilder: DataMartQueryBuilderFacade,
+    private readonly tableReferenceService: DataMartTableReferenceService,
+    private readonly identifierEscaper: IdentifierEscaperFacade,
     private readonly compiler: DataQualityCheckCompiler,
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    private readonly dataQualityConsumptionService: DataQualityConsumptionService,
     private readonly systemClock: SystemTimeService
   ) {}
 
   async executeExistingRun(
     dataMartRunId: string,
     expectedProjectId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    ownership?: TriggerExecutionOwnership
   ): Promise<void> {
+    await ownership?.assertOwned();
     signal?.throwIfAborted();
-    const claimed = await this.claimRun(dataMartRunId, expectedProjectId);
+    const claimed = await this.claimRun(dataMartRunId, expectedProjectId, ownership);
     if (!claimed) return;
-    const { dataMartRun, qualityRun, dataMart } = claimed;
-    const enabledRules = qualityRun.configSnapshot.rules.filter(rule => rule.enabled);
-    const persisted = await this.resultRepository.find({
-      where: { dataQualityRunId: qualityRun.id },
-      order: { createdAt: 'ASC', id: 'ASC' },
-    });
+    await ownership?.assertOwned();
+    const { dataMartRun, dataMart } = claimed;
+    const snapshot = dataMartRun.dataQualitySnapshot!;
+    const enabledRules = snapshot.config.rules.filter(rule => rule.enabled);
+    const persisted = dataMartRun.dataQualityResults ?? [];
     const persistedKeys = new Set(persisted.map(result => result.ruleKey));
     const parsedResults: DataQualityParsedResult[] = persisted.map(toParsedResult);
     const pendingRules = enabledRules.filter(rule => !persistedKeys.has(rule.key));
 
     try {
-      signal?.throwIfAborted();
-      await this.publishConsumptionIfNeeded(dataMart, dataMartRun, qualityRun);
-      signal?.throwIfAborted();
+      await this.publishConsumptionIfNeeded(dataMartRun, ownership);
     } catch (error) {
-      if (isCancellation(error, signal)) {
-        await this.finishRun(dataMartRun, qualityRun, parsedResults, true);
-        return;
-      }
+      if (error instanceof TriggerExecutionOwnershipError) throw error;
       // Publication is deliberately outside the execution error path: a configured
       // delivery failure must leave the durable RUNNING run resumable before any SQL.
-      throw new DataQualityConsumptionPublicationError(error);
+      throw error instanceof DataQualityConsumptionPublicationError
+        ? error
+        : new DataQualityConsumptionPublicationError(error);
     }
 
     try {
+      signal?.throwIfAborted();
       if (pendingRules.length > 0) {
+        await ownership?.assertOwned();
         const executionDataMart = {
           ...dataMart,
           definition: dataMartRun.definitionRun,
-          schema: qualityRun.schemaSnapshot ?? undefined,
+          schema: snapshot.schema ?? undefined,
         } as DataMart;
-        const sourceQuery = await this.queryBuilder.buildQuery(
-          dataMart.storage.type,
-          dataMartRun.definitionRun
-        );
-        const targets = await this.loadRelationshipTargets(qualityRun, expectedProjectId);
+        const sourceQuery = await this.buildSourceQuery(dataMart, dataMartRun.definitionRun);
+        const compilerDefinition = isSqlDefinition(dataMartRun.definitionRun)
+          ? undefined
+          : dataMartRun.definitionRun;
+        const targets = await this.loadRelationshipTargets(snapshot, expectedProjectId);
+        const targetSourceQueries = new Map<string, Promise<string | QueryBuildResult>>();
         const compiled: DataQualityCompiledCheck[] = [];
 
         for (const originalRule of pendingRules) {
@@ -115,7 +147,7 @@ export class RunDataQualityService {
               ? originalRule.scope.relationshipId
               : null;
           const relationshipSnapshot = relationshipId
-            ? qualityRun.relationshipSnapshots.find(snapshot => snapshot.id === relationshipId)
+            ? snapshot.relationships.find(relationship => relationship.id === relationshipId)
             : undefined;
           const rule =
             relationshipSnapshot?.targetAccessible === false
@@ -130,29 +162,40 @@ export class RunDataQualityService {
               await this.compiler.compile({
                 storageType: dataMart.storage.type,
                 sourceQuery,
-                schema: qualityRun.schemaSnapshot,
-                timezone: qualityRun.timezone,
+                schema: snapshot.schema,
+                timezone: snapshot.timezone,
                 rule,
-                definitionType: qualityRun.definitionTypeSnapshot,
-                definition: dataMartRun.definitionRun,
+                definitionType: snapshot.definitionType,
+                definition: compilerDefinition,
                 relationship: relationshipSnapshot
-                  ? await this.buildRelationshipContext(
+                  ? this.buildRelationshipContext(
                       dataMart,
                       relationshipSnapshot,
-                      targets.get(relationshipSnapshot.targetDataMartId)
+                      targets.get(relationshipSnapshot.targetDataMartId),
+                      targetSourceQueries
                     )
                   : undefined,
               })
             );
           } catch (error) {
-            const parsed = compilationError(rule, error);
-            await this.persistResult(qualityRun.id, rule.scope, parsed);
+            const parsed =
+              error instanceof DataQualityTechnicalViewRefreshError
+                ? executionError(rule, error)
+                : compilationError(rule, error);
+            await ownership?.assertOwned();
+            const stored = await this.appendDataQualityResult(
+              dataMartRun.id,
+              this.createStoredResult(rule.scope, parsed),
+              ownership
+            );
+            if (!stored) return;
             parsedResults.push(parsed);
           }
         }
 
         for await (const executed of this.queryExecutor.executeChecks(executionDataMart, compiled, {
           signal,
+          beforeExecuteQuery: async () => ownership?.assertOwned(),
           shouldExecuteQuery: async (check, query, executions) => {
             if (query.purpose !== DataQualityQueryPurpose.EXAMPLES) return true;
             try {
@@ -170,6 +213,7 @@ export class RunDataQualityService {
             }
           },
         })) {
+          await ownership?.assertOwned();
           const rule = pendingRules.find(candidate => candidate.key === executed.check.ruleKey);
           if (!rule) continue;
           let parsed: DataQualityParsedResult;
@@ -183,16 +227,25 @@ export class RunDataQualityService {
           } catch (error) {
             parsed = parsingError(rule, executed.check, executed.executions, error);
           }
-          await this.persistResult(qualityRun.id, rule.scope, parsed);
+          await ownership?.assertOwned();
+          const stored = await this.appendDataQualityResult(
+            dataMartRun.id,
+            this.createStoredResult(rule.scope, parsed),
+            ownership
+          );
+          if (!stored) return;
           parsedResults.push(parsed);
           signal?.throwIfAborted();
         }
       }
 
-      await this.finishRun(dataMartRun, qualityRun, parsedResults, false);
+      await ownership?.assertOwned();
+      await this.finishRun(dataMartRun, false, ownership);
     } catch (error) {
+      if (error instanceof TriggerExecutionOwnershipError) throw error;
+      if (error instanceof DataQualityResultPersistenceError) throw error;
       if (isCancellation(error, signal)) {
-        await this.finishRun(dataMartRun, qualityRun, parsedResults, true);
+        await this.finishRun(dataMartRun, true, ownership);
         return;
       }
 
@@ -201,31 +254,35 @@ export class RunDataQualityService {
       );
       for (const rule of missingRules) {
         const parsed = executionError(rule, error);
-        await this.persistResult(qualityRun.id, rule.scope, parsed);
+        await ownership?.assertOwned();
+        const stored = await this.appendDataQualityResult(
+          dataMartRun.id,
+          this.createStoredResult(rule.scope, parsed),
+          ownership
+        );
+        if (!stored) return;
         parsedResults.push(parsed);
       }
-      await this.finishRun(dataMartRun, qualityRun, parsedResults, false);
+      await ownership?.assertOwned();
+      await this.finishRun(dataMartRun, false, ownership);
     }
   }
 
   private async claimRun(
     dataMartRunId: string,
-    expectedProjectId: string
+    expectedProjectId: string,
+    ownership?: TriggerExecutionOwnership
   ): Promise<ClaimedDataQualityRun | null> {
     return this.dataSource.transaction(async manager => {
       const runRepository = manager.getRepository(DataMartRun);
-      const qualityRepository = manager.getRepository(DataQualityRun);
-      const dataMartRun = await runRepository.findOne({
-        where: { id: dataMartRunId, type: DataMartRunType.DATA_QUALITY },
-        relations: { dataMart: true },
-      });
+      const dataMartRun = await this.findRunWithDataQualityDetails(manager, dataMartRunId, true);
       if (!dataMartRun) throw new Error(`Data Quality run ${dataMartRunId} was not found`);
       if (dataMartRun.dataMart.projectId !== expectedProjectId) {
         throw new Error(`Project mismatch for Data Quality run ${dataMartRunId}`);
       }
-      const qualityRun = await qualityRepository.findOne({ where: { dataMartRunId } });
-      if (!qualityRun)
+      if (!dataMartRun.dataQualitySnapshot || !dataMartRun.dataQualitySummary) {
         throw new Error(`Data Quality snapshot for run ${dataMartRunId} was not found`);
+      }
       if (
         dataMartRun.status === DataMartRunStatus.CANCELLED ||
         dataMartRun.status === DataMartRunStatus.SUCCESS ||
@@ -233,6 +290,7 @@ export class RunDataQualityService {
       ) {
         return null;
       }
+      await ownership?.assertOwned(manager);
       if (dataMartRun.status === DataMartRunStatus.PENDING) {
         const startedAt = this.systemClock.now();
         const claim = await runRepository.update(
@@ -243,81 +301,52 @@ export class RunDataQualityService {
           throw new Error(`Data Quality run ${dataMartRunId} could not be claimed`);
         dataMartRun.status = DataMartRunStatus.RUNNING;
         dataMartRun.startedAt = startedAt;
-        qualityRun.startedAt = startedAt;
       } else if (dataMartRun.status !== DataMartRunStatus.RUNNING) {
         throw new Error(
           `Data Quality run ${dataMartRunId} has unsupported status ${dataMartRun.status}`
         );
       }
+      // RUNNING remains resumable after a retryable failure. The caller's persisted trigger epoch
+      // serializes execution and is revalidated at every external/persistence boundary.
 
-      const startedAt = dataMartRun.startedAt ?? qualityRun.startedAt;
+      const startedAt = dataMartRun.startedAt;
       if (!startedAt)
         throw new Error(`Data Quality run ${dataMartRunId} has no persisted start time`);
-      dataMartRun.startedAt = startedAt;
-      qualityRun.startedAt = startedAt;
-      qualityRun.summary = {
-        ...createDataQualityLifecycleSummary(
-          DataQualitySummaryState.RUNNING,
-          qualityRun.summary.enabledChecks
-        ),
-        totalChecks: qualityRun.summary.totalChecks,
-        passedChecks: qualityRun.summary.passedChecks,
-        failedChecks: qualityRun.summary.failedChecks,
-        notApplicableChecks: qualityRun.summary.notApplicableChecks,
-        errorChecks: qualityRun.summary.errorChecks,
-        noticeFindings: qualityRun.summary.noticeFindings,
-        warningFindings: qualityRun.summary.warningFindings,
-        errorFindings: qualityRun.summary.errorFindings,
-        violationCount: qualityRun.summary.violationCount,
-        highestSeverity: qualityRun.summary.highestSeverity,
+      dataMartRun.dataQualitySummary = {
+        ...dataMartRun.dataQualitySummary,
+        state: DataQualitySummaryState.RUNNING,
       };
-      await qualityRepository.save(qualityRun);
-      return { dataMartRun, qualityRun, dataMart: dataMartRun.dataMart };
+      const summaryUpdate = await runRepository.update(
+        { id: dataMartRunId, status: DataMartRunStatus.RUNNING },
+        { dataQualitySummary: dataMartRun.dataQualitySummary }
+      );
+      if (!summaryUpdate.affected) {
+        throw new Error(`Data Quality run ${dataMartRunId} could not persist RUNNING summary`);
+      }
+      return { dataMartRun, dataMart: dataMartRun.dataMart };
     });
   }
 
   private async publishConsumptionIfNeeded(
-    dataMart: DataMart,
     dataMartRun: DataMartRun,
-    qualityRun: DataQualityRun
+    ownership?: TriggerExecutionOwnership
   ): Promise<void> {
-    if (qualityRun.consumptionPublishedAt) return;
-    const startedAt = qualityRun.startedAt ?? dataMartRun.startedAt;
-    if (!startedAt)
-      throw new Error('Cannot publish Data Quality consumption before durable RUNNING');
-    const status = await this.consumptionTrackingService.registerDataQualityRunConsumption(
-      dataMart,
-      dataMartRun.id,
-      startedAt
-    );
-    if (status === 'DISABLED') return;
-    const publishedAt = this.systemClock.now();
-    const marker = await this.dataQualityRunRepository.update(
-      { id: qualityRun.id, consumptionPublishedAt: IsNull() },
-      { consumptionPublishedAt: publishedAt }
-    );
-    if (marker.affected) {
-      qualityRun.consumptionPublishedAt = publishedAt;
-      return;
-    }
-    const reloaded = await this.dataQualityRunRepository.findOne({
-      where: { id: qualityRun.id },
+    await this.dataSource.transaction(async manager => {
+      const current = await this.findRunWithDataQualityDetails(manager, dataMartRun.id, true);
+      if (!current) throw new Error(`Data Quality run ${dataMartRun.id} was not found`);
+      await this.dataQualityConsumptionService.settle(manager, current, ownership);
+      dataMartRun.dataQualityConsumptionPublishedAt =
+        current.dataQualityConsumptionPublishedAt ?? null;
     });
-    if (!reloaded?.consumptionPublishedAt) {
-      throw new Error(
-        `Failed to persist consumption marker for Data Quality run ${dataMartRun.id}`
-      );
-    }
-    qualityRun.consumptionPublishedAt = reloaded.consumptionPublishedAt;
   }
 
   private async loadRelationshipTargets(
-    qualityRun: DataQualityRun,
+    snapshot: DataQualityRunSnapshot,
     projectId: string
   ): Promise<Map<string, DataMart>> {
-    const ids = qualityRun.relationshipSnapshots
-      .filter(snapshot => snapshot.targetAccessible !== false)
-      .map(snapshot => snapshot.targetDataMartId);
+    const ids = snapshot.relationships
+      .filter(relationship => relationship.targetAccessible !== false)
+      .map(relationship => relationship.targetDataMartId);
     if (ids.length === 0) return new Map();
     const targets = await this.dataMartRepository.find({
       where: { id: In([...new Set(ids)]), projectId },
@@ -325,11 +354,12 @@ export class RunDataQualityService {
     return new Map(targets.map(target => [target.id, target]));
   }
 
-  private async buildRelationshipContext(
+  private buildRelationshipContext(
     source: DataMart,
-    snapshot: DataQualityRun['relationshipSnapshots'][number],
-    target: DataMart | undefined
-  ): Promise<DataQualityRelationshipCompileContext | undefined> {
+    snapshot: DataQualityRelationshipSnapshot,
+    target: DataMart | undefined,
+    targetSourceQueries: Map<string, Promise<string | QueryBuildResult>>
+  ): DataQualityRelationshipCompileContext | undefined {
     if (
       snapshot.targetAccessible === false ||
       !target?.definition ||
@@ -338,13 +368,16 @@ export class RunDataQualityService {
     ) {
       return undefined;
     }
-    const targetSourceQuery = await this.queryBuilder.buildQuery(
-      target.storage.type,
-      target.definition
-    );
     return {
       snapshot,
-      targetSourceQuery,
+      resolveTargetSourceQuery: () => {
+        let targetSourceQuery = targetSourceQueries.get(target.id);
+        if (!targetSourceQuery) {
+          targetSourceQuery = this.buildSourceQuery(target, target.definition!);
+          targetSourceQueries.set(target.id, targetSourceQuery);
+        }
+        return targetSourceQuery;
+      },
       targetSchema: target.schema,
       targetStorageType: target.storage.type,
       sourceConnectionId: source.storage.id,
@@ -352,69 +385,145 @@ export class RunDataQualityService {
     };
   }
 
-  private async persistResult(
-    dataQualityRunId: string,
-    scope: DataQualityCheckResult['scope'],
+  private async buildSourceQuery(
+    dataMart: DataMart,
+    definition: DataMartDefinition
+  ): Promise<string | QueryBuildResult> {
+    if (!isSqlDefinition(definition)) {
+      return this.queryBuilder.buildQuery(dataMart.storage.type, definition);
+    }
+    try {
+      const reference = await this.tableReferenceService.resolveTableName(
+        dataMart.id,
+        dataMart.projectId
+      );
+      const escapedReference = await this.identifierEscaper.escapeIdentifier(
+        dataMart.storage.type,
+        reference
+      );
+      return `SELECT * FROM ${escapedReference}`;
+    } catch (error) {
+      throw new DataQualityTechnicalViewRefreshError(error);
+    }
+  }
+
+  private async appendDataQualityResult(
+    dataMartRunId: string,
+    result: DataQualityStoredCheckResult,
+    ownership?: TriggerExecutionOwnership
+  ): Promise<boolean> {
+    try {
+      return await this.dataSource.transaction(async manager => {
+        const current = await this.findRunWithDataQualityDetails(manager, dataMartRunId, true);
+        if (!current) throw new Error(`Data Quality run ${dataMartRunId} was not found`);
+        if (current.status !== DataMartRunStatus.RUNNING) return false;
+        await ownership?.assertOwned(manager);
+        const results = current.dataQualityResults ?? [];
+        const index = results.findIndex(item => item.ruleKey === result.ruleKey);
+        current.dataQualityResults =
+          index === -1
+            ? [...results, result]
+            : results.map((item, itemIndex) => (itemIndex === index ? result : item));
+        await manager.getRepository(DataMartRun).save(current);
+        return true;
+      });
+    } catch (error) {
+      if (error instanceof TriggerExecutionOwnershipError) throw error;
+      throw new DataQualityResultPersistenceError(error);
+    }
+  }
+
+  private createStoredResult(
+    scope: DataQualityStoredCheckResult['scope'],
     parsed: DataQualityParsedResult
-  ): Promise<void> {
-    await this.resultRepository.save(
-      this.resultRepository.create({
-        dataQualityRunId,
-        ruleKey: parsed.ruleKey,
-        category: parsed.category,
-        scope,
-        severity: parsed.severity,
-        status: parsed.status,
-        violationCount: parsed.violationCount,
-        description: parsed.description,
-        examples: parsed.examples,
-        executedSql: parsed.executedSql,
-        reproductionSql: parsed.reproductionSql,
-        errorCode: parsed.error?.code ?? null,
-        errorMessage: parsed.error?.message ?? null,
-        errorDetails: parsed.error?.details ?? null,
-      })
-    );
+  ): DataQualityStoredCheckResult {
+    return {
+      id: uuidv7(),
+      createdAt: this.systemClock.now().toISOString(),
+      ruleKey: parsed.ruleKey,
+      category: parsed.category,
+      scope,
+      severity: parsed.severity,
+      status: parsed.status,
+      violationCount: parsed.violationCount,
+      description: parsed.description,
+      examples: parsed.examples,
+      executedSql: parsed.executedSql,
+      reproductionSql: parsed.reproductionSql,
+      error: parsed.error,
+    };
   }
 
   private async finishRun(
     dataMartRun: DataMartRun,
-    qualityRun: DataQualityRun,
-    results: DataQualityParsedResult[],
-    cancelled: boolean
+    cancelled: boolean,
+    ownership?: TriggerExecutionOwnership
   ): Promise<void> {
-    const summary = aggregateDataQualitySummary(results, qualityRun.summary.enabledChecks);
     await this.dataSource.transaction(async manager => {
       const runRepository = manager.getRepository(DataMartRun);
-      const canLock = ['mysql', 'mariadb'].includes(String(this.dataSource.options?.type));
-      const currentRun = await runRepository.findOne({
-        where: { id: dataMartRun.id },
-        ...(canLock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
-      });
-      const wasCancelled =
-        cancelled ||
-        dataMartRun.status === DataMartRunStatus.CANCELLED ||
-        currentRun?.status === DataMartRunStatus.CANCELLED;
+      const currentRun = await this.findRunWithDataQualityDetails(manager, dataMartRun.id, true);
+      if (!currentRun?.dataQualitySummary) {
+        throw new Error(`Data Quality run ${dataMartRun.id} was not found`);
+      }
+      if (
+        [DataMartRunStatus.CANCELLED, DataMartRunStatus.FAILED, DataMartRunStatus.SUCCESS].includes(
+          currentRun.status
+        )
+      ) {
+        Object.assign(dataMartRun, currentRun);
+        return;
+      }
+      if (currentRun.status !== DataMartRunStatus.RUNNING) {
+        throw new Error(
+          `Data Quality run ${dataMartRun.id} cannot finish from ${currentRun.status}`
+        );
+      }
+      await ownership?.assertOwned(manager);
+      const results = (currentRun.dataQualityResults ?? []).map(toParsedResult);
+      const summary = aggregateDataQualitySummary(
+        results,
+        currentRun.dataQualitySummary.enabledChecks
+      );
+      const wasCancelled = cancelled;
       if (wasCancelled) summary.state = DataQualitySummaryState.CANCELLED;
-      const finishedAt = currentRun?.finishedAt ?? this.systemClock.now();
-      qualityRun.summary = summary;
-      qualityRun.finishedAt = finishedAt;
-      dataMartRun.status = wasCancelled
+      const finishedAt = currentRun.finishedAt ?? this.systemClock.now();
+      currentRun.dataQualitySummary = summary;
+      currentRun.status = wasCancelled
         ? DataMartRunStatus.CANCELLED
         : summary.state === DataQualitySummaryState.EXECUTION_FAILED
           ? DataMartRunStatus.FAILED
           : DataMartRunStatus.SUCCESS;
-      dataMartRun.finishedAt = finishedAt;
-      dataMartRun.errors = results
+      currentRun.finishedAt = finishedAt;
+      currentRun.errors = results
         .filter(result => result.status === DataQualityCheckStatus.ERROR)
         .map(result => result.error?.message ?? result.description);
-      await manager.getRepository(DataQualityRun).save(qualityRun);
-      await runRepository.save(dataMartRun);
+      await runRepository.save(currentRun);
+      Object.assign(dataMartRun, currentRun);
     });
+  }
+
+  private async findRunWithDataQualityDetails(
+    manager: EntityManager,
+    runId: string,
+    lock = false
+  ): Promise<DataMartRun | null> {
+    const query = manager
+      .getRepository(DataMartRun)
+      .createQueryBuilder('run')
+      .addSelect('run.dataQualitySnapshot')
+      .addSelect('run.dataQualityResults')
+      .addSelect('run.dataQualityConsumptionPublishedAt')
+      .innerJoinAndSelect('run.dataMart', 'dataMart')
+      .innerJoinAndSelect('dataMart.storage', 'storage')
+      .where('run.id = :runId', { runId })
+      .andWhere('run.type = :type', { type: DataMartRunType.DATA_QUALITY });
+    const canLock = ['mysql', 'mariadb'].includes(String(this.dataSource.options?.type));
+    if (lock && canLock) query.setLock('pessimistic_write');
+    return query.getOne();
   }
 }
 
-function toParsedResult(result: DataQualityCheckResult): DataQualityParsedResult {
+function toParsedResult(result: DataQualityStoredCheckResult): DataQualityParsedResult {
   return {
     category: result.category,
     ruleKey: result.ruleKey,
@@ -425,28 +534,26 @@ function toParsedResult(result: DataQualityCheckResult): DataQualityParsedResult
     examples: result.examples,
     executedSql: result.executedSql,
     reproductionSql: result.reproductionSql,
-    error: result.errorMessage
-      ? { code: result.errorCode, message: result.errorMessage, details: result.errorDetails }
-      : null,
+    error: result.error,
   };
 }
 
 function compilationError(
-  rule: DataQualityRun['configSnapshot']['rules'][number],
+  rule: DataQualityRunSnapshot['config']['rules'][number],
   error: unknown
 ): DataQualityParsedResult {
   return failedResult(rule, 'DATA_QUALITY_COMPILATION_ERROR', error);
 }
 
 function executionError(
-  rule: DataQualityRun['configSnapshot']['rules'][number],
+  rule: DataQualityRunSnapshot['config']['rules'][number],
   error: unknown
 ): DataQualityParsedResult {
   return failedResult(rule, 'DATA_QUALITY_EXECUTION_ERROR', error);
 }
 
 function parsingError(
-  rule: DataQualityRun['configSnapshot']['rules'][number],
+  rule: DataQualityRunSnapshot['config']['rules'][number],
   check: DataQualityCompiledCheck,
   executions: readonly DataQualityQueryExecution[],
   error: unknown
@@ -459,12 +566,23 @@ function parsingError(
 }
 
 function failedResult(
-  rule: DataQualityRun['configSnapshot']['rules'][number],
+  rule: DataQualityRunSnapshot['config']['rules'][number],
   code: string,
   error: unknown
 ): DataQualityParsedResult {
   const message = error instanceof Error ? error.message : String(error);
-  const mapped: DataQualityMappedError = { code, message, details: null };
+  const providerIdentity = getProviderErrorIdentity(error);
+  const providerCode =
+    providerIdentity.code ?? providerIdentity.errorCode ?? providerIdentity.reason;
+  const details = providerCode
+    ? {
+        dataQualityCode: code,
+        ...(providerIdentity.code ? { providerCode: providerIdentity.code } : {}),
+        ...(providerIdentity.errorCode ? { providerErrorCode: providerIdentity.errorCode } : {}),
+        ...(providerIdentity.reason ? { providerReason: providerIdentity.reason } : {}),
+      }
+    : null;
+  const mapped: DataQualityMappedError = { code: providerCode ?? code, message, details };
   return {
     category: rule.category,
     ruleKey: rule.key,
@@ -477,6 +595,28 @@ function failedResult(
     reproductionSql: null,
     error: mapped,
   };
+}
+
+function getProviderErrorIdentity(error: unknown): {
+  code: string | null;
+  errorCode: string | null;
+  reason: string | null;
+} {
+  if (typeof error !== 'object' || error === null) {
+    return { code: null, errorCode: null, reason: null };
+  }
+  const identity = error as ProviderErrorIdentity;
+  return {
+    code: safeProviderIdentityValue(identity.code),
+    errorCode: safeProviderIdentityValue(identity.errorCode),
+    reason: safeProviderIdentityValue(identity.reason),
+  };
+}
+
+function safeProviderIdentityValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^[A-Za-z0-9_.:-]{1,255}$/.test(trimmed) ? trimmed : null;
 }
 
 function isCancellation(error: unknown, signal?: AbortSignal): boolean {

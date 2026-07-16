@@ -426,6 +426,7 @@ import { DataQualitySummaryService } from './services/data-quality-summary.servi
 import { DataQualityRunService } from './services/data-quality-run.service';
 import { DataQualityRunTriggerService } from './services/data-quality-run-trigger.service';
 import { DataQualityRunTriggerHandlerService } from './services/data-quality-run-trigger-handler.service';
+import { DataQualityConsumptionService } from './services/data-quality-consumption.service';
 import { RunDataQualityService } from './use-cases/run-data-quality.service';
 import { DataQualityCheckCompiler } from './data-quality/data-quality-check-compiler';
 import { DataQualityResultParser } from './data-quality/data-quality-result-parser';
@@ -556,6 +557,7 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
       inject: [DATA_QUALITY_SQL_DIALECT_RESOLVER],
     },
     DataQualityRunService,
+    DataQualityConsumptionService,
     DataQualityRunTriggerService,
     RunDataQualityService,
     DataQualityRunTriggerHandlerService,

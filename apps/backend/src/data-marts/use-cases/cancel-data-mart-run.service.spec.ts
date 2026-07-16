@@ -20,7 +20,8 @@ import { ConnectorRunTriggerService } from '../services/connector/connector-run-
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
 import { ReportService } from '../services/report.service';
 import { DataQualityRunService } from '../services/data-quality-run.service';
-import { DataQualityRunTriggerService } from '../services/data-quality-run-trigger.service';
+import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 
 describe('CancelDataMartRunService', () => {
   const createService = () => {
@@ -48,12 +49,9 @@ describe('CancelDataMartRunService', () => {
       stopTriggersForRun: jest.fn().mockResolvedValue(undefined),
     } as unknown as ReportRunTriggerService;
 
-    const dataQualityRunTriggerService = {
-      stopTriggersForRun: jest.fn().mockResolvedValue(undefined),
-    } as unknown as DataQualityRunTriggerService;
-
     const dataQualityRunService = {
       markAsCancelled: jest.fn().mockResolvedValue(undefined),
+      cancelActiveRun: jest.fn().mockResolvedValue(undefined),
     } as unknown as DataQualityRunService;
 
     const reportService = {
@@ -69,7 +67,6 @@ describe('CancelDataMartRunService', () => {
       dataMartRunService,
       connectorRunTriggerService,
       reportRunTriggerService,
-      dataQualityRunTriggerService,
       dataQualityRunService,
       reportService,
       accessDecisionService
@@ -81,7 +78,6 @@ describe('CancelDataMartRunService', () => {
       dataMartRunService,
       connectorRunTriggerService,
       reportRunTriggerService,
-      dataQualityRunTriggerService,
       dataQualityRunService,
       reportService,
       accessDecisionService,
@@ -130,25 +126,59 @@ describe('CancelDataMartRunService', () => {
     expect(reportService.markRunAsCancelled).toHaveBeenCalledWith('report-1');
   });
 
-  it('cancels a pending Data Quality run, summary, and trigger transactionally', async () => {
-    const { service, dataMartRunService, dataQualityRunService, dataQualityRunTriggerService } =
-      createService();
+  it('delegates a pending Data Quality run to the run-first transactional cancellation path', async () => {
+    const { service, dataMartRunService, dataQualityRunService } = createService();
+    const partialResults = [{ ruleKey: 'already-finished' }];
     const run = {
       id: 'run-1',
       dataMartId: 'dm-1',
       type: DataMartRunType.DATA_QUALITY,
       status: DataMartRunStatus.PENDING,
       finishedAt: null,
+      dataQualitySummary: {
+        state: DataQualitySummaryState.QUEUED,
+        enabledChecks: 1,
+        totalChecks: 0,
+        passedChecks: 0,
+        failedChecks: 0,
+        notApplicableChecks: 0,
+        errorChecks: 0,
+        noticeFindings: 0,
+        warningFindings: 0,
+        errorFindings: 0,
+        violationCount: 0,
+        highestSeverity: null,
+      },
+      dataQualityResults: partialResults,
     };
     (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(run);
 
     await service.run(command);
 
-    expect(dataQualityRunService.markAsCancelled).toHaveBeenCalledWith(
-      'run-1',
-      new Date('2026-07-15T10:00:00.000Z')
+    expect(dataQualityRunService.cancelActiveRun).toHaveBeenCalledWith('run-1', 'dm-1');
+    expect(dataMartRunService.markAsCancelled).not.toHaveBeenCalled();
+    expect(run.dataQualityResults).toBe(partialResults);
+  });
+
+  it('leaves a running Data Quality run and trigger retryable when consumption settlement fails', async () => {
+    const { service, dataMartRunService, dataQualityRunService } = createService();
+    const run = {
+      id: 'run-1',
+      dataMartId: 'dm-1',
+      type: DataMartRunType.DATA_QUALITY,
+      status: DataMartRunStatus.RUNNING,
+      startedAt: new Date('2026-07-15T09:59:00.000Z'),
+      finishedAt: null,
+    } as DataMartRun;
+    (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(run);
+    (dataQualityRunService.cancelActiveRun as jest.Mock).mockRejectedValue(
+      new Error('pubsub unavailable')
     );
-    expect(dataQualityRunTriggerService.stopTriggersForRun).toHaveBeenCalledWith('run-1');
+
+    await expect(service.run(command)).rejects.toThrow('pubsub unavailable');
+
+    expect(dataMartRunService.markAsCancelled).not.toHaveBeenCalled();
+    expect(run).toMatchObject({ status: DataMartRunStatus.RUNNING, finishedAt: null });
   });
 
   it('rejects unsupported run types', async () => {

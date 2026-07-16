@@ -21,6 +21,10 @@ export interface DataQualityExecutedCheck {
 
 export interface DataQualityQueryExecutionOptions {
   signal?: AbortSignal;
+  beforeExecuteQuery?: (
+    check: DataQualityCompiledCheck,
+    query: DataQualityCompiledQuery
+  ) => void | Promise<void>;
   shouldExecuteQuery?: (
     check: DataQualityCompiledCheck,
     query: DataQualityCompiledQuery,
@@ -67,6 +71,7 @@ export class DataQualityQueryExecutorService {
           ) {
             continue;
           }
+          await options.beforeExecuteQuery?.(check, query);
           try {
             executions.push(await this.executeQuery(dataMart, credentials, query, options.signal));
             if (signal?.aborted) break;
