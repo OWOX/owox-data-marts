@@ -68,6 +68,21 @@ export function getPrimaryKeyFields(
   return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
 }
 
+// TRUE when the schema has at least one primary-key field usable as a dedup/join key — i.e.
+// `isPrimaryKey` and NOT DISCONNECTED. Unlike `getPrimaryKeyFields` (which ALSO prunes
+// `isHiddenForReporting` for the reporting-view projection), a hidden PK still keys the join,
+// so it counts here. Descends into nested fields but never into a DISCONNECTED subtree.
+export function hasUsablePrimaryKey(fields: readonly DataMartSchemaField[]): boolean {
+  for (const field of fields) {
+    if (!isConnected(field)) continue;
+    if (field.isPrimaryKey) return true;
+    if ('fields' in field && field.fields?.length && hasUsablePrimaryKey(field.fields)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaFieldType: T) {
   const typedSchema = z
     .object({

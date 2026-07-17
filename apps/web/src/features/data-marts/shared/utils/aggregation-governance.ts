@@ -51,11 +51,62 @@ const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, FieldGovernance> = {
 };
 
 /**
+ * Whether two (effective) field types resolve to the SAME aggregation category. Used to decide
+ * when a dedup change should reset the analyst-allowed set: only a category change (e.g.
+ * string→number) invalidates the current selection; a same-category change (SUM→MIN) must not.
+ */
+export function sameAggregationCategory(a: string, b: string): boolean {
+  return categorize(a) === categorize(b);
+}
+
+/**
  * The full set of aggregation functions a field of the given type may use — the menu the
  * per-field allowed-aggregations selector and the report picker should offer.
  */
 export function supportedAggregationsForType(fieldType: string): ReportAggregateFunction[] {
   return [...SUPPORTED_BY_CATEGORY[categorize(fieldType)]];
+}
+
+/**
+ * Web mirror of the backend `computeEffectiveType` (field-aggregation.ts) — storage-agnostic,
+ * since the web only needs a representative type string that `categorize`
+ * (isNumberType/isStringType/…) resolves to the right CATEGORY, not an exact storage type.
+ * A joined field's dedup rollup (`aggregateFunction`) can change what a field effectively IS
+ * (e.g. COUNT_DISTINCT on a STRING yields an integer), which is what should drive the
+ * post-join "available aggregations" menu, not the raw pre-dedup type.
+ *
+ * DRIFT CONTRACT: a function's output CATEGORY here MUST match backend `computeEffectiveType`.
+ * It is NOT compile-checked across the web↔backend boundary — if the backend ever changes a
+ * function's output category (e.g. SUM→float), update this switch by hand. Tracked for removal
+ * via server-authoritative governance (drop this mirror once the API resolves it).
+ */
+export function effectiveAggregationType(
+  rawType: string,
+  aggFunc: ReportAggregateFunction | undefined
+): string {
+  if (!aggFunc) return rawType;
+  switch (aggFunc) {
+    case 'COUNT':
+    case 'COUNT_DISTINCT':
+      return 'INTEGER';
+    case 'STRING_AGG':
+      return 'STRING';
+    case 'AVG':
+    case 'P25':
+    case 'P50':
+    case 'P75':
+    case 'P95':
+      return 'FLOAT';
+    case 'SUM':
+    case 'MIN':
+    case 'MAX':
+    case 'ANY_VALUE':
+      return rawType;
+    default: {
+      const _exhaustive: never = aggFunc;
+      return _exhaustive;
+    }
+  }
 }
 
 /**

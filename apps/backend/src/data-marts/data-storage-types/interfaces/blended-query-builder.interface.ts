@@ -45,6 +45,9 @@ export interface BlendedFieldEntry {
   cteName: string; // 'category_details'
   originalFieldName: string; // 'item.event_count' (nested-struct dots preserved)
   type: string;
+  // The RAW source-field type, before the dedup effective-type resolution overwrites `type`.
+  // Pre-join slices run on the raw column BEFORE dedup, so they type-check/cast by this.
+  sourceFieldType: string;
   isIncluded: boolean; // false when the source is excluded from reporting
 }
 

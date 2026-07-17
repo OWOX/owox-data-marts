@@ -181,6 +181,56 @@ describe('FilterOrSliceEditorPopover — parallel drafts across tab switches', (
   });
 });
 
+describe('FilterOrSliceEditorPopover — slice tab uses the raw (pre-join) field type', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // A joined field deduped with COUNT is effective INTEGER, but its pre-join RAW type is STRING.
+  // A slice runs pre-join on the raw value, so the Slice tab must offer STRING operators
+  // (e.g. `contains`), while the Filter tab (post-join) keeps the effective INTEGER operators.
+  function renderDivergent(defaultTab: 'filter' | 'slice') {
+    render(
+      <FilterOrSliceEditorPopover
+        open={true}
+        onOpenChange={() => undefined}
+        column='campaign_name'
+        sliceColumn='ga__campaign_name'
+        fieldType='INTEGER'
+        sliceFieldType='STRING'
+        defaultTab={defaultTab}
+        trigger={<button>trigger</button>}
+        filterProps={{ onApply: vi.fn(), existingRules: [] }}
+        sliceProps={{ onApply: vi.fn(), existingSlicesForColumn: [] }}
+      />
+    );
+  }
+
+  it('offers raw-type (STRING) operators on the Slice tab', () => {
+    renderDivergent('slice');
+    const options = visibleOperatorOptions();
+    expect(options).toContain('contains');
+  });
+
+  it('keeps effective-type (INTEGER) operators on the Filter tab', () => {
+    renderDivergent('filter');
+    const options = visibleOperatorOptions();
+    expect(options).not.toContain('contains');
+    expect(options).toContain('gt');
+  });
+});
+
+// Operator values of the currently-visible operator <select> (the one not under `.hidden`).
+function visibleOperatorOptions(): string[] {
+  const selects = document.querySelectorAll('[data-testid="operator-select"]');
+  for (const el of Array.from(selects)) {
+    if (!el.closest('.hidden')) {
+      return Array.from(el.querySelectorAll('option')).map(o => o.value);
+    }
+  }
+  throw new Error('No visible operator select found in popover');
+}
+
 // Returns the value <input> whose enclosing wrapper isn't marked `.hidden`.
 // Both Filter and Slice editors render their value input simultaneously while
 // the popover is open; we only want the one currently visible.

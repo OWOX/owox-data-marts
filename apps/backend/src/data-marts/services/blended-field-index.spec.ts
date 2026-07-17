@@ -7,6 +7,7 @@ function schema(
     aliasPath: string;
     originalFieldName: string;
     type: string;
+    sourceFieldType?: string;
     isHidden?: boolean;
   }>,
   availableSources: Array<{ aliasPath: string; isIncluded?: boolean }> = []
@@ -36,6 +37,26 @@ describe('buildBlendedFieldIndex', () => {
       type: 'INTEGER',
       isIncluded: true,
     });
+  });
+
+  it('carries the RAW sourceFieldType alongside the (effective) type', () => {
+    // A joined STRING field deduped COUNT_DISTINCT has effective type INTEGER but a raw type of
+    // STRING; the pre-join path type-checks/casts by the RAW type, so the index must expose it.
+    const index = buildBlendedFieldIndex(
+      schema(
+        [
+          {
+            name: 'users__hitId',
+            aliasPath: 'users',
+            originalFieldName: 'hitId',
+            type: 'INTEGER',
+            sourceFieldType: 'STRING',
+          },
+        ],
+        [{ aliasPath: 'users', isIncluded: true }]
+      )
+    );
+    expect(index.get('users__hitId')?.sourceFieldType).toBe('STRING');
   });
 
   it('marks fields of excluded sources as isIncluded=false but still indexes them', () => {

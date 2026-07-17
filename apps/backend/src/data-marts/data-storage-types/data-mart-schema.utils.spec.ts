@@ -2,6 +2,7 @@ import {
   isConnected,
   createBaseFieldSchemaForType,
   getPrimaryKeyFields,
+  hasUsablePrimaryKey,
 } from './data-mart-schema.utils';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
 import type { DataMartSchemaField } from './data-mart-schema.type';
@@ -137,5 +138,52 @@ describe('getPrimaryKeyFields', () => {
 
   it('returns empty array when fields list is empty', () => {
     expect(getPrimaryKeyFields([])).toEqual([]);
+  });
+});
+
+describe('hasUsablePrimaryKey', () => {
+  const connected = DataMartSchemaFieldStatus.CONNECTED;
+
+  const mkField = (
+    name: string,
+    isPrimaryKey: boolean,
+    extra: Partial<DataMartSchemaField> = {}
+  ): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: connected,
+      isPrimaryKey,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+
+  it('is true for a plain connected primary-key field', () => {
+    expect(hasUsablePrimaryKey([mkField('id', true), mkField('name', false)])).toBe(true);
+  });
+
+  it('is true when the ONLY primary key is hidden for reporting (still a valid dedup/join key)', () => {
+    expect(hasUsablePrimaryKey([mkField('id', true, { isHiddenForReporting: true })])).toBe(true);
+  });
+
+  it('is false when the only primary key is DISCONNECTED (its column is gone from the source)', () => {
+    expect(
+      hasUsablePrimaryKey([mkField('id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED })])
+    ).toBe(false);
+  });
+
+  it('is false when there is no primary-key field', () => {
+    expect(hasUsablePrimaryKey([mkField('id', false), mkField('name', false)])).toBe(false);
+  });
+
+  it('is false for an empty fields list', () => {
+    expect(hasUsablePrimaryKey([])).toBe(false);
+  });
+
+  it('finds a nested primary key inside a hidden container', () => {
+    const container = {
+      ...mkField('category', false, { isHiddenForReporting: true }),
+      fields: [mkField('inner_pk', true)],
+    } as unknown as DataMartSchemaField;
+    expect(hasUsablePrimaryKey([mkField('top_non_pk', false), container])).toBe(true);
   });
 });

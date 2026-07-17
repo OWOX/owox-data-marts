@@ -32,9 +32,19 @@ const JoinedFieldSchema = z
       .describe(
         'Qualified field name (<alias>__<field>) — copy verbatim into query_data_mart fields/slices/filters.'
       ),
-    type: z.string(),
+    type: z
+      .string()
+      .describe(
+        'Type in the blended result — use it to pick operators for filters and functions for aggregations. For a slice, use "sliceType" instead when it is present.'
+      ),
     description: z.string().optional().nullable(),
     sourceDataMart: z.string().describe('Title of the joined data mart this field comes from.'),
+    sliceType: z
+      .string()
+      .optional()
+      .describe(
+        'Present only when this field is deduplicated with a type-changing aggregation. A slice runs BEFORE the join on the original value, so pick slice operators for this pre-join type — not "type". Absent when the two are the same.'
+      ),
     allowedAggregations: z
       .array(z.string())
       .optional()

@@ -46,6 +46,7 @@ export function buildBlendedFieldIndex(
       cteName: aliasPathToCteName(field.aliasPath),
       originalFieldName: field.originalFieldName,
       type: field.type,
+      sourceFieldType: field.sourceFieldType,
       isIncluded: !excluded.has(field.aliasPath),
     });
   }

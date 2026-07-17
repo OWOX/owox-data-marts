@@ -38,6 +38,12 @@ export interface McpJoinedFieldDto {
   type: string;
   description: string;
   sourceDataMart: string;
+  /**
+   * Pre-join RAW type, present only when this field's dedup changes its type (e.g. STRING deduped
+   * by COUNT → effective INTEGER). A slice runs before the join on the raw value, so slice operators
+   * must match this type, not `type` (the blended-result type used by filters/aggregations).
+   */
+  sliceType?: string;
   allowedAggregations?: string[];
 }
 

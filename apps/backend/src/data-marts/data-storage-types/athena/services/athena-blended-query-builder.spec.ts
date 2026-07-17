@@ -311,4 +311,55 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
     expect(sql).toContain('signup_date >= CAST(? AS DATE)');
     expect(params.map(p => p.value)).toEqual(['2024-01-01']);
   });
+
+  it('casts a pre-join date slice by the RAW sourceFieldType even when the dedup effective type is INTEGER', () => {
+    // The joined `signup_date` is deduped COUNT_DISTINCT, so its effective `type` is INTEGER,
+    // but the pre-join slice runs on the raw DATE column BEFORE dedup — the cast must follow the
+    // RAW sourceFieldType (DATE), not the effective INTEGER (which would drop the date cast).
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: '"mydb"."users"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'signup_date',
+          outputAlias: 'signup',
+          isHidden: true,
+          aggregateFunction: 'COUNT_DISTINCT',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'users__signup_date',
+          aliasPath: 'users',
+          originalFieldName: 'signup_date',
+          type: 'INTEGER',
+          sourceFieldType: 'DATE',
+        },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        chains: [chain],
+        columns: ['a'],
+        filters: [
+          {
+            column: 'users__signup_date',
+            operator: 'gte',
+            value: '2024-01-01',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      })
+    );
+    expect(sql).toContain('signup_date >= CAST(? AS DATE)');
+    expect(params.map(p => p.value)).toEqual(['2024-01-01']);
+  });
 });
