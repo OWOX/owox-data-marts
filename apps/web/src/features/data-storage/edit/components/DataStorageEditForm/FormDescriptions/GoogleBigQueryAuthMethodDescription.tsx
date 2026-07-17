@@ -32,6 +32,12 @@ export default function GoogleBigQueryAuthMethodDescription() {
               </p>
             </div>
           </div>
+          <p className='mt-3 text-sm'>
+            Whichever method you choose, the account (personal or service account) needs the{' '}
+            <strong>BigQuery Data Editor</strong> (<code>roles/bigquery.dataEditor</code>) and{' '}
+            <strong>BigQuery Job User</strong> (<code>roles/bigquery.jobUser</code>) roles on the
+            target Google Cloud project.
+          </p>
         </AccordionContent>
       </AccordionItem>
     </Accordion>

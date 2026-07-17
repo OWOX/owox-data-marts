@@ -40,6 +40,30 @@ export default function GoogleBigQueryOAuthDescription() {
             </a>
             .
           </p>
+          <p className='mt-2 text-sm'>
+            The connected Google account must have the <strong>BigQuery Data Editor</strong> (
+            <code>roles/bigquery.dataEditor</code>) and <strong>BigQuery Job User</strong> (
+            <code>roles/bigquery.jobUser</code>) roles on the target Google Cloud project. You can
+            check or assign them in{' '}
+            <a
+              href='https://console.cloud.google.com/iam-admin/iam'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='underline'
+            >
+              IAM & Admin → IAM
+            </a>
+            . See the{' '}
+            <a
+              href='https://docs.owox.com/docs/storages/supported-storages/google-bigquery/#option-b-google-oauth'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='underline'
+            >
+              documentation
+            </a>{' '}
+            for details.
+          </p>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
