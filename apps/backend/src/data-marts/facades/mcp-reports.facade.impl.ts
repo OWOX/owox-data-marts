@@ -6,13 +6,18 @@ import {
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
+import { EmailConfigType } from '../data-destination-types/ee/email/schemas/email-config.schema';
+import { ReportCondition } from '../data-destination-types/enums/report-condition.enum';
 import {
   DataDestinationType,
+  isEmailBasedDataDestinationType,
   isPullBasedDataDestinationType,
   toHumanReadable,
 } from '../data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
 import { LookerStudioConnectorConfigType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-config.schema';
+import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { GetReportCommand } from '../dto/domain/get-report.command';
@@ -184,24 +189,94 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
     switch (destination.type) {
       case DataDestinationType.GOOGLE_SHEETS:
+        this.assertNoMessage(destination.type, request);
         return this.addGoogleSheetsReport(request);
       case DataDestinationType.LOOKER_STUDIO:
+        this.assertNoMessage(destination.type, request);
         return this.addLookerStudioReport(request);
       default:
+        if (isEmailBasedDataDestinationType(destination.type)) {
+          return this.addEmailFamilyReport(request, destination.type);
+        }
         throw new BusinessViolationException(
           `add_report does not support ${toHumanReadable(destination.type)} destinations yet. ` +
-            'Supported destination types: Google Sheets, Looker Studio.'
+            'Supported destination types: Google Sheets, Looker Studio, ' +
+            'Email, Slack, Microsoft Teams, Google Chat.'
         );
     }
   }
 
   /**
+   * The `message` group applies only to email-family destinations. Rejecting
+   * it here (naming the destination's real type) beats letting the config
+   * synthesis silently drop it.
+   */
+  private assertNoMessage(
+    destinationType: DataDestinationType,
+    request: McpAddReportRequest
+  ): void {
+    if (request.message !== undefined) {
+      throw new BadRequestException(
+        'The message parameter applies only to email, slack, teams, and google_chat ' +
+          `destinations; the target destination is ${toHumanReadable(destinationType)}`
+      );
+    }
+  }
+
+  /**
    * Looker Studio reports carry no per-report settings in MCP — the config is
-   * always the defaults. CreateReportService is transactional and performs
-   * every authorization and validation check itself, so unlike the Google
-   * Sheets path no pre-flight is needed.
+   * always the defaults.
    */
   private async addLookerStudioReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+    return this.createReportWithConfig(request, {
+      type: LookerStudioConnectorConfigType,
+      cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
+    });
+  }
+
+  /**
+   * Email-family reports (email, Slack, Microsoft Teams, Google Chat) carry
+   * the message subject and body; recipients/channels live on the destination
+   * itself. Only CUSTOM_MESSAGE bodies are supported over MCP (insight
+   * templates would need insight MCP tools first), and the send condition is
+   * not exposed — reports get the product default (send always), matching the
+   * web create form.
+   */
+  private async addEmailFamilyReport(
+    request: McpAddReportRequest,
+    destinationType: DataDestinationType
+  ): Promise<McpAddReportResult> {
+    // The facade is a public interface, so the message invariant is enforced
+    // here as well, not only by the tool-layer input schema.
+    const body = request.message?.body?.trim();
+    if (!body) {
+      throw new BadRequestException(
+        `message.body is required for ${toHumanReadable(destinationType)} destinations`
+      );
+    }
+
+    return this.createReportWithConfig(request, {
+      type: EmailConfigType,
+      subject: request.message?.subject?.trim() || request.name,
+      templateSource: {
+        type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+        config: { messageTemplate: body },
+      },
+      reportCondition: ReportCondition.ALWAYS,
+    });
+  }
+
+  /**
+   * Shared tail of the side-effect-free add_report paths: CreateReportService
+   * is transactional and performs every authorization and validation check
+   * itself (including destination credentials), so unlike the Google Sheets
+   * path no pre-flight is needed. Omitting ownerIds defaults ownership to the
+   * requesting user.
+   */
+  private async createReportWithConfig(
+    request: McpAddReportRequest,
+    destinationConfig: DataDestinationConfig
+  ): Promise<McpAddReportResult> {
     const report = await this.createReportService.run(
       new CreateReportCommand(
         request.projectId,
@@ -209,10 +284,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         request.name,
         request.dataMartId,
         request.destinationId,
-        {
-          type: LookerStudioConnectorConfigType,
-          cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
-        },
+        destinationConfig,
         undefined,
         request.roles,
         this.toColumnConfig(request.fields)

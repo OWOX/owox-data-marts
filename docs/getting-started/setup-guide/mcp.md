@@ -438,19 +438,23 @@ Removes a single schedule identified by `trigger_id`. This is destructive and ca
 
 ### `add_report` (requires `mcp:write`)
 
-Creates a report that exports a data mart to a Google Sheets or Looker Studio destination. The destination must already exist in the project (see `list_destinations`); other destination types are rejected for now.
+Creates a report that exports a data mart to an existing destination (see `list_destinations`).
 
 - **Google Sheets**: a new Google Sheet is created automatically and linked to the report. Unlike every other tool, this path reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. See [Google Sheets destination](../../destinations/supported-destinations/google-sheets.md) for how to set the destination up.
 - **Looker Studio**: the report is created with default settings (data cache lifetime of 5 minutes) — the tool accepts no Looker-Studio-specific parameters. To connect the result to a dashboard, open the destination's connection details in OWOX Data Marts.
+- **Email, Slack, Microsoft Teams, Google Chat**: the report carries the message subject and body; the recipients or channels are configured on the destination itself, not on the report. Each report run sends the rendered message. The send condition is always the default ("Send always") — change it in the OWOX Data Marts UI if you need a conditional report.
 
 **Input:**
 
 | Field             | Description                                                          |
 | ------------------ | ------------------------------------------------------------------------ |
 | `data_mart_id`      | Data mart to export                                                    |
-| `destination_id`    | A **Google Sheets** or **Looker Studio** destination to export to (from `list_destinations`) |
+| `destination_id`    | The destination to export to (from `list_destinations`)               |
 | `fields`            | Exact column names to include, or `["*"]` for every field              |
 | `name`              | Report name                                                            |
+| `message`           | Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types |
+| `message.subject`   | Optional message subject or heading. Defaults to the report name       |
+| `message.body`      | Message body template. Supports the `{{table}}` placeholder, which renders the report's result table |
 
 **Returns:**
 
@@ -522,12 +526,13 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Run the Weekly Ads Report now and tell me when it finishes."
 - "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report'."
 - "Create a Looker Studio report from the Sales data mart with all fields."
+- "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'."
 - "Rename that report to 'Q3 Ads Report' and keep only the campaign and spend fields."
 - "Schedule that report to run every Monday at 9am New York time."
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a Google Sheets or Looker Studio report (`add_report`), rename a report or change which fields it exports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination (`add_report`), rename a report or change which fields it exports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
 > **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 

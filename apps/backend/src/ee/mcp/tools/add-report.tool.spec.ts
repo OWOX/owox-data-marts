@@ -117,12 +117,50 @@ describe('AddReportTool', () => {
     );
   });
 
+  it('passes the message group through to the facade for email-family reports', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-3',
+        owner: 'ann@owox.com',
+        status: 'created',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      { ...input, message: { subject: 'Revenue digest', body: '{{table}}' } },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: { subject: 'Revenue digest', body: '{{table}}' },
+      })
+    );
+  });
+
   it('validates required input and rejects unexpected keys', () => {
     const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ destination_id: 'd', fields: ['*'], name: 'x' })).toThrow();
     expect(() => tool.parseInput({ ...input, fields: [] })).toThrow();
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
+  });
+
+  it('validates the message group when present', () => {
+    const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
+
+    // body is required inside message; unexpected keys are rejected;
+    // subject and body are trimmed like the report name.
+    expect(() => tool.parseInput({ ...input, message: {} })).toThrow();
+    expect(() => tool.parseInput({ ...input, message: { body: '   ' } })).toThrow();
+    expect(() =>
+      tool.parseInput({ ...input, message: { body: '{{table}}', send_condition: 'ALWAYS' } })
+    ).toThrow();
+    expect(
+      tool.parseInput({ ...input, message: { subject: '  Digest  ', body: ' {{table}} ' } }).message
+    ).toEqual({ subject: 'Digest', body: '{{table}}' });
+    expect(tool.parseInput(input).message).toBeUndefined();
   });
 
   it('trims the report name and rejects whitespace-only names', () => {

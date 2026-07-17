@@ -653,6 +653,124 @@ describe('McpReportsFacadeImpl.addReport', () => {
     );
   });
 
+  it('creates an email-family report with the message and the default send condition', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+      accessDecisionService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.SLACK,
+    } as never);
+    createReportService.run.mockResolvedValue({
+      id: 'report-4',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport({
+      ...addRequest,
+      message: { subject: 'Weekly revenue by channel', body: 'Fresh numbers:\n{{table}}' },
+    });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        title: 'Weekly revenue',
+        dataMartId: 'dm-1',
+        dataDestinationId: 'dest-1',
+        destinationConfig: {
+          type: 'email-config',
+          subject: 'Weekly revenue by channel',
+          templateSource: {
+            type: 'CUSTOM_MESSAGE',
+            config: { messageTemplate: 'Fresh numbers:\n{{table}}' },
+          },
+          reportCondition: 'ALWAYS',
+        },
+        columnConfig: ['channel', 'revenue'],
+      })
+    );
+    // No external side effect → no sheet and no pre-flight (same as Looker).
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(outputControlsValidator.validateForReport).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      report_id: 'report-4',
+      owner: 'ann@owox.com',
+      status: 'created',
+    });
+    expect(result).not.toHaveProperty('sheet_url');
+  });
+
+  it('defaults the message subject to the report name', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.EMAIL,
+    } as never);
+    createReportService.run.mockResolvedValue({ id: 'report-5', createdByUser: null } as ReportDto);
+
+    await facade.addReport({ ...addRequest, message: { body: '{{table}}' } });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: expect.objectContaining({ subject: 'Weekly revenue' }),
+      })
+    );
+  });
+
+  it('requires message.body for email-family destinations', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.MS_TEAMS,
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'message.body is required for Microsoft Teams destinations'
+    );
+    await expect(
+      facade.addReport({ ...addRequest, message: { subject: 'Hi', body: '   ' } })
+    ).rejects.toThrow('message.body is required');
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects the message parameter for destinations that cannot carry one', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    const messageRequest = { ...addRequest, message: { body: '{{table}}' } };
+
+    await expect(facade.addReport(messageRequest)).rejects.toThrow(
+      'the target destination is Google Sheets'
+    );
+
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    await expect(facade.addReport(messageRequest)).rejects.toThrow(
+      'the target destination is Data Studio'
+    );
+
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
   it('rejects unsupported destination types by name without touching any service', async () => {
     const {
       facade,
@@ -660,13 +778,15 @@ describe('McpReportsFacadeImpl.addReport', () => {
       createGoogleSheetDocumentService,
       createReportService,
     } = createFacade({ reports: [], triggers: [] });
+    // Every current product type is supported; the guard protects against
+    // future enum values reaching the tool before it learns about them.
     dataDestinationService.getByIdAndProjectId.mockResolvedValue({
       id: 'dest-1',
-      type: DataDestinationType.EMAIL,
+      type: 'SOME_FUTURE_TYPE',
     } as never);
 
     await expect(facade.addReport(addRequest)).rejects.toThrow(
-      'add_report does not support Email destinations yet'
+      'add_report does not support SOME_FUTURE_TYPE destinations yet'
     );
     expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
     expect(createReportService.run).not.toHaveBeenCalled();

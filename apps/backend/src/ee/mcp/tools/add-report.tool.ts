@@ -20,6 +20,27 @@ const inputSchema = z
       .min(1)
       .describe("Column names to include, or ['*'] for every field"),
     name: z.string().trim().min(1),
+    message: z
+      .object({
+        subject: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe('Message subject or heading. Defaults to the report name.'),
+        body: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            "Message body template. Supports the {{table}} placeholder, which renders the report's result table."
+          ),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'Message settings. Required for email, slack, teams, and google_chat destinations; rejected for other types. Recipients and channels are configured on the destination itself, and the message is sent on every report run.'
+      ),
   })
   .strict();
 
@@ -29,7 +50,7 @@ type AddReportInput = z.infer<typeof inputSchema>;
 export class AddReportTool implements McpToolDefinition<AddReportInput> {
   readonly name = 'add_report';
   readonly description =
-    'Create a report that exports a data mart to a Google Sheets or Looker Studio destination. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no extra parameters; returns the report link. Other destination types are not supported yet.';
+    'Create a report that exports a data mart to an existing destination. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no extra parameters. Email, Slack, Microsoft Teams, Google Chat: requires the message parameter; each report run sends the rendered message to the recipients or channels configured on the destination.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -76,13 +97,14 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
   }
 
   async handler(input: AddReportInput, context: McpAuthContext): Promise<McpToolResult> {
-    const { data_mart_id, destination_id, fields, name } = this.parseInput(input);
+    const { data_mart_id, destination_id, fields, name, message } = this.parseInput(input);
 
     const result = await this.reports.addReport({
       dataMartId: data_mart_id,
       destinationId: destination_id,
       fields,
       name,
+      message,
       projectId: context.projectId,
       userId: context.userId,
       userEmail: context.email,

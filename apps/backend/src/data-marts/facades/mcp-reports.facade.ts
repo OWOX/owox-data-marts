@@ -47,12 +47,26 @@ export interface McpGetDataMartReportsResponse {
   reports: McpReportListItem[];
 }
 
+/**
+ * Message settings for email-family destinations (email, Slack, Microsoft
+ * Teams, Google Chat). Recipients and channels are configured on the
+ * destination itself, not on the report.
+ */
+export interface McpAddReportMessage {
+  /** Message subject / heading. Defaults to the report name. */
+  subject?: string;
+  /** Message body template (CUSTOM_MESSAGE); supports the `{{table}}` placeholder. */
+  body: string;
+}
+
 export interface McpAddReportRequest {
   dataMartId: string;
   destinationId: string;
   /** Column names to include; `['*']` (or containing `'*'`) selects every field. */
   fields: string[];
   name: string;
+  /** Required for email-family destinations; rejected for any other type. */
+  message?: McpAddReportMessage;
   projectId: string;
   userId: string;
   /** Requesting user email — the auto-created sheet is shared with them (best-effort). */
@@ -147,8 +161,9 @@ export interface McpReportsFacade {
    * Creates a report, branching on the destination's type. Google Sheets:
    * auto-creates a new Sheet, then creates the report pointing at it (the
    * result carries the sheet fields). Looker Studio: creates the report with
-   * the default destination settings — no extra input is accepted. Other
-   * destination types are rejected with a clear error.
+   * the default destination settings — no extra input is accepted. Email
+   * family (email, Slack, Microsoft Teams, Google Chat): requires `message`;
+   * the send condition is not exposed and defaults to "send always".
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**
