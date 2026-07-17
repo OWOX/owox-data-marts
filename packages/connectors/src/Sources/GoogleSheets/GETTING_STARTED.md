@@ -2,7 +2,7 @@
 
 1. Create a Data Mart with the Google Sheets source.
 2. Authorize Google Sheets access with OAuth or Service Account JSON.
-3. Provide the spreadsheet ID or URL.
+3. Choose the spreadsheet with Google Picker for OAuth, or provide its ID or URL for a service account.
 4. Provide the sheet tab name.
 5. Click Next to preview detected columns from the configured header row.
 6. Keep all-columns mode enabled, or switch to explicit subset mode and choose columns.

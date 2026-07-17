@@ -52,6 +52,28 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
                     key: 'OAUTH_GOOGLE_SHEETS_REDIRECT_URI',
                     attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
                   },
+                  PickerApiKey: {
+                    type: 'string',
+                    required: true,
+                    store: 'env',
+                    key: 'OAUTH_GOOGLE_SHEETS_PICKER_API_KEY',
+                    attributes: [
+                      OAUTH_CONSTANTS.UI,
+                      OAUTH_CONSTANTS.SECRET,
+                      OAUTH_CONSTANTS.REQUIRED,
+                    ],
+                  },
+                  ProjectNumber: {
+                    type: 'string',
+                    required: true,
+                    store: 'env',
+                    key: 'OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER',
+                    attributes: [
+                      OAUTH_CONSTANTS.UI,
+                      OAUTH_CONSTANTS.SECRET,
+                      OAUTH_CONSTANTS.REQUIRED,
+                    ],
+                  },
                 },
                 mapping: {
                   RefreshToken: {
@@ -125,7 +147,8 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           isRequired: true,
           requiredType: 'string',
           label: 'Spreadsheet ID or URL',
-          description: 'Google Sheets spreadsheet ID or full spreadsheet URL',
+          description:
+            'Choose a spreadsheet with Google Picker for OAuth, or enter its ID or URL for a service account.',
         },
         SheetName: {
           isRequired: true,

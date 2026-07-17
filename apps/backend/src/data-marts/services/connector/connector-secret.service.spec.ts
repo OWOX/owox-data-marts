@@ -560,6 +560,7 @@ describe('ConnectorSecretService', () => {
 
       const incoming = makeDefinition([
         {
+          _secrets_id: 'secrets-1',
           AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
           _copiedFrom: { configId: 'source-id-1' },
         },
@@ -571,6 +572,7 @@ describe('ConnectorSecretService', () => {
 
       expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
       expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
     });
 
     it('does not copy source generated refresh token when incoming copied refresh token changes', async () => {

@@ -185,13 +185,62 @@ describe('ConnectorCredentialInjectorService', () => {
       expect(result).toEqual({ AuthType: { oauth2: { RefreshToken: 'refresh-token' } } });
     });
 
-    it('rejects stored secrets owned by a different source configuration', async () => {
+    it('allows copied stored secrets from another configuration of the same connector', async () => {
+      const { service, connectorSourceCredentialsService, connectorSecretService } =
+        createService();
+      const config = {
+        _id: 'config-1',
+        _secrets_id: 'secret-1',
+        _copiedFrom: { dataMartId: 'dm-1', configId: 'config-2' },
+      };
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secret-1',
+        projectId: 'proj-1',
+        connectorName: 'GoogleSheets',
+        dataMartId: 'dm-1',
+        configId: 'config-2',
+        credentials: { 'AuthType.service_account.ServiceAccountKey': '{}' },
+      });
+
+      (connectorSecretService.injectSecretsAtPaths as jest.Mock).mockImplementation(
+        (target: Record<string, unknown>) => {
+          target.AuthType = { service_account: { ServiceAccountKey: '{}' } };
+        }
+      );
+
+      await expect(
+        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
+      ).resolves.toEqual({
+        _id: 'config-1',
+        _copiedFrom: { dataMartId: 'dm-1', configId: 'config-2' },
+        AuthType: { service_account: { ServiceAccountKey: '{}' } },
+      });
+    });
+
+    it('rejects stored secrets from another configuration without copy metadata', async () => {
       const { service, connectorSourceCredentialsService } = createService();
       const config = { _id: 'config-1', _secrets_id: 'secret-1' };
       (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
         id: 'secret-1',
         projectId: 'proj-1',
         connectorName: 'GoogleSheets',
+        dataMartId: 'dm-1',
+        configId: 'config-2',
+        credentials: { ServiceAccountKey: '{}' },
+      });
+
+      await expect(
+        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
+      ).rejects.toThrow('The selected credentials cannot be used for this preview');
+    });
+
+    it('rejects copied stored secrets from a different connector', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+      const config = { _id: 'config-1', _secrets_id: 'secret-1' };
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secret-1',
+        projectId: 'proj-1',
+        connectorName: 'GoogleAds',
         dataMartId: 'dm-1',
         configId: 'config-2',
         credentials: { ServiceAccountKey: '{}' },
