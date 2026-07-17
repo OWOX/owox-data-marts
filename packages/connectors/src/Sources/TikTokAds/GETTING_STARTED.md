@@ -2,7 +2,7 @@
 
 Before proceeding, please make sure that:
 
-- You have already created an **access token**, as described in [GETTING_STARTED.md](GETTING_STARTED.md).  
+- You have already created an **access token**, as described in [CREDENTIALS.md](CREDENTIALS.md).
 - You [have run **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
 ![TikTok Storage](res/tiktok_storage.png)
@@ -23,7 +23,14 @@ Before proceeding, please make sure that:
    - **Access Token** – paste the token you generated earlier.  
    - **App ID** and **App Secret** – available in the **Basic Information** section of your TikTok app.  
    - **Advertiser ID** – paste the ID you received together with the access token, or retrieve it directly from [TikTok Ads Manager](https://ads.tiktok.com/).  
-4. Leave all other fields as default and proceed to the next step.  
+4. Set **Data Level** if you need a performance reporting grain other than the default. It applies to `ad_insights` and `ad_insights_by_country` and supports:
+   - `AUCTION_ADVERTISER`
+   - `AUCTION_CAMPAIGN`
+   - `AUCTION_ADGROUP`
+   - `AUCTION_AD` (default)
+5. Leave the remaining fields as default and proceed to the next step.
+
+> If this connector has already loaded data, do not change **Data Level** for the same destination table. Create a new Data Mart or use a new destination table so records are merged with the correct unique keys.
 
 ![TikTok Input Source](res/tiktok_ads_connector.png)
 
@@ -35,10 +42,30 @@ Before proceeding, please make sure that:
 
 ## Configure Data Import
 
-1. Choose one of the available **endpoints**.  
-2. Select the required **fields**.  
+### Pair Data Level with Fields
+
+Choose **Data Level** before selecting fields. For `ad_insights` and `ad_insights_by_country`, TikTok returns rows at the selected reporting grain, and OWOX pins the matching unique-key fields so rows can be merged correctly.
+
+Use `AUCTION_AD` when you need daily metrics per ad. Keep `ad_id`, `stat_time_day`, and `advertiser_id` selected.
+
+Use `AUCTION_ADGROUP` when you need daily metrics per ad group. Keep `adgroup_id`, `stat_time_day`, and `advertiser_id` selected.
+
+Use `AUCTION_CAMPAIGN` when you need daily metrics per campaign. Keep `campaign_id`, `stat_time_day`, and `advertiser_id` selected.
+
+Use `AUCTION_ADVERTISER` when you need advertiser-level daily totals. Keep `stat_time_day` and `advertiser_id` selected.
+
+Use `ad_insights_by_country` when you also need a geographic breakdown. It follows the same **Data Level** grain and adds `country_code` to the required fields.
+
+`advertiser_id` is always required: if **Advertiser IDs** lists more than one advertiser, they write into the same destination table, and `advertiser_id` is what keeps their rows from merging into each other.
+
+You can add any supported metrics to the required fields, but do not remove the required fields from the schema. If you change **Data Level** after data has already been loaded, use a new Data Mart or destination table.
+
+1. Choose one of the available **endpoints**. For performance reporting, use `ad_insights`; use `ad_insights_by_country` when you also need the `country_code` breakdown.
+2. Select the required **fields**. For performance endpoints, the required unique-key fields are pinned based on the **Data Level** value you selected during connector setup.
 3. Specify the **dataset** where the data will be stored (or leave the default).  
 4. Click **Finish**, then **Publish Data Mart**.
+
+For the full required-fields table per level, see the **Data Level for Performance Nodes** section in [README](README.md).
 
 ![TikTok Ads Publish Data Mart](res/tiktok_ads_publish.png)
 

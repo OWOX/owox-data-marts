@@ -47,7 +47,7 @@ var TikTokAdsFieldsSchema = {
     "description": "Daily ad performance — impressions, clicks, spend, conversions, video views, and engagement.",
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1738864915188737",
     "fields": adInsightsFields,
-    "uniqueKeys": ["ad_id", "stat_time_day"],
+    "uniqueKeys": ["ad_id", "stat_time_day", "advertiser_id"],
     "defaultFields": ["advertiser_id", "date_start", "date_end", "impressions", "clicks", "spend"],
     "destinationName": "tiktok_ads_ad_insights",
     "isTimeSeries": true
@@ -57,7 +57,7 @@ var TikTokAdsFieldsSchema = {
     "description": "Daily ad performance broken down by country — impressions, clicks, spend, conversions, and video views.",
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1738864915188737",
     "fields": adInsightsByCountryFields,
-    "uniqueKeys": ["ad_id", "stat_time_day", "country_code"],
+    "uniqueKeys": ["ad_id", "stat_time_day", "country_code", "advertiser_id"],
     "defaultFields": ["advertiser_id", "date_start", "date_end", "impressions", "clicks", "spend"],
     "destinationName": "tiktok_ads_ad_insights_by_country",
     "isTimeSeries": true

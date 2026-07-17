@@ -1,5 +1,5 @@
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
-import { Search, KeyRound, ArrowDownZA, ArrowUpAZ, ArrowUpDown, X } from 'lucide-react';
+import { Search, KeyRound, ArrowDownZA, ArrowUpAZ, ArrowUpDown, Info, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppWizardStepSection,
@@ -19,12 +19,14 @@ import { ConnectorFieldSortOrder } from '../../../../shared/types';
 import { OpenIssueLink, StepperHeroBlock } from '../components';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import { Unplug } from 'lucide-react';
+import { DATA_LEVEL_CONFIG_KEY } from '../../../../shared/constants/connector-config';
 
 interface FieldsSelectionStepProps {
   connector: ConnectorListItem;
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
   selectedField: string;
   selectedFields: string[];
+  configuration?: Record<string, unknown>;
   onFieldToggle: (fieldName: string, isChecked: boolean) => void;
   onSelectAllFields: (fieldNames: string[], isSelected: boolean) => void;
 }
@@ -34,6 +36,7 @@ export function FieldsSelectionStep({
   connectorFields,
   selectedField,
   selectedFields,
+  configuration,
   onFieldToggle,
   onSelectAllFields,
 }: FieldsSelectionStepProps) {
@@ -49,9 +52,16 @@ export function FieldsSelectionStep({
     () => selectedFieldData?.fields ?? [],
     [selectedFieldData?.fields]
   );
-  const uniqueKeys = useMemo(
-    () => selectedFieldData?.uniqueKeys ?? [],
-    [selectedFieldData?.uniqueKeys]
+  const dataLevel = configuration?.[DATA_LEVEL_CONFIG_KEY];
+  const selectedDataLevel = typeof dataLevel === 'string' ? dataLevel : null;
+  const uniqueKeys = useMemo(() => {
+    if (selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]) {
+      return selectedFieldData.uniqueKeysByDataLevel[selectedDataLevel];
+    }
+    return selectedFieldData?.uniqueKeys ?? [];
+  }, [selectedFieldData?.uniqueKeys, selectedFieldData?.uniqueKeysByDataLevel, selectedDataLevel]);
+  const showDataLevelFieldsTip = Boolean(
+    selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]
   );
 
   const originalIndexByName = useMemo(() => {
@@ -267,6 +277,24 @@ export function FieldsSelectionStep({
         <AppWizardStepSection
           title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for "${selectedField}" data`}
         >
+          {showDataLevelFieldsTip && (
+            <div className='border-border bg-muted/30 text-muted-foreground flex gap-3 rounded-md border px-3 py-2 text-sm'>
+              <Info className='mt-0.5 h-4 w-4 shrink-0' aria-hidden='true' />
+              <div className='space-y-1'>
+                <p>
+                  Required fields depend on Data Level. Current Data Level:{' '}
+                  <span className='text-foreground font-medium'>{selectedDataLevel}</span>.
+                </p>
+                <p>
+                  OWOX keeps{' '}
+                  <span className='text-foreground font-medium'>{uniqueKeys.join(', ')}</span>{' '}
+                  selected so rows merge correctly.
+                </p>
+                <p>If needed, change Data Level in connector settings before selecting fields.</p>
+              </div>
+            </div>
+          )}
+
           <AppWizardStepCards>
             {filteredFields.map(field => {
               const isUniqueKey = uniqueKeys.includes(field.name);
