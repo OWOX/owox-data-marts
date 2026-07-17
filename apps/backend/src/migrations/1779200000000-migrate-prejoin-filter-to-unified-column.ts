@@ -19,12 +19,19 @@ export class MigratePreJoinFilterToUnifiedColumn1779200000000 implements Migrati
   // Folds a pre-join (slice) rule's aliasPath + raw column into the unified column
   // identifier (`<aliasPath dots->_>__<column dots->_>`) and drops aliasPath. Returns
   // true if anything changed. Inlined (not shared) so the migration stays self-contained.
+  //
+  // Deliberately emits the pre-hash nested format (e.g. `customers__campaign_id` for
+  // `campaign.id`), NOT the post-hash name from `buildBlendedFieldUnifiedName`. This
+  // migration only reshapes already-persisted pre-join rules; nested blended refs in
+  // saved configs were an empty population when hash suffixes were introduced. A
+  // follow-up data migration can re-key any remaining legacy nested names if needed.
   private migrateRules(rules: Rule[]): boolean {
     let changed = false;
     for (const rule of rules) {
       if (rule.placement === 'pre-join' && typeof rule.aliasPath === 'string') {
         const aliasPath = rule.aliasPath;
         const column = String(rule.column);
+        // Pre-hash unified form — do not track buildBlendedFieldUnifiedName.
         rule.column = `${aliasPath.replace(/\./g, '_')}__${column.replace(/\./g, '_')}`;
         delete rule.aliasPath;
         changed = true;

@@ -104,7 +104,11 @@ export type DateTruncRule = z.infer<typeof DateTruncRuleSchema>;
 export type RelativeDatePreset = z.infer<typeof RelativeDatePresetSchema>;
 
 export interface JoinedSourceColumn {
-  /** Unified blended-field name stored on the rule, e.g. `category_details__item_event_count`. */
+  /**
+   * Unified blended-field name stored on the rule.
+   * Flat: `category_details__item_count`. Nested (struct path): includes a hash suffix,
+   * e.g. `category_details__item_event_count__a1b2c3d4`.
+   */
   id: string;
   /** Raw original field name, for friendly display in the slice picker. */
   name: string;
