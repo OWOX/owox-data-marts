@@ -26,29 +26,37 @@ export function showApiErrorToast(
   }
 
   // Persistent toasts stay until the user dismisses them. A stable id keeps
-  // repeated identical errors from stacking; a button makes it keyboard-accessible.
+  // repeated identical errors from stacking. The message text stays selectable
+  // (users may want to copy the required role), so dismissal is a dedicated,
+  // keyboard-accessible close button instead of the whole message.
   if (options?.persistent) {
     toast.error(
       t =>
         createElement(
-          'button',
-          {
-            type: 'button',
-            onClick: () => {
-              toast.dismiss(t.id);
+          'span',
+          { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' } },
+          message,
+          createElement(
+            'button',
+            {
+              type: 'button',
+              'aria-label': 'Dismiss',
+              onClick: () => {
+                toast.dismiss(t.id);
+              },
+              style: {
+                cursor: 'pointer',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                margin: 0,
+                font: 'inherit',
+                color: 'inherit',
+                flexShrink: 0,
+              },
             },
-            style: {
-              cursor: 'pointer',
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              margin: 0,
-              font: 'inherit',
-              color: 'inherit',
-              textAlign: 'left',
-            },
-          },
-          message
+            '✕'
+          )
         ),
       { duration: Infinity, id: `persistent-error:${message}` }
     );
