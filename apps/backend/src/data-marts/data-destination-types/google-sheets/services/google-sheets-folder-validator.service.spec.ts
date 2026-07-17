@@ -41,6 +41,16 @@ describe('GoogleSheetsFolderValidator', () => {
     credentialId: string | null = 'cred-1'
   ) => ({ id: 'dest-1', credentialId, config }) as never;
 
+  /** Runs the validator and hands back the error it threw, so its message can be asserted on. */
+  const captureFailure = async (validator: GoogleSheetsFolderValidator): Promise<Error> => {
+    try {
+      await validator.validateConfiguredFolder(destination({ folderId: 'f1' }));
+    } catch (error) {
+      return error as Error;
+    }
+    throw new Error('expected validateConfiguredFolder to reject, but it resolved');
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetFolderAccess.mockResolvedValue({
@@ -83,10 +93,62 @@ describe('GoogleSheetsFolderValidator', () => {
       isFolder: false,
       isSharedDrive: false,
       canAddChildren: false,
+      failure: { reason: 'not_found' },
     });
     await expect(
       validator.validateConfiguredFolder(destination({ folderId: 'f1' }))
-    ).rejects.toThrow(DestinationFolderAccessException);
+    ).rejects.toThrow(/was not found, or the service account .* is not a member/);
+  });
+
+  it('blames the disabled Drive API — not folder sharing — and links the activation page', async () => {
+    const { validator } = createValidator(SA_CREDENTIAL);
+    mockGetFolderAccess.mockResolvedValue({
+      accessible: false,
+      isFolder: false,
+      isSharedDrive: false,
+      canAddChildren: false,
+      failure: {
+        reason: 'drive_api_disabled',
+        activationUrl: 'https://console.developers.google.com/apis/api/drive.googleapis.com/x',
+      },
+    });
+    const error = await captureFailure(validator);
+    expect(error).toBeInstanceOf(DestinationFolderAccessException);
+    expect(error.message).toContain('Google Drive API is not enabled');
+    expect(error.message).toContain('(proj)');
+    expect(error.message).toContain(
+      'https://console.developers.google.com/apis/api/drive.googleapis.com/x'
+    );
+    expect(error.message).not.toContain('Content Manager');
+  });
+
+  it('falls back to a console link built from the key project when Google sends no activation URL', async () => {
+    const { validator } = createValidator(SA_CREDENTIAL);
+    mockGetFolderAccess.mockResolvedValue({
+      accessible: false,
+      isFolder: false,
+      isSharedDrive: false,
+      canAddChildren: false,
+      failure: { reason: 'drive_api_disabled' },
+    });
+    const error = await captureFailure(validator);
+    expect(error.message).toContain(
+      'https://console.cloud.google.com/apis/library/drive.googleapis.com?project=proj'
+    );
+  });
+
+  it('reports a 403 as a denial rather than a missing folder', async () => {
+    const { validator } = createValidator(SA_CREDENTIAL);
+    mockGetFolderAccess.mockResolvedValue({
+      accessible: false,
+      isFolder: false,
+      isSharedDrive: false,
+      canAddChildren: false,
+      failure: { reason: 'forbidden' },
+    });
+    const error = await captureFailure(validator);
+    expect(error.message).toContain('denied the service account');
+    expect(error.message).toContain('sa@proj.iam.gserviceaccount.com');
   });
 
   it('throws when the folder is not in a Shared Drive', async () => {

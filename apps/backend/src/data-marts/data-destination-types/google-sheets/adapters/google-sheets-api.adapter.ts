@@ -6,6 +6,31 @@ import { GOOGLE_SHEETS_METADATA_KEYS } from '../constants/google-sheets-metadata
 import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.schema';
 
 /**
+ * Why a Drive folder lookup failed. These fail for entirely different reasons and
+ * need entirely different remediation, so they are kept apart rather than
+ * collapsed into a single "no access" flag:
+ *
+ * - `drive_api_disabled` — the Drive API is off in the key's Cloud project. No
+ *   amount of sharing fixes it; `activationUrl` (when Google supplies one) points
+ *   at the exact enable page.
+ * - `not_found` — Drive returned 404: wrong ID, or the caller is not a member.
+ * - `forbidden` — Drive returned 403: the caller is known but not permitted.
+ */
+export type FolderAccessFailure =
+  | { reason: 'drive_api_disabled'; activationUrl?: string }
+  | { reason: 'not_found' }
+  | { reason: 'forbidden' };
+
+export interface FolderAccess {
+  accessible: boolean;
+  isFolder: boolean;
+  isSharedDrive: boolean;
+  canAddChildren: boolean;
+  /** Set only when `accessible` is false. */
+  failure?: FolderAccessFailure;
+}
+
+/**
  * Adapter for Google Sheets API operations
  */
 export class GoogleSheetsApiAdapter {
@@ -268,12 +293,7 @@ export class GoogleSheetsApiAdapter {
    *
    * @param folderId - Drive folder ID to inspect
    */
-  public async getFolderAccess(folderId: string): Promise<{
-    accessible: boolean;
-    isFolder: boolean;
-    isSharedDrive: boolean;
-    canAddChildren: boolean;
-  }> {
+  public async getFolderAccess(folderId: string): Promise<FolderAccess> {
     const drive = this.getDriveService();
     // Bound the round-trip: folder validation runs inside the destination-save
     // transaction, so a hung Drive call must not hold the DB connection/locks
@@ -304,11 +324,19 @@ export class GoogleSheetsApiAdapter {
       // or service account is not a member", blocking an otherwise-valid save.
       const status = GoogleSheetsApiAdapter.httpStatusOf(error);
       if (status === 403 || status === 404) {
+        const failure = GoogleSheetsApiAdapter.classifyFolderAccessFailure(error, status);
         GoogleSheetsApiAdapter.LOGGER.warn(
-          `getFolderAccess: cannot access folder ${folderId}`,
-          error instanceof Error ? error.message : String(error)
+          `getFolderAccess: cannot access folder ${folderId} (${status}, ${failure.reason}): ${
+            error instanceof Error ? error.message : String(error)
+          }`
         );
-        return { accessible: false, isFolder: false, isSharedDrive: false, canAddChildren: false };
+        return {
+          accessible: false,
+          isFolder: false,
+          isSharedDrive: false,
+          canAddChildren: false,
+          failure,
+        };
       }
       GoogleSheetsApiAdapter.LOGGER.error(
         `getFolderAccess: transient/unexpected error inspecting folder ${folderId}`,
@@ -316,6 +344,75 @@ export class GoogleSheetsApiAdapter {
       );
       throw error;
     }
+  }
+
+  /**
+   * Classifies a 403/404 Drive failure into an actionable reason.
+   *
+   * The "Drive API disabled in the project" 403 is singled out because it is
+   * indistinguishable from a permission problem by status alone, yet it is the
+   * one case where sharing the folder can never help — the Sheets API being
+   * enabled does not enable Drive.
+   */
+  private static classifyFolderAccessFailure(error: unknown, status: number): FolderAccessFailure {
+    const disabled = GoogleSheetsApiAdapter.driveApiDisabled(error);
+    if (disabled) {
+      return { reason: 'drive_api_disabled', activationUrl: disabled.activationUrl };
+    }
+    return status === 404 ? { reason: 'not_found' } : { reason: 'forbidden' };
+  }
+
+  /**
+   * Recognizes Google's "this API is not enabled in your project" 403, returning
+   * the activation URL it carries (when present). Undefined for every other error.
+   *
+   * Callers use this to avoid blaming folder sharing for a project-config problem.
+   */
+  public static driveApiDisabled(error: unknown): { activationUrl?: string } | undefined {
+    const reasons = GoogleSheetsApiAdapter.googleErrorReasons(error);
+    const disabled =
+      reasons.includes('accessNotConfigured') ||
+      reasons.includes('SERVICE_DISABLED') ||
+      // Fallback for error shapes that carry no machine-readable reason.
+      /has not been used in project|is disabled/i.test(
+        error instanceof Error ? error.message : String(error)
+      );
+    if (!disabled) return undefined;
+    return { activationUrl: GoogleSheetsApiAdapter.activationUrlOf(error) };
+  }
+
+  /** Machine-readable reason codes carried by a Google API error body. */
+  private static googleErrorReasons(error: unknown): string[] {
+    const body = (error as { response?: { data?: unknown } })?.response?.data as
+      | {
+          error?: {
+            status?: string;
+            errors?: Array<{ reason?: string }>;
+            details?: Array<{ reason?: string }>;
+          };
+        }
+      | undefined;
+    const inner = body?.error;
+    const reasons: string[] = [];
+    for (const e of inner?.errors ?? []) {
+      if (e?.reason) reasons.push(e.reason);
+    }
+    for (const d of inner?.details ?? []) {
+      if (d?.reason) reasons.push(d.reason);
+    }
+    return reasons;
+  }
+
+  /** The exact "enable this API" console URL Google attaches to a SERVICE_DISABLED error. */
+  private static activationUrlOf(error: unknown): string | undefined {
+    const body = (error as { response?: { data?: unknown } })?.response?.data as
+      | { error?: { details?: Array<{ metadata?: { activationUrl?: string } }> } }
+      | undefined;
+    for (const d of body?.error?.details ?? []) {
+      const url = d?.metadata?.activationUrl;
+      if (typeof url === 'string' && url.startsWith('https://')) return url;
+    }
+    return undefined;
   }
 
   /** Best-effort extraction of the HTTP status from a Google/Gaxios error. */
