@@ -12,6 +12,7 @@ import {
   toHumanReadable,
 } from '../data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
+import { LookerStudioConnectorConfigType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-config.schema';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { GetReportCommand } from '../dto/domain/get-report.command';
@@ -26,6 +27,7 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { DataDestinationService } from '../services/data-destination.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
@@ -68,6 +70,15 @@ function buildGoogleSheetUrl(spreadsheetId: string, sheetId: number): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`;
 }
 
+/**
+ * Cache lifetime for MCP-created Looker Studio reports, in seconds.
+ * add_report accepts no Looker-specific input, so every report gets this
+ * default. Keep in sync with the web form default in
+ * apps/web/src/features/data-marts/reports/edit/components/LookerStudioReportEditForm
+ * (the backend schema floor is 60, the web form minimum is 300).
+ */
+const LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS = 300;
+
 const MCP_RUN_REPORT_DESTINATION_TYPES = [
   DataDestinationType.GOOGLE_SHEETS,
   DataDestinationType.EMAIL,
@@ -107,6 +118,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly runReportService: RunReportService,
     private readonly dataMartRunService: DataMartRunService,
     private readonly dataMartService: DataMartService,
+    private readonly dataDestinationService: DataDestinationService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly reportAccessService: ReportAccessService,
     private readonly outputControlsValidator: OutputControlsValidatorService
@@ -163,6 +175,58 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   }
 
   async addReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+    // Branch on the destination's actual type: only the Google Sheets path
+    // has an external side effect, so only it needs pre-flight validation.
+    const destination = await this.dataDestinationService.getByIdAndProjectId(
+      request.destinationId,
+      request.projectId
+    );
+
+    switch (destination.type) {
+      case DataDestinationType.GOOGLE_SHEETS:
+        return this.addGoogleSheetsReport(request);
+      case DataDestinationType.LOOKER_STUDIO:
+        return this.addLookerStudioReport(request);
+      default:
+        throw new BusinessViolationException(
+          `add_report does not support ${toHumanReadable(destination.type)} destinations yet. ` +
+            'Supported destination types: Google Sheets, Looker Studio.'
+        );
+    }
+  }
+
+  /**
+   * Looker Studio reports carry no per-report settings in MCP — the config is
+   * always the defaults. CreateReportService is transactional and performs
+   * every authorization and validation check itself, so unlike the Google
+   * Sheets path no pre-flight is needed.
+   */
+  private async addLookerStudioReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+    const report = await this.createReportService.run(
+      new CreateReportCommand(
+        request.projectId,
+        request.userId,
+        request.name,
+        request.dataMartId,
+        request.destinationId,
+        {
+          type: LookerStudioConnectorConfigType,
+          cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
+        },
+        undefined,
+        request.roles,
+        this.toColumnConfig(request.fields)
+      )
+    );
+
+    return {
+      report_id: report.id,
+      owner: report.createdByUser?.email ?? null,
+      status: 'created',
+    };
+  }
+
+  private async addGoogleSheetsReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
     const columnConfig = this.toColumnConfig(request.fields);
 
     // 1. Validate everything CreateReportService would reject BEFORE the
@@ -171,9 +235,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     //    unauthorized caller must not be able to trigger it at all.
     await this.assertCanCreateReport(request, columnConfig);
 
-    // 2. Auto-create the Google Sheet. This also validates that the destination
-    //    is a Google Sheets destination (it throws otherwise), so it doubles as
-    //    the guard against unsupported destination types.
+    // 2. Auto-create the Google Sheet.
     const sheet = await this.createGoogleSheetDocumentService.run(
       new CreateGoogleSheetDocumentCommand(
         request.destinationId,
@@ -215,9 +277,10 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   }
 
   /**
-   * Pre-flight for addReport, mirroring the checks CreateReportService.run
-   * performs inside its transaction (kept deliberately in sync): the service
-   * re-validates afterwards, but by then the sheet already exists.
+   * Pre-flight for the Google Sheets addReport path, mirroring the checks
+   * CreateReportService.run performs inside its transaction (kept deliberately
+   * in sync): the service re-validates afterwards, but by then the sheet
+   * already exists.
    */
   private async assertCanCreateReport(
     request: McpAddReportRequest,

@@ -26,6 +26,9 @@ jest.mock('../services/data-mart-run.service', () => ({
 jest.mock('../services/data-mart.service', () => ({
   DataMartService: jest.fn(),
 }));
+jest.mock('../services/data-destination.service', () => ({
+  DataDestinationService: jest.fn(),
+}));
 jest.mock('../services/report-access.service', () => ({
   ReportAccessService: jest.fn(),
 }));
@@ -52,6 +55,7 @@ import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ReportDto } from '../dto/domain/report.dto';
 import type { AccessDecisionService } from '../services/access-decision';
+import type { DataDestinationService } from '../services/data-destination.service';
 import type { DataMartRunService } from '../services/data-mart-run.service';
 import type { DataMartService } from '../services/data-mart.service';
 import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
@@ -165,6 +169,12 @@ function createMocks() {
         storage: { type: 'GOOGLE_BIGQUERY' },
       } as DataMart),
     } as unknown as jest.Mocked<DataMartService>,
+    dataDestinationService: {
+      getByIdAndProjectId: jest.fn().mockResolvedValue({
+        id: 'dest-1',
+        type: DataDestinationType.GOOGLE_SHEETS,
+      }),
+    } as unknown as jest.Mocked<DataDestinationService>,
     accessDecisionService: {
       canAccess: jest.fn().mockResolvedValue(true),
     } as unknown as jest.Mocked<AccessDecisionService>,
@@ -203,6 +213,7 @@ function createFacade(overrides?: {
       mocks.runReportService,
       mocks.dataMartRunService,
       mocks.dataMartService,
+      mocks.dataDestinationService,
       mocks.accessDecisionService,
       mocks.reportAccessService,
       mocks.outputControlsValidator
@@ -574,6 +585,106 @@ describe('McpReportsFacadeImpl.addReport', () => {
     await expect(facade.addReport(addRequest)).rejects.toThrow(
       'Destination is not a Google Sheets destination'
     );
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('creates a Looker Studio report with the default config and no sheet fields', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+      accessDecisionService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    createReportService.run.mockResolvedValue({
+      id: 'report-1',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport(addRequest);
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        title: 'Weekly revenue',
+        dataMartId: 'dm-1',
+        dataDestinationId: 'dest-1',
+        destinationConfig: {
+          type: 'looker-studio-config',
+          cacheLifetime: 300,
+        },
+        columnConfig: ['channel', 'revenue'],
+      })
+    );
+    // No external side effect → no sheet and no pre-flight; CreateReportService
+    // performs every check itself, inside its transaction.
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(outputControlsValidator.validateForReport).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      report_id: 'report-1',
+      owner: 'ann@owox.com',
+      status: 'created',
+    });
+    expect(result).not.toHaveProperty('sheet_url');
+  });
+
+  it('maps fields ["*"] to no column projection for Looker Studio reports', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    createReportService.run.mockResolvedValue({ id: 'report-3', createdByUser: null } as ReportDto);
+
+    await facade.addReport({ ...addRequest, fields: ['*'] });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: null })
+    );
+  });
+
+  it('rejects unsupported destination types by name without touching any service', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.EMAIL,
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'add_report does not support Email destinations yet'
+    );
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('propagates a missing destination without creating anything', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockRejectedValue(
+      new NotFoundException('Data Destination with id dest-1 and projectId project-1 not found')
+    );
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(NotFoundException);
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
     expect(createReportService.run).not.toHaveBeenCalled();
   });
 });

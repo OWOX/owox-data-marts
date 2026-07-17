@@ -64,11 +64,11 @@ export interface McpAddReportResult {
   report_id: string;
   owner: string | null;
   status: 'created';
-  /** Link to the auto-created Google Sheet. */
-  sheet_url: string;
-  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. */
+  /** Link to the auto-created Google Sheet. Google Sheets destinations only. */
+  sheet_url?: string;
+  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. Google Sheets destinations only. */
   placed_in_root?: boolean;
-  /** False when the created sheet could not be shared with the requesting user. */
+  /** False when the created sheet could not be shared with the requesting user. Google Sheets destinations only. */
   shared_with_requester?: boolean;
 }
 
@@ -144,9 +144,11 @@ export interface McpGetReportRunStatusResponse {
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
   /**
-   * Creates a report for a Google Sheets destination: auto-creates a new Sheet,
-   * then creates the report pointing at it. Non-Google-Sheets destinations are
-   * rejected by the underlying document-creation service.
+   * Creates a report, branching on the destination's type. Google Sheets:
+   * auto-creates a new Sheet, then creates the report pointing at it (the
+   * result carries the sheet fields). Looker Studio: creates the report with
+   * the default destination settings — no extra input is accepted. Other
+   * destination types are rejected with a clear error.
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**

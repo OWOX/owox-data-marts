@@ -67,6 +67,32 @@ describe('AddReportTool', () => {
     });
   });
 
+  it('creates a Looker Studio report without any sheet fields', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-2',
+        owner: 'ann@owox.com',
+        status: 'created',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const structuredContent = {
+      report_id: 'report-2',
+      report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
+      owner: 'ann@owox.com',
+      status: 'created',
+    };
+
+    const result = await tool.handler(input, context);
+
+    expect(result.structuredContent).toEqual(structuredContent);
+    expect(result.structuredContent).not.toHaveProperty('sheet_url');
+    expect(result.structuredContent).not.toHaveProperty('placed_in_root');
+    expect(result.structuredContent).not.toHaveProperty('shared_with_requester');
+    expect((result.content[0] as { text: string }).text).not.toContain('sheet_url');
+  });
+
   it('surfaces sheet placement and sharing warnings when present', async () => {
     const facade = {
       addReport: jest.fn().mockResolvedValue({
