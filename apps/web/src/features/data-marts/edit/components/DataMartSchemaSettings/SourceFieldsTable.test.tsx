@@ -259,6 +259,38 @@ describe('SourceFieldsTable — available aggregations follow the dedup EFFECTIV
     });
   });
 
+  it('treats a null postJoinAggregations like "unset" on a category-crossing dedup change (no throw)', async () => {
+    const onFieldOverrideChange = vi.fn();
+    const fields = [
+      {
+        ...buildBlendedField({
+          originalFieldName: 'revenue',
+          type: 'STRING',
+          sourceFieldType: 'STRING',
+          aggregateFunction: 'STRING_AGG',
+        }),
+        // The API can deliver null instead of undefined; the reset guard must not throw on `null.length`.
+        postJoinAggregations: null as unknown as undefined,
+      },
+    ];
+    render(<SourceFieldsTable fields={fields} onFieldOverrideChange={onFieldOverrideChange} />);
+
+    const dedupTrigger = screen.getByRole('combobox');
+    fireEvent.pointerDown(dedupTrigger, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+
+    const countDistinctOption = await within(document.body).findByRole('option', {
+      name: 'COUNT_DISTINCT',
+    });
+    fireEvent.click(countDistinctOption);
+
+    // null is treated as "no explicit set" → the reset branch is skipped, only the dedup changes.
+    await waitFor(() => {
+      expect(onFieldOverrideChange).toHaveBeenCalledWith('revenue', {
+        aggregateFunction: 'COUNT_DISTINCT',
+      });
+    });
+  });
+
   it('reverting a type-changing dedup resolves the reset off the RAW sourceFieldType, not the already-effective type', async () => {
     const onFieldOverrideChange = vi.fn();
     const fields = [

@@ -312,8 +312,7 @@ export function SourceFieldsTable({
                         // silently re-enabled — omit postJoinAggregations in both cases.
                         const rawType = field.sourceFieldType ?? field.type;
                         if (
-                          field.postJoinAggregations !== undefined &&
-                          field.postJoinAggregations.length > 0 &&
+                          (field.postJoinAggregations?.length ?? 0) > 0 &&
                           !sameAggregationCategory(
                             effectiveAggregationType(rawType, field.aggregateFunction),
                             effectiveAggregationType(rawType, aggregateFunction)
