@@ -816,6 +816,7 @@ export class ConnectorSecretService {
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
+      delete mergedItem._secrets_id;
       mergedItem._id = randomUUID();
       delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
       if (

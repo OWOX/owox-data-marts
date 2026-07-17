@@ -283,6 +283,10 @@ export class ConnectorCredentialInjectorService {
     projectId: string
   ): Promise<void> {
     const configId = typeof config._id === 'string' ? config._id : undefined;
+    const copiedFrom =
+      config._copiedFrom && typeof config._copiedFrom === 'object'
+        ? (config._copiedFrom as Record<string, unknown>)
+        : undefined;
     const references = this.collectPreviewCredentialReferences(config);
 
     for (const reference of references) {
@@ -302,12 +306,13 @@ export class ConnectorCredentialInjectorService {
           throw new ForbiddenException('The selected credentials cannot be used for this preview');
         }
       } else {
-        const isConfigOwnedSecret =
-          Boolean(credential.dataMartId) &&
-          Boolean(credential.configId) &&
-          Boolean(configId) &&
-          credential.configId === configId;
-        if (!isConfigOwnedSecret) {
+        const isCurrentConfigSecret = Boolean(configId) && credential.configId === configId;
+        const isCopiedConfigSecret =
+          typeof copiedFrom?.dataMartId === 'string' &&
+          typeof copiedFrom.configId === 'string' &&
+          credential.dataMartId === copiedFrom.dataMartId &&
+          credential.configId === copiedFrom.configId;
+        if (!isCurrentConfigSecret && !isCopiedConfigSecret) {
           throw new ForbiddenException('The selected credentials cannot be used for this preview');
         }
       }
