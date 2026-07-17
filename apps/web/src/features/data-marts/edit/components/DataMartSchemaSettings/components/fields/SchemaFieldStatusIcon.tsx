@@ -67,7 +67,7 @@ export function SchemaFieldStatusIcon({ status }: SchemaFieldStatusIconProps) {
             tabIndex={0}
           />
         </TooltipTrigger>
-        <TooltipContent id={tooltipId} side='bottom' role='tooltip'>
+        <TooltipContent id={tooltipId} role='tooltip'>
           <div className='text-xs font-medium'>{label}</div>
           <div className='mt-1 max-w-xs text-xs break-words whitespace-normal'>{description}</div>
         </TooltipContent>

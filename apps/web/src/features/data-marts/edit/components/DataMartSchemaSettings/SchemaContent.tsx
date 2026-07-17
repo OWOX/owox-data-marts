@@ -24,6 +24,7 @@ import {
   isSnowflakeSchema,
 } from './utils';
 import type { SchemaAiHelper } from './types/ai-helper';
+import type { SchemaToolbar } from './types/schema-toolbar';
 
 /**
  * Props for the SchemaContent component
@@ -44,6 +45,7 @@ interface SchemaContentProps {
   ) => void;
   /** AI helper handlers; omit to hide AI buttons on this deployment. */
   aiHelper?: SchemaAiHelper;
+  schemaToolbar: SchemaToolbar;
 }
 
 /**
@@ -55,6 +57,7 @@ export function SchemaContent({
   storageType,
   onFieldsChange,
   aiHelper,
+  schemaToolbar,
 }: SchemaContentProps) {
   // If schema doesn't exist, create an initial schema based on storage type
   const initialSchema = useMemo(() => {
@@ -74,6 +77,7 @@ export function SchemaContent({
         fields={initialSchema.fields}
         onFieldsChange={onFieldsChange}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     );
   } else if (isAthenaSchema(initialSchema)) {
@@ -82,6 +86,7 @@ export function SchemaContent({
         fields={initialSchema.fields}
         onFieldsChange={onFieldsChange}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     );
   } else if (isSnowflakeSchema(initialSchema)) {
@@ -90,6 +95,7 @@ export function SchemaContent({
         fields={initialSchema.fields}
         onFieldsChange={onFieldsChange}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     );
   } else if (isRedshiftSchema(initialSchema)) {
@@ -98,6 +104,7 @@ export function SchemaContent({
         fields={initialSchema.fields}
         onFieldsChange={onFieldsChange}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     );
   } else if (isDatabricksSchema(initialSchema)) {
@@ -106,6 +113,7 @@ export function SchemaContent({
         fields={initialSchema.fields}
         onFieldsChange={onFieldsChange}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     );
   }
