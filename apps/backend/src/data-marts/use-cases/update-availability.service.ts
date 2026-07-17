@@ -42,7 +42,9 @@ export class UpdateAvailabilityService {
       projectId
     );
     if (!canConfigure)
-      throw new ForbiddenException('You cannot configure sharing for this DataMart');
+      throw new ForbiddenException(
+        'You do not have permission to configure sharing for this Data Mart. You must be the Technical Owner with the Technical User role, or a Project Admin.'
+      );
 
     dm.availableForReporting = availableForReporting;
     dm.availableForMaintenance = availableForMaintenance;
@@ -71,7 +73,9 @@ export class UpdateAvailabilityService {
       projectId
     );
     if (!canConfigure)
-      throw new ForbiddenException('You cannot configure sharing for this Storage');
+      throw new ForbiddenException(
+        'You do not have permission to configure sharing for this Storage. You must be an owner with the Technical User role, or a Project Admin.'
+      );
 
     storage.availableForUse = availableForUse;
     storage.availableForMaintenance = availableForMaintenance;
@@ -100,7 +104,9 @@ export class UpdateAvailabilityService {
       projectId
     );
     if (!canConfigure)
-      throw new ForbiddenException('You cannot configure sharing for this Destination');
+      throw new ForbiddenException(
+        'You do not have permission to configure sharing for this Destination. You must be an owner of this Destination, or a Project Admin.'
+      );
 
     dest.availableForUse = availableForUse;
     dest.availableForMaintenance = availableForMaintenance;

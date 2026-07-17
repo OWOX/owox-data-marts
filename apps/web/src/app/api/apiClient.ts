@@ -111,7 +111,7 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 403 && !skipErrorToast) {
-      showApiErrorToast(error, 'Access forbidden - insufficient permissions');
+      showApiErrorToast(error, 'Access forbidden - insufficient permissions', { persistent: true });
     }
 
     if (error.response?.status === 400 && !skipErrorToast) {

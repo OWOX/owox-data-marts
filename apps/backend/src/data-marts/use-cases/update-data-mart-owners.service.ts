@@ -45,7 +45,9 @@ export class UpdateDataMartOwnersService {
         command.projectId
       );
       if (!canManage) {
-        throw new ForbiddenException('You cannot manage owners of this DataMart');
+        throw new ForbiddenException(
+          'You do not have permission to manage owners of this Data Mart. You must be the Technical Owner with the Technical User role, or a Project Admin.'
+        );
       }
     }
 

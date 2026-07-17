@@ -95,7 +95,9 @@ describe('UpdateDataMartOwnersService', () => {
       'non-owner',
       ['editor']
     );
-    await expect(service.run(command)).rejects.toThrow('You cannot manage owners');
+    await expect(service.run(command)).rejects.toThrow(
+      'You do not have permission to manage owners of this Data Mart. You must be the Technical Owner with the Technical User role, or a Project Admin.'
+    );
   });
 
   it('should replace business and technical owners via join tables', async () => {
