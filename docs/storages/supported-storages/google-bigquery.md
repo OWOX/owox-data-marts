@@ -59,7 +59,7 @@ To get the JSON key, you'll need to create or use an existing service account in
 
 Click **Connect Google Account** to authenticate using your personal Google account via OAuth. You will be redirected to Google's consent screen to grant BigQuery access. Once authorized, your account will be linked to this Storage.
 
-> **Note:** The authenticated Google account must have `BigQuery Data Editor` and `BigQuery Job User` roles in the target project. OAuth tokens are automatically refreshed. If your session expires or access is revoked, you can reconnect at any time.
+> **Note:** The authenticated Google account must have `BigQuery Data Editor` (`roles/bigquery.dataEditor`) and `BigQuery Job User` (`roles/bigquery.jobUser`) roles in the target project. Check or assign these roles in [IAM & Admin → IAM](https://console.cloud.google.com/iam-admin/iam). OAuth tokens are automatically refreshed. If your session expires or access is revoked, you can reconnect at any time.
 
 ### Enable BigQuery API
 
