@@ -118,7 +118,7 @@ describe('DataMartInsightsPage', () => {
       'href',
       '/ui/project-1/data-marts'
     );
-    expect(container.querySelector('.lucide-sparkles')).toBeInTheDocument();
+    expect(container.querySelector('.lucide-bookmark')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Toggle columns' })).not.toBeInTheDocument();
   });
 

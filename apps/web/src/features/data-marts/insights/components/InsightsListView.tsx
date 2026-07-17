@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus, Bookmark } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -222,7 +222,7 @@ export default function InsightsListView() {
   return (
     <CollapsibleCard>
       <CollapsibleCardHeader>
-        <CollapsibleCardHeaderTitle icon={Sparkles} tooltip='Manage and review your insights'>
+        <CollapsibleCardHeaderTitle icon={Bookmark} tooltip='Manage and review your insights'>
           Insights
         </CollapsibleCardHeaderTitle>
         <CollapsibleCardHeaderActions>
@@ -251,7 +251,7 @@ export default function InsightsListView() {
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant='icon'>
-                <Sparkles />
+                <Bookmark />
               </EmptyMedia>
               <EmptyTitle>Create your first Insight</EmptyTitle>
               <EmptyDescription>

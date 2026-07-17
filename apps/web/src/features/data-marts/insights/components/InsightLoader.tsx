@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Sparkles,
+  Bookmark,
   DatabaseZap,
   Network,
   SquareChartGantt,
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 const STEPS = [
-  { icon: Sparkles, text: 'Initializing intelligence...' },
+  { icon: Bookmark, text: 'Initializing intelligence...' },
   { icon: DatabaseZap, text: 'Connecting to data sources...' },
   { icon: Network, text: 'Mapping data relationships...' },
   { icon: FolderTree, text: 'Exploring dataset structure...' },
