@@ -77,7 +77,7 @@ describe('showApiErrorToast', () => {
       expect(root.type).toBe('span');
       expect(text).toBe('Denied');
       expect(closeButton.type).toBe('button');
-      expect(closeButton.props['aria-label']).toBe('Dismiss');
+      expect(closeButton.props['aria-label']).toBe('Dismiss error');
     });
 
     it('dismisses the toast when the close button is clicked', () => {

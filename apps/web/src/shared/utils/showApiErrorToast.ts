@@ -40,7 +40,7 @@ export function showApiErrorToast(
             'button',
             {
               type: 'button',
-              'aria-label': 'Dismiss',
+              'aria-label': 'Dismiss error',
               onClick: () => {
                 toast.dismiss(t.id);
               },
