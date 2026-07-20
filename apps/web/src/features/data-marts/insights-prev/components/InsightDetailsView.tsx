@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2, Send, Copy } from 'lucide-react';
+import { MoreVertical, Trash2, Bookmark, BookmarkX, Loader2, Send, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useClipboard } from '../../../../hooks/useClipboard';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
@@ -207,7 +207,7 @@ export default function InsightDetailsView() {
       <Empty>
         <EmptyHeader>
           <EmptyMedia variant='icon'>
-            <Sparkles />
+            <BookmarkX />
           </EmptyMedia>
         </EmptyHeader>
         <EmptyTitle>Insight not found</EmptyTitle>
@@ -314,11 +314,11 @@ export default function InsightDetailsView() {
                               >
                                 {isTemplateDirty ? (
                                   <span className='inline-flex items-center gap-2'>
-                                    <Sparkles /> Save Insight
+                                    <Bookmark /> Save Insight
                                   </span>
                                 ) : (
                                   <span className='inline-flex items-center gap-2'>
-                                    <Sparkles /> Run Insight
+                                    <Bookmark /> Run Insight
                                   </span>
                                 )}
                               </Button>
@@ -352,11 +352,11 @@ export default function InsightDetailsView() {
                                 </span>
                               ) : isTemplateDirty ? (
                                 <span className='inline-flex items-center gap-2'>
-                                  <Sparkles /> Save & Run Insight
+                                  <Bookmark /> Save & Run Insight
                                 </span>
                               ) : (
                                 <span className='inline-flex items-center gap-2'>
-                                  <Sparkles /> Run Insight
+                                  <Bookmark /> Run Insight
                                 </span>
                               )}
                             </Button>
@@ -442,9 +442,9 @@ export default function InsightDetailsView() {
                 <Empty className='h-full'>
                   <EmptyHeader>
                     <EmptyMedia variant='icon'>
-                      <Sparkles />
+                      <Bookmark />
                     </EmptyMedia>
-                    <EmptyTitle>Even data needs a little spark</EmptyTitle>
+                    <EmptyTitle>Ready to explore your data?</EmptyTitle>
                     <EmptyDescription>
                       Write prompt to&nbsp;uncover the story behind your data!
                     </EmptyDescription>

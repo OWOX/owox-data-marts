@@ -6,7 +6,7 @@ import {
   FileText,
   HistoryIcon,
   Network,
-  Sparkles,
+  Bookmark,
 } from 'lucide-react';
 import type { MainMenuItem } from './types';
 
@@ -29,7 +29,7 @@ export const MainMenuItems: MainMenuItem[] = [
       {
         title: 'Insights',
         url: '/data-marts/insights',
-        icon: Sparkles,
+        icon: Bookmark,
       },
       {
         title: 'Triggers',

@@ -1,4 +1,4 @@
-import { Loader2, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Loader2, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -141,10 +141,11 @@ export function AiAssistantHistory({
                     }}
                     disabled={!canEdit}
                   >
+                    <Pencil className='h-4 w-4' />
                     Rename
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    className='text-destructive'
+                    className='text-destructive hover:text-destructive focus:text-destructive'
                     onClick={event => {
                       event.stopPropagation();
                       onDeleteSession(item.id);

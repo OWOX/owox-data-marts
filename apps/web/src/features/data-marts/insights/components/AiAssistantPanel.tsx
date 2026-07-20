@@ -7,7 +7,7 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react';
-import { Loader2, ArrowUp, Sparkles } from 'lucide-react';
+import { Loader2, ArrowUp, Bookmark } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { trackEvent } from '../../../../utils';
 import { Button } from '@owox/ui/components/button';
@@ -367,7 +367,7 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
     return (
       <div className='flex h-full min-h-0 w-full flex-col'>
         <div className='flex h-9 shrink-0 items-center gap-2 border-b px-3'>
-          <Sparkles className='text-muted-foreground h-3.5 w-3.5 shrink-0' />
+          <Bookmark className='text-muted-foreground h-3.5 w-3.5 shrink-0' />
           <div className='text-muted-foreground truncate text-xs'>{displayedSessionTitle}</div>
         </div>
 

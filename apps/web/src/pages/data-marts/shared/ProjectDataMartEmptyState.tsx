@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarClock, FileText, History, Sparkles } from 'lucide-react';
+import { ArrowRight, CalendarClock, FileText, History, Bookmark } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { useProjectRoute } from '../../../shared/hooks';
 
@@ -19,7 +19,7 @@ const EMPTY_STATE_COPY = {
       'Reports configured inside Data Marts will appear here with their destination, run status, and actions.',
   },
   insights: {
-    icon: Sparkles,
+    icon: Bookmark,
     title: 'No insights yet',
     description:
       'Insights created from Data Mart data will appear here with their update details and actions.',
