@@ -8,7 +8,6 @@ import { Core } from '@owox/connectors';
 const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
 const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
-const GOOGLE_SHEETS_SOURCE_NAME = 'GoogleSheets';
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -33,14 +32,15 @@ import { ConnectorSourceConfigService } from './connector-source-config.service'
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
-import { createConnectorSourceFingerprint } from './connector-source-fingerprint';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
   success: boolean;
   logs: ConnectorMessage[];
   errors: ConnectorMessage[];
-  fieldsUpdate?: string[];
+  fieldsUpdate?: {
+    fields: string[];
+  };
 }
 
 @Injectable()
@@ -150,31 +150,28 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
-      const definition = dataMart.definition as DataMartConnectorDefinition | undefined;
-      if (definition?.connector.source.name === GOOGLE_SHEETS_SOURCE_NAME) {
-        try {
-          await this.persistSuccessfulFieldsUpdate(dataMart, configurationResults, runId);
-        } catch (error) {
-          const fieldsUpdateError = error instanceof Error ? error.message : String(error);
-          const warning =
-            'Google Sheets data was imported, but the source field list could not be synchronized. It will be retried on the next run.';
-          addMessageToArray(capturedLogs, {
-            type: ConnectorMessageType.WARNING,
-            at: this.systemTimeService.now().toISOString(),
-            warning,
-            toFormattedString: () => `[WARNING] ${warning}`,
-          });
-          this.logger.error(
-            `Error saving connector source fields update: ${fieldsUpdateError}`,
-            (error as Error)?.stack,
-            {
-              dataMartId: dataMart.id,
-              projectId: dataMart.projectId,
-              runId,
-              error: fieldsUpdateError,
-            }
-          );
-        }
+      try {
+        await this.persistSuccessfulFieldsUpdate(dataMart, configurationResults, runId);
+      } catch (error) {
+        const fieldsUpdateError = error instanceof Error ? error.message : String(error);
+        const warning =
+          'Connector data was imported, but the source field list could not be synchronized. It will be retried on the next run.';
+        addMessageToArray(capturedLogs, {
+          type: ConnectorMessageType.WARNING,
+          at: this.systemTimeService.now().toISOString(),
+          warning,
+          toFormattedString: () => `[WARNING] ${warning}`,
+        });
+        this.logger.error(
+          `Error saving connector source fields update: ${fieldsUpdateError}`,
+          (error as Error)?.stack,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            error: fieldsUpdateError,
+          }
+        );
       }
 
       await this.updateRunStatus(
@@ -260,7 +257,7 @@ export class ConnectorExecutorService {
       const configErrors: ConnectorMessage[] = [];
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
-      let fieldsUpdate: string[] | undefined;
+      let fieldsUpdate: ConfigurationExecutionResult['fieldsUpdate'];
       let configForCredentialUpdates = config as Record<string, unknown>;
       let expectedCredentialValues: Record<string, unknown> | undefined;
 
@@ -301,7 +298,9 @@ export class ConnectorExecutorService {
               credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
               break;
             case ConnectorMessageType.FIELDS_UPDATE:
-              fieldsUpdate = message.fields;
+              fieldsUpdate = {
+                fields: message.fields,
+              };
               break;
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
@@ -476,39 +475,27 @@ export class ConnectorExecutorService {
     configurationResults: ConfigurationExecutionResult[],
     runId: string
   ): Promise<void> {
-    const definition = dataMart.definition as DataMartConnectorDefinition | undefined;
-    if (definition?.connector.source.name !== GOOGLE_SHEETS_SOURCE_NAME) {
-      return;
-    }
-
-    const successfulResultsWithFields = configurationResults.filter(
-      result => result.success && result.fieldsUpdate
+    const successfulFieldUpdates = configurationResults.flatMap(result =>
+      result.success && result.fieldsUpdate ? [result.fieldsUpdate.fields] : []
     );
-    const successfulResult = successfulResultsWithFields[successfulResultsWithFields.length - 1];
-    const successfulFieldsUpdate = successfulResult?.fieldsUpdate;
-
-    if (!successfulFieldsUpdate) {
+    if (successfulFieldUpdates.length === 0) {
       return;
     }
 
-    const nextFields = this.normalizeFieldsUpdate(successfulFieldsUpdate);
+    const nextFields = this.normalizeFieldsUpdate(successfulFieldUpdates.flat());
     if (nextFields.length === 0) {
       return;
     }
 
-    const wasUpdated = await this.dataMartService.updateConnectorSourceFields(
-      dataMart.id,
-      dataMart.projectId,
-      nextFields,
-      successfulResult.configIndex,
-      createConnectorSourceFingerprint(definition.connector.source)
+    const wasSynchronized = await this.dataMartService.updateConnectorSourceFields(
+      dataMart,
+      nextFields
     );
-
-    if (!wasUpdated) {
-      return;
+    if (!wasSynchronized) {
+      throw new Error('Data Mart definition changed while connector source fields were updating');
     }
 
-    this.logger.log(`Updated Google Sheets source fields after successful connector run`, {
+    this.logger.log(`Updated connector source fields after successful connector run`, {
       dataMartId: dataMart.id,
       projectId: dataMart.projectId,
       runId,

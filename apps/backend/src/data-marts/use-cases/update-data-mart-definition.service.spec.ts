@@ -51,7 +51,13 @@ describe('UpdateDataMartDefinitionService', () => {
       eventDispatcher as any
     );
 
-    return { service, dataMartService, accessDecisionService, dataMart };
+    return {
+      service,
+      dataMartService,
+      connectorSecretService,
+      accessDecisionService,
+      dataMart,
+    };
   };
 
   beforeEach(() => {
@@ -166,5 +172,45 @@ describe('UpdateDataMartDefinitionService', () => {
 
     expect(dataMart.definition).toBe(definition);
     expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
+  });
+
+  it('requires edit access to copy Google Sheets credentials from another Data Mart', async () => {
+    const { service, accessDecisionService, connectorSecretService } = createService();
+    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const definition = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          fields: ['name'],
+          configuration: [{ _id: 'config-1' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      definition,
+      'source-dm-1',
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(
+      'You do not have permission to copy Google Sheets credentials from the source DataMart'
+    );
+    expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
+      2,
+      'user-1',
+      ['editor'],
+      'DATA_MART',
+      'source-dm-1',
+      'EDIT',
+      'proj-1'
+    );
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
   });
 });

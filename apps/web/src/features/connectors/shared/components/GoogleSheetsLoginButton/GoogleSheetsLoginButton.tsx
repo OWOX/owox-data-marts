@@ -1,26 +1,26 @@
 import { Button } from '@owox/ui/components/button';
 import { useOAuthPopup } from '../../hooks/useOAuthPopup';
 
-interface GoogleAdsLoginButtonProps {
+interface GoogleSheetsLoginButtonProps {
   clientId: string;
   redirectUri: string;
-  onSuccess: (response: GoogleAdsLoginResponse) => void;
+  onSuccess: (response: GoogleSheetsLoginResponse) => void;
   onError?: (error: Error) => void;
   disabled?: boolean;
   children?: React.ReactNode;
 }
 
-export interface GoogleAdsLoginResponse {
+export interface GoogleSheetsLoginResponse {
   code: string;
 }
 
-type GoogleAdsAuthMessage =
-  | { type: 'GOOGLE_ADS_AUTH_SUCCESS'; code: string; state: string | null }
-  | { type: 'GOOGLE_ADS_AUTH_ERROR'; error: string };
+type GoogleSheetsAuthMessage =
+  | { type: 'GOOGLE_SHEETS_AUTH_SUCCESS'; code: string; state: string | null }
+  | { type: 'GOOGLE_SHEETS_AUTH_ERROR'; error: string };
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const SCOPE =
-  'https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email';
+  'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email';
 
 const GoogleLogo = () => (
   <svg className='h-5 w-5 shrink-0' viewBox='0 0 24 24'>
@@ -43,32 +43,32 @@ const GoogleLogo = () => (
   </svg>
 );
 
-function isGoogleAdsAuthMessage(data: unknown): data is GoogleAdsAuthMessage {
+function isGoogleSheetsAuthMessage(data: unknown): data is GoogleSheetsAuthMessage {
   if (typeof data !== 'object' || data === null) return false;
-  const msg = data as Record<string, unknown>;
+  const message = data as Record<string, unknown>;
 
-  if (msg.type === 'GOOGLE_ADS_AUTH_SUCCESS') {
-    return typeof msg.code === 'string';
+  if (message.type === 'GOOGLE_SHEETS_AUTH_SUCCESS') {
+    return typeof message.code === 'string';
   }
 
-  if (msg.type === 'GOOGLE_ADS_AUTH_ERROR') {
-    return typeof msg.error === 'string';
+  if (message.type === 'GOOGLE_SHEETS_AUTH_ERROR') {
+    return typeof message.error === 'string';
   }
 
   return false;
 }
 
-export function GoogleAdsLoginButton({
+export function GoogleSheetsLoginButton({
   clientId,
   redirectUri,
   onSuccess,
   onError,
   disabled = false,
   children,
-}: GoogleAdsLoginButtonProps) {
+}: GoogleSheetsLoginButtonProps) {
   const { openPopup, isLoading, error } = useOAuthPopup<
-    GoogleAdsLoginResponse,
-    GoogleAdsAuthMessage
+    GoogleSheetsLoginResponse,
+    GoogleSheetsAuthMessage
   >({
     redirectUri,
     buildAuthUrl: (state: string) => {
@@ -84,16 +84,16 @@ export function GoogleAdsLoginButton({
     },
     onSuccess,
     onError,
-    isAuthMessage: isGoogleAdsAuthMessage,
-    getSuccessResponse: (msg: GoogleAdsAuthMessage) => {
-      if (msg.type === 'GOOGLE_ADS_AUTH_SUCCESS') {
-        return { code: msg.code };
+    isAuthMessage: isGoogleSheetsAuthMessage,
+    getSuccessResponse: message => {
+      if (message.type === 'GOOGLE_SHEETS_AUTH_SUCCESS') {
+        return { code: message.code };
       }
       throw new Error('Invalid response');
     },
-    getErrorMessage: (msg: GoogleAdsAuthMessage) => {
-      if (msg.type === 'GOOGLE_ADS_AUTH_ERROR') {
-        return msg.error;
+    getErrorMessage: message => {
+      if (message.type === 'GOOGLE_SHEETS_AUTH_ERROR') {
+        return message.error;
       }
       return 'Unknown error';
     },
@@ -101,26 +101,16 @@ export function GoogleAdsLoginButton({
 
   const handleLogin = () => {
     if (!clientId || !redirectUri) {
-      onError?.(new Error('Google Ads OAuth configuration is incomplete'));
+      onError?.(new Error('Google Sheets OAuth configuration is incomplete'));
       return;
     }
     openPopup();
   };
 
   const isDisabled = disabled || isLoading || !clientId || !redirectUri;
-
-  const getButtonContent = () => {
-    if (isLoading) {
-      return 'Connecting...';
-    }
-    if (children) {
-      return children;
-    }
-    if (!clientId || !redirectUri) {
-      return 'OAuth not configured';
-    }
-    return 'Sign in with Google';
-  };
+  const content = isLoading
+    ? 'Connecting...'
+    : (children ?? (clientId && redirectUri ? 'Sign in with Google' : 'OAuth not configured'));
 
   return (
     <div className='flex flex-col gap-2'>
@@ -131,10 +121,13 @@ export function GoogleAdsLoginButton({
         className='flex items-center justify-center gap-2 rounded-md border border-[#DADCE0] bg-white px-4 py-2.5 text-sm font-semibold text-[#3C4043] hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60'
       >
         <GoogleLogo />
-        {getButtonContent()}
+        {content}
       </Button>
-
-      {error && <div className='mt-1 text-xs text-red-600'>{error}</div>}
+      {error && (
+        <div role='alert' className='mt-1 text-xs text-red-600'>
+          {error}
+        </div>
+      )}
     </div>
   );
 }

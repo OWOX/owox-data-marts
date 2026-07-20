@@ -31,7 +31,6 @@ interface ConnectorConfigField {
   options?: unknown[];
   placeholder?: string;
   minimum?: number;
-  maximum?: number;
   attributes?: Core.CONFIG_ATTRIBUTES[];
   oneOf?: ConnectorSpecificationOneOf[];
 }
@@ -472,7 +471,6 @@ export class ConnectorService {
         options: config[key].options,
         placeholder: config[key].placeholder,
         minimum: config[key].minimum,
-        maximum: config[key].maximum,
         attributes: config[key].attributes,
         oneOf: config[key].oneOf?.map(oneOf => {
           return {
@@ -493,7 +491,6 @@ export class ConnectorService {
                   options: itemValue.options,
                   placeholder: itemValue.placeholder,
                   minimum: itemValue.minimum,
-                  maximum: itemValue.maximum,
                   attributes: itemValue.attributes,
                 };
                 return acc;

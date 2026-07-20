@@ -13,7 +13,6 @@ import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { DataMartSearchIndexInvalidationService } from './data-mart-search-index-invalidation.service';
-import { createConnectorSourceFingerprint } from './connector/connector-source-fingerprint';
 
 @Injectable()
 export class DataMartService {
@@ -348,46 +347,18 @@ export class DataMartService {
     }
   }
 
-  async updateConnectorSourceFields(
-    id: string,
-    projectId: string,
-    fields: string[],
-    configurationIndex: number,
-    expectedSourceFingerprint: string
-  ): Promise<boolean> {
-    const dataMart = await this.getByIdAndProjectId(id, projectId);
+  async updateConnectorSourceFields(dataMart: DataMart, fields: string[]): Promise<boolean> {
     const definition = dataMart.definition;
 
-    if (
-      !definition ||
-      !isConnectorDefinition(definition) ||
-      definition.connector.source.name !== 'GoogleSheets' ||
-      createConnectorSourceFingerprint(definition.connector.source) !== expectedSourceFingerprint
-    ) {
+    if (!definition || !isConnectorDefinition(definition)) {
       return false;
     }
 
     const source = definition.connector.source;
-    const currentConfiguration = source.configuration[configurationIndex];
-    if (!currentConfiguration) {
-      return false;
-    }
-
     const currentFields = source.fields;
-    const shouldSyncSelectedColumns = this.isExplicitFalse(currentConfiguration.ImportAllColumns);
-    const selectedColumns = fields.join(',');
-    const selectedColumnsChanged =
-      shouldSyncSelectedColumns && currentConfiguration.SelectedColumns !== selectedColumns;
-
-    if (this.areStringArraysEqual(currentFields, fields) && !selectedColumnsChanged) {
-      return false;
+    if (this.areStringArraysEqual(currentFields, fields)) {
+      return true;
     }
-
-    const configuration = selectedColumnsChanged
-      ? source.configuration.map((config, index) =>
-          index === configurationIndex ? { ...config, SelectedColumns: selectedColumns } : config
-        )
-      : source.configuration;
 
     const nextDefinition = {
       ...definition,
@@ -396,15 +367,14 @@ export class DataMartService {
         source: {
           ...source,
           fields,
-          configuration,
         },
       },
     };
 
     const updateResult = await this.dataMartRepository.update(
       {
-        id,
-        projectId,
+        id: dataMart.id,
+        projectId: dataMart.projectId,
         modifiedAt: this.createModifiedAtUpdateCriterion(dataMart.modifiedAt),
       },
       { definition: nextDefinition }
@@ -417,16 +387,16 @@ export class DataMartService {
       return modifiedAt;
     }
 
-    return Raw(alias => `datetime(${alias}) = datetime(:expectedModifiedAt)`, {
-      expectedModifiedAt: modifiedAt.toISOString(),
-    });
+    return Raw(
+      alias =>
+        `strftime('%Y-%m-%d %H:%M:%f', ${alias}) = strftime('%Y-%m-%d %H:%M:%f', :expectedModifiedAt)`,
+      {
+        expectedModifiedAt: modifiedAt.toISOString(),
+      }
+    );
   }
 
   private areStringArraysEqual(left: string[], right: string[]): boolean {
     return left.length === right.length && left.every((value, index) => value === right[index]);
-  }
-
-  private isExplicitFalse(value: unknown): boolean {
-    return value === false || value === 0 || value === 'false' || value === '0';
   }
 }

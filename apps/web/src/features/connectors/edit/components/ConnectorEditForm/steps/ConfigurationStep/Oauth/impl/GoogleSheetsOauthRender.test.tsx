@@ -1,23 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OpenGoogleDrivePickerOptions } from '../../../../../../../../google-oauth/hooks/useGoogleDrivePicker';
+import type { OpenGoogleSheetsPickerOptions } from '../../../../../../../../google-oauth/hooks/useGoogleDrivePicker';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
-import { GoogleAdsOauthRender } from './GoogleAdsOauthRender';
+import { GoogleSheetsOauthRender } from './GoogleSheetsOauthRender';
 
 const { openPicker } = vi.hoisted(() => ({
-  openPicker: vi.fn<(options: OpenGoogleDrivePickerOptions) => Promise<void>>(),
+  openPicker: vi.fn<(options: OpenGoogleSheetsPickerOptions) => Promise<void>>(),
 }));
 
 vi.mock('../../../../../../../../google-oauth/hooks/useGoogleDrivePicker', () => ({
-  useGoogleDrivePicker: () => ({ openPicker }),
+  useGoogleSheetsPicker: () => ({ openPicker }),
 }));
 
-vi.mock('../../../../../../../shared/components/GoogleAdsLoginButton', () => ({
-  GoogleAdsLoginButton: ({ scope, children }: { scope?: string; children?: ReactNode }) => (
-    <div data-testid='google-login' data-scope={scope}>
-      {children}
-    </div>
+vi.mock('../../../../../../../shared/components/GoogleSheetsLoginButton', () => ({
+  GoogleSheetsLoginButton: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid='google-login'>{children}</div>
   ),
 }));
 
@@ -45,16 +42,16 @@ function renderGoogleSheetsOAuth(overrides: Partial<OauthRenderComponentProps> =
     ...overrides,
   } as OauthRenderComponentProps;
 
-  render(<GoogleAdsOauthRender {...props} />);
+  render(<GoogleSheetsOauthRender {...props} />);
   return props;
 }
 
-describe('GoogleAdsOauthRender for Google Sheets', () => {
+describe('GoogleSheetsOauthRender', () => {
   beforeEach(() => {
     openPicker.mockReset();
   });
 
-  it('requests drive.file and stores the spreadsheet selected with Google Picker', async () => {
+  it('stores the spreadsheet selected with Google Picker', async () => {
     openPicker.mockImplementation(async options => {
       options.onPicked({
         id: 'sheet-1',
@@ -64,11 +61,6 @@ describe('GoogleAdsOauthRender for Google Sheets', () => {
     });
     const props = renderGoogleSheetsOAuth();
 
-    expect(screen.getByTestId('google-login')).toHaveAttribute(
-      'data-scope',
-      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email'
-    );
-
     fireEvent.click(screen.getByRole('button', { name: 'Choose spreadsheet' }));
 
     await waitFor(() => {
@@ -77,7 +69,6 @@ describe('GoogleAdsOauthRender for Google Sheets', () => {
           apiKey: 'picker-key',
           appId: '123456789',
           clientId: 'client-id',
-          selection: 'spreadsheet',
           hintEmail: 'analyst@example.com',
         })
       );

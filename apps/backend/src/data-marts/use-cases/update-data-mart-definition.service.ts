@@ -75,6 +75,8 @@ export class UpdateDataMartDefinitionService {
       let mergedDefinition: ConnectorDefinition;
 
       if (command.sourceDataMartId) {
+        await this.validateGoogleSheetsCredentialCopyAccess(command, connectorDefinition);
+
         const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
           command.sourceDataMartId,
           command.projectId
@@ -173,6 +175,33 @@ export class UpdateDataMartDefinitionService {
     const source = definition?.connector?.source;
     if (source?.name === 'GoogleSheets' && source.configuration?.length !== 1) {
       throw new BadRequestException('GoogleSheets requires exactly one source configuration');
+    }
+  }
+
+  private async validateGoogleSheetsCredentialCopyAccess(
+    command: UpdateDataMartDefinitionCommand,
+    definition: ConnectorDefinition
+  ): Promise<void> {
+    if (
+      !command.userId ||
+      !command.sourceDataMartId ||
+      definition.connector.source.name !== 'GoogleSheets'
+    ) {
+      return;
+    }
+
+    const canCopyCredentials = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      command.sourceDataMartId,
+      Action.EDIT,
+      command.projectId
+    );
+    if (!canCopyCredentials) {
+      throw new ForbiddenException(
+        'You do not have permission to copy Google Sheets credentials from the source DataMart'
+      );
     }
   }
 }

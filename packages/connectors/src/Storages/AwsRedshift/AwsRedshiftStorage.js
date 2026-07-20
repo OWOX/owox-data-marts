@@ -22,12 +22,28 @@ function createSnapshotTableNames(tableName) {
   const stagingSuffix = `__owox_stage_${token}`;
   const backupSuffix = `__owox_backup_${token}`;
   const baseLength = Math.max(1, 127 - Math.max(stagingSuffix.length, backupSuffix.length));
-  const baseName = stripQuotes(tableName).slice(0, baseLength);
+  const baseName = truncateUtf8(stripQuotes(tableName), baseLength);
 
   return {
     stagingTableName: `${baseName}${stagingSuffix}`,
     backupTableName: `${baseName}${backupSuffix}`
   };
+}
+
+function truncateUtf8(value, maxBytes) {
+  let result = '';
+  let bytes = 0;
+
+  for (const character of value) {
+    const characterBytes = utf8ByteLength(character);
+    if (bytes + characterBytes > maxBytes) {
+      break;
+    }
+    result += character;
+    bytes += characterBytes;
+  }
+
+  return result;
 }
 
 const REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES = 90 * 1024;
@@ -67,7 +83,7 @@ function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQue
     const rowBytes = utf8ByteLength(buildSingleRowQuery(row));
     if (rowBytes > maxBytes) {
       throw new Error(
-        `A single Google Sheets row exceeds the Redshift statement size limit (${maxBytes} bytes)`
+        `A single snapshot row exceeds the Redshift statement size limit (${maxBytes} bytes)`
       );
     }
 
@@ -925,10 +941,6 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const updateSet = updateColumns.map(col =>
       `"${col}" = ${sourceTable}."${col}"`
     ).join(', ');
-    const matchedClause = updateSet
-      ? `WHEN MATCHED THEN
-        UPDATE SET ${updateSet}`
-      : '';
 
     // Build INSERT columns and values
     const insertColumns = columns.map(col => `"${col}"`).join(', ');
@@ -938,7 +950,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       MERGE INTO ${targetTable}
       USING ${sourceTable}
       ON ${onClause}
-      ${matchedClause}
+      WHEN MATCHED THEN
+        UPDATE SET ${updateSet}
       WHEN NOT MATCHED THEN
         INSERT (${insertColumns})
         VALUES (${insertValues})

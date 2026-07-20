@@ -1,6 +1,6 @@
 # Google Sheets Source
 
-The Google Sheets source imports one spreadsheet tab into the user's storage as a snapshot table.
+The Google Sheets source imports one spreadsheet tab into a materialized table in the user's storage.
 
 Authentication can use OAuth2 or Service Account JSON. OAuth2 is best for quick user setup; Service Account JSON is best for scheduled imports that should not depend on a personal Google account.
 
@@ -8,16 +8,16 @@ On each refresh the connector:
 
 1. Reads the selected sheet tab.
 2. Uses the configured absolute, one-based `HeaderRow` as warehouse columns.
-3. Previews at most 256 columns and 100 sample rows in the setup wizard.
+3. Previews all supported columns and at most 100 sample rows in the setup wizard.
 4. Generates stable names for blank, duplicate, or warehouse-incompatible headers.
 5. Infers types only from unambiguous native boolean and numeric values.
-6. Replaces the destination table so the warehouse reflects the current sheet contents.
+6. Performs a full refresh so the materialized table reflects the current sheet contents.
 
 ## Column selection
 
 `ImportAllColumns` is a hidden boolean configuration field. It defaults to `true` and means that every refresh ignores the saved `Fields` list and imports every column currently present in the sheet. Columns added after setup are therefore included automatically.
 
-Set `ImportAllColumns` to `false` when the user explicitly chooses a subset. In that mode, runtime `Fields` and `SelectedColumns` are reconciled after a successful refresh. Missing selected columns are skipped with a warning and removed from the saved selection, while columns that were not selected are not added automatically.
+Set `ImportAllColumns` to `false` when the user explicitly chooses a subset. In that mode, runtime `Fields` is reconciled after a successful refresh. Missing selected columns are skipped with a warning and removed from the saved field list, while columns that were not selected are not added automatically.
 
 Generated field identifiers contain only lowercase ASCII letters, digits, and underscores. They start with a letter or underscore, are unique after normalization, and never exceed 127 bytes including duplicate suffixes such as `_2`.
 
@@ -35,9 +35,9 @@ Text remains text. Values such as `00123`, `true`, and `2026-01-01` are `STRING`
 
 The first iteration supports up to 100,000 data rows per sheet refresh. Larger sheets fail with a clear error and should be narrowed with `Range`; incremental and append imports are outside this connector's current full-refresh scope.
 
-A header-only sheet publishes a zero-row replacement snapshot, clearing rows from the previous snapshot so a successful refresh never leaves stale sheet data in the warehouse.
+A header-only sheet publishes a zero-row full refresh, clearing rows from the previous refresh so a successful run never leaves stale sheet data in the warehouse.
 
-The destination is a connector-managed snapshot table. Configure durable warehouse access controls at the dataset, schema, or catalog level. On storages whose native DDL cannot atomically replace both schema and data in place, publication replaces the table object; manually attached table policies, streams, and similar metadata are outside the connector's ownership contract.
+The destination is a connector-managed materialized table. Configure durable warehouse access controls at the dataset, schema, or catalog level. On storages whose native DDL cannot atomically replace both schema and data in place, a full refresh replaces the table object; manually attached table policies, streams, and similar metadata are outside the connector's ownership contract.
 
 The connector refreshes and retries once when Google rejects an access token with HTTP 401. Transient failures use bounded retry backoff, and HTTP `Retry-After` is honored for up to five minutes.
 

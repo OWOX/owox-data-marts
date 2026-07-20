@@ -27,7 +27,7 @@ describe('useConnector preview requests', () => {
     const first = deferred<ConnectorFieldsResponseApiDto[]>();
     const second = deferred<ConnectorFieldsResponseApiDto[]>();
     const previewSpy = vi
-      .spyOn(ConnectorApiService.prototype, 'previewConnectorFields')
+      .spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields')
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const { result } = renderHook(() => useConnector(), { wrapper });
@@ -35,11 +35,11 @@ describe('useConnector preview requests', () => {
     let firstRequest!: Promise<ConnectorFieldsResponseApiDto[] | null>;
     let secondRequest!: Promise<ConnectorFieldsResponseApiDto[] | null>;
     act(() => {
-      firstRequest = result.current.previewConnectorFields('GoogleSheets', { SheetName: 'Old' });
-      secondRequest = result.current.previewConnectorFields('GoogleSheets', { SheetName: 'New' });
+      firstRequest = result.current.previewGoogleSheetsFields({ SheetName: 'Old' });
+      secondRequest = result.current.previewGoogleSheetsFields({ SheetName: 'New' });
     });
 
-    const firstSignal = previewSpy.mock.calls[0]?.[2]?.signal;
+    const firstSignal = previewSpy.mock.calls[0]?.[1]?.signal;
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => {

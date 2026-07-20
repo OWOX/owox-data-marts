@@ -112,9 +112,11 @@ export function ConnectorDefinitionField({
         // (e.g. TikTok Ads Data Level). Union rather than overwrite so editing
         // configuration can never drop previously selected fields, regardless of what
         // triggered the update.
-        const updatedFields = Array.from(
-          new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
-        );
+        const updatedFields = isGoogleSheets
+          ? connector.source.fields
+          : Array.from(
+              new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
+            );
 
         const updatedDefinition: ConnectorDefinitionConfig = {
           connector: {
@@ -135,13 +137,15 @@ export function ConnectorDefinitionField({
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
     if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
+      const isGoogleSheets =
+        currentDefinition.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME;
       const updatedDefinition: ConnectorDefinitionConfig = {
         connector: {
           ...currentDefinition.connector,
           source: {
             ...currentDefinition.connector.source,
             fields: connector.source.fields,
-            configuration: connector.source.configuration,
+            ...(isGoogleSheets ? { configuration: connector.source.configuration } : {}),
           },
         },
       };

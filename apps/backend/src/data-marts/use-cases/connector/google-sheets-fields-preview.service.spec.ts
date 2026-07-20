@@ -28,15 +28,9 @@ jest.mock('@owox/connectors', () => {
     }
   }
 
-  class OpenHolidaysSource {
-    constructor(public readonly config: AbstractConfig) {}
-  }
-
   return {
-    AvailableConnectors: ['GoogleSheets', 'OpenHolidays'],
     Connectors: {
       GoogleSheets: { GoogleSheetsSource },
-      OpenHolidays: { OpenHolidaysSource },
     },
     Core: { AbstractConfig, SourceConfigDto },
   };
@@ -49,20 +43,27 @@ import {
   GatewayTimeoutException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { ConnectorCredentialInjectorService } from '../../services/connector/connector-credential-injector.service';
-import { PreviewFieldsConnectorService } from './preview-fields-connector.service';
+import { AuthorizationContext } from '../../../idp';
+import { GoogleSheetsPreviewCredentialsService } from '../../services/connector/google-sheets-preview-credentials.service';
+import { GoogleSheetsFieldsPreviewService } from './google-sheets-fields-preview.service';
 
-describe('PreviewFieldsConnectorService', () => {
+describe('GoogleSheetsFieldsPreviewService', () => {
+  const context: AuthorizationContext = {
+    projectId: 'project-1',
+    userId: 'user-1',
+    roles: ['editor'],
+  };
+
   const createService = () => {
-    const credentialInjector = {
-      injectGoogleSheetsPreviewCredentials: jest
+    const previewCredentials = {
+      inject: jest
         .fn()
         .mockImplementation((config: Record<string, unknown>) => Promise.resolve(config)),
-    } as unknown as ConnectorCredentialInjectorService;
+    } as unknown as GoogleSheetsPreviewCredentialsService;
 
     return {
-      service: new PreviewFieldsConnectorService(credentialInjector),
-      credentialInjector,
+      service: new GoogleSheetsFieldsPreviewService(previewCredentials),
+      previewCredentials,
     };
   };
 
@@ -76,7 +77,7 @@ describe('PreviewFieldsConnectorService', () => {
   });
 
   it('returns a successful mocked dynamic fields preview', async () => {
-    const { service, credentialInjector } = createService();
+    const { service, previewCredentials } = createService();
     fetchFieldsSchemaMock.mockResolvedValue({
       sheet: {
         overview: 'Sheet columns',
@@ -89,14 +90,11 @@ describe('PreviewFieldsConnectorService', () => {
       },
     });
 
-    const result = await service.run('GoogleSheets', 'project-1', {
+    const result = await service.run(context, {
       SpreadsheetId: 'sheet-1',
     });
 
-    expect(credentialInjector.injectGoogleSheetsPreviewCredentials).toHaveBeenCalledWith(
-      { SpreadsheetId: 'sheet-1' },
-      'project-1'
-    );
+    expect(previewCredentials.inject).toHaveBeenCalledWith({ SpreadsheetId: 'sheet-1' }, context);
     expect(result).toEqual([
       expect.objectContaining({
         name: 'sheet',
@@ -109,13 +107,6 @@ describe('PreviewFieldsConnectorService', () => {
     ]);
   });
 
-  it('does not resolve credentials for existing connectors without dynamic field preview', async () => {
-    const { service, credentialInjector } = createService();
-
-    await expect(service.run('OpenHolidays', 'project-1', {})).rejects.toThrow(BadRequestException);
-    expect(credentialInjector.injectGoogleSheetsPreviewCredentials).not.toHaveBeenCalled();
-  });
-
   it('maps provider failures to Bad Gateway', async () => {
     const { service } = createService();
     const providerError = Object.assign(new Error('upstream unavailable'), {
@@ -124,7 +115,7 @@ describe('PreviewFieldsConnectorService', () => {
     });
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
-    await expect(service.run('GoogleSheets', 'project-1', {})).rejects.toThrow(BadGatewayException);
+    await expect(service.run(context, {})).rejects.toThrow(BadGatewayException);
   });
 
   it('does not expose provider authentication failures as an application 401', async () => {
@@ -135,7 +126,7 @@ describe('PreviewFieldsConnectorService', () => {
     });
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
-    const preview = service.run('GoogleSheets', 'project-1', {});
+    const preview = service.run(context, {});
     await expect(preview).rejects.toBeInstanceOf(BadRequestException);
     await expect(preview).rejects.toThrow('Connector credentials are invalid or expired');
   });
@@ -150,7 +141,7 @@ describe('PreviewFieldsConnectorService', () => {
     );
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
-    const preview = service.run('GoogleSheets', 'project-1', {});
+    const preview = service.run(context, {});
     await expect(preview).rejects.toBeInstanceOf(ForbiddenException);
     await expect(preview).rejects.toThrow(providerError.message);
   });
@@ -159,9 +150,7 @@ describe('PreviewFieldsConnectorService', () => {
     const { service } = createService();
     fetchFieldsSchemaMock.mockRejectedValue(new Error('unexpected mapper bug'));
 
-    await expect(service.run('GoogleSheets', 'project-1', {})).rejects.toThrow(
-      InternalServerErrorException
-    );
+    await expect(service.run(context, {})).rejects.toThrow(InternalServerErrorException);
   });
 
   it('bounds preview work with a backend timeout', async () => {
@@ -173,7 +162,7 @@ describe('PreviewFieldsConnectorService', () => {
       return new Promise(() => undefined);
     });
 
-    const preview = service.run('GoogleSheets', 'project-1', {});
+    const preview = service.run(context, {});
     const rejection = expect(preview).rejects.toThrow(GatewayTimeoutException);
     await jest.advanceTimersByTimeAsync(15_000);
 

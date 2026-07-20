@@ -14,7 +14,6 @@ export const ConnectorSpecificationItem = z.object({
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
   minimum: z.number().optional(),
-  maximum: z.number().optional(),
   attributes: z.array(z.string()).optional(),
   oauthParams: z.record(z.string(), z.unknown()).optional(),
 });

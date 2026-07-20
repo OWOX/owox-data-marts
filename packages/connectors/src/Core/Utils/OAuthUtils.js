@@ -17,10 +17,9 @@ var OAuthUtils = {
    * @param {string} options.tokenUrl - OAuth token endpoint URL
    * @param {Object} options.formData - Form data to send in request body
    * @param {Object} [options.headers] - Request headers
-   * @param {AbortSignal} [options.signal] - Optional request cancellation signal
    * @returns {Promise<string>} - The access token
    */
-  async getAccessToken({ config, tokenUrl, formData, headers = {}, signal }) {
+  async getAccessToken({ config, tokenUrl, formData, headers = {} }) {
     const requestHeaders = {
       'Content-Type': 'application/x-www-form-urlencoded',
       ...headers
@@ -33,8 +32,7 @@ var OAuthUtils = {
       payload: formData,
       body: Object.entries(formData)
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-        .join('&'),
-      signal
+        .join('&')
     };
 
     try {
@@ -51,9 +49,6 @@ var OAuthUtils = {
 
       return json.access_token;
     } catch (error) {
-      if (signal?.aborted) {
-        throw signal.reason || error;
-      }
       throw new Error(`Failed to get access token: ${error.message}`);
     }
   },
@@ -66,10 +61,9 @@ var OAuthUtils = {
    * @param {string} options.tokenUrl - Token URL
    * @param {string} options.serviceAccountKeyJson - Service Account JSON key content
    * @param {string} options.scope - OAuth scope (e.g., "https://www.googleapis.com/auth/adwords")
-   * @param {AbortSignal} [options.signal] - Optional request cancellation signal
    * @returns {string} - The access token
    */
-  async getServiceAccountToken({ config, tokenUrl, serviceAccountKeyJson, scope, signal }) {
+  async getServiceAccountToken({ config, tokenUrl, serviceAccountKeyJson, scope }) {
     try {
       const serviceAccountData = JSON.parse(serviceAccountKeyJson);
 
@@ -93,8 +87,7 @@ var OAuthUtils = {
       const accessToken = await this.getAccessToken({
         config,
         tokenUrl,
-        formData,
-        signal
+        formData
       });
 
       config.logMessage("✅ Successfully authenticated with Service Account");
@@ -102,9 +95,6 @@ var OAuthUtils = {
       return accessToken;
 
     } catch (error) {
-      if (signal?.aborted) {
-        throw signal.reason || error;
-      }
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
       throw new Error(`Service Account authentication failed: ${error.message}`);
     }

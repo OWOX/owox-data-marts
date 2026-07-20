@@ -5,6 +5,10 @@
  * file that was distributed with this source code.
  */
 
+function quoteBigQueryIdentifier(identifier) {
+  return `\`${String(identifier).replace(/`/g, '``')}\``;
+}
+
 var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -179,19 +183,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     }
 
   //---- createTableIfItDoesntExist ----------------------------------
-    async createTableIfItDoesntExist() {
-
-      const { query, existingColumns } = this._buildCreateTableQuery("CREATE TABLE IF NOT EXISTS");
-
-      await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
-
-      return existingColumns;
-
-    }
-
-  //---- _buildCreateTableQuery --------------------------------------
-    _buildCreateTableQuery(createStatement, tableName = this.config.DestinationTableName.value) {
+    async createTableIfItDoesntExist(quoteColumnNames = false) {
 
       let columns = [];
       let columnPartitioned = null;
@@ -211,7 +203,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let columnType = this.getColumnType(columnName);
         
         if( "description" in this.schema[ columnName ] ) {
-          columnDescription = ` OPTIONS(description="${this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"])}")`;
+          columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
         }
 
         if( "GoogleBigQueryPartitioned" in this.schema[ columnName ] 
@@ -219,28 +211,35 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           columnPartitioned = columnName;
         }
 
-        columns.push(`${this.quoteIdentifier(columnName)} ${columnType}${columnDescription}`);
+        const sqlColumnName = quoteColumnNames ? quoteBigQueryIdentifier(columnName) : columnName;
+        columns.push(`${sqlColumnName} ${columnType}${columnDescription}`);
         
         existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
       }
 
-      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.map(columnName => this.quoteIdentifier(columnName)).join(",")}) NOT ENFORCED`);
+      const primaryKeyColumns = quoteColumnNames
+        ? this.uniqueKeyColumns.map(quoteBigQueryIdentifier)
+        : this.uniqueKeyColumns;
+      columns.push(`PRIMARY KEY (${primaryKeyColumns.join(",")}) NOT ENFORCED`);
 
       columns = columns.join(",\n");
 
       let query = `---- Creating table if it not exists -----\n`;
-      query += `${createStatement} \`${this.config.DestinationDatasetID.value}.${tableName}\` (\n${columns})`
+      query += `CREATE TABLE IF NOT EXISTS \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` (\n${columns})`
 
       if( columnPartitioned ) {
-        query += `\nPARTITION BY ${this.quoteIdentifier(columnPartitioned)}`;
+        query += `\nPARTITION BY ${quoteColumnNames ? quoteBigQueryIdentifier(columnPartitioned) : columnPartitioned}`;
       }
 
       if( this.description ) {
-        query += `\nOPTIONS(description="${this.obfuscateSpecialCharacters(this.description)}")`;
+        query += `\nOPTIONS(description="${this.description}")`;
       }
 
-      return { query, existingColumns };
+      await this.executeQuery(query);
+      this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
+
+      return existingColumns;
 
     }
 
@@ -251,33 +250,44 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       await this.createDatasetIfItDoesntExist();
       const liveTableName = this.config.DestinationTableName.value;
       const stagingTableName = this.createSnapshotTableName("staging");
+      const originalExistingColumns = this.existingColumns;
+      const originalTotalRecordsProcessed = this.totalRecordsProcessed;
+      const originalQuoteFieldIdentifiers = this.quoteFieldIdentifiers;
       let stagingTableCreated = false;
+      let published = false;
 
       try {
-        const { query, existingColumns } = this._buildCreateTableQuery("CREATE TABLE", stagingTableName);
+        this.config.DestinationTableName.value = stagingTableName;
+        this.existingColumns = {};
+        this.updatedRecordsBuffer = {};
+        this.totalRecordsProcessed = 0;
+        this.quoteFieldIdentifiers = true;
         stagingTableCreated = true;
-        await this.executeQuery(query);
-
-        const snapshotContext = {
-          tableName: stagingTableName,
-          existingColumns,
-          updatedRecordsBuffer: {},
-          totalRecordsProcessed: 0
-        };
+        const stagedColumns = await this.createTableIfItDoesntExist(true);
 
         if (data.length) {
-          await this.saveSnapshotData(data, snapshotContext);
+          await this.saveData(data);
         }
 
         await this.validateSnapshotTable(stagingTableName, data);
+        this.config.DestinationTableName.value = liveTableName;
         await this.publishSnapshotTable(stagingTableName, liveTableName);
-        this.existingColumns = existingColumns;
+        this.existingColumns = stagedColumns;
         this.updatedRecordsBuffer = {};
+        published = true;
 
         this.config.logMessage(
           `Snapshot import completed for ${this.config.DestinationDatasetID.value}.${liveTableName}: ${data.length} rows`
         );
       } finally {
+        this.config.DestinationTableName.value = liveTableName;
+        this.updatedRecordsBuffer = {};
+        this.totalRecordsProcessed = originalTotalRecordsProcessed;
+        this.quoteFieldIdentifiers = originalQuoteFieldIdentifiers;
+        if (!published) {
+          this.existingColumns = originalExistingColumns;
+        }
+
         if (stagingTableCreated) {
           try {
             await this.dropSnapshotTable(stagingTableName);
@@ -294,29 +304,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       const runId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
       const suffix = `__owox_${kind}_${runId}`;
       return `${this.config.DestinationTableName.value.slice(0, 1024 - suffix.length)}${suffix}`;
-
-    }
-
-    async saveSnapshotData(data, context) {
-
-      for (const row of data) {
-        const newFields = Object.keys(row).filter(
-          column => !Object.prototype.hasOwnProperty.call(context.existingColumns, column)
-        );
-
-        if (newFields.length > 0) {
-          await this.addNewColumns(newFields, context.tableName, context.existingColumns);
-        }
-
-        const uniqueKey = this.getUniqueKeyByRecordFields(row);
-        context.updatedRecordsBuffer[uniqueKey] = row;
-
-        if (Object.keys(context.updatedRecordsBuffer).length >= this.config.MaxBufferSize.value) {
-          await this.executeQueryWithSizeLimit(context);
-        }
-      }
-
-      await this.executeQueryWithSizeLimit(context);
 
     }
 
@@ -367,11 +354,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param {newColumns} array with a list of new columns
      * 
      */
-    async addNewColumns(
-      newColumns,
-      tableName = this.config.DestinationTableName.value,
-      existingColumns = this.existingColumns
-    ) {
+    async addNewColumns(newColumns) {
 
       let query = '';
       let columns = [];
@@ -392,8 +375,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             columnDescription = ` OPTIONS (description = "${this.schema[ columnName ]["description"]}")`;
           }
 
-          columns.push(`ADD COLUMN IF NOT EXISTS ${this.quoteIdentifier(columnName)} ${columnType}${columnDescription}`);
-          existingColumns[ columnName ] = {"name": columnName, "type": columnType};
+          columns.push(`ADD COLUMN IF NOT EXISTS ${columnName} ${columnType}${columnDescription}`);
+          this.existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
         }
 
@@ -402,7 +385,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // there are columns to add to table
       if( columns != [] ) {
         query += `---- Adding new columns ----- \n`;
-        query += `ALTER TABLE \`${this.config.DestinationDatasetID.value}.${tableName}\`\n\n`;
+        query += `ALTER TABLE \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\`\n\n`;
         query += columns.join(",\n");
         await this.executeQuery(query);
         this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.DestinationDatasetID.value} dataset`);
@@ -479,9 +462,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     /**
      * Executes the MERGE query with automatic size reduction if it exceeds BigQuery limits
      */
-    async executeQueryWithSizeLimit(context = null) {
-      const recordsBuffer = context ? context.updatedRecordsBuffer : this.updatedRecordsBuffer;
-      const bufferKeys = Object.keys(recordsBuffer);
+    async executeQueryWithSizeLimit() {
+      const bufferKeys = Object.keys(this.updatedRecordsBuffer);
       const totalRecords = bufferKeys.length;
       
       if (totalRecords === 0) {
@@ -489,14 +471,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       }
       
       // Try to execute with current buffer size, reduce recursively if too large
-      await this.executeMergeQueryRecursively(bufferKeys, totalRecords, context);
+      await this.executeMergeQueryRecursively(bufferKeys, totalRecords);
       
       // Clear the buffer after processing
-      if (context) {
-        context.updatedRecordsBuffer = {};
-      } else {
-        this.updatedRecordsBuffer = {};
-      }
+      this.updatedRecordsBuffer = {};
     }
 
   //---- executeMergeQueryRecursively --------------------------------
@@ -505,7 +483,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param {Array} recordKeys - Array of record keys to process
      * @param {number} batchSize - Current batch size to attempt
      */
-    async executeMergeQueryRecursively(recordKeys, batchSize, context = null) {
+    async executeMergeQueryRecursively(recordKeys, batchSize) {
       // Base case: if no records to process
       if (recordKeys.length === 0) {
         return;
@@ -521,12 +499,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       const remainingRecords = recordKeys.slice(batchSize);
       
       // Build query for current batch
-      const query = this.buildMergeQuery(
-        currentBatch,
-        context ? context.tableName : this.config.DestinationTableName.value,
-        context ? context.existingColumns : this.existingColumns,
-        context ? context.updatedRecordsBuffer : this.updatedRecordsBuffer
-      );
+      const query = this.buildMergeQuery(currentBatch);
       
       // Check if query size exceeds limit (1024KB = 1,048,576 characters)
       const querySize = new Blob([query]).size;
@@ -536,31 +509,26 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         console.log(`Query size (${Math.round(querySize/1024)}KB) exceeds BigQuery limit. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
         
         // Recursively try with half the batch size
-        await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2), context);
+        await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
         return;
       }
       
       try {
         // Execute the query
         await this.executeQuery(query);
-        if (context) {
-          context.totalRecordsProcessed += currentBatch.length;
-        } else {
-          this.totalRecordsProcessed += currentBatch.length;
-        }
-        const totalRecordsProcessed = context ? context.totalRecordsProcessed : this.totalRecordsProcessed;
-        console.log(`BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${totalRecordsProcessed})`);
+        this.totalRecordsProcessed += currentBatch.length;
+        console.log(`BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
         
         // Process remaining records if any
         if (remainingRecords.length > 0) {
-          await this.executeMergeQueryRecursively(remainingRecords, batchSize, context);
+          await this.executeMergeQueryRecursively(remainingRecords, batchSize);
         }
         
       } catch (error) {
         // If query fails due to size (even though we checked), reduce batch size
         if (error.message && error.message.includes('query is too large')) {
           console.log(`Query execution failed due to size. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
-          await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2), context);
+          await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
         } else {
           // Re-throw other errors
           throw error;
@@ -574,23 +542,18 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param {Array} recordKeys - Array of record keys to include in the query
      * @return {string} - The constructed MERGE query
      */
-    buildMergeQuery(
-      recordKeys,
-      tableName = this.config.DestinationTableName.value,
-      existingColumns = this.existingColumns,
-      recordsBuffer = this.updatedRecordsBuffer
-    ) {
+    buildMergeQuery(recordKeys) {
       let rows = [];
 
       for(let i = 0; i < recordKeys.length; i++) {
         const key = recordKeys[i];
-        let record = this.stringifyNeastedFields( recordsBuffer[key] );
+        let record = this.stringifyNeastedFields( this.updatedRecordsBuffer[key] );
         let fields = [];
 
-        for(var j in existingColumns) {
+        for(var j in this.existingColumns) {
 
-          let columnName = existingColumns[j]["name"];
-          let columnType = existingColumns[j]["type"];
+          let columnName = this.existingColumns[j]["name"];
+          let columnType = this.existingColumns[j]["type"];
           let columnValue = null;
 
           if (record[columnName] === undefined || record[columnName] === null) {
@@ -615,9 +578,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           
           
           if (columnValue === null) {
-            fields.push(`SAFE_CAST(NULL AS ${columnType}) AS ${this.quoteIdentifier(columnName)}`);
+            fields.push(`SAFE_CAST(NULL AS ${columnType}) ${this.formatFieldIdentifier(columnName)}`);
           } else {
-            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) AS ${this.quoteIdentifier(columnName)}`);
+            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${this.formatFieldIdentifier(columnName)}`);
           }
 
         }
@@ -625,26 +588,30 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         rows.push(`SELECT ${fields.join(",\n\t")}`);
       }
        
-      let existingColumnsNames = Object.keys(existingColumns);
-      let query = `MERGE INTO \`${this.config.DestinationDatasetID.value}.${tableName}\` AS target
+      let existingColumnsNames = Object.keys(this.existingColumns);
+      let query = `MERGE INTO \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` AS target
       USING (
         ${rows.join("\n\nUNION ALL\n\n")}
       ) AS source
       
-      ON ${this.uniqueKeyColumns.map(item => (`target.${this.quoteIdentifier(item)} = source.${this.quoteIdentifier(item)}`)).join("\n AND ")}
+      ON ${this.uniqueKeyColumns.map(item => (`target.${this.formatFieldIdentifier(item)} = source.${this.formatFieldIdentifier(item)}`)).join("\n AND ")}
 
         WHEN MATCHED THEN
         UPDATE SET
-          ${existingColumnsNames.map(item => `target.${this.quoteIdentifier(item)} = source.${this.quoteIdentifier(item)}`).join(",\n")}
+          ${existingColumnsNames.map(item => `target.${this.formatFieldIdentifier(item)} = source.${this.formatFieldIdentifier(item)}`).join(",\n")}
         WHEN NOT MATCHED THEN
         INSERT (
-          ${existingColumnsNames.map(item => this.quoteIdentifier(item)).join(", ")}
+          ${existingColumnsNames.map(item => this.formatFieldIdentifier(item)).join(", ")}
         )
         VALUES (
-          ${existingColumnsNames.map(item => `source.${this.quoteIdentifier(item)}`).join(", ")}
+          ${existingColumnsNames.map(item => `source.${this.formatFieldIdentifier(item)}`).join(", ")}
         )`;
 
       return query;
+    }
+
+    formatFieldIdentifier(fieldName) {
+      return this.quoteFieldIdentifiers ? quoteBigQueryIdentifier(fieldName) : fieldName;
     }
  
 
@@ -704,13 +671,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   
       return String(inputString).replace(/\\/g, '\\\\').replace(/[\x00-\x1F]/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"'); 
   
-    }
-
-  //---- quoteIdentifier ---------------------------------------------
-    quoteIdentifier(identifier) {
-
-      return `\`${String(identifier).replace(/`/g, "\\`")}\``;
-
     }
 
   //---- getColumnType -----------------------------------------------

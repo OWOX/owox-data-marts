@@ -25,15 +25,34 @@ describe('Google Sheets field configuration', () => {
   it('resolves the live selection without a deleted configured column', () => {
     expect(
       resolveGoogleSheetsPreviewSelection(
-        {
-          ImportAllColumns: false,
-          SelectedColumns: '_owox_row_number,Campaign,TemporarilyMissing',
-        },
+        { ImportAllColumns: false },
         ['_owox_row_number', 'Campaign', 'TemporarilyMissing'],
         availableFields,
         availableFields
       )
     ).toEqual(['_owox_row_number', 'Campaign']);
+  });
+
+  it('preserves a selected technical field that is absent from an older subset configuration', () => {
+    expect(
+      resolveGoogleSheetsPreviewSelection(
+        { ImportAllColumns: false },
+        ['_owox_row_number', '_owox_imported_at', 'Campaign'],
+        availableFields,
+        availableFields
+      )
+    ).toEqual(['_owox_row_number', '_owox_imported_at', 'Campaign']);
+  });
+
+  it('does not reselect a technical field that was deliberately excluded', () => {
+    expect(
+      resolveGoogleSheetsPreviewSelection(
+        { ImportAllColumns: true },
+        ['_owox_row_number', 'Campaign', 'Spend'],
+        availableFields,
+        availableFields
+      )
+    ).toEqual(['_owox_row_number', 'Campaign', 'Spend']);
   });
 
   it('sets ImportAllColumns when every user column is selected', () => {
@@ -46,7 +65,6 @@ describe('Google Sheets field configuration', () => {
     ).toEqual({
       SpreadsheetId: 'sheet-id',
       ImportAllColumns: true,
-      SelectedColumns: '_owox_row_number,Campaign,Spend',
     });
   });
 
@@ -97,30 +115,13 @@ describe('Google Sheets field configuration', () => {
       withGoogleSheetsImportAllColumns(
         {
           ImportAllColumns: false,
-          SelectedColumns: '_owox_row_number,Campaign',
         },
         ['_owox_row_number', 'Campaign'],
-        ['_owox_row_number', '_owox_imported_at', 'Campaign']
+        ['_owox_row_number', '_owox_imported_at', 'Campaign'],
+        ['_owox_row_number', 'Campaign']
       )
     ).toEqual({
       ImportAllColumns: false,
-      SelectedColumns: '_owox_row_number,Campaign',
-    });
-  });
-
-  it('retains temporarily unavailable requested fields on a no-op subset save', () => {
-    expect(
-      withGoogleSheetsImportAllColumns(
-        {
-          ImportAllColumns: false,
-          SelectedColumns: '_owox_row_number,Campaign,TemporarilyMissing',
-        },
-        ['_owox_row_number', 'Campaign'],
-        ['_owox_row_number', '_owox_imported_at', 'Campaign']
-      )
-    ).toEqual({
-      ImportAllColumns: false,
-      SelectedColumns: '_owox_row_number,Campaign,TemporarilyMissing',
     });
   });
 
@@ -129,10 +130,10 @@ describe('Google Sheets field configuration', () => {
       withGoogleSheetsImportAllColumns(
         {
           ImportAllColumns: false,
-          SelectedColumns: '_owox_row_number,Campaign',
         },
         ['_owox_row_number', 'Campaign', 'Spend'],
-        availableFields
+        availableFields,
+        ['_owox_row_number', 'Campaign']
       )
     ).toMatchObject({ ImportAllColumns: true });
   });

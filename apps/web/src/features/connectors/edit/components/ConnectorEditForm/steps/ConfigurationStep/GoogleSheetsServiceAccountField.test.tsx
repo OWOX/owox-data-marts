@@ -100,6 +100,42 @@ describe('GoogleSheetsServiceAccountField', () => {
     expect(screen.queryByDisplayValue(SECRET_MASK)).not.toBeInTheDocument();
   });
 
+  it('shows copied credential metadata when the parent replaces the editable value', () => {
+    const onValueChange = () => undefined;
+    const { rerender } = render(
+      <GoogleSheetsServiceAccountField
+        itemName='ServiceAccountKey'
+        value=''
+        metadata={{}}
+        onValueChange={onValueChange}
+        isEditingExisting={false}
+      />
+    );
+
+    expect(screen.getByPlaceholderText(/Paste your service account JSON/i)).toBeInTheDocument();
+
+    rerender(
+      <GoogleSheetsServiceAccountField
+        itemName='ServiceAccountKey'
+        value={SECRET_MASK}
+        metadata={{
+          email: 'reader@test-project.iam.gserviceaccount.com',
+          clientId: '123456789',
+          projectId: 'test-project',
+        }}
+        onValueChange={onValueChange}
+        isEditingExisting={false}
+      />
+    );
+
+    expect(
+      screen.getByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(/Paste your service account JSON/i)
+    ).not.toBeInTheDocument();
+  });
+
   it('can clear a summarized key and edit the field again', () => {
     render(<TestField />);
     const input = screen.getByPlaceholderText(/Paste your service account JSON/i);
@@ -124,5 +160,16 @@ describe('GoogleSheetsServiceAccountField', () => {
     expect(
       screen.queryByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
     ).not.toBeInTheDocument();
+  });
+
+  it('keeps a saved key editable after clicking Edit', () => {
+    render(<SavedField />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const input = screen.getByPlaceholderText(/Paste your service account JSON/i);
+    expect(input).toHaveValue('');
+    fireEvent.change(input, { target: { value: 'replacement key' } });
+    expect(input).toHaveValue('replacement key');
   });
 });
