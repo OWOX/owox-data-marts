@@ -286,6 +286,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     await this.createDatabaseIfNotExists();
     const runId = this.createSnapshotRunId();
     const liveTableName = this.config.DestinationTableName.value;
+    await this.recoverSnapshotBackupIfNeeded(liveTableName);
     const stagingTableName = this.createSnapshotTableName("staging", runId);
     const backupTableName = this.createSnapshotTableName("backup", runId);
     const stagingPrefix = `${this.config.S3Prefix.value}_snapshot/${runId}`;
@@ -302,7 +303,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       if (data.length) {
         this.config.logMessage(`Saving ${data.length} snapshot records to Athena`);
         await this.uploadDataToS3TempFolder(data, tempFolder);
-        await this.createTempTable(tempFolder, runId, stagingColumns, tempTableName);
+        await this.createTempTable(tempFolder, runId, stagingColumns, tempTableName, true);
         await this.mergeDataFromTempTable(tempTableName, runId, stagingTableName, stagingColumns);
       }
 
@@ -367,6 +368,42 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     };
 
     return this.executeQuery(params, 'ddl').then(results => Boolean(results && results.length));
+  }
+
+  async recoverSnapshotBackupIfNeeded(liveTableName) {
+    if (await this.tableExists(liveTableName)) {
+      return false;
+    }
+
+    const backupTables = await this.listSnapshotTables(liveTableName, 'backup');
+    if (!backupTables.length) {
+      return false;
+    }
+
+    backupTables.sort();
+    const backupTableName = backupTables[backupTables.length - 1];
+    await this.renameTable(backupTableName, liveTableName);
+    this.config.logMessage(
+      `Recovered Athena table \`${this.config.AthenaDatabaseName.value}\`.\`${liveTableName}\` from interrupted snapshot ${backupTableName}`
+    );
+    return true;
+  }
+
+  listSnapshotTables(liveTableName, kind) {
+    const prefix = `${liveTableName}__owox_${kind}_`;
+    const pattern = `^${String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*$`.replace(/'/g, "''");
+    const params = {
+      QueryString: `SHOW TABLES IN \`${this.config.AthenaDatabaseName.value}\` '${pattern}'`,
+      ResultConfiguration: {
+        OutputLocation: this.config.AthenaOutputLocation.value
+      }
+    };
+
+    return this.executeQuery(params, 'ddl').then(results =>
+      (results || [])
+        .map(row => Object.values(row || {})[0])
+        .filter(tableName => typeof tableName === 'string' && tableName.startsWith(prefix))
+    );
   }
 
   renameTable(fromTableName, toTableName) {
@@ -589,7 +626,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     tempFolder,
     prefixSol,
     existingColumns = this.existingColumns,
-    tempTableName = `${this.config.DestinationTableName.value}_temp_${prefixSol}`
+    tempTableName = `${this.config.DestinationTableName.value}_temp_${prefixSol}`,
+    stableJsonSerde = false
   ) {
     
     let columnDefinitions = [];
@@ -602,12 +640,16 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     
     
     
+    const serde = stableJsonSerde
+      ? `ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'\n      WITH SERDEPROPERTIES ("timestamp.formats" = "yyyy-MM-dd HH:mm:ss.SSS")`
+      : `ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'`;
+
     const query = `
       CREATE EXTERNAL TABLE IF NOT EXISTS
       \`${this.config.AthenaDatabaseName.value}\`.\`${tempTableName}\` (
         ${columnDefinitions.join(",\n        ")}
       )
-      ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+      ${serde}
       LOCATION '${s3Location}'
     `;
     

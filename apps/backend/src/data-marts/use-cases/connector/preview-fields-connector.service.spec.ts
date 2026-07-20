@@ -55,7 +55,7 @@ import { PreviewFieldsConnectorService } from './preview-fields-connector.servic
 describe('PreviewFieldsConnectorService', () => {
   const createService = () => {
     const credentialInjector = {
-      injectCredentialsForPreview: jest
+      injectGoogleSheetsPreviewCredentials: jest
         .fn()
         .mockImplementation((config: Record<string, unknown>) => Promise.resolve(config)),
     } as unknown as ConnectorCredentialInjectorService;
@@ -93,9 +93,8 @@ describe('PreviewFieldsConnectorService', () => {
       SpreadsheetId: 'sheet-1',
     });
 
-    expect(credentialInjector.injectCredentialsForPreview).toHaveBeenCalledWith(
+    expect(credentialInjector.injectGoogleSheetsPreviewCredentials).toHaveBeenCalledWith(
       { SpreadsheetId: 'sheet-1' },
-      'GoogleSheets',
       'project-1'
     );
     expect(result).toEqual([
@@ -108,6 +107,13 @@ describe('PreviewFieldsConnectorService', () => {
         ],
       }),
     ]);
+  });
+
+  it('does not resolve credentials for existing connectors without dynamic field preview', async () => {
+    const { service, credentialInjector } = createService();
+
+    await expect(service.run('OpenHolidays', 'project-1', {})).rejects.toThrow(BadRequestException);
+    expect(credentialInjector.injectGoogleSheetsPreviewCredentials).not.toHaveBeenCalled();
   });
 
   it('maps provider failures to Bad Gateway', async () => {

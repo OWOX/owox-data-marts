@@ -4,7 +4,7 @@ import type { DataMartRunItem } from '../types';
 
 interface UseRefreshDataMartAfterConnectorRunOptions {
   dataMartId: string;
-  isConnector: boolean;
+  isGoogleSheetsConnector: boolean;
   isManualRunTriggered: boolean;
   runs: DataMartRunItem[];
   refreshDataMart: (id: string) => Promise<void>;
@@ -12,7 +12,7 @@ interface UseRefreshDataMartAfterConnectorRunOptions {
 
 export function useRefreshDataMartAfterConnectorRun({
   dataMartId,
-  isConnector,
+  isGoogleSheetsConnector,
   isManualRunTriggered,
   runs,
   refreshDataMart,
@@ -21,7 +21,7 @@ export function useRefreshDataMartAfterConnectorRun({
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
-    if (runs.length === 0 || !isConnector || !dataMartId) {
+    if (runs.length === 0 || !isGoogleSheetsConnector || !dataMartId) {
       return;
     }
     const latestRun = runs[0];
@@ -45,5 +45,5 @@ export function useRefreshDataMartAfterConnectorRun({
 
     lastRefreshedRunIdRef.current = latestRun.id;
     void refreshDataMart(dataMartId);
-  }, [dataMartId, isConnector, isManualRunTriggered, refreshDataMart, runs]);
+  }, [dataMartId, isGoogleSheetsConnector, isManualRunTriggered, refreshDataMart, runs]);
 }

@@ -229,8 +229,14 @@ describe('ConnectorExecutorService', () => {
   });
 
   it('persists sanitized Google Sheets fields emitted by a successful connector run', async () => {
-    const { service, processSpawner, emitMessage, emitSuccessMessage, dataMartService } =
-      createService();
+    const {
+      service,
+      processSpawner,
+      emitMessage,
+      emitSuccessMessage,
+      dataMartService,
+      dataMartRunRepository,
+    } = createService();
     const dataMart = createDataMart({
       definition: {
         connector: {
@@ -271,6 +277,15 @@ describe('ConnectorExecutorService', () => {
       0,
       expect.any(String)
     );
+    const successUpdateIndex = (dataMartRunRepository.update as jest.Mock).mock.calls.findIndex(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    );
+    expect(successUpdateIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      (dataMartService.updateConnectorSourceFields as jest.Mock).mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdateIndex]
+    );
   });
 
   it('does not persist emitted fields when the Google Sheets connector run fails', async () => {
@@ -301,6 +316,54 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(dataMart, createRun(), null);
 
     expect(dataMartService.updateConnectorSourceFields).not.toHaveBeenCalled();
+  });
+
+  it('keeps the imported run successful and records a warning when field synchronization fails', async () => {
+    const {
+      service,
+      processSpawner,
+      emitMessage,
+      emitSuccessMessage,
+      dataMartService,
+      dataMartRunRepository,
+    } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'GoogleSheets',
+            node: 'sheet',
+            fields: ['existing', 'deleted_column'],
+            configuration: [{ _id: 'cfg-1' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    (dataMartService.updateConnectorSourceFields as jest.Mock).mockRejectedValueOnce(
+      new Error('database unavailable')
+    );
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.FIELDS_UPDATE,
+        at: new Date().toISOString(),
+        fields: ['_owox_row_number', 'existing'],
+        toFormattedString: () => '[FIELDS] 2',
+      });
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    )?.[1];
+    expect(finalUpdate).toBeDefined();
+    expect(finalUpdate.logs).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('source field list could not be synchronized'),
+      ])
+    );
   });
 
   it('does not mark a run successful when only import in-progress status is emitted', async () => {

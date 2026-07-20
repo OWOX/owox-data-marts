@@ -202,8 +202,7 @@ export class ConnectorSourceCredentialsService {
   async updateSecretsForConfig(
     id: string,
     projectId: string,
-    secrets: Record<string, unknown>,
-    ownership?: { connectorName: string; dataMartId: string; configId: string }
+    secrets: Record<string, unknown>
   ): Promise<ConnectorSourceCredentials> {
     const existing = await this.getCredentialsById(id);
 
@@ -213,15 +212,6 @@ export class ConnectorSourceCredentialsService {
 
     if (existing.projectId !== projectId) {
       throw new Error(`Unauthorized: secrets do not belong to this project`);
-    }
-
-    if (
-      ownership &&
-      (existing.connectorName !== ownership.connectorName ||
-        existing.dataMartId !== ownership.dataMartId ||
-        existing.configId !== ownership.configId)
-    ) {
-      throw new Error('Unauthorized: secrets do not belong to this connector configuration');
     }
 
     const shouldPreserveGeneratedRefreshToken = this.shouldPreserveGeneratedRefreshToken(

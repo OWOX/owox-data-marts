@@ -150,6 +150,33 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
+      const definition = dataMart.definition as DataMartConnectorDefinition | undefined;
+      if (definition?.connector.source.name === GOOGLE_SHEETS_SOURCE_NAME) {
+        try {
+          await this.persistSuccessfulFieldsUpdate(dataMart, configurationResults, runId);
+        } catch (error) {
+          const fieldsUpdateError = error instanceof Error ? error.message : String(error);
+          const warning =
+            'Google Sheets data was imported, but the source field list could not be synchronized. It will be retried on the next run.';
+          addMessageToArray(capturedLogs, {
+            type: ConnectorMessageType.WARNING,
+            at: this.systemTimeService.now().toISOString(),
+            warning,
+            toFormattedString: () => `[WARNING] ${warning}`,
+          });
+          this.logger.error(
+            `Error saving connector source fields update: ${fieldsUpdateError}`,
+            (error as Error)?.stack,
+            {
+              dataMartId: dataMart.id,
+              projectId: dataMart.projectId,
+              runId,
+              error: fieldsUpdateError,
+            }
+          );
+        }
+      }
+
       await this.updateRunStatus(
         runId,
         hasSuccessfulRun,
@@ -159,22 +186,6 @@ export class ConnectorExecutorService {
         operationBlockedException,
         wasCancelled
       );
-
-      try {
-        await this.persistSuccessfulFieldsUpdate(dataMart, configurationResults, runId);
-      } catch (error) {
-        const fieldsUpdateError = error instanceof Error ? error.message : String(error);
-        this.logger.error(
-          `Error saving connector source fields update: ${fieldsUpdateError}`,
-          (error as Error)?.stack,
-          {
-            dataMartId: dataMart.id,
-            projectId: dataMart.projectId,
-            runId,
-            error: fieldsUpdateError,
-          }
-        );
-      }
 
       if (hasSuccessfulRun) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);

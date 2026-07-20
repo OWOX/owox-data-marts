@@ -31,13 +31,13 @@ export class ConnectorCredentialInjectorService {
     )) as Record<string, unknown>;
   }
 
-  async injectCredentialsForPreview(
+  async injectGoogleSheetsPreviewCredentials(
     config: Record<string, unknown>,
-    connectorName: string,
     projectId: string
   ): Promise<Record<string, unknown>> {
+    const connectorName = 'GoogleSheets';
     await this.validatePreviewCredentialReferences(config, connectorName, projectId);
-    const configWithSecrets = await this.injectSecrets(config, projectId, { connectorName });
+    const configWithSecrets = await this.injectSecrets(config, projectId);
     return this.injectOAuthCredentials(configWithSecrets, connectorName, projectId);
   }
 
@@ -79,14 +79,9 @@ export class ConnectorCredentialInjectorService {
           return obj;
         }
 
-        if (
-          credentialsEntity.projectId !== projectId ||
-          credentialsEntity.connectorName !== connectorName ||
-          credentialsEntity.dataMartId ||
-          credentialsEntity.configId
-        ) {
+        if (credentialsEntity.projectId !== projectId) {
           this.logger.warn(
-            `OAuth credentials ${credentialId} cannot be used by ${connectorName} in project ${projectId}. Skipping injection.`
+            `OAuth credentials ${credentialId} belong to project ${credentialsEntity.projectId}, not ${projectId}. Skipping injection.`
           );
           return obj;
         }
@@ -98,7 +93,10 @@ export class ConnectorCredentialInjectorService {
           );
         }
 
-        const spec = await this.connectorService.getItemByFieldPath(connectorName, currentPath);
+        const spec = await this.connectorService.getItemByFieldPath(
+          credentialsEntity.connectorName,
+          currentPath
+        );
 
         const mapping = spec.oauthParams?.mapping as Record<string, string> | undefined;
         const { _source_credential_id: _, ...restObj } = obj;
@@ -210,8 +208,7 @@ export class ConnectorCredentialInjectorService {
    */
   async injectSecrets(
     config: Record<string, unknown>,
-    projectId: string,
-    ownership?: { connectorName?: string; dataMartId?: string; configId?: string }
+    projectId: string
   ): Promise<Record<string, unknown>> {
     const secretsId = config._secrets_id as string | undefined;
 
@@ -230,14 +227,9 @@ export class ConnectorCredentialInjectorService {
         return config;
       }
 
-      const hasExpectedOwnership =
-        secretsEntity.projectId === projectId &&
-        (!ownership?.connectorName || secretsEntity.connectorName === ownership.connectorName) &&
-        (!ownership?.dataMartId || secretsEntity.dataMartId === ownership.dataMartId) &&
-        (!ownership?.configId || secretsEntity.configId === ownership.configId);
-      if (!hasExpectedOwnership) {
+      if (secretsEntity.projectId !== projectId) {
         this.logger.warn(
-          `Secrets ${secretsId} do not belong to the requested connector configuration. Skipping injection.`
+          `Secrets ${secretsId} belong to project ${secretsEntity.projectId}, not ${projectId}. Skipping injection.`
         );
         return config;
       }

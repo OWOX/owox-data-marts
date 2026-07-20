@@ -1,6 +1,9 @@
 import { useCallback } from 'react';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const USERINFO_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
+const PICKER_SCOPES = `${DRIVE_FILE_SCOPE} ${USERINFO_EMAIL_SCOPE}`;
+const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const GAPI_SRC = 'https://apis.google.com/js/api.js';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_SHEETS_MIME_TYPE = 'application/vnd.google-apps.spreadsheet';
@@ -67,6 +70,7 @@ interface TokenClient {
 interface TokenResponse {
   access_token?: string;
   error?: string;
+  scope?: string;
 }
 
 interface GoogleAccountsOauth2 {
@@ -147,10 +151,19 @@ function requestAccessToken(clientId: string, hintEmail?: string): Promise<strin
 
         const client = oauth2.initTokenClient({
           client_id: clientId,
-          scope: DRIVE_FILE_SCOPE,
+          scope: PICKER_SCOPES,
           hint: hintEmail,
           callback: response => {
             if (response.access_token) {
+              const grantedScopes = new Set((response.scope ?? '').split(/\s+/).filter(Boolean));
+              if (!grantedScopes.has(DRIVE_FILE_SCOPE)) {
+                reject(
+                  new Error(
+                    'Google Drive file access was not granted. Reconnect and allow the requested permission.'
+                  )
+                );
+                return;
+              }
               resolve(response.access_token);
             } else {
               reject(new Error(response.error ?? 'Could not obtain a Google access token'));
@@ -163,6 +176,27 @@ function requestAccessToken(clientId: string, hintEmail?: string): Promise<strin
         client.requestAccessToken({ hint: hintEmail });
       })
   );
+}
+
+export async function verifyGooglePickerAccount(
+  accessToken: string,
+  expectedEmail?: string
+): Promise<void> {
+  if (!expectedEmail?.includes('@')) {
+    return;
+  }
+
+  const response = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    throw new Error('Could not verify the Google account used by Google Picker');
+  }
+
+  const userInfo = (await response.json()) as { email?: string };
+  if (userInfo.email?.toLowerCase() !== expectedEmail.toLowerCase()) {
+    throw new Error(`Open Google Picker with the connected account ${expectedEmail}`);
+  }
 }
 
 function buildPickerView(picker: GooglePicker, selection: GoogleDrivePickerSelection) {
@@ -196,6 +230,7 @@ export function useGoogleDrivePicker() {
     try {
       await loadPicker();
       const token = await requestAccessToken(clientId, hintEmail);
+      await verifyGooglePickerAccount(token, hintEmail);
       const picker = googleWindow.google?.picker;
       if (!picker) {
         throw new Error('Google Picker failed to initialize');

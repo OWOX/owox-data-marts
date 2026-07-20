@@ -15,7 +15,7 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
       ({ runs }: { runs: DataMartRunItem[] }) => {
         useRefreshDataMartAfterConnectorRun({
           dataMartId: 'dm-1',
-          isConnector: true,
+          isGoogleSheetsConnector: true,
           isManualRunTriggered: false,
           runs,
           refreshDataMart,
@@ -39,7 +39,7 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
     renderHook(() => {
       useRefreshDataMartAfterConnectorRun({
         dataMartId: 'dm-1',
-        isConnector: true,
+        isGoogleSheetsConnector: true,
         isManualRunTriggered: true,
         runs: [run('new-run', DataMartRunStatus.SUCCESS)],
         refreshDataMart,
@@ -57,9 +57,25 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
     renderHook(() => {
       useRefreshDataMartAfterConnectorRun({
         dataMartId: 'dm-1',
-        isConnector: true,
+        isGoogleSheetsConnector: true,
         isManualRunTriggered: false,
         runs: [run('old-run', DataMartRunStatus.SUCCESS)],
+        refreshDataMart,
+      });
+    });
+
+    expect(refreshDataMart).not.toHaveBeenCalled();
+  });
+
+  it('does not change the refresh behavior of other connectors', () => {
+    const refreshDataMart = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() => {
+      useRefreshDataMartAfterConnectorRun({
+        dataMartId: 'dm-1',
+        isGoogleSheetsConnector: false,
+        isManualRunTriggered: true,
+        runs: [run('new-run', DataMartRunStatus.SUCCESS)],
         refreshDataMart,
       });
     });

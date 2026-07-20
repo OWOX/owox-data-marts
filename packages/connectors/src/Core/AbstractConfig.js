@@ -147,20 +147,14 @@ class AbstractConfig {
         for (let name in this) {
 
           let parameter = this[ name ];
-          let valueIsMissing = parameter.value === undefined
-            || parameter.value === null
-            || parameter.value === '';
 
           // there is default value, but there is no original value
-          if( "default" in parameter && valueIsMissing ) {
+          if( "default" in parameter && (!parameter.value && parameter.value !== 0) ) {
             parameter.value = parameter.default;
-            valueIsMissing = parameter.value === undefined
-              || parameter.value === null
-              || parameter.value === '';
           }
           
           // if parameter's value is required but value is absent
-          if( valueIsMissing && parameter.isRequired == true ) {
+          if( (!parameter.value && parameter.value !== 0) && parameter.isRequired == true) {
             throw new Error(parameter.errorMessage ? parameter.errorMessage : `Unable to load the configuration. The parameter '${name}' is required but was provided with an empty value`)
           }
 
@@ -281,12 +275,6 @@ class AbstractConfig {
 
   //---- updateCredentials -------------------------------------------
     updateCredentials() {
-      // No-op by default: only runtimes with a structured transport need to emit this.
-    }
-    //----------------------------------------------------------------
-
-  //---- updateFields ------------------------------------------------
-    updateFields() {
       // No-op by default: only runtimes with a structured transport need to emit this.
     }
     //----------------------------------------------------------------

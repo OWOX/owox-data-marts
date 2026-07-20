@@ -9,6 +9,7 @@ import { Check, Copy } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
 import { getServiceAccountLink } from '../../../../../../../utils';
 import GoogleSheetsServiceAccountDescription from '../../../../../shared/components/FormDescriptions/GoogleSheetsServiceAccountDescription';
+import { isValidGoogleSheetsServiceAccountKey } from '../../../../../shared/utils/google-sheets-fields.utils';
 
 interface GoogleSheetsServiceAccountFieldProps {
   itemName: string;
@@ -73,7 +74,9 @@ export function GoogleSheetsServiceAccountField({
   const isMasked = serviceAccountValue === SECRET_MASK;
   const serviceAccountLink =
     !isMasked && serviceAccountValue
-      ? getServiceAccountLink(serviceAccountValue)
+      ? isValidGoogleSheetsServiceAccountKey(serviceAccountValue)
+        ? getServiceAccountLink(serviceAccountValue)
+        : null
       : getLinkFromMetadata(metadata);
   const canShowMaskedState = !isEditing && isMasked && serviceAccountLink === null;
   const canShowServiceAccount = !isEditing && serviceAccountLink !== null;
@@ -93,7 +96,7 @@ export function GoogleSheetsServiceAccountField({
 
   const handleServiceAccountChange = (nextValue: string) => {
     onValueChange(nextValue, getMetadataFromJson(nextValue));
-    if (getServiceAccountLink(nextValue)) {
+    if (isValidGoogleSheetsServiceAccountKey(nextValue) && getServiceAccountLink(nextValue)) {
       setIsEditing(false);
     }
   };

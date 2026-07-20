@@ -87,4 +87,22 @@ describe('GoogleAdsOauthRender for Google Sheets', () => {
       );
     });
   });
+
+  it('announces an incomplete Picker configuration', () => {
+    renderGoogleSheetsOAuth({
+      settings: {
+        isEnabled: true,
+        vars: {
+          ClientId: 'client-id',
+          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose spreadsheet' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Google Picker configuration is incomplete'
+    );
+  });
 });

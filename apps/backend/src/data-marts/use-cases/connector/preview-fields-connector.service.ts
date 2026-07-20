@@ -27,6 +27,7 @@ interface SourceFieldsSchema {
 }
 
 const PREVIEW_TIMEOUT_MS = 15_000;
+const GOOGLE_SHEETS_SOURCE_NAME = 'GoogleSheets';
 
 class PreviewTimeoutError extends Error {}
 
@@ -70,6 +71,11 @@ export class PreviewFieldsConnectorService {
     if (!AvailableConnectors.includes(connectorName)) {
       throw new NotFoundException(`Connector ${connectorName} not found`);
     }
+    if (connectorName !== GOOGLE_SHEETS_SOURCE_NAME) {
+      throw new BadRequestException({
+        message: `Connector ${connectorName} does not support field preview`,
+      });
+    }
 
     const SourceClass = Connectors[connectorName]?.[`${connectorName}Source`];
     if (typeof SourceClass?.prototype?.fetchFieldsSchema !== 'function') {
@@ -80,9 +86,8 @@ export class PreviewFieldsConnectorService {
 
     let configWithCredentials: Record<string, unknown>;
     try {
-      configWithCredentials = await this.credentialInjector.injectCredentialsForPreview(
+      configWithCredentials = await this.credentialInjector.injectGoogleSheetsPreviewCredentials(
         configuration,
-        connectorName,
         projectId
       );
     } catch (error) {

@@ -148,7 +148,11 @@ export function GoogleAdsLoginButton({
         {getButtonContent()}
       </Button>
 
-      {error && <div className='mt-1 text-xs text-red-600'>{error}</div>}
+      {error && (
+        <div role='alert' className='mt-1 text-xs text-red-600'>
+          {error}
+        </div>
+      )}
     </div>
   );
 }

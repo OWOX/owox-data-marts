@@ -51,6 +51,9 @@ var OAuthUtils = {
 
       return json.access_token;
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason || error;
+      }
       throw new Error(`Failed to get access token: ${error.message}`);
     }
   },
@@ -99,6 +102,9 @@ var OAuthUtils = {
       return accessToken;
 
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason || error;
+      }
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
       throw new Error(`Service Account authentication failed: ${error.message}`);
     }

@@ -17,7 +17,7 @@ On each refresh the connector:
 
 `ImportAllColumns` is a hidden boolean configuration field. It defaults to `true` and means that every refresh ignores the saved `Fields` list and imports every column currently present in the sheet. Columns added after setup are therefore included automatically.
 
-Set `ImportAllColumns` to `false` when the user explicitly chooses a subset. In that mode, `SelectedColumns` preserves the requested subset while runtime `Fields` reports the columns present in the latest successful snapshot. Missing selected columns are skipped with a warning, remain remembered if they return, and columns that were not selected are not added automatically.
+Set `ImportAllColumns` to `false` when the user explicitly chooses a subset. In that mode, runtime `Fields` and `SelectedColumns` are reconciled after a successful refresh. Missing selected columns are skipped with a warning and removed from the saved selection, while columns that were not selected are not added automatically.
 
 Generated field identifiers contain only lowercase ASCII letters, digits, and underscores. They start with a letter or underscore, are unique after normalization, and never exceed 127 bytes including duplicate suffixes such as `_2`.
 
@@ -32,6 +32,8 @@ Blank header cells receive names such as `column_2`. A completely empty selected
 ## Values and empty snapshots
 
 Text remains text. Values such as `00123`, `true`, and `2026-01-01` are `STRING` when the Google Sheets API returns them as text. Only native JSON booleans and numbers can be inferred as `BOOLEAN`, `INTEGER`, or `NUMBER`; mixed columns use `STRING`. Disable `InferTypes` to make every user column `STRING`.
+
+The first iteration supports up to 100,000 data rows per sheet refresh. Larger sheets fail with a clear error and should be narrowed with `Range`; incremental and append imports are outside this connector's current full-refresh scope.
 
 A header-only sheet publishes a zero-row replacement snapshot, clearing rows from the previous snapshot so a successful refresh never leaves stale sheet data in the warehouse.
 
