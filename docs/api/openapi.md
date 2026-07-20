@@ -36,72 +36,13 @@ If you integrate with the HTTP API directly, parse the copied API key value firs
 3. Parse the decoded JSON object.
 4. Read `apiOrigin`, `apiKeyId`, and `apiKeySecret`.
 
-Exchange the API Key ID and API Key Secret for an access token:
+Send the API Key ID and API Key Secret to the token-exchange operation at the decoded `apiOrigin`,
+then use the returned access token and API Key ID when calling protected endpoints. The exact
+token-exchange path, request and response schemas, and endpoint authentication requirements are in
+the generated OpenAPI specifications and Swagger UI linked above.
 
-```http
-POST /api/auth/api-keys/exchange
-Content-Type: application/json
-X-OWOX-Api-Key-Id: <apiKeyId>
-
-{
-  "apiKeySecret": "<apiKeySecret>"
-}
-```
-
-Send this request to the decoded `apiOrigin`, for example
-`https://app.owox.com/api/auth/api-keys/exchange`.
-
-The response contains an access token:
-
-```json
-{
-  "accessToken": "<accessToken>"
-}
-```
-
-Use that access token when calling protected endpoints:
-
-```http
-GET /api/external/http-data/data-marts/<dataMartId>.ndjson
-x-owox-authorization: Bearer <accessToken>
-X-OWOX-Api-Key-Id: <apiKeyId>
-```
-
-Keep `X-OWOX-Api-Key-Id` on protected requests that use an access token created from an API
-key. The server binds API-key access tokens to their API Key ID.
-
-## Project settings
-
-Project settings are authenticated, project-scoped endpoints. Project members can read settings;
-updating the project description requires the Project Admin role.
-
-| Method and path | Access | Purpose |
-| --- | --- | --- |
-| `GET /api/projects/settings` | Project member | Read the current project's settings |
-| `PUT /api/projects/settings/description` | Project Admin | Update or clear the project description |
-
-The GET response and successful PUT response have the same shape:
-
-```json
-{
-  "description": "Business context for this project"
-}
-```
-
-To update the description, send a JSON body with a string from 1 to 10,000 characters:
-
-```http
-PUT /api/projects/settings/description
-Content-Type: application/json
-X-OWOX-Authorization: Bearer <accessToken>
-X-OWOX-Api-Key-Id: <apiKeyId>
-
-{
-  "description": "Use net revenue after refunds for monthly reporting."
-}
-```
-
-Send `{ "description": null }` to clear the description.
+Keep the API Key ID on protected requests that use an access token created from an API key. The
+server binds API-key access tokens to their API Key ID.
 
 ## Compatibility
 
