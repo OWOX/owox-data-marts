@@ -334,10 +334,10 @@ describe('OWOXApiClient', () => {
       fetchImpl: fetchMock.fetchImpl,
     });
 
-    await expect(client.projectSettings.get()).resolves.toEqual({
+    await expect(client.project.getSettings()).resolves.toEqual({
       description: 'Current description',
     });
-    await expect(client.projectSettings.updateDescription('Updated description')).resolves.toEqual({
+    await expect(client.project.updateDescription('Updated description')).resolves.toEqual({
       description: 'Updated description',
     });
   });
@@ -370,7 +370,7 @@ describe('OWOXApiClient', () => {
       fetchImpl: fetchMock.fetchImpl,
     });
 
-    await expect(client.projectSettings.updateDescription(null)).resolves.toEqual({
+    await expect(client.project.updateDescription(null)).resolves.toEqual({
       description: null,
     });
     expect(exchangeCount).toBe(2);
@@ -402,7 +402,7 @@ describe('OWOXApiClient', () => {
       fetchImpl: fetchMock.fetchImpl,
     });
 
-    await expect(client.projectSettings.updateDescription('Denied')).rejects.toMatchObject({
+    await expect(client.project.updateDescription('Denied')).rejects.toMatchObject({
       name: 'OWOXApiError',
       status: 403,
       code: 'FORBIDDEN',
@@ -429,7 +429,7 @@ describe('OWOXApiClient', () => {
       fetchImpl: fetchMock.fetchImpl,
     });
 
-    await expect(client.projectSettings.get()).rejects.toMatchObject({
+    await expect(client.project.getSettings()).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Settings API returned an unexpected response shape',
       details: {},

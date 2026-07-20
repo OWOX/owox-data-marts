@@ -5,7 +5,7 @@ import { AuthApi, exchangeAccessToken, normalizeApiOrigin, readResponseBody } fr
 import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
-import { ProjectSettingsApi } from './project-settings.js';
+import { ProjectApi } from './project.js';
 import { StoragesApi } from './storages.js';
 import { requestApi } from './transport.js';
 
@@ -31,7 +31,7 @@ export class OWOXApiClient {
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
   readonly destinations: DestinationsApi;
-  readonly projectSettings: ProjectSettingsApi;
+  readonly project: ProjectApi;
 
   private readonly apiOrigin: string;
   private readonly apiKeyId: string;
@@ -50,7 +50,7 @@ export class OWOXApiClient {
     this.dataMarts = new DataMartsApi(this);
     this.storages = new StoragesApi(this);
     this.destinations = new DestinationsApi(this);
-    this.projectSettings = new ProjectSettingsApi(this);
+    this.project = new ProjectApi(this);
   }
 
   async authenticate(): Promise<void> {

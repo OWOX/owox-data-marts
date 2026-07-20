@@ -51,11 +51,11 @@ console.log(context.member.email);
 
 ## Manage project settings
 
-Use `projectSettings.get()` to read the current project's settings. Project members can read the
+Use `project.getSettings()` to read the current project's settings. Project members can read the
 settings available to their role.
 
 ```ts
-const settings = await client.projectSettings.get();
+const settings = await client.project.getSettings();
 
 console.log(settings.description);
 ```
@@ -64,11 +64,11 @@ Project admins can update the project description used as project-specific busin
 `null` to clear it.
 
 ```ts
-await client.projectSettings.updateDescription(
+await client.project.updateDescription(
   'Use net revenue after refunds for monthly performance reporting.'
 );
 
-await client.projectSettings.updateDescription(null);
+await client.project.updateDescription(null);
 ```
 
 ## List data marts

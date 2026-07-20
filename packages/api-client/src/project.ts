@@ -4,7 +4,7 @@ export type OWOXProjectSettings = {
   description: string | null;
 };
 
-type ProjectSettingsRequester = {
+type ProjectRequester = {
   getJson<T>(path: string): Promise<T>;
   putJson<T>(path: string, jsonBody: unknown): Promise<T>;
 };
@@ -24,10 +24,10 @@ function parseProjectSettings(response: unknown): OWOXProjectSettings {
   return { description: response.description };
 }
 
-export class ProjectSettingsApi {
-  constructor(private readonly requester: ProjectSettingsRequester) {}
+export class ProjectApi {
+  constructor(private readonly requester: ProjectRequester) {}
 
-  async get(): Promise<OWOXProjectSettings> {
+  async getSettings(): Promise<OWOXProjectSettings> {
     return parseProjectSettings(await this.requester.getJson<unknown>('/api/projects/settings'));
   }
 
