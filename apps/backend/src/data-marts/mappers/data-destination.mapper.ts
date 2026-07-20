@@ -315,7 +315,7 @@ export class DataDestinationMapper {
 
     if (!dto.credentialId) {
       this.logger.warn(`Destination ${dto.id} has no credentialId`);
-      return {} as DataDestinationCredentials;
+      return {} as DataDestinationResponseApiDto['credentials'];
     }
 
     const credential = await this.dataDestinationCredentialService.getById(dto.credentialId);
@@ -323,7 +323,7 @@ export class DataDestinationMapper {
       this.logger.warn(
         `Credential ${dto.credentialId} not found for destination ${dto.id} (possibly orphaned after soft-delete)`
       );
-      return {} as DataDestinationCredentials;
+      return {} as DataDestinationResponseApiDto['credentials'];
     }
 
     switch (credential.type) {
@@ -357,7 +357,10 @@ export class DataDestinationMapper {
       }
 
       case DestinationCredentialType.EMAIL:
-        return credential.credentials as DataDestinationCredentials;
+        return credential.credentials as Extract<
+          DataDestinationCredentials,
+          { type: 'email-credentials' }
+        >;
 
       case DestinationCredentialType.GOOGLE_CHAT_WEBHOOK:
         // Incoming webhook URLs include a secret token. The UI only needs to know that a

@@ -37,6 +37,7 @@ export class GoogleChatWebhookClient {
   private static readonly REQUEST_TIMEOUT_MS = 10_000;
   private static readonly MAX_ATTEMPTS = 3;
   private static readonly RETRY_BASE_DELAY_MS = 1_000;
+  private static readonly MAX_RETRY_DELAY_MS = 30_000;
 
   async send(webhookUrl: string, payload: GoogleChatMessagePayload): Promise<void> {
     // The URL contains a secret token and is also the outbound request target. Validate it
@@ -46,18 +47,37 @@ export class GoogleChatWebhookClient {
     }
 
     for (let attempt = 1; attempt <= GoogleChatWebhookClient.MAX_ATTEMPTS; attempt += 1) {
-      const response = await this.post(webhookUrl, payload);
+      let response: Response;
+      try {
+        response = await this.post(webhookUrl, payload);
+      } catch (error) {
+        if (attempt >= GoogleChatWebhookClient.MAX_ATTEMPTS) throw error;
+        await this.waitBeforeRetry(undefined, attempt);
+        continue;
+      }
+
       if (response.ok) return;
 
-      if (response.status === 429 && attempt < GoogleChatWebhookClient.MAX_ATTEMPTS) {
-        const retryDelayMs = this.getRetryDelayMs(response, attempt);
-        if (retryDelayMs > 0) {
-          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-        }
+      if (
+        this.isTransientStatus(response.status) &&
+        attempt < GoogleChatWebhookClient.MAX_ATTEMPTS
+      ) {
+        await this.waitBeforeRetry(response, attempt);
         continue;
       }
 
       throw new Error(`Google Chat API returned HTTP ${response.status}`);
+    }
+  }
+
+  private isTransientStatus(status: number): boolean {
+    return status === 408 || status === 429 || status >= 500;
+  }
+
+  private async waitBeforeRetry(response: Response | undefined, attempt: number): Promise<void> {
+    const retryDelayMs = this.getRetryDelayMs(response, attempt);
+    if (retryDelayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
     }
   }
 
@@ -93,17 +113,27 @@ export class GoogleChatWebhookClient {
     }
   }
 
-  private getRetryDelayMs(response: Response, attempt: number): number {
-    const retryAfter = response.headers?.get('retry-after');
+  private getRetryDelayMs(response: Response | undefined, attempt: number): number {
+    const retryAfter = response?.headers?.get('retry-after');
     if (retryAfter) {
       const seconds = Number(retryAfter);
-      if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.min(seconds * 1_000, GoogleChatWebhookClient.MAX_RETRY_DELAY_MS);
+      }
 
       const retryAt = Date.parse(retryAfter);
-      if (Number.isFinite(retryAt)) return Math.max(0, retryAt - Date.now());
+      if (Number.isFinite(retryAt)) {
+        return Math.min(
+          Math.max(0, retryAt - Date.now()),
+          GoogleChatWebhookClient.MAX_RETRY_DELAY_MS
+        );
+      }
     }
 
     const exponentialDelay = GoogleChatWebhookClient.RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-    return exponentialDelay + Math.floor(Math.random() * 250);
+    return Math.min(
+      exponentialDelay + Math.floor(Math.random() * 250),
+      GoogleChatWebhookClient.MAX_RETRY_DELAY_MS
+    );
   }
 }

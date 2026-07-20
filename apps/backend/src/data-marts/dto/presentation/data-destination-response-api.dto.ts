@@ -26,6 +26,11 @@ export type GoogleChatCredentialsPublic = {
   configured: true;
 };
 
+type DataDestinationCredentialsWithoutGoogleChat = Exclude<
+  DataDestinationCredentials,
+  { type: 'google-chat-credentials' }
+>;
+
 export class DataDestinationResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
   id!: string;
@@ -45,7 +50,7 @@ export class DataDestinationResponseApiDto {
     description: 'Credentials without sensitive fields',
   })
   credentials!:
-    | DataDestinationCredentials
+    | DataDestinationCredentialsWithoutGoogleChat
     | DataDestinationCredentialsPublic
     | GoogleSheetsOAuthCredentialsPublic
     | GoogleChatCredentialsPublic;

@@ -212,12 +212,16 @@ export class ApiHelpers {
     }
   }
 
-  async createDestination(type = 'LOOKER_STUDIO', title?: string): Promise<{ id: string }> {
+  async createDestination(
+    type = 'LOOKER_STUDIO',
+    title?: string,
+    credentials?: Record<string, unknown>
+  ): Promise<{ id: string }> {
     const res = await this.page.request.post('/api/data-destinations', {
       data: {
         title: title ?? `E2E Destination ${Date.now()}`,
         type,
-        credentials: this.getCredentialsForType(type),
+        credentials: credentials ?? this.getCredentialsForType(type),
       },
     });
     expect(res.ok()).toBeTruthy();
