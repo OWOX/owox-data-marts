@@ -37,7 +37,9 @@ import { DataDestinationService } from '../services/data-destination.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import { QueryFailedError } from 'typeorm';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportService } from '../services/report.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { CreateReportService } from '../use-cases/create-report.service';
 import { DeleteReportService } from '../use-cases/delete-report.service';
@@ -86,6 +88,10 @@ function buildGoogleSheetUrl(spreadsheetId: string, sheetId: number): string {
  */
 const LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS = 300;
 
+const LOOKER_STUDIO_DUPLICATE_REPORT_MESSAGE =
+  'A Looker Studio report already exists for this data mart and destination — ' +
+  'each pair has exactly one report. Use the existing report, or delete it first.';
+
 const MCP_RUN_REPORT_DESTINATION_TYPES = [
   DataDestinationType.GOOGLE_SHEETS,
   DataDestinationType.EMAIL,
@@ -128,7 +134,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     private readonly dataDestinationService: DataDestinationService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly reportAccessService: ReportAccessService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly reportService: ReportService
   ) {}
 
   async deleteReport(request: McpDeleteReportRequest): Promise<McpDeleteReportResult> {
@@ -330,33 +337,38 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       );
     }
 
-    const existing = (
-      await this.listReportsByDataMartService.run(
-        new ListReportsByDataMartCommand(
-          request.dataMartId,
-          request.projectId,
-          request.userId,
-          request.roles
-        )
-      )
-    ).find(report => report.dataDestinationAccess.id === request.destinationId);
-    if (existing) {
-      throw new BusinessViolationException(
-        'A Looker Studio report already exists for this data mart and destination — ' +
-          'each pair has exactly one report. Use the existing report, or delete it first.'
-      );
+    if (await this.lookerStudioReportExists(request)) {
+      throw new BusinessViolationException(LOOKER_STUDIO_DUPLICATE_REPORT_MESSAGE);
     }
 
-    // The title is discarded by the domain for Looker Studio reports; pass the
-    // empty string it would end up as anyway.
-    return this.createReportWithConfig(
-      request,
-      DataDestinationType.LOOKER_STUDIO,
-      {
-        type: LookerStudioConnectorConfigType,
-        cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
-      },
-      ''
+    try {
+      // The title is discarded by the domain for Looker Studio reports; pass
+      // the empty string it would end up as anyway.
+      return await this.createReportWithConfig(
+        request,
+        DataDestinationType.LOOKER_STUDIO,
+        {
+          type: LookerStudioConnectorConfigType,
+          cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
+        },
+        ''
+      );
+    } catch (error) {
+      // Two concurrent add_report calls can both pass the existence check; the
+      // deterministic report id then makes the losing INSERT fail. Re-check
+      // before translating, so genuine DB failures keep their original error.
+      if (error instanceof QueryFailedError && (await this.lookerStudioReportExists(request))) {
+        throw new BusinessViolationException(LOOKER_STUDIO_DUPLICATE_REPORT_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  private lookerStudioReportExists(request: McpAddReportRequest): Promise<boolean> {
+    return this.reportService.existsByDataMartIdAndDestinationIdAndProjectId(
+      request.dataMartId,
+      request.destinationId,
+      request.projectId
     );
   }
 

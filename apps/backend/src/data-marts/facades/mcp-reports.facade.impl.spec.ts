@@ -32,6 +32,9 @@ jest.mock('../services/data-destination.service', () => ({
 jest.mock('../services/report-access.service', () => ({
   ReportAccessService: jest.fn(),
 }));
+jest.mock('../services/report.service', () => ({
+  ReportService: jest.fn(),
+}));
 jest.mock('../services/output-controls-validator.service', () => ({
   OutputControlsValidatorService: jest.fn(),
 }));
@@ -43,6 +46,7 @@ jest.mock('../services/access-decision', () => ({
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RunType } from '../../common/scheduler/shared/types';
+import { QueryFailedError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { DataMart } from '../entities/data-mart.entity';
@@ -60,6 +64,7 @@ import type { DataMartRunService } from '../services/data-mart-run.service';
 import type { DataMartService } from '../services/data-mart.service';
 import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import type { ReportAccessService } from '../services/report-access.service';
+import type { ReportService } from '../services/report.service';
 import type { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import type { CreateReportService } from '../use-cases/create-report.service';
 import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
@@ -184,6 +189,9 @@ function createMocks() {
     outputControlsValidator: {
       validateForReport: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<OutputControlsValidatorService>,
+    reportService: {
+      existsByDataMartIdAndDestinationIdAndProjectId: jest.fn().mockResolvedValue(false),
+    } as unknown as jest.Mocked<ReportService>,
   };
 }
 
@@ -216,7 +224,8 @@ function createFacade(overrides?: {
       mocks.dataDestinationService,
       mocks.accessDecisionService,
       mocks.reportAccessService,
-      mocks.outputControlsValidator
+      mocks.outputControlsValidator,
+      mocks.reportService
     ),
     ...mocks,
   };
@@ -674,24 +683,67 @@ describe('McpReportsFacadeImpl.addReport', () => {
   });
 
   it('rejects a second Looker Studio report for the same data mart and destination', async () => {
-    const existingLookerReport = buildReport({
-      id: 'existing-looker',
-      destinationId: 'dest-1',
-      destinationType: DataDestinationType.LOOKER_STUDIO,
-    });
-    const { facade, dataDestinationService, createReportService } = createFacade({
-      reports: [existingLookerReport],
+    const { facade, dataDestinationService, createReportService, reportService } = createFacade({
+      reports: [],
       triggers: [],
     });
     dataDestinationService.getByIdAndProjectId.mockResolvedValue({
       id: 'dest-1',
       type: DataDestinationType.LOOKER_STUDIO,
     } as never);
+    reportService.existsByDataMartIdAndDestinationIdAndProjectId.mockResolvedValue(true);
 
     await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
       'already exists for this data mart and destination'
     );
+    expect(reportService.existsByDataMartIdAndDestinationIdAndProjectId).toHaveBeenCalledWith(
+      'dm-1',
+      'dest-1',
+      'project-1'
+    );
     expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('translates a lost duplicate race into the same clean error', async () => {
+    const { facade, dataDestinationService, createReportService, reportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    // First check passes (no report yet); the concurrent winner then makes the
+    // INSERT fail, and the re-check finds the now-existing report.
+    reportService.existsByDataMartIdAndDestinationIdAndProjectId
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    createReportService.run.mockRejectedValue(
+      new QueryFailedError('INSERT INTO report', [], new Error('duplicate key'))
+    );
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      'already exists for this data mart and destination'
+    );
+  });
+
+  it('keeps the original error when a Looker insert fails for another reason', async () => {
+    const { facade, dataDestinationService, createReportService, reportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    reportService.existsByDataMartIdAndDestinationIdAndProjectId.mockResolvedValue(false);
+    createReportService.run.mockRejectedValue(
+      new QueryFailedError('INSERT INTO report', [], new Error('connection reset'))
+    );
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      QueryFailedError
+    );
   });
 
   it('requires a name for Google Sheets reports', async () => {

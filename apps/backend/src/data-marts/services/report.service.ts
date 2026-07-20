@@ -118,6 +118,24 @@ export class ReportService {
   }
 
   /**
+   * Checks whether any report already exists for the given data mart +
+   * destination pair. Used by flows where the pair is unique by design —
+   * e.g. Looker Studio reports, whose id is deterministic per pair.
+   */
+  async existsByDataMartIdAndDestinationIdAndProjectId(
+    dataMartId: string,
+    destinationId: string,
+    projectId: string
+  ): Promise<boolean> {
+    return this.repository.exists({
+      where: {
+        dataMart: { id: dataMartId, projectId },
+        dataDestination: { id: destinationId },
+      },
+    });
+  }
+
+  /**
    * Fetches all Looker Studio reports for destination with secret validation.
    *
    * @param destinationId - Data destination ID
