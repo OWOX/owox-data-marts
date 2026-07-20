@@ -244,15 +244,21 @@ export class ReportSqlComposerService {
   }
 
   /**
-   * For each NUMERIC field among the report's selected columns (every numeric schema field
-   * when the report projects all columns), emit one aggregation rule per allowed function.
-   * Field order follows the selection; function order follows the field's allowed set.
-   * Main-mart numerics are governed by their per-field allowed set (else the numeric
-   * type-default). Selected columns that are JOINED (blended) numeric fields are included
-   * too, governed by their DM-level `postJoinAggregations` (else the type-default). Any
-   * blended numeric column drives `compose` onto the blended path, whose metrics-only
-   * SELECT carries no GROUP BY (every column is an aggregated metric). Non-numeric columns
-   * and unresolved columns are skipped.
+   * For each TOTALS-ELIGIBLE field among the report's selected columns, emit one aggregation
+   * rule per allowed function. Field order follows the selection; function order follows the
+   * field's allowed set. A field is totals-eligible when it is either:
+   *   - NUMERIC (type-default 'metric') — an auto per-column numeric summary, computed even
+   *     when the report itself does not aggregate it; or
+   *   - explicitly AGGREGATED by the report (its name appears in `aggregationConfig`) — this
+   *     is the only signal that a NON-numeric field (e.g. a STRING with COUNT_DISTINCT) is a
+   *     metric, because there is no schema-level dimension/metric designation today.
+   * Either way the function set comes from the field's governance (per-field allowed set else
+   * the type-default), so a STRING metric contributes COUNT/COUNT_DISTINCT and a numeric one
+   * SUM/AVG/MIN/MAX — never a function the type cannot run. Non-numeric fields the report does
+   * NOT aggregate (plain dimensions) and unresolved columns are skipped. Selected JOINED
+   * (blended) numeric fields are included too, governed by their DM-level `postJoinAggregations`
+   * (else the type-default); any blended numeric column drives `compose` onto the blended path,
+   * whose metrics-only SELECT carries no GROUP BY (every column is an aggregated metric).
    */
   private async deriveNumericTotalsAggregations(
     report: ReportLike,
@@ -265,6 +271,10 @@ export class ReportSqlComposerService {
   }> {
     const descriptors = collectSchemaFieldPathDescriptors(report.dataMart.schema?.fields ?? []);
     const byName = new Map(descriptors.map(d => [d.name, d]));
+    // The fields the report explicitly aggregates — the only marker that a non-numeric column
+    // is a metric (WI #6680 §D: totals are over the SELECTED metrics; §C: Unique-by-PK is a
+    // normal COUNT_DISTINCT metric). No schema-level dimension/metric role exists yet.
+    const aggregatedColumns = new Set((report.aggregationConfig ?? []).map(rule => rule.column));
 
     // Only consult the blendable schema when the selection references columns the main
     // schema doesn't own — otherwise a non-blended report pays no schema-resolution cost
@@ -279,8 +289,8 @@ export class ReportSqlComposerService {
           accessor
         )
       : undefined;
-    const blendedNumericByName = blendableSchema
-      ? this.collectBlendedNumericAllowedSets(blendableSchema)
+    const blendedByName = blendableSchema
+      ? this.collectBlendedAllowedSets(blendableSchema, aggregatedColumns)
       : new Map<string, ReportAggregateFunction[]>();
 
     const projected = projectedExplicit ? report.columnConfig! : descriptors.map(d => d.name);
@@ -288,7 +298,12 @@ export class ReportSqlComposerService {
     const columns: string[] = [];
     const aggregations: AggregationRule[] = [];
     for (const name of projected) {
-      const allowed = this.resolveTotalsAllowedForColumn(name, byName, blendedNumericByName);
+      const allowed = this.resolveTotalsAllowedForColumn(
+        name,
+        byName,
+        blendedByName,
+        aggregatedColumns
+      );
       if (allowed.length === 0) {
         continue;
       }
@@ -303,34 +318,55 @@ export class ReportSqlComposerService {
   private resolveTotalsAllowedForColumn(
     name: string,
     mainByName: ReadonlyMap<string, SchemaFieldDescriptor>,
-    blendedNumericByName: ReadonlyMap<string, ReportAggregateFunction[]>
+    blendedByName: ReadonlyMap<string, ReportAggregateFunction[]>,
+    aggregatedColumns: ReadonlySet<string>
   ): ReportAggregateFunction[] {
     const descriptor = mainByName.get(name);
+    let allowed: ReportAggregateFunction[];
     if (descriptor) {
-      if (categorizeFieldType(descriptor.type) !== 'number') {
+      // Numerics get an auto summary (type-default 'metric'); non-numerics only count as
+      // metrics when the report itself aggregates them — the sole metric signal without a
+      // schema-level role. Either way governance decides which functions are valid for the
+      // type, so a STRING metric yields COUNT/COUNT_DISTINCT rather than SUM/AVG it can't run.
+      const isNumeric = categorizeFieldType(descriptor.type) === 'number';
+      if (!isNumeric && !aggregatedColumns.has(name)) {
         return [];
       }
-      return resolveFieldGovernance(descriptor.type, {
+      allowed = resolveFieldGovernance(descriptor.type, {
         aggregationRole: descriptor.field.aggregationRole as AggregationRole | undefined,
         allowedAggregations: descriptor.field.allowedAggregations as
           | ReportAggregateFunction[]
           | undefined,
       }).allowedAggregations;
+    } else {
+      // Joined (blended) field: eligibility already applied in collectBlendedAllowedSets
+      // (numeric → auto summary; non-numeric → only when the report aggregates it).
+      allowed = blendedByName.get(name) ?? [];
     }
-    return blendedNumericByName.get(name) ?? [];
+    // ANY_VALUE (an arbitrary row's value) and STRING_AGG (whole-column concat) do not summarize
+    // to a meaningful grand total, so the totals summary omits them for every field/type.
+    return allowed.filter(fn => fn !== 'ANY_VALUE' && fn !== 'STRING_AGG');
   }
 
-  // Joined numeric fields the report selects, mapped to their post-join allowed set. The
-  // blendable schema already resolved `postJoinAggregations` (DM-level override, else the
-  // numeric type-default); we just filter to numerics that the selection references.
+  // Joined fields eligible for totals, mapped to their post-join allowed set. Mirrors the
+  // main-mart rule so totals are symmetric across native and joined fields: a joined NUMERIC
+  // field gets an auto summary, while a joined NON-numeric field qualifies only when the report
+  // aggregates it as a metric (no schema-level dimension/metric role exists). Functions come
+  // from the field's `postJoinAggregations` (DM-level override) else the type-default; ANY_VALUE
+  // / STRING_AGG are stripped later in resolveTotalsAllowedForColumn.
   // Accepted limitation: blended AVG (and percentiles) over a joined field is unweighted —
   // an avg-of-avgs from the per-join rollup — see TODO(#6680) in abstract-blended-query-builder.ts.
-  private collectBlendedNumericAllowedSets(
-    blendableSchema: BlendableSchemaDto
+  private collectBlendedAllowedSets(
+    blendableSchema: BlendableSchemaDto,
+    aggregatedColumns: ReadonlySet<string>
   ): Map<string, ReportAggregateFunction[]> {
     const result = new Map<string, ReportAggregateFunction[]>();
     for (const blendedField of blendableSchema.blendedFields) {
-      if (blendedField.isHidden || categorizeFieldType(blendedField.type) !== 'number') {
+      if (blendedField.isHidden) {
+        continue;
+      }
+      const isNumeric = categorizeFieldType(blendedField.type) === 'number';
+      if (!isNumeric && !aggregatedColumns.has(blendedField.name)) {
         continue;
       }
       const allowed =

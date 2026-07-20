@@ -369,6 +369,71 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
     });
 
+    // REPRODUCTION — Vlad's dashboard scorecard (chat thread YjeZ1yvBxSg / repro-totals.mjs):
+    // a COUNT_DISTINCT metric over a STRING field, NO grouping. Per WI #6680 §D totals are "по
+    // обраних метриках" (over the SELECTED metrics), and §C: "Unique-by-PK — звичайна метрика з
+    // COUNT_DISTINCT". Governance already permits COUNT/COUNT_DISTINCT on STRING fields
+    // (field-aggregation-governance.ts: string → ['COUNT','COUNT_DISTINCT']). But
+    // resolveTotalsAllowedForColumn hard-gates on `categorizeFieldType(type) !== 'number'` and
+    // returns [] BEFORE consulting governance — so the COUNT_DISTINCT metric is dropped,
+    // composeTotals returns null, and getRunById.totals is null even though the run SUCCEEDED and
+    // the aggregate streamed ({"country | COUNTUNIQUE":18}). Totals must follow governance, not a
+    // numeric-type gate. RED today.
+    it('scorecard: COUNT_DISTINCT over a STRING metric (NO grouping) is included in totals (WI #6680 §D)', async () => {
+      const { service } = makeBqTotalsComposer(['country']);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['country'],
+          aggregationConfig: [{ column: 'country', function: 'COUNT_DISTINCT' }],
+        } as Partial<Report>,
+        // No schema-level metric/dimension role in practice — STRING defaults to 'dimension'.
+        // The ONLY signal that `country` is a metric here is that the report aggregates it.
+        [field('country', 'STRING')]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.columns).toContain('country');
+      expect(result!.aggregations).toEqual(
+        expect.arrayContaining([{ column: 'country', function: 'COUNT_DISTINCT' }])
+      );
+    });
+
+    // ANY_VALUE (an arbitrary row's value) and STRING_AGG (whole-column concat) are meaningless
+    // as a single grand-total number, so they are excluded from the totals summary for EVERY
+    // field even when the field's allowed set (per-field override or type-default) permits them.
+    it('excludes ANY_VALUE and STRING_AGG from totals even when the field allows them', async () => {
+      const { service } = makeBqTotalsComposer(['country']);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['country'],
+          aggregationConfig: [{ column: 'country', function: 'COUNT_DISTINCT' }],
+        } as Partial<Report>,
+        [
+          field('country', 'STRING', {
+            allowedAggregations: [
+              'MIN',
+              'MAX',
+              'ANY_VALUE',
+              'COUNT',
+              'COUNT_DISTINCT',
+              'STRING_AGG',
+            ],
+          }),
+        ]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      const fns = result!.aggregations.map(a => a.function);
+      expect(fns).not.toContain('ANY_VALUE');
+      expect(fns).not.toContain('STRING_AGG');
+      // The meaningful ones survive.
+      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
+    });
+
     it('strips HAVING (function-carrying) filters from the totals query, keeping WHERE filters', async () => {
       const { service } = makeBqTotalsComposer(['revenue']);
       const report = buildTotalsReport({
@@ -529,6 +594,56 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       const finalSelect = result!.sql.slice(result!.sql.lastIndexOf('\n\nSELECT'));
       expect(finalSelect).toContain('SUM(partner.partner__cost)');
       expect(finalSelect).not.toMatch(/GROUP BY/);
+    });
+
+    // Symmetry with the main-mart rule: a JOINED non-numeric field the report aggregates as a
+    // metric (e.g. COUNT_DISTINCT over a joined text column) must appear in totals too, by its
+    // post-join allowed functions — minus ANY_VALUE / STRING_AGG.
+    it('includes a JOINED non-numeric field in totals when the report aggregates it', async () => {
+      const fields = [
+        blendedField('partner__country', 'STRING', [
+          'MIN',
+          'MAX',
+          'COUNT',
+          'COUNT_DISTINCT',
+          'STRING_AGG',
+        ]),
+      ];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport({
+        columnConfig: ['partner__country'],
+        aggregationConfig: [{ column: 'partner__country', function: 'COUNT_DISTINCT' }],
+      } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.columns).toContain('partner__country');
+      const fns = result!.aggregations
+        .filter(a => a.column === 'partner__country')
+        .map(a => a.function);
+      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
+      // STRING_AGG (and ANY_VALUE) are excluded from totals on the joined path too.
+      expect(fns).not.toContain('STRING_AGG');
+    });
+
+    // A JOINED non-numeric field the report does NOT aggregate stays a plain dimension — not in
+    // totals (only the numeric joined field is auto-summarized).
+    it('excludes a JOINED non-numeric field from totals when the report does not aggregate it', async () => {
+      const fields = [
+        blendedField('partner__cost', 'FLOAT', ['SUM']),
+        blendedField('partner__country', 'STRING', ['COUNT', 'COUNT_DISTINCT']),
+      ];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport({
+        columnConfig: ['partner__cost', 'partner__country'],
+      } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.columns).toContain('partner__cost');
+      expect(result!.columns).not.toContain('partner__country');
     });
 
     it('resolves the blendable schema once and reuses it for the blended decision (no recompute)', async () => {
