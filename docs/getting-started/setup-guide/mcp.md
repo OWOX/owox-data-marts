@@ -294,7 +294,7 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 
 For `google_sheets`, this tool does not create the destination immediately. It returns a project-scoped setup link; the user opens it, signs in to OWOX if needed, clicks **Connect with Google**, and approves Google access. After the user confirms setup is complete, call `list_destinations` and match the new Google Sheets destination by `connectedGoogleAccount`. The created destination is usable by the person who connected it, but it starts unshared for other project members until someone shares it in the UI.
 
-For `email`, `slack`, `teams`, and `google_chat`, the tool creates the destination directly and returns `destination_id`. For `looker_studio`, the tool also creates the destination directly, but it never sends connector credentials or secret keys through MCP/chat; the user opens the destination in OWOX Data Marts to copy those credentials.
+For `email`, `slack`, `teams`, and `google_chat`, the tool creates the destination directly and returns `destination_id`. For `looker_studio`, the tool also creates the destination directly, but it never sends connector credentials or secret keys through MCP/chat; the user opens the destination in OWOX Data Marts to copy those credentials, and the returned `instructions` include a link to the [Data Studio destination](../../destinations/supported-destinations/data-studio.md) guide with the full walkthrough.
 
 ### `get_data_mart_reports`
 
@@ -441,7 +441,7 @@ Removes a single schedule identified by `trigger_id`. This is destructive and ca
 Creates a report that exports a data mart to an existing destination (see `list_destinations`).
 
 - **Google Sheets**: a new Google Sheet is created automatically and linked to the report. Unlike every other tool, this path reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. See [Google Sheets destination](../../destinations/supported-destinations/google-sheets.md) for how to set the destination up.
-- **Looker Studio**: the report is created with default settings (data cache lifetime of 5 minutes) — the tool accepts no Looker-Studio-specific parameters. To connect the result to a dashboard, open the destination's connection details in OWOX Data Marts.
+- **Looker Studio**: the report is created with default settings (data cache lifetime of 5 minutes) — the tool accepts no Looker-Studio-specific parameters. Creating the report only makes the data mart available to the destination: data appears in a dashboard after you connect Looker Studio to OWOX with the destination's JSON Config (it contains a secret key, so it is never sent through the assistant). The response includes `instructions` and a `setup_guide_url` so the assistant can walk you through it; the full guide is [Data Studio destination](../../destinations/supported-destinations/data-studio.md). If the project has no Looker Studio destination yet, the assistant can create one with `add_destination` first.
 - **Email, Slack, Microsoft Teams, Google Chat**: the report carries the message subject and body; the recipients or channels are configured on the destination itself, not on the report. Each report run sends the rendered message. The send condition is always the default ("Send always") — change it in the OWOX Data Marts UI if you need a conditional report.
 
 **Input:**
@@ -461,16 +461,19 @@ Creates a report that exports a data mart to an existing destination (see `list_
 | Field                     | Description                                                                                     |
 | -------------------------- | --------------------------------------------------------------------------------------------------- |
 | `report_id`                 | Report identifier                                                                                  |
+| `destination_type`          | Type of the destination the report was created for                                                 |
 | `report_url`                | Link to the report in OWOX Data Marts                                                              |
 | `sheet_url`                 | Google Sheets only. Link to the created Google Sheet                                                |
 | `owner`                     | The user who created the report                                                                    |
 | `status`                    | `created`                                                                                           |
 | `placed_in_root`            | Google Sheets only. `true` if the configured Drive folder could not be used, so the sheet was created in the Drive root |
 | `shared_with_requester`     | Google Sheets only. `false` if the sheet could not be shared with you — opening the link may require requesting access  |
+| `instructions`              | Looker Studio only. What has to happen before dashboard data flows — the assistant relays this to you |
+| `setup_guide_url`           | Looker Studio only. Link to the step-by-step Looker Studio connection guide                          |
 
 ### `update_report` (requires `mcp:write`)
 
-Updates an existing report: renames it and/or replaces which data mart fields it exports. Anything not provided stays unchanged — the destination, filters, sorting, owners, and schedules are preserved as-is.
+Updates an existing report: renames it, replaces which data mart fields it exports, and/or — for reports with an email, Slack, Teams, or Google Chat destination — changes the message subject or body. Anything not provided stays unchanged — the destination, filters, sorting, owners, schedules, and send condition are preserved as-is.
 
 **Input:**
 
@@ -479,8 +482,11 @@ Updates an existing report: renames it and/or replaces which data mart fields it
 | `report_id` | Report to update (from `get_data_mart_reports`)                                   |
 | `fields`    | Optional. Replacement column selection, or `["*"]` for every field                |
 | `name`      | Optional. New report name                                                          |
+| `message`   | Optional. Message changes — only for reports with an email-family destination, rejected for other types |
+| `message.subject` | Optional. New message subject or heading                                     |
+| `message.body`    | Optional. New message body template (supports `{{table}}`). Replaces the current body; if the report used an insight template, it switches to this custom message |
 
-At least one of `fields` / `name` must be provided.
+At least one of `fields` / `name` / `message` must be provided (and `message`, when present, needs `subject` and/or `body`).
 
 **Returns:**
 
@@ -528,11 +534,12 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Create a Looker Studio report from the Sales data mart with all fields."
 - "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'."
 - "Rename that report to 'Q3 Ads Report' and keep only the campaign and spend fields."
+- "Change the subject of the daily Slack report to 'Morning numbers'."
 - "Schedule that report to run every Monday at 9am New York time."
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination (`add_report`), rename a report or change which fields it exports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination (`add_report`), rename a report, change which fields it exports, or edit the message of email-family reports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
 > **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 

@@ -7,6 +7,7 @@ import {
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
+import { isEmailConfig } from '../data-destination-types/data-destination-config.guards';
 import { EmailConfigType } from '../data-destination-types/ee/email/schemas/email-config.schema';
 import { ReportCondition } from '../data-destination-types/enums/report-condition.enum';
 import {
@@ -62,6 +63,7 @@ import {
   McpReportsFacade,
   McpRunReportRequest,
   McpRunReportResponse,
+  McpUpdateReportMessage,
   McpUpdateReportRequest,
   McpUpdateReportResult,
 } from './mcp-reports.facade';
@@ -142,8 +144,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   async updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult> {
     // The facade is a public interface, so the "at least one change" invariant
     // is enforced here as well, not only by the tool-layer input schema.
-    if (request.fields === undefined && request.name === undefined) {
-      throw new BadRequestException('Nothing to update: provide fields and/or name');
+    if (
+      request.fields === undefined &&
+      request.name === undefined &&
+      request.message === undefined
+    ) {
+      throw new BadRequestException('Nothing to update: provide fields, name, and/or message');
     }
 
     // UpdateReportCommand carries the FULL report state and the service
@@ -154,6 +160,15 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       new GetReportCommand(request.reportId, request.projectId, request.userId, request.roles)
     );
 
+    const destinationConfig =
+      request.message !== undefined
+        ? this.mergeMessageIntoConfig(
+            current.dataDestinationAccess.type,
+            current.destinationConfig,
+            request.message
+          )
+        : current.destinationConfig;
+
     await this.updateReportService.run(
       new UpdateReportCommand(
         request.reportId,
@@ -162,7 +177,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         request.roles,
         request.name ?? current.title,
         current.dataDestinationAccess.id,
-        current.destinationConfig,
+        destinationConfig,
         undefined,
         request.fields !== undefined
           ? this.toColumnConfig(request.fields)
@@ -177,6 +192,52 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     );
 
     return { report_id: request.reportId, status: 'updated' };
+  }
+
+  /**
+   * Merges a partial message change into the report's current destination
+   * config. Only email-family reports carry a message; for anything else the
+   * parameter is rejected with the report's real destination type named.
+   */
+  private mergeMessageIntoConfig(
+    destinationType: DataDestinationType,
+    current: DataDestinationConfig,
+    message: McpUpdateReportMessage
+  ): DataDestinationConfig {
+    if (!isEmailBasedDataDestinationType(destinationType) || !isEmailConfig(current)) {
+      throw new BadRequestException(
+        'The message parameter applies only to email, slack, teams, and google_chat ' +
+          `reports; this report's destination is ${toHumanReadable(destinationType)}`
+      );
+    }
+
+    const subject = message.subject?.trim();
+    const body = message.body?.trim();
+
+    if (!body) {
+      if (!subject) {
+        throw new BadRequestException(
+          'Nothing to update in message: provide message.subject and/or message.body'
+        );
+      }
+      // Subject-only change: keep the rest of the stored config exactly as-is
+      // (whatever template source — or legacy shape — it has).
+      return { ...current, subject };
+    }
+
+    // A new body always means a CUSTOM_MESSAGE source (replacing an insight
+    // template if one was set). Rebuild the config from scratch: stored
+    // configs may still be in the legacy messageTemplate shape, and carrying
+    // legacy remnants forward alongside templateSource would be invalid.
+    return {
+      type: EmailConfigType,
+      subject: subject || current.subject,
+      templateSource: {
+        type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+        config: { messageTemplate: body },
+      },
+      reportCondition: current.reportCondition,
+    };
   }
 
   async addReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
@@ -228,7 +289,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    * always the defaults.
    */
   private async addLookerStudioReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
-    return this.createReportWithConfig(request, {
+    return this.createReportWithConfig(request, DataDestinationType.LOOKER_STUDIO, {
       type: LookerStudioConnectorConfigType,
       cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
     });
@@ -255,7 +316,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       );
     }
 
-    return this.createReportWithConfig(request, {
+    return this.createReportWithConfig(request, destinationType, {
       type: EmailConfigType,
       subject: request.message?.subject?.trim() || request.name,
       templateSource: {
@@ -275,6 +336,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    */
   private async createReportWithConfig(
     request: McpAddReportRequest,
+    destinationType: DataDestinationType,
     destinationConfig: DataDestinationConfig
   ): Promise<McpAddReportResult> {
     const report = await this.createReportService.run(
@@ -293,6 +355,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
     return {
       report_id: report.id,
+      destination_type: toMcpDestinationType(destinationType),
       owner: report.createdByUser?.email ?? null,
       status: 'created',
     };
@@ -340,6 +403,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
     return {
       report_id: report.id,
+      destination_type: toMcpDestinationType(DataDestinationType.GOOGLE_SHEETS),
       owner: report.createdByUser?.email ?? null,
       status: 'created',
       sheet_url: buildGoogleSheetUrl(sheet.spreadsheetId, sheet.sheetId),

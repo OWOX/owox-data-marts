@@ -31,6 +31,7 @@ describe('AddReportTool', () => {
     const facade = {
       addReport: jest.fn().mockResolvedValue({
         report_id: 'report-1',
+        destination_type: 'google_sheets',
         owner: 'ann@owox.com',
         status: 'created',
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
@@ -40,6 +41,7 @@ describe('AddReportTool', () => {
 
     const structuredContent = {
       report_id: 'report-1',
+      destination_type: 'google_sheets',
       report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       owner: 'ann@owox.com',
@@ -67,30 +69,56 @@ describe('AddReportTool', () => {
     });
   });
 
-  it('creates a Looker Studio report without any sheet fields', async () => {
+  it('creates a Looker Studio report with connection guidance instead of sheet fields', async () => {
     const facade = {
       addReport: jest.fn().mockResolvedValue({
         report_id: 'report-2',
+        destination_type: 'looker_studio',
         owner: 'ann@owox.com',
         status: 'created',
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new AddReportTool(facade, publicOrigin);
 
-    const structuredContent = {
+    const result = await tool.handler(input, context);
+
+    expect(result.structuredContent).toMatchObject({
       report_id: 'report-2',
+      destination_type: 'looker_studio',
       report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
       owner: 'ann@owox.com',
       status: 'created',
-    };
-
-    const result = await tool.handler(input, context);
-
-    expect(result.structuredContent).toEqual(structuredContent);
+      setup_guide_url:
+        'https://docs.owox.com/docs/destinations/supported-destinations/data-studio/',
+    });
+    // The user must finish the connection themselves — the secret never goes
+    // through MCP — so the agent gets explicit instructions to relay.
+    expect(result.structuredContent).toHaveProperty('instructions');
+    expect((result.structuredContent as { instructions: string }).instructions).toContain(
+      'JSON Config'
+    );
     expect(result.structuredContent).not.toHaveProperty('sheet_url');
     expect(result.structuredContent).not.toHaveProperty('placed_in_root');
     expect(result.structuredContent).not.toHaveProperty('shared_with_requester');
     expect((result.content[0] as { text: string }).text).not.toContain('sheet_url');
+  });
+
+  it('adds no connection guidance for non-Looker destinations', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-4',
+        destination_type: 'slack',
+        owner: 'ann@owox.com',
+        status: 'created',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler({ ...input, message: { body: '{{table}}' } }, context);
+
+    expect(result.structuredContent).toMatchObject({ destination_type: 'slack' });
+    expect(result.structuredContent).not.toHaveProperty('instructions');
+    expect(result.structuredContent).not.toHaveProperty('setup_guide_url');
   });
 
   it('surfaces sheet placement and sharing warnings when present', async () => {

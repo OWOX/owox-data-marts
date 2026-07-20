@@ -76,6 +76,8 @@ export interface McpAddReportRequest {
 
 export interface McpAddReportResult {
   report_id: string;
+  /** Type of the report's destination — lets the tool layer add per-type guidance. */
+  destination_type: McpDestinationType;
   owner: string | null;
   status: 'created';
   /** Link to the auto-created Google Sheet. Google Sheets destinations only. */
@@ -86,12 +88,29 @@ export interface McpAddReportResult {
   shared_with_requester?: boolean;
 }
 
+/**
+ * Partial message changes for an email-family report. At least one field must
+ * be provided when the group itself is present.
+ */
+export interface McpUpdateReportMessage {
+  /** New message subject / heading. Omit to keep the current one. */
+  subject?: string;
+  /**
+   * New message body template; supports the `{{table}}` placeholder. Setting
+   * it switches the report to a CUSTOM_MESSAGE template source, replacing an
+   * insight template if one was configured. Omit to keep the current source.
+   */
+  body?: string;
+}
+
 export interface McpUpdateReportRequest {
   reportId: string;
   /** Replacement column selection; `['*']` (or containing `'*'`) selects every field. Omit to keep the current selection. */
   fields?: string[];
   /** New report name. Omit to keep the current name. */
   name?: string;
+  /** Message changes — only valid when the report's destination is email-family. */
+  message?: McpUpdateReportMessage;
   projectId: string;
   userId: string;
   roles: string[];
@@ -167,12 +186,14 @@ export interface McpReportsFacade {
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**
-   * Partially updates a report (name and/or column selection). The domain
-   * update command requires the full report state, so the facade loads the
-   * current report and merges the requested changes into it; everything else
-   * (destination, filters, sorting, owners, …) is preserved as-is.
-   * At least one of `fields`/`name` must be provided — a call with neither is
-   * rejected by the implementation, independent of the tool-layer validation.
+   * Partially updates a report (name, column selection, and/or — for
+   * email-family reports — the message subject/body). The domain update
+   * command requires the full report state, so the facade loads the current
+   * report and merges the requested changes into it; everything else
+   * (destination, filters, sorting, owners, send condition, …) is preserved
+   * as-is. At least one change must be provided — a call with nothing to
+   * change is rejected by the implementation, independent of the tool-layer
+   * validation. `message` is rejected for non-email-family reports.
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
   /**

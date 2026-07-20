@@ -478,6 +478,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
     );
     expect(result).toEqual({
       report_id: 'report-1',
+      destination_type: 'google_sheets',
       owner: 'ann@owox.com',
       status: 'created',
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
@@ -629,6 +630,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
     expect(outputControlsValidator.validateForReport).not.toHaveBeenCalled();
     expect(result).toEqual({
       report_id: 'report-1',
+      destination_type: 'looker_studio',
       owner: 'ann@owox.com',
       status: 'created',
     });
@@ -701,6 +703,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
     expect(outputControlsValidator.validateForReport).not.toHaveBeenCalled();
     expect(result).toEqual({
       report_id: 'report-4',
+      destination_type: 'slack',
       owner: 'ann@owox.com',
       status: 'created',
     });
@@ -878,7 +881,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     const { facade, getReportService, updateReportService } = buildUpdateFacade();
 
     await expect(facade.updateReport(updateRequest)).rejects.toThrow(
-      'Nothing to update: provide fields and/or name'
+      'Nothing to update: provide fields, name, and/or message'
     );
     expect(getReportService.run).not.toHaveBeenCalled();
     expect(updateReportService.run).not.toHaveBeenCalled();
@@ -925,6 +928,123 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     await expect(facade.updateReport({ ...updateRequest, name: 'New name' })).rejects.toThrow(
       'not found'
     );
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  const currentEmailReport = {
+    ...currentReport,
+    dataDestinationAccess: { id: 'dest-2', type: DataDestinationType.SLACK },
+    destinationConfig: {
+      type: 'email-config',
+      subject: 'Old subject',
+      templateSource: {
+        type: 'CUSTOM_MESSAGE',
+        config: { messageTemplate: 'Old body {{table}}' },
+      },
+      reportCondition: 'RESULT_IS_NOT_EMPTY',
+    },
+  } as unknown as ReportDto;
+
+  function buildEmailUpdateFacade() {
+    const built = buildUpdateFacade();
+    built.getReportService.run.mockResolvedValue(currentEmailReport);
+    return built;
+  }
+
+  it('updates the message subject and body while preserving the send condition', async () => {
+    const { facade, updateReportService } = buildEmailUpdateFacade();
+
+    await facade.updateReport({
+      ...updateRequest,
+      message: { subject: 'New subject', body: 'New body' },
+    });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Old name',
+        dataDestinationId: 'dest-2',
+        destinationConfig: {
+          type: 'email-config',
+          subject: 'New subject',
+          templateSource: {
+            type: 'CUSTOM_MESSAGE',
+            config: { messageTemplate: 'New body' },
+          },
+          reportCondition: 'RESULT_IS_NOT_EMPTY',
+        },
+      })
+    );
+  });
+
+  it('changes only the subject, keeping the current template source untouched', async () => {
+    const { facade, getReportService, updateReportService } = buildEmailUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentEmailReport,
+      destinationConfig: {
+        type: 'email-config',
+        subject: 'Old subject',
+        templateSource: {
+          type: 'INSIGHT_TEMPLATE',
+          config: { insightTemplateId: 'tpl-1' },
+        },
+        reportCondition: 'ALWAYS',
+      },
+    } as unknown as ReportDto);
+
+    await facade.updateReport({ ...updateRequest, message: { subject: 'New subject' } });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: {
+          type: 'email-config',
+          subject: 'New subject',
+          templateSource: {
+            type: 'INSIGHT_TEMPLATE',
+            config: { insightTemplateId: 'tpl-1' },
+          },
+          reportCondition: 'ALWAYS',
+        },
+      })
+    );
+  });
+
+  it('changes only the body, keeping the current subject and switching to a custom message', async () => {
+    const { facade, updateReportService } = buildEmailUpdateFacade();
+
+    await facade.updateReport({ ...updateRequest, message: { body: 'Only new body' } });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: expect.objectContaining({
+          subject: 'Old subject',
+          templateSource: {
+            type: 'CUSTOM_MESSAGE',
+            config: { messageTemplate: 'Only new body' },
+          },
+        }),
+      })
+    );
+  });
+
+  it('rejects message changes for reports whose destination has no message', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      dataDestinationAccess: { id: 'dest-1', type: DataDestinationType.GOOGLE_SHEETS },
+    } as unknown as ReportDto);
+
+    await expect(
+      facade.updateReport({ ...updateRequest, message: { subject: 'New subject' } })
+    ).rejects.toThrow("this report's destination is Google Sheets");
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a message group with nothing meaningful inside', async () => {
+    const { facade, updateReportService } = buildEmailUpdateFacade();
+
+    await expect(
+      facade.updateReport({ ...updateRequest, message: { subject: '   ' } })
+    ).rejects.toThrow('Nothing to update in message');
     expect(updateReportService.run).not.toHaveBeenCalled();
   });
 });
