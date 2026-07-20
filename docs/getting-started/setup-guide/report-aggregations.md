@@ -130,6 +130,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - A date bucket's time zone affects only the bucketing. Date **filters** on the same field are evaluated in the warehouse's session time zone, so rows near midnight can land on different sides of a bucket boundary than of a filter boundary. Keep this in mind when combining a non-session time-zone bucket with a date filter on the same field.
 - Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, and Databricks, so the same percentile can differ slightly between storages.
 - For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).
+- **Totals over joined fields are approximate**, because they re-aggregate the per-join roll-up rather than raw rows: `AVG`/percentiles are unweighted (an average of per-join averages), and a `Count Unique` over a joined **text** field counts distinct rolled-up values (by default a concatenation of the joined rows), not distinct raw values. Totals over the Data Mart's own (native) fields are exact.
 
 ## Related Links
 

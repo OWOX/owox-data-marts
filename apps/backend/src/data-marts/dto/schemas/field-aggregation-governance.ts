@@ -8,6 +8,17 @@ export interface FieldGovernance {
   allowedAggregations: ReportAggregateFunction[];
 }
 
+/**
+ * Aggregation functions that do NOT reduce to a meaningful single grand total: `ANY_VALUE`
+ * returns one arbitrary row's value and `STRING_AGG` concatenates the whole column. Totals
+ * summaries omit them. The same pair is mapped to a DIMENSION by the Looker Studio aggregation
+ * mapper for the same reason — keep the two lists aligned when adding a new non-summarizable fn.
+ */
+export const NON_SUMMARIZABLE_AGGREGATIONS: ReadonlySet<ReportAggregateFunction> = new Set([
+  'ANY_VALUE',
+  'STRING_AGG',
+]);
+
 interface CategoryDefault {
   role: AggregationRole;
   allowedAggregations: ReportAggregateFunction[];
