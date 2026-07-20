@@ -6,7 +6,6 @@
  */
 
 var GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES = 127;
-var GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS = 256;
 var GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
 var GOOGLE_SHEETS_MAX_IMPORT_ROWS = 100000;
 var GOOGLE_SHEETS_MAX_IMPORT_COLUMNS = 1598;
@@ -197,14 +196,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
             'Import every current sheet column, including columns added after setup. Disable to use the explicit Fields selection.',
           attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
         },
-        SelectedColumns: {
-          requiredType: 'string',
-          default: '',
-          label: 'Selected Columns',
-          description:
-            'Persisted user column selection. Missing columns are removed after a successful refresh.',
-          attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
-        },
         Fields: {
           requiredType: 'string',
           default: 'sheet _owox_row_number',
@@ -255,7 +246,11 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         });
       }
 
-      const grantedScopes = new Set(String(data.scope || '').split(/\s+/).filter(Boolean));
+      const grantedScopes = new Set(
+        String(data.scope || '')
+          .split(/\s+/)
+          .filter(Boolean)
+      );
       const missingScopes = GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES.filter(
         scope => !grantedScopes.has(scope)
       );
@@ -267,19 +262,28 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         });
       }
 
-      let userData = { id: 'unknown', name: null };
+      let userInfo;
       try {
         const userResponse = await HttpUtils.fetch(
           'https://www.googleapis.com/oauth2/v2/userinfo',
           { headers: { Authorization: `Bearer ${data.access_token}` } }
         );
-        const userInfo = await userResponse.getAsJson();
-        if (userInfo.id) {
-          userData = { id: userInfo.id, name: userInfo.email };
-        }
-      } catch (_) {
-        // User info is only display metadata; the Sheets token is enough to run.
+        userInfo = await userResponse.getAsJson();
+      } catch (error) {
+        throw new OauthFlowException({
+          message: 'Could not verify the Google account connected to Google Sheets',
+          payload: error.message,
+        });
       }
+
+      if (typeof userInfo.email !== 'string' || !userInfo.email.includes('@')) {
+        throw new OauthFlowException({
+          message: 'Google did not return the email address required by Google Picker',
+          payload: userInfo,
+        });
+      }
+
+      const userData = { id: userInfo.id || userInfo.email, name: userInfo.email };
 
       return OauthCredentialsDto.builder()
         .withUser(userData)
@@ -303,7 +307,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     }
   }
 
-  async getAccessToken({ forceRefresh = false, signal } = {}) {
+  async getAccessToken({ forceRefresh = false } = {}) {
     if (
       !forceRefresh &&
       this.accessToken &&
@@ -334,7 +338,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           client_secret: authConfig.ClientSecret.value,
           refresh_token: authConfig.RefreshToken.value,
         },
-        signal,
       });
     } else if (authType === 'service_account') {
       this.accessToken = await OAuthUtils.getServiceAccountToken({
@@ -342,7 +345,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         tokenUrl: 'https://oauth2.googleapis.com/token',
         serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
-        signal,
       });
     } else {
       throw new Error(`Unsupported Google Sheets authentication type: ${authType}`);
@@ -368,10 +370,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     });
     const schema = this._inferSchema(columns, rows, { includeImportedAt: true });
 
-    return this._buildFieldsSchema(schema, {
-      includeTechnicalFields: true,
-      includeTechnicalFieldsInDefaultFields: true,
-    });
+    return this._buildFieldsSchema(schema);
   }
 
   async _fetchSheetValues({ preview = false, signal } = {}) {
@@ -387,7 +386,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         signal?.throwIfAborted();
         const accessToken = await this.getAccessToken({
           forceRefresh: authorizationAttempt > 0,
-          signal,
         });
         const response = await this._fetchSheetResponse(url, accessToken, signal);
         const payload = await response.getAsJson();
@@ -442,9 +440,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
         const retryAfterMs = this._getRetryAfterMs(response);
         const delay = retryAfterMs ?? this.calculateBackoff(attempt);
-        this.config.logMessage(
-          `Retrying Google Sheets request after ${Math.round(delay / 1000)}s`
-        );
+        this.config.logMessage(`Retrying Google Sheets request after ${Math.round(delay / 1000)}s`);
         await this._delayWithAbort(delay, signal);
       }
     }
@@ -639,26 +635,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     this.fieldsSchema = this._buildFieldsSchema(fields);
   }
 
-  _buildFieldsSchema(fields, options = {}) {
-    const includeTechnicalFields = options.includeTechnicalFields !== false;
-    const includeTechnicalFieldsInDefaultFields =
-      options.includeTechnicalFieldsInDefaultFields !== false;
-    const includeUniqueKeys = options.includeUniqueKeys !== false;
-    const visibleFields = includeTechnicalFields
-      ? fields
-      : Object.fromEntries(
-          Object.entries(fields).filter(([fieldName]) => !this._isTechnicalField(fieldName))
-        );
-    const defaultFields = Object.keys(visibleFields).filter(fieldName => {
-      return includeTechnicalFieldsInDefaultFields || !this._isTechnicalField(fieldName);
-    });
-
+  _buildFieldsSchema(fields) {
     return {
       sheet: {
         ...this._buildPlaceholderFieldsSchema().sheet,
-        fields: visibleFields,
-        uniqueKeys: includeUniqueKeys ? ['_owox_row_number'] : [],
-        defaultFields,
+        fields,
+        uniqueKeys: ['_owox_row_number'],
+        defaultFields: Object.keys(fields),
       },
     };
   }
@@ -704,8 +687,8 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     const startColumn = bounds.startColumn || 1;
     const endColumn = Math.min(
-      bounds.endColumn || startColumn + GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS - 1,
-      startColumn + GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS - 1
+      bounds.endColumn || startColumn + GOOGLE_SHEETS_MAX_IMPORT_COLUMNS - 1,
+      startColumn + GOOGLE_SHEETS_MAX_IMPORT_COLUMNS - 1
     );
     const endRow = Math.min(
       bounds.endRow || headerRow + GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS,
@@ -920,15 +903,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getSelectedSheetFieldNames() {
-    const selectedColumnsValue = this.config.SelectedColumns?.value;
-    if (selectedColumnsValue) {
-      return String(selectedColumnsValue)
-        .split(',')
-        .map(field => field.trim())
-        .filter(Boolean)
-        .filter(fieldName => !this._isTechnicalField(fieldName));
-    }
-
     const fieldsValue = this.config.Fields?.value;
     if (!fieldsValue) {
       return [];
@@ -954,10 +928,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getColumnAliasMatchKeys(column) {
-    return [
-      column.originalName,
-      this._normalizeColumnName(column.originalName || ''),
-    ]
+    return [column.originalName, this._normalizeColumnName(column.originalName || '')]
       .filter(Boolean)
       .map(value => this._normalizeMatchValue(value));
   }
@@ -1075,14 +1046,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getConfiguredFieldNames() {
-    const selectedColumnsValue = this.config.SelectedColumns?.value;
-    if (selectedColumnsValue) {
-      return String(selectedColumnsValue)
-        .split(',')
-        .map(field => field.trim())
-        .filter(Boolean);
-    }
-
     const fieldsValue = this.config.Fields?.value;
     if (!fieldsValue) {
       return [];

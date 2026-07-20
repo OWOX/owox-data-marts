@@ -2,27 +2,24 @@ import { useCallback } from 'react';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const USERINFO_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
-const PICKER_SCOPES = `${DRIVE_FILE_SCOPE} ${USERINFO_EMAIL_SCOPE}`;
+const GOOGLE_SHEETS_PICKER_SCOPES = `${DRIVE_FILE_SCOPE} ${USERINFO_EMAIL_SCOPE}`;
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const GAPI_SRC = 'https://apis.google.com/js/api.js';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_SHEETS_MIME_TYPE = 'application/vnd.google-apps.spreadsheet';
 
-export type GoogleDrivePickerSelection = 'folder' | 'spreadsheet';
-
-export interface PickedGoogleDriveItem {
+export interface PickedGoogleSpreadsheet {
   id: string;
   name: string;
   url: string;
 }
 
-export interface OpenGoogleDrivePickerOptions {
+export interface OpenGoogleSheetsPickerOptions {
   apiKey: string;
-  appId?: string;
+  appId: string;
   clientId: string;
-  selection: GoogleDrivePickerSelection;
   hintEmail?: string;
-  onPicked: (item: PickedGoogleDriveItem) => void;
+  onPicked: (spreadsheet: PickedGoogleSpreadsheet) => void;
   onError?: (message: string) => void;
 }
 
@@ -38,8 +35,6 @@ interface PickerResponse {
 }
 
 interface DocsViewLike {
-  setSelectFolderEnabled(enabled: boolean): DocsViewLike;
-  setIncludeFolders(include: boolean): DocsViewLike;
   setMimeTypes(mimeTypes: string): DocsViewLike;
   setMode(mode: unknown): DocsViewLike;
 }
@@ -57,7 +52,7 @@ interface PickerBuilderLike {
 interface GooglePicker {
   PickerBuilder: new () => PickerBuilderLike;
   DocsView: new (viewId?: unknown) => DocsViewLike;
-  ViewId: { FOLDERS: unknown; SPREADSHEETS: unknown };
+  ViewId: { SPREADSHEETS: unknown };
   DocsViewMode: { LIST: unknown };
   Action: { PICKED: string; CANCEL: string };
   Feature: { SUPPORT_DRIVES: unknown };
@@ -71,6 +66,18 @@ interface TokenResponse {
   access_token?: string;
   error?: string;
   scope?: string;
+}
+
+export function validateGoogleSheetsPickerScopes(scope?: string): void {
+  const grantedScopes = new Set((scope ?? '').split(/\s+/).filter(Boolean));
+  const missingScopes = [DRIVE_FILE_SCOPE, USERINFO_EMAIL_SCOPE].filter(
+    requiredScope => !grantedScopes.has(requiredScope)
+  );
+  if (missingScopes.length > 0) {
+    throw new Error(
+      'Google Sheets access was not fully granted. Reconnect and allow file and email access.'
+    );
+  }
 }
 
 interface GoogleAccountsOauth2 {
@@ -151,17 +158,14 @@ function requestAccessToken(clientId: string, hintEmail?: string): Promise<strin
 
         const client = oauth2.initTokenClient({
           client_id: clientId,
-          scope: PICKER_SCOPES,
+          scope: GOOGLE_SHEETS_PICKER_SCOPES,
           hint: hintEmail,
           callback: response => {
             if (response.access_token) {
-              const grantedScopes = new Set((response.scope ?? '').split(/\s+/).filter(Boolean));
-              if (!grantedScopes.has(DRIVE_FILE_SCOPE)) {
-                reject(
-                  new Error(
-                    'Google Drive file access was not granted. Reconnect and allow the requested permission.'
-                  )
-                );
+              try {
+                validateGoogleSheetsPickerScopes(response.scope);
+              } catch (error) {
+                reject(error instanceof Error ? error : new Error(String(error)));
                 return;
               }
               resolve(response.access_token);
@@ -183,7 +187,7 @@ export async function verifyGooglePickerAccount(
   expectedEmail?: string
 ): Promise<void> {
   if (!expectedEmail?.includes('@')) {
-    return;
+    throw new Error('Reconnect Google Sheets before choosing a spreadsheet');
   }
 
   const response = await fetch(GOOGLE_USERINFO_URL, {
@@ -199,33 +203,22 @@ export async function verifyGooglePickerAccount(
   }
 }
 
-function buildPickerView(picker: GooglePicker, selection: GoogleDrivePickerSelection) {
-  if (selection === 'folder') {
-    return new picker.DocsView(picker.ViewId.FOLDERS)
-      .setSelectFolderEnabled(true)
-      .setIncludeFolders(true)
-      .setMimeTypes('application/vnd.google-apps.folder');
-  }
-
+function buildPickerView(picker: GooglePicker) {
   return new picker.DocsView(picker.ViewId.SPREADSHEETS)
-    .setSelectFolderEnabled(false)
-    .setIncludeFolders(false)
     .setMimeTypes(GOOGLE_SHEETS_MIME_TYPE)
     .setMode(picker.DocsViewMode.LIST);
 }
 
-function buildItemUrl(doc: PickerDoc, selection: GoogleDrivePickerSelection): string {
+function buildItemUrl(doc: PickerDoc): string {
   if (doc.url) {
     return doc.url;
   }
-  return selection === 'folder'
-    ? `https://drive.google.com/drive/folders/${doc.id}`
-    : `https://docs.google.com/spreadsheets/d/${doc.id}/edit`;
+  return `https://docs.google.com/spreadsheets/d/${doc.id}/edit`;
 }
 
-export function useGoogleDrivePicker() {
-  const openPicker = useCallback(async (options: OpenGoogleDrivePickerOptions): Promise<void> => {
-    const { apiKey, appId, clientId, selection, hintEmail, onPicked, onError } = options;
+export function useGoogleSheetsPicker() {
+  const openPicker = useCallback(async (options: OpenGoogleSheetsPickerOptions): Promise<void> => {
+    const { apiKey, appId, clientId, hintEmail, onPicked, onError } = options;
 
     try {
       await loadPicker();
@@ -237,10 +230,11 @@ export function useGoogleDrivePicker() {
       }
 
       await new Promise<void>(resolve => {
-        let builder = new picker.PickerBuilder()
+        const builder = new picker.PickerBuilder()
           .setOAuthToken(token)
           .setDeveloperKey(apiKey)
-          .addView(buildPickerView(picker, selection))
+          .setAppId(appId)
+          .addView(buildPickerView(picker))
           .enableFeature(picker.Feature.SUPPORT_DRIVES)
           .setCallback(response => {
             if (response.action === picker.Action.PICKED) {
@@ -249,7 +243,7 @@ export function useGoogleDrivePicker() {
                 onPicked({
                   id: doc.id,
                   name: doc.name,
-                  url: buildItemUrl(doc, selection),
+                  url: buildItemUrl(doc),
                 });
               }
               resolve();
@@ -258,14 +252,10 @@ export function useGoogleDrivePicker() {
             }
           });
 
-        if (appId) {
-          builder = builder.setAppId(appId);
-        }
-
         builder.build().setVisible(true);
       });
     } catch (error) {
-      onError?.(error instanceof Error ? error.message : 'Failed to open Google Picker');
+      onError?.(error instanceof Error ? error.message : 'Failed to open the Google Sheets picker');
     }
   }, []);
 

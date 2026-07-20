@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import test from 'node:test';
 import vm from 'node:vm';
+import { test } from 'vitest';
 
 const DATA_TYPES = {
   STRING: 'STRING',
@@ -107,7 +107,6 @@ function createSource({
   range = '',
   importAllColumns = true,
   fields = 'sheet _owox_row_number',
-  selectedColumns = '',
   inferTypes = true,
 } = {}) {
   const logs = [];
@@ -119,7 +118,6 @@ function createSource({
     SpreadsheetId: { value: 'spreadsheet-id' },
     ImportAllColumns: { value: importAllColumns },
     Fields: { value: fields },
-    SelectedColumns: { value: selectedColumns },
     InferTypes: { value: inferTypes },
     MaxFetchRetries: { value: 3 },
     InitialRetryDelay: { value: 1 },
@@ -183,6 +181,72 @@ test('rejects OAuth authorization when required Google Sheets permissions were n
   }
 });
 
+test('stores the verified Google account used by Google Picker', async () => {
+  const originalFetch = HttpUtils.fetch;
+  const responses = [
+    {
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope:
+        'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
+    },
+    { id: 'google-user-1', email: 'analyst@example.com' },
+  ];
+  HttpUtils.fetch = async () => ({ getAsJson: async () => responses.shift() });
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  try {
+    const credentials = await source.exchangeOauthCredentials(
+      { code: 'authorization-code' },
+      {
+        ClientId: 'client-id',
+        ClientSecret: 'client-secret',
+        RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+      }
+    );
+
+    assert.deepEqual(plain(credentials.user), {
+      id: 'google-user-1',
+      name: 'analyst@example.com',
+    });
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
+});
+
+test('rejects OAuth authorization when Google does not return an email address', async () => {
+  const originalFetch = HttpUtils.fetch;
+  const responses = [
+    {
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope:
+        'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
+    },
+    { id: 'google-user-1' },
+  ];
+  HttpUtils.fetch = async () => ({ getAsJson: async () => responses.shift() });
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  try {
+    await assert.rejects(
+      source.exchangeOauthCredentials(
+        { code: 'authorization-code' },
+        {
+          ClientId: 'client-id',
+          ClientSecret: 'client-secret',
+          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        }
+      ),
+      /email address required by Google Picker/
+    );
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
+});
+
 test('maps an absolute header row into an offset range and preserves absolute row numbers', () => {
   const source = createSource({ headerRow: 6, range: 'B5:C' });
   const snapshot = source._buildSheetSnapshot(
@@ -205,10 +269,10 @@ test('maps an absolute header row into an offset range and preserves absolute ro
   assert.equal(source._buildA1Range({ preview: true }), "'Data'!B6:C106");
 });
 
-test('bounds an unconfigured preview to 256 columns and 100 sample rows', () => {
+test('previews every supported import column and at most 100 sample rows', () => {
   const source = createSource({ headerRow: 4 });
 
-  assert.equal(source._buildA1Range({ preview: true }), "'Data'!A4:IV104");
+  assert.equal(source._buildA1Range({ preview: true }), "'Data'!A4:BIL104");
   assert.equal(source._buildA1Range(), "'Data'!A1:ZZZ100005");
   assert.deepEqual(plain(source._parseA1GridRange('$B$5:$D$20')), {
     startColumn: 2,
@@ -372,37 +436,10 @@ test('all-columns mode picks up additions while subset mode drops missing select
   assert.match(subsetSource.logs[0], /removed/);
 });
 
-test('subset mode reads persisted selections independently from runtime Fields', () => {
-  const source = createSource({
-    importAllColumns: false,
-    fields: 'sheet _owox_row_number, sheet existing',
-    selectedColumns: '_owox_row_number,existing,temporarily_missing',
-  });
-
-  const missingSnapshot = source._buildSheetSnapshot([['Existing'], ['old']], true);
-  assert.deepEqual(
-    Array.from(missingSnapshot.columns, column => column.name),
-    ['existing']
-  );
-
-  const returnedSnapshot = source._buildSheetSnapshot(
-    [
-      ['Existing', 'Temporarily Missing'],
-      ['old', 'back'],
-    ],
-    true
-  );
-  assert.deepEqual(
-    Array.from(returnedSnapshot.columns, column => column.name),
-    ['existing', 'temporarily_missing']
-  );
-});
-
-test('uses the persisted selected-columns subset and never writes unselected sheet columns', () => {
+test('uses the selected fields subset and never writes unselected sheet columns', () => {
   const source = createSource({
     importAllColumns: 'false',
-    fields: 'sheet _owox_row_number',
-    selectedColumns: '_owox_row_number,campaign,spend',
+    fields: 'sheet _owox_row_number, sheet campaign, sheet spend',
   });
 
   const snapshot = source._buildSheetSnapshot(
@@ -425,7 +462,7 @@ test('uses the persisted selected-columns subset and never writes unselected she
 test('does not map a missing generated column name to a newly named column at the same position', () => {
   const source = createSource({
     importAllColumns: false,
-    selectedColumns: '_owox_row_number,product_keys,test1,column_5',
+    fields: 'sheet _owox_row_number, sheet product_keys, sheet test1, sheet column_5',
   });
 
   const snapshot = source._buildSheetSnapshot(
@@ -453,8 +490,7 @@ test('preview exposes both technical fields but imported-at remains optional at 
   const rows = sourceWithoutImportedAt._buildRows([['Ada']], columns, 2);
   const runtimeSchema = sourceWithoutImportedAt._inferSchema(columns, rows);
   const previewSchema = sourceWithoutImportedAt._buildFieldsSchema(
-    sourceWithoutImportedAt._inferSchema(columns, rows, { includeImportedAt: true }),
-    { includeTechnicalFieldsInDefaultFields: true }
+    sourceWithoutImportedAt._inferSchema(columns, rows, { includeImportedAt: true })
   );
 
   assert.equal(rows[0]._owox_imported_at, undefined);
@@ -515,8 +551,9 @@ test('connector always publishes empty snapshots and reports only the runtime sc
   const replacements = [];
   connector.config = {
     Fields: { value: 'sheet _owox_row_number, sheet _owox_imported_at, sheet name' },
+    ImportAllColumns: { value: false },
     updateFields(fields) {
-      updates.push(fields);
+      updates.push({ fields });
     },
     logMessage() {},
   };
@@ -525,6 +562,7 @@ test('connector always publishes empty snapshots and reports only the runtime sc
       sheet: {
         fields: {
           _owox_row_number: { type: DATA_TYPES.INTEGER },
+          _owox_imported_at: { type: DATA_TYPES.TIMESTAMP },
           name: { type: DATA_TYPES.STRING },
         },
       },
@@ -537,7 +575,14 @@ test('connector always publishes empty snapshots and reports only the runtime sc
 
   await connector.startImportProcess();
 
-  assert.deepEqual(plain(updates), [['_owox_row_number', 'name']]);
-  assert.equal(connector.config.Fields.value, 'sheet _owox_row_number, sheet name');
+  assert.deepEqual(plain(updates), [
+    {
+      fields: ['_owox_row_number', '_owox_imported_at', 'name'],
+    },
+  ]);
+  assert.equal(
+    connector.config.Fields.value,
+    'sheet _owox_row_number, sheet _owox_imported_at, sheet name'
+  );
   assert.deepEqual(replacements, [[]]);
 });

@@ -1,7 +1,8 @@
+import { SECRET_MASK } from '../../../../shared/constants/secrets';
+
 export const GOOGLE_SHEETS_CONNECTOR_NAME = 'GoogleSheets';
 
 export const GOOGLE_SHEETS_IMPORT_ALL_COLUMNS_FIELD = 'ImportAllColumns';
-export const GOOGLE_SHEETS_SELECTED_COLUMNS_FIELD = 'SelectedColumns';
 
 export const GOOGLE_SHEETS_SYSTEM_FIELD_NAMES = [
   '_owox_row_number',
@@ -56,13 +57,19 @@ export function resolveGoogleSheetsPreviewSelection(
   defaultFields: string[]
 ): string[] {
   const importAllColumns = isGoogleSheetsImportAllColumnsEnabled(configuration);
-  const configuredSelection = importAllColumns ? [] : getGoogleSheetsSelectedColumns(configuration);
-  const fieldsToPreserve = configuredSelection.length > 0 ? configuredSelection : currentFields;
+  const currentSystemFields = currentFields.filter(isGoogleSheetsSystemField);
+  const effectiveDefaultFields =
+    currentFields.length === 0
+      ? defaultFields
+      : [
+          ...defaultFields.filter(fieldName => !isGoogleSheetsSystemField(fieldName)),
+          ...currentSystemFields,
+        ];
 
   return reconcileGoogleSheetsPreviewSelection(
-    fieldsToPreserve,
+    currentFields,
     availableFields,
-    defaultFields,
+    effectiveDefaultFields,
     importAllColumns
   );
 }
@@ -72,16 +79,6 @@ export function isGoogleSheetsImportAllColumnsEnabled(
 ): boolean {
   const value = configuration[GOOGLE_SHEETS_IMPORT_ALL_COLUMNS_FIELD];
   return value !== false && value !== 0 && value !== 'false' && value !== '0';
-}
-
-export function getGoogleSheetsSelectedColumns(configuration: Record<string, unknown>): string[] {
-  const value = configuration[GOOGLE_SHEETS_SELECTED_COLUMNS_FIELD];
-  if (typeof value !== 'string') return [];
-
-  return value
-    .split(',')
-    .map(fieldName => fieldName.trim())
-    .filter(Boolean);
 }
 
 export function shouldImportAllGoogleSheetsColumns(
@@ -103,10 +100,7 @@ export function withGoogleSheetsImportAllColumns(
   availableFields: string[],
   previousSelectedFields: string[] = []
 ): Record<string, unknown> {
-  const configuredSelection = getGoogleSheetsSelectedColumns(configuration);
-  const previousSelection = configuredSelection.length
-    ? configuredSelection
-    : previousSelectedFields;
+  const previousSelection = previousSelectedFields;
   const availableFieldSet = new Set(availableFields);
   const previousAvailableUserFields = withoutGoogleSheetsSystemFields(previousSelection).filter(
     fieldName => availableFieldSet.has(fieldName)
@@ -118,17 +112,10 @@ export function withGoogleSheetsImportAllColumns(
   const importAllColumns = preserveSubsetMode
     ? false
     : shouldImportAllGoogleSheetsColumns(selectedFields, availableFields);
-  const unavailablePreviousFields = previousSelection.filter(
-    fieldName => !availableFieldSet.has(fieldName)
-  );
-  const selectedColumns = importAllColumns
-    ? selectedFields
-    : [...selectedFields, ...unavailablePreviousFields];
 
   return {
     ...configuration,
     [GOOGLE_SHEETS_IMPORT_ALL_COLUMNS_FIELD]: importAllColumns,
-    [GOOGLE_SHEETS_SELECTED_COLUMNS_FIELD]: selectedColumns.join(','),
   };
 }
 
@@ -177,4 +164,3 @@ export function hasValidGoogleSheetsServiceAccountConfiguration(
     (serviceAccount as Record<string, unknown>).ServiceAccountKey
   );
 }
-import { SECRET_MASK } from '../../../../shared/constants/secrets';

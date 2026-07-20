@@ -81,17 +81,6 @@ describe('Connector Fields (e2e)', () => {
   });
 
   describe('Dynamic fields preview', () => {
-    it('POST /api/connectors/OpenHolidays/fields/preview - returns 400 when unsupported', async () => {
-      const res = await agent
-        .post('/api/connectors/OpenHolidays/fields/preview')
-        .send({ configuration: {} })
-        .set(AUTH_HEADER);
-
-      expect(res.status).toBe(400);
-      expect(res.body.statusCode).toBe(400);
-      expect(res.body.message).toContain('does not support field preview');
-    });
-
     it('POST /api/connectors/GoogleSheets/fields/preview - validates config parameters', async () => {
       const res = await agent
         .post('/api/connectors/GoogleSheets/fields/preview')

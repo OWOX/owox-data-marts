@@ -66,7 +66,7 @@ function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQue
     const rowBytes = utf8ByteLength(buildSingleRowQuery(row));
     if (rowBytes > maxBytes) {
       throw new Error(
-        `A single Google Sheets row exceeds the Databricks statement size limit (${maxBytes} bytes)`
+        `A single snapshot row exceeds the Databricks statement size limit (${maxBytes} bytes)`
       );
     }
 
@@ -312,41 +312,6 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
   //---- createTableIfItDoesntExist ----------------------------------
     async createTableIfItDoesntExist() {
 
-      const { query, existingColumns, fullTableName } = this._buildCreateTableQuery("CREATE TABLE IF NOT EXISTS");
-
-      await this.executeQuery(query);
-
-      this.existingColumns = existingColumns;
-
-      this.config.logMessage(`Table created: ${fullTableName}`);
-
-      // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
-      await this.addPrimaryKeyConstraint(fullTableName);
-
-    }
-  //----------------------------------------------------------------
-
-  //---- replaceTable ------------------------------------------------
-    async replaceTable() {
-
-      const { query, existingColumns, fullTableName } = this._buildCreateTableQuery("CREATE OR REPLACE TABLE");
-
-      await this.executeQuery(query);
-
-      this.existingColumns = existingColumns;
-
-      this.config.logMessage(`Table replaced: ${fullTableName}`);
-
-      await this.addPrimaryKeyConstraint(fullTableName);
-
-      return existingColumns;
-
-    }
-  //----------------------------------------------------------------
-
-  //---- _buildCreateTableQuery --------------------------------------
-    _buildCreateTableQuery(createStatement) {
-
       let columns = [];
       let existingColumns = {};
 
@@ -383,9 +348,16 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
 
       const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
 
-      let query = `${createStatement} ${fullTableName} (${columns.join(', ')})`;
+      let createTableQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (${columns.join(', ')})`;
 
-      return { query, existingColumns, fullTableName };
+      await this.executeQuery(createTableQuery);
+
+      this.existingColumns = existingColumns;
+
+      this.config.logMessage(`Table created: ${fullTableName}`);
+
+      // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
+      await this.addPrimaryKeyConstraint(fullTableName);
 
     }
   //----------------------------------------------------------------
@@ -415,7 +387,8 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
         this.config.DestinationTableName.value = stagingTableName;
         this.existingColumns = {};
         this.updatedRecordsBuffer = {};
-        const stagedColumns = await this.replaceTable();
+        await this.createTableIfItDoesntExist();
+        const stagedColumns = this.existingColumns;
 
         if (data.length) {
           const batchSize = Math.max(1, Number(this.config.MaxBufferSize?.value) || 250);

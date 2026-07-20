@@ -4,7 +4,6 @@ import type { DataMart } from '../entities/data-mart.entity';
 import { DataSource, EntitySchema, type Repository } from 'typeorm';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { RoleScope } from '../enums/role-scope.enum';
-import { createConnectorSourceFingerprint } from './connector/connector-source-fingerprint';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -95,40 +94,6 @@ describe('DataMartService schema actualization', () => {
     warnSpy.mockRestore();
   });
 
-  it('does not overwrite fields when the connector configuration changed during a run', async () => {
-    const sourceAtRunStart = {
-      name: 'GoogleSheets',
-      node: 'sheet',
-      fields: ['old_field'],
-      configuration: [{ _id: 'config-1', SpreadsheetId: 'original-sheet' }],
-    };
-    repository.findOne.mockResolvedValue(
-      makeDataMart({
-        modifiedAt: new Date('2026-07-14T10:00:00.000Z'),
-        definition: {
-          connector: {
-            source: {
-              ...sourceAtRunStart,
-              configuration: [{ _id: 'config-1', SpreadsheetId: 'new-sheet' }],
-            },
-            storage: { fullyQualifiedName: 'dataset.table' },
-          },
-        },
-      })
-    );
-
-    const updated = await service.updateConnectorSourceFields(
-      'dm-1',
-      'proj-1',
-      ['discovered_field'],
-      0,
-      createConnectorSourceFingerprint(sourceAtRunStart)
-    );
-
-    expect(updated).toBe(false);
-    expect(repository.update).not.toHaveBeenCalled();
-  });
-
   it('reports a concurrent field edit when the conditional update loses the race', async () => {
     const sourceAtRunStart = {
       name: 'GoogleSheets',
@@ -137,26 +102,18 @@ describe('DataMartService schema actualization', () => {
       configuration: [{ _id: 'config-1', SpreadsheetId: 'sheet-1' }],
     };
     const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
-    repository.findOne.mockResolvedValue(
-      makeDataMart({
-        modifiedAt,
-        definition: {
-          connector: {
-            source: sourceAtRunStart,
-            storage: { fullyQualifiedName: 'dataset.table' },
-          },
+    const dataMart = makeDataMart({
+      modifiedAt,
+      definition: {
+        connector: {
+          source: sourceAtRunStart,
+          storage: { fullyQualifiedName: 'dataset.table' },
         },
-      })
-    );
+      },
+    });
     repository.update.mockResolvedValue({ affected: 0 });
 
-    const updated = await service.updateConnectorSourceFields(
-      'dm-1',
-      'proj-1',
-      ['discovered_field'],
-      0,
-      createConnectorSourceFingerprint(sourceAtRunStart)
-    );
+    const updated = await service.updateConnectorSourceFields(dataMart, ['discovered_field']);
 
     expect(updated).toBe(false);
     expect(repository.update).toHaveBeenCalledWith(
@@ -169,60 +126,24 @@ describe('DataMartService schema actualization', () => {
     );
   });
 
-  it('prunes missing Google Sheets selections after a successful subset refresh', async () => {
-    const sourceAtRunStart = {
-      name: 'GoogleSheets',
-      node: 'sheet',
-      fields: ['_owox_row_number', 'product_keys', 'test1'],
-      configuration: [
-        {
-          _id: 'config-1',
-          ImportAllColumns: false,
-          SelectedColumns: '_owox_row_number,product_keys,test1,column_5,rows_with_session',
-        },
-      ],
-    };
-    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
-    repository.findOne.mockResolvedValue(
-      makeDataMart({
-        modifiedAt,
-        definition: {
-          connector: {
-            source: sourceAtRunStart,
-            storage: { fullyQualifiedName: 'dataset.table' },
+  it('treats an already synchronized field list as successful without writing', async () => {
+    const fields = ['_owox_row_number', 'name'];
+    const dataMart = makeDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'GoogleSheets',
+            node: 'sheet',
+            fields,
+            configuration: [{ _id: 'config-1' }],
           },
+          storage: { fullyQualifiedName: 'dataset.table' },
         },
-      })
-    );
+      },
+    });
 
-    const updated = await service.updateConnectorSourceFields(
-      'dm-1',
-      'proj-1',
-      ['_owox_row_number', 'product_keys', 'test1'],
-      0,
-      createConnectorSourceFingerprint(sourceAtRunStart)
-    );
-
-    expect(updated).toBe(true);
-    expect(repository.update).toHaveBeenCalledWith(
-      { id: 'dm-1', projectId: 'proj-1', modifiedAt },
-      {
-        definition: {
-          connector: {
-            source: {
-              ...sourceAtRunStart,
-              configuration: [
-                {
-                  ...sourceAtRunStart.configuration[0],
-                  SelectedColumns: '_owox_row_number,product_keys,test1',
-                },
-              ],
-            },
-            storage: { fullyQualifiedName: 'dataset.table' },
-          },
-        },
-      }
-    );
+    await expect(service.updateConnectorSourceFields(dataMart, fields)).resolves.toBe(true);
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
@@ -271,7 +192,7 @@ describe('DataMartService schema actualization', () => {
     }
   });
 
-  it('does not rewrite the saved selection in all-columns mode', async () => {
+  it('updates fields without rewriting connector configuration', async () => {
     const sourceAtRunStart = {
       name: 'GoogleSheets',
       node: 'sheet',
@@ -280,30 +201,21 @@ describe('DataMartService schema actualization', () => {
         {
           _id: 'config-1',
           ImportAllColumns: true,
-          SelectedColumns: '_owox_row_number,old_field',
         },
       ],
     };
     const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
-    repository.findOne.mockResolvedValue(
-      makeDataMart({
-        modifiedAt,
-        definition: {
-          connector: {
-            source: sourceAtRunStart,
-            storage: { fullyQualifiedName: 'dataset.table' },
-          },
+    const dataMart = makeDataMart({
+      modifiedAt,
+      definition: {
+        connector: {
+          source: sourceAtRunStart,
+          storage: { fullyQualifiedName: 'dataset.table' },
         },
-      })
-    );
+      },
+    });
 
-    const updated = await service.updateConnectorSourceFields(
-      'dm-1',
-      'proj-1',
-      ['new_field'],
-      0,
-      createConnectorSourceFingerprint(sourceAtRunStart)
-    );
+    const updated = await service.updateConnectorSourceFields(dataMart, ['new_field']);
 
     expect(updated).toBe(true);
     expect(repository.update).toHaveBeenCalledWith(

@@ -11,12 +11,12 @@
 
 The connector treats row 1 as headers by default. `HeaderRow` is an absolute, one-based sheet row. If `Range` is `A5:D` and its first row contains headers, set `HeaderRow` to `5`. Blank header cells receive generated names such as `column_2`.
 
-By default, `ImportAllColumns` is `true`, so every refresh imports all current columns and automatically includes schema additions. The web configuration persists `ImportAllColumns: false` only when the user chooses an explicit subset; `SelectedColumns` retains that requested subset while runtime `Fields` tracks the latest materialized schema.
+By default, `ImportAllColumns` is `true`, so every refresh imports all current columns and automatically includes schema additions. The web configuration persists `ImportAllColumns: false` only when the user chooses an explicit subset; runtime `Fields` tracks the latest materialized schema.
 
 `_owox_row_number` is the mandatory unique key. `_owox_imported_at` is optional and can be selected or cleared like a regular field; all-columns mode does not force it back into the runtime schema.
 
-Field preview is limited to 256 columns and 100 sample data rows. The import itself reads the full configured range.
+Field preview includes all supported columns and up to 100 sample data rows. The import itself reads the full configured range.
 
-Text identifiers retain their text type and leading zeros. A sheet with headers but no data rows replaces the destination with a zero-row snapshot so the warehouse always reflects the current sheet.
+Text identifiers retain their text type and leading zeros. A sheet with headers but no data rows performs a zero-row full refresh so the warehouse always reflects the current sheet.
 
 Use OAuth for quick user setup. Use Service Account JSON for scheduled imports that should not depend on a personal Google account; share the spreadsheet with the service account email before running the refresh.

@@ -17,33 +17,33 @@ export function useRefreshDataMartAfterConnectorRun({
   runs,
   refreshDataMart,
 }: UseRefreshDataMartAfterConnectorRunOptions): void {
-  const lastRefreshedRunIdRef = useRef<string | null>(null);
+  const lastObservedSuccessfulRunIdRef = useRef<string | null>(null);
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
     if (runs.length === 0 || !isGoogleSheetsConnector || !dataMartId) {
       return;
     }
-    const latestRun = runs[0];
+    const latestSuccessfulRun = runs.find(
+      run => run.type === DataMartRunType.CONNECTOR && run.status === DataMartRunStatus.SUCCESS
+    );
 
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true;
-
-      if (!isManualRunTriggered) {
-        lastRefreshedRunIdRef.current = latestRun.id;
-        return;
+      if (latestSuccessfulRun && isManualRunTriggered && runs[0]?.id === latestSuccessfulRun.id) {
+        lastObservedSuccessfulRunIdRef.current = latestSuccessfulRun.id;
+        void refreshDataMart(dataMartId);
+      } else {
+        lastObservedSuccessfulRunIdRef.current = latestSuccessfulRun?.id ?? null;
       }
-    }
-
-    if (
-      latestRun.type !== DataMartRunType.CONNECTOR ||
-      latestRun.status !== DataMartRunStatus.SUCCESS ||
-      lastRefreshedRunIdRef.current === latestRun.id
-    ) {
       return;
     }
 
-    lastRefreshedRunIdRef.current = latestRun.id;
+    if (!latestSuccessfulRun || lastObservedSuccessfulRunIdRef.current === latestSuccessfulRun.id) {
+      return;
+    }
+
+    lastObservedSuccessfulRunIdRef.current = latestSuccessfulRun.id;
     void refreshDataMart(dataMartId);
   }, [dataMartId, isGoogleSheetsConnector, isManualRunTriggered, refreshDataMart, runs]);
 }

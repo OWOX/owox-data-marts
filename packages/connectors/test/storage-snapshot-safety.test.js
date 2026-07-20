@@ -1,8 +1,13 @@
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const test = require('node:test');
-const vm = require('node:vm');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+import { test } from 'vitest';
+
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function loadStorage(relativePath, className) {
   const context = vm.createContext({
@@ -88,6 +93,33 @@ test('BigQuery publication atomically copies staging over the live table', async
   );
 });
 
+test('BigQuery full refresh quotes dynamic sheet column names', async () => {
+  const storage = bigQueryStorage();
+  let createQuery;
+  storage.schema = { id: { type: 'INTEGER' }, select: { type: 'STRING' } };
+  storage.getSelectedFields = () => ['id', 'select'];
+  storage.getColumnType = column => storage.schema[column].type;
+  storage.executeQuery = async query => {
+    createQuery = query;
+    return [];
+  };
+
+  await storage.createTableIfItDoesntExist(true);
+
+  assert.match(createQuery, /`select` STRING/);
+  storage.quoteFieldIdentifiers = true;
+  storage.existingColumns = {
+    id: { name: 'id', type: 'INTEGER' },
+    select: { name: 'select', type: 'STRING' },
+  };
+  storage.stringifyNeastedFields = record => record;
+  storage.obfuscateSpecialCharacters = value => String(value);
+  storage.updatedRecordsBuffer = { row: { id: 1, select: 'value' } };
+  const mergeQuery = storage.buildMergeQuery(['row']);
+  assert.match(mergeQuery, /target\.`select` = source\.`select`/);
+  assert.match(mergeQuery, /INSERT \(\s*`id`, `select`/);
+});
+
 test('BigQuery load failure preserves live table and cleans staging', async () => {
   const storage = bigQueryStorage();
   const dropped = [];
@@ -95,9 +127,9 @@ test('BigQuery load failure preserves live table and cleans staging', async () =
   storage.checkIfGoogleBigQueryIsConnected = () => {};
   storage.createDatasetIfItDoesntExist = async () => {};
   storage.createSnapshotTableName = () => 'live_table__owox_staging_run';
-  storage._buildCreateTableQuery = () => ({ query: 'CREATE STAGING', existingColumns: {} });
+  storage.createTableIfItDoesntExist = async () => ({ id: { name: 'id', type: 'INTEGER' } });
   storage.executeQuery = async () => [];
-  storage.saveSnapshotData = async () => {
+  storage.saveData = async () => {
     throw new Error('load failed');
   };
   storage.publishSnapshotTable = async () => {
@@ -124,17 +156,25 @@ test('Athena uses backticks for DDL identifiers and double quotes for DML', asyn
     return [];
   };
 
-  await storage.createTargetTable('staging_table', 'snapshot/run', false);
-  await storage.mergeDataFromTempTable('external_table', 'run', 'staging_table', {
-    id: 'string',
-    select: 'string',
-  });
+  await storage.createTargetTable('staging_table', 'snapshot/run', false, true);
+  await storage.mergeDataFromTempTable(
+    'external_table',
+    'run',
+    'staging_table',
+    {
+      id: 'string',
+      select: 'string',
+    },
+    true
+  );
 
   assert.match(queries[0], /`analytics`\.`staging_table`/);
   assert.match(queries[0], /`id` string/);
   assert.match(queries[0], /`select` string/);
   assert.match(queries[1], /MERGE INTO "analytics"\."staging_table"/);
   assert.match(queries[1], /tgt\."id" = src\."id"/);
+  assert.match(queries[1], /UPDATE SET "id" = src\."id"/);
+  assert.doesNotMatch(queries[1], /UPDATE SET tgt\./);
   assert.doesNotMatch(queries[1], /`id`/);
 });
 
@@ -159,7 +199,14 @@ test('Athena snapshot imports use stable JSON parsing with an explicit timestamp
     return [];
   };
 
-  await storage.createTempTable('temp/run', 'run', { imported_at: 'timestamp' }, 'temp_table', true);
+  await storage.createTempTable(
+    'temp/run',
+    'run',
+    { imported_at: 'timestamp' },
+    'temp_table',
+    true,
+    true
+  );
 
   assert.match(query, /org\.apache\.hive\.hcatalog\.data\.JsonSerDe/);
   assert.match(query, /"timestamp\.formats" = "yyyy-MM-dd HH:mm:ss\.SSS"/);
@@ -202,7 +249,7 @@ test('Athena reports partial S3 cleanup failures', async () => {
   };
 
   await assert.rejects(
-    storage.deleteS3TempFolder('tmp/'),
+    storage.deleteS3TempFolder('tmp/', true),
     /Failed to delete 1 S3 objects: tmp\/part-1\.json/
   );
 });
@@ -236,7 +283,61 @@ test('Athena load failure preserves live table and cleans run resources', async 
   await assert.rejects(storage.replaceData([{ id: 1 }]), /upload failed/);
   assert.equal(renameCalled, false);
   assert.deepEqual(droppedTables, ['live_table__owox_temp_run', 'live_table__owox_staging_run']);
-  assert.deepEqual(deletedFolders, ['snapshots/live_table_temp/run']);
+  assert.deepEqual(deletedFolders, [
+    'snapshots/live_table_temp/run',
+    'snapshots/live_table_snapshot/live_table/run',
+  ]);
+});
+
+test('Athena snapshot cleanup deletes obsolete S3 data but keeps the published snapshot', async () => {
+  const storage = athenaStorage();
+  const listInputs = [];
+  const deleteInputs = [];
+  storage.ListObjectsV2Command = class ListObjectsV2Command {
+    constructor(input) {
+      this.input = input;
+    }
+  };
+  storage.DeleteObjectsCommand = class DeleteObjectsCommand {
+    constructor(input) {
+      this.input = input;
+    }
+  };
+  storage.s3Client = {
+    async send(command) {
+      if (command instanceof storage.ListObjectsV2Command) {
+        listInputs.push(command.input);
+        return {
+          Contents: [
+            { Key: 'snapshots/live_table_snapshot/live_table/old/part.json' },
+            { Key: 'snapshots/live_table_snapshot/live_table/current/part.json' },
+          ],
+        };
+      }
+      deleteInputs.push(command.input);
+      return {};
+    },
+  };
+
+  await storage.deleteS3ObjectsExcept(
+    'snapshots/live_table_snapshot/live_table',
+    'snapshots/live_table_snapshot/live_table/current'
+  );
+
+  assert.deepEqual(JSON.parse(JSON.stringify(listInputs)), [
+    {
+      Bucket: 'bucket',
+      Prefix: 'snapshots/live_table_snapshot/live_table/',
+    },
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(deleteInputs)), [
+    {
+      Bucket: 'bucket',
+      Delete: {
+        Objects: [{ Key: 'snapshots/live_table_snapshot/live_table/old/part.json' }],
+      },
+    },
+  ]);
 });
 
 test('Athena restores the live name when staging publication fails', async () => {
@@ -317,7 +418,7 @@ function cloneStorage(testCase, { failLoad = false, stagedRowCount = 1 } = {}) {
   storage[testCase.connectionProperty] = {};
   storage[testCase.checkMethod] = () => {};
   storage[testCase.ensureMethod] = async () => {};
-  storage.replaceTable = async () => {
+  storage.createTableIfItDoesntExist = async () => {
     events.push(`stage:${storage.config.DestinationTableName.value}`);
     const stagedColumns = { id: { type: 'BIGINT' } };
     storage.existingColumns = stagedColumns;
@@ -362,7 +463,10 @@ for (const testCase of cloneStorageCases) {
 
     await storage.replaceData([]);
 
-    assert.equal(events.some(event => event.startsWith('load:')), false);
+    assert.equal(
+      events.some(event => event.startsWith('load:')),
+      false
+    );
     assert.ok(events.some(event => testCase.publicationPattern.test(event)));
   });
 
@@ -371,7 +475,10 @@ for (const testCase of cloneStorageCases) {
 
     await assert.rejects(storage.replaceData([{ id: 1 }]), /load failed/);
 
-    assert.equal(events.some(event => testCase.publicationPattern.test(event)), false);
+    assert.equal(
+      events.some(event => testCase.publicationPattern.test(event)),
+      false
+    );
     assert.match(events.at(-1), /^DROP TABLE IF EXISTS/);
     assert.equal(storage.config.DestinationTableName.value, 'events');
     assert.equal(storage.existingColumns, originalColumns);
@@ -380,12 +487,12 @@ for (const testCase of cloneStorageCases) {
   test(`${testCase.name} rejects a mismatched staged row count`, async () => {
     const { storage, events, originalColumns } = cloneStorage(testCase, { stagedRowCount: 0 });
 
-    await assert.rejects(
-      storage.replaceData([{ id: 1 }]),
-      /Snapshot staging row count mismatch/
-    );
+    await assert.rejects(storage.replaceData([{ id: 1 }]), /Snapshot staging row count mismatch/);
 
-    assert.equal(events.some(event => testCase.publicationPattern.test(event)), false);
+    assert.equal(
+      events.some(event => testCase.publicationPattern.test(event)),
+      false
+    );
     assert.equal(storage.existingColumns, originalColumns);
   });
 }
@@ -489,7 +596,10 @@ test('Redshift preserves live state when staging validation fails', async () => 
 
   await assert.rejects(storage.replaceData([{ id: 1 }]), /Snapshot staging row count mismatch/);
 
-  assert.equal(events.some(event => event.startsWith('transaction:')), false);
+  assert.equal(
+    events.some(event => event.startsWith('transaction:')),
+    false
+  );
   assert.equal(storage.config.DestinationTableName.value, 'events');
   assert.equal(storage.existingColumns, originalColumns);
 });
@@ -512,13 +622,10 @@ test('Redshift generates grants for the staging table', async () => {
     },
   ];
 
-  assert.deepEqual(
-    await storage.getTableGrantStatements('events', 'events__owox_stage_run'),
-    [
-      'GRANT SELECT ON TABLE "analytics"."events__owox_stage_run" TO ROLE "reader role" WITH GRANT OPTION',
-      'GRANT INSERT ON TABLE "analytics"."events__owox_stage_run" TO "loader"',
-    ]
-  );
+  assert.deepEqual(await storage.getTableGrantStatements('events', 'events__owox_stage_run'), [
+    'GRANT SELECT ON TABLE "analytics"."events__owox_stage_run" TO ROLE "reader role" WITH GRANT OPTION',
+    'GRANT INSERT ON TABLE "analytics"."events__owox_stage_run" TO "loader"',
+  ]);
 });
 
 test('Redshift uses the Data API transactional batch for publication', async () => {
@@ -546,6 +653,17 @@ test('Redshift uses the Data API transactional batch for publication', async () 
   });
 });
 
+test('Redshift snapshot table names respect the 127-byte identifier limit', async () => {
+  const { storage, events } = redshiftStorage(0);
+  storage.config.DestinationTableName.value = '\u0434'.repeat(100);
+
+  await storage.replaceData([]);
+
+  const stagingTableName = events[0].slice('stage:'.length);
+  assert.ok(Buffer.byteLength(stagingTableName, 'utf8') <= 127);
+  assert.match(stagingTableName, /__owox_stage_[a-z0-9_]+$/);
+});
+
 test('Redshift snapshot loading respects the Data API statement byte limit', () => {
   const storage = Object.create(AwsRedshiftStorage.prototype);
   storage.config = {
@@ -568,22 +686,4 @@ test('Redshift snapshot loading respects the Data API statement byte limit', () 
 
   assert.equal(batches.length, 2);
   assert.deepEqual(JSON.parse(JSON.stringify(batches.flat())), rows);
-});
-
-test('Redshift omits the matched update when only key columns are selected', async () => {
-  const storage = Object.create(AwsRedshiftStorage.prototype);
-  storage.config = {
-    Schema: value('analytics'),
-    DestinationTableName: value('events'),
-  };
-  storage.uniqueKeyColumns = ['id'];
-  let query;
-  storage.executeQuery = async sql => {
-    query = sql;
-  };
-
-  await storage.mergeTempTable('events_temp', ['id']);
-
-  assert.doesNotMatch(query, /WHEN MATCHED/);
-  assert.match(query, /WHEN NOT MATCHED THEN/);
 });

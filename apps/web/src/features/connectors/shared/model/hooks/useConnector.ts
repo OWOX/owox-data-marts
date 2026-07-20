@@ -92,8 +92,8 @@ export function useConnector() {
     [dispatch]
   );
 
-  const previewConnectorFields = useCallback(
-    async (connectorName: string, configuration: Record<string, unknown>) => {
+  const previewGoogleSheetsFields = useCallback(
+    async (configuration: Record<string, unknown>) => {
       const requestId = previewRequestIdRef.current + 1;
       previewRequestIdRef.current = requestId;
       previewAbortControllerRef.current?.abort();
@@ -103,11 +103,9 @@ export function useConnector() {
       dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_START });
       try {
         const connectorApiService = new ConnectorApiService();
-        const response = await connectorApiService.previewConnectorFields(
-          connectorName,
-          configuration,
-          { signal: abortController.signal }
-        );
+        const response = await connectorApiService.previewGoogleSheetsFields(configuration, {
+          signal: abortController.signal,
+        });
 
         if (requestId !== previewRequestIdRef.current) return null;
 
@@ -144,6 +142,6 @@ export function useConnector() {
     fetchAvailableConnectors,
     fetchConnectorSpecification,
     fetchConnectorFields,
-    previewConnectorFields,
+    previewGoogleSheetsFields,
   };
 }

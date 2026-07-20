@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsObject } from 'class-validator';
 
-export class ConnectorFieldsPreviewRequestApiDto {
+export class GoogleSheetsFieldsPreviewRequestApiDto {
   @ApiProperty({
     type: Object,
     description: 'Connector source configuration used to detect dynamic fields.',

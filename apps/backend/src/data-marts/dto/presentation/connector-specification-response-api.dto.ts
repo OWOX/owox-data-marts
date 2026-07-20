@@ -37,9 +37,6 @@ export class ConnectorSpecificationItemResponseApiDto {
   @ApiProperty({ example: 1, required: false })
   minimum?: number;
 
-  @ApiProperty({ example: 100, required: false })
-  maximum?: number;
-
   @ApiProperty({
     type: [String],
     example: ['MANUAL_BACKFILL', 'HIDE_IN_UI'],
