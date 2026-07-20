@@ -488,7 +488,10 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     const blendedField = (
       name: string,
       type: string,
-      postJoinAggregations?: ReportAggregateFunction[]
+      postJoinAggregations?: ReportAggregateFunction[],
+      // The PRE-join roll-up run inside the bottom-up CTE. Must be valid for the field type —
+      // e.g. a STRING joined field cannot roll up with SUM, so pass ANY_VALUE there.
+      preJoinAggregation: ReportAggregateFunction = 'SUM'
     ): BlendedFieldDto => {
       const f = new BlendedFieldDto();
       f.name = name;
@@ -501,7 +504,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       f.alias = '';
       f.description = '';
       f.isHidden = false;
-      f.aggregateFunction = 'SUM';
+      f.aggregateFunction = preJoinAggregation;
       f.postJoinAggregations = postJoinAggregations;
       f.transitiveDepth = 1;
       f.aliasPath = 'partner';
@@ -600,14 +603,15 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     // metric (e.g. COUNT_DISTINCT over a joined text column) must appear in totals too, by its
     // post-join allowed functions — minus ANY_VALUE / STRING_AGG.
     it('includes a JOINED non-numeric field in totals when the report aggregates it', async () => {
+      // A STRING joined field must roll up pre-join with a STRING-valid function (ANY_VALUE),
+      // not SUM — so the generated CTE + outer SQL is executable BigQuery.
       const fields = [
-        blendedField('partner__country', 'STRING', [
-          'MIN',
-          'MAX',
-          'COUNT',
-          'COUNT_DISTINCT',
-          'STRING_AGG',
-        ]),
+        blendedField(
+          'partner__country',
+          'STRING',
+          ['MIN', 'MAX', 'COUNT', 'COUNT_DISTINCT', 'STRING_AGG'],
+          'ANY_VALUE'
+        ),
       ];
       const { service } = makeBlendedTotalsComposer(fields);
       const report = buildTotalsReport({
@@ -625,6 +629,24 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
       // STRING_AGG (and ANY_VALUE) are excluded from totals on the joined path too.
       expect(fns).not.toContain('STRING_AGG');
+
+      // The generated SQL must be executable: the bottom-up CTE rolls the STRING column up with
+      // ANY_VALUE (never SUM over text), and the ungrouped outer SELECT applies the post-join
+      // totals functions — COUNT / COUNT_DISTINCT / MIN / MAX — over the joined column.
+      const splitAt = result!.sql.lastIndexOf('\n\nSELECT');
+      const cte = result!.sql.slice(0, splitAt);
+      const finalSelect = result!.sql.slice(splitAt);
+      expect(cte).toContain('ANY_VALUE(country) AS partner__country');
+      expect(result!.sql).not.toMatch(/SUM\(/); // no SUM over a text column anywhere
+      expect(finalSelect).toContain('MIN(partner.partner__country)');
+      expect(finalSelect).toContain('MAX(partner.partner__country)');
+      expect(finalSelect).toContain('COUNT(partner.partner__country)');
+      expect(finalSelect).toContain('COUNT(DISTINCT partner.partner__country)');
+      // Excluded functions never reach the totals SELECT.
+      expect(finalSelect).not.toContain('ANY_VALUE');
+      expect(finalSelect).not.toMatch(/STRING_?AGG/i);
+      // Single grand-total row — no outer GROUP BY.
+      expect(finalSelect).not.toMatch(/GROUP BY/);
     });
 
     // A JOINED non-numeric field the report does NOT aggregate stays a plain dimension — not in
@@ -632,7 +654,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     it('excludes a JOINED non-numeric field from totals when the report does not aggregate it', async () => {
       const fields = [
         blendedField('partner__cost', 'FLOAT', ['SUM']),
-        blendedField('partner__country', 'STRING', ['COUNT', 'COUNT_DISTINCT']),
+        blendedField('partner__country', 'STRING', ['COUNT', 'COUNT_DISTINCT'], 'ANY_VALUE'),
       ];
       const { service } = makeBlendedTotalsComposer(fields);
       const report = buildTotalsReport({

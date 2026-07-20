@@ -150,12 +150,14 @@ export class DataMartRunResponseApiDto {
     example: {
       'revenue | SUM': 1575.93,
       'revenue | AVG': 157.593,
-      'revenue | MIN': 12.5,
-      'revenue | MAX': 450,
+      'country | COUNTUNIQUE': 18,
     },
     description:
-      'Grand-totals summary: every selected numeric field aggregated by its allowed functions ' +
-      'over the full filtered dataset (no grouping). Null when the run produced no totals.',
+      'Grand-totals summary over the full filtered dataset (no grouping): every selected numeric ' +
+      'field, plus any non-numeric field the report aggregates as a metric (e.g. COUNT_DISTINCT ' +
+      'over a text column), each by its allowed aggregation functions. Covers native and joined ' +
+      'fields. ANY_VALUE and STRING_AGG are excluded (not meaningful as a grand total). Null when ' +
+      'the run produced no totals.',
     required: false,
     nullable: true,
   })
