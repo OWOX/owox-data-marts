@@ -1,12 +1,4 @@
 import { Button } from '@owox/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Loader2, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useOutletContext } from 'react-router-dom';
@@ -23,6 +15,7 @@ import { SchemaContent } from './SchemaContent';
 import { DataMartDefinitionType, DataMartMetadataScope } from '../../../shared/index.ts';
 import { useAiHelper, useAiHelperAvailability } from '../../model/hooks';
 import type { ResolvedSchema } from '../../model/hooks';
+import type { SchemaToolbar } from './types/schema-toolbar';
 
 interface DataMartSchemaSettingsProps {
   definitionType: DataMartDefinitionType | null;
@@ -182,7 +175,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
   // Backend rejects metadata generation for CONNECTOR data marts; hide the buttons
   // so the user is never offered an action that's guaranteed to 422.
   const isConnector = definitionType === DataMartDefinitionType.CONNECTOR;
-  const showAiHelper = isAiHelperEnabled && !isConnector;
+  const showAiHelper = Boolean(isAiHelperEnabled) && !isConnector;
 
   // Reset schema when operation is successful
   useEffect(() => {
@@ -377,13 +370,50 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
   );
 
   // Disable buttons during schema operations (save or actualization)
-  const isSchemaOperationInProgress = isLoading || isSchemaActualizationLoading;
+  const isSchemaOperationInProgress = isLoading || Boolean(isSchemaActualizationLoading);
   const isAiBusy = aiPendingScope !== null;
-  const isBulkAiBusy =
-    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS ||
-    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_ALIASES ||
-    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_METADATA;
   const hasFields = !!schema && schema.fields.length > 0;
+
+  const schemaToolbar: SchemaToolbar = {
+    showAiHelper,
+
+    refresh: {
+      disabled: !definitionType || isSchemaOperationInProgress,
+      onClick: handleActualize,
+    },
+
+    ai: {
+      disabled: !hasFields || isSchemaOperationInProgress || isAiBusy,
+      loading: {
+        metadata: aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_METADATA,
+
+        aliases: aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_ALIASES,
+
+        descriptions: aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS,
+      },
+
+      onGenerateMetadata: () => {
+        runGuarded?.(resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_METADATA, resolved), {
+          intent: 'ai',
+        });
+      },
+
+      onGenerateDescriptions: () => {
+        runGuarded?.(
+          resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS, resolved),
+          {
+            intent: 'ai',
+          }
+        );
+      },
+
+      onGenerateAliases: () => {
+        runGuarded?.(resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_ALIASES, resolved), {
+          intent: 'ai',
+        });
+      },
+    },
+  };
 
   if (!dataMart) {
     return <div>Error: Data mart not found</div>;
@@ -404,6 +434,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
               }
             : undefined
         }
+        schemaToolbar={schemaToolbar}
       />
       <div className='align-items-center mt-4 flex justify-between'>
         <div className='flex items-center gap-2'>
@@ -424,88 +455,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
           </Button>
         </div>
 
-        <div className='flex items-center gap-2'>
-          {showAiHelper && (
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='icon'
-                      disabled={!hasFields || Boolean(isSchemaOperationInProgress) || isAiBusy}
-                      aria-label='Generate field metadata with AI'
-                    >
-                      {isBulkAiBusy ? (
-                        <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
-                      ) : (
-                        <Sparkles className='h-4 w-4' aria-hidden='true' />
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent side='bottom'>Generate field metadata with AI</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  disabled={!hasFields || isAiBusy}
-                  onClick={() => {
-                    runGuarded?.(
-                      resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_METADATA, resolved),
-                      {
-                        intent: 'ai',
-                      }
-                    );
-                  }}
-                >
-                  <Sparkles className='mr-2 h-4 w-4' />
-                  Generate field aliases & descriptions
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  disabled={!hasFields || isAiBusy}
-                  onClick={() => {
-                    runGuarded?.(
-                      resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS, resolved),
-                      {
-                        intent: 'ai',
-                      }
-                    );
-                  }}
-                >
-                  <Sparkles className='mr-2 h-4 w-4' />
-                  Generate field descriptions
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  disabled={!hasFields || isAiBusy}
-                  onClick={() => {
-                    runGuarded?.(
-                      resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_ALIASES, resolved),
-                      {
-                        intent: 'ai',
-                      }
-                    );
-                  }}
-                >
-                  <Sparkles className='mr-2 h-4 w-4' />
-                  Generate field aliases
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          <Button
-            type='button'
-            variant='outline'
-            onClick={handleActualize}
-            disabled={!definitionType || isSchemaOperationInProgress}
-          >
-            Refresh schema
-          </Button>
-        </div>
+        <div className='flex items-center gap-2'></div>
       </div>
     </div>
   );

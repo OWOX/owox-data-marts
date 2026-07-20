@@ -1,3 +1,4 @@
+import { cn } from '@owox/ui/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ColumnDef, Row, Table } from '@tanstack/react-table';
 import { EyeOff, Sigma } from 'lucide-react';
@@ -10,6 +11,7 @@ import {
   SchemaFieldActionsButton,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldStatusIcon,
+  SchemaHeaderAiButton,
   TableActionsButton,
 } from '../components';
 import { asString } from '../utils';
@@ -18,6 +20,7 @@ import type { SchemaAiHelper } from '../types/ai-helper';
 import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
 import { AllowedAggregationsSelect } from '../AllowedAggregationsSelect';
 import { resolveFieldGovernance } from '../../../../shared/utils/aggregation-governance';
+import type { SchemaToolbar } from '../types/schema-toolbar';
 
 // Extended column definition with optional columnIndex property
 export type ExtendedColumnDef<T extends BaseSchemaField> = ColumnDef<T> & {
@@ -101,6 +104,8 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
   getRowId?: (row: Row<T>) => string | number;
   /** AI helper handlers passed to per-field actions menu. Omit to hide AI options. */
   aiHelper?: SchemaAiHelper;
+  /** Schema toolbar component */
+  schemaToolbar: SchemaToolbar;
 }
 
 /**
@@ -127,6 +132,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
   rowComponent,
   getRowId,
   aiHelper,
+  schemaToolbar,
 }: BaseSchemaTableProps<T>) {
   // Handler to update a field
   const updateField = useCallback(
@@ -276,10 +282,29 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       {
         accessorKey: 'alias',
         header: () => (
-          <Tooltip>
-            <TooltipTrigger className='cursor-default'>Alias</TooltipTrigger>
-            <TooltipContent>Alternative name for the field</TooltipContent>
-          </Tooltip>
+          <div className='group flex items-center gap-1'>
+            <Tooltip>
+              <TooltipTrigger className='cursor-default'>Alias</TooltipTrigger>
+
+              <TooltipContent>Alternative name for the field</TooltipContent>
+            </Tooltip>
+            {schemaToolbar.showAiHelper && (
+              <div
+                className={cn(
+                  'opacity-0 transition-opacity group-hover:opacity-100',
+                  schemaToolbar.ai.loading.aliases && 'opacity-100'
+                )}
+              >
+                <SchemaHeaderAiButton
+                  tooltip='Generate aliases for all fields'
+                  ariaLabel='Generate field aliases'
+                  disabled={schemaToolbar.ai.disabled}
+                  isLoading={schemaToolbar.ai.loading.aliases}
+                  onClick={schemaToolbar.ai.onGenerateAliases}
+                />
+              </div>
+            )}
+          </div>
         ),
         size: 80,
         cell: ({ row }) => {
@@ -302,10 +327,29 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       {
         accessorKey: 'description',
         header: () => (
-          <Tooltip>
-            <TooltipTrigger className='cursor-default'>Description</TooltipTrigger>
-            <TooltipContent>Detailed information about the field</TooltipContent>
-          </Tooltip>
+          <div className='group flex items-center gap-1'>
+            <Tooltip>
+              <TooltipTrigger className='cursor-default'>Description</TooltipTrigger>
+
+              <TooltipContent>Detailed information about the field</TooltipContent>
+            </Tooltip>
+            {schemaToolbar.showAiHelper && (
+              <div
+                className={cn(
+                  'opacity-0 transition-opacity group-hover:opacity-100',
+                  schemaToolbar.ai.loading.descriptions && 'opacity-100'
+                )}
+              >
+                <SchemaHeaderAiButton
+                  tooltip='Generate descriptions for all fields'
+                  ariaLabel='Generate field descriptions'
+                  disabled={schemaToolbar.ai.disabled}
+                  isLoading={schemaToolbar.ai.loading.descriptions}
+                  onClick={schemaToolbar.ai.onGenerateDescriptions}
+                />
+              </div>
+            )}
+          </div>
         ),
         cell: ({ row }) => {
           if (descriptionColumnCell) {
@@ -366,6 +410,12 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       descriptionColumnCell,
       actionsColumnCell,
       aiHelper,
+      schemaToolbar.showAiHelper,
+      schemaToolbar.ai.disabled,
+      schemaToolbar.ai.loading.aliases,
+      schemaToolbar.ai.loading.descriptions,
+      schemaToolbar.ai.onGenerateAliases,
+      schemaToolbar.ai.onGenerateDescriptions,
     ]
   );
 
@@ -422,6 +472,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       dragContextProps={dragContextProps}
       rowComponent={rowComponent}
       getRowId={getRowId}
+      schemaToolbar={schemaToolbar}
     />
   );
 }
