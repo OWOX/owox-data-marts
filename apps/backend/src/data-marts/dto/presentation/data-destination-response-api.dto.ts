@@ -21,34 +21,40 @@ export type GoogleSheetsOAuthCredentialsPublic = {
   identity: CredentialIdentity | null;
 };
 
+export type GoogleChatCredentialsPublic = {
+  type: 'google-chat-credentials';
+  configured: true;
+};
+
 export class DataDestinationResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ example: 'My Google Sheets Destination' })
-  title: string;
+  title!: string;
 
   @ApiProperty({ enum: DataDestinationType, example: DataDestinationType.GOOGLE_SHEETS })
-  type: DataDestinationType;
+  type!: DataDestinationType;
 
   @ApiProperty({ example: 'my-project' })
-  projectId: string;
+  projectId!: string;
 
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
     description: 'Credentials without sensitive fields',
   })
-  credentials:
+  credentials!:
     | DataDestinationCredentials
     | DataDestinationCredentialsPublic
-    | GoogleSheetsOAuthCredentialsPublic;
+    | GoogleSheetsOAuthCredentialsPublic
+    | GoogleChatCredentialsPublic;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
-  modifiedAt: Date;
+  modifiedAt!: Date;
 
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab', nullable: true, required: false })
   credentialId?: string | null;
@@ -57,7 +63,7 @@ export class DataDestinationResponseApiDto {
   createdByUser?: UserProjectionDto | null;
 
   @ApiProperty({ type: [UserProjectionDto] })
-  ownerUsers: UserProjectionDto[];
+  ownerUsers!: UserProjectionDto[];
 
   @ApiProperty({ example: true })
   availableForUse?: boolean;
@@ -66,7 +72,7 @@ export class DataDestinationResponseApiDto {
   availableForMaintenance?: boolean;
 
   @ApiProperty({ type: [Object] })
-  contexts: ContextSummary[];
+  contexts!: ContextSummary[];
 
   @ApiPropertyOptional({
     type: 'object',

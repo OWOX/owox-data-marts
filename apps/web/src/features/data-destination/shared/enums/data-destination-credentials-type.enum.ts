@@ -3,4 +3,5 @@ export enum DataDestinationCredentialsType {
   GOOGLE_SHEETS_OAUTH_CREDENTIALS = 'google-sheets-oauth-credentials',
   LOOKER_STUDIO_CREDENTIALS = 'looker-studio-credentials',
   EMAIL_CREDENTIALS = 'email-credentials',
+  GOOGLE_CHAT_CREDENTIALS = 'google-chat-credentials',
 }
