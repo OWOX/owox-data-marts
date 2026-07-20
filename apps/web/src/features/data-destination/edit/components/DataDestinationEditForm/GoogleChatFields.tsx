@@ -43,7 +43,7 @@ export function GoogleChatFields({ form }: { form: UseFormReturn<DataDestination
         <div className='flex items-center justify-between'>
           <FormLabel>Delivery Method</FormLabel>
           <Tabs value={deliveryMethod} onValueChange={handleDeliveryMethodChange}>
-            <TabsList>
+            <TabsList aria-label='Delivery method'>
               <TabsTrigger value='webhook'>Google Chat API</TabsTrigger>
               <TabsTrigger value='email'>Channel Email</TabsTrigger>
             </TabsList>

@@ -72,6 +72,41 @@ describe('GoogleChatWebhookClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it('retries transient server errors', async () => {
+    jest.useFakeTimers();
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: false, status: 503 } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    const request = new GoogleChatWebhookClient().send(webhookUrl, payload);
+    await jest.runAllTimersAsync();
+    await request;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('caps Retry-After delays', async () => {
+    jest.useFakeTimers();
+    const retryHeaders = { get: jest.fn().mockReturnValue('3600') };
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: retryHeaders,
+      } as unknown as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    const request = new GoogleChatWebhookClient().send(webhookUrl, payload);
+    await jest.advanceTimersByTimeAsync(29_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(1);
+    await request;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('does not include the secret webhook URL in API errors', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 403 } as Response);
 
@@ -84,14 +119,18 @@ describe('GoogleChatWebhookClient', () => {
   });
 
   it('sanitizes low-level network errors that could contain the secret URL', async () => {
-    jest.spyOn(global, 'fetch').mockRejectedValue(new Error(`request failed for ${webhookUrl}`));
+    jest.useFakeTimers();
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValue(new Error(`request failed for ${webhookUrl}`));
 
-    await expect(new GoogleChatWebhookClient().send(webhookUrl, payload)).rejects.toThrow(
-      'Google Chat API request failed'
-    );
-    await expect(new GoogleChatWebhookClient().send(webhookUrl, payload)).rejects.not.toThrow(
-      webhookUrl
-    );
+    const request = new GoogleChatWebhookClient().send(webhookUrl, payload).catch(error => error);
+    await jest.runAllTimersAsync();
+    const error = (await request) as Error;
+
+    expect(error.message).toBe('Google Chat API request failed');
+    expect(error.message).not.toContain(webhookUrl);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('blocks non-Google request targets before calling fetch', async () => {
@@ -118,7 +157,7 @@ describe('GoogleChatWebhookClient', () => {
     const request = expect(new GoogleChatWebhookClient().send(webhookUrl, payload)).rejects.toThrow(
       'Google Chat API request timed out'
     );
-    await jest.advanceTimersByTimeAsync(10_000);
+    await jest.runAllTimersAsync();
 
     await request;
   });
