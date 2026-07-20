@@ -50,7 +50,15 @@ export type CreateDataDestinationRequestDto =
   | {
       title: string;
       type: DataDestinationType.GOOGLE_CHAT;
-      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+      credentials:
+        | {
+            type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS;
+            webhookUrl: string;
+          }
+        | {
+            type: DataDestinationCredentialsType.EMAIL_CREDENTIALS;
+            to: string[];
+          };
       ownerIds?: string[];
     };
 

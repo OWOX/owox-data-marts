@@ -58,7 +58,7 @@ import { InsightTemplate } from '../../../../entities/insight-template.entity';
  *
  * Subclasses must define the abstract properties `type` and `logger`.
  */
-abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
+export abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
   abstract readonly type: DataDestinationType;
   protected abstract readonly logger: Logger;
 
@@ -70,13 +70,13 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     ERROR_SENDING: 'Error sending Report data',
   } as const;
 
-  private emailConfig: EmailConfig;
-  private emailCredentials: EmailCredentials;
-  private reportDataDescription: ReportDataDescription;
-  private report: Report;
+  protected emailConfig!: EmailConfig;
+  private emailCredentials!: EmailCredentials;
+  private reportDataDescription!: ReportDataDescription;
+  protected report!: Report;
   private reportDataRows: unknown[][] = [];
   private mainRowsTruncationInfo: RowsTruncationInfo | null = null;
-  private executionLogger?: ReportRunLogger;
+  protected executionLogger?: ReportRunLogger;
 
   protected constructor(
     private readonly emailProvider: EmailProviderFacade,
@@ -84,7 +84,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly publicOriginService: PublicOriginService,
     private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly credentialsResolver: DataDestinationCredentialsResolver,
+    protected readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly sourceDataService: InsightTemplateSourceDataService,
     protected readonly insightTemplateService: InsightTemplateService,
     private readonly sourceUsageService: InsightTemplateSourceUsageService
@@ -103,15 +103,19 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     }
     this.emailConfig = report.destinationConfig;
 
+    await this.prepareDeliveryCredentials(report);
+
+    this.reportDataDescription = reportDataDescription;
+    this.report = report;
+  }
+
+  protected async prepareDeliveryCredentials(report: Report): Promise<void> {
     const resolvedCredentials = await this.credentialsResolver.resolve(report.dataDestination);
     const parsed = EmailCredentialsSchema.safeParse(resolvedCredentials);
     if (!parsed.success) {
       throw new Error('Invalid Email credentials provided');
     }
     this.emailCredentials = parsed.data;
-
-    this.reportDataDescription = reportDataDescription;
-    this.report = report;
   }
 
   public async writeReportDataBatch(reportDataBatch: ReportDataBatch): Promise<void> {
@@ -137,8 +141,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
       });
     } else {
       const rendered = await this.renderMessageTemplate();
-      const emailHtml = await this.prepareEmailHtml(rendered);
-      await this.sendEmail(emailHtml);
+      await this.sendRenderedMessage(rendered);
     }
 
     await this.produceRunEvent('successfully');
@@ -371,6 +374,11 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     });
   }
 
+  protected async sendRenderedMessage(markdownContent: string): Promise<void> {
+    const emailHtml = await this.prepareEmailHtml(markdownContent);
+    await this.sendEmail(emailHtml);
+  }
+
   private async sendEmail(emailHtml: string): Promise<void> {
     await this.emailProvider.sendEmail(
       this.emailCredentials.to,
@@ -475,36 +483,6 @@ export class SlackReportWriter extends BaseEmailReportWriter {
 export class MsTeamsReportWriter extends BaseEmailReportWriter {
   protected readonly logger = new Logger(MsTeamsReportWriter.name);
   readonly type = DataDestinationType.MS_TEAMS;
-
-  constructor(
-    @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
-    markdownParser: MarkdownParser,
-    publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
-    eventDispatcher: OwoxEventDispatcher,
-    credentialsResolver: DataDestinationCredentialsResolver,
-    sourceDataService: InsightTemplateSourceDataService,
-    insightTemplateService: InsightTemplateService,
-    sourceUsageService: InsightTemplateSourceUsageService
-  ) {
-    super(
-      emailProvider,
-      markdownParser,
-      publicOriginService,
-      insightTemplateFacade,
-      eventDispatcher,
-      credentialsResolver,
-      sourceDataService,
-      insightTemplateService,
-      sourceUsageService
-    );
-  }
-}
-
-@Injectable({ scope: Scope.TRANSIENT })
-export class GoogleChatReportWriter extends BaseEmailReportWriter {
-  protected readonly logger = new Logger(GoogleChatReportWriter.name);
-  readonly type = DataDestinationType.GOOGLE_CHAT;
 
   constructor(
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,

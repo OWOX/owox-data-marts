@@ -4,6 +4,7 @@ import { googleCredentialsWithOAuthSchema } from '../../../../shared';
 import { lookerStudioCredentialsSchema } from './looker-studio-credentials.schema.ts';
 import { emailCredentialsSchema } from './email-credentials.schema.ts';
 import { isValidGoogleDriveFolderUrl } from '../utils/drive-folder-url.utils.ts';
+import { googleChatCredentialsSchema } from './google-chat-credentials.schema.ts';
 
 // Base schema for all data destinations
 const baseDataDestinationSchema = z.object({
@@ -51,8 +52,9 @@ const msTeamsDestinationSchema = emailLikeBase.extend({
   type: z.literal(DataDestinationType.MS_TEAMS),
 });
 
-const googleChatDestinationSchema = emailLikeBase.extend({
+const googleChatDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.GOOGLE_CHAT),
+  credentials: googleChatCredentialsSchema,
 });
 
 // Combined schema with conditional validation based on type

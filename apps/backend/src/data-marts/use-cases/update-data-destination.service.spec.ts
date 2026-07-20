@@ -26,6 +26,7 @@ import { UpdateDataDestinationService } from './update-data-destination.service'
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import { CopyCredentialService } from '../services/copy-credential.service';
+import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 describe('UpdateDataDestinationService - credential copy (sourceDestinationId)', () => {
   const projectId = 'proj-1';
@@ -37,7 +38,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
   const makeCommand = (
     overrides: {
       id?: string;
-      credentials?: Record<string, string>;
+      credentials?: DataDestinationCredentials | Record<string, unknown>;
       credentialId?: string | null;
       sourceDestinationId?: string;
       config?: DestinationConfigOverride;
@@ -414,6 +415,106 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     await expect(service.run(command)).rejects.toThrow(
       /Cannot provide both sourceDestinationId and credentialId/
     );
+  });
+
+  describe('Google Chat delivery method switching', () => {
+    const webhookUrl =
+      'https://chat.googleapis.com/v1/spaces/space-1/messages?key=key-1&token=token-1';
+
+    it('replaces channel-email credentials with webhook credentials in place', async () => {
+      const {
+        service,
+        dataDestinationRepository,
+        dataDestinationService,
+        credentialsProcessor,
+        dataDestinationCredentialService,
+      } = createService();
+      const targetDestination = makeTargetDestination({
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentialId: 'cred-existing',
+        credential: {
+          id: 'cred-existing',
+          type: DestinationCredentialType.EMAIL,
+          credentials: { type: 'email-credentials', to: ['space@example.com'] },
+        },
+      });
+      const credentials = { type: 'google-chat-credentials' as const, webhookUrl };
+
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(targetDestination);
+      credentialsProcessor.processCredentials.mockResolvedValue(credentials);
+
+      await service.run(makeCommand({ credentials }));
+
+      expect(dataDestinationCredentialService.update).toHaveBeenCalledWith('cred-existing', {
+        type: DestinationCredentialType.GOOGLE_CHAT_WEBHOOK,
+        credentials,
+        identity: null,
+      });
+    });
+
+    it('replaces webhook credentials with channel-email credentials in place', async () => {
+      const {
+        service,
+        dataDestinationRepository,
+        dataDestinationService,
+        credentialsProcessor,
+        dataDestinationCredentialService,
+      } = createService();
+      const targetDestination = makeTargetDestination({
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentialId: 'cred-existing',
+        credential: {
+          id: 'cred-existing',
+          type: DestinationCredentialType.GOOGLE_CHAT_WEBHOOK,
+          credentials: { type: 'google-chat-credentials', webhookUrl },
+        },
+      });
+      const credentials = {
+        type: 'email-credentials' as const,
+        to: ['space@example.com'] as [string, ...string[]],
+      };
+
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(targetDestination);
+      credentialsProcessor.processCredentials.mockResolvedValue(credentials);
+
+      await service.run(makeCommand({ credentials }));
+
+      expect(dataDestinationCredentialService.update).toHaveBeenCalledWith('cred-existing', {
+        type: DestinationCredentialType.EMAIL,
+        credentials,
+        identity: null,
+      });
+    });
+
+    it('preserves the saved webhook when an update omits credentials', async () => {
+      const {
+        service,
+        dataDestinationRepository,
+        dataDestinationService,
+        credentialsProcessor,
+        dataDestinationCredentialService,
+      } = createService();
+      const targetDestination = makeTargetDestination({
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentialId: 'cred-existing',
+        credential: {
+          id: 'cred-existing',
+          type: DestinationCredentialType.GOOGLE_CHAT_WEBHOOK,
+          credentials: { type: 'google-chat-credentials', webhookUrl },
+        },
+      });
+
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(targetDestination);
+
+      await service.run(makeCommand());
+
+      expect(credentialsProcessor.processCredentials).not.toHaveBeenCalled();
+      expect(dataDestinationCredentialService.update).not.toHaveBeenCalled();
+      expect(dataDestinationCredentialService.softDelete).not.toHaveBeenCalled();
+    });
   });
 
   describe('permission checks', () => {

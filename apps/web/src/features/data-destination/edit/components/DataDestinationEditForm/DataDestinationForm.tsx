@@ -50,6 +50,7 @@ import { DestinationTypeField } from './DestinationTypeField';
 import { EmailFields } from './EmailFields';
 import { GoogleSheetsFields } from './GoogleSheetsFields';
 import { LookerStudioFields } from './LookerStudioFields';
+import { GoogleChatFields } from './GoogleChatFields';
 
 interface DataDestinationFormProps {
   initialData:
@@ -271,9 +272,7 @@ export function DataDestinationForm({
             />
           )}
 
-          {destinationType === DataDestinationType.GOOGLE_CHAT && (
-            <EmailFields form={form} emailsFieldTitle={'Enter Google Chat channel emails list'} />
-          )}
+          {destinationType === DataDestinationType.GOOGLE_CHAT && <GoogleChatFields form={form} />}
 
           <FormSection title='Ownership' defaultOpen={false} name='destination-ownership'>
             <FormItem>

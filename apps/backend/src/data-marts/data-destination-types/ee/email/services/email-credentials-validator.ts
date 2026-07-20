@@ -49,9 +49,3 @@ export class MsTeamsCredentialsValidator extends BaseEmailCredentialsValidator {
   protected readonly logger = new Logger(MsTeamsCredentialsValidator.name);
   readonly type = DataDestinationType.MS_TEAMS;
 }
-
-@Injectable()
-export class GoogleChatCredentialsValidator extends BaseEmailCredentialsValidator {
-  protected readonly logger = new Logger(GoogleChatCredentialsValidator.name);
-  readonly type = DataDestinationType.GOOGLE_CHAT;
-}

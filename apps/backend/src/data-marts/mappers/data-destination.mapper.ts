@@ -305,7 +305,10 @@ export class DataDestinationMapper {
         };
 
       case DestinationCredentialType.LOOKER_STUDIO: {
-        const creds = credential.credentials as DataDestinationCredentials;
+        const creds = credential.credentials as Extract<
+          DataDestinationCredentials,
+          { type: 'looker-studio-credentials' }
+        >;
         return {
           ...creds,
           destinationId: dto.id,
@@ -326,6 +329,14 @@ export class DataDestinationMapper {
 
       case DestinationCredentialType.EMAIL:
         return credential.credentials as DataDestinationCredentials;
+
+      case DestinationCredentialType.GOOGLE_CHAT_WEBHOOK:
+        // Incoming webhook URLs include a secret token. The UI only needs to know that a
+        // webhook is configured; a replacement URL can be pasted without reading the old one.
+        return {
+          type: 'google-chat-credentials' as const,
+          configured: true as const,
+        };
 
       default:
         throw new Error(

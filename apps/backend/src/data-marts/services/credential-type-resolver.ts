@@ -38,6 +38,8 @@ export function resolveDestinationCredentialType(
       return DestinationCredentialType.LOOKER_STUDIO;
     case 'email-credentials':
       return DestinationCredentialType.EMAIL;
+    case 'google-chat-credentials':
+      return DestinationCredentialType.GOOGLE_CHAT_WEBHOOK;
     default:
       throw new Error(`Unknown destination credential type: ${String(credType)}`);
   }
