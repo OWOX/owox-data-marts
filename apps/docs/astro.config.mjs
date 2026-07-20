@@ -147,6 +147,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/api/owox-ctl',
             'docs/api/api-client',
             'docs/api/openapi',
+            'docs/api/coverage',
           ],
         },
         {

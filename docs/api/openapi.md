@@ -70,6 +70,39 @@ X-OWOX-Api-Key-Id: <apiKeyId>
 Keep `X-OWOX-Api-Key-Id` on protected requests that use an access token created from an API
 key. The server binds API-key access tokens to their API Key ID.
 
+## Project settings
+
+Project settings are authenticated, project-scoped endpoints. Project members can read settings;
+updating the project description requires the Project Admin role.
+
+| Method and path | Access | Purpose |
+| --- | --- | --- |
+| `GET /api/projects/settings` | Project member | Read the current project's settings |
+| `PUT /api/projects/settings/description` | Project Admin | Update or clear the project description |
+
+The GET response and successful PUT response have the same shape:
+
+```json
+{
+  "description": "Business context for this project"
+}
+```
+
+To update the description, send a JSON body with a string from 1 to 10,000 characters:
+
+```http
+PUT /api/projects/settings/description
+Content-Type: application/json
+X-OWOX-Authorization: Bearer <accessToken>
+X-OWOX-Api-Key-Id: <apiKeyId>
+
+{
+  "description": "Use net revenue after refunds for monthly reporting."
+}
+```
+
+Send `{ "description": null }` to clear the description.
+
 ## Compatibility
 
 The same client and OWOX Data Marts server version is supported. Different versions are best effort.

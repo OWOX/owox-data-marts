@@ -308,6 +308,134 @@ describe('OWOXApiClient', () => {
     expect(seenAuthorizationHeaders).toEqual(['Bearer token-1', 'Bearer token-2']);
   });
 
+  it('gets and updates project settings through authenticated JSON requests', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'GET' && request.url === '/api/projects/settings') {
+        expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
+        return createJsonResponse(200, { description: 'Current description' });
+      }
+
+      if (request.method === 'PUT' && request.url === '/api/projects/settings/description') {
+        expect(request.headers['content-type']).toBe('application/json');
+        expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
+        expect(request.body).toEqual({ description: 'Updated description' });
+        return createJsonResponse(200, { description: 'Updated description' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.projectSettings.get()).resolves.toEqual({
+      description: 'Current description',
+    });
+    await expect(client.projectSettings.updateDescription('Updated description')).resolves.toEqual({
+      description: 'Updated description',
+    });
+  });
+
+  it('retries an unauthorized project settings update once with a refreshed access token', async () => {
+    let exchangeCount = 0;
+    const seenAuthorizationHeaders: unknown[] = [];
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        exchangeCount += 1;
+        return createJsonResponse(200, { accessToken: `token-${exchangeCount}` });
+      }
+
+      if (request.method === 'PUT' && request.url === '/api/projects/settings/description') {
+        seenAuthorizationHeaders.push(request.headers['x-owox-authorization']);
+        expect(request.body).toEqual({ description: null });
+
+        if (request.headers['x-owox-authorization'] === 'Bearer token-1') {
+          return createJsonResponse(401, { code: 'TOKEN_EXPIRED', message: 'Token expired' });
+        }
+
+        return createJsonResponse(200, { description: null });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.projectSettings.updateDescription(null)).resolves.toEqual({
+      description: null,
+    });
+    expect(exchangeCount).toBe(2);
+    expect(seenAuthorizationHeaders).toEqual(['Bearer token-1', 'Bearer token-2']);
+  });
+
+  it('does not retry a forbidden project settings update', async () => {
+    let exchangeCount = 0;
+    let updateCount = 0;
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        exchangeCount += 1;
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'PUT' && request.url === '/api/projects/settings/description') {
+        updateCount += 1;
+        return createJsonResponse(403, {
+          code: 'FORBIDDEN',
+          message: 'Project Admin role required',
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.projectSettings.updateDescription('Denied')).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      status: 403,
+      code: 'FORBIDDEN',
+    });
+    expect(exchangeCount).toBe(1);
+    expect(updateCount).toBe(1);
+  });
+
+  it('rejects an unexpected project settings response shape', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'GET' && request.url === '/api/projects/settings') {
+        return createJsonResponse(200, {});
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.projectSettings.get()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Project Settings API returned an unexpected response shape',
+      details: {},
+    });
+  });
+
   it('keeps access tokens scoped to a client instance instead of persisting them', async () => {
     let exchangeCount = 0;
     const seenAuthorizationHeaders: unknown[] = [];

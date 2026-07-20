@@ -5,6 +5,7 @@ import { AuthApi, exchangeAccessToken, normalizeApiOrigin, readResponseBody } fr
 import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
+import { ProjectSettingsApi } from './project-settings.js';
 import { StoragesApi } from './storages.js';
 import { requestApi } from './transport.js';
 
@@ -15,6 +16,13 @@ export type OWOXApiClientOptions = {
 
 type QueryParams = Record<string, string> | URLSearchParams;
 type FetchInit = RequestInit & { dispatcher?: Dispatcher };
+type AuthenticatedRequestOptions = {
+  method: 'GET' | 'PUT';
+  query?: QueryParams;
+  accept?: string;
+  jsonBody?: unknown;
+  fetchInit?: FetchInit;
+};
 
 const streamFetchDispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 });
 
@@ -23,6 +31,7 @@ export class OWOXApiClient {
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
   readonly destinations: DestinationsApi;
+  readonly projectSettings: ProjectSettingsApi;
 
   private readonly apiOrigin: string;
   private readonly apiKeyId: string;
@@ -41,6 +50,7 @@ export class OWOXApiClient {
     this.dataMarts = new DataMartsApi(this);
     this.storages = new StoragesApi(this);
     this.destinations = new DestinationsApi(this);
+    this.projectSettings = new ProjectSettingsApi(this);
   }
 
   async authenticate(): Promise<void> {
@@ -48,12 +58,19 @@ export class OWOXApiClient {
   }
 
   async getJson<T>(path: string, query?: Record<string, string>): Promise<T> {
-    return this.getJsonWithAuth<T>(path, query);
+    return this.requestJsonWithAuth<T>(path, { method: 'GET', query });
+  }
+
+  async putJson<T>(path: string, jsonBody: unknown): Promise<T> {
+    return this.requestJsonWithAuth<T>(path, { method: 'PUT', jsonBody });
   }
 
   async getStream(path: string, query?: URLSearchParams): Promise<Response> {
-    const response = await this.requestWithAuth(path, query, 'application/x-ndjson', {
-      dispatcher: streamFetchDispatcher,
+    const response = await this.requestWithAuth(path, {
+      method: 'GET',
+      query,
+      accept: 'application/x-ndjson',
+      fetchInit: { dispatcher: streamFetchDispatcher },
     });
     if (!response.ok) {
       const body = await readResponseBody(response);
@@ -63,8 +80,11 @@ export class OWOXApiClient {
     return response;
   }
 
-  private async getJsonWithAuth<T>(path: string, query: QueryParams | undefined): Promise<T> {
-    const response = await this.requestWithAuth(path, query, 'application/json');
+  private async requestJsonWithAuth<T>(
+    path: string,
+    options: AuthenticatedRequestOptions
+  ): Promise<T> {
+    const response = await this.requestWithAuth(path, options);
     const body = await readResponseBody(response);
 
     if (!response.ok) {
@@ -76,26 +96,25 @@ export class OWOXApiClient {
 
   private async requestWithAuth(
     path: string,
-    query: QueryParams | undefined,
-    accept: string,
-    fetchInit?: FetchInit,
+    options: AuthenticatedRequestOptions,
     retryOnUnauthorized = true
   ): Promise<Response> {
     const response = await requestApi({
       apiOrigin: this.apiOrigin,
       fetchImpl: this.fetchImpl,
       path,
-      method: 'GET',
+      method: options.method,
       apiKeyId: this.apiKeyId,
       accessToken: await this.getAccessToken(),
-      query,
-      accept,
-      fetchInit,
+      query: options.query,
+      accept: options.accept,
+      jsonBody: options.jsonBody,
+      fetchInit: options.fetchInit,
     });
 
     if (response.status === 401 && retryOnUnauthorized) {
       this.accessToken = undefined;
-      return this.requestWithAuth(path, query, accept, fetchInit, false);
+      return this.requestWithAuth(path, options, false);
     }
 
     return response;
