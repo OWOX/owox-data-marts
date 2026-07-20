@@ -36,13 +36,39 @@ If you integrate with the HTTP API directly, parse the copied API key value firs
 3. Parse the decoded JSON object.
 4. Read `apiOrigin`, `apiKeyId`, and `apiKeySecret`.
 
-Send the API Key ID and API Key Secret to the token-exchange operation at the decoded `apiOrigin`,
-then use the returned access token and API Key ID when calling protected endpoints. The exact
-token-exchange path, request and response schemas, and endpoint authentication requirements are in
-the generated OpenAPI specifications and Swagger UI linked above.
+Exchange the API Key ID and API Key Secret for an access token:
 
-Keep the API Key ID on protected requests that use an access token created from an API key. The
-server binds API-key access tokens to their API Key ID.
+```http
+POST /api/auth/api-keys/exchange
+Content-Type: application/json
+X-OWOX-Api-Key-Id: <apiKeyId>
+
+{
+  "apiKeySecret": "<apiKeySecret>"
+}
+```
+
+Send this request to the decoded `apiOrigin`, for example
+`https://app.owox.com/api/auth/api-keys/exchange`.
+
+The response contains an access token:
+
+```json
+{
+  "accessToken": "<accessToken>"
+}
+```
+
+Use that access token when calling protected endpoints:
+
+```http
+GET /api/external/http-data/data-marts/<dataMartId>.ndjson
+x-owox-authorization: Bearer <accessToken>
+X-OWOX-Api-Key-Id: <apiKeyId>
+```
+
+Keep `X-OWOX-Api-Key-Id` on protected requests that use an access token created from an API
+key. The server binds API-key access tokens to their API Key ID.
 
 ## Compatibility
 
