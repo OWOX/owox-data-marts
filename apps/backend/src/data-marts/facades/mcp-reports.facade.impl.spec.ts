@@ -607,13 +607,15 @@ describe('McpReportsFacadeImpl.addReport', () => {
       createdByUser: { email: 'ann@owox.com' },
     } as unknown as ReportDto);
 
-    const result = await facade.addReport(addRequest);
+    const result = await facade.addReport({ ...addRequest, name: undefined });
 
     expect(createReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 'project-1',
         userId: 'user-1',
-        title: 'Weekly revenue',
+        // Looker Studio reports carry no name; the domain clears the title on
+        // insert, so the facade passes the empty string it would become anyway.
+        title: '',
         dataMartId: 'dm-1',
         dataDestinationId: 'dest-1',
         destinationConfig: {
@@ -648,11 +650,77 @@ describe('McpReportsFacadeImpl.addReport', () => {
     } as never);
     createReportService.run.mockResolvedValue({ id: 'report-3', createdByUser: null } as ReportDto);
 
-    await facade.addReport({ ...addRequest, fields: ['*'] });
+    await facade.addReport({ ...addRequest, name: undefined, fields: ['*'] });
 
     expect(createReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: null })
     );
+  });
+
+  it('rejects a provided name for Looker Studio reports, which carry none', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'name parameter is not applicable to Looker Studio'
+    );
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a second Looker Studio report for the same data mart and destination', async () => {
+    const existingLookerReport = buildReport({
+      id: 'existing-looker',
+      destinationId: 'dest-1',
+      destinationType: DataDestinationType.LOOKER_STUDIO,
+    });
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [existingLookerReport],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      'already exists for this data mart and destination'
+    );
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('requires a name for Google Sheets reports', async () => {
+    const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      'name is required'
+    );
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('requires a name for email-family reports', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.EMAIL,
+    } as never);
+
+    await expect(
+      facade.addReport({ ...addRequest, name: undefined, message: { body: '{{table}}' } })
+    ).rejects.toThrow('name is required');
+    expect(createReportService.run).not.toHaveBeenCalled();
   });
 
   it('creates an email-family report with the message and the default send condition', async () => {
@@ -1044,7 +1112,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
 
     await expect(
       facade.updateReport({ ...updateRequest, message: { subject: '   ' } })
-    ).rejects.toThrow('Nothing to update in message');
+    ).rejects.toThrow('Provide at least one of message.subject or message.body');
     expect(updateReportService.run).not.toHaveBeenCalled();
   });
 });

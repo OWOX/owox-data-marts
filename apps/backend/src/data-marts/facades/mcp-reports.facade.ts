@@ -64,7 +64,12 @@ export interface McpAddReportRequest {
   destinationId: string;
   /** Column names to include; `['*']` (or containing `'*'`) selects every field. */
   fields: string[];
-  name: string;
+  /**
+   * Report name (also the new sheet's title and the default email subject).
+   * Required for Google Sheets and email-family destinations; rejected for
+   * Looker Studio, whose reports carry no name.
+   */
+  name?: string;
   /** Required for email-family destinations; rejected for any other type. */
   message?: McpAddReportMessage;
   projectId: string;

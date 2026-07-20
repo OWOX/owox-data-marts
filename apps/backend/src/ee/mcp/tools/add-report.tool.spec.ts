@@ -175,6 +175,18 @@ describe('AddReportTool', () => {
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
   });
 
+  it('accepts input without a name (Looker Studio reports carry none)', () => {
+    const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
+
+    const parsed = tool.parseInput({
+      data_mart_id: 'dm-1',
+      destination_id: 'dest-1',
+      fields: ['*'],
+    });
+
+    expect(parsed.name).toBeUndefined();
+  });
+
   it('validates the message group when present', () => {
     const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
 

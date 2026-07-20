@@ -216,9 +216,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
     if (!body) {
       if (!subject) {
-        throw new BadRequestException(
-          'Nothing to update in message: provide message.subject and/or message.body'
-        );
+        throw new BadRequestException('Provide at least one of message.subject or message.body');
       }
       // Subject-only change: keep the rest of the stored config exactly as-is
       // (whatever template source — or legacy shape — it has).
@@ -229,14 +227,26 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     // template if one was set). Rebuild the config from scratch: stored
     // configs may still be in the legacy messageTemplate shape, and carrying
     // legacy remnants forward alongside templateSource would be invalid.
+    return this.buildCustomMessageConfig(subject || current.subject, body, current.reportCondition);
+  }
+
+  /**
+   * Single construction site for the CUSTOM_MESSAGE email config, shared by
+   * the add and update paths so their shapes cannot drift apart.
+   */
+  private buildCustomMessageConfig(
+    subject: string,
+    body: string,
+    reportCondition: ReportCondition
+  ): DataDestinationConfig {
     return {
       type: EmailConfigType,
-      subject: subject || current.subject,
+      subject,
       templateSource: {
         type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
         config: { messageTemplate: body },
       },
-      reportCondition: current.reportCondition,
+      reportCondition,
     };
   }
 
@@ -248,12 +258,16 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       request.projectId
     );
 
+    // One up-front guard instead of per-branch calls: any current or future
+    // non-email type rejects a supplied message rather than silently dropping it.
+    if (!isEmailBasedDataDestinationType(destination.type)) {
+      this.assertNoMessage(destination.type, request);
+    }
+
     switch (destination.type) {
       case DataDestinationType.GOOGLE_SHEETS:
-        this.assertNoMessage(destination.type, request);
         return this.addGoogleSheetsReport(request);
       case DataDestinationType.LOOKER_STUDIO:
-        this.assertNoMessage(destination.type, request);
         return this.addLookerStudioReport(request);
       default:
         if (isEmailBasedDataDestinationType(destination.type)) {
@@ -265,6 +279,21 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
             'Email, Slack, Microsoft Teams, Google Chat.'
         );
     }
+  }
+
+  /**
+   * `name` is meaningful only where a report has a user-visible title: the
+   * Google Sheets and email-family paths require it. Looker Studio rejects it
+   * instead (see addLookerStudioReport).
+   */
+  private requireName(destinationType: DataDestinationType, request: McpAddReportRequest): string {
+    const name = request.name?.trim();
+    if (!name) {
+      throw new BadRequestException(
+        `name is required for ${toHumanReadable(destinationType)} destinations`
+      );
+    }
+    return name;
   }
 
   /**
@@ -286,13 +315,49 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
 
   /**
    * Looker Studio reports carry no per-report settings in MCP — the config is
-   * always the defaults.
+   * always the defaults. They also carry no name (the entity clears the title
+   * on insert), and the domain allows exactly one report per data mart +
+   * destination pair (the report id is deterministic), so a supplied name is
+   * rejected and duplicates are caught here with a clean error instead of a
+   * raw primary-key violation.
    */
   private async addLookerStudioReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
-    return this.createReportWithConfig(request, DataDestinationType.LOOKER_STUDIO, {
-      type: LookerStudioConnectorConfigType,
-      cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
-    });
+    if (request.name !== undefined) {
+      throw new BadRequestException(
+        'The name parameter is not applicable to Looker Studio destinations: ' +
+          'Looker Studio reports carry no name, and each data mart + destination ' +
+          'pair has exactly one report.'
+      );
+    }
+
+    const existing = (
+      await this.listReportsByDataMartService.run(
+        new ListReportsByDataMartCommand(
+          request.dataMartId,
+          request.projectId,
+          request.userId,
+          request.roles
+        )
+      )
+    ).find(report => report.dataDestinationAccess.id === request.destinationId);
+    if (existing) {
+      throw new BusinessViolationException(
+        'A Looker Studio report already exists for this data mart and destination — ' +
+          'each pair has exactly one report. Use the existing report, or delete it first.'
+      );
+    }
+
+    // The title is discarded by the domain for Looker Studio reports; pass the
+    // empty string it would end up as anyway.
+    return this.createReportWithConfig(
+      request,
+      DataDestinationType.LOOKER_STUDIO,
+      {
+        type: LookerStudioConnectorConfigType,
+        cacheLifetime: LOOKER_STUDIO_DEFAULT_CACHE_LIFETIME_SECONDS,
+      },
+      ''
+    );
   }
 
   /**
@@ -309,6 +374,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   ): Promise<McpAddReportResult> {
     // The facade is a public interface, so the message invariant is enforced
     // here as well, not only by the tool-layer input schema.
+    const name = this.requireName(destinationType, request);
     const body = request.message?.body?.trim();
     if (!body) {
       throw new BadRequestException(
@@ -316,15 +382,16 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       );
     }
 
-    return this.createReportWithConfig(request, destinationType, {
-      type: EmailConfigType,
-      subject: request.message?.subject?.trim() || request.name,
-      templateSource: {
-        type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
-        config: { messageTemplate: body },
-      },
-      reportCondition: ReportCondition.ALWAYS,
-    });
+    return this.createReportWithConfig(
+      request,
+      destinationType,
+      this.buildCustomMessageConfig(
+        request.message?.subject?.trim() || name,
+        body,
+        ReportCondition.ALWAYS
+      ),
+      name
+    );
   }
 
   /**
@@ -337,13 +404,14 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   private async createReportWithConfig(
     request: McpAddReportRequest,
     destinationType: DataDestinationType,
-    destinationConfig: DataDestinationConfig
+    destinationConfig: DataDestinationConfig,
+    title: string
   ): Promise<McpAddReportResult> {
     const report = await this.createReportService.run(
       new CreateReportCommand(
         request.projectId,
         request.userId,
-        request.name,
+        title,
         request.dataMartId,
         request.destinationId,
         destinationConfig,
@@ -362,6 +430,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   }
 
   private async addGoogleSheetsReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+    const name = this.requireName(DataDestinationType.GOOGLE_SHEETS, request);
     const columnConfig = this.toColumnConfig(request.fields);
 
     // 1. Validate everything CreateReportService would reject BEFORE the
@@ -375,7 +444,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       new CreateGoogleSheetDocumentCommand(
         request.destinationId,
         request.projectId,
-        request.name,
+        name,
         request.userId,
         request.userEmail
       )
@@ -387,7 +456,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       new CreateReportCommand(
         request.projectId,
         request.userId,
-        request.name,
+        name,
         request.dataMartId,
         request.destinationId,
         {
