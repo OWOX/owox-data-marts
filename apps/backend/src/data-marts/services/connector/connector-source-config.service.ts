@@ -31,11 +31,7 @@ export class ConnectorSourceConfigService {
       .join(', ');
 
     // First inject externalized secrets (non-OAuth secrets stored in connector_source_credentials)
-    const configWithSecrets = await this.credentialInjector.injectSecrets(config, projectId, {
-      connectorName: connector.source.name,
-      dataMartId,
-      configId,
-    });
+    const configWithSecrets = await this.credentialInjector.injectSecrets(config, projectId);
 
     // Then inject OAuth credentials
     const configWithCredentials = await this.credentialInjector.injectOAuthCredentials(

@@ -12,6 +12,10 @@ var GoogleSheetsConnector = class GoogleSheetsConnector extends AbstractConnecto
     this.storageName = storageName;
   }
 
+  _processRunConfig() {
+    this.config.logMessage('Full refresh mode activated');
+  }
+
   async startImportProcess() {
     const nodeName = 'sheet';
     const data = await this.source.fetchData();
@@ -21,7 +25,7 @@ var GoogleSheetsConnector = class GoogleSheetsConnector extends AbstractConnecto
       ...(this.config.Fields || {}),
       value: fields.map(field => `${nodeName} ${field}`).join(', '),
     };
-    this.config.updateFields(fields);
+    this.config.updateFields?.(fields);
 
     this.config.logMessage(
       data.length

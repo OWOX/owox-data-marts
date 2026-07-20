@@ -151,6 +151,35 @@ test('Athena table existence uses the supported exact-match SHOW TABLES expressi
   assert.equal(query.includes(' LIKE '), false);
 });
 
+test('Athena snapshot imports use stable JSON parsing with an explicit timestamp format', async () => {
+  const storage = athenaStorage();
+  let query;
+  storage.executeQuery = async params => {
+    query = params.QueryString;
+    return [];
+  };
+
+  await storage.createTempTable('temp/run', 'run', { imported_at: 'timestamp' }, 'temp_table', true);
+
+  assert.match(query, /org\.apache\.hive\.hcatalog\.data\.JsonSerDe/);
+  assert.match(query, /"timestamp\.formats" = "yyyy-MM-dd HH:mm:ss\.SSS"/);
+  assert.doesNotMatch(query, /org\.openx\.data\.jsonserde\.JsonSerDe/);
+});
+
+test('Athena restores the newest abandoned backup before starting another snapshot', async () => {
+  const storage = athenaStorage();
+  const renames = [];
+  storage.tableExists = async () => false;
+  storage.listSnapshotTables = async () => [
+    'live_table__owox_backup_run_a',
+    'live_table__owox_backup_run_z',
+  ];
+  storage.renameTable = async (from, to) => renames.push([from, to]);
+
+  assert.equal(await storage.recoverSnapshotBackupIfNeeded('live_table'), true);
+  assert.deepEqual(renames, [['live_table__owox_backup_run_z', 'live_table']]);
+});
+
 test('Athena reports partial S3 cleanup failures', async () => {
   const storage = athenaStorage();
   storage.ListObjectsV2Command = class ListObjectsV2Command {
@@ -184,6 +213,7 @@ test('Athena load failure preserves live table and cleans run resources', async 
   const deletedFolders = [];
   let renameCalled = false;
   storage.createDatabaseIfNotExists = async () => {};
+  storage.recoverSnapshotBackupIfNeeded = async () => false;
   storage.createSnapshotRunId = () => 'run';
   storage.createSnapshotTableName = kind => `live_table__owox_${kind}_run`;
   storage.createTargetTable = async () => ({ id: 'bigint' });
@@ -214,6 +244,7 @@ test('Athena restores the live name when staging publication fails', async () =>
   const renames = [];
   const droppedTables = [];
   storage.createDatabaseIfNotExists = async () => {};
+  storage.recoverSnapshotBackupIfNeeded = async () => false;
   storage.createSnapshotRunId = () => 'run';
   storage.createSnapshotTableName = kind => `live_table__owox_${kind}_run`;
   storage.createTargetTable = async () => ({ id: 'bigint' });
@@ -250,6 +281,7 @@ const cloneStorageCases = [
       DatabricksCatalog: value('catalog'),
       DatabricksSchema: value('schema'),
       DestinationTableName: value('events'),
+      MaxBufferSize: value(2),
     },
     connectionProperty: 'session',
     checkMethod: 'checkIfDatabricksIsConnected',
@@ -279,13 +311,17 @@ function cloneStorage(testCase, { failLoad = false, stagedRowCount = 1 } = {}) {
   const originalColumns = { previous: { type: 'STRING' } };
   storage.config = { ...testCase.config, logMessage() {} };
   storage.existingColumns = originalColumns;
+  storage.uniqueKeyColumns = ['id'];
+  storage.getSelectedFields = () => ['id'];
   storage.updatedRecordsBuffer = {};
   storage[testCase.connectionProperty] = {};
   storage[testCase.checkMethod] = () => {};
   storage[testCase.ensureMethod] = async () => {};
   storage.replaceTable = async () => {
     events.push(`stage:${storage.config.DestinationTableName.value}`);
-    return { id: { type: 'BIGINT' } };
+    const stagedColumns = { id: { type: 'BIGINT' } };
+    storage.existingColumns = stagedColumns;
+    return stagedColumns;
   };
   storage.saveData = async () => {
     events.push(`load:${storage.config.DestinationTableName.value}`);
@@ -354,15 +390,58 @@ for (const testCase of cloneStorageCases) {
   });
 }
 
+test('Databricks snapshot loading batches rows before building inline MERGE statements', async () => {
+  const testCase = cloneStorageCases[0];
+  const { storage, events } = cloneStorage(testCase, { stagedRowCount: 5 });
+
+  await storage.replaceData([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+
+  assert.equal(events.filter(event => event.startsWith('load:')).length, 3);
+});
+
+test('Databricks snapshot loading also respects the SQL statement byte limit', () => {
+  const storage = Object.create(DatabricksStorage.prototype);
+  storage.config = {
+    DatabricksCatalog: value('catalog'),
+    DatabricksSchema: value('schema'),
+    DestinationTableName: value('events__owox_stage_run'),
+  };
+  storage.existingColumns = {
+    id: { type: 'BIGINT' },
+    payload: { type: 'STRING' },
+  };
+  storage.uniqueKeyColumns = ['id'];
+  storage.getSelectedFields = () => ['id', 'payload'];
+  const rows = [
+    { id: 1, payload: 'a'.repeat(40) },
+    { id: 2, payload: 'b'.repeat(40) },
+  ];
+  const oneRowQueryBytes = Buffer.byteLength(
+    storage.buildMergeQueryWithInlineSource(
+      '`catalog`.`schema`.`events__owox_stage_run`',
+      storage.buildSelectStatementsForRecords([rows[0]])
+    ),
+    'utf8'
+  );
+
+  const batches = storage.createSnapshotBatches(rows, 250, oneRowQueryBytes + 1);
+
+  assert.equal(batches.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(batches.flat())), rows);
+});
+
 function redshiftStorage(stagedRowCount = 1) {
   const events = [];
   const storage = Object.create(AwsRedshiftStorage.prototype);
   storage.config = {
     Schema: value('analytics'),
     DestinationTableName: value('events'),
+    MaxBufferSize: value(250),
     logMessage() {},
   };
   storage.existingColumns = { previous: 'VARCHAR' };
+  storage.uniqueKeyColumns = ['id'];
+  storage.getSelectedFields = () => ['id'];
   storage.checkConnection = async () => {};
   storage.createSchemaIfNotExist = async () => {};
   storage.getAListOfExistingColumns = async () => ({ id: 'BIGINT' });
@@ -465,4 +544,46 @@ test('Redshift uses the Data API transactional batch for publication', async () 
     Database: 'warehouse',
     WorkgroupName: 'serverless',
   });
+});
+
+test('Redshift snapshot loading respects the Data API statement byte limit', () => {
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.config = {
+    Schema: value('analytics'),
+    DestinationTableName: value('events__owox_stage_run'),
+  };
+  storage.existingColumns = { id: 'BIGINT', payload: 'VARCHAR(65535)' };
+  storage.getSelectedFields = () => ['id', 'payload'];
+  const rows = [
+    { id: 1, payload: 'a'.repeat(40) },
+    { id: 2, payload: 'b'.repeat(40) },
+  ];
+  const estimateTableName = `temp_events__owox_stage_run_${Date.now()}`;
+  const oneRowQueryBytes = Buffer.byteLength(
+    storage.buildInsertBatchQuery(estimateTableName, ['id', 'payload'], [rows[0]]),
+    'utf8'
+  );
+
+  const batches = storage.createSnapshotBatches(rows, 250, oneRowQueryBytes + 1);
+
+  assert.equal(batches.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(batches.flat())), rows);
+});
+
+test('Redshift omits the matched update when only key columns are selected', async () => {
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.config = {
+    Schema: value('analytics'),
+    DestinationTableName: value('events'),
+  };
+  storage.uniqueKeyColumns = ['id'];
+  let query;
+  storage.executeQuery = async sql => {
+    query = sql;
+  };
+
+  await storage.mergeTempTable('events_temp', ['id']);
+
+  assert.doesNotMatch(query, /WHEN MATCHED/);
+  assert.match(query, /WHEN NOT MATCHED THEN/);
 });

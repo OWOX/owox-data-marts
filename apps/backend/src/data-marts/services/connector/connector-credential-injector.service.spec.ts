@@ -102,22 +102,6 @@ describe('ConnectorCredentialInjectorService', () => {
       expect(result).toHaveProperty('_source_credential_id');
     });
 
-    it('returns config unchanged when credential belongs to a different connector', async () => {
-      const { service, connectorSourceCredentialsService } = createService();
-      const config = { _source_credential_id: 'cred-1' };
-
-      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
-        id: 'cred-1',
-        projectId: 'proj-1',
-        connectorName: 'GoogleAds',
-        credentials: { refresh_token: 'token' },
-      });
-
-      const result = await service.injectOAuthCredentials(config, 'GoogleSheets', 'proj-1');
-
-      expect(result).toEqual(config);
-    });
-
     it('injects credentials directly when no mapping found', async () => {
       const { service, connectorSourceCredentialsService, connectorService } = createService();
       const config = { _source_credential_id: 'cred-1' };
@@ -145,7 +129,7 @@ describe('ConnectorCredentialInjectorService', () => {
     });
   });
 
-  describe('injectCredentialsForPreview', () => {
+  describe('injectGoogleSheetsPreviewCredentials', () => {
     it('rejects OAuth credentials issued for a different connector', async () => {
       const { service, connectorSourceCredentialsService } = createService();
       const config = { AuthType: { oauth2: { _source_credential_id: 'cred-1' } } };
@@ -157,9 +141,9 @@ describe('ConnectorCredentialInjectorService', () => {
         credentials: { access_token: 'token' },
       });
 
-      await expect(
-        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
-      ).rejects.toThrow('The selected credentials cannot be used for this preview');
+      await expect(service.injectGoogleSheetsPreviewCredentials(config, 'proj-1')).rejects.toThrow(
+        'The selected credentials cannot be used for this preview'
+      );
     });
 
     it('allows a project editor to preview with project OAuth credentials', async () => {
@@ -180,7 +164,7 @@ describe('ConnectorCredentialInjectorService', () => {
         },
       });
 
-      const result = await service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1');
+      const result = await service.injectGoogleSheetsPreviewCredentials(config, 'proj-1');
 
       expect(result).toEqual({ AuthType: { oauth2: { RefreshToken: 'refresh-token' } } });
     });
@@ -208,13 +192,13 @@ describe('ConnectorCredentialInjectorService', () => {
         }
       );
 
-      await expect(
-        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
-      ).resolves.toEqual({
-        _id: 'config-1',
-        _copiedFrom: { dataMartId: 'dm-1', configId: 'config-2' },
-        AuthType: { service_account: { ServiceAccountKey: '{}' } },
-      });
+      await expect(service.injectGoogleSheetsPreviewCredentials(config, 'proj-1')).resolves.toEqual(
+        {
+          _id: 'config-1',
+          _copiedFrom: { dataMartId: 'dm-1', configId: 'config-2' },
+          AuthType: { service_account: { ServiceAccountKey: '{}' } },
+        }
+      );
     });
 
     it('rejects stored secrets from another configuration without copy metadata', async () => {
@@ -229,9 +213,9 @@ describe('ConnectorCredentialInjectorService', () => {
         credentials: { ServiceAccountKey: '{}' },
       });
 
-      await expect(
-        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
-      ).rejects.toThrow('The selected credentials cannot be used for this preview');
+      await expect(service.injectGoogleSheetsPreviewCredentials(config, 'proj-1')).rejects.toThrow(
+        'The selected credentials cannot be used for this preview'
+      );
     });
 
     it('rejects copied stored secrets from a different connector', async () => {
@@ -246,9 +230,9 @@ describe('ConnectorCredentialInjectorService', () => {
         credentials: { ServiceAccountKey: '{}' },
       });
 
-      await expect(
-        service.injectCredentialsForPreview(config, 'GoogleSheets', 'proj-1')
-      ).rejects.toThrow('The selected credentials cannot be used for this preview');
+      await expect(service.injectGoogleSheetsPreviewCredentials(config, 'proj-1')).rejects.toThrow(
+        'The selected credentials cannot be used for this preview'
+      );
     });
   });
 

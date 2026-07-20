@@ -70,6 +70,27 @@ describe('GoogleSheetsServiceAccountField', () => {
     expect(screen.queryByDisplayValue(serviceAccountKey)).not.toBeInTheDocument();
   });
 
+  it('keeps incomplete JSON editable instead of showing a service-account summary', () => {
+    render(<TestField />);
+    const incompleteKey = JSON.stringify({
+      type: 'service_account',
+      project_id: 'test-project',
+      client_id: '123456789',
+      client_email: 'reader@test-project.iam.gserviceaccount.com',
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/Paste your service account JSON/i), {
+      target: { value: incompleteKey },
+    });
+
+    expect(screen.getByPlaceholderText(/Paste your service account JSON/i)).toHaveValue(
+      incompleteKey
+    );
+    expect(
+      screen.queryByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
+    ).not.toBeInTheDocument();
+  });
+
   it('shows the saved service-account email when the secret is masked', () => {
     render(<SavedField />);
 

@@ -92,7 +92,11 @@ export function GoogleAdsOauthRender({
               : 'Choose spreadsheet'}
         </Button>
       )}
-      {pickerError && <div className='text-destructive text-sm'>{pickerError}</div>}
+      {pickerError && (
+        <div role='alert' className='text-destructive text-sm'>
+          {pickerError}
+        </div>
+      )}
     </div>
   );
 }

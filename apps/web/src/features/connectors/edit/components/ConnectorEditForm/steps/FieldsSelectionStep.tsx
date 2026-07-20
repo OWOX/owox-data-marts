@@ -69,7 +69,6 @@ export function FieldsSelectionStep({
   const showDataLevelFieldsTip = Boolean(
     selectedDataLevel && selectedFieldData?.uniqueKeysByDataLevel?.[selectedDataLevel]
   );
-  const lockedFieldNameSet = useMemo(() => new Set(uniqueKeys), [uniqueKeys]);
 
   const originalIndexByName = useMemo(() => {
     const indexMap = new Map<string, number>();
@@ -100,9 +99,9 @@ export function FieldsSelectionStep({
   }, [availableFields, filterText, uniqueKeys, sortOrder, originalIndexByName]);
 
   const availableFieldNames = availableFields.map(field => field.name);
-  const selectedTotalCount = availableFields.filter(field => {
-    return selectedFields.includes(field.name) || lockedFieldNameSet.has(field.name);
-  }).length;
+  const selectedTotalCount = selectedFields.filter(fieldName =>
+    availableFieldNames.includes(fieldName)
+  ).length;
 
   useEffect(() => {
     const availableFieldNamesSet = new Set(availableFields.map(f => f.name));
@@ -161,9 +160,7 @@ export function FieldsSelectionStep({
       if (isHotkeyPressed) {
         event.preventDefault();
 
-        const availableNames = availableFields
-          .map(field => field.name)
-          .filter(fieldName => !lockedFieldNameSet.has(fieldName));
+        const availableNames = availableFields.map(field => field.name);
         const notYetSelected = availableNames.filter(name => !selectedFields.includes(name));
         const shouldSelectAll = notYetSelected.length > 0;
 
@@ -175,7 +172,7 @@ export function FieldsSelectionStep({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [availableFields, lockedFieldNameSet, selectedFields, onFieldToggle, onSelectAllFields]);
+  }, [availableFields, selectedFields, onFieldToggle, onSelectAllFields]);
 
   if (!selectedField || !connectorFields) {
     return (
@@ -308,7 +305,6 @@ export function FieldsSelectionStep({
           <AppWizardStepCards>
             {filteredFields.map(field => {
               const isUniqueKey = uniqueKeys.includes(field.name);
-              const isLocked = isUniqueKey;
               return (
                 <AppWizardStepCardItem
                   key={field.name}
@@ -316,9 +312,9 @@ export function FieldsSelectionStep({
                   id={`field-${field.name}`}
                   name='selectedFields'
                   value={field.name}
-                  checked={selectedFields.includes(field.name) || isLocked}
-                  selected={selectedFields.includes(field.name) || isLocked}
-                  disabled={isLocked}
+                  checked={selectedFields.includes(field.name)}
+                  selected={selectedFields.includes(field.name) || isUniqueKey}
+                  disabled={isUniqueKey}
                   onChange={checked => {
                     onFieldToggle(field.name, checked as boolean);
                   }}
@@ -355,9 +351,9 @@ export function FieldsSelectionStep({
               </div>
             )}
           </AppWizardStepCards>
-        </AppWizardStepSection>
 
-        <OpenIssueLink label={`Need another ${itemLabel === 'columns' ? 'column' : 'field'}?`} />
+          <OpenIssueLink label={`Need another ${itemLabel === 'columns' ? 'column' : 'field'}?`} />
+        </AppWizardStepSection>
       </>
     </AppWizardStep>
   );

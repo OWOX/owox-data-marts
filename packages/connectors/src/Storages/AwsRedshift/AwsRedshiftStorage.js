@@ -30,6 +30,64 @@ function createSnapshotTableNames(tableName) {
   };
 }
 
+const REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES = 90 * 1024;
+
+function utf8ByteLength(value) {
+  let bytes = 0;
+
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else if (
+      code >= 0xd800 &&
+      code <= 0xdbff &&
+      index + 1 < value.length &&
+      value.charCodeAt(index + 1) >= 0xdc00 &&
+      value.charCodeAt(index + 1) <= 0xdfff
+    ) {
+      bytes += 4;
+      index += 1;
+    } else {
+      bytes += 3;
+    }
+  }
+
+  return bytes;
+}
+
+function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQuery) {
+  const batches = [];
+  let batch = [];
+  let batchBytes = 0;
+
+  for (const row of rows) {
+    const rowBytes = utf8ByteLength(buildSingleRowQuery(row));
+    if (rowBytes > maxBytes) {
+      throw new Error(
+        `A single Google Sheets row exceeds the Redshift statement size limit (${maxBytes} bytes)`
+      );
+    }
+
+    if (batch.length && (batch.length >= maxRows || batchBytes + rowBytes > maxBytes)) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+
+    batch.push(row);
+    batchBytes += rowBytes;
+  }
+
+  if (batch.length) {
+    batches.push(batch);
+  }
+
+  return batches;
+}
+
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
   /**
@@ -497,7 +555,11 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       const stagedColumns = await this.createTable();
 
       if (data.length) {
-        await this.saveData(data);
+        const batchSize = Math.max(1, Number(this.config.MaxBufferSize?.value) || 250);
+        const batches = this.createSnapshotBatches(data, batchSize);
+        for (const batch of batches) {
+          await this.saveData(batch);
+        }
       }
 
       await this.validateSnapshotRowCount(stagingTableName, data.length);
@@ -542,6 +604,22 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
         );
       }
     }
+  }
+  //----------------------------------------------------------------
+
+  //---- createSnapshotBatches --------------------------------------
+  createSnapshotBatches(data, maxRows, maxBytes = REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES) {
+    const selectedFields = this.getSelectedFields();
+    const dataKeys = Object.keys(data[0] || {});
+    const columns = dataKeys.filter(key => selectedFields.includes(key));
+    const estimateTableName = `temp_${stripQuotes(this.config.DestinationTableName.value)}_${Date.now()}`;
+
+    return splitSnapshotRowsByQuerySize(
+      data,
+      Math.max(1, maxRows),
+      maxBytes,
+      row => this.buildInsertBatchQuery(estimateTableName, columns, [row])
+    );
   }
   //----------------------------------------------------------------
 
@@ -768,6 +846,12 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async insertBatch(tableName, columns, records) {
+    await this.executeQuery(this.buildInsertBatchQuery(tableName, columns, records), 'dml');
+  }
+  //----------------------------------------------------------------
+
+  //---- buildInsertBatchQuery --------------------------------------
+  buildInsertBatchQuery(tableName, columns, records) {
     const values = records.map(record => {
       const vals = columns.map(col => {
         const value = record[col];
@@ -813,12 +897,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
     const columnList = columns.map(col => `"${col}"`).join(', ');
 
-    const query = `
+    return `
       INSERT INTO "${stripQuotes(this.config.Schema.value)}"."${tableName}" (${columnList})
       VALUES ${values}
     `;
-
-    await this.executeQuery(query, 'dml');
   }
   //----------------------------------------------------------------
 
@@ -843,6 +925,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const updateSet = updateColumns.map(col =>
       `"${col}" = ${sourceTable}."${col}"`
     ).join(', ');
+    const matchedClause = updateSet
+      ? `WHEN MATCHED THEN
+        UPDATE SET ${updateSet}`
+      : '';
 
     // Build INSERT columns and values
     const insertColumns = columns.map(col => `"${col}"`).join(', ');
@@ -852,8 +938,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       MERGE INTO ${targetTable}
       USING ${sourceTable}
       ON ${onClause}
-      WHEN MATCHED THEN
-        UPDATE SET ${updateSet}
+      ${matchedClause}
       WHEN NOT MATCHED THEN
         INSERT (${insertColumns})
         VALUES (${insertValues})

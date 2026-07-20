@@ -44,11 +44,14 @@ describe('ConnectorSecretService', () => {
     return { service, specService, credentialsService };
   };
 
-  const makeDefinition = (configItems: Array<Record<string, unknown>>): ConnectorDefinition => {
+  const makeDefinition = (
+    configItems: Array<Record<string, unknown>>,
+    connectorName = 'FacebookMarketing'
+  ): ConnectorDefinition => {
     return {
       connector: {
         source: {
-          name: 'FacebookMarketing',
+          name: connectorName,
           configuration: configItems,
           node: 'ad-account-user',
           fields: ['id'],
@@ -536,7 +539,7 @@ describe('ConnectorSecretService', () => {
       expect(cfg[1]._id).not.toBe('source-id-3');
     });
 
-    it('copies source secrets from externalized secrets', async () => {
+    it('copies Google Sheets secrets without retaining the source secret record', async () => {
       const { service, credentialsService } = createService(['RefreshToken']);
 
       (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
@@ -554,17 +557,21 @@ describe('ConnectorSecretService', () => {
         ])
       );
 
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
-      ]);
+      const sourceDefinition = makeDefinition(
+        [{ _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } }],
+        'GoogleSheets'
+      );
 
-      const incoming = makeDefinition([
-        {
-          _secrets_id: 'secrets-1',
-          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
-          _copiedFrom: { configId: 'source-id-1' },
-        },
-      ]);
+      const incoming = makeDefinition(
+        [
+          {
+            _secrets_id: 'secrets-1',
+            AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
+            _copiedFrom: { configId: 'source-id-1' },
+          },
+        ],
+        'GoogleSheets'
+      );
 
       const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
@@ -573,6 +580,25 @@ describe('ConnectorSecretService', () => {
       expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
       expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
       expect(cfg[0]).not.toHaveProperty('_secrets_id');
+    });
+
+    it('preserves the existing copied-secret behavior for other connectors', async () => {
+      const { service } = createService(['AccessToken']);
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', _secrets_id: 'secrets-1', AccessToken: 'stored-token' },
+      ]);
+      const incoming = makeDefinition([
+        {
+          _secrets_id: 'secrets-1',
+          AccessToken: SECRET_MASK,
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]._secrets_id).toBe('secrets-1');
     });
 
     it('does not copy source generated refresh token when incoming copied refresh token changes', async () => {

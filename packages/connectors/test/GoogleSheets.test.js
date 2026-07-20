@@ -21,6 +21,43 @@ class HttpRequestException extends Error {
   }
 }
 
+class OauthFlowException extends Error {
+  constructor({ message, payload }) {
+    super(message);
+    this.payload = payload;
+  }
+}
+
+const HttpUtils = {
+  async fetch() {
+    throw new Error('Unexpected HTTP request');
+  },
+};
+
+const OauthCredentialsDto = {
+  builder() {
+    const value = {};
+    const builder = {
+      withUser(user) {
+        value.user = user;
+        return builder;
+      },
+      withSecret(secret) {
+        value.secret = secret;
+        return builder;
+      },
+      withExpiresIn(expiresIn) {
+        value.expiresIn = expiresIn;
+        return builder;
+      },
+      build() {
+        return { toObject: () => value };
+      },
+    };
+    return builder;
+  },
+};
+
 function loadScript(fileName, exportName, context) {
   const source = readFileSync(new URL(fileName, import.meta.url), 'utf8');
   const sandbox = vm.createContext({ console, ...context });
@@ -40,6 +77,20 @@ const GoogleSheetsSource = loadScript(
       SERVER_ERROR_MIN: 500,
     },
     HttpRequestException,
+    HttpUtils,
+    OauthCredentialsDto,
+    OauthFlowException,
+    CONFIG_ATTRIBUTES: {
+      SECRET: 'SECRET',
+      ADVANCED: 'ADVANCED',
+      HIDE_IN_CONFIG_FORM: 'HIDE_IN_CONFIG_FORM',
+      OAUTH_FLOW: 'OAUTH_FLOW',
+    },
+    OAUTH_CONSTANTS: {
+      UI: 'UI',
+      SECRET: 'SECRET',
+      REQUIRED: 'REQUIRED',
+    },
   }
 );
 
@@ -86,6 +137,52 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+test('preserves explicit false defaults inside the Google Sheets configuration only', () => {
+  let mergedParameters;
+  const config = {
+    InferTypes: { value: false },
+    ImportAllColumns: { value: false },
+    mergeParameters(parameters) {
+      mergedParameters = parameters;
+      return this;
+    },
+  };
+
+  new GoogleSheetsSource(config);
+
+  assert.equal(mergedParameters.InferTypes.default, false);
+  assert.equal(mergedParameters.ImportAllColumns.default, false);
+});
+
+test('rejects OAuth authorization when required Google Sheets permissions were not granted', async () => {
+  const originalFetch = HttpUtils.fetch;
+  HttpUtils.fetch = async () => ({
+    getAsJson: async () => ({
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope: 'https://www.googleapis.com/auth/userinfo.email',
+    }),
+  });
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  try {
+    await assert.rejects(
+      source.exchangeOauthCredentials(
+        { code: 'authorization-code' },
+        {
+          ClientId: 'client-id',
+          ClientSecret: 'client-secret',
+          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        }
+      ),
+      /authorization is missing required permissions/
+    );
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
+});
+
 test('maps an absolute header row into an offset range and preserves absolute row numbers', () => {
   const source = createSource({ headerRow: 6, range: 'B5:C' });
   const snapshot = source._buildSheetSnapshot(
@@ -104,7 +201,7 @@ test('maps an absolute header row into an offset range and preserves absolute ro
       [9, 'Lin', '00456'],
     ]
   );
-  assert.equal(source._buildA1Range(), "'Data'!B5:C");
+  assert.equal(source._buildA1Range(), "'Data'!B5:C100007");
   assert.equal(source._buildA1Range({ preview: true }), "'Data'!B6:C106");
 });
 
@@ -112,6 +209,7 @@ test('bounds an unconfigured preview to 256 columns and 100 sample rows', () => 
   const source = createSource({ headerRow: 4 });
 
   assert.equal(source._buildA1Range({ preview: true }), "'Data'!A4:IV104");
+  assert.equal(source._buildA1Range(), "'Data'!A1:ZZZ100005");
   assert.deepEqual(plain(source._parseA1GridRange('$B$5:$D$20')), {
     startColumn: 2,
     endColumn: 4,
@@ -122,10 +220,28 @@ test('bounds an unconfigured preview to 256 columns and 100 sample rows', () => 
 
 test('does not allow Range to override the selected sheet tab', () => {
   const sameSheetSource = createSource({ range: "'Data'!A:D" });
-  assert.equal(sameSheetSource._buildA1Range(), "'Data'!A:D");
+  assert.equal(sameSheetSource._buildA1Range(), "'Data'!A1:D100002");
 
   const otherSheetSource = createSource({ range: "'Other'!A:D" });
   assert.throws(() => otherSheetSource._buildA1Range(), /Range must use the selected sheet 'Data'/);
+});
+
+test('falls back to STRING for numeric values outside JavaScript safe precision', () => {
+  const source = createSource();
+
+  assert.equal(source._inferType([Number.MAX_SAFE_INTEGER]), DATA_TYPES.INTEGER);
+  assert.equal(source._inferType([Number.MAX_SAFE_INTEGER + 1]), DATA_TYPES.STRING);
+  assert.equal(source._inferType([-(Number.MAX_SAFE_INTEGER + 1)]), DATA_TYPES.STRING);
+});
+
+test('rejects more selected columns than the portable warehouse limit', () => {
+  const source = createSource();
+  const columns = Array.from({ length: 1599 }, (_, index) => ({ name: `column_${index + 1}` }));
+
+  assert.throws(
+    () => source._assertImportColumnCount(columns),
+    /support up to 1,598 sheet columns/
+  );
 });
 
 test('selects duplicate and colliding headers by their canonical unique identifier', () => {
@@ -211,6 +327,14 @@ test('builds a schema and zero rows for a header-only snapshot', () => {
   assert.equal(schema.name.type, DATA_TYPES.STRING);
   assert.equal(schema.id.type, DATA_TYPES.STRING);
   assert.deepEqual(Object.keys(schema), ['_owox_row_number', 'name', 'id']);
+});
+
+test('counts columns without spreading large row arrays onto the call stack', () => {
+  const source = createSource();
+  const rows = Array.from({ length: 130000 }, (_, index) => (index === 129999 ? [1, 2, 3] : []));
+
+  assert.equal(source._getColumnCount(['header'], rows), 3);
+  assert.throws(() => source._assertImportSize(rows), /support up to 100,000 data rows/);
 });
 
 test('all-columns mode picks up additions while subset mode drops missing selections', () => {
@@ -346,7 +470,22 @@ test('preview exposes both technical fields but imported-at remains optional at 
   const selectedRows = sourceWithImportedAt._buildRows([['Ada']], columns, 2);
   const selectedSchema = sourceWithImportedAt._inferSchema(columns, selectedRows);
   assert.equal(typeof selectedRows[0]._owox_imported_at, 'string');
+  assert.match(selectedRows[0]._owox_imported_at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}$/);
   assert.equal(selectedSchema._owox_imported_at.type, DATA_TYPES.TIMESTAMP);
+});
+
+test('does not retry or wrap an aborted Google Sheets request', async () => {
+  const source = createSource();
+  const abortController = new AbortController();
+  const reason = new Error('preview cancelled');
+  abortController.abort(reason);
+  source.getAccessToken = async () => 'token';
+
+  await assert.rejects(
+    source._fetchSheetValues({ signal: abortController.signal }),
+    error => error === reason
+  );
+  assert.equal(source.logs.length, 0);
 });
 
 test('refreshes a rejected token once and honors numeric Retry-After values', async () => {

@@ -8,10 +8,19 @@
 var GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES = 127;
 var GOOGLE_SHEETS_PREVIEW_MAX_COLUMNS = 256;
 var GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
+var GOOGLE_SHEETS_MAX_IMPORT_ROWS = 100000;
+var GOOGLE_SHEETS_MAX_IMPORT_COLUMNS = 1598;
 var GOOGLE_SHEETS_MAX_RETRY_AFTER_MS = 300000;
+var GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
 
 var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   constructor(config) {
+    const inferTypesDefault = config.InferTypes?.value === false ? false : true;
+    const importAllColumnsDefault = config.ImportAllColumns?.value === false ? false : true;
+
     super(
       config.mergeParameters({
         AuthType: {
@@ -174,7 +183,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         },
         InferTypes: {
           requiredType: 'boolean',
-          default: true,
+          default: inferTypesDefault,
           label: 'Infer Types',
           description:
             'Infer warehouse column types from sheet values. Mixed columns fall back to STRING.',
@@ -182,7 +191,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         },
         ImportAllColumns: {
           requiredType: 'boolean',
-          default: true,
+          default: importAllColumnsDefault,
           label: 'Import All Columns',
           description:
             'Import every current sheet column, including columns added after setup. Disable to use the explicit Fields selection.',
@@ -243,6 +252,18 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           message:
             'No refresh_token returned. Please revoke access at https://myaccount.google.com/permissions and try again.',
           payload: data,
+        });
+      }
+
+      const grantedScopes = new Set(String(data.scope || '').split(/\s+/).filter(Boolean));
+      const missingScopes = GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES.filter(
+        scope => !grantedScopes.has(scope)
+      );
+      if (missingScopes.length) {
+        throw new OauthFlowException({
+          message:
+            'Google Sheets authorization is missing required permissions. Reconnect and allow Google Drive file access and email address access.',
+          payload: { missingScopes },
         });
       }
 
@@ -372,6 +393,10 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         const payload = await response.getAsJson();
         return Array.isArray(payload.values) ? payload.values : [];
       } catch (error) {
+        if (signal?.aborted) {
+          throw signal.reason || error;
+        }
+
         if (error?.statusCode === HTTP_STATUS.UNAUTHORIZED && authorizationAttempt === 0) {
           this.config.logMessage(
             'Google Sheets access token was rejected; refreshing it and retrying once'
@@ -387,7 +412,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       }
     }
 
-    return [];
+    throw new Error('Google Sheets authorization retry loop ended unexpectedly');
   }
 
   async _fetchSheetResponse(url, accessToken, signal) {
@@ -403,6 +428,10 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         });
         return await this._validateResponse(response);
       } catch (error) {
+        if (signal?.aborted) {
+          throw signal.reason || error;
+        }
+
         if (error?.statusCode === HTTP_STATUS.UNAUTHORIZED) {
           throw error;
         }
@@ -482,10 +511,8 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     const headerIndex = headerRowNumber - returnedRangeStartRow;
     const headerRow = values[headerIndex] || [];
     const dataRows = values.slice(headerIndex + 1);
-    const columnCount = Math.max(
-      headerRow.length,
-      ...dataRows.map(row => (Array.isArray(row) ? row.length : 0))
-    );
+    this._assertImportSize(dataRows);
+    const columnCount = this._getColumnCount(headerRow, dataRows);
     const detectedColumns = this._buildColumnDefinitions(headerRow, columnCount);
 
     if (detectedColumns.length === 0) {
@@ -501,11 +528,40 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     if (columns.length === 0) {
       throw new Error('No columns selected for import');
     }
+    this._assertImportColumnCount(columns);
 
     const firstDataRowNumber = headerRowNumber + 1;
     const rows = this._buildRows(dataRows, columns, firstDataRowNumber);
 
     return { columns, rows };
+  }
+
+  _assertImportSize(dataRows) {
+    if (dataRows.length > GOOGLE_SHEETS_MAX_IMPORT_ROWS) {
+      throw new Error(
+        `Google Sheets imports currently support up to ${GOOGLE_SHEETS_MAX_IMPORT_ROWS.toLocaleString('en-US')} data rows per sheet. ` +
+          `The selected range contains ${dataRows.length.toLocaleString('en-US')} rows. Narrow the Range and try again.`
+      );
+    }
+  }
+
+  _assertImportColumnCount(columns) {
+    if (columns.length > GOOGLE_SHEETS_MAX_IMPORT_COLUMNS) {
+      throw new Error(
+        `Google Sheets imports currently support up to ${GOOGLE_SHEETS_MAX_IMPORT_COLUMNS.toLocaleString('en-US')} sheet columns. ` +
+          `The selected range contains ${columns.length.toLocaleString('en-US')} columns. Narrow the Range or select fewer columns and try again.`
+      );
+    }
+  }
+
+  _getColumnCount(headerRow, dataRows) {
+    let columnCount = Array.isArray(headerRow) ? headerRow.length : 0;
+    for (const row of dataRows) {
+      if (Array.isArray(row) && row.length > columnCount) {
+        columnCount = row.length;
+      }
+    }
+    return columnCount;
   }
 
   isValidToRetry(error) {
@@ -618,10 +674,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     const gridRange = this._getConfiguredGridRange(configuredRange);
     const sheetPrefix = `${this._quoteSheetName(this.config.SheetName.value)}!`;
 
-    if (!preview) {
-      return gridRange ? `${sheetPrefix}${gridRange}` : sheetPrefix.slice(0, -1);
-    }
-
     const parsedBounds = this._parseA1GridRange(gridRange);
     if (gridRange && !parsedBounds) {
       return `${sheetPrefix}${gridRange}`;
@@ -635,6 +687,20 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     };
     const headerRow = this._getHeaderRowNumber();
     this._validateHeaderWithinRange(headerRow, bounds);
+
+    if (!preview) {
+      const startColumn = bounds.startColumn || 1;
+      const endColumn = bounds.endColumn || this._columnLettersToNumber('ZZZ');
+      const endRow = Math.min(
+        bounds.endRow || headerRow + GOOGLE_SHEETS_MAX_IMPORT_ROWS + 1,
+        headerRow + GOOGLE_SHEETS_MAX_IMPORT_ROWS + 1
+      );
+
+      return (
+        `${sheetPrefix}${this._columnNumberToLetters(startColumn)}${bounds.startRow}:` +
+        `${this._columnNumberToLetters(endColumn)}${endRow}`
+      );
+    }
 
     const startColumn = bounds.startColumn || 1;
     const endColumn = Math.min(
@@ -943,7 +1009,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _buildRows(dataRows, columns, firstDataRowNumber) {
-    const importedAt = new Date().toISOString();
+    const importedAt = this._formatWarehouseTimestamp(new Date());
     const includeImportedAt = this._shouldIncludeImportedAt();
 
     return dataRows
@@ -962,6 +1028,10 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         return normalizedRow;
       })
       .filter(row => columns.some(column => row[column.name] !== null));
+  }
+
+  _formatWarehouseTimestamp(value) {
+    return value.toISOString().replace('T', ' ').replace('Z', '');
   }
 
   _normalizeCellValue(value) {
@@ -1061,10 +1131,14 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _isInteger(value) {
-    return typeof value === 'number' && Number.isInteger(value);
+    return typeof value === 'number' && Number.isSafeInteger(value);
   }
 
   _isNumber(value) {
-    return typeof value === 'number' && Number.isFinite(value);
+    return (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      Math.abs(value) <= Number.MAX_SAFE_INTEGER
+    );
   }
 };

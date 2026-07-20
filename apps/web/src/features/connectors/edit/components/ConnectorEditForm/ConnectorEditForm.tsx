@@ -21,6 +21,8 @@ import {
 import { trackEvent } from '../../../../../utils';
 import { resolveEffectiveDataLevel } from '../../../shared/constants/connector-config';
 import { toast } from 'react-hot-toast';
+import { Button } from '@owox/ui/components/button';
+import { RefreshCw } from 'lucide-react';
 import { extractApiError } from '../../../../../app/api/extract-api-error.util';
 import {
   GOOGLE_SHEETS_CONNECTOR_NAME,
@@ -67,6 +69,7 @@ export function ConnectorEditForm({
   const [loadedFields, setLoadedFields] = useState<Set<string>>(new Set());
   const [previewConfigurationKey, setPreviewConfigurationKey] = useState<string | null>(null);
   const [autoSelectPreviewDefaults, setAutoSelectPreviewDefaults] = useState(true);
+  const [fieldsOnlyPreviewError, setFieldsOnlyPreviewError] = useState<string | null>(null);
   const fieldsOnlyPreviewStartedForOpenRef = useRef(false);
   const {
     connectors,
@@ -361,10 +364,16 @@ export function ConnectorEditForm({
       const configuration = options?.configuration ?? connectorConfiguration;
       const configurationKey = JSON.stringify(configuration);
       setPreviewConfigurationKey(null);
+      setFieldsOnlyPreviewError(null);
 
       try {
         const previewFields = await previewConnectorFields(connectorName, configuration);
-        if (!previewFields) return false;
+        if (!previewFields) {
+          if (mode === 'fields-only') {
+            setFieldsOnlyPreviewError('Failed to load Google Sheets columns');
+          }
+          return false;
+        }
         if (previewFields.length === 0) {
           throw new Error('No columns were found in the selected Google Sheets tab');
         }
@@ -403,22 +412,25 @@ export function ConnectorEditForm({
         return true;
       } catch (error) {
         const apiError = extractApiError(error) as { message?: string } | undefined;
-        if (apiError) {
-          return false;
-        }
-
         const message =
-          error instanceof Error ? error.message : 'Failed to load Google Sheets columns';
-        toast.error(message);
+          apiError?.message ??
+          (error instanceof Error ? error.message : 'Failed to load Google Sheets columns');
+        if (mode === 'fields-only') {
+          setFieldsOnlyPreviewError(message);
+        }
+        if (!apiError) {
+          toast.error(message);
+        }
         return false;
       }
     },
-    [connectorConfiguration, previewConnectorFields, selectedConnector?.name, selectedFields]
+    [connectorConfiguration, mode, previewConnectorFields, selectedConnector?.name, selectedFields]
   );
 
   useEffect(() => {
     if (!isOpen) {
       fieldsOnlyPreviewStartedForOpenRef.current = false;
+      setFieldsOnlyPreviewError(null);
       return;
     }
 
@@ -575,6 +587,30 @@ export function ConnectorEditForm({
             />
           ) : isGoogleSheetsConnector && loadingFields ? (
             <AppWizardStepLoading variant='list' />
+          ) : isGoogleSheetsConnector && fieldsOnlyPreviewError ? (
+            <div
+              role='alert'
+              className='flex min-h-48 flex-col items-center justify-center gap-3 text-center'
+            >
+              <p className='text-destructive text-sm'>{fieldsOnlyPreviewError}</p>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                aria-label='Retry loading Google Sheets columns'
+                onClick={() => {
+                  fieldsOnlyPreviewStartedForOpenRef.current = true;
+                  void loadGoogleSheetsPreviewFields({
+                    connectorName: existingConnector?.source.name,
+                    configuration: existingConnector?.source.configuration[0] ?? {},
+                    selectedFields: existingConnector?.source.fields,
+                  });
+                }}
+              >
+                <RefreshCw className='h-4 w-4' />
+                Retry
+              </Button>
+            </div>
           ) : null;
         default:
           return null;

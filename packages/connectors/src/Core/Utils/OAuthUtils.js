@@ -55,6 +55,9 @@ var OAuthUtils = {
 
       return json.access_token;
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason || error;
+      }
       const wrapped = new Error(`Failed to get access token: ${error.message}`);
       wrapped.isWarning = error.isWarning;
       throw wrapped;
@@ -105,6 +108,9 @@ var OAuthUtils = {
       return accessToken;
 
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason || error;
+      }
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
       const wrapped = new Error(`Service Account authentication failed: ${error.message}`);
       wrapped.isWarning = error.isWarning;
