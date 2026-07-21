@@ -587,7 +587,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 <table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">authorization_url</code></td><td>For <code dir="auto">google_sheets</code>, a link to the OWOX “Connect Google Sheets” page where the user completes Google OAuth</td></tr><tr><td><code dir="auto">destination_id</code></td><td>New destination identifier. Returned for <code dir="auto">looker_studio</code>, <code dir="auto">email</code>, <code dir="auto">slack</code>, <code dir="auto">teams</code>, and <code dir="auto">google_chat</code>; absent for Google Sheets until setup is completed</td></tr><tr><td><code dir="auto">instructions</code></td><td>Human-readable next steps for finishing setup or using the new destination</td></tr></tbody></table>
 <p>For <code dir="auto">google_sheets</code>, this tool does not create the destination immediately. It returns a project-scoped setup link; the user opens it, signs in to OWOX if needed, clicks <strong>Connect with Google</strong>, and approves Google access. After the user confirms setup is complete, call <code dir="auto">list_destinations</code> and match the new Google Sheets destination by <code dir="auto">connectedGoogleAccount</code>. The created destination is usable by the person who connected it, but it starts unshared for other project members until someone shares it in the UI.</p>
-<p>For <code dir="auto">email</code>, <code dir="auto">slack</code>, <code dir="auto">teams</code>, and <code dir="auto">google_chat</code>, the tool creates the destination directly and returns <code dir="auto">destination_id</code>. For <code dir="auto">looker_studio</code>, the tool also creates the destination directly, but it never sends connector credentials or secret keys through MCP/chat; the user opens the destination in OWOX Data Marts to copy those credentials.</p>
+<p>For <code dir="auto">email</code>, <code dir="auto">slack</code>, <code dir="auto">teams</code>, and <code dir="auto">google_chat</code>, the tool creates the destination directly and returns <code dir="auto">destination_id</code>. For <code dir="auto">looker_studio</code>, the tool also creates the destination directly, but it never sends connector credentials or secret keys through MCP/chat; the user opens the destination in OWOX Data Marts to copy those credentials, and the returned <code dir="auto">instructions</code> include a link to the <a href="/docs/destinations/supported-destinations/data-studio/">Data Studio destination</a> guide with the full walkthrough.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="get_data_mart_reports"><code dir="auto">get_data_mart_reports</code></h3><a class="sl-anchor-link" href="#get_data_mart_reports"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “get_data_mart_reports”</span></a></div>
 <p>Lists the reports tied to a data mart, including each report’s destination, its run schedules (a report can have any number of schedule triggers), and its last run status.</p>
 <p><strong>Input:</strong></p>
@@ -898,8 +898,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">trigger_id</code></td><td>Schedule to remove</td></tr></tbody></table>
 <p><strong>Returns:</strong> <code dir="auto">trigger_id</code>, <code dir="auto">report_id</code>, and <code dir="auto">schedule: null</code> to confirm removal. Only that one schedule is removed — the report and any other schedules it has are left intact.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="add_report-requires-mcpwrite"><code dir="auto">add_report</code> (requires <code dir="auto">mcp:write</code>)</h3><a class="sl-anchor-link" href="#add_report-requires-mcpwrite"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “add_report (requires mcp:write)”</span></a></div>
-<p>Creates a report that exports a data mart to a Google Sheets destination. A new Google Sheet is created automatically and linked to the report.</p>
-<p>Unlike every other tool, this one reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. It needs a Google Sheets destination to already exist in the project — see <a href="/docs/destinations/supported-destinations/google-sheets/">Google Sheets destination</a> for how to set one up.</p>
+<p>Creates a report that exports a data mart to an existing destination (see <code dir="auto">list_destinations</code>).</p>
+<ul>
+<li><strong>Google Sheets</strong>: a new Google Sheet is created automatically and linked to the report. Unlike every other tool, this path reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. See <a href="/docs/destinations/supported-destinations/google-sheets/">Google Sheets destination</a> for how to set the destination up.</li>
+<li><strong>Looker Studio</strong>: the report is created with default settings (data cache lifetime of 5 minutes) — the tool accepts no Looker-Studio-specific parameters, and no <code dir="auto">name</code> (Looker Studio reports carry no name). Each data mart + destination pair can have exactly one Looker Studio report; creating a second one returns an error instead of a duplicate. Creating the report only makes the data mart available to the destination: data appears in a dashboard after you connect Looker Studio to OWOX with the destination’s JSON Config (it contains a secret key, so it is never sent through the assistant). The response includes <code dir="auto">instructions</code> and a <code dir="auto">setup_guide_url</code> so the assistant can walk you through it; the full guide is <a href="/docs/destinations/supported-destinations/data-studio/">Data Studio destination</a>. If the project has no Looker Studio destination yet, the assistant can create one with <code dir="auto">add_destination</code> first.</li>
+<li><strong>Email, Slack, Microsoft Teams, Google Chat</strong>: the report carries the message subject and body; the recipients or channels are configured on the destination itself, not on the report. Each report run sends the rendered message. The send condition is always the default (“Send always”) — change it in the OWOX Data Marts UI if you need a conditional report.</li>
+</ul>
 <p><strong>Input:</strong></p>
 
 
@@ -926,7 +930,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">data_mart_id</code></td><td>Data mart to export</td></tr><tr><td><code dir="auto">destination_id</code></td><td>A <strong>Google Sheets</strong> destination to export to (from <code dir="auto">list_destinations</code>). Other destination types are rejected — a new Sheet is always created under a Google Sheets destination</td></tr><tr><td><code dir="auto">fields</code></td><td>Exact column names to include, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">name</code></td><td>Report name</td></tr></tbody></table>
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">data_mart_id</code></td><td>Data mart to export</td></tr><tr><td><code dir="auto">destination_id</code></td><td>The destination to export to (from <code dir="auto">list_destinations</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Exact column names to include, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">name</code></td><td>Report name — also the new sheet’s title (Google Sheets) and the default message subject (email family). Required for those destination types; not accepted for Looker Studio</td></tr><tr><td><code dir="auto">message</code></td><td>Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types</td></tr><tr><td><code dir="auto">message.subject</code></td><td>Optional message subject or heading. Defaults to the report name</td></tr><tr><td><code dir="auto">message.body</code></td><td>Message body template. Supports the <code dir="auto">{{table}}</code> placeholder, which renders the report’s result table</td></tr></tbody></table>
 <p><strong>Returns:</strong></p>
 
 
@@ -965,9 +981,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report identifier</td></tr><tr><td><code dir="auto">report_url</code></td><td>Link to the report in OWOX Data Marts</td></tr><tr><td><code dir="auto">sheet_url</code></td><td>Link to the created Google Sheet</td></tr><tr><td><code dir="auto">owner</code></td><td>The user who created the report</td></tr><tr><td><code dir="auto">status</code></td><td><code dir="auto">created</code></td></tr><tr><td><code dir="auto">placed_in_root</code></td><td><code dir="auto">true</code> if the configured Drive folder could not be used, so the sheet was created in the Drive root</td></tr><tr><td><code dir="auto">shared_with_requester</code></td><td><code dir="auto">false</code> if the sheet could not be shared with you — opening the link may require requesting access</td></tr></tbody></table>
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report identifier</td></tr><tr><td><code dir="auto">destination_type</code></td><td>Type of the destination the report was created for</td></tr><tr><td><code dir="auto">report_url</code></td><td>Link to the report in OWOX Data Marts</td></tr><tr><td><code dir="auto">sheet_url</code></td><td>Google Sheets only. Link to the created Google Sheet</td></tr><tr><td><code dir="auto">owner</code></td><td>The user who created the report</td></tr><tr><td><code dir="auto">status</code></td><td><code dir="auto">created</code></td></tr><tr><td><code dir="auto">placed_in_root</code></td><td>Google Sheets only. <code dir="auto">true</code> if the configured Drive folder could not be used, so the sheet was created in the Drive root</td></tr><tr><td><code dir="auto">shared_with_requester</code></td><td>Google Sheets only. <code dir="auto">false</code> if the sheet could not be shared with you — opening the link may require requesting access</td></tr><tr><td><code dir="auto">instructions</code></td><td>Looker Studio only. What has to happen before dashboard data flows — the assistant relays this to you</td></tr><tr><td><code dir="auto">setup_guide_url</code></td><td>Looker Studio only. Link to the step-by-step Looker Studio connection guide</td></tr></tbody></table>
 <div class="sl-heading-wrapper level-h3"><h3 id="update_report-requires-mcpwrite"><code dir="auto">update_report</code> (requires <code dir="auto">mcp:write</code>)</h3><a class="sl-anchor-link" href="#update_report-requires-mcpwrite"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “update_report (requires mcp:write)”</span></a></div>
-<p>Updates an existing report: renames it and/or replaces which data mart fields it exports. Anything not provided stays unchanged — the destination, filters, sorting, owners, and schedules are preserved as-is.</p>
+<p>Updates an existing report: renames it, replaces which data mart fields it exports, and/or — for reports with an email, Slack, Teams, or Google Chat destination — changes the message subject or body. Anything not provided stays unchanged — the destination, filters, sorting, owners, schedules, and send condition are preserved as-is.</p>
 <p><strong>Input:</strong></p>
 
 
@@ -990,8 +1018,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report to update (from <code dir="auto">get_data_mart_reports</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Optional. Replacement column selection, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">name</code></td><td>Optional. New report name</td></tr></tbody></table>
-<p>At least one of <code dir="auto">fields</code> / <code dir="auto">name</code> must be provided.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report to update (from <code dir="auto">get_data_mart_reports</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Optional. Replacement column selection, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">name</code></td><td>Optional. New report name</td></tr><tr><td><code dir="auto">message</code></td><td>Optional. Message changes — only for reports with an email-family destination, rejected for other types</td></tr><tr><td><code dir="auto">message.subject</code></td><td>Optional. New message subject or heading</td></tr><tr><td><code dir="auto">message.body</code></td><td>Optional. New message body template (supports <code dir="auto">{{table}}</code>). Replaces the current body; if the report used an insight template, it switches to this custom message</td></tr></tbody></table>
+<p>At least one of <code dir="auto">fields</code> / <code dir="auto">name</code> / <code dir="auto">message</code> must be provided (and <code dir="auto">message</code>, when present, needs <code dir="auto">subject</code> and/or <code dir="auto">body</code>).</p>
 <p><strong>Returns:</strong></p>
 
 
@@ -1065,13 +1105,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>“What reports and schedules already exist for the Sales data mart?”</li>
 <li>“Run the Weekly Ads Report now and tell me when it finishes.”</li>
 <li>“Export the Ads data mart to a new Google Sheet called ‘Weekly Ads Report’.”</li>
+<li>“Create a Looker Studio report from the Sales data mart with all fields.”</li>
+<li>“Send the daily revenue table to the Alerts Slack destination with the message ‘Yesterday’s numbers’.”</li>
 <li>“Rename that report to ‘Q3 Ads Report’ and keep only the campaign and spend fields.”</li>
+<li>“Change the subject of the daily Slack report to ‘Morning numbers’.”</li>
 <li>“Schedule that report to run every Monday at 9am New York time.”</li>
 <li>“Turn off the schedule you just created.”</li>
 <li>“Delete the old ‘Test export’ report from the Sales data mart.”</li>
 </ul>
 <blockquote>
-<p><strong>What these tools can and cannot do:</strong> They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With <code dir="auto">query_data_mart</code>, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (<code dir="auto">add_destination</code>), create a Google Sheets report (<code dir="auto">add_report</code>), rename a report or change which fields it exports (<code dir="auto">update_report</code>), delete a report (<code dir="auto">delete_report</code>), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (<code dir="auto">run_report</code>). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through <code dir="auto">run_report</code>.</p>
+<p><strong>What these tools can and cannot do:</strong> They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With <code dir="auto">query_data_mart</code>, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (<code dir="auto">add_destination</code>), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination (<code dir="auto">add_report</code>), rename a report, change which fields it exports, or edit the message of email-family reports (<code dir="auto">update_report</code>), delete a report (<code dir="auto">delete_report</code>), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (<code dir="auto">run_report</code>). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through <code dir="auto">run_report</code>.</p>
 <p><strong>What is shared with your AI provider:</strong> To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs <code dir="auto">query_data_mart</code>, the <strong>resulting data rows and totals are sent</strong> to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.</p>
 </blockquote>
 <div class="sl-heading-wrapper level-h2"><h2 id="troubleshooting">Troubleshooting</h2><a class="sl-anchor-link" href="#troubleshooting"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Troubleshooting”</span></a></div>
