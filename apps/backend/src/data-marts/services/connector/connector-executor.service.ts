@@ -186,6 +186,10 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
+      const hasSuccessfulFieldsUpdate = configurationResults.some(
+        result => result.success && result.fieldsUpdate
+      );
+
       try {
         await this.persistSuccessfulFieldsUpdate(dataMart, configurationResults, runId);
       } catch (error) {
@@ -208,6 +212,10 @@ export class ConnectorExecutorService {
             error: fieldsUpdateError,
           }
         );
+      }
+
+      if (hasSuccessfulFieldsUpdate) {
+        await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
       // When the terminal status write is skipped (the run was cancelled
@@ -252,35 +260,44 @@ export class ConnectorExecutorService {
         );
       }
 
-      this.logger.debug(`Actualizing schema after connector execution`, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-        runId,
-      });
-
-      try {
-        await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
-      } catch (error) {
-        const schemaError = error instanceof Error ? error.message : String(error);
-        const logMeta = {
-          dataMartId: dataMart.id,
-          projectId: dataMart.projectId,
-          runId,
-          error: schemaError,
-        };
-        if (error instanceof CredentialsExpiredException) {
-          // Customer must reconnect their storage — not ops-actionable, don't page
-          this.logger.warn(`Error schema actualization: ${schemaError}`, logMeta);
-        } else {
-          this.logger.error(
-            `Error schema actualization: ${schemaError}`,
-            (error as Error)?.stack,
-            logMeta
-          );
-        }
+      if (!hasSuccessfulFieldsUpdate) {
+        await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
       this.gracefulShutdownService.unregisterActiveProcess(processId);
+    }
+  }
+
+  private async actualizeSchemaAfterConnectorExecution(
+    dataMart: DataMart,
+    runId: string
+  ): Promise<void> {
+    this.logger.debug(`Actualizing schema after connector execution`, {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      runId,
+    });
+
+    try {
+      await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
+    } catch (error) {
+      const schemaError = error instanceof Error ? error.message : String(error);
+      const logMeta = {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+        runId,
+        error: schemaError,
+      };
+      if (error instanceof CredentialsExpiredException) {
+        // Customer must reconnect their storage — not ops-actionable, don't page
+        this.logger.warn(`Error schema actualization: ${schemaError}`, logMeta);
+      } else {
+        this.logger.error(
+          `Error schema actualization: ${schemaError}`,
+          (error as Error)?.stack,
+          logMeta
+        );
+      }
     }
   }
 

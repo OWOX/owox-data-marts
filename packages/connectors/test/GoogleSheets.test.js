@@ -265,7 +265,7 @@ test('maps an absolute header row into an offset range and preserves absolute ro
       [9, 'Lin', '00456'],
     ]
   );
-  assert.equal(source._buildA1Range(), "'Data'!B5:C100007");
+  assert.equal(source._buildA1Range(), "'Data'!B5:C");
   assert.equal(source._buildA1Range({ preview: true }), "'Data'!B6:C106");
 });
 
@@ -273,7 +273,7 @@ test('previews every supported import column and at most 100 sample rows', () =>
   const source = createSource({ headerRow: 4 });
 
   assert.equal(source._buildA1Range({ preview: true }), "'Data'!A4:BIL104");
-  assert.equal(source._buildA1Range(), "'Data'!A1:ZZZ100005");
+  assert.equal(source._buildA1Range(), "'Data'!A1:ZZZ");
   assert.deepEqual(plain(source._parseA1GridRange('$B$5:$D$20')), {
     startColumn: 2,
     endColumn: 4,
@@ -284,7 +284,7 @@ test('previews every supported import column and at most 100 sample rows', () =>
 
 test('does not allow Range to override the selected sheet tab', () => {
   const sameSheetSource = createSource({ range: "'Data'!A:D" });
-  assert.equal(sameSheetSource._buildA1Range(), "'Data'!A1:D100002");
+  assert.equal(sameSheetSource._buildA1Range(), "'Data'!A1:D");
 
   const otherSheetSource = createSource({ range: "'Other'!A:D" });
   assert.throws(() => otherSheetSource._buildA1Range(), /Range must use the selected sheet 'Data'/);

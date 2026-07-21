@@ -159,11 +159,7 @@ export function ConnectorEditForm({
     const found = connectors.find(c => c.name === preselectedConnector);
     if (found) {
       setSelectedConnector(found);
-      // set default configuration if existing connector wasn't provided
-      // ssetConnectorConfiguration(found ? {} : {});
-      // set step to requested initialStep (or 2 by default)
       setCurrentStep(initialStep ?? 2);
-      // if in full flow ensure fields/spec are loaded:
       void loadSpecificationSafely(found.name);
       if (
         !configurationOnly &&

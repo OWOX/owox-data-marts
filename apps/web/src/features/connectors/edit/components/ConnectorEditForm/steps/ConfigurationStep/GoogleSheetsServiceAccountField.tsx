@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
@@ -81,21 +81,6 @@ export function GoogleSheetsServiceAccountField({
   const canShowMaskedState = !isEditing && isMasked && serviceAccountLink === null;
   const canShowServiceAccount = !isEditing && serviceAccountLink !== null;
   const canShowSummary = canShowMaskedState || canShowServiceAccount;
-
-  useEffect(() => {
-    if (isEditing) {
-      return;
-    }
-
-    if (
-      serviceAccountValue === SECRET_MASK ||
-      getLinkFromMetadata(metadata) !== null ||
-      (isValidGoogleSheetsServiceAccountKey(serviceAccountValue) &&
-        getServiceAccountLink(serviceAccountValue) !== null)
-    ) {
-      setIsEditing(false);
-    }
-  }, [isEditing, metadata, serviceAccountValue]);
 
   const handleEdit = () => {
     setStashedValue(serviceAccountValue);

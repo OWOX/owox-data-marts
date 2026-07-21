@@ -59,7 +59,7 @@ interface GooglePicker {
 }
 
 interface TokenClient {
-  requestAccessToken(overrides?: { hint?: string }): void;
+  requestAccessToken(overrides?: { login_hint?: string }): void;
 }
 
 interface TokenResponse {
@@ -86,7 +86,7 @@ interface GoogleAccountsOauth2 {
     scope: string;
     callback: (response: TokenResponse) => void;
     error_callback?: (error: { type?: string; message?: string }) => void;
-    hint?: string;
+    login_hint?: string;
   }): TokenClient;
 }
 
@@ -159,7 +159,7 @@ function requestAccessToken(clientId: string, hintEmail?: string): Promise<strin
         const client = oauth2.initTokenClient({
           client_id: clientId,
           scope: GOOGLE_SHEETS_PICKER_SCOPES,
-          hint: hintEmail,
+          login_hint: hintEmail,
           callback: response => {
             if (response.access_token) {
               try {
@@ -177,7 +177,7 @@ function requestAccessToken(clientId: string, hintEmail?: string): Promise<strin
             reject(new Error(error.message ?? 'Google authorization was cancelled'));
           },
         });
-        client.requestAccessToken({ hint: hintEmail });
+        client.requestAccessToken({ login_hint: hintEmail });
       })
   );
 }

@@ -104,6 +104,23 @@ function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQue
   return batches;
 }
 
+function normalizeRedshiftType(type) {
+  const normalized = String(type || '').toUpperCase().replace(/\(.+\)$/, '');
+  if (['CHARACTER VARYING', 'CHAR', 'TEXT', 'VARCHAR'].includes(normalized)) {
+    return 'VARCHAR';
+  }
+  if (['DOUBLE PRECISION', 'FLOAT8'].includes(normalized)) {
+    return 'DOUBLE PRECISION';
+  }
+  if (['INT8', 'BIGINT'].includes(normalized)) {
+    return 'BIGINT';
+  }
+  if (['TIMESTAMP', 'TIMESTAMP WITHOUT TIME ZONE'].includes(normalized)) {
+    return 'TIMESTAMP';
+  }
+  return normalized;
+}
+
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
   /**
@@ -194,7 +211,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //----------------------------------------------------------------
 
   //---- getAListOfExistingColumns ----------------------------------
-  async getAListOfExistingColumns() {
+  async getAListOfExistingColumns(useConfiguredTypes = true) {
     // Strip surrounding double-quotes that may be present in config values.
     // Prefer exact matching first because quoted Redshift identifiers can be
     // case-sensitive; fall back to LOWER() for clusters that fold identifiers.
@@ -243,7 +260,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       const schemaKey = (this.schema && columnName in this.schema)
         ? columnName
         : (schemaKeyByLower[columnName.toLowerCase()] || columnName);
-      columns[schemaKey] = (this.schema && schemaKey in this.schema)
+      columns[schemaKey] = (useConfiguredTypes && this.schema && schemaKey in this.schema)
         ? this.getColumnType(schemaKey)
         : row.data_type;
     }
@@ -558,11 +575,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const liveTableName = stripQuotes(configuredTableName);
     const { stagingTableName, backupTableName } = createSnapshotTableNames(liveTableName);
     const originalExistingColumns = this.existingColumns;
-    const liveColumns = await this.getAListOfExistingColumns();
+    const liveColumns = await this.getAListOfExistingColumns(false);
     const liveTableExists = Object.keys(liveColumns).length > 0;
-    const grantStatements = liveTableExists
-      ? await this.getTableGrantStatements(liveTableName, stagingTableName)
-      : [];
     let published = false;
 
     try {
@@ -580,21 +594,32 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
       await this.validateSnapshotRowCount(stagingTableName, data.length);
 
-      for (const grantSql of grantStatements) {
-        await this.executeQuery(grantSql, 'ddl');
-      }
-
       this.config.DestinationTableName.value = configuredTableName;
 
-      const publicationStatements = liveTableExists
-        ? [
-            `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} RENAME TO ${quoteIdentifier(backupTableName)}`,
-            `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`,
-            `DROP TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(backupTableName)}`
-          ]
-        : [
-            `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`
-          ];
+      let publicationStatements;
+      if (this.hasSameSchema(liveColumns, stagedColumns, normalizeRedshiftType)) {
+        const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+        publicationStatements = [
+          `DELETE FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)}`,
+          `INSERT INTO ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} (${columns}) SELECT ${columns} FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)}`
+        ];
+      } else {
+        const grantStatements = liveTableExists
+          ? await this.getTableGrantStatements(liveTableName, stagingTableName)
+          : [];
+        for (const grantSql of grantStatements) {
+          await this.executeQuery(grantSql, 'ddl');
+        }
+        publicationStatements = liveTableExists
+          ? [
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} RENAME TO ${quoteIdentifier(backupTableName)}`,
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`,
+              `DROP TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(backupTableName)}`
+            ]
+          : [
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`
+            ];
+      }
 
       await this.executeTransaction(publicationStatements);
       this.existingColumns = stagedColumns;

@@ -33,6 +33,20 @@ function createSnapshotStagingTableName(tableName) {
   return `${baseName}${suffix}`;
 }
 
+function normalizeSnowflakeType(type) {
+  const normalized = String(type || '').toUpperCase().replace(/\(.+\)$/, '');
+  if (['BIGINT', 'DECIMAL', 'INTEGER', 'INT', 'NUMBER', 'NUMERIC'].includes(normalized)) {
+    return 'NUMBER';
+  }
+  if (['DOUBLE', 'DOUBLE PRECISION', 'FLOAT', 'FLOAT4', 'FLOAT8', 'REAL'].includes(normalized)) {
+    return 'FLOAT';
+  }
+  if (['CHAR', 'CHARACTER', 'STRING', 'TEXT', 'VARCHAR'].includes(normalized)) {
+    return 'VARCHAR';
+  }
+  return normalized;
+}
+
 var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -356,6 +370,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       const liveTable = `${database}.${schema}.${quoteIdentifier(configuredTableName)}`;
       const stagingTable = `${database}.${schema}.${quoteIdentifier(stagingTableName)}`;
       const originalExistingColumns = this.existingColumns;
+      const liveColumns = await this.getAListOfExistingColumns();
       let published = false;
 
       try {
@@ -372,11 +387,16 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
         this.config.DestinationTableName.value = configuredTableName;
 
-        // Snowflake CREATE OR REPLACE is atomic. CLONE retains the staged schema
-        // metadata, while COPY GRANTS/TAGS carries live-table access metadata forward.
-        await this.executeQuery(
-          `CREATE OR REPLACE TABLE ${liveTable} CLONE ${stagingTable} COPY GRANTS COPY TAGS`
-        );
+        if (this.hasSameSchema(liveColumns, stagedColumns, normalizeSnowflakeType)) {
+          const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+          await this.executeQuery(
+            `INSERT OVERWRITE INTO ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
+          );
+        } else {
+          await this.executeQuery(
+            `CREATE OR REPLACE TABLE ${liveTable} CLONE ${stagingTable} COPY GRANTS COPY TAGS`
+          );
+        }
         this.existingColumns = stagedColumns;
         published = true;
 
