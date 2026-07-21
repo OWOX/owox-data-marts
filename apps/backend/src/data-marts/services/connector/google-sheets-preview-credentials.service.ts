@@ -5,6 +5,7 @@ import { ConnectorCredentialInjectorService } from './connector-credential-injec
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 
 const GOOGLE_SHEETS_CONNECTOR_NAME = 'GoogleSheets';
+const SECRET_MASK = '**********';
 
 @Injectable()
 export class GoogleSheetsPreviewCredentialsService {
@@ -18,8 +19,24 @@ export class GoogleSheetsPreviewCredentialsService {
     config: Record<string, unknown>,
     context: AuthorizationContext
   ): Promise<Record<string, unknown>> {
-    await this.validateReferences(config, context);
-    return this.credentialInjector.injectSecrets(config, context.projectId);
+    const previewConfig = this.withoutStoredSecretReferenceForInlineKey(config);
+    await this.validateReferences(previewConfig, context);
+    return this.credentialInjector.injectSecrets(previewConfig, context.projectId);
+  }
+
+  private withoutStoredSecretReferenceForInlineKey(
+    config: Record<string, unknown>
+  ): Record<string, unknown> {
+    const authType = config.AuthType as Record<string, unknown> | undefined;
+    const serviceAccount = authType?.service_account as Record<string, unknown> | undefined;
+    const key = serviceAccount?.ServiceAccountKey;
+    if (typeof key !== 'string' || !key.trim() || key === SECRET_MASK) {
+      return config;
+    }
+
+    const previewConfig = { ...config };
+    delete previewConfig._secrets_id;
+    return previewConfig;
   }
 
   private async validateReferences(
