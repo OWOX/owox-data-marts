@@ -1,7 +1,7 @@
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -71,5 +71,47 @@ describe('getBigQueryClient', () => {
 
     expect(second).toBe(first);
     expect(capturedAuthClients).toHaveLength(1);
+  });
+
+  it('refreshes an expired token on the next query and keeps it for the rest of the run', async () => {
+    // The production regression this whole fix targets: a token that expires
+    // mid-run must be refreshed via the refresh token, and the refreshed token
+    // must survive to later queries instead of being rebuilt from the stale one.
+    const storage = fakeStorage({
+      OAuthAccessTokenExpiry: configValue(Date.now() - 60_000),
+    });
+    proto.getBigQueryClient.call(storage);
+    const authClient = capturedAuthClients[0];
+    // Stub only the token-endpoint HTTP call: the real OAuth2Client refresh
+    // logic (expiry detection, grant exchange, credential update) runs as-is.
+    authClient.transporter.request = vi.fn(async () => ({
+      data: { access_token: 'refreshed-token', expires_in: 3600, token_type: 'Bearer' },
+    }));
+
+    // First query after expiry: the library must detect the past expiry_date
+    // and exchange the refresh token.
+    await authClient.getRequestHeaders();
+    expect(authClient.transporter.request).toHaveBeenCalledTimes(1);
+    expect(authClient.credentials.access_token).toBe('refreshed-token');
+
+    // A later executeQuery reuses the cached client — and with it the
+    // refreshed token: no client rebuild, no second refresh round-trip.
+    proto.getBigQueryClient.call(storage);
+    expect(capturedAuthClients).toHaveLength(1);
+    await authClient.getRequestHeaders();
+    expect(authClient.transporter.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes expiry_date 0 through, which google-auth-library itself treats as no known expiry', () => {
+    proto.getBigQueryClient.call(fakeStorage({ OAuthAccessTokenExpiry: configValue(0) }));
+    const authClient = capturedAuthClients[0];
+
+    // `??` keeps the 0 intact on our side (|| would have dropped it)...
+    expect(authClient.credentials.expiry_date).toBe(0);
+    // ...but the library's own isTokenExpiring() uses a falsy check, so an
+    // exact epoch-0 expiry never triggers a refresh either way. Pinned here so
+    // nobody "fixes" our passthrough expecting a refresh the library won't do;
+    // acceptable in practice, since a real expiry timestamp is never 0.
+    expect(authClient.isTokenExpiring()).toBe(false);
   });
 });

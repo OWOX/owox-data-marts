@@ -485,13 +485,45 @@ describe('ConnectorExecutorService', () => {
       call => call[1]?.status === DataMartRunStatus.FAILED
     );
 
-    // Capped to the limit plus the one prepended truncation notice.
-    expect(finalUpdate![1].logs).toHaveLength(10001);
+    // Capped to the limit, with the truncation notice counted inside it.
+    expect(finalUpdate![1].logs).toHaveLength(10000);
     expect(finalUpdate![1].logs[0]).toContain('earlier entries from previous attempts');
     // The tail is what survives — it shows where the run actually got to.
     expect(finalUpdate![1].logs.at(-1)).toContain(ConnectorMessageType.STATUS);
     // The oldest entries are the ones dropped.
     expect(finalUpdate![1].logs.join()).not.toContain('old entry 0"');
+  });
+
+  it('caps merged logs by serialized bytes so oversized entries cannot exceed the packet limit', async () => {
+    const { service, dataMartRunRepository, emitInProgressMessage, processSpawner } =
+      createService();
+    // Far fewer entries than the count cap, but each ~3MB: count alone would
+    // pass all of them through and the single UPDATE would blow past MySQL's
+    // max_allowed_packet. The 6MB byte budget must bite instead.
+    const hugeEntries = Array.from({ length: 4 }, (_, i) =>
+      JSON.stringify({ type: 'log', message: `huge entry ${i} ${'x'.repeat(3_000_000)}` })
+    );
+    (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
+      logs: hugeEntries,
+      errors: [],
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitInProgressMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    const logs = finalUpdate![1].logs as string[];
+    expect(logs[0]).toContain('earlier entries from previous attempts');
+    // Only what fits in the byte budget survives, newest first from the tail.
+    const serializedBytes = Buffer.byteLength(JSON.stringify(logs));
+    expect(serializedBytes).toBeLessThan(7 * 1024 * 1024);
+    expect(logs.join()).toContain('huge entry 3');
+    expect(logs.join()).not.toContain('huge entry 0');
   });
 
   it('marks an aborted connector run as CANCELLED', async () => {

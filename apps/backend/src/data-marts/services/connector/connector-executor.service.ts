@@ -10,12 +10,18 @@ type ConfigDto = InstanceType<typeof Core.ConfigDto>;
 const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
 
 /**
- * Upper bound on logs/errors carried across resumed attempts of the same run.
- * Chosen to comfortably hold a full long-backfill attempt (a ~315k-record run
- * produced roughly 7.4k entries) while keeping the `json` column well clear of
- * MySQL's max_allowed_packet.
+ * Bounds on logs/errors carried across resumed attempts of the same run.
+ *
+ * The entry cap comfortably holds a full long-backfill attempt (a ~315k-record
+ * run produced roughly 7.4k entries). The byte budget is the binding limit for
+ * verbose entries: logs and errors travel in ONE UPDATE statement, so the worst
+ * case on the wire is 2 x MAX_MERGED_RUN_OUTPUT_BYTES plus JSON overhead —
+ * kept safely under the smallest common MySQL max_allowed_packet (16MB).
+ * Entry sizes are measured on the JSON-serialized form so quote escaping and
+ * multibyte characters count toward the real packet size.
  */
 const MAX_MERGED_RUN_OUTPUT_ENTRIES = 10000;
+const MAX_MERGED_RUN_OUTPUT_BYTES = 6 * 1024 * 1024;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -742,25 +748,44 @@ export class ConnectorExecutorService {
   }
 
   /**
-   * Bounds a merged log/error array so repeatedly interrupted runs cannot grow
-   * their `json` column without limit — a long backfill resumed many times would
-   * otherwise concatenate its full history on every attempt.
+   * Bounds a merged log/error array by entry count AND serialized bytes so
+   * repeatedly interrupted runs cannot grow their `json` column past MySQL's
+   * max_allowed_packet — count alone is not enough, since entries can approach
+   * 5000 characters each before escaping.
    *
    * Keeps the most recent entries: the tail describes where the run actually got
-   * to, which is what someone debugging a resumed run needs.
+   * to, which is what someone debugging a resumed run needs. The truncation
+   * notice counts toward the entry cap, so the result never exceeds
+   * MAX_MERGED_RUN_OUTPUT_ENTRIES entries.
    */
   private capMergedEntries(entries: string[]): string[] {
-    if (entries.length <= MAX_MERGED_RUN_OUTPUT_ENTRIES) {
+    // Walk from the tail (newest first), measuring each entry as it will
+    // actually be serialized — JSON.stringify accounts for quote escaping and
+    // multibyte characters that raw .length would undercount.
+    let keptBytes = 0;
+    let keep = 0;
+    while (keep < entries.length && keep < MAX_MERGED_RUN_OUTPUT_ENTRIES) {
+      const entryBytes = Buffer.byteLength(JSON.stringify(entries[entries.length - 1 - keep])) + 1;
+      if (keptBytes + entryBytes > MAX_MERGED_RUN_OUTPUT_BYTES) {
+        break;
+      }
+      keptBytes += entryBytes;
+      keep++;
+    }
+
+    if (keep === entries.length) {
       return entries;
     }
 
-    const dropped = entries.length - MAX_MERGED_RUN_OUTPUT_ENTRIES;
+    // Leave room for the notice itself within the entry cap.
+    keep = Math.min(keep, MAX_MERGED_RUN_OUTPUT_ENTRIES - 1);
+    const dropped = entries.length - keep;
     const truncationNotice = JSON.stringify({
       type: ConnectorMessageType.LOG,
       at: this.systemTimeService.now().toISOString(),
       message: `... ${dropped} earlier entries from previous attempts were truncated`,
     });
 
-    return [truncationNotice, ...entries.slice(-MAX_MERGED_RUN_OUTPUT_ENTRIES)];
+    return [truncationNotice, ...entries.slice(entries.length - keep)];
   }
 }

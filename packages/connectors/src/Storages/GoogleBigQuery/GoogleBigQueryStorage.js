@@ -551,9 +551,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         oauth2Client.setCredentials({
           access_token: this.config.OAuthAccessToken.value,
           refresh_token: this.config.OAuthRefreshToken?.value || undefined,
-          // `??`, not `||`: an expiry_date of 0 is a real (already-expired)
-          // value, and coercing it to undefined would tell google-auth-library
-          // the token never expires — reintroducing the never-refresh bug.
+          // `??`, not `||`: 0 is a valid number and must not be silently
+          // dropped on our side. Note google-auth-library's own
+          // isTokenExpiring() also treats 0 as "no known expiry" (falsy
+          // check), so an exact epoch-0 expiry never triggers a refresh
+          // either way — acceptable, since a real expiry is never 0.
           expiry_date: this.config.OAuthAccessTokenExpiry?.value ?? undefined,
         });
         this._bigqueryClient = new BigQuery({
