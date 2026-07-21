@@ -1051,6 +1051,37 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     expect(updateReportService.run).not.toHaveBeenCalled();
   });
 
+  it('rejects a rename of a Looker Studio report, which carries no name', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      title: '',
+      dataDestinationAccess: { id: 'dest-3', type: DataDestinationType.LOOKER_STUDIO },
+      destinationConfig: { type: 'looker-studio-config', cacheLifetime: 300 },
+    } as unknown as ReportDto);
+
+    await expect(facade.updateReport({ ...updateRequest, name: 'New name' })).rejects.toThrow(
+      'not applicable to Looker Studio'
+    );
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('still updates the column selection of a Looker Studio report', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      title: '',
+      dataDestinationAccess: { id: 'dest-3', type: DataDestinationType.LOOKER_STUDIO },
+      destinationConfig: { type: 'looker-studio-config', cacheLifetime: 300 },
+    } as unknown as ReportDto);
+
+    await facade.updateReport({ ...updateRequest, fields: ['channel'] });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '', columnConfig: ['channel'] })
+    );
+  });
+
   const currentEmailReport = {
     ...currentReport,
     dataDestinationAccess: { id: 'dest-2', type: DataDestinationType.SLACK },

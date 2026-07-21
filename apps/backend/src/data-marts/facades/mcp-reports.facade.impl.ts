@@ -167,6 +167,19 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       new GetReportCommand(request.reportId, request.projectId, request.userId, request.roles)
     );
 
+    // Looker Studio reports carry no name: the entity clears the title on
+    // insert, but nothing re-clears it on update, so a rename here would
+    // persist a title the product guarantees is empty — and mislead the agent
+    // into confirming a name the UI never shows. Mirrors the add-path guard.
+    if (
+      request.name !== undefined &&
+      current.dataDestinationAccess.type === DataDestinationType.LOOKER_STUDIO
+    ) {
+      throw new BadRequestException(
+        'The name parameter is not applicable to Looker Studio reports: they carry no name.'
+      );
+    }
+
     const destinationConfig =
       request.message !== undefined
         ? this.mergeMessageIntoConfig(
@@ -260,6 +273,14 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   async addReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
     // Branch on the destination's actual type: only the Google Sheets path
     // has an external side effect, so only it needs pre-flight validation.
+    //
+    // Deliberate ordering: the cheap input-shape guards below (and the Looker
+    // existence check) run before CreateReportService's USE checks. They can
+    // reveal the destination's type and whether a report exists for a pair —
+    // but only within the caller's own project, where the mcp:read surface
+    // (list_destinations, get_data_mart_reports) exposes the same metadata.
+    // Authorization comes first only where a side effect demands it (Google
+    // Sheets pre-flight).
     const destination = await this.dataDestinationService.getByIdAndProjectId(
       request.destinationId,
       request.projectId
