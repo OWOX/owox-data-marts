@@ -23,9 +23,40 @@ class HttpRequestException extends Error {
 
 class ConnectorConfigurationException extends Error {}
 
+class OauthFlowException extends Error {
+  constructor({ message, payload }) {
+    super(message);
+    this.payload = payload;
+  }
+}
+
 const HttpUtils = {
   async fetch() {
     throw new Error('Unexpected HTTP request');
+  },
+};
+
+const OauthCredentialsDto = {
+  builder() {
+    const value = {};
+    const builder = {
+      withUser(user) {
+        value.user = user;
+        return builder;
+      },
+      withSecret(secret) {
+        value.secret = secret;
+        return builder;
+      },
+      withExpiresIn(expiresIn) {
+        value.expiresIn = expiresIn;
+        return builder;
+      },
+      build() {
+        return { toObject: () => value };
+      },
+    };
+    return builder;
   },
 };
 
@@ -50,10 +81,18 @@ const GoogleSheetsSource = loadScript(
     HttpRequestException,
     ConnectorConfigurationException,
     HttpUtils,
+    OauthCredentialsDto,
+    OauthFlowException,
     CONFIG_ATTRIBUTES: {
       SECRET: 'SECRET',
       ADVANCED: 'ADVANCED',
       HIDE_IN_CONFIG_FORM: 'HIDE_IN_CONFIG_FORM',
+      OAUTH_FLOW: 'OAUTH_FLOW',
+    },
+    OAUTH_CONSTANTS: {
+      UI: 'UI',
+      SECRET: 'SECRET',
+      REQUIRED: 'REQUIRED',
     },
   }
 );
@@ -114,10 +153,105 @@ test('preserves explicit false defaults inside the Google Sheets configuration o
 
   assert.deepEqual(
     Array.from(mergedParameters.AuthType.oneOf, option => option.value),
-    ['service_account']
+    ['oauth2', 'service_account']
   );
   assert.equal(mergedParameters.InferTypes.default, false);
   assert.equal(mergedParameters.ImportAllColumns.default, false);
+});
+
+test('rejects OAuth authorization when required Google Sheets permissions were not granted', async () => {
+  const originalFetch = HttpUtils.fetch;
+  HttpUtils.fetch = async () => ({
+    getAsJson: async () => ({
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope: 'https://www.googleapis.com/auth/userinfo.email',
+    }),
+  });
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  try {
+    await assert.rejects(
+      source.exchangeOauthCredentials(
+        { code: 'authorization-code' },
+        {
+          ClientId: 'client-id',
+          ClientSecret: 'client-secret',
+          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        }
+      ),
+      /authorization is missing required permissions/
+    );
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
+});
+
+test('stores the verified Google account used by Google Picker', async () => {
+  const originalFetch = HttpUtils.fetch;
+  const responses = [
+    {
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope:
+        'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
+    },
+    { id: 'google-user-1', email: 'analyst@example.com' },
+  ];
+  HttpUtils.fetch = async () => ({ getAsJson: async () => responses.shift() });
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  try {
+    const credentials = await source.exchangeOauthCredentials(
+      { code: 'authorization-code' },
+      {
+        ClientId: 'client-id',
+        ClientSecret: 'client-secret',
+        RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+      }
+    );
+
+    assert.deepEqual(plain(credentials.user), {
+      id: 'google-user-1',
+      name: 'analyst@example.com',
+    });
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
+});
+
+test('rejects OAuth authorization when Google does not return an email address', async () => {
+  const originalFetch = HttpUtils.fetch;
+  const responses = [
+    {
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope:
+        'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
+    },
+    { id: 'google-user-1' },
+  ];
+  HttpUtils.fetch = async () => ({ getAsJson: async () => responses.shift() });
+  const source = Object.create(GoogleSheetsSource.prototype);
+
+  try {
+    await assert.rejects(
+      source.exchangeOauthCredentials(
+        { code: 'authorization-code' },
+        {
+          ClientId: 'client-id',
+          ClientSecret: 'client-secret',
+          RedirectUri: 'https://app.example.com/oauth/google-sheets/callback',
+        }
+      ),
+      /email address required by Google Picker/
+    );
+  } finally {
+    HttpUtils.fetch = originalFetch;
+  }
 });
 
 test('maps an absolute header row into an offset range and preserves absolute row numbers', () => {
