@@ -71,6 +71,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             isRequired: false,
             requiredType: "string",
             default: null
+          },
+          OAuthAccessTokenExpiry: {
+            isRequired: false,
+            requiredType: "number",
+            default: null
           }
         }),
         uniqueKeyColumns,
@@ -79,11 +84,15 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       );
 
       this.updatedRecordsBuffer = {};
-      
+
       // Initialize counter for tracking total records processed
       this.totalRecordsProcessed = 0;
 
-    
+      // Cached across executeQuery() calls so a token refresh (triggered by
+      // google-auth-library once the access token actually expires) persists
+      // for the rest of the run instead of being rebuilt from the stale
+      // original token on every single query.
+      this._bigqueryClient = null;
     }
 
   //---- init --------------------------------------------------------
@@ -510,17 +519,29 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     }
  
 
-  //---- query -------------------------------------------------------
+  //---- getBigQueryClient ---------------------------------------------
     /**
-     * Executes Google BigQuery Query and returns a result
+     * Builds (once) and caches the BigQuery client for this run.
      *
-     * @param {query} string
+     * Reusing a single OAuth2Client instance across the whole run, rather than
+     * rebuilding one from the same static access token on every query, lets
+     * google-auth-library detect real token expiry (via expiry_date) and
+     * refresh it in place using the refresh token — instead of silently
+     * resending an access token that went stale hours into a long backfill.
      *
-     * @return Promise<object>
+     * Known limitation: a token refreshed here lives only in this process and
+     * is never written back to the stored credential, because the storage side
+     * has no CREDENTIALS_UPDATE channel like the source side does. A run whose
+     * stored token had already expired before it started therefore still fails
+     * on its first query. Fixing that needs token write-back, not more caching.
      *
+     * @return {BigQuery}
      */
-    async executeQuery(query) {
-      let bigqueryClient = null;
+    getBigQueryClient() {
+      if (this._bigqueryClient) {
+        return this._bigqueryClient;
+      }
+
       if (this.config.OAuthAccessToken && this.config.OAuthAccessToken.value) {
         const { OAuth2Client } = require('google-auth-library');
         const oauth2Client = new OAuth2Client(
@@ -530,8 +551,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         oauth2Client.setCredentials({
           access_token: this.config.OAuthAccessToken.value,
           refresh_token: this.config.OAuthRefreshToken?.value || undefined,
+          // `??`, not `||`: an expiry_date of 0 is a real (already-expired)
+          // value, and coercing it to undefined would tell google-auth-library
+          // the token never expires — reintroducing the never-refresh bug.
+          expiry_date: this.config.OAuthAccessTokenExpiry?.value ?? undefined,
         });
-        bigqueryClient = new BigQuery({
+        this._bigqueryClient = new BigQuery({
           projectId: this.config.ProjectID.value,
           authClient: oauth2Client,
         });
@@ -543,13 +568,28 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           key: credentials.private_key,
           scopes: ['https://www.googleapis.com/auth/bigquery'],
         });
-        bigqueryClient = new BigQuery({
+        this._bigqueryClient = new BigQuery({
           projectId: this.config.ProjectID.value || credentials.project_id,
           authClient
         });
       } else {
         throw new Error("Either OAuth token or Service Account JSON is required to connect to Google BigQuery");
       }
+
+      return this._bigqueryClient;
+    }
+
+  //---- query -------------------------------------------------------
+    /**
+     * Executes Google BigQuery Query and returns a result
+     *
+     * @param {query} string
+     *
+     * @return Promise<object>
+     *
+     */
+    async executeQuery(query) {
+      const bigqueryClient = this.getBigQueryClient();
 
       const options = {
         query: query,
