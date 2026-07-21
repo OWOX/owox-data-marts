@@ -47,12 +47,31 @@ export interface McpGetDataMartReportsResponse {
   reports: McpReportListItem[];
 }
 
+/**
+ * Message settings for email-family destinations (email, Slack, Microsoft
+ * Teams, Google Chat). Recipients and channels are configured on the
+ * destination itself, not on the report.
+ */
+export interface McpAddReportMessage {
+  /** Message subject / heading. Defaults to the report name. */
+  subject?: string;
+  /** Message body template (CUSTOM_MESSAGE); supports the `{{table}}` placeholder. */
+  body: string;
+}
+
 export interface McpAddReportRequest {
   dataMartId: string;
   destinationId: string;
   /** Column names to include; `['*']` (or containing `'*'`) selects every field. */
   fields: string[];
-  name: string;
+  /**
+   * Report name (also the new sheet's title and the default email subject).
+   * Required for Google Sheets and email-family destinations; rejected for
+   * Looker Studio, whose reports carry no name.
+   */
+  name?: string;
+  /** Required for email-family destinations; rejected for any other type. */
+  message?: McpAddReportMessage;
   projectId: string;
   userId: string;
   /** Requesting user email — the auto-created sheet is shared with them (best-effort). */
@@ -62,14 +81,31 @@ export interface McpAddReportRequest {
 
 export interface McpAddReportResult {
   report_id: string;
+  /** Type of the report's destination — lets the tool layer add per-type guidance. */
+  destination_type: McpDestinationType;
   owner: string | null;
   status: 'created';
-  /** Link to the auto-created Google Sheet. */
-  sheet_url: string;
-  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. */
+  /** Link to the auto-created Google Sheet. Google Sheets destinations only. */
+  sheet_url?: string;
+  /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. Google Sheets destinations only. */
   placed_in_root?: boolean;
-  /** False when the created sheet could not be shared with the requesting user. */
+  /** False when the created sheet could not be shared with the requesting user. Google Sheets destinations only. */
   shared_with_requester?: boolean;
+}
+
+/**
+ * Partial message changes for an email-family report. At least one field must
+ * be provided when the group itself is present.
+ */
+export interface McpUpdateReportMessage {
+  /** New message subject / heading. Omit to keep the current one. */
+  subject?: string;
+  /**
+   * New message body template; supports the `{{table}}` placeholder. Setting
+   * it switches the report to a CUSTOM_MESSAGE template source, replacing an
+   * insight template if one was configured. Omit to keep the current source.
+   */
+  body?: string;
 }
 
 export interface McpUpdateReportRequest {
@@ -78,6 +114,8 @@ export interface McpUpdateReportRequest {
   fields?: string[];
   /** New report name. Omit to keep the current name. */
   name?: string;
+  /** Message changes — only valid when the report's destination is email-family. */
+  message?: McpUpdateReportMessage;
   projectId: string;
   userId: string;
   roles: string[];
@@ -144,18 +182,23 @@ export interface McpGetReportRunStatusResponse {
 export interface McpReportsFacade {
   getDataMartReports(request: McpGetDataMartReportsRequest): Promise<McpGetDataMartReportsResponse>;
   /**
-   * Creates a report for a Google Sheets destination: auto-creates a new Sheet,
-   * then creates the report pointing at it. Non-Google-Sheets destinations are
-   * rejected by the underlying document-creation service.
+   * Creates a report, branching on the destination's type. Google Sheets:
+   * auto-creates a new Sheet, then creates the report pointing at it (the
+   * result carries the sheet fields). Looker Studio: creates the report with
+   * the default destination settings — no extra input is accepted. Email
+   * family (email, Slack, Microsoft Teams, Google Chat): requires `message`;
+   * the send condition is not exposed and defaults to "send always".
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**
-   * Partially updates a report (name and/or column selection). The domain
-   * update command requires the full report state, so the facade loads the
-   * current report and merges the requested changes into it; everything else
-   * (destination, filters, sorting, owners, …) is preserved as-is.
-   * At least one of `fields`/`name` must be provided — a call with neither is
-   * rejected by the implementation, independent of the tool-layer validation.
+   * Partially updates a report (name, column selection, and/or — for
+   * email-family reports — the message subject/body). The domain update
+   * command requires the full report state, so the facade loads the current
+   * report and merges the requested changes into it; everything else
+   * (destination, filters, sorting, owners, send condition, …) is preserved
+   * as-is. At least one change must be provided — a call with nothing to
+   * change is rejected by the implementation, independent of the tool-layer
+   * validation. `message` is rejected for non-email-family reports.
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
   /**

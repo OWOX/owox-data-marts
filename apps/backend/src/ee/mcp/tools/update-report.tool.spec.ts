@@ -45,15 +45,44 @@ describe('UpdateReportTool', () => {
     });
   });
 
+  it('passes the message group through to the facade', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    await tool.handler(
+      { report_id: 'report-1', message: { subject: 'New subject', body: 'New body' } },
+      context
+    );
+
+    expect(facade.updateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportId: 'report-1',
+        message: { subject: 'New subject', body: 'New body' },
+      })
+    );
+  });
+
   it('requires at least one change and rejects malformed input', () => {
     const tool = new UpdateReportTool({} as McpReportsFacade);
 
     expect(() => tool.parseInput({ report_id: 'report-1' })).toThrow(
-      'Provide at least one of fields or name'
+      'Provide at least one of fields, name, or message'
     );
     expect(() => tool.parseInput({ name: 'New name' })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', fields: [] })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', name: 'x', extra: true })).toThrow();
+    // A message alone is a valid change, but it must contain something.
+    expect(() =>
+      tool.parseInput({ report_id: 'report-1', message: { subject: 'Digest' } })
+    ).not.toThrow();
+    expect(() => tool.parseInput({ report_id: 'report-1', message: {} })).toThrow(
+      'Provide at least one of message.subject or message.body'
+    );
+    expect(() =>
+      tool.parseInput({ report_id: 'report-1', message: { body: 'x', extra: true } })
+    ).toThrow();
   });
 
   it('trims the new name and rejects whitespace-only names', () => {

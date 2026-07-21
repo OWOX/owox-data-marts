@@ -8,7 +8,7 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
-// The raw shape (exposed to MCP clients) has both change fields optional; the
+// The raw shape (exposed to MCP clients) has every change field optional; the
 // parsed schema additionally requires at least one of them, since an update
 // with nothing to change is a caller mistake worth surfacing.
 const baseInputSchema = z
@@ -19,23 +19,58 @@ const baseInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one of fields/name is required."
+        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one of fields/name/message is required."
       ),
     name: z
       .string()
       .trim()
       .min(1)
       .optional()
-      .describe('New report name; omit to keep current. At least one of fields/name is required.'),
+      .describe(
+        'New report name; omit to keep current. At least one of fields/name/message is required.'
+      ),
+    message: z
+      .object({
+        subject: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe('New message subject or heading; omit to keep the current one.'),
+        body: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe(
+            'New message body template; supports the {{table}} placeholder. Replaces the current body — and switches the report to a custom message if it used an insight template. Omit to keep the current one.'
+          ),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'Message changes. Applies only to reports with an email, slack, teams, or google_chat destination; rejected for other types. Provide at least one of subject/body inside. The send condition and recipients are not editable here.'
+      ),
   })
   .strict();
 
-const inputSchema = baseInputSchema.refine(
-  input => input.fields !== undefined || input.name !== undefined,
-  {
-    message: 'Provide at least one of fields or name to update',
-  }
-);
+const inputSchema = baseInputSchema
+  .refine(
+    input => input.fields !== undefined || input.name !== undefined || input.message !== undefined,
+    {
+      message: 'Provide at least one of fields, name, or message to update',
+    }
+  )
+  .refine(
+    input =>
+      input.message === undefined ||
+      input.message.subject !== undefined ||
+      input.message.body !== undefined,
+    {
+      message: 'Provide at least one of message.subject or message.body',
+      path: ['message'],
+    }
+  );
 
 type UpdateReportInput = z.infer<typeof inputSchema>;
 
@@ -43,7 +78,7 @@ type UpdateReportInput = z.infer<typeof inputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it and/or replace which data mart fields it exports. Provide at least one of name or fields; anything not provided stays unchanged.';
+    'Update an existing report: rename it, replace which data mart fields it exports, and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one of name, fields, or message; anything not provided stays unchanged.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the updated report'),
@@ -67,12 +102,13 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   }
 
   async handler(input: UpdateReportInput, context: McpAuthContext): Promise<McpToolResult> {
-    const { report_id, fields, name } = this.parseInput(input);
+    const { report_id, fields, name, message } = this.parseInput(input);
 
     const result = await this.reports.updateReport({
       reportId: report_id,
       fields,
       name,
+      message,
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles,
