@@ -540,7 +540,7 @@ describe('ConnectorSecretService', () => {
     });
 
     it('copies Google Sheets secrets without retaining the source secret record', async () => {
-      const { service, credentialsService } = createService(['RefreshToken']);
+      const { service, credentialsService } = createService(['ServiceAccountKey']);
 
       (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
         new Map([
@@ -549,8 +549,7 @@ describe('ConnectorSecretService', () => {
             {
               id: 'secrets-1',
               credentials: {
-                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
-                generated_refresh_token: 'generated-refresh-token',
+                'AuthType.service_account.ServiceAccountKey': 'stored-service-account-key',
               },
             },
           ],
@@ -558,7 +557,7 @@ describe('ConnectorSecretService', () => {
       );
 
       const sourceDefinition = makeDefinition(
-        [{ _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } }],
+        [{ _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { service_account: {} } }],
         'GoogleSheets'
       );
 
@@ -566,7 +565,7 @@ describe('ConnectorSecretService', () => {
         [
           {
             _secrets_id: 'secrets-1',
-            AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
+            AuthType: { service_account: { ServiceAccountKey: SECRET_MASK } },
             _copiedFrom: { configId: 'source-id-1' },
           },
         ],
@@ -577,8 +576,7 @@ describe('ConnectorSecretService', () => {
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
-      expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
-      expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
+      expect(authType.service_account.ServiceAccountKey).toBe('stored-service-account-key');
       expect(cfg[0]).not.toHaveProperty('_secrets_id');
     });
 

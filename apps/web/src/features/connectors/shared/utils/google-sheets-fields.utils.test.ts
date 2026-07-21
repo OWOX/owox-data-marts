@@ -140,28 +140,17 @@ describe('Google Sheets field configuration', () => {
 });
 
 describe('Google Sheets service-account validation', () => {
-  it('accepts a service-account key with required credentials', () => {
+  it('accepts complete and saved keys but rejects malformed or incomplete JSON', () => {
     expect(
       isValidGoogleSheetsServiceAccountKey(
         JSON.stringify({ client_email: 'reader@example.test', private_key: 'private-key' })
       )
     ).toBe(true);
-  });
-
-  it('rejects malformed or incomplete JSON', () => {
+    expect(isValidGoogleSheetsServiceAccountKey(SECRET_MASK)).toBe(true);
     expect(isValidGoogleSheetsServiceAccountKey('{')).toBe(false);
     expect(
       isValidGoogleSheetsServiceAccountKey(JSON.stringify({ client_email: 'reader@test' }))
     ).toBe(false);
-  });
-
-  it('accepts a masked saved key and leaves OAuth configurations unaffected', () => {
-    expect(isValidGoogleSheetsServiceAccountKey(SECRET_MASK)).toBe(true);
-    expect(
-      hasValidGoogleSheetsServiceAccountConfiguration({
-        AuthType: { oauth: { _source_credential_id: 'credential-id' } },
-      })
-    ).toBe(true);
   });
 
   it('rejects an invalid selected service-account configuration', () => {

@@ -1,8 +1,8 @@
 # Getting Started
 
 1. Create a Data Mart with the Google Sheets source.
-2. Authorize Google Sheets access with OAuth or Service Account JSON.
-3. Choose the spreadsheet with Google Picker for OAuth, or provide its ID or URL for a service account.
+2. Paste a Google Service Account JSON key.
+3. Provide the ID or URL of a spreadsheet shared with the service account.
 4. Provide the sheet tab name.
 5. Click Next to preview detected columns from the configured header row.
 6. Keep all-columns mode enabled, or switch to explicit subset mode and choose columns.
@@ -19,4 +19,4 @@ Field preview includes all supported columns and up to 100 sample data rows. The
 
 Text identifiers retain their text type and leading zeros. A sheet with headers but no data rows performs a zero-row full refresh so the warehouse always reflects the current sheet.
 
-Use OAuth for quick user setup. Use Service Account JSON for scheduled imports that should not depend on a personal Google account; share the spreadsheet with the service account email before running the refresh.
+Share the spreadsheet with the service account email before running the refresh.

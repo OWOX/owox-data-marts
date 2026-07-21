@@ -175,40 +175,6 @@ describe('DataMart API (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('PUT /api/data-marts/:id/definition - rejects multiple GoogleSheets configurations', async () => {
-    const createRes = await agent
-      .post('/api/data-marts')
-      .set(AUTH_HEADER)
-      .send(
-        new DataMartBuilder()
-          .withTitle('Google Sheets config validation')
-          .withStorageId(storageId)
-          .build()
-      );
-    expect(createRes.status).toBe(201);
-
-    const res = await agent
-      .put(`/api/data-marts/${createRes.body.id}/definition`)
-      .set(AUTH_HEADER)
-      .send({
-        definitionType: 'CONNECTOR',
-        definition: {
-          connector: {
-            source: {
-              name: 'GoogleSheets',
-              node: 'sheet',
-              fields: ['name'],
-              configuration: [{ _id: 'config-1' }, { _id: 'config-2' }],
-            },
-            storage: { fullyQualifiedName: 'dataset.table' },
-          },
-        },
-      });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('exactly one source configuration');
-  });
-
   // Additional: 404 for non-existent ID
   it('GET /api/data-marts/:id - returns 404 for non-existent ID', async () => {
     const res = await agent

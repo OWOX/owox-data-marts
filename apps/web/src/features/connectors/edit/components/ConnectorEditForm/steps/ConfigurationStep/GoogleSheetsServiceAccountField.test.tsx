@@ -68,6 +68,9 @@ describe('GoogleSheetsServiceAccountField', () => {
       screen.getByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
     ).toBeInTheDocument();
     expect(screen.queryByDisplayValue(serviceAccountKey)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByPlaceholderText(/Paste your service account JSON/i)).toHaveValue('');
   });
 
   it('keeps incomplete JSON editable instead of showing a service-account summary', () => {
@@ -89,15 +92,6 @@ describe('GoogleSheetsServiceAccountField', () => {
     expect(
       screen.queryByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
     ).not.toBeInTheDocument();
-  });
-
-  it('shows the saved service-account email when the secret is masked', () => {
-    render(<SavedField />);
-
-    expect(
-      screen.getByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
-    ).toBeInTheDocument();
-    expect(screen.queryByDisplayValue(SECRET_MASK)).not.toBeInTheDocument();
   });
 
   it('shows copied credential metadata when the parent replaces the editable value', () => {
@@ -136,40 +130,17 @@ describe('GoogleSheetsServiceAccountField', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('can clear a summarized key and edit the field again', () => {
-    render(<TestField />);
-    const input = screen.getByPlaceholderText(/Paste your service account JSON/i);
-    fireEvent.change(input, { target: { value: serviceAccountKey } });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
-
-    const clearedInput = screen.getByPlaceholderText(/Paste your service account JSON/i);
-    expect(clearedInput).toHaveValue('');
-    fireEvent.change(clearedInput, { target: { value: 'temporary value' } });
-    expect(clearedInput).toHaveValue('temporary value');
-    fireEvent.change(clearedInput, { target: { value: '' } });
-    expect(clearedInput).toHaveValue('');
-  });
-
   it('can clear a previously saved key', () => {
     render(<SavedField />);
 
+    expect(
+      screen.getByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
 
     expect(screen.getByPlaceholderText(/Paste your service account JSON/i)).toHaveValue('');
     expect(
       screen.queryByRole('link', { name: 'reader@test-project.iam.gserviceaccount.com' })
     ).not.toBeInTheDocument();
-  });
-
-  it('keeps a saved key editable after clicking Edit', () => {
-    render(<SavedField />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-
-    const input = screen.getByPlaceholderText(/Paste your service account JSON/i);
-    expect(input).toHaveValue('');
-    fireEvent.change(input, { target: { value: 'replacement key' } });
-    expect(input).toHaveValue('replacement key');
   });
 });

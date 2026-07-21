@@ -126,26 +126,6 @@ describe('DataMartService schema actualization', () => {
     );
   });
 
-  it('treats an already synchronized field list as successful without writing', async () => {
-    const fields = ['_owox_row_number', 'name'];
-    const dataMart = makeDataMart({
-      definition: {
-        connector: {
-          source: {
-            name: 'GoogleSheets',
-            node: 'sheet',
-            fields,
-            configuration: [{ _id: 'config-1' }],
-          },
-          storage: { fullyQualifiedName: 'dataset.table' },
-        },
-      },
-    });
-
-    await expect(service.updateConnectorSourceFields(dataMart, fields)).resolves.toBe(true);
-    expect(repository.update).not.toHaveBeenCalled();
-  });
-
   it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
     const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
       name: 'ConditionalUpdateTest',

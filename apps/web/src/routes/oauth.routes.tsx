@@ -4,7 +4,6 @@ import {
   TikTokCallback,
   MicrosoftCallback,
   GoogleAdsCallback,
-  GoogleSheetsCallback,
   LinkedInCallback,
 } from '../pages/oauth';
 
@@ -22,10 +21,6 @@ export const oauthRoutes: RouteObject = {
     {
       path: 'google-ads/callback',
       element: <GoogleAdsCallback />,
-    },
-    {
-      path: 'google-sheets/callback',
-      element: <GoogleSheetsCallback />,
     },
     {
       path: 'google/callback',

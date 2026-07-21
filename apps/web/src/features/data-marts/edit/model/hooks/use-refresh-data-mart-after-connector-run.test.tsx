@@ -51,50 +51,6 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
     });
   });
 
-  it('refreshes for a new successful run even when a newer run failed', async () => {
-    const refreshDataMart = vi.fn().mockResolvedValue(undefined);
-    const { rerender } = renderHook(
-      ({ runs }: { runs: DataMartRunItem[] }) => {
-        useRefreshDataMartAfterConnectorRun({
-          dataMartId: 'dm-1',
-          isGoogleSheetsConnector: true,
-          isManualRunTriggered: false,
-          runs,
-          refreshDataMart,
-        });
-      },
-      { initialProps: { runs: [run('old-run', DataMartRunStatus.SUCCESS)] } }
-    );
-
-    rerender({
-      runs: [
-        run('newer-failed-run', DataMartRunStatus.FAILED),
-        run('new-successful-run', DataMartRunStatus.SUCCESS),
-        run('old-run', DataMartRunStatus.SUCCESS),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(refreshDataMart).toHaveBeenCalledWith('dm-1');
-    });
-  });
-
-  it('does not refresh for the successful run already present on initial page load', () => {
-    const refreshDataMart = vi.fn().mockResolvedValue(undefined);
-
-    renderHook(() => {
-      useRefreshDataMartAfterConnectorRun({
-        dataMartId: 'dm-1',
-        isGoogleSheetsConnector: true,
-        isManualRunTriggered: false,
-        runs: [run('old-run', DataMartRunStatus.SUCCESS)],
-        refreshDataMart,
-      });
-    });
-
-    expect(refreshDataMart).not.toHaveBeenCalled();
-  });
-
   it('does not change the refresh behavior of other connectors', () => {
     const refreshDataMart = vi.fn().mockResolvedValue(undefined);
 

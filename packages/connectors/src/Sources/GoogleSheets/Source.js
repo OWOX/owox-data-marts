@@ -10,10 +10,6 @@ var GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
 var GOOGLE_SHEETS_MAX_IMPORT_ROWS = 100000;
 var GOOGLE_SHEETS_MAX_IMPORT_COLUMNS = 1598;
 var GOOGLE_SHEETS_MAX_RETRY_AFTER_MS = 300000;
-var GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES = [
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/userinfo.email',
-];
 
 var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   constructor(config) {
@@ -28,111 +24,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           description: 'Authentication type',
           isRequired: true,
           oneOf: [
-            {
-              label: 'OAuth2',
-              value: 'oauth2',
-              requiredType: 'object',
-              attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
-              oauthParams: {
-                vars: {
-                  ClientId: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_CLIENT_ID',
-                    attributes: [
-                      OAUTH_CONSTANTS.UI,
-                      OAUTH_CONSTANTS.SECRET,
-                      OAUTH_CONSTANTS.REQUIRED,
-                    ],
-                  },
-                  ClientSecret: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_CLIENT_SECRET',
-                    attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
-                  },
-                  RedirectUri: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_REDIRECT_URI',
-                    attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
-                  },
-                  PickerApiKey: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_PICKER_API_KEY',
-                    attributes: [
-                      OAUTH_CONSTANTS.UI,
-                      OAUTH_CONSTANTS.SECRET,
-                      OAUTH_CONSTANTS.REQUIRED,
-                    ],
-                  },
-                  ProjectNumber: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER',
-                    attributes: [
-                      OAUTH_CONSTANTS.UI,
-                      OAUTH_CONSTANTS.SECRET,
-                      OAUTH_CONSTANTS.REQUIRED,
-                    ],
-                  },
-                },
-                mapping: {
-                  RefreshToken: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'refresh_token',
-                  },
-                  AccessToken: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'access_token',
-                  },
-                  ClientId: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'client_id',
-                  },
-                  ClientSecret: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'client_secret',
-                  },
-                },
-              },
-              items: {
-                RefreshToken: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Refresh Token',
-                  description: 'OAuth2 Refresh Token',
-                  attributes: [CONFIG_ATTRIBUTES.SECRET],
-                },
-                ClientId: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Client ID',
-                  description: 'OAuth2 Client ID',
-                },
-                ClientSecret: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Client Secret',
-                  description: 'OAuth2 Client Secret',
-                  attributes: [CONFIG_ATTRIBUTES.SECRET],
-                },
-              },
-            },
             {
               label: 'Service Account',
               value: 'service_account',
@@ -155,8 +46,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           isRequired: true,
           requiredType: 'string',
           label: 'Spreadsheet ID or URL',
-          description:
-            'Choose a spreadsheet with Google Picker for OAuth, or enter its ID or URL for a service account.',
+          description: 'Enter the spreadsheet ID or URL shared with the service account.',
         },
         SheetName: {
           isRequired: true,
@@ -211,102 +101,6 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     this.tokenExpiryTime = null;
   }
 
-  async exchangeOauthCredentials(credentials, variables) {
-    try {
-      const tokenUrl = 'https://oauth2.googleapis.com/token';
-      const payload = {
-        client_id: variables.ClientId,
-        client_secret: variables.ClientSecret,
-        grant_type: 'authorization_code',
-        code: credentials.code,
-        redirect_uri: variables.RedirectUri,
-      };
-
-      const response = await HttpUtils.fetch(tokenUrl, {
-        method: 'post',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: Object.entries(payload)
-          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-          .join('&'),
-      });
-      const data = await response.getAsJson();
-
-      if (data.error) {
-        throw new OauthFlowException({
-          message: `Token exchange failed: ${data.error_description || data.error}`,
-          payload: data,
-        });
-      }
-
-      if (!data.refresh_token) {
-        throw new OauthFlowException({
-          message:
-            'No refresh_token returned. Please revoke access at https://myaccount.google.com/permissions and try again.',
-          payload: data,
-        });
-      }
-
-      const grantedScopes = new Set(
-        String(data.scope || '')
-          .split(/\s+/)
-          .filter(Boolean)
-      );
-      const missingScopes = GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES.filter(
-        scope => !grantedScopes.has(scope)
-      );
-      if (missingScopes.length) {
-        throw new OauthFlowException({
-          message:
-            'Google Sheets authorization is missing required permissions. Reconnect and allow Google Drive file access and email address access.',
-          payload: { missingScopes },
-        });
-      }
-
-      let userInfo;
-      try {
-        const userResponse = await HttpUtils.fetch(
-          'https://www.googleapis.com/oauth2/v2/userinfo',
-          { headers: { Authorization: `Bearer ${data.access_token}` } }
-        );
-        userInfo = await userResponse.getAsJson();
-      } catch (error) {
-        throw new OauthFlowException({
-          message: 'Could not verify the Google account connected to Google Sheets',
-          payload: error.message,
-        });
-      }
-
-      if (typeof userInfo.email !== 'string' || !userInfo.email.includes('@')) {
-        throw new OauthFlowException({
-          message: 'Google did not return the email address required by Google Picker',
-          payload: userInfo,
-        });
-      }
-
-      const userData = { id: userInfo.id || userInfo.email, name: userInfo.email };
-
-      return OauthCredentialsDto.builder()
-        .withUser(userData)
-        .withSecret({
-          refresh_token: data.refresh_token,
-          access_token: data.access_token,
-          client_id: variables.ClientId,
-          client_secret: variables.ClientSecret,
-        })
-        .withExpiresIn(data.expires_in ?? 3600)
-        .build()
-        .toObject();
-    } catch (error) {
-      if (error instanceof OauthFlowException) {
-        throw error;
-      }
-      throw new OauthFlowException({
-        message: 'Failed to exchange Google Sheets tokens',
-        payload: error.message,
-      });
-    }
-  }
-
   async getAccessToken({ forceRefresh = false } = {}) {
     if (
       !forceRefresh &&
@@ -328,18 +122,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     }
 
     const authConfig = this.config.AuthType.items;
-    if (authType === 'oauth2') {
-      this.accessToken = await OAuthUtils.getAccessToken({
-        config: this.config,
-        tokenUrl: 'https://oauth2.googleapis.com/token',
-        formData: {
-          grant_type: 'refresh_token',
-          client_id: authConfig.ClientId.value,
-          client_secret: authConfig.ClientSecret.value,
-          refresh_token: authConfig.RefreshToken.value,
-        },
-      });
-    } else if (authType === 'service_account') {
+    if (authType === 'service_account') {
       this.accessToken = await OAuthUtils.getServiceAccountToken({
         config: this.config,
         tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -575,8 +358,8 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     if (statusCode === 403) {
       const serviceAccountEmail = this._getConfiguredServiceAccountEmail();
       const accessHint = serviceAccountEmail
-        ? ` Share the spreadsheet with ${serviceAccountEmail}, or use OAuth if the sheet should be read from a user account.`
-        : ' Share the spreadsheet with the configured service account, or use OAuth if the sheet should be read from a user account.';
+        ? ` Share the spreadsheet with ${serviceAccountEmail}.`
+        : ' Share the spreadsheet with the configured service account.';
 
       return `Google Sheets access denied: ${message}.${accessHint}`;
     }

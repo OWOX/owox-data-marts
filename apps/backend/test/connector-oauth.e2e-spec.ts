@@ -39,13 +39,7 @@ async function getOAuthFieldPath(agent: supertest.Agent, connectorName: string):
   return `${oauthField.name}.${oauthVariant.value}`;
 }
 
-const OAUTH_CONNECTORS = [
-  'GoogleAds',
-  'GoogleSheets',
-  'FacebookMarketing',
-  'TikTokAds',
-  'MicrosoftAds',
-];
+const OAUTH_CONNECTORS = ['GoogleAds', 'FacebookMarketing', 'TikTokAds', 'MicrosoftAds'];
 
 describe('Connector OAuth Settings (e2e)', () => {
   let app: INestApplication;
@@ -62,7 +56,7 @@ describe('Connector OAuth Settings (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // CAPI-08: OAuth settings for OAuth connectors
+  // CAPI-08: OAuth settings for all 4 OAuth connectors
   // Deep vars validation per user decision: check vars is non-empty object,
   // validate each var entry has a string key and a value of string|null
   // (resolved env values), and isEnabled is boolean.

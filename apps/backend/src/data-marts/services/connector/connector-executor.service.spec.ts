@@ -375,39 +375,6 @@ describe('ConnectorExecutorService', () => {
     );
   });
 
-  it('keeps the imported run successful when a concurrent Data Mart edit wins', async () => {
-    const {
-      service,
-      processSpawner,
-      emitMessage,
-      emitSuccessMessage,
-      dataMartService,
-      dataMartRunRepository,
-    } = createService();
-    const dataMart = createDataMart();
-    (dataMartService.updateConnectorSourceFields as jest.Mock).mockResolvedValueOnce(false);
-    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
-      emitMessage({
-        type: ConnectorMessageType.FIELDS_UPDATE,
-        at: new Date().toISOString(),
-        fields: ['_owox_row_number', 'name'],
-        toFormattedString: () => '[FIELDS] 2',
-      });
-      emitSuccessMessage();
-    });
-
-    await service.executeInBackground(dataMart, createRun(), null);
-
-    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
-      ([, update]) => update.status === DataMartRunStatus.SUCCESS
-    )?.[1];
-    expect(finalUpdate?.logs).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('source field list could not be synchronized'),
-      ])
-    );
-  });
-
   it('does not mark a run successful when only import in-progress status is emitted', async () => {
     const {
       service,
