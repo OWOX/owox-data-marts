@@ -379,7 +379,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    *   - sets tab color and freezes the header row;
    *   - persists `OWOX_REPORT_META` (one per sheet) and `OWOX_COLUMNS`
    *     (the imported-range column list for next refresh);
-   *   - replays user fill-down formulas across all freshly written data rows.
+   *   - replays user fill-down formulas across all freshly written data rows;
+   *   - writes the full A1 provenance note with finish-time `Imported at …`
+   *     (header write only places short markers so the stamp is not early).
    *
    * When `processingError` is set we **skip** the deferred-mutation
    * fallback: the upstream pipeline failed before producing meaningful
@@ -544,6 +546,37 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         if (restoreFormatRequests.length > 0) {
           requests.push(...restoreFormatRequests);
         }
+
+        // A1 full provenance note with finish-time "Imported at …". Written
+        // here (not in writeHeaders) so the timestamp is the end of the
+        // import, not the start of the first data batch. Header-write time
+        // only places short markers on every imported column.
+        //
+        // `dataMart` is always the main/home data mart — columns pulled in from
+        // joinable data marts only change the column alias, never this note — so
+        // A1 references the original data mart even for blended marts.
+        const firstColumnName = this.columnPlan.finalImportedNames[0];
+        const firstColumnHeader = this.headersByName.get(firstColumnName);
+        const dateFinished = DateTime.now().setZone(this.spreadsheetTimeZone);
+        const dateFinishedFormatted = `${dateFinished.toFormat('yyyy LLL d, HH:mm:ss')} ${dateFinished.zoneName}`;
+        const isCommunityEdition = !this.appEditionConfig.isEnterpriseEdition();
+        const publicOrigin = this.publicOriginService.getPublicOrigin();
+        const dataMartUrl = buildDataMartUrl(
+          publicOrigin,
+          dataMart.projectId,
+          dataMart.id,
+          '/data-setup'
+        );
+        const a1Note = this.metadataFormatter.buildImportedColumnNote(
+          firstColumnHeader?.description,
+          this.dataMartTitle,
+          dataMartUrl,
+          dateFinishedFormatted,
+          isCommunityEdition
+        );
+        requests.push(
+          this.metadataFormatter.createNoteRequest(this.destination.sheetId, a1Note, 0, 0)
+        );
 
         await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
@@ -938,10 +971,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   }
 
   /**
-   * Writes header values + per-cell notes inside the imported rectangle, and
-   * resets/applies header formatting bounded to the same width. Format reset
-   * is **not** propagated to columns past the imported range so user content
-   * outside it keeps its styling.
+   * Writes header values + short per-cell notes inside the imported rectangle,
+   * and resets/applies header formatting bounded to the same width. Format
+   * reset is **not** propagated to columns past the imported range so user
+   * content outside it keeps its styling.
+   *
+   * Notes written here are short markers only (column description +
+   * `--- Imported via OWOX Data Marts ---`). The full A1 provenance block
+   * (including finish-time `Imported at …`) is deferred to {@link finalize}
+   * so the timestamp reflects when the import actually completed, not when
+   * the first data batch started writing.
    */
   private async writeHeaders(): Promise<void> {
     return this.executeWithErrorHandling(async () => {
@@ -965,45 +1004,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         headerRow,
       ]);
 
-      // Per-column note: every imported column carries its own description.
-      // Only the FIRST column of the range (index 0, i.e. A1) additionally
-      // carries the full provenance block — the ODM metadata (import time,
-      // data mart title, link). Every other imported column gets its
-      // description followed by just a short `--- Imported via OWOX Data
-      // Marts ---` marker, so the per-column description is preserved without
-      // repeating the same provenance metadata across every header.
-      //
-      // `dataMart` is always the main/home data mart — columns pulled in from
-      // joinable data marts only change the column alias, never this note — so
-      // A1 already references the right (original) data mart for blended marts.
-      const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
-      const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
-      const dataMart = this.report.dataMart;
+      // Per-column short marker only at header-write time. Full A1 provenance
+      // (import finish time, data mart title, link) is applied in finalize.
       const isCommunityEdition = !this.appEditionConfig.isEnterpriseEdition();
-      const publicOrigin = this.publicOriginService.getPublicOrigin();
-      const dataMartUrl = buildDataMartUrl(
-        publicOrigin,
-        dataMart.projectId,
-        dataMart.id,
-        '/data-setup'
-      );
 
       const noteRequests = this.reportDataHeaders.map(header => {
         const idx = this.columnPlan.nameToFinalIndex.get(header.name)!;
-        // The range always starts at column A, so index 0 is the first column.
-        const note =
-          idx === 0
-            ? this.metadataFormatter.buildImportedColumnNote(
-                header.description,
-                this.dataMartTitle,
-                dataMartUrl,
-                dateNowFormatted,
-                isCommunityEdition
-              )
-            : this.metadataFormatter.buildImportedColumnMarker(
-                header.description,
-                isCommunityEdition
-              );
+        const note = this.metadataFormatter.buildImportedColumnMarker(
+          header.description,
+          isCommunityEdition
+        );
         return this.metadataFormatter.createNoteRequest(sheetId, note, 0, idx);
       });
 
