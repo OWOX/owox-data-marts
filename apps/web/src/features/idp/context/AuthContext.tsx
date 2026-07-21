@@ -8,6 +8,7 @@ import {
   getUserApi,
   RedirectStorageService,
   isBlockedUserError,
+  isViewOnlySession,
 } from '../services';
 import { getProjectIdFromPath } from '../utils/project-id';
 import {
@@ -15,7 +16,13 @@ import {
   clearTokenProvider,
   DefaultTokenProvider,
 } from '../../../app/api/token-provider';
-import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils';
+import {
+  pushToDataLayer,
+  trackUserIdentified,
+  trackLogout,
+  suppressClientAnalytics,
+  setAnalyticsDisabled,
+} from '../../../utils';
 import { buildProjectPath } from '../../../utils/path';
 import {
   buildProjectRequestAccessPath,
@@ -280,14 +287,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [initializeAuth]);
 
   useEffect(() => {
-    if (state.user) {
-      pushToDataLayer({ projectId: state.user.projectId });
-      trackUserIdentified({
-        userId: state.user.id,
-        userEmail: state.user.email,
-        userFullName: state.user.fullName,
-      });
+    if (!state.user) {
+      return;
     }
+
+    // View-only: do not identify the user or emit analytics events.
+    if (isViewOnlySession(state.user)) {
+      suppressClientAnalytics();
+      return;
+    }
+
+    setAnalyticsDisabled(false);
+    pushToDataLayer({ projectId: state.user.projectId });
+    trackUserIdentified({
+      userId: state.user.id,
+      userEmail: state.user.email,
+      userFullName: state.user.fullName,
+    });
   }, [state.user]);
 
   useEffect(() => {

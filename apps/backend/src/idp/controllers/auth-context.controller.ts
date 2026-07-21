@@ -25,6 +25,7 @@ export class AuthContextController {
       projectTitle: context.projectTitle,
       authFlow: context.authFlow,
       apiKeyId: context.apiKeyId,
+      viewOnly: context.viewOnly,
     };
   }
 }

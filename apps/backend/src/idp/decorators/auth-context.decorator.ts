@@ -34,6 +34,7 @@ export function getAuthorizationContext(request: AuthenticatedRequest): Authoriz
       projectTitle: request.idpContext.projectTitle,
       authFlow: request.idpContext.authFlow,
       apiKeyId: request.idpContext.apiKeyId,
+      viewOnly: request.idpContext.viewOnly,
     };
   }
 

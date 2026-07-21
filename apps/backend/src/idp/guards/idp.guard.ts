@@ -3,8 +3,11 @@ import { Request } from 'express';
 import {
   AuthenticationError,
   AuthorizationError,
+  isSafeHttpMethodForViewOnly,
+  isViewOnlyPayload,
   Payload,
   Role as RoleType,
+  ViewOnlyModeError,
 } from '@owox/idp-protocol';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Strategy } from '../types';
@@ -28,6 +31,8 @@ export interface AuthenticatedRequest extends Request {
     projectTitle?: string;
     authFlow?: string;
     apiKeyId?: string;
+    /** True when the session is in view-only mode. */
+    viewOnly?: boolean;
   };
 }
 
@@ -60,6 +65,10 @@ export class IdpGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
+    // Role.none() / optional auth: IdpGuard does not parse user tokens and does not
+    // apply view-only restrictions. Callers of these routes authenticate outside IDP
+    // (e.g. InternalApiGuard service-account tokens, GoogleJwtBody connector JWTs).
+    // A user view-only access token is not accepted as credentials on those paths.
     if (roleConfig.optional) {
       return true;
     }
@@ -68,6 +77,10 @@ export class IdpGuard implements CanActivate {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
       this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
       this.checkApiKeyHeaderBinding(request, tokenPayload);
+      this.checkViewOnlyRestrictions(request, tokenPayload);
+
+      // Propagate only when true so normal sessions stay free of the flag.
+      const viewOnly = isViewOnlyPayload(tokenPayload) || undefined;
 
       request.idpContext = {
         userId: tokenPayload.userId,
@@ -79,6 +92,7 @@ export class IdpGuard implements CanActivate {
         projectTitle: tokenPayload.projectTitle,
         authFlow: tokenPayload.authFlow,
         apiKeyId: tokenPayload.apiKeyId,
+        viewOnly,
       };
 
       this.cls.set(AUTH_CONTEXT, {
@@ -87,6 +101,7 @@ export class IdpGuard implements CanActivate {
         roles: tokenPayload.roles,
         authFlow: tokenPayload.authFlow,
         apiKeyId: tokenPayload.apiKeyId,
+        viewOnly,
       });
 
       if (request && STATE_CHANGING_METHODS.includes(request.method)) {
@@ -94,6 +109,7 @@ export class IdpGuard implements CanActivate {
         void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
       }
     } catch (error) {
+      // AuthorizationError covers ViewOnlyModeError (subclass) and role/API-key denials.
       if (error instanceof UnauthorizedException || error instanceof AuthorizationError) {
         throw error;
       }
@@ -124,6 +140,33 @@ export class IdpGuard implements CanActivate {
     }
 
     return tokenPayload;
+  }
+
+  /**
+   * Blocks state-changing requests when the session is in view-only mode.
+   * Safe methods (GET/HEAD/OPTIONS) remain allowed.
+   *
+   * Scope: only routes that go through authenticateUser (required @Auth roles).
+   * Intentionally NOT applied to Role.none() / optional routes (service or
+   * connector auth, not user IDP).
+   *
+   * MCP is a separate auth path; view-only sessions are blocked from minting
+   * MCP tokens in OAuthAuthorizationController so write tools cannot bypass
+   * this guard.
+   *
+   * View-only detection is delegated to idp-protocol so claim resolution can
+   * evolve independently of this guard.
+   */
+  private checkViewOnlyRestrictions(request: AuthenticatedRequest, tokenPayload: Payload): void {
+    if (!isViewOnlyPayload(tokenPayload)) {
+      return;
+    }
+
+    if (isSafeHttpMethodForViewOnly(request.method)) {
+      return;
+    }
+
+    throw new ViewOnlyModeError();
   }
 
   private checkApiKeyHeaderBinding(request: AuthenticatedRequest, tokenPayload: Payload): void {

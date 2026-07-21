@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useFlags } from '../store/hooks';
 import { RequestStatus } from '../../shared/types/request-status.ts';
+import { isViewOnlySession, useAuth } from '../../features/idp';
 
 const GTM_SCRIPT_ID = 'gtm-script';
 const GTM_NOSCRIPT_ID = 'gtm-noscript';
@@ -68,17 +69,24 @@ function extractContainerId(flags: Record<string, unknown>): string {
   return (containerId ?? '').trim();
 }
 
+/**
+ * Loads GTM when configured via app flags.
+ * Skipped entirely in view-only sessions so PostHog / GA4 tags and
+ * session recordings never start for these read-only sessions.
+ */
 export function GoogleTagManager(): null {
   const { flags, callState } = useFlags();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (callState !== RequestStatus.LOADED || !flags) return;
+    if (isViewOnlySession(user)) return;
 
     const containerId = extractContainerId(flags);
     if (!containerId) return;
 
     initializeGTM(containerId);
-  }, [flags, callState]);
+  }, [flags, callState, user]);
 
   return null;
 }

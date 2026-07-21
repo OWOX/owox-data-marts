@@ -21,6 +21,11 @@ export interface User {
   projectTitle?: string;
   mcpServerUrl?: string;
   onboarding?: OnboardingAnswer[];
+  /**
+   * True when the session is in view-only mode.
+   * Use this to disable analytics/session recordings and mutating UI.
+   */
+  viewOnly?: boolean;
 }
 
 /**
