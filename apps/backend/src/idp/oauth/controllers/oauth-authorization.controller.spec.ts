@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
   AuthorizationError,
+  ViewOnlyModeError,
   type McpOAuthProjectMemberContext,
   type Payload,
 } from '@owox/idp-protocol';
@@ -264,6 +265,40 @@ describe('OAuthAuthorizationController', () => {
     await expect(
       controller.authorize({}, request, response as unknown as Response)
     ).rejects.toThrow(AuthorizationError);
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects view-only sessions from obtaining MCP authorization codes', async () => {
+    const { controller, provider, oauthIdp, clientRegistry } = createController();
+    provider.parseToken.mockResolvedValueOnce({
+      ...payload,
+      viewOnly: true,
+    });
+    const response = createResponse();
+    const request = createRequest({
+      headers: { 'x-owox-authorization': 'Bearer view-only-access-token' },
+    });
+
+    await expect(
+      controller.authorize({}, request, response as unknown as Response)
+    ).rejects.toThrow(ViewOnlyModeError);
+    expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
+    expect(clientRegistry.attachUserIfMissing).not.toHaveBeenCalled();
+  });
+
+  it('rejects view-only sessions resolved via refresh cookie', async () => {
+    const { controller, provider, oauthIdp } = createController();
+    provider.parseToken.mockResolvedValueOnce({
+      ...payload,
+      viewOnly: true,
+    });
+    const response = createResponse();
+    const request = createRequest({ cookies: { refreshToken: 'refresh-token-1' } });
+
+    await expect(
+      controller.authorize({}, request, response as unknown as Response)
+    ).rejects.toThrow(ViewOnlyModeError);
+    expect(provider.refreshToken).toHaveBeenCalledWith('refresh-token-1');
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
   });
 
