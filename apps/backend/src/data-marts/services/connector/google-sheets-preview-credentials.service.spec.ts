@@ -89,4 +89,20 @@ describe('GoogleSheetsPreviewCredentialsService', () => {
       service.inject({ _id: 'config-1', _secrets_id: 'secret-1' }, context)
     ).rejects.toThrow('The selected credentials cannot be used for this preview');
   });
+
+  it('previews a replacement inline key instead of the stored key', async () => {
+    const { service, credentialInjector, credentials, access } = createService();
+    const config = {
+      _id: 'config-1',
+      _secrets_id: 'secret-1',
+      AuthType: { service_account: { ServiceAccountKey: '{"client_email":"new@test"}' } },
+    };
+    await service.inject(config, context);
+    expect(credentialInjector.injectSecrets).toHaveBeenCalledWith(
+      expect.not.objectContaining({ _secrets_id: expect.anything() }),
+      'proj-1'
+    );
+    expect(credentials.getCredentialsById).not.toHaveBeenCalled();
+    expect(access.canAccess).not.toHaveBeenCalled();
+  });
 });

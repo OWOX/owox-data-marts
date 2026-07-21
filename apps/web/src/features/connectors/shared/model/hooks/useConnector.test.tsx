@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectorFieldsResponseApiDto } from '../../api';
 import { ConnectorApiService } from '../../api';
@@ -13,6 +13,8 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+const fields = (node: string, field: string) => [{ name: node, fields: [{ name: field }] }];
 
 const wrapper = ({ children }: PropsWithChildren) => (
   <ConnectorContextProvider>{children}</ConnectorContextProvider>
@@ -43,12 +45,12 @@ describe('useConnector preview requests', () => {
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => {
-      second.resolve([{ name: 'sheet', fields: [{ name: 'New Column' }] }]);
+      second.resolve(fields('sheet', 'New Column'));
       await secondRequest;
     });
 
     await act(async () => {
-      first.resolve([{ name: 'sheet', fields: [{ name: 'Old Column' }] }]);
+      first.resolve(fields('sheet', 'Old Column'));
       expect(await firstRequest).toBeNull();
     });
 
@@ -56,5 +58,56 @@ describe('useConnector preview requests', () => {
       expect(result.current.connectorFields?.[0]?.fields?.[0]?.name).toBe('New Column');
       expect(result.current.loadingFields).toBe(false);
     });
+  });
+
+  it('ignores a static-fields response superseded by a sheet preview', async () => {
+    const staticFields = deferred<ConnectorFieldsResponseApiDto[]>();
+    vi.spyOn(ConnectorApiService.prototype, 'getConnectorFields').mockReturnValue(
+      staticFields.promise
+    );
+    vi.spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields').mockResolvedValue(
+      fields('sheet', 'Sheet Column')
+    );
+    const { result } = renderHook(() => useConnector(), { wrapper });
+
+    let staticRequest!: Promise<void>;
+    await act(async () => {
+      staticRequest = result.current.fetchConnectorFields('GoogleAds');
+      await result.current.previewGoogleSheetsFields({ SheetName: 'Current' });
+    });
+    await act(async () => {
+      staticFields.resolve(fields('ads', 'Ad Field'));
+      await staticRequest;
+    });
+
+    expect(result.current.connectorFields?.[0]?.fields?.[0]?.name).toBe('Sheet Column');
+  });
+
+  it('clears preview loading when the editor unmounts', async () => {
+    vi.spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields').mockReturnValue(
+      new Promise(() => undefined)
+    );
+    const PreviewControl = () => {
+      const { loadingFields, previewGoogleSheetsFields } = useConnector();
+      return (
+        <button type='button' onClick={() => void previewGoogleSheetsFields({ SheetName: 'Data' })}>
+          {String(loadingFields)}
+        </button>
+      );
+    };
+    const view = render(
+      <ConnectorContextProvider>
+        <PreviewControl />
+      </ConnectorContextProvider>
+    );
+    fireEvent.click(view.getByRole('button'));
+    expect(view.getByRole('button')).toHaveTextContent('true');
+    view.rerender(<ConnectorContextProvider />);
+    view.rerender(
+      <ConnectorContextProvider>
+        <PreviewControl />
+      </ConnectorContextProvider>
+    );
+    expect(view.getByRole('button')).toHaveTextContent('false');
   });
 });

@@ -9,6 +9,7 @@ var GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES = 127;
 var GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
 var GOOGLE_SHEETS_MAX_IMPORT_ROWS = 100000;
 var GOOGLE_SHEETS_MAX_IMPORT_COLUMNS = 1598;
+var GOOGLE_SHEETS_MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
 var GOOGLE_SHEETS_MAX_RETRY_AFTER_MS = 300000;
 
 var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
@@ -171,7 +172,23 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           forceRefresh: authorizationAttempt > 0,
         });
         const response = await this._fetchSheetResponse(url, accessToken, signal);
-        const payload = await response.getAsJson();
+        const contentLength = Number(response.getHeaders?.()['content-length']);
+        if (Number.isFinite(contentLength) && contentLength > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
+          throw new Error(
+            'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
+          );
+        }
+        const responseText = await response.getContentText();
+        const responseBytes =
+          typeof Buffer === 'undefined'
+            ? responseText.length
+            : Buffer.byteLength(responseText, 'utf8');
+        if (responseBytes > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
+          throw new Error(
+            'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
+          );
+        }
+        const payload = JSON.parse(responseText);
         return Array.isArray(payload.values) ? payload.values : [];
       } catch (error) {
         if (signal?.aborted) {

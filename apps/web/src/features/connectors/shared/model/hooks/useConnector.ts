@@ -6,15 +6,16 @@ import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useConnector() {
   const { state, dispatch } = useConnectorContext();
-  const previewRequestIdRef = useRef(0);
+  const fieldsRequestIdRef = useRef(0);
   const previewAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
-      previewRequestIdRef.current += 1;
+      fieldsRequestIdRef.current += 1;
       previewAbortControllerRef.current?.abort();
+      dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_RESET });
     };
-  }, []);
+  }, [dispatch]);
 
   const connectors = useMemo(() => {
     return mapConnectorListFromDto(state.connectors);
@@ -70,12 +71,18 @@ export function useConnector() {
 
   const fetchConnectorFields = useCallback(
     async (connectorName: string) => {
+      const requestId = fieldsRequestIdRef.current + 1;
+      fieldsRequestIdRef.current = requestId;
+      previewAbortControllerRef.current?.abort();
+      previewAbortControllerRef.current = null;
       dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_START });
       try {
         const connectorApiService = new ConnectorApiService();
         const response = await connectorApiService.getConnectorFields(connectorName);
+        if (requestId !== fieldsRequestIdRef.current) return;
         dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS, payload: response });
       } catch (error) {
+        if (requestId !== fieldsRequestIdRef.current) return;
         const message = error instanceof Error ? error.message : 'Unknown error';
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR,
@@ -94,8 +101,8 @@ export function useConnector() {
 
   const previewGoogleSheetsFields = useCallback(
     async (configuration: Record<string, unknown>) => {
-      const requestId = previewRequestIdRef.current + 1;
-      previewRequestIdRef.current = requestId;
+      const requestId = fieldsRequestIdRef.current + 1;
+      fieldsRequestIdRef.current = requestId;
       previewAbortControllerRef.current?.abort();
       const abortController = new AbortController();
       previewAbortControllerRef.current = abortController;
@@ -107,12 +114,12 @@ export function useConnector() {
           signal: abortController.signal,
         });
 
-        if (requestId !== previewRequestIdRef.current) return null;
+        if (requestId !== fieldsRequestIdRef.current) return null;
 
         dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS, payload: response });
         return response;
       } catch (error) {
-        if (requestId !== previewRequestIdRef.current || abortController.signal.aborted) {
+        if (requestId !== fieldsRequestIdRef.current || abortController.signal.aborted) {
           return null;
         }
 
@@ -123,7 +130,7 @@ export function useConnector() {
         });
         throw error;
       } finally {
-        if (requestId === previewRequestIdRef.current) {
+        if (requestId === fieldsRequestIdRef.current) {
           previewAbortControllerRef.current = null;
         }
       }

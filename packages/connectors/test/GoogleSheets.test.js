@@ -386,12 +386,22 @@ test('refreshes a rejected token once and honors numeric Retry-After values', as
     if (requestCount === 1) {
       throw new HttpRequestException({ message: 'Unauthorized', statusCode: 401 });
     }
-    return { getAsJson: async () => ({ values: [['Name']] }) };
+    return { getContentText: async () => JSON.stringify({ values: [['Name']] }) };
   };
 
   assert.deepEqual(plain(await source._fetchSheetValues()), [['Name']]);
   assert.deepEqual(tokenCalls, [false, true]);
   assert.equal(source._getRetryAfterMs({ getHeaders: () => ({ 'Retry-After': '7' }) }), 7000);
+});
+
+test('rejects oversized responses before reading their body', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => ({
+    getHeaders: () => ({ 'content-length': String(50 * 1024 * 1024 + 1) }),
+    getContentText: async () => assert.fail('body should not be read'),
+  });
+  await assert.rejects(source._fetchSheetValues(), /response exceeds the 50 MB import limit/);
 });
 
 test('connector always publishes empty snapshots and reports only the runtime schema fields', async () => {

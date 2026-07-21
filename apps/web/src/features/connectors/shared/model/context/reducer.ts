@@ -50,6 +50,8 @@ export function reducer(state: ConnectorState, action: ConnectorAction): Connect
       return { ...state, connectorFields: action.payload, loadingFields: false, error: null };
     case ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR:
       return { ...state, loadingFields: false, error: action.payload };
+    case ConnectorActionType.FETCH_CONNECTOR_FIELDS_RESET:
+      return { ...state, loadingFields: false, error: null };
     default:
       return state;
   }
