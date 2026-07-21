@@ -14,7 +14,6 @@ import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
-import { isEventTargetInsideToaster } from '../../../../../shared/components/Toaster/toaster-container';
 
 interface DataStorageEditSheetProps {
   isOpen: boolean;
@@ -86,17 +85,7 @@ export function DataStorageConfigSheet({
         }
       }}
     >
-      <SheetContent
-        data-testid='storageConfigSheet'
-        onInteractOutside={event => {
-          // Error toasts render in react-hot-toast's own portal, outside this
-          // sheet's DOM subtree. Dismissing a toast must not count as an outside
-          // click that closes the sheet and triggers the unsaved-changes guard.
-          if (isEventTargetInsideToaster(event.detail.originalEvent.target)) {
-            event.preventDefault();
-          }
-        }}
-      >
+      <SheetContent data-testid='storageConfigSheet'>
         <SheetHeader>
           <SheetTitle>Configure Storage Provider</SheetTitle>
           <SheetDescription>Customize settings for your storage provider</SheetDescription>

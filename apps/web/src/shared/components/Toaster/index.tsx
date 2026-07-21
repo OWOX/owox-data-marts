@@ -1,11 +1,9 @@
 import { Toaster as HotToaster } from 'react-hot-toast';
-import { TOASTER_CONTAINER_CLASS } from './toaster-container';
 
 export function Toaster() {
   return (
     <HotToaster
       position='top-center'
-      containerClassName={TOASTER_CONTAINER_CLASS}
       toastOptions={{
         duration: 3000,
         style: {
