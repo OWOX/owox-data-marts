@@ -693,11 +693,14 @@ describeIfCredentials('Output controls — operator matrix & dates (real Athena)
     //   3  gamma    c      30  true   ~400 days ago (last year)
     //   4  alphabet a%b    40  true   5 days ago
     //   5  ALPHA    a_b    50  false  today
-    //   6  (empty)  x       0  true   200 days ago (last year)
+    //   6  (empty)  x       0  true   mid last year (anchored: Jul 1 of last year)
     //   7  future   f      70  true   ~13 months from now (next calendar year)
     //
-    // Date expressions use date_add so the relative_date assertions hold
-    // regardless of when the suite runs.
+    // Date expressions are anchored to the calendar year (not sliding day offsets
+    // near a boundary) so the relative_date assertions hold regardless of when the
+    // suite runs. Row 6 uses date_trunc('year', ...) - 6 months so it stays firmly
+    // in last year all year round; a plain "-200 days" drifts into this_year past
+    // ~Jul 20.
     // `created_ts` mirrors `created_at` but as a TIMESTAMP at 13:00 (NOT midnight)
     // for the "today" rows, so the relative_date half-open range is exercised on a
     // sub-day value — the case the old `= current_date` equality silently missed.
@@ -710,7 +713,7 @@ AS SELECT * FROM (VALUES
   (3, 'gamma',    'c',    30,  true,  date_add('day', -400, current_date),   cast(date_add('day', -400, current_date) AS timestamp)),
   (4, 'alphabet', 'a%b',  40,  true,  date_add('day', -5, current_date),     cast(date_add('day', -5, current_date) AS timestamp)),
   (5, 'ALPHA',    'a_b',  50,  false, current_date,                          date_add('hour', 13, cast(current_date AS timestamp))),
-  (6, '',         'x',     0,  true,  date_add('day', -200, current_date),   cast(date_add('day', -200, current_date) AS timestamp)),
+  (6, '',         'x',     0,  true,  date_add('month', -6, date_trunc('year', current_date)),  cast(date_add('month', -6, date_trunc('year', current_date)) AS timestamp)),
   (7, 'future',   'f',    70,  true,  date_add('month', 13, current_date),   cast(date_add('month', 13, current_date) AS timestamp))
 ) AS t (id, name, tag, score, active, created_at, created_ts)`;
 
@@ -899,18 +902,17 @@ AS SELECT * FROM (VALUES
 
   // --- relative_date on created_at (DATE column) ---
   // Row dates (relative to test run date):
-  //   1 → today        5 → today
-  //   4 → -5 days      2 → -40 days
-  //   6 → -200 days    3 → -400 days
+  //   1 → today            5 → today
+  //   4 → -5 days          2 → -40 days
+  //   6 → mid last year    3 → -400 days
   //
   // today    → rows dated current_date → [1, 5]
   // last_n_days(7) → >= current_date - 7 days → [1, 4, 5]
-  // this_year → >= date_trunc('year', current_date) → depends on how many days
-  //             ago fall in the current calendar year.
-  //             -5 days (row 4) and -40 days (row 2) are always in current year
-  //             as long as the test runs after Feb 10 of any year.
-  //             -200 days (row 6) and -400 days (row 3) are last year.
-  //             → [1, 2, 4, 5]
+  // last_n_months(3) → -40 days (~1.3 months) included → [1, 2, 4, 5]
+  // this_year → whole calendar year: today rows (1,5) in, other-year rows
+  //   (3 & 6 last year, 7 next year) out. Recent rows 2 & 4 are NOT asserted for
+  //   this_year — they legitimately leave it in early January (see the calendar
+  //   invariants in relative-date-seed-invariants.spec.ts).
 
   it('relative_date today on created_at → rows 1,5', async () => {
     const rows = await runMatrix({
@@ -954,13 +956,21 @@ AS SELECT * FROM (VALUES
     expect(ids(rows)).toEqual(['1', '4', '5']);
   }, 60000);
 
-  it('relative_date this_year on created_at → rows 1,2,4,5 (excludes future row 7)', async () => {
+  it('relative_date this_year on created_at → current-year rows in, other-year rows out', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'created_at', operator: 'relative_date', value: { kind: 'this_year' } }],
     });
-    // Row 7 is ~13 months in the future (next calendar year) and must NOT appear.
-    expect(ids(rows)).not.toContain('7');
-    expect(ids(rows)).toEqual(['1', '2', '4', '5']);
+    const got = ids(rows);
+    // today rows are always in the current calendar year
+    expect(got).toContain('1');
+    expect(got).toContain('5');
+    // other-year rows must never appear: rows 3 (-400d) & 6 (mid last year) are last
+    // year; row 7 (+13m) is next year — the this_year UPPER BOUND excludes it.
+    // Recent rows 2 (-40d) & 4 (-5d) are intentionally not asserted here — they
+    // legitimately leave this_year in early January (covered by last_n_days/months).
+    expect(got).not.toContain('3');
+    expect(got).not.toContain('6');
+    expect(got).not.toContain('7');
   }, 60000);
 
   it('relative_date last_n_months(3) on created_at → rows 1,2,4,5 (upper bound excludes future row 7)', async () => {
