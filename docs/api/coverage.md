@@ -20,3 +20,19 @@ Focused verification:
 npm test -w @owox/backend -- --runInBand --runTestsByPath src/project-settings/controllers/project-settings.controller.openapi.spec.ts
 npm test -w @owox/api-client -- --runInBand --runTestsByPath src/client.test.ts
 ```
+
+## Models canvas
+
+Coverage updated: 2026-07-21
+
+| Method and path                    | Exposure                                                  | OpenAPI status                                                  | API client status                | Verification evidence                                                                                    | Exemption approval |
+| ---------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------ |
+| `GET /api/model-canvas/data-marts` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, query parameters, and `200` response schema | Covered: `models.getDataMarts()` | Backend `model-canvas.controller.openapi.spec.ts`; client `model-canvas.test.ts` (query, auth, response) | Not applicable     |
+| `GET /api/model-canvas/edges`      | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, required query, and `200` response schema   | Covered: `models.getEdges()`     | Backend `model-canvas.controller.openapi.spec.ts`; client `model-canvas.test.ts` (query, auth, response) | Not applicable     |
+
+Focused verification:
+
+```sh
+npm test -w @owox/backend -- --runInBand --runTestsByPath src/data-marts/controllers/model-canvas.controller.openapi.spec.ts
+npm test -w @owox/api-client -- --runInBand --runTestsByPath src/model-canvas.test.ts
+```
