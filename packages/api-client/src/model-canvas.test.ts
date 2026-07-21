@@ -94,8 +94,8 @@ describe('ModelCanvasApi', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
 
-    await expect(client.modelCanvas.getDataMarts('storage-1', 0)).resolves.toEqual(dataMartPage);
-    await expect(client.modelCanvas.getEdges('storage-1')).resolves.toEqual(edges);
+    await expect(client.models.getDataMarts('storage-1', 0)).resolves.toEqual(dataMartPage);
+    await expect(client.models.getEdges('storage-1')).resolves.toEqual(edges);
   });
 
   it('omits the optional offset when it is not provided', async () => {
@@ -110,7 +110,7 @@ describe('ModelCanvasApi', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
 
-    await expect(client.modelCanvas.getDataMarts('storage-1')).resolves.toEqual({
+    await expect(client.models.getDataMarts('storage-1')).resolves.toEqual({
       items: [],
       total: 0,
       nextOffset: null,
@@ -131,8 +131,8 @@ describe('ModelCanvasApi', () => {
 
     const result =
       method === 'getDataMarts'
-        ? client.modelCanvas.getDataMarts('storage-1')
-        : client.modelCanvas.getEdges('storage-1');
+        ? client.models.getDataMarts('storage-1')
+        : client.models.getEdges('storage-1');
     await expect(result).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: expect.stringContaining('unexpected response shape'),

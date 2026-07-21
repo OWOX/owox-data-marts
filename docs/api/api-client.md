@@ -79,22 +79,22 @@ const dataMarts = await client.dataMarts.list();
 
 ## Read the Models canvas
 
-Use `modelCanvas.getDataMarts()` to read one page of the data marts visible to the current project
+Use `models.getDataMarts()` to read one page of the data marts visible to the current project
 member in a storage. Pass the returned `nextOffset` to request the next page.
 
 ```ts
-const firstPage = await client.modelCanvas.getDataMarts('storage-id');
+const firstPage = await client.models.getDataMarts('storage-id');
 
 if (firstPage.nextOffset !== null) {
-  const nextPage = await client.modelCanvas.getDataMarts('storage-id', firstPage.nextOffset);
+  const nextPage = await client.models.getDataMarts('storage-id', firstPage.nextOffset);
   console.log(nextPage.items);
 }
 ```
 
-Use `modelCanvas.getEdges()` to read the visible relationships between those data marts.
+Use `models.getEdges()` to read the visible relationships between those data marts.
 
 ```ts
-const edges = await client.modelCanvas.getEdges('storage-id');
+const edges = await client.models.getEdges('storage-id');
 
 for (const edge of edges) {
   console.log(edge.sourceDataMartId, edge.targetDataMartId, edge.joinConditions);

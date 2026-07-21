@@ -32,7 +32,7 @@ export class OWOXApiClient {
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
   readonly destinations: DestinationsApi;
-  readonly modelCanvas: ModelCanvasApi;
+  readonly models: ModelCanvasApi;
   readonly project: ProjectApi;
 
   private readonly apiOrigin: string;
@@ -52,7 +52,7 @@ export class OWOXApiClient {
     this.dataMarts = new DataMartsApi(this);
     this.storages = new StoragesApi(this);
     this.destinations = new DestinationsApi(this);
-    this.modelCanvas = new ModelCanvasApi(this);
+    this.models = new ModelCanvasApi(this);
     this.project = new ProjectApi(this);
   }
 
