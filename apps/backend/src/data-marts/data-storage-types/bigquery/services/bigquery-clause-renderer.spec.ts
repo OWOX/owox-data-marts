@@ -143,6 +143,41 @@ describe('BigQueryClauseRenderer', () => {
   });
 
   describe('relative_date', () => {
+    it('next_n_days includes today and n days ahead', () => {
+      expect(
+        r.renderWhere([
+          { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } },
+        ]).sql
+      ).toBe('\nWHERE `d` >= CURRENT_DATE() AND `d` <= DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)');
+    });
+    it('this_week / last_week truncate with ISOWEEK (Monday), not the Sunday-based WEEK', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_week' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), ISOWEEK) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY)'
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_week' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY) AND `d` < DATE_TRUNC(CURRENT_DATE(), ISOWEEK)'
+      );
+    });
+    it('this_quarter / last_quarter are calendar quarters', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), QUARTER) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH)'
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH) AND `d` < DATE_TRUNC(CURRENT_DATE(), QUARTER)'
+      );
+    });
     it('today', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }]).sql

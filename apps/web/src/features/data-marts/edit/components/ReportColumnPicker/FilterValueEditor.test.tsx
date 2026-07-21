@@ -469,6 +469,35 @@ describe('FilterValueEditor — relative_date operator', () => {
     });
   });
 
+  it('next_n_days shows the N input and emits { kind: "next_n_days", n }', () => {
+    const { onChange } = renderEditor({ fieldType: DATE_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'relative_date' } });
+    fireEvent.change(getPresetSelect(), { target: { value: 'next_n_days' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'relative_date',
+      value: { kind: 'next_n_days', n: 7 },
+    });
+  });
+
+  it('week and quarter presets emit no-N rules', () => {
+    const { onChange } = renderEditor({ fieldType: DATE_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'relative_date' } });
+    for (const kind of ['this_week', 'last_week', 'this_quarter', 'last_quarter'] as const) {
+      fireEvent.change(getPresetSelect(), { target: { value: kind } });
+      expect(lastCall(onChange)).toEqual({
+        column: COL,
+        operator: 'relative_date',
+        value: { kind },
+      });
+      expect(screen.queryByRole('spinbutton')).toBeNull();
+    }
+  });
+
   it('selecting "this_month" does NOT show N input', () => {
     renderEditor({ fieldType: DATE_TYPE });
 

@@ -162,6 +162,20 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
           `${col} >= add_months(CURRENT_DATE, -${preset.n})` +
           ` AND ${col} < date_add(CURRENT_DATE, 1)`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return `${col} >= CURRENT_DATE` + ` AND ${col} < date_add(CURRENT_DATE, ${preset.n + 1})`;
+      // Spark trunc(date, 'WEEK') is fixed to Monday — ISO.
+      case 'this_week':
+        return (
+          `${col} >= trunc(CURRENT_DATE, 'WEEK')` +
+          ` AND ${col} < date_add(trunc(CURRENT_DATE, 'WEEK'), 7)`
+        );
+      case 'last_week':
+        return (
+          `${col} >= date_add(trunc(CURRENT_DATE, 'WEEK'), -7)` +
+          ` AND ${col} < trunc(CURRENT_DATE, 'WEEK')`
+        );
       case 'this_month':
         return (
           `${col} >= trunc(CURRENT_DATE, 'MONTH')` +
@@ -171,6 +185,16 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
         return (
           `${col} >= add_months(trunc(CURRENT_DATE, 'MONTH'), -1)` +
           ` AND ${col} < trunc(CURRENT_DATE, 'MONTH')`
+        );
+      case 'this_quarter':
+        return (
+          `${col} >= trunc(CURRENT_DATE, 'QUARTER')` +
+          ` AND ${col} < add_months(trunc(CURRENT_DATE, 'QUARTER'), 3)`
+        );
+      case 'last_quarter':
+        return (
+          `${col} >= add_months(trunc(CURRENT_DATE, 'QUARTER'), -3)` +
+          ` AND ${col} < trunc(CURRENT_DATE, 'QUARTER')`
         );
       case 'this_year':
         return (

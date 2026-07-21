@@ -200,6 +200,41 @@ describe('AthenaClauseRenderer', () => {
   });
 
   describe('relative_date (Trino date functions)', () => {
+    it('next_n_days includes today and n days ahead', () => {
+      expect(
+        r.renderWhere([
+          { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } },
+        ]).sql
+      ).toBe(`\nWHERE "d" >= current_date AND "d" < date_add('day', 8, current_date)`);
+    });
+    it('this_week / last_week are ISO (Monday) weeks', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_week' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_trunc('week', current_date) AND "d" < date_add('week', 1, date_trunc('week', current_date))`
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_week' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_add('week', -1, date_trunc('week', current_date)) AND "d" < date_trunc('week', current_date)`
+      );
+    });
+    it('this_quarter / last_quarter are calendar quarters', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_trunc('quarter', current_date) AND "d" < date_add('month', 3, date_trunc('quarter', current_date))`
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_add('month', -3, date_trunc('quarter', current_date)) AND "d" < date_trunc('quarter', current_date)`
+      );
+    });
     // Half-open ranges (not equality) so the whole day matches on TIMESTAMP columns.
     it('today', () => {
       expect(

@@ -188,6 +188,24 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} MONTH)` +
           ` AND ${lhs} <= CURRENT_DATE()`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return (
+          `${lhs} >= CURRENT_DATE()` +
+          ` AND ${lhs} <= DATE_ADD(CURRENT_DATE(), INTERVAL ${preset.n} DAY)`
+        );
+      // ISOWEEK, not WEEK: BigQuery's plain WEEK starts on Sunday, while every other
+      // storage truncates weeks to Monday — ISOWEEK keeps the boundary consistent.
+      case 'this_week':
+        return (
+          `${lhs} >= DATE_TRUNC(CURRENT_DATE(), ISOWEEK)` +
+          ` AND ${lhs} < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY)`
+        );
+      case 'last_week':
+        return (
+          `${lhs} >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY)` +
+          ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), ISOWEEK)`
+        );
       case 'this_month':
         return (
           `${lhs} >= DATE_TRUNC(CURRENT_DATE(), MONTH)` +
@@ -197,6 +215,16 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         return (
           `${lhs} >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)` +
           ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), MONTH)`
+        );
+      case 'this_quarter':
+        return (
+          `${lhs} >= DATE_TRUNC(CURRENT_DATE(), QUARTER)` +
+          ` AND ${lhs} < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH)`
+        );
+      case 'last_quarter':
+        return (
+          `${lhs} >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH)` +
+          ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), QUARTER)`
         );
       case 'this_year':
         return (

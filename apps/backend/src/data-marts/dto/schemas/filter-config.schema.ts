@@ -7,14 +7,25 @@ import { REPORT_AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 // `> Infinity` (invalid SQL), not a safe rejection.
 const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
+// Semantics shared by every storage renderer:
+// - this_week/last_week are ISO weeks (Monday start) on all storages — BigQuery
+//   truncates with ISOWEEK, Snowflake computes Monday via DAYOFWEEKISO so the
+//   session-level WEEK_START parameter cannot shift the boundary.
+// - this_quarter/last_quarter are calendar quarters.
+// - next_n_days mirrors last_n_days: both INCLUDE today (today .. today+n).
 const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('today') }),
   z.object({ kind: z.literal('yesterday') }),
+  z.object({ kind: z.literal('this_week') }),
+  z.object({ kind: z.literal('last_week') }),
   z.object({ kind: z.literal('this_month') }),
   z.object({ kind: z.literal('last_month') }),
+  z.object({ kind: z.literal('this_quarter') }),
+  z.object({ kind: z.literal('last_quarter') }),
   z.object({ kind: z.literal('this_year') }),
   z.object({ kind: z.literal('last_n_days'), n: z.number().int().positive().max(3650) }),
   z.object({ kind: z.literal('last_n_months'), n: z.number().int().positive().max(3650) }),
+  z.object({ kind: z.literal('next_n_days'), n: z.number().int().positive().max(3650) }),
 ]);
 
 const ScalarOperatorEnum = z.enum([

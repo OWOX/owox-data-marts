@@ -18,10 +18,11 @@ import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/services/out
 function dummyValueFor(op: string): unknown {
   if (op === 'between') return { from: 1, to: 2 };
   if (op === 'in' || op === 'not_in') return ['v'];
-  if (op === 'in_last_n_days') return 7;
+  if (op === 'in_last_n_days' || op === 'in_next_n_days') return 7;
   if (op === 'is_null' || op === 'is_not_null' || op === 'is_empty' || op === 'is_not_empty') {
     return undefined;
   }
+  if (op.startsWith('this_') || op.startsWith('last_')) return undefined;
   return 'v';
 }
 
@@ -80,7 +81,19 @@ describe('field-type-matrix', () => {
     );
     expect(mcpOperatorsForCategory('string')).not.toEqual(expect.arrayContaining(['gt']));
     expect(mcpOperatorsForCategory('date')).toEqual(
-      expect.arrayContaining(['before', 'after', 'in_last_n_days', 'this_month', 'this_year', 'in'])
+      expect.arrayContaining([
+        'before',
+        'after',
+        'in_last_n_days',
+        'in_next_n_days',
+        'this_week',
+        'last_week',
+        'this_month',
+        'this_quarter',
+        'last_quarter',
+        'this_year',
+        'in',
+      ])
     );
     // TIME columns have no relative-date presets.
     expect(mcpOperatorsForCategory('time')).not.toEqual(expect.arrayContaining(['in_last_n_days']));

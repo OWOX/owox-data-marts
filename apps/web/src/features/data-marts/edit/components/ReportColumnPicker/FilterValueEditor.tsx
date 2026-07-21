@@ -40,12 +40,28 @@ interface EditorState {
 const RELATIVE_KINDS: { value: RelativeDatePreset['kind']; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
+  { value: 'this_week', label: 'This week' },
+  { value: 'last_week', label: 'Last week' },
   { value: 'this_month', label: 'This month' },
   { value: 'last_month', label: 'Last month' },
+  { value: 'this_quarter', label: 'This quarter' },
+  { value: 'last_quarter', label: 'Last quarter' },
   { value: 'this_year', label: 'This year' },
   { value: 'last_n_days', label: 'Last N days' },
   { value: 'last_n_months', label: 'Last N months' },
+  { value: 'next_n_days', label: 'Next N days' },
 ];
+
+/** Presets that take the numeric N input. */
+type NKind = 'last_n_days' | 'last_n_months' | 'next_n_days';
+const N_KINDS = new Set<RelativeDatePreset['kind']>([
+  'last_n_days',
+  'last_n_months',
+  'next_n_days',
+]);
+function isNKind(kind: RelativeDatePreset['kind']): kind is NKind {
+  return N_KINDS.has(kind);
+}
 
 const NO_VALUE_OPS = new Set<FilterOperator>([
   'is_empty',
@@ -131,19 +147,16 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
   }
 
   if (op === 'relative_date') {
-    if (state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') {
+    const kind = state.relativeKind;
+    if (isNKind(kind)) {
       const trimmed = state.relativeN.trim();
       const n = Number(trimmed);
       if (trimmed === '' || !Number.isInteger(n) || n <= 0 || n > 3650) {
         throw new Error('N must be between 1 and 3650');
       }
-      return {
-        column,
-        operator: 'relative_date',
-        value: { kind: state.relativeKind, n },
-      };
+      return { column, operator: 'relative_date', value: { kind, n } };
     }
-    return { column, operator: 'relative_date', value: { kind: state.relativeKind } };
+    return { column, operator: 'relative_date', value: { kind } };
   }
 
   if (NO_VALUE_OPS.has(op)) {
@@ -301,7 +314,7 @@ export function FilterValueEditor({
               ))}
             </SelectContent>
           </Select>
-          {(state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') && (
+          {N_KINDS.has(state.relativeKind) && (
             <Input
               type='number'
               min={1}

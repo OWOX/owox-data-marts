@@ -32,6 +32,32 @@ describe('FilterRuleSchema — in/not_in (backend mirror)', () => {
   });
 });
 
+describe('FilterRuleSchema — week/quarter/next_n_days presets (backend mirror)', () => {
+  it('parses the new relative_date kinds', () => {
+    for (const kind of ['this_week', 'last_week', 'this_quarter', 'last_quarter']) {
+      expect(
+        FilterRuleSchema.safeParse({ column: 'd', operator: 'relative_date', value: { kind } })
+          .success
+      ).toBe(true);
+    }
+    expect(
+      FilterRuleSchema.safeParse({
+        column: 'd',
+        operator: 'relative_date',
+        value: { kind: 'next_n_days', n: 7 },
+      }).success
+    ).toBe(true);
+    // next_n_days requires n, like last_n_days.
+    expect(
+      FilterRuleSchema.safeParse({
+        column: 'd',
+        operator: 'relative_date',
+        value: { kind: 'next_n_days' },
+      }).success
+    ).toBe(false);
+  });
+});
+
 describe('uniqueCountConfig — EMPTY_OUTPUT_CONFIG and hasAnyOutputControls', () => {
   it('EMPTY_OUTPUT_CONFIG.uniqueCountConfig is false', () => {
     expect(EMPTY_OUTPUT_CONFIG.uniqueCountConfig).toBe(false);

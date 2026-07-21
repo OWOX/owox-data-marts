@@ -112,6 +112,28 @@ describe('DatabricksClauseRenderer', () => {
     expect(where(r, { column: 'n', operator: 'neq', value: 1 })).toBe('\nWHERE `n` <> 1');
   });
 
+  it('renders the week/quarter/next_n_days presets (Monday-fixed trunc WEEK)', () => {
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } })
+    ).toBe('\nWHERE `d` >= CURRENT_DATE AND `d` < date_add(CURRENT_DATE, 8)');
+    expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'this_week' } })).toBe(
+      "\nWHERE `d` >= trunc(CURRENT_DATE, 'WEEK') AND `d` < date_add(trunc(CURRENT_DATE, 'WEEK'), 7)"
+    );
+    expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'last_week' } })).toBe(
+      "\nWHERE `d` >= date_add(trunc(CURRENT_DATE, 'WEEK'), -7) AND `d` < trunc(CURRENT_DATE, 'WEEK')"
+    );
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } })
+    ).toBe(
+      "\nWHERE `d` >= trunc(CURRENT_DATE, 'QUARTER') AND `d` < add_months(trunc(CURRENT_DATE, 'QUARTER'), 3)"
+    );
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } })
+    ).toBe(
+      "\nWHERE `d` >= add_months(trunc(CURRENT_DATE, 'QUARTER'), -3) AND `d` < trunc(CURRENT_DATE, 'QUARTER')"
+    );
+  });
+
   it('renders relative_date presets as half-open ranges with upper bounds', () => {
     expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'today' } })).toBe(
       '\nWHERE `d` >= CURRENT_DATE AND `d` < date_add(CURRENT_DATE, 1)'

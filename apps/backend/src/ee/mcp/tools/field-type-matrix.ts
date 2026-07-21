@@ -36,7 +36,12 @@ export const MCP_TO_INTERNAL_OPERATOR: Readonly<Record<string, string>> = {
   before: 'lt',
   after: 'gt',
   in_last_n_days: 'relative_date',
+  in_next_n_days: 'relative_date',
+  this_week: 'relative_date',
+  last_week: 'relative_date',
   this_month: 'relative_date',
+  this_quarter: 'relative_date',
+  last_quarter: 'relative_date',
   this_year: 'relative_date',
 };
 

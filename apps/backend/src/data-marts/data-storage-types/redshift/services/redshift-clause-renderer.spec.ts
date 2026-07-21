@@ -115,6 +115,41 @@ describe('RedshiftClauseRenderer', () => {
   });
 
   describe('relative_date (Redshift date functions, half-open + upper bounds)', () => {
+    it('next_n_days includes today and n days ahead', () => {
+      expect(
+        r.renderWhere([
+          { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } },
+        ]).sql
+      ).toBe(`\nWHERE "d" >= CURRENT_DATE AND "d" < DATEADD(day, 8, CURRENT_DATE)`);
+    });
+    it('this_week / last_week use the Monday-fixed DATE_TRUNC week', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_week' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= DATE_TRUNC('week', CURRENT_DATE) AND "d" < DATEADD(day, 7, DATE_TRUNC('week', CURRENT_DATE))`
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_week' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= DATEADD(day, -7, DATE_TRUNC('week', CURRENT_DATE)) AND "d" < DATE_TRUNC('week', CURRENT_DATE)`
+      );
+    });
+    it('this_quarter / last_quarter are calendar quarters', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= DATE_TRUNC('quarter', CURRENT_DATE) AND "d" < DATEADD(month, 3, DATE_TRUNC('quarter', CURRENT_DATE))`
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= DATEADD(month, -3, DATE_TRUNC('quarter', CURRENT_DATE)) AND "d" < DATE_TRUNC('quarter', CURRENT_DATE)`
+      );
+    });
     it('today', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }]).sql

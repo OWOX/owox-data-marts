@@ -16,8 +16,6 @@ import type { SortConfig } from '../../../data-marts/dto/schemas/sort-config.sch
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 20;
 
-// Operators unsupported by the internal FilterRule are accepted here and rejected
-// at mapping time with a precise error, rather than silently dropped.
 const MCP_OPERATORS = [
   'eq',
   'neq',
@@ -41,7 +39,10 @@ const MCP_OPERATORS = [
   'in_last_n_days',
   'in_next_n_days',
   'this_week',
+  'last_week',
   'this_month',
+  'this_quarter',
+  'last_quarter',
   'this_year',
 ] as const;
 
@@ -63,7 +64,7 @@ const makeMcpFilterSchema = () =>
       ])
       .optional()
       .describe(
-        'Operand for the operator: scalar for comparisons; {from, to} for between; array of scalars for in/not_in; positive integer for in_last_n_days; omit for is_null/is_not_null/is_empty/is_not_empty.'
+        'Operand for the operator: scalar for comparisons; {from, to} for between; array of scalars for in/not_in; positive integer for in_last_n_days/in_next_n_days; omit for is_null/is_not_null/is_empty/is_not_empty and the this_/last_ calendar presets.'
       ),
   });
 
@@ -155,7 +156,9 @@ export const queryDataMartInputSchema = z
 export type QueryDataMartInput = z.infer<typeof queryDataMartInputSchema>;
 export { DEFAULT_LIMIT, MAX_LIMIT };
 
-export const UNSUPPORTED_MCP_OPERATORS = ['in_next_n_days', 'this_week'] as const;
+// Every advertised operator now maps to the internal FilterRule; the mechanism stays
+// so a future enum addition can ship ahead of its internal support with a precise error.
+export const UNSUPPORTED_MCP_OPERATORS = [] as const;
 export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options.filter(
   o => !(UNSUPPORTED_MCP_OPERATORS as readonly string[]).includes(o)
 );
@@ -265,25 +268,35 @@ function mapOne(
       }
       return { ...base, operator: 'between', value: f.value as never };
     }
-    case 'in_last_n_days': {
+    case 'in_last_n_days':
+    case 'in_next_n_days': {
       const n = Number(f.value);
       if (Number.isNaN(n) || !Number.isInteger(n) || n <= 0) {
         throw new InvalidFilterValueError(
-          `'in_last_n_days' value must be a positive integer, got: ${String(f.value)}`
+          `'${f.operator}' value must be a positive integer, got: ${String(f.value)}`
         );
       }
       return {
         ...base,
         operator: 'relative_date',
-        value: { kind: 'last_n_days', n },
+        value: { kind: f.operator === 'in_last_n_days' ? 'last_n_days' : 'next_n_days', n },
       };
     }
+    case 'this_week':
+      return { ...base, operator: 'relative_date', value: { kind: 'this_week' } };
+    case 'last_week':
+      return { ...base, operator: 'relative_date', value: { kind: 'last_week' } };
     case 'this_month':
       return { ...base, operator: 'relative_date', value: { kind: 'this_month' } };
+    case 'this_quarter':
+      return { ...base, operator: 'relative_date', value: { kind: 'this_quarter' } };
+    case 'last_quarter':
+      return { ...base, operator: 'relative_date', value: { kind: 'last_quarter' } };
     case 'this_year':
       return { ...base, operator: 'relative_date', value: { kind: 'this_year' } };
     default:
-      throw new UnsupportedOperatorError(f.operator); // in_next_n_days, this_week
+      // Unreachable for the current enum (kept for future not-yet-mapped additions).
+      throw new UnsupportedOperatorError(f.operator);
   }
 }
 

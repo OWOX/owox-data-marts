@@ -5,16 +5,15 @@ import {
   mapMcpDateBuckets,
   mapMcpSort,
   queryDataMartInputSchema,
+  McpOperatorEnum,
   SUPPORTED_MCP_OPERATORS,
   UNSUPPORTED_MCP_OPERATORS,
 } from './query-data-mart.input';
 
 describe('SUPPORTED_MCP_OPERATORS', () => {
-  it('excludes the remaining unsupported operators', () => {
-    expect(UNSUPPORTED_MCP_OPERATORS).toEqual(['in_next_n_days', 'this_week']);
-    for (const op of UNSUPPORTED_MCP_OPERATORS) {
-      expect(SUPPORTED_MCP_OPERATORS).not.toContain(op);
-    }
+  it('every advertised operator is supported — the unsupported list is empty', () => {
+    expect(UNSUPPORTED_MCP_OPERATORS).toEqual([]);
+    expect(SUPPORTED_MCP_OPERATORS).toEqual(McpOperatorEnum.options);
   });
 
   it('includes representative supported operators', () => {
@@ -25,6 +24,11 @@ describe('SUPPORTED_MCP_OPERATORS', () => {
     expect(SUPPORTED_MCP_OPERATORS).toContain('not_in');
     expect(SUPPORTED_MCP_OPERATORS).toContain('is_empty');
     expect(SUPPORTED_MCP_OPERATORS).toContain('is_not_empty');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('this_week');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('last_week');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('this_quarter');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('last_quarter');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('in_next_n_days');
   });
 });
 
@@ -115,10 +119,37 @@ describe('mapMcpFiltersToRules', () => {
     expect(rules![0]).toMatchObject({ column: 'note', operator: 'is_empty' });
   });
 
-  it('rejects unsupported operators', () => {
-    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'this_week' }])).toThrow(
-      /unsupported_operator/
+  it('maps the calendar presets to relative_date kinds', () => {
+    const rules = mapMcpFiltersToRules(
+      [],
+      [
+        { field: 'd', operator: 'this_week' },
+        { field: 'd', operator: 'last_week' },
+        { field: 'd', operator: 'this_quarter' },
+        { field: 'd', operator: 'last_quarter' },
+      ]
     );
+    expect(rules!.map(r => (r as { value: { kind: string } }).value.kind)).toEqual([
+      'this_week',
+      'last_week',
+      'this_quarter',
+      'last_quarter',
+    ]);
+    expect(rules!.every(r => r.operator === 'relative_date')).toBe(true);
+  });
+
+  it('maps in_next_n_days to relative_date next_n_days and validates n', () => {
+    const rules = mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 14 }]);
+    expect(rules![0]).toMatchObject({
+      operator: 'relative_date',
+      value: { kind: 'next_n_days', n: 14 },
+    });
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 0 }])
+    ).toThrow(/positive integer/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 'abc' }])
+    ).toThrow(/positive integer/);
   });
 
   it('rejects in_last_n_days with NaN value', () => {

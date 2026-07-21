@@ -49,10 +49,11 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 For date columns, the **relative** operator re-evaluates on every run:
 
 - Today / Yesterday
-- This month / Last month / This year
-- Last N days / Last N months (N from 1 to 3650)
+- This week / Last week (ISO weeks — Monday through Sunday, on every storage type)
+- This month / Last month / This quarter / Last quarter / This year
+- Last N days / Last N months / Next N days (N from 1 to 3650)
 
-Use it so rolling reports stay current without touching filter values manually.
+Use it so rolling reports stay current without touching filter values manually. Like **Last N days**, **Next N days** includes today (today through N days ahead).
 
 ![Filter editor popover for the order_date column. The Condition dropdown shows "relative" selected. A Preset dropdown shows "Last N days" with the value 7 entered below. An arrow points to the filter icon on the order_date row.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/00111513-5089-450d-b5b6-1724d42e5500/public)
 

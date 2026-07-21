@@ -6,14 +6,21 @@ export type { ReportAggregateFunction } from './relationship.types';
 
 const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
+// Mirror of the backend preset set (filter-config.schema.ts): ISO weeks (Monday),
+// calendar quarters, and next_n_days including today (like last_n_days).
 const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('today') }),
   z.object({ kind: z.literal('yesterday') }),
+  z.object({ kind: z.literal('this_week') }),
+  z.object({ kind: z.literal('last_week') }),
   z.object({ kind: z.literal('this_month') }),
   z.object({ kind: z.literal('last_month') }),
+  z.object({ kind: z.literal('this_quarter') }),
+  z.object({ kind: z.literal('last_quarter') }),
   z.object({ kind: z.literal('this_year') }),
   z.object({ kind: z.literal('last_n_days'), n: z.number().int().positive().max(3650) }),
   z.object({ kind: z.literal('last_n_months'), n: z.number().int().positive().max(3650) }),
+  z.object({ kind: z.literal('next_n_days'), n: z.number().int().positive().max(3650) }),
 ]);
 
 const ScalarOperatorEnum = z.enum([

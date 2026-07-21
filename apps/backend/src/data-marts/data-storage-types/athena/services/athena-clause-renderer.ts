@@ -208,6 +208,22 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
           `${col} >= date_add('month', -${preset.n}, current_date)` +
           ` AND ${col} < date_add('day', 1, current_date)`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return (
+          `${col} >= current_date` + ` AND ${col} < date_add('day', ${preset.n + 1}, current_date)`
+        );
+      // Trino date_trunc('week') is ISO — Monday start.
+      case 'this_week':
+        return (
+          `${col} >= date_trunc('week', current_date)` +
+          ` AND ${col} < date_add('week', 1, date_trunc('week', current_date))`
+        );
+      case 'last_week':
+        return (
+          `${col} >= date_add('week', -1, date_trunc('week', current_date))` +
+          ` AND ${col} < date_trunc('week', current_date)`
+        );
       case 'this_month':
         return (
           `${col} >= date_trunc('month', current_date)` +
@@ -217,6 +233,16 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
         return (
           `${col} >= date_trunc('month', date_add('month', -1, current_date))` +
           ` AND ${col} < date_trunc('month', current_date)`
+        );
+      case 'this_quarter':
+        return (
+          `${col} >= date_trunc('quarter', current_date)` +
+          ` AND ${col} < date_add('month', 3, date_trunc('quarter', current_date))`
+        );
+      case 'last_quarter':
+        return (
+          `${col} >= date_add('month', -3, date_trunc('quarter', current_date))` +
+          ` AND ${col} < date_trunc('quarter', current_date)`
         );
       case 'this_year':
         return (

@@ -194,22 +194,59 @@ describe('QueryDataMartTool', () => {
       expect(JSON.stringify(result)).not.toContain('projectId p1');
     });
 
-    it('maps UnsupportedOperatorError → unsupported_operator', async () => {
-      const result = await tool.handler(
-        {
-          data_mart_id: 'dm1',
-          fields: ['f1'],
-          filters: [{ field: 'f1', operator: 'this_week' as never }],
-        },
-        AUTH_CTX as never
-      );
+    it('maps UnsupportedOperatorError → unsupported_operator (defensive path — every current operator maps)', async () => {
+      // No enum operator triggers this today; keep the mapping honest for a future
+      // operator that ships in the schema ahead of its internal support.
+      facade.queryDataMart.mockRejectedValue(new UnsupportedOperatorError('future_op'));
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'unsupported_operator' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
-      expect(msg).toContain("'this_week'");
-      expect(msg).toContain('eq');
+      expect(msg).toContain("'future_op'");
       expect(msg).toContain('Supported operators:');
+    });
+
+    it('passes the calendar presets through to the facade as relative_date rules', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['d'],
+        rows: [['2026-07-20']],
+        truncated: false,
+        totals: null,
+      });
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['d'],
+          filters: [
+            { field: 'd', operator: 'this_week' },
+            { field: 'd', operator: 'in_next_n_days', value: 7 },
+          ],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          filterConfig: [
+            {
+              column: 'd',
+              operator: 'relative_date',
+              value: { kind: 'this_week' },
+              placement: 'post-join',
+            },
+            {
+              column: 'd',
+              operator: 'relative_date',
+              value: { kind: 'next_n_days', n: 7 },
+              placement: 'post-join',
+            },
+          ],
+        })
+      );
     });
 
     it('invalid aggregation function fails at schema parse (ZodError) → invalid_input', async () => {
