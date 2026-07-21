@@ -69,8 +69,8 @@ function isProjectInsightTemplate(value: unknown): value is OWOXProjectInsightTe
     typeof value.sourcesCount === 'number' &&
     Number.isInteger(value.sourcesCount) &&
     value.sourcesCount >= 0 &&
-    isOptionalNullableString(value.lastRenderedTemplateUpdatedAt) &&
-    value.lastRenderedTemplateUpdatedAt !== undefined &&
+    (value.lastRenderedTemplateUpdatedAt === null ||
+      typeof value.lastRenderedTemplateUpdatedAt === 'string') &&
     typeof value.createdById === 'string' &&
     typeof value.createdAt === 'string' &&
     typeof value.modifiedAt === 'string' &&
@@ -96,10 +96,10 @@ function parseProjectInsightTemplates(response: unknown): OWOXProjectInsightTemp
   return response as OWOXProjectInsightTemplatesResponse;
 }
 
-export class InsightTemplatesApi {
+export class InsightsApi {
   constructor(private readonly requester: InsightTemplatesRequester) {}
 
-  async list(
+  async getTemplates(
     options: OWOXProjectInsightTemplateListOptions = {}
   ): Promise<OWOXProjectInsightTemplatesResponse> {
     const query = {

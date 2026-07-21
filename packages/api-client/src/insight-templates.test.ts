@@ -80,7 +80,7 @@ describe('Insight Templates API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.insightTemplates.list({ limit: 25, offset: 50 })).resolves.toEqual(
+    await expect(client.insights.getTemplates({ limit: 25, offset: 50 })).resolves.toEqual(
       insightTemplates
     );
   });
@@ -97,7 +97,7 @@ describe('Insight Templates API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.insightTemplates.list()).resolves.toEqual({ insights: [] });
+    await expect(client.insights.getTemplates()).resolves.toEqual({ insights: [] });
   });
 
   it('rejects an unexpected project insight-template response shape', async () => {
@@ -117,7 +117,7 @@ describe('Insight Templates API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    const result = client.insightTemplates.list();
+    const result = client.insights.getTemplates();
     await expect(result).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Insight Templates API returned an unexpected response shape',
@@ -140,6 +140,30 @@ describe('Insight Templates API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.insightTemplates.list()).resolves.toEqual(response);
+    await expect(client.insights.getTemplates()).resolves.toEqual(response);
+  });
+
+  it('rejects malformed creator metadata', async () => {
+    const response = {
+      insights: [
+        {
+          ...insightTemplates.insights[0],
+          createdByUser: { userId: 42 },
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.insights.getTemplates()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Project Insight Templates API returned an unexpected response shape',
+      details: response,
+    });
   });
 });

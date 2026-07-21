@@ -115,12 +115,17 @@ describe('ProjectInsightTemplatesController OpenAPI', () => {
         'canDelete',
       ]),
       properties: {
+        createdByUser: {
+          nullable: true,
+          allOf: [{ $ref: '#/components/schemas/UserProjectionDto' }],
+        },
         dataMart: {
           $ref: '#/components/schemas/ProjectInsightTemplateDataMartRefResponseApiDto',
         },
         canDelete: { type: 'boolean' },
       },
     });
+    expect(insightSchema.required).not.toContain('createdByUser');
     expect(
       resolveRef('#/components/schemas/ProjectInsightTemplateDataMartRefResponseApiDto')
     ).toMatchObject({
@@ -128,6 +133,15 @@ describe('ProjectInsightTemplatesController OpenAPI', () => {
       properties: {
         id: { type: 'string' },
         title: { type: 'string' },
+      },
+    });
+    expect(resolveRef('#/components/schemas/UserProjectionDto')).toMatchObject({
+      required: ['userId'],
+      properties: {
+        userId: { type: 'string' },
+        fullName: { type: 'string', nullable: true },
+        email: { type: 'string', nullable: true },
+        avatar: { type: 'string', nullable: true },
       },
     });
   });

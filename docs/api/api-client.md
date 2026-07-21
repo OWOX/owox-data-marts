@@ -107,12 +107,13 @@ suitable for monitoring and automation without calling the HTTP endpoint directl
 
 ## List project insight templates
 
-Use `insightTemplates.list()` to discover reusable insight definitions across the Data Marts
+Use `insights.getTemplates()` to discover reusable insight definitions across the Data Marts
 visible to the current project member. Pass optional `limit` and `offset` values to page through
-the project-wide list; the API defaults to at most 100 templates.
+the project-wide list. The API defaults `limit` to 100, caps it at 100, and caps `offset` at
+100,000; invalid or non-positive values fall back to the defaults.
 
 ```ts
-const templates = await client.insightTemplates.list({ limit: 50, offset: 0 });
+const templates = await client.insights.getTemplates({ limit: 50, offset: 0 });
 
 for (const template of templates.insights) {
   console.log(template.dataMart.title, template.title, template.canDelete);
@@ -122,7 +123,10 @@ for (const template of templates.insights) {
 Each result includes the template summary, its Data Mart ID and title, creator metadata when
 available, and whether the current member can delete it. This makes the method suitable for
 automation and agent workflows that need to find reusable insight definitions without scanning
-Data Marts individually.
+Data Marts individually. Because the response has no total or next-page marker, choose a `limit`
+from 1 through 100, increment `offset` by the number of returned templates, and stop when a page
+contains fewer items than that limit or the next offset would exceed 100,000. The endpoint cannot
+page beyond that maximum offset.
 
 ## List data marts
 
