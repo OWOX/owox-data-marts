@@ -35,7 +35,7 @@ and HTTP behavior are unchanged, and consumers can adopt the client method witho
 
 ## Add project insight-template discovery API client support
 
-`@owox/api-client` adds `insightTemplates.list({ limit, offset })` for authenticated,
+`@owox/api-client` adds `insights.getTemplates({ limit, offset })` for authenticated,
 project-wide discovery of reusable insight definitions across accessible Data Marts. It exports
 `OWOXProjectInsightTemplatesResponse`, `OWOXProjectInsightTemplate`,
 `OWOXProjectInsightTemplateDataMartRef`, `OWOXProjectInsightTemplateUser`, and

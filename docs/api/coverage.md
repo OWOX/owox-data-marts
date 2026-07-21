@@ -73,7 +73,7 @@ Coverage updated: 2026-07-21
 
 | Method and path                         | Exposure                                                  | OpenAPI status                                                     | API client status                  | Verification evidence                                                                                                           | Exemption approval |
 | --------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `GET /api/data-marts/insight-templates` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, optional pagination, and `200` response schema | Covered: `insightTemplates.list()` | Backend `project-insight-templates.controller.openapi.spec.ts`; client `insight-templates.test.ts` (pagination, auth, response) | Not applicable     |
+| `GET /api/data-marts/insight-templates` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, optional pagination, and `200` response schema | Covered: `insights.getTemplates()` | Backend `project-insight-templates.controller.openapi.spec.ts`; client `insight-templates.test.ts` (pagination, auth, response) | Not applicable     |
 
 Focused verification:
 
