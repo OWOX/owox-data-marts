@@ -29,6 +29,15 @@ import {
 } from './query-data-mart.input';
 import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
+import { buildFieldTypeMatrixSection, mcpOperatorsForCategory } from './field-type-matrix';
+import { categorizeFieldType } from '../../../data-marts/dto/schemas/field-type-category';
+
+const DATE_BUCKET_ERROR_CODES = new Set([
+  'DATE_TRUNC_REQUIRES_DATE_COLUMN',
+  'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP',
+  'DATE_TRUNC_INVALID_TIMEZONE',
+  'DATE_TRUNC_COLUMN_IS_AGGREGATED',
+]);
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -40,8 +49,12 @@ Call get_data_mart_details_by_id first to get the data mart's exact field names 
 When building the query:
 - Request only the fields relevant to the user's question — never request all fields.
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
-- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — but each data mart's output controls decide which functions a given field allows, so some may be rejected (pick another, or ask an admin to enable it). Group-by is implied by the non-aggregated fields you select.
-- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
+- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — which of them a given field allows depends on the field's type and the data mart's per-field settings (see the matrix below). Group-by is implied by the non-aggregated fields you select.
+- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE).
+
+Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
+${buildFieldTypeMatrixSection()}
+A data mart can narrow a field's aggregations further ("only where enabled on the field") — get_data_mart_details_by_id returns each field's effective allowedAggregations; trust that over this table. Note COUNT/COUNT_DISTINCT are NOT available on number fields — to count rows per group, rely on the automatic "Row Count" column instead.
 - sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
@@ -177,7 +190,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const supported = SUPPORTED_MCP_OPERATORS.join(', ');
       return toStructuredToolError(
         'unsupported_operator',
-        `Filter operator '${err.operator}' is not supported yet. Supported operators: ${supported}. To match one of several values, use multiple filters with 'eq' (there is no 'in'/'not_in').`
+        `Filter operator '${err.operator}' is not supported yet. Supported operators: ${supported}. There is no 'in'/'not_in', and filters combine with AND — do NOT emulate 'in' with several 'eq' filters on the same field (they can never all match). Run one query per value, or query without that filter and pick the relevant rows from the result.`
       );
     }
 
@@ -232,7 +245,14 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     if (err instanceof BadRequestException) {
       const body = err.getResponse() as Record<string, unknown> | undefined;
       const errors = (body?.['details'] as Record<string, unknown> | undefined)?.['errors'] as
-        | Array<{ code?: string; column?: string; function?: string }>
+        | Array<{
+            code?: string;
+            column?: string;
+            function?: string;
+            type?: string;
+            operator?: string;
+            timeZone?: string;
+          }>
         | undefined;
 
       // Wrong field name — point at the schema.
@@ -240,6 +260,54 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         return toStructuredToolError(
           'field_not_found',
           `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`
+        );
+      }
+
+      // Operator doesn't fit the field's type — name the field, its type, and the operators
+      // that DO fit, so the model fixes the operator instead of re-fetching the schema.
+      const badOperators = errors?.filter(e => e.code === 'INVALID_OPERATOR_FOR_TYPE') ?? [];
+      if (badOperators.length > 0) {
+        const details = badOperators
+          .map(e => {
+            const category = categorizeFieldType(e.type ?? '');
+            // eq/neq on a boolean column ARE legal via translation — reaching here means the
+            // value was not a real boolean (e.g. the string "true"), so say that instead of
+            // listing eq/neq as both invalid and valid.
+            if (category === 'boolean' && (e.operator === 'eq' || e.operator === 'neq')) {
+              return `field '${e.column}' is boolean — use '${e.operator}' with a boolean true or false as the value (not a string)`;
+            }
+            const allowed = mcpOperatorsForCategory(category).join(', ');
+            return `operator '${e.operator}' cannot apply to field '${e.column}' (type ${e.type}); operators valid for this field: ${allowed}`;
+          })
+          .join('. ');
+        return toStructuredToolError(
+          'invalid_operator_for_type',
+          `Filter/slice operator does not fit the field's type — ${details}. The field name(s) are correct, so do not re-fetch the schema; change the operator (or value) and retry.`
+        );
+      }
+
+      // date_buckets misuse — each variant names the field and the exact fix.
+      const dateBucketIssues = errors?.filter(e => DATE_BUCKET_ERROR_CODES.has(e.code ?? '')) ?? [];
+      if (dateBucketIssues.length > 0) {
+        const details = dateBucketIssues
+          .map(e => {
+            switch (e.code) {
+              case 'DATE_TRUNC_REQUIRES_DATE_COLUMN':
+                return `field '${e.column}' (type ${e.type}) is not a date/timestamp — date_buckets only apply to date-category fields; bucket a date field or drop this bucket`;
+              case 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP':
+                return `field '${e.column}' (type ${e.type}) has no time-of-day component — remove time_zone for this bucket (it only applies to TIMESTAMP/DATETIME fields)`;
+              case 'DATE_TRUNC_INVALID_TIMEZONE':
+                return `'${e.timeZone}' is not a valid IANA time zone for field '${e.column}' — use e.g. "Europe/Kyiv" or omit time_zone`;
+              case 'DATE_TRUNC_COLUMN_IS_AGGREGATED':
+                return `field '${e.column}' is both aggregated and date-bucketed — a field can be one or the other; drop one of the two`;
+              default:
+                return `date bucket on '${e.column}' is invalid`;
+            }
+          })
+          .join('. ');
+        return toStructuredToolError(
+          'invalid_date_bucket',
+          `Invalid date_buckets — ${details}. The field name(s) are correct, so do not re-fetch the schema.`
         );
       }
 

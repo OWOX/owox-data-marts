@@ -25,12 +25,10 @@ import {
 import { buildBlendedFieldIndex } from './blended-field-index';
 import { BlendedFieldEntry } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import {
-  STRING_TYPES,
   NUMBER_TYPES,
   DATE_TYPES,
-  TIME_TYPES,
-  BOOL_TYPES,
   categorizeFieldType,
+  type FieldTypeCategory,
 } from '../dto/schemas/field-type-category';
 import {
   resolveFieldGovernance,
@@ -156,14 +154,24 @@ const TIME_OPS = new Set([
 ]);
 const BOOL_OPS = new Set(['is_true', 'is_false', 'is_null', 'is_not_null']);
 
+/**
+ * Internal filter operators legal per field-type category — the authority
+ * `operatorAllowed` enforces. Exported so other layers (e.g. the MCP tools) can
+ * derive "which operators fit this field" guidance from the same source instead
+ * of keeping a copy that drifts.
+ */
+export const INTERNAL_OPERATORS_BY_CATEGORY: Record<FieldTypeCategory, ReadonlySet<string>> = {
+  string: STRING_OPS,
+  number: NUMBER_OPS,
+  date: DATE_OPS,
+  time: TIME_OPS,
+  boolean: BOOL_OPS,
+  other: TYPE_AGNOSTIC_OPS,
+};
+
 function operatorAllowed(fieldType: string, operator: string): boolean {
   if (TYPE_AGNOSTIC_OPS.has(operator)) return true;
-  if (STRING_TYPES.has(fieldType)) return STRING_OPS.has(operator);
-  if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPS.has(operator);
-  if (DATE_TYPES.has(fieldType)) return DATE_OPS.has(operator);
-  if (TIME_TYPES.has(fieldType)) return TIME_OPS.has(operator);
-  if (BOOL_TYPES.has(fieldType)) return BOOL_OPS.has(operator);
-  return false;
+  return INTERNAL_OPERATORS_BY_CATEGORY[categorizeFieldType(fieldType)].has(operator);
 }
 
 @Injectable()

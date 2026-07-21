@@ -199,6 +199,13 @@ function mapOne(
   placement: 'pre-join' | 'post-join'
 ): FilterRule {
   const base = { column: f.field, placement } as const;
+  // Boolean columns only accept is_true/is_false internally, but 'eq true' is what
+  // callers naturally write — translate it. Only for a real boolean value: a string
+  // "true" must stay 'eq' so a boolean column rejects it with a type-targeted error.
+  if ((f.operator === 'eq' || f.operator === 'neq') && typeof f.value === 'boolean') {
+    const wantsTrue = f.operator === 'eq' ? f.value : !f.value;
+    return { ...base, operator: wantsTrue ? 'is_true' : 'is_false' };
+  }
   if (DIRECT.has(f.operator))
     return { ...base, operator: f.operator as never, value: f.value as never };
   switch (f.operator) {

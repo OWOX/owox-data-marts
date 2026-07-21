@@ -32,6 +32,18 @@ describe('QueryDataMartTool', () => {
     expect(tool.annotations).toMatchObject({ title: 'Query Data Mart', openWorldHint: false });
   });
 
+  it('embeds the generated field-type matrix in the description', () => {
+    // One line per category, generated from the validator's own constants.
+    expect(tool.description).toContain('- number (');
+    expect(tool.description).toContain('- string (');
+    expect(tool.description).toContain('- date (');
+    expect(tool.description).toContain('- boolean (');
+    expect(tool.description).toContain('- other (');
+    // The two footguns the matrix exists to prevent.
+    expect(tool.description).toContain('only where enabled on the field');
+    expect(tool.description).toContain('NOT available on number fields');
+  });
+
   it('rejects input missing required fields', () => {
     expect(() => tool['parseInput']({ data_mart_id: 'dm1' })).toThrow();
   });
@@ -277,6 +289,152 @@ describe('QueryDataMartTool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
+    });
+
+    it('maps INVALID_OPERATOR_FOR_TYPE → invalid_operator_for_type listing the operators that fit', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'revenue',
+              type: 'FLOAT',
+              operator: 'contains',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['revenue'],
+          filters: [{ field: 'revenue', operator: 'contains', value: '1' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'contains'");
+      expect(msg).toContain("'revenue'");
+      expect(msg).toContain('FLOAT');
+      // Lists the operators a number field DOES accept…
+      expect(msg).toContain('between');
+      expect(msg).toContain('gte');
+      // …and steers away from a schema re-fetch loop.
+      expect(msg).toContain('do not re-fetch the schema');
+      expect(msg).not.toContain('contains, ');
+    });
+
+    it('maps boolean eq with a non-boolean value → value guidance, not an operator list', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'active',
+              type: 'BOOLEAN',
+              operator: 'eq',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['active'],
+          filters: [{ field: 'active', operator: 'eq', value: 'true' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'active'");
+      expect(msg).toContain('boolean true or false');
+    });
+
+    it('maps DATE_TRUNC_REQUIRES_DATE_COLUMN and TIMEZONE_REQUIRES_TIMESTAMP → invalid_date_bucket', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'channel', type: 'STRING' },
+            { code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP', column: 'day', type: 'DATE' },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['channel', 'day'],
+          date_buckets: [
+            { field: 'channel', unit: 'MONTH' },
+            { field: 'day', unit: 'DAY', time_zone: 'Europe/Kyiv' },
+          ],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_date_bucket' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'channel'");
+      expect(msg).toContain('not a date/timestamp');
+      expect(msg).toContain("'day'");
+      expect(msg).toContain('remove time_zone');
+      expect(msg).toContain('do not re-fetch the schema');
+    });
+
+    it('maps DATE_TRUNC_INVALID_TIMEZONE and COLUMN_IS_AGGREGATED → invalid_date_bucket', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            { code: 'DATE_TRUNC_INVALID_TIMEZONE', column: 'ts', timeZone: 'Kyiv' },
+            { code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED', column: 'ts2' },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['ts', 'ts2'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_date_bucket' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'Kyiv' is not a valid IANA time zone");
+      expect(msg).toContain('both aggregated and date-bucketed');
+    });
+
+    it('unsupported_operator advice no longer suggests AND-ed eq filters as an IN substitute', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['f1'],
+          filters: [{ field: 'f1', operator: 'in' as never, value: ['a', 'b'] }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('filters combine with AND');
+      expect(msg).toContain('one query per value');
+      expect(msg).not.toContain('use multiple filters with');
     });
 
     it('maps PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART → slices_not_applicable (move to filters)', async () => {

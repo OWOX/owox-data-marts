@@ -53,6 +53,28 @@ describe('mapMcpFiltersToRules', () => {
     });
   });
 
+  it('translates eq/neq with a boolean value to is_true/is_false (value dropped)', () => {
+    const rules = mapMcpFiltersToRules(
+      [{ field: 'active', operator: 'eq', value: false }],
+      [
+        { field: 'active', operator: 'eq', value: true },
+        { field: 'active', operator: 'neq', value: true },
+        { field: 'active', operator: 'neq', value: false },
+      ]
+    );
+    expect(rules).toEqual([
+      { column: 'active', operator: 'is_false', placement: 'pre-join' },
+      { column: 'active', operator: 'is_true', placement: 'post-join' },
+      { column: 'active', operator: 'is_false', placement: 'post-join' },
+      { column: 'active', operator: 'is_true', placement: 'post-join' },
+    ]);
+  });
+
+  it('keeps eq with the STRING "true" untranslated so type validation can flag it', () => {
+    const rules = mapMcpFiltersToRules([], [{ field: 'active', operator: 'eq', value: 'true' }]);
+    expect(rules![0]).toMatchObject({ column: 'active', operator: 'eq', value: 'true' });
+  });
+
   it('rejects unsupported operators', () => {
     expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'this_week' }])).toThrow(
       /unsupported_operator/

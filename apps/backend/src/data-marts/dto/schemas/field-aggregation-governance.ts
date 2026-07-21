@@ -53,7 +53,21 @@ const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, CategoryDefault> = {
  * fresh array so callers cannot mutate the shared map.
  */
 export function supportedAggregationsForType(fieldType: string): ReportAggregateFunction[] {
-  return [...SUPPORTED_BY_CATEGORY[categorizeFieldType(fieldType)]];
+  return supportedAggregationsForCategory(categorizeFieldType(fieldType));
+}
+
+/** Same menu keyed by category — for callers that build type-level matrices, not per-field checks. */
+export function supportedAggregationsForCategory(
+  category: FieldTypeCategory
+): ReportAggregateFunction[] {
+  return [...SUPPORTED_BY_CATEGORY[category]];
+}
+
+/** The subset enabled by default (no per-field override) for a category. */
+export function defaultAggregationsForCategory(
+  category: FieldTypeCategory
+): ReportAggregateFunction[] {
+  return [...DEFAULTS_BY_CATEGORY[category].allowedAggregations];
 }
 
 /**
