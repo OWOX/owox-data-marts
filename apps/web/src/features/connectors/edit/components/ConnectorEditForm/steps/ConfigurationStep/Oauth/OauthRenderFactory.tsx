@@ -7,7 +7,6 @@ import { FacebookOauthRender } from './impl/FacebookOauthRender';
 import { TikTokOauthRender } from './impl/TikTokOauthRender';
 import { MicrosoftOauthRender } from './impl/MicrosoftOauthRender';
 import { GoogleAdsOauthRender } from './impl/GoogleAdsOauthRender';
-import { GoogleSheetsOauthRender } from './impl/GoogleSheetsOauthRender';
 import { LinkedInOauthRender } from './impl/LinkedInOauthRender';
 import { useState, useEffect, useMemo } from 'react';
 import type {
@@ -306,20 +305,6 @@ export function OauthRenderFactory({
       case 'GoogleAds':
         return (
           <GoogleAdsOauthRender
-            specification={specification}
-            option={option}
-            configuration={configuration}
-            onValueChange={onValueChange}
-            connectorName={connectorName}
-            isLoading={isLoading}
-            status={status}
-            settings={settings}
-            onOAuthSuccess={handleOAuthSuccess}
-          />
-        );
-      case 'GoogleSheets':
-        return (
-          <GoogleSheetsOauthRender
             specification={specification}
             option={option}
             configuration={configuration}

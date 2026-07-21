@@ -6,8 +6,6 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 
 const GOOGLE_SHEETS_CONNECTOR_NAME = 'GoogleSheets';
 
-type CredentialReference = { id: string; type: 'oauth' | 'secrets' };
-
 @Injectable()
 export class GoogleSheetsPreviewCredentialsService {
   constructor(
@@ -21,15 +19,7 @@ export class GoogleSheetsPreviewCredentialsService {
     context: AuthorizationContext
   ): Promise<Record<string, unknown>> {
     await this.validateReferences(config, context);
-    const configWithSecrets = await this.credentialInjector.injectSecrets(
-      config,
-      context.projectId
-    );
-    return this.credentialInjector.injectOAuthCredentials(
-      configWithSecrets,
-      GOOGLE_SHEETS_CONNECTOR_NAME,
-      context.projectId
-    );
+    return this.credentialInjector.injectSecrets(config, context.projectId);
   }
 
   private async validateReferences(
@@ -39,10 +29,9 @@ export class GoogleSheetsPreviewCredentialsService {
     const configId = typeof config._id === 'string' ? config._id : undefined;
     const copiedFrom = this.getCopiedFrom(config);
 
-    for (const reference of this.collectReferences(config)) {
-      const credential = await this.connectorSourceCredentialsService.getCredentialsById(
-        reference.id
-      );
+    for (const credentialId of this.collectSecretReferences(config)) {
+      const credential =
+        await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
 
       if (
         !credential ||
@@ -50,13 +39,6 @@ export class GoogleSheetsPreviewCredentialsService {
         credential.connectorName !== GOOGLE_SHEETS_CONNECTOR_NAME
       ) {
         throw this.invalidCredentials();
-      }
-
-      if (reference.type === 'oauth') {
-        if (credential.dataMartId || credential.configId) {
-          throw this.invalidCredentials();
-        }
-        continue;
       }
 
       const isCurrentConfig = Boolean(configId) && credential.configId === configId;
@@ -101,30 +83,18 @@ export class GoogleSheetsPreviewCredentialsService {
     return { dataMartId: copiedFrom.dataMartId, configId: copiedFrom.configId };
   }
 
-  private collectReferences(
-    value: unknown,
-    references = new Map<string, CredentialReference>()
-  ): CredentialReference[] {
+  private collectSecretReferences(value: unknown, references = new Set<string>()): string[] {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return Array.from(references.values());
     }
 
     const object = value as Record<string, unknown>;
-    if (typeof object._source_credential_id === 'string') {
-      references.set(`oauth:${object._source_credential_id}`, {
-        id: object._source_credential_id,
-        type: 'oauth',
-      });
-    }
     if (typeof object._secrets_id === 'string') {
-      references.set(`secrets:${object._secrets_id}`, {
-        id: object._secrets_id,
-        type: 'secrets',
-      });
+      references.add(object._secrets_id);
     }
 
     for (const child of Object.values(object)) {
-      this.collectReferences(child, references);
+      this.collectSecretReferences(child, references);
     }
 
     return Array.from(references.values());

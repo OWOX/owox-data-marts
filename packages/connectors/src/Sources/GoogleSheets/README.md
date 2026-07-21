@@ -2,7 +2,7 @@
 
 The Google Sheets source imports one spreadsheet tab into a materialized table in the user's storage.
 
-Authentication can use OAuth2 or Service Account JSON. OAuth2 is best for quick user setup; Service Account JSON is best for scheduled imports that should not depend on a personal Google account.
+Authentication uses a Google Service Account JSON key. The spreadsheet must be shared with the service account email.
 
 On each refresh the connector:
 

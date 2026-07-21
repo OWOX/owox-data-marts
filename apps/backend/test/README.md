@@ -140,7 +140,7 @@ Verifies all connectors have well-formed specification schemas.
 
 #### `connector-oauth.e2e-spec.ts`
 
-`GET /api/connectors/:name/oauth/settings` for OAuth connectors (GoogleAds, GoogleSheets, FacebookMarketing,
+`GET /api/connectors/:name/oauth/settings` for 4 OAuth connectors (GoogleAds, FacebookMarketing,
 TikTokAds, MicrosoftAds). Dynamically discovers OAuth field path from specification, then
 validates vars (non-empty object, per-var key/value types) and isEnabled (boolean, false in
 test env). Also tests non-OAuth connector edge case (OpenHolidays returns empty vars, isEnabled false).
