@@ -1,4 +1,5 @@
 import { sheets_v4 } from 'googleapis';
+import { DateTime } from 'luxon';
 import { ColumnPlan, PreviousImportedColumn } from '../../../dto/domain/column-plan.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
@@ -683,35 +684,30 @@ describe('GoogleSheetsReportWriter — preserves user column formats across refr
 });
 
 describe('GoogleSheetsReportWriter — per-column header notes', () => {
-  it('writes the full ODM note only on the first column and the description + short marker on the rest', async () => {
+  it('writes short markers on every column during header write, then the full A1 note only in finalize', async () => {
     const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
       availableRowsCount: 11,
     });
 
     // Give every column its own description so we can assert it flows through
-    // to both the first-column note and the non-first markers.
+    // to both the first-column full note and the short markers.
     const headers = finalImportedNames.map(
       name => new ReportDataHeader(name, undefined, `${name} description`)
     );
 
     await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
     await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
-    await writer.finalize();
 
-    // Three imported columns → exactly one full note (A1) + two short markers.
-    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledTimes(1);
+    // After the first batch, headers are written with short markers only —
+    // the full A1 provenance note must wait until finalize (finish time).
+    expect(metadataFormatter.buildImportedColumnNote).not.toHaveBeenCalled();
     expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledTimes(
-      finalImportedNames.length - 1
+      finalImportedNames.length
     );
-    // The full note carries the first column's description ('country').
-    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledWith(
+    expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledWith(
       'country description',
-      'DM',
-      expect.any(String),
-      expect.any(String),
       expect.any(Boolean)
     );
-    // The non-first columns carry their own description ahead of the marker.
     expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledWith(
       'clicks description',
       expect.any(Boolean)
@@ -720,6 +716,120 @@ describe('GoogleSheetsReportWriter — per-column header notes', () => {
       'cost description',
       expect.any(Boolean)
     );
+
+    await writer.finalize();
+
+    // Finalize upgrades A1 to the full ODM provenance block once.
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledTimes(1);
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledWith(
+      'country description',
+      'DM',
+      expect.any(String),
+      expect.any(String),
+      expect.any(Boolean)
+    );
+    // Markers were not rewritten in finalize — still only the header-write calls.
+    expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledTimes(
+      finalImportedNames.length
+    );
+    // A1 full note is applied via createNoteRequest(row 0, col 0) in finalize.
+    expect(metadataFormatter.createNoteRequest).toHaveBeenCalledWith(SHEET_ID, 'note', 0, 0);
+  });
+
+  it('stamps the A1 note with finish time, not header-write (start) time', async () => {
+    const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
+      availableRowsCount: 11,
+    });
+
+    const headers = finalImportedNames.map(
+      name => new ReportDataHeader(name, undefined, `${name} description`)
+    );
+
+    // Valid DateTime so the mock matches DateTime.now()'s branded return type.
+    const finish = DateTime.utc(2026, 6, 16, 10, 5, 0);
+    const nowSpy = jest
+      .spyOn(DateTime, 'now')
+      .mockImplementation(() => finish as ReturnType<typeof DateTime.now>);
+
+    try {
+      await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
+      await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+      // Header write no longer calls DateTime.now; only finalize does.
+      await writer.finalize();
+
+      expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledTimes(1);
+      const dateArg = metadataFormatter.buildImportedColumnNote.mock.calls[0][3] as string;
+      // Spreadsheet timezone in the harness is UTC — finish minute must appear.
+      expect(dateArg).toContain('10:05:00');
+      expect(dateArg).toContain('UTC');
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('uses the A1 (final layout) column description when sheet order differs from SQL order', async () => {
+    // Sheet layout: clicks is in A1; SQL still emits country first.
+    const { writer, report, metadataFormatter } = buildWriter({
+      availableRowsCount: 11,
+      finalImportedNames: ['clicks', 'country', 'cost'],
+    });
+
+    const headers = [
+      new ReportDataHeader('country', undefined, 'country description'),
+      new ReportDataHeader('clicks', undefined, 'clicks description'),
+      new ReportDataHeader('cost', undefined, 'cost description'),
+    ];
+
+    await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
+    await writer.writeReportDataBatch(new ReportDataBatch([['10', 'A', '2']]));
+    await writer.finalize();
+
+    // Full note must describe the first *final* column (clicks), not SQL[0] (country).
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledTimes(1);
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledWith(
+      'clicks description',
+      'DM',
+      expect.any(String),
+      expect.any(String),
+      expect.any(Boolean)
+    );
+  });
+
+  it('writes the full A1 note on the zero-batch success path', async () => {
+    const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
+      availableRowsCount: 11,
+    });
+
+    const headers = finalImportedNames.map(
+      name => new ReportDataHeader(name, undefined, `${name} description`)
+    );
+
+    await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 0));
+    // No data batches — finalize applies deferred mutations then finishes.
+    await writer.finalize();
+
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledTimes(1);
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledWith(
+      'country description',
+      'DM',
+      expect.any(String),
+      expect.any(String),
+      expect.any(Boolean)
+    );
+  });
+
+  it('does not write the full A1 note when the reader fails before any batch', async () => {
+    const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
+      availableRowsCount: 11,
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.finalize(new Error('reader failed before any batch'));
+
+    expect(metadataFormatter.buildImportedColumnNote).not.toHaveBeenCalled();
   });
 });
 
