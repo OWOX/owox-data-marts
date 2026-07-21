@@ -21,6 +21,21 @@ npm test -w @owox/backend -- --runInBand --runTestsByPath src/project-settings/c
 npm test -w @owox/api-client -- --runInBand --runTestsByPath src/client.test.ts
 ```
 
+## Project setup progress
+
+Coverage updated: 2026-07-21
+
+| Method and path                   | Exposure                                                  | OpenAPI status                               | API client status                     | Verification evidence                                                                                                            | Exemption approval |
+| --------------------------------- | --------------------------------------------------------- | -------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `GET /api/project-setup-progress` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation and `200` response schema | Covered: `project.getSetupProgress()` | Backend `project-setup-progress.controller.openapi.spec.ts`; client `project-setup-progress.test.ts` (auth, response validation) | Not applicable     |
+
+Focused verification:
+
+```sh
+npm test -w @owox/backend -- --runInBand --runTestsByPath src/data-marts/controllers/project-setup-progress.controller.openapi.spec.ts
+npm test -w @owox/api-client -- --runInBand --runTestsByPath src/project-setup-progress.test.ts
+```
+
 ## Models canvas
 
 Coverage updated: 2026-07-21

@@ -16,4 +16,9 @@ export {
   type OWOXModelCanvasJoinCondition,
   type OWOXModelCanvasNode,
 } from './model-canvas.js';
-export { type OWOXProjectSettings } from './project.js';
+export {
+  type OWOXProjectSettings,
+  type OWOXProjectSetupProgress,
+  type OWOXProjectSetupProgressSteps,
+  type OWOXProjectSetupStepState,
+} from './project.js';

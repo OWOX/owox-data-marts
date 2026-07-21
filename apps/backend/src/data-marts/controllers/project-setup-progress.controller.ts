@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { ProjectSetupProgressResponseApiDto } from '../dto/presentation/project-setup-progress-response-api.dto';
@@ -16,6 +16,11 @@ export class ProjectSetupProgressController {
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
+  @ApiOperation({ summary: 'Get project setup progress' })
+  @ApiOkResponse({
+    description: 'The merged setup progress for the current project member.',
+    type: ProjectSetupProgressResponseApiDto,
+  })
   async getProgress(
     @AuthContext() context: AuthorizationContext
   ): Promise<ProjectSetupProgressResponseApiDto> {

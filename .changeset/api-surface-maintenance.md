@@ -14,3 +14,12 @@ same authenticated retry and error behavior as existing client requests.
 
 `@owox/api-client` now exposes paginated Models canvas data marts through
 `models.getDataMarts()` and their visible relationship edges through `models.getEdges()`.
+
+## Add project setup progress API contract and client support
+
+`GET /api/project-setup-progress` now publishes an explicit OpenAPI response contract.
+`@owox/api-client` adds `project.getSetupProgress()` and exports
+`OWOXProjectSetupProgress`, `OWOXProjectSetupProgressSteps`, and
+`OWOXProjectSetupStepState` for inspecting versioned, member-aware setup state. Existing
+authenticated viewer access is unchanged, and consumers can adopt the client method without a
+migration.
