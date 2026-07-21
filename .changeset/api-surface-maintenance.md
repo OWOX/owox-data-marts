@@ -26,7 +26,7 @@ migration.
 
 ## Add project run history API client support
 
-`@owox/api-client` adds `project.getRunHistory({ limit, offset })` for authenticated,
+`@owox/api-client` adds `runs.getHistory({ limit, offset })` for authenticated,
 project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRunsResponse`,
 `OWOXProjectDataMartRun`, `OWOXProjectDataMartRunRef`, `OWOXProjectDataMartRunUser`,
 `OWOXProjectDataMartRunStatus`, `OWOXProjectDataMartRunType`,

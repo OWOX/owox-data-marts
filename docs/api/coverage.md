@@ -40,9 +40,9 @@ npm test -w @owox/api-client -- --runInBand --runTestsByPath src/project-setup-p
 
 Coverage updated: 2026-07-21
 
-| Method and path            | Exposure                                                  | OpenAPI status                                                     | API client status                  | Verification evidence                                                                                                                     | Exemption approval |
-| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `GET /api/data-marts/runs` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, optional pagination, and `200` response schema | Covered: `project.getRunHistory()` | Backend `project-data-mart-runs.controller.openapi.spec.ts`; client `project-run-history.test.ts` (pagination, auth, response validation) | Not applicable     |
+| Method and path            | Exposure                                                  | OpenAPI status                                                     | API client status            | Verification evidence                                                                                                                     | Exemption approval |
+| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `GET /api/data-marts/runs` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, optional pagination, and `200` response schema | Covered: `runs.getHistory()` | Backend `project-data-mart-runs.controller.openapi.spec.ts`; client `project-run-history.test.ts` (pagination, auth, response validation) | Not applicable     |
 
 Focused verification:
 

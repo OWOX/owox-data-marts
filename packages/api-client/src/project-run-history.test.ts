@@ -65,7 +65,7 @@ const runHistory: OWOXProjectDataMartRunsResponse = {
   ],
 };
 
-describe('Project run history API', () => {
+describe('Runs API', () => {
   it('gets project run history with optional pagination through an authenticated request', async () => {
     const fetchImpl = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
@@ -80,9 +80,7 @@ describe('Project run history API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.project.getRunHistory({ limit: 25, offset: 50 })).resolves.toEqual(
-      runHistory
-    );
+    await expect(client.runs.getHistory({ limit: 25, offset: 50 })).resolves.toEqual(runHistory);
   });
 
   it('omits pagination query parameters when options are not provided', async () => {
@@ -97,7 +95,7 @@ describe('Project run history API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.project.getRunHistory()).resolves.toEqual({ runs: [] });
+    await expect(client.runs.getHistory()).resolves.toEqual({ runs: [] });
   });
 
   it('rejects an unexpected run-history response shape', async () => {
@@ -117,7 +115,7 @@ describe('Project run history API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    const result = client.project.getRunHistory();
+    const result = client.runs.getHistory();
     await expect(result).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Run History API returned an unexpected response shape',
@@ -143,7 +141,7 @@ describe('Project run history API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.project.getRunHistory()).rejects.toMatchObject({
+    await expect(client.runs.getHistory()).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Run History API returned an unexpected response shape',
       details: response,
@@ -161,7 +159,7 @@ describe('Project run history API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.project.getRunHistory()).rejects.toMatchObject({
+    await expect(client.runs.getHistory()).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Run History API returned an unexpected response shape',
       details: response,

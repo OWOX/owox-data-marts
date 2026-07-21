@@ -25,6 +25,8 @@ export {
   type OWOXProjectDataMartRunType,
   type OWOXProjectDataMartRunUser,
   type OWOXProjectRunHistoryOptions,
+} from './runs.js';
+export {
   type OWOXProjectSettings,
   type OWOXProjectSetupProgress,
   type OWOXProjectSetupProgressSteps,

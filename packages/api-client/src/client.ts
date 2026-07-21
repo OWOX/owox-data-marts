@@ -7,6 +7,7 @@ import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
 import { ModelCanvasApi } from './model-canvas.js';
 import { ProjectApi } from './project.js';
+import { RunsApi } from './runs.js';
 import { StoragesApi } from './storages.js';
 import { requestApi } from './transport.js';
 
@@ -34,6 +35,7 @@ export class OWOXApiClient {
   readonly destinations: DestinationsApi;
   readonly models: ModelCanvasApi;
   readonly project: ProjectApi;
+  readonly runs: RunsApi;
 
   private readonly apiOrigin: string;
   private readonly apiKeyId: string;
@@ -54,6 +56,7 @@ export class OWOXApiClient {
     this.destinations = new DestinationsApi(this);
     this.models = new ModelCanvasApi(this);
     this.project = new ProjectApi(this);
+    this.runs = new RunsApi(this);
   }
 
   async authenticate(): Promise<void> {
