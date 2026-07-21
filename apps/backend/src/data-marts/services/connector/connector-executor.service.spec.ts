@@ -219,7 +219,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null);
 
     expect(dataMartRunRepository.update).toHaveBeenCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.RUNNING })
     );
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
@@ -279,7 +279,14 @@ describe('ConnectorExecutorService', () => {
   };
 
   it('does not let a stray completion overwrite a committed cancellation when abort is not delivered', async () => {
-    const { service, dataMartRunRepository, processSpawner, emitSuccessMessage } = createService();
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      consumptionTracker,
+      eventDispatcher,
+      emitSuccessMessage,
+    } = createService();
     const state = { current: DataMartRunStatus.RUNNING, statusHistory: [] as DataMartRunStatus[] };
     stubConditionalUpdate(dataMartRunRepository, state);
     (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
@@ -295,6 +302,29 @@ describe('ConnectorExecutorService', () => {
     // The stray SUCCESS write must never land: the guarded update only fires while
     // the run is non-terminal, and the row was already CANCELLED underneath it.
     expect(state.statusHistory).toEqual([DataMartRunStatus.RUNNING, DataMartRunStatus.CANCELLED]);
+    // And since the persisted status is CANCELLED, the project must not be billed
+    // and no success/failure webhook may fire for this run.
+    expect(consumptionTracker.registerConnectorRunConsumption).not.toHaveBeenCalled();
+    expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+  });
+
+  it('does not start the connector when the run reached a terminal status before execution', async () => {
+    const { service, dataMartRunRepository, processSpawner, eventDispatcher } = createService();
+    // Cancel landed between claimRunSlotAtomically and executeInBackground:
+    // the row is already CANCELLED when the initial guarded RUNNING write runs.
+    const state = {
+      current: DataMartRunStatus.CANCELLED,
+      statusHistory: [] as DataMartRunStatus[],
+    };
+    stubConditionalUpdate(dataMartRunRepository, state);
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    // The run must not be resurrected to RUNNING, the connector must not spawn,
+    // and no outcome events may fire for a run the user already cancelled.
+    expect(state.statusHistory).toEqual([]);
+    expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+    expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
   });
 
   it('still persists captured logs when the terminal status write is skipped', async () => {
@@ -385,12 +415,11 @@ describe('ConnectorExecutorService', () => {
     expect(gracefulShutdownService.unregisterActiveProcess).toHaveBeenCalled();
   });
 
-  it('does not reset startedAt when resuming a run that already has one (mergeWithExisting=true)', async () => {
+  it('does not reset startedAt when resuming a run that already has one', async () => {
     const { service, dataMartRunRepository } = createService();
-    // In production, by the time this is called, claimRunSlotAtomically has already
-    // flipped status to RUNNING — status alone can't signal "this is a resume".
-    // startedAt survives the INTERRUPTED -> PENDING -> RUNNING churn, so that's
-    // what mergeWithExisting is keyed on.
+    // startedAt is set once, on the first attempt, and survives the
+    // INTERRUPTED -> PENDING -> RUNNING churn so Run History keeps the
+    // original start time.
     await service.executeInBackground(
       createDataMart(),
       createRun({ startedAt: new Date('2025-01-01') }),
@@ -405,7 +434,7 @@ describe('ConnectorExecutorService', () => {
     expect(updateCall![1]).not.toHaveProperty('startedAt');
   });
 
-  it('merges pre-interruption logs and errors when resuming a run (mergeWithExisting=true)', async () => {
+  it('merges pre-interruption logs even for a run interrupted before startedAt was ever set', async () => {
     const { service, dataMartRunRepository, emitInProgressMessage, processSpawner } =
       createService();
     (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
@@ -416,11 +445,10 @@ describe('ConnectorExecutorService', () => {
       emitInProgressMessage();
     });
 
-    await service.executeInBackground(
-      createDataMart(),
-      createRun({ startedAt: new Date('2025-01-01') }),
-      null
-    );
+    // No startedAt override: a run interrupted before its first RUNNING write
+    // (e.g. shutdown hit during the balance check) resumes with startedAt null.
+    // Merging must not depend on any per-run resume flag — it always happens.
+    await service.executeInBackground(createDataMart(), createRun(), null);
 
     const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
       call => call[1]?.status === DataMartRunStatus.FAILED

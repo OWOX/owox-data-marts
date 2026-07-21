@@ -79,12 +79,6 @@ export class ConnectorExecutorService {
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
-    // By the time this runs, claimRunSlotAtomically has already flipped the row's
-    // status to RUNNING, so `run.status` never reflects INTERRUPTED here. `startedAt`
-    // is only ever set once, on a run's first execution, and survives the
-    // INTERRUPTED -> PENDING -> RUNNING churn a resumed run goes through — so it's
-    // the reliable signal that this is a resume rather than a first attempt.
-    const mergeWithExisting = run.startedAt != null;
 
     this.gracefulShutdownService.registerActiveProcess(processId);
 
@@ -105,11 +99,32 @@ export class ConnectorExecutorService {
 
       await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
-      await this.dataMartRunRepository.update(runId, {
-        status: DataMartRunStatus.RUNNING,
-        ...(mergeWithExisting ? {} : { startedAt: this.systemTimeService.now() }),
-        finishedAt: null,
-      });
+      // Guarded like the terminal write below: a cancel can land in the window
+      // between claimRunSlotAtomically and here (e.g. during the awaited balance
+      // check), and an unconditional write would flip the row back to RUNNING —
+      // resurrecting a cancelled run. `startedAt` is set once, on the first
+      // attempt, and preserved across resumes so Run History keeps the original
+      // start time.
+      const claimed = await this.dataMartRunRepository.update(
+        { id: runId, status: In(NON_TERMINAL_DATA_MART_RUN_STATUSES) },
+        {
+          status: DataMartRunStatus.RUNNING,
+          ...(run.startedAt != null ? {} : { startedAt: this.systemTimeService.now() }),
+          finishedAt: null,
+        }
+      );
+
+      if (!claimed.affected) {
+        // The run reached a terminal status (a concurrent cancel) before
+        // execution started — do not spawn the connector and do not publish
+        // run-outcome events for it.
+        wasCancelled = true;
+        this.logger.log(
+          `Skipping connector execution for run ${runId}: run reached a terminal status before execution started`,
+          { dataMartId: dataMart.id, projectId: dataMart.projectId, runId }
+        );
+        return;
+      }
 
       const configurationResults = await this.runConnectorConfigurations(
         runId,
@@ -160,17 +175,20 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
-      await this.updateRunStatus(
+      // When the terminal status write is skipped (the run was cancelled
+      // concurrently and CANCELLED must win), billing and outcome events must
+      // be skipped too: the persisted status is CANCELLED, and charging the
+      // project or publishing a success/failure webhook would contradict it.
+      const statusPersisted = await this.updateRunStatus(
         runId,
         hasSuccessfulRun,
         capturedLogs,
         capturedErrors,
-        mergeWithExisting,
         operationBlockedException,
         wasCancelled
       );
 
-      if (hasSuccessfulRun) {
+      if (hasSuccessfulRun && statusPersisted) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
@@ -182,7 +200,11 @@ export class ConnectorExecutorService {
             'successfully'
           )
         );
-      } else if (!wasCancelled && !this.gracefulShutdownService.isInShutdownMode()) {
+      } else if (
+        statusPersisted &&
+        !wasCancelled &&
+        !this.gracefulShutdownService.isInShutdownMode()
+      ) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -618,17 +640,22 @@ export class ConnectorExecutorService {
     return status === Core.EXECUTION_STATUS.IMPORT_DONE;
   }
 
+  /**
+   * Writes the run's terminal status, guarded so a concurrently committed
+   * terminal status (a cancel) always wins.
+   *
+   * @returns true when the status write landed; false when it was skipped
+   * because the run had already reached a terminal status — callers must not
+   * bill consumption or publish run-outcome events in that case.
+   */
   private async updateRunStatus(
     runId: string,
     hasSuccessfulRun: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
-    mergeWithExisting: boolean = false,
     operationBlockedException?: ProjectOperationBlockedException,
     wasCancelled: boolean = false
-  ): Promise<void> {
-    const hasLogs = capturedLogs.length > 0;
-    const hasErrors = capturedErrors.length > 0;
+  ): Promise<boolean> {
     let status = wasCancelled
       ? DataMartRunStatus.CANCELLED
       : hasSuccessfulRun
@@ -640,19 +667,19 @@ export class ConnectorExecutorService {
       status = DataMartRunStatus.INTERRUPTED;
     }
 
-    const newLogStrings = hasLogs ? capturedLogs.map(log => JSON.stringify(log)) : [];
-    const newErrorStrings = hasErrors ? capturedErrors.map(error => JSON.stringify(error)) : [];
+    const newLogStrings = capturedLogs.map(log => JSON.stringify(log));
+    const newErrorStrings = capturedErrors.map(error => JSON.stringify(error));
 
-    let logsToSave: string[] | null = newLogStrings.length > 0 ? newLogStrings : null;
-    let errorsToSave: string[] | null = newErrorStrings.length > 0 ? newErrorStrings : null;
-
-    if (mergeWithExisting) {
-      ({ logs: logsToSave, errors: errorsToSave } = await this.mergeWithPersistedOutput(
-        runId,
-        newLogStrings,
-        newErrorStrings
-      ));
-    }
+    // Always merge onto what is already persisted rather than trying to detect
+    // "is this a resume": for a first attempt the persisted arrays are empty so
+    // merging is identity, and every resumed/interrupted attempt keeps its full
+    // history — including runs interrupted before their first RUNNING write,
+    // which no per-run flag can reliably identify.
+    const { logs: logsToSave, errors: errorsToSave } = await this.mergeWithPersistedOutput(
+      runId,
+      newLogStrings,
+      newErrorStrings
+    );
 
     // Only claim the run if it has not already reached a terminal status: a
     // concurrent cancel must win over an orphaned execution that is still
@@ -668,21 +695,27 @@ export class ConnectorExecutorService {
       }
     );
 
-    if (!result.affected) {
-      this.logger.warn(
-        `Skipped final status update for run ${runId}: run already reached a terminal status ` +
-          `(likely cancelled concurrently while this execution was orphaned)`
-      );
+    if (result.affected) {
+      return true;
+    }
 
-      // The status write is correctly skipped, but the logs and errors this
-      // execution captured are still the only record of what it did before
-      // being cancelled — persist them rather than discarding them.
-      const preserved = await this.mergeWithPersistedOutput(runId, newLogStrings, newErrorStrings);
+    // Routine on every user cancellation (the cancel endpoint commits CANCELLED
+    // before the abort reaches this execution), so log-level, not a warning.
+    this.logger.log(
+      `Skipped final status update for run ${runId}: run already reached a terminal status`
+    );
+
+    // The status write is correctly skipped, but the logs and errors this
+    // execution captured are still the only record of what it did — persist
+    // the already-merged output rather than discarding it.
+    if (newLogStrings.length > 0 || newErrorStrings.length > 0) {
       await this.dataMartRunRepository.update(
         { id: runId },
-        { logs: preserved.logs, errors: preserved.errors }
+        { logs: logsToSave, errors: errorsToSave }
       );
     }
+
+    return false;
   }
 
   /**
