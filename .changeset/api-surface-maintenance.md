@@ -23,3 +23,12 @@ same authenticated retry and error behavior as existing client requests.
 `OWOXProjectSetupStepState` for inspecting versioned, member-aware setup state. Existing
 authenticated viewer access is unchanged, and consumers can adopt the client method without a
 migration.
+
+## Add project run history API client support
+
+`@owox/api-client` adds `project.getRunHistory({ limit, offset })` for authenticated,
+project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRunsResponse`,
+`OWOXProjectDataMartRun`, `OWOXProjectDataMartRunRef`, `OWOXProjectDataMartRunUser`,
+`OWOXProjectDataMartRunStatus`, `OWOXProjectDataMartRunType`,
+`OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. Existing viewer access
+and HTTP behavior are unchanged, and consumers can adopt the client method without a migration.

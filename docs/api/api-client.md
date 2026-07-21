@@ -87,6 +87,24 @@ for (const [step, state] of Object.entries(setupProgress.steps)) {
 }
 ```
 
+## Read project run history
+
+Use `project.getRunHistory()` to inspect historical Data Mart executions visible to the current
+project member. Pass optional `limit` and `offset` values to page through the project-wide history;
+the API defaults to at most 100 runs.
+
+```ts
+const history = await client.project.getRunHistory({ limit: 50, offset: 0 });
+
+for (const run of history.runs) {
+  console.log(run.dataMart.title, run.type, run.status, run.finishedAt);
+}
+```
+
+Each run includes its Data Mart ID and title, creator metadata when available, execution and trigger
+types, status, timestamps, and available logs, errors, metadata, and totals. This makes the method
+suitable for monitoring and automation without calling the HTTP endpoint directly.
+
 ## List data marts
 
 ```ts
