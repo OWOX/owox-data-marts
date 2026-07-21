@@ -71,6 +71,22 @@ await client.project.updateDescription(
 await client.project.updateDescription(null);
 ```
 
+## Check project setup progress
+
+Use `project.getSetupProgress()` to inspect the current project member's merged project- and
+user-scoped onboarding state. The response includes the API contract version, persisted steps
+schema version, completion percentage, and per-step completion details.
+
+```ts
+const setupProgress = await client.project.getSetupProgress();
+
+console.log(setupProgress.progress);
+
+for (const [step, state] of Object.entries(setupProgress.steps)) {
+  console.log(step, state.done, state.completedAt);
+}
+```
+
 ## List data marts
 
 ```ts
