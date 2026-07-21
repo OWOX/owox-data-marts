@@ -11,6 +11,13 @@ export {
 export { type OWOXStorage } from './storages.js';
 export { type OWOXDestination } from './destinations.js';
 export {
+  type OWOXProjectInsightTemplate,
+  type OWOXProjectInsightTemplateDataMartRef,
+  type OWOXProjectInsightTemplateListOptions,
+  type OWOXProjectInsightTemplatesResponse,
+  type OWOXProjectInsightTemplateUser,
+} from './insight-templates.js';
+export {
   type OWOXModelCanvasDataMartsPage,
   type OWOXModelCanvasEdge,
   type OWOXModelCanvasJoinCondition,

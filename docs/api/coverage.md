@@ -66,3 +66,18 @@ Focused verification:
 npm test -w @owox/backend -- --runInBand --runTestsByPath src/data-marts/controllers/model-canvas.controller.openapi.spec.ts
 npm test -w @owox/api-client -- --runInBand --runTestsByPath src/model-canvas.test.ts
 ```
+
+## Project insight templates
+
+Coverage updated: 2026-07-21
+
+| Method and path                         | Exposure                                                  | OpenAPI status                                                     | API client status                  | Verification evidence                                                                                                           | Exemption approval |
+| --------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `GET /api/data-marts/insight-templates` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, optional pagination, and `200` response schema | Covered: `insightTemplates.list()` | Backend `project-insight-templates.controller.openapi.spec.ts`; client `insight-templates.test.ts` (pagination, auth, response) | Not applicable     |
+
+Focused verification:
+
+```sh
+npm test -w @owox/backend -- --runInBand --runTestsByPath src/data-marts/controllers/project-insight-templates.controller.openapi.spec.ts
+npm test -w @owox/api-client -- --runInBand --runTestsByPath src/insight-templates.test.ts
+```

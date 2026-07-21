@@ -105,6 +105,25 @@ Each run includes its Data Mart ID and title, creator metadata when available, e
 types, status, timestamps, and available logs, errors, metadata, and totals. This makes the method
 suitable for monitoring and automation without calling the HTTP endpoint directly.
 
+## List project insight templates
+
+Use `insightTemplates.list()` to discover reusable insight definitions across the Data Marts
+visible to the current project member. Pass optional `limit` and `offset` values to page through
+the project-wide list; the API defaults to at most 100 templates.
+
+```ts
+const templates = await client.insightTemplates.list({ limit: 50, offset: 0 });
+
+for (const template of templates.insights) {
+  console.log(template.dataMart.title, template.title, template.canDelete);
+}
+```
+
+Each result includes the template summary, its Data Mart ID and title, creator metadata when
+available, and whether the current member can delete it. This makes the method suitable for
+automation and agent workflows that need to find reusable insight definitions without scanning
+Data Marts individually.
+
 ## List data marts
 
 ```ts
