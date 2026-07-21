@@ -49,6 +49,28 @@ console.log(context.project.title);
 console.log(context.member.email);
 ```
 
+## Manage project settings
+
+Use `project.getSettings()` to read the current project's settings. Project members can read the
+settings available to their role.
+
+```ts
+const settings = await client.project.getSettings();
+
+console.log(settings.description);
+```
+
+Project admins can update the project description used as project-specific business context. Pass
+`null` to clear it.
+
+```ts
+await client.project.updateDescription(
+  'Use net revenue after refunds for monthly performance reporting.'
+);
+
+await client.project.updateDescription(null);
+```
+
 ## List data marts
 
 ```ts

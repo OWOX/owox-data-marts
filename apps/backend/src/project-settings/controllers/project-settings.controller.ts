@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, type AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { ProjectSettingsMapper } from '../mappers/project-settings.mapper';
@@ -19,6 +19,11 @@ export class ProjectSettingsController {
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
+  @ApiOperation({ summary: 'Get project settings' })
+  @ApiOkResponse({
+    description: 'The current project settings.',
+    type: ProjectSettingsResponseApiDto,
+  })
   async getSettings(
     @AuthContext() context: AuthorizationContext
   ): Promise<ProjectSettingsResponseApiDto> {
@@ -28,6 +33,11 @@ export class ProjectSettingsController {
 
   @Auth(Role.admin(Strategy.INTROSPECT))
   @Put('description')
+  @ApiOperation({ summary: 'Update the project description' })
+  @ApiOkResponse({
+    description: 'The updated project settings.',
+    type: ProjectSettingsResponseApiDto,
+  })
   async updateDescription(
     @AuthContext() context: AuthorizationContext,
     @Body() dto: UpdateProjectDescriptionApiDto

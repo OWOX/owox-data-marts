@@ -7,7 +7,7 @@ type ApiRequestOptions = {
   apiOrigin: string;
   fetchImpl: typeof fetch;
   path: string;
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PUT';
   apiKeyId: string;
   accessToken?: string;
   query?: QueryParams;
