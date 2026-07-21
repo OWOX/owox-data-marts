@@ -10,7 +10,8 @@ import {
 } from './query-data-mart.input';
 
 describe('SUPPORTED_MCP_OPERATORS', () => {
-  it('excludes all 4 unsupported operators', () => {
+  it('excludes the remaining unsupported operators', () => {
+    expect(UNSUPPORTED_MCP_OPERATORS).toEqual(['in_next_n_days', 'this_week']);
     for (const op of UNSUPPORTED_MCP_OPERATORS) {
       expect(SUPPORTED_MCP_OPERATORS).not.toContain(op);
     }
@@ -20,6 +21,10 @@ describe('SUPPORTED_MCP_OPERATORS', () => {
     expect(SUPPORTED_MCP_OPERATORS).toContain('eq');
     expect(SUPPORTED_MCP_OPERATORS).toContain('between');
     expect(SUPPORTED_MCP_OPERATORS).toContain('this_month');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('in');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('not_in');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('is_empty');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('is_not_empty');
   });
 });
 
@@ -73,6 +78,41 @@ describe('mapMcpFiltersToRules', () => {
   it('keeps eq with the STRING "true" untranslated so type validation can flag it', () => {
     const rules = mapMcpFiltersToRules([], [{ field: 'active', operator: 'eq', value: 'true' }]);
     expect(rules![0]).toMatchObject({ column: 'active', operator: 'eq', value: 'true' });
+  });
+
+  it('maps in/not_in with an array of scalars, preserving placement', () => {
+    const rules = mapMcpFiltersToRules(
+      [{ field: 'channel', operator: 'in', value: ['fb', 'google'] }],
+      [{ field: 'status', operator: 'not_in', value: ['draft', 5, true] }]
+    );
+    expect(rules).toEqual([
+      { column: 'channel', operator: 'in', value: ['fb', 'google'], placement: 'pre-join' },
+      { column: 'status', operator: 'not_in', value: ['draft', 5, true], placement: 'post-join' },
+    ]);
+  });
+
+  it('rejects in with an empty array, a non-array, or non-scalar entries', () => {
+    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [] }])).toThrow(
+      /non-empty array/
+    );
+    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: 'fb' }])).toThrow(
+      /non-empty array/
+    );
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'not_in', value: [{ v: 1 }] }])
+    ).toThrow(/strings, numbers, or booleans/);
+  });
+
+  it('rejects an in list longer than the cap', () => {
+    const long = Array.from({ length: 501 }, (_, i) => i);
+    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: long }])).toThrow(
+      /too long/
+    );
+  });
+
+  it('maps is_empty/is_not_empty as no-value operators', () => {
+    const rules = mapMcpFiltersToRules([], [{ field: 'note', operator: 'is_empty' }]);
+    expect(rules![0]).toMatchObject({ column: 'note', operator: 'is_empty' });
   });
 
   it('rejects unsupported operators', () => {

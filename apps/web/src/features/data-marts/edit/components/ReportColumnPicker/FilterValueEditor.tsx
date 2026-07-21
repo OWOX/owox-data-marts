@@ -28,6 +28,8 @@ export interface FilterValueEditorProps {
 interface EditorState {
   op: FilterOperator;
   scalar: string;
+  /** Raw comma-separated text for in/not_in; split/parsed in buildRule. */
+  list: string;
   betweenFrom: string;
   betweenTo: string;
   relativeKind: RelativeDatePreset['kind'];
@@ -58,6 +60,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
   const state: EditorState = {
     op: fallbackOp,
     scalar: '',
+    list: '',
     betweenFrom: '',
     betweenTo: '',
     relativeKind: 'today',
@@ -68,6 +71,8 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
   if (rule.operator === 'between') {
     state.betweenFrom = String(rule.value.from);
     state.betweenTo = String(rule.value.to);
+  } else if (rule.operator === 'in' || rule.operator === 'not_in') {
+    state.list = rule.value.map(String).join(', ');
   } else if (rule.operator === 'relative_date') {
     state.relativeKind = rule.value.kind;
     if ('n' in rule.value) state.relativeN = String(rule.value.n);
@@ -107,6 +112,22 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
       throw new Error('"From" must be ≤ "To"');
     }
     return { column, operator: 'between', value: { from, to } };
+  }
+
+  if (op === 'in' || op === 'not_in') {
+    // Comma-separated; entries are trimmed and empties dropped. Mirrors the backend
+    // schema bounds (1..500 values).
+    const entries = state.list
+      .split(/[,\n]/)
+      .map(e => e.trim())
+      .filter(e => e !== '');
+    if (entries.length === 0) {
+      throw new Error('At least one value is required');
+    }
+    if (entries.length > 500) {
+      throw new Error('At most 500 values are allowed');
+    }
+    return { column, operator: op, value: entries.map(e => parseScalar(e, fieldType)) };
   }
 
   if (op === 'relative_date') {
@@ -239,6 +260,27 @@ export function FilterValueEditor({
         </div>
       )}
 
+      {(state.op === 'in' || state.op === 'not_in') && (
+        <div className='space-y-1'>
+          <Label>Values (comma-separated)</Label>
+          {/* Plain text even for number/date columns — the field holds a comma list, not one value. */}
+          <Input
+            type='text'
+            value={state.list}
+            onChange={e => {
+              setState(s => ({ ...s, list: e.target.value }));
+            }}
+            placeholder={
+              isNumberType(fieldType)
+                ? '10, 20, 30'
+                : dateField
+                  ? '2026-01-01, 2026-01-15'
+                  : 'value1, value2'
+            }
+          />
+        </div>
+      )}
+
       {state.op === 'relative_date' && (
         <div className='space-y-2'>
           <Label>Preset</Label>
@@ -273,19 +315,23 @@ export function FilterValueEditor({
         </div>
       )}
 
-      {!NO_VALUE_OPS.has(state.op) && state.op !== 'between' && state.op !== 'relative_date' && (
-        <div className='space-y-1'>
-          <Label>Value</Label>
-          <Input
-            type={inputType}
-            value={state.scalar}
-            onChange={e => {
-              setState(s => ({ ...s, scalar: e.target.value }));
-            }}
-            placeholder={state.op === 'regex' ? 'pattern' : ''}
-          />
-        </div>
-      )}
+      {!NO_VALUE_OPS.has(state.op) &&
+        state.op !== 'between' &&
+        state.op !== 'relative_date' &&
+        state.op !== 'in' &&
+        state.op !== 'not_in' && (
+          <div className='space-y-1'>
+            <Label>Value</Label>
+            <Input
+              type={inputType}
+              value={state.scalar}
+              onChange={e => {
+                setState(s => ({ ...s, scalar: e.target.value }));
+              }}
+              placeholder={state.op === 'regex' ? 'pattern' : ''}
+            />
+          </div>
+        )}
     </>
   );
 }

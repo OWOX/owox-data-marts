@@ -199,7 +199,7 @@ describe('QueryDataMartTool', () => {
         {
           data_mart_id: 'dm1',
           fields: ['f1'],
-          filters: [{ field: 'f1', operator: 'in' as never }],
+          filters: [{ field: 'f1', operator: 'this_week' as never }],
         },
         AUTH_CTX as never
       );
@@ -207,7 +207,7 @@ describe('QueryDataMartTool', () => {
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'unsupported_operator' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
-      expect(msg).toContain("'in'");
+      expect(msg).toContain("'this_week'");
       expect(msg).toContain('eq');
       expect(msg).toContain('Supported operators:');
     });
@@ -420,21 +420,46 @@ describe('QueryDataMartTool', () => {
       expect(msg).toContain('both aggregated and date-bucketed');
     });
 
-    it('unsupported_operator advice no longer suggests AND-ed eq filters as an IN substitute', async () => {
+    it('passes an in filter through to the facade (natively supported)', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['channel'],
+        rows: [['fb']],
+        truncated: false,
+        totals: null,
+      });
+
       const result = await tool.handler(
         {
           data_mart_id: 'dm1',
-          fields: ['f1'],
-          filters: [{ field: 'f1', operator: 'in' as never, value: ['a', 'b'] }],
+          fields: ['channel'],
+          filters: [{ field: 'channel', operator: 'in', value: ['fb', 'google'] }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          filterConfig: [
+            { column: 'channel', operator: 'in', value: ['fb', 'google'], placement: 'post-join' },
+          ],
+        })
+      );
+    });
+
+    it('rejects an in filter with an empty array via a clear invalid_input-style error', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['channel'],
+          filters: [{ field: 'channel', operator: 'in', value: [] }],
         },
         AUTH_CTX as never
       );
 
       expect(result.isError).toBe(true);
       const msg = (result.structuredContent as { message?: string }).message ?? '';
-      expect(msg).toContain('filters combine with AND');
-      expect(msg).toContain('one query per value');
-      expect(msg).not.toContain('use multiple filters with');
+      expect(msg).toContain('non-empty array');
     });
 
     it('maps PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART → slices_not_applicable (move to filters)', async () => {

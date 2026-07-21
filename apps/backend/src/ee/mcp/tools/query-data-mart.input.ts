@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import type {
-  FilterConfig,
-  FilterRule,
+import {
+  IN_LIST_MAX_VALUES,
+  type FilterConfig,
+  type FilterRule,
 } from '../../../data-marts/dto/schemas/filter-config.schema';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import type { AggregationConfig } from '../../../data-marts/dto/schemas/aggregation-config.schema';
@@ -31,6 +32,8 @@ const MCP_OPERATORS = [
   'lt',
   'lte',
   'between',
+  'is_empty',
+  'is_not_empty',
   'is_null',
   'is_not_null',
   'before',
@@ -58,7 +61,10 @@ const makeMcpFilterSchema = () =>
         z.record(z.unknown()),
         z.null(),
       ])
-      .optional(),
+      .optional()
+      .describe(
+        'Operand for the operator: scalar for comparisons; {from, to} for between; array of scalars for in/not_in; positive integer for in_last_n_days; omit for is_null/is_not_null/is_empty/is_not_empty.'
+      ),
   });
 
 // The MCP tool advertises only these functions (tool description + docs/mcp.md). A strict subset of
@@ -149,7 +155,7 @@ export const queryDataMartInputSchema = z
 export type QueryDataMartInput = z.infer<typeof queryDataMartInputSchema>;
 export { DEFAULT_LIMIT, MAX_LIMIT };
 
-export const UNSUPPORTED_MCP_OPERATORS = ['in', 'not_in', 'in_next_n_days', 'this_week'] as const;
+export const UNSUPPORTED_MCP_OPERATORS = ['in_next_n_days', 'this_week'] as const;
 export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options.filter(
   o => !(UNSUPPORTED_MCP_OPERATORS as readonly string[]).includes(o)
 );
@@ -160,6 +166,19 @@ export class UnsupportedOperatorError extends Error {
     super(`unsupported_operator: '${op}' is not supported in this version`);
     this.name = 'UnsupportedOperatorError';
     this.operator = op;
+  }
+}
+
+/**
+ * A supported operator was given a malformed operand (wrong shape, empty list, …).
+ * Distinct from UnsupportedOperatorError so the tool can answer "fix the value"
+ * instead of "pick another operator" — and from a plain Error so the precise
+ * reason is not swallowed by the generic query_failed fallback.
+ */
+export class InvalidFilterValueError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidFilterValueError';
   }
 }
 
@@ -190,6 +209,8 @@ const DIRECT = new Set([
   'gte',
   'lt',
   'lte',
+  'is_empty',
+  'is_not_empty',
   'is_null',
   'is_not_null',
 ]);
@@ -213,17 +234,41 @@ function mapOne(
       return { ...base, operator: 'lt', value: f.value as never };
     case 'after':
       return { ...base, operator: 'gt', value: f.value as never };
+    case 'in':
+    case 'not_in': {
+      const list = f.value;
+      if (!Array.isArray(list) || list.length === 0) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' value must be a non-empty array of strings, numbers, or booleans`
+        );
+      }
+      if (list.length > IN_LIST_MAX_VALUES) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' value list is too long (${list.length}); at most ${IN_LIST_MAX_VALUES} values are allowed`
+        );
+      }
+      if (
+        !list.every(v => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+      ) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' values must all be strings, numbers, or booleans`
+        );
+      }
+      return { ...base, operator: f.operator, value: list as never };
+    }
     case 'between': {
       const bv = f.value as Record<string, unknown> | undefined;
       if (!bv || typeof bv !== 'object' || !('from' in bv) || !('to' in bv)) {
-        throw new Error(`'between' value must be an object with 'from' and 'to' keys`);
+        throw new InvalidFilterValueError(
+          `'between' value must be an object with 'from' and 'to' keys`
+        );
       }
       return { ...base, operator: 'between', value: f.value as never };
     }
     case 'in_last_n_days': {
       const n = Number(f.value);
       if (Number.isNaN(n) || !Number.isInteger(n) || n <= 0) {
-        throw new Error(
+        throw new InvalidFilterValueError(
           `'in_last_n_days' value must be a positive integer, got: ${String(f.value)}`
         );
       }
@@ -238,7 +283,7 @@ function mapOne(
     case 'this_year':
       return { ...base, operator: 'relative_date', value: { kind: 'this_year' } };
     default:
-      throw new UnsupportedOperatorError(f.operator); // in, not_in, in_next_n_days, this_week
+      throw new UnsupportedOperatorError(f.operator); // in_next_n_days, this_week
   }
 }
 

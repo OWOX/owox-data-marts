@@ -349,6 +349,61 @@ describe('FilterValueEditor — between operator', () => {
 // Group 6 — "relative_date" operator
 // ---------------------------------------------------------------------------
 
+describe('FilterValueEditor — in / not_in operators', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('switching to in reveals the comma-separated values input and emits the parsed list', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    fireEvent.change(input, { target: { value: ' fb, google , ,tiktok ' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['fb', 'google', 'tiktok'],
+    });
+  });
+
+  it('not_in on a number column parses each entry as a number', () => {
+    const { onChange } = renderEditor({ fieldType: INT_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'not_in' } });
+    const input = screen.getByPlaceholderText('10, 20, 30');
+    fireEvent.change(input, { target: { value: '1, 2,3' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'not_in', value: [1, 2, 3] });
+  });
+
+  it('emits null while the list is empty or contains a non-numeric entry for a number column', () => {
+    const { onChange } = renderEditor({ fieldType: INT_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    expect(lastCall(onChange)).toBeNull();
+
+    const input = screen.getByPlaceholderText('10, 20, 30');
+    fireEvent.change(input, { target: { value: '1, x' } });
+    expect(lastCall(onChange)).toBeNull();
+  });
+
+  it('initialRule with in pre-fills the list input', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['a', 'b'] },
+    });
+
+    expect(screen.getByDisplayValue('a, b')).toBeInTheDocument();
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b'] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group — relative_date
+// ---------------------------------------------------------------------------
+
 describe('FilterValueEditor — relative_date operator', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -5,6 +5,8 @@ export type FilterOperator =
   | 'not_contains'
   | 'starts_with'
   | 'ends_with'
+  | 'in'
+  | 'not_in'
   | 'is_empty'
   | 'is_not_empty'
   | 'is_null'
@@ -60,6 +62,8 @@ const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 const STRING_OPERATORS: OperatorMeta[] = [
   { value: 'eq', label: 'is', shortLabel: '=' },
   { value: 'neq', label: 'is not', shortLabel: '≠' },
+  { value: 'in', label: 'is any of', shortLabel: '∈' },
+  { value: 'not_in', label: 'is none of', shortLabel: '∉' },
   { value: 'contains', label: 'contains', shortLabel: '⊃' },
   { value: 'not_contains', label: "doesn't contain", shortLabel: '⊅' },
   { value: 'starts_with', label: 'starts with', shortLabel: '↦' },
@@ -75,6 +79,8 @@ const STRING_OPERATORS: OperatorMeta[] = [
 const NUMBER_OPERATORS: OperatorMeta[] = [
   { value: 'eq', label: 'equals', shortLabel: '=' },
   { value: 'neq', label: 'not equals', shortLabel: '≠' },
+  { value: 'in', label: 'is any of', shortLabel: '∈' },
+  { value: 'not_in', label: 'is none of', shortLabel: '∉' },
   { value: 'gt', label: 'greater than', shortLabel: '>' },
   { value: 'lt', label: 'less than', shortLabel: '<' },
   { value: 'gte', label: 'greater than or equal', shortLabel: '≥' },
@@ -87,6 +93,8 @@ const NUMBER_OPERATORS: OperatorMeta[] = [
 const DATE_OPERATORS: OperatorMeta[] = [
   { value: 'eq', label: 'on', shortLabel: '=' },
   { value: 'neq', label: 'not on', shortLabel: '≠' },
+  { value: 'in', label: 'is any of', shortLabel: '∈' },
+  { value: 'not_in', label: 'is none of', shortLabel: '∉' },
   { value: 'gt', label: 'after', shortLabel: '>' },
   { value: 'lt', label: 'before', shortLabel: '<' },
   { value: 'gte', label: 'on or after', shortLabel: '≥' },
@@ -111,6 +119,8 @@ const FALLBACK_OPERATOR_LABELS: Record<FilterOperator, string> = {
   not_contains: "doesn't contain",
   starts_with: 'starts with',
   ends_with: 'ends with',
+  in: 'is any of',
+  not_in: 'is none of',
   is_empty: 'is empty',
   is_not_empty: 'is not empty',
   is_null: 'is null',

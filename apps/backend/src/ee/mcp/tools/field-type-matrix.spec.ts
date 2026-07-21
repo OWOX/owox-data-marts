@@ -17,8 +17,11 @@ import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/services/out
 /** A value each MCP operator accepts, so mapOne can run without validation errors. */
 function dummyValueFor(op: string): unknown {
   if (op === 'between') return { from: 1, to: 2 };
+  if (op === 'in' || op === 'not_in') return ['v'];
   if (op === 'in_last_n_days') return 7;
-  if (op === 'is_null' || op === 'is_not_null') return undefined;
+  if (op === 'is_null' || op === 'is_not_null' || op === 'is_empty' || op === 'is_not_empty') {
+    return undefined;
+  }
   return 'v';
 }
 
@@ -69,18 +72,20 @@ describe('field-type-matrix', () => {
 
   it('derives the expected per-category operator lists', () => {
     expect(mcpOperatorsForCategory('number')).toEqual(
-      expect.arrayContaining(['eq', 'gt', 'between'])
+      expect.arrayContaining(['eq', 'gt', 'between', 'in', 'not_in'])
     );
     expect(mcpOperatorsForCategory('number')).not.toEqual(expect.arrayContaining(['contains']));
     expect(mcpOperatorsForCategory('string')).toEqual(
-      expect.arrayContaining(['contains', 'starts_with'])
+      expect.arrayContaining(['contains', 'starts_with', 'in', 'not_in', 'is_empty'])
     );
     expect(mcpOperatorsForCategory('string')).not.toEqual(expect.arrayContaining(['gt']));
     expect(mcpOperatorsForCategory('date')).toEqual(
-      expect.arrayContaining(['before', 'after', 'in_last_n_days', 'this_month', 'this_year'])
+      expect.arrayContaining(['before', 'after', 'in_last_n_days', 'this_month', 'this_year', 'in'])
     );
     // TIME columns have no relative-date presets.
     expect(mcpOperatorsForCategory('time')).not.toEqual(expect.arrayContaining(['in_last_n_days']));
+    // is_empty/is_not_empty are string-only.
+    expect(mcpOperatorsForCategory('number')).not.toEqual(expect.arrayContaining(['is_empty']));
     expect(mcpOperatorsForCategory('other')).toEqual(['is_null', 'is_not_null']);
   });
 

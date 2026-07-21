@@ -22,6 +22,7 @@ import {
   mapMcpDateBuckets,
   mapMcpSort,
   UnsupportedOperatorError,
+  InvalidFilterValueError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
   SUPPORTED_MCP_OPERATORS,
@@ -190,7 +191,14 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const supported = SUPPORTED_MCP_OPERATORS.join(', ');
       return toStructuredToolError(
         'unsupported_operator',
-        `Filter operator '${err.operator}' is not supported yet. Supported operators: ${supported}. There is no 'in'/'not_in', and filters combine with AND — do NOT emulate 'in' with several 'eq' filters on the same field (they can never all match). Run one query per value, or query without that filter and pick the relevant rows from the result.`
+        `Filter operator '${err.operator}' is not supported yet. Supported operators: ${supported}. For a future date range, use 'between' or 'after' with explicit dates.`
+      );
+    }
+
+    if (err instanceof InvalidFilterValueError) {
+      return toStructuredToolError(
+        'invalid_filter_value',
+        `${err.message}. The operator is supported — fix the value shape and retry.`
       );
     }
 

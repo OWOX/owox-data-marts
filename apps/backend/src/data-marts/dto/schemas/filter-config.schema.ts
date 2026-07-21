@@ -41,6 +41,10 @@ const NoValueOperatorEnum = z.enum([
   'is_false',
 ]);
 
+// Bounded so a single rule can't explode the SQL text (literal dialects inline every
+// value) or exhaust a dialect's bind-parameter budget (BigQuery/Athena bind one per value).
+export const IN_LIST_MAX_VALUES = 500;
+
 const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
@@ -50,6 +54,11 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: NoValueOperatorEnum,
+  }),
+  z.object({
+    column: z.string().min(1),
+    operator: z.enum(['in', 'not_in']),
+    value: z.array(ScalarValueSchema).min(1).max(IN_LIST_MAX_VALUES),
   }),
   z.object({
     column: z.string().min(1),

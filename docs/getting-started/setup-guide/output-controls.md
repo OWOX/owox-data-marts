@@ -36,11 +36,13 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 
 | Column type | Available operators |
 |---|---|
-| String | is, is not, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
-| Number | =, ≠, >, <, ≥, ≤, between, is null, is not null |
-| Date / DateTime / Timestamp | on, not on, after, before, on or after, on or before, between, relative, is null, is not null |
-| Time | at, not at, after, before, at or after, at or before, between, is null, is not null |
+| String | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
+| Number | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null |
+| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null |
+| Time | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null |
 | Boolean | is true, is false, is null, is not null |
+
+**Is any of / is none of** match a column against a list of values (SQL `IN` / `NOT IN`). Enter the values comma-separated — up to 500 per rule.
 
 ### Relative date presets
 

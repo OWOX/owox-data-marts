@@ -10,6 +10,16 @@ describe('RedshiftClauseRenderer', () => {
       expect(out.sql).toBe(`\nWHERE "name" = 'X'`);
       expect(out.params).toEqual([]);
     });
+    it('in / not_in inline escaped literals and emit no params', () => {
+      const out = r.renderWhere([
+        { column: 'channel', operator: 'in', value: ['fb', "O'Brien", 5] },
+      ]);
+      expect(out.sql).toBe(`\nWHERE "channel" IN ('fb', 'O''Brien', 5)`);
+      expect(out.params).toEqual([]);
+      expect(
+        r.renderWhere([{ column: 'channel', operator: 'not_in', value: ['fb', 'google'] }]).sql
+      ).toBe(`\nWHERE "channel" NOT IN ('fb', 'google')`);
+    });
     it('neq/gt/lt/gte/lte', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toBe(
         '\nWHERE "a" <> 1'

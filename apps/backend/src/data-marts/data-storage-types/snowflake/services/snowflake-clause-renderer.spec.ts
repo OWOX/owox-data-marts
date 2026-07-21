@@ -14,6 +14,15 @@ describe('SnowflakeClauseRenderer', () => {
     expect(out.params).toEqual([]);
   });
 
+  it('renders IN / NOT IN with inlined escaped literals and no params', () => {
+    const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', "O'Brien", 5] }]);
+    expect(out.sql).toBe(`\nWHERE "channel" IN ('fb', 'O''Brien', 5)`);
+    expect(out.params).toEqual([]);
+    expect(where(r, { column: 'channel', operator: 'not_in', value: ['fb', 'google'] })).toBe(
+      `\nWHERE "channel" NOT IN ('fb', 'google')`
+    );
+  });
+
   it('escapes single quotes AND backslashes in string literals (Snowflake treats \\ as escape)', () => {
     expect(where(r, { column: 'name', operator: 'eq', value: "O'Brien" })).toBe(
       `\nWHERE "name" = 'O''Brien'`

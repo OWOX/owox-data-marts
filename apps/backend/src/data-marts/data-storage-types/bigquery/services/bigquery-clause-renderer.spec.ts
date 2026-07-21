@@ -105,6 +105,43 @@ describe('BigQueryClauseRenderer', () => {
     });
   });
 
+  describe('in / not_in', () => {
+    it('renders IN with one named param per value', () => {
+      const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', 'google'] }]);
+      expect(out.sql).toBe('\nWHERE `channel` IN (@p0, @p1)');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+      ]);
+    });
+    it('renders NOT IN and advances the param index for the next rule', () => {
+      const out = r.renderWhere([
+        { column: 'channel', operator: 'not_in', value: ['fb', 'google', 'tiktok'] },
+        { column: 'name', operator: 'eq', value: 'X' },
+      ]);
+      expect(out.sql).toBe('\nWHERE `channel` NOT IN (@p0, @p1, @p2)\n  AND `name` = @p3');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+        { name: 'p2', value: 'tiktok' },
+        { name: 'p3', value: 'X' },
+      ]);
+    });
+    it('casts each placeholder for a DATE column', () => {
+      const out = r.renderWhere(
+        [{ column: 'day', operator: 'in', value: ['2026-01-01', '2026-01-02'] }],
+        undefined,
+        'p',
+        () => 'DATE'
+      );
+      expect(out.sql).toBe('\nWHERE `day` IN (CAST(@p0 AS DATE), CAST(@p1 AS DATE))');
+      expect(out.params).toEqual([
+        { name: 'p0', value: '2026-01-01' },
+        { name: 'p1', value: '2026-01-02' },
+      ]);
+    });
+  });
+
   describe('relative_date', () => {
     it('today', () => {
       expect(

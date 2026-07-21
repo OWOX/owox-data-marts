@@ -1,5 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { DateTruncRuleSchema, EMPTY_OUTPUT_CONFIG, hasAnyOutputControls } from './output-config';
+import {
+  DateTruncRuleSchema,
+  EMPTY_OUTPUT_CONFIG,
+  FilterRuleSchema,
+  hasAnyOutputControls,
+} from './output-config';
+
+describe('FilterRuleSchema — in/not_in (backend mirror)', () => {
+  it('parses in/not_in rules created via MCP or the API', () => {
+    expect(
+      FilterRuleSchema.safeParse({ column: 'channel', operator: 'in', value: ['fb', 'google'] })
+        .success
+    ).toBe(true);
+    expect(
+      FilterRuleSchema.safeParse({
+        column: 'amount',
+        operator: 'not_in',
+        value: [1, 2],
+        placement: 'post-join',
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects an in rule with an empty or scalar value', () => {
+    expect(FilterRuleSchema.safeParse({ column: 'c', operator: 'in', value: [] }).success).toBe(
+      false
+    );
+    expect(FilterRuleSchema.safeParse({ column: 'c', operator: 'in', value: 'fb' }).success).toBe(
+      false
+    );
+  });
+});
 
 describe('uniqueCountConfig — EMPTY_OUTPUT_CONFIG and hasAnyOutputControls', () => {
   it('EMPTY_OUTPUT_CONFIG.uniqueCountConfig is false', () => {

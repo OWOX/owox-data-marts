@@ -76,6 +76,39 @@ describe('AthenaClauseRenderer', () => {
     });
   });
 
+  describe('in / not_in', () => {
+    it('renders IN with one positional param per value, in order', () => {
+      const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', 'google'] }]);
+      expect(out.sql).toBe('\nWHERE "channel" IN (?, ?)');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+      ]);
+    });
+    it('renders NOT IN and keeps later params aligned', () => {
+      const out = r.renderWhere([
+        { column: 'channel', operator: 'not_in', value: ['fb', 'google'] },
+        { column: 'name', operator: 'eq', value: 'X' },
+      ]);
+      expect(out.sql).toBe('\nWHERE "channel" NOT IN (?, ?)\n  AND "name" = ?');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+        { name: 'p2', value: 'X' },
+      ]);
+    });
+    it('casts each placeholder for a DATE column', () => {
+      const out = r.renderWhere(
+        [{ column: 'day', operator: 'in', value: ['2026-01-01', '2026-01-02'] }],
+        undefined,
+        'p',
+        () => 'DATE'
+      );
+      expect(out.sql).toBe('\nWHERE "day" IN (CAST(? AS DATE), CAST(? AS DATE))');
+      expect(out.params).toHaveLength(2);
+    });
+  });
+
   describe('between', () => {
     it('renders BETWEEN with two positional params', () => {
       const out = r.renderWhere([

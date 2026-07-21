@@ -149,6 +149,10 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           sql: `${col} BETWEEN ${lit(rule.value.from)} AND ${lit(rule.value.to)}`,
           params: [],
         };
+      case 'in':
+        return { sql: `${col} IN (${rule.value.map(lit).join(', ')})`, params: [] };
+      case 'not_in':
+        return { sql: `${col} NOT IN (${rule.value.map(lit).join(', ')})`, params: [] };
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }

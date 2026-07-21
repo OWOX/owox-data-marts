@@ -50,6 +50,13 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
     column: z.string().min(1),
     operator: NoValueOperatorEnum,
   }),
+  // Mirror of the backend in/not_in branch (filter-config.schema.ts) — the picker does
+  // not offer these yet, but configs created via MCP/API must still parse.
+  z.object({
+    column: z.string().min(1),
+    operator: z.enum(['in', 'not_in']),
+    value: z.array(ScalarValueSchema).min(1).max(500),
+  }),
   z.object({
     column: z.string().min(1),
     operator: z.literal('between'),
