@@ -36,6 +36,21 @@ npm test -w @owox/backend -- --runInBand --runTestsByPath src/data-marts/control
 npm test -w @owox/api-client -- --runInBand --runTestsByPath src/project-setup-progress.test.ts
 ```
 
+## Project run history
+
+Coverage updated: 2026-07-21
+
+| Method and path            | Exposure                                                  | OpenAPI status                                                     | API client status            | Verification evidence                                                                                                                     | Exemption approval |
+| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `GET /api/data-marts/runs` | Authenticated public; Project Member (`viewer` or higher) | Covered: operation, optional pagination, and `200` response schema | Covered: `runs.getHistory()` | Backend `project-data-mart-runs.controller.openapi.spec.ts`; client `project-run-history.test.ts` (pagination, auth, response validation) | Not applicable     |
+
+Focused verification:
+
+```sh
+npm test -w @owox/backend -- --runInBand --runTestsByPath src/data-marts/controllers/project-data-mart-runs.controller.openapi.spec.ts
+npm test -w @owox/api-client -- --runInBand --runTestsByPath src/project-run-history.test.ts
+```
+
 ## Models canvas
 
 Coverage updated: 2026-07-21

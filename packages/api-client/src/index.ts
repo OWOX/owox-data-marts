@@ -17,6 +17,16 @@ export {
   type OWOXModelCanvasNode,
 } from './model-canvas.js';
 export {
+  type OWOXProjectDataMartRun,
+  type OWOXProjectDataMartRunRef,
+  type OWOXProjectDataMartRunsResponse,
+  type OWOXProjectDataMartRunStatus,
+  type OWOXProjectDataMartRunTriggerType,
+  type OWOXProjectDataMartRunType,
+  type OWOXProjectDataMartRunUser,
+  type OWOXProjectRunHistoryOptions,
+} from './runs.js';
+export {
   type OWOXProjectSettings,
   type OWOXProjectSetupProgress,
   type OWOXProjectSetupProgressSteps,
