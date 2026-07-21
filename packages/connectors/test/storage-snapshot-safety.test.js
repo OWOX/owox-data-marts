@@ -11,7 +11,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function loadStorage(relativePath, className) {
   const context = vm.createContext({
-    AbstractStorage: class AbstractStorage {},
     BatchExecuteStatementCommand: class BatchExecuteStatementCommand {
       constructor(input) {
         this.input = input;
@@ -21,6 +20,13 @@ function loadStorage(relativePath, className) {
     console,
     require,
     setTimeout,
+  });
+  const abstractStorageSource = fs.readFileSync(
+    path.join(__dirname, '..', 'src/Core/AbstractStorage.js'),
+    'utf8'
+  );
+  vm.runInContext(abstractStorageSource, context, {
+    filename: 'src/Core/AbstractStorage.js',
   });
   const source = fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
   vm.runInContext(source, context, { filename: relativePath });
@@ -55,6 +61,8 @@ function value(value) {
 function bigQueryStorage() {
   const storage = Object.create(GoogleBigQueryStorage.prototype);
   storage.config = {
+    DestinationProjectID: value('project'),
+    DestinationDatasetName: value('dataset'),
     DestinationDatasetID: value('project.dataset'),
     DestinationTableName: value('live_table'),
     MaxBufferSize: value(250),
@@ -90,6 +98,32 @@ test('BigQuery publication atomically copies staging over the live table', async
   assert.equal(
     query,
     'CREATE OR REPLACE TABLE `project.dataset.live_table` COPY `project.dataset.live_table__owox_staging_run`'
+  );
+});
+
+test('BigQuery preserves the live table object when the schema is unchanged', async () => {
+  const storage = bigQueryStorage();
+  let query;
+  storage.executeQuery = async sql => {
+    query = sql;
+  };
+
+  await storage.publishSnapshotTable(
+    'live_table__owox_staging_run',
+    'live_table',
+    {
+      id: { type: 'INT64' },
+      name: { type: 'STRING' },
+    },
+    true
+  );
+
+  assert.equal(
+    query,
+    'BEGIN TRANSACTION;\n' +
+      'TRUNCATE TABLE `project.dataset.live_table`;\n' +
+      'INSERT INTO `project.dataset.live_table` (`id`, `name`) SELECT `id`, `name` FROM `project.dataset.live_table__owox_staging_run`;\n' +
+      'COMMIT TRANSACTION;'
   );
 });
 
@@ -406,7 +440,10 @@ const cloneStorageCases = [
   },
 ];
 
-function cloneStorage(testCase, { failLoad = false, stagedRowCount = 1 } = {}) {
+function cloneStorage(
+  testCase,
+  { failLoad = false, stagedRowCount = 1, liveColumns = { previous: { type: 'STRING' } } } = {}
+) {
   const events = [];
   const storage = Object.create(testCase.Storage.prototype);
   const originalColumns = { previous: { type: 'STRING' } };
@@ -418,6 +455,7 @@ function cloneStorage(testCase, { failLoad = false, stagedRowCount = 1 } = {}) {
   storage[testCase.connectionProperty] = {};
   storage[testCase.checkMethod] = () => {};
   storage[testCase.ensureMethod] = async () => {};
+  storage.getAListOfExistingColumns = async () => liveColumns;
   storage.createTableIfItDoesntExist = async () => {
     events.push(`stage:${storage.config.DestinationTableName.value}`);
     const stagedColumns = { id: { type: 'BIGINT' } };
@@ -438,6 +476,22 @@ function cloneStorage(testCase, { failLoad = false, stagedRowCount = 1 } = {}) {
     return [];
   };
   return { storage, events, originalColumns };
+}
+
+for (const testCase of cloneStorageCases) {
+  test(`${testCase.name} preserves the live table object when the schema is unchanged`, async () => {
+    const liveColumns = { id: { type: 'BIGINT' } };
+    const { storage, events } = cloneStorage(testCase, { liveColumns });
+
+    await storage.replaceData([{ id: 1 }]);
+
+    const overwrite = events.find(event => event.startsWith('INSERT OVERWRITE'));
+    assert.ok(overwrite);
+    assert.equal(
+      events.some(event => testCase.publicationPattern.test(event)),
+      false
+    );
+  });
 }
 
 for (const testCase of cloneStorageCases) {
@@ -537,7 +591,7 @@ test('Databricks snapshot loading also respects the SQL statement byte limit', (
   assert.deepEqual(JSON.parse(JSON.stringify(batches.flat())), rows);
 });
 
-function redshiftStorage(stagedRowCount = 1) {
+function redshiftStorage(stagedRowCount = 1, liveColumns = { previous: 'VARCHAR' }) {
   const events = [];
   const storage = Object.create(AwsRedshiftStorage.prototype);
   storage.config = {
@@ -551,7 +605,7 @@ function redshiftStorage(stagedRowCount = 1) {
   storage.getSelectedFields = () => ['id'];
   storage.checkConnection = async () => {};
   storage.createSchemaIfNotExist = async () => {};
-  storage.getAListOfExistingColumns = async () => ({ id: 'BIGINT' });
+  storage.getAListOfExistingColumns = async () => liveColumns;
   storage.getTableGrantStatements = async (_source, target) => [
     `GRANT SELECT ON TABLE "analytics"."${target}" TO ROLE "reader"`,
   ];
@@ -588,6 +642,34 @@ test('Redshift copies grants and transactionally publishes validated staging', a
   assert.match(events[5], /^transaction:ALTER TABLE "analytics"\."events__owox_stage_/);
   assert.match(events[6], /^transaction:DROP TABLE "analytics"\."events__owox_backup_/);
   assert.match(events.at(-1), /^DROP TABLE IF EXISTS "analytics"\."events__owox_stage_/);
+});
+
+test('Redshift preserves the live table object when the schema matches in a different order', async () => {
+  const { storage, events } = redshiftStorage(1, { name: 'character varying', id: 'bigint' });
+  storage.getSelectedFields = () => ['id', 'name'];
+  storage.createTable = async () => {
+    events.push(`stage:${storage.config.DestinationTableName.value}`);
+    return { id: 'BIGINT', name: 'VARCHAR(65535)' };
+  };
+
+  await storage.replaceData([{ id: 1 }]);
+
+  assert.equal(
+    events.some(event => event.startsWith('GRANT ')),
+    false
+  );
+  assert.ok(events.includes('transaction:DELETE FROM "analytics"."events"'));
+  assert.ok(
+    events.some(event =>
+      event.startsWith(
+        'transaction:INSERT INTO "analytics"."events" ("id", "name") SELECT "id", "name" FROM "analytics"."events__owox_stage_'
+      )
+    )
+  );
+  assert.equal(
+    events.some(event => event.includes(' RENAME TO ')),
+    false
+  );
 });
 
 test('Redshift preserves live state when staging validation fails', async () => {

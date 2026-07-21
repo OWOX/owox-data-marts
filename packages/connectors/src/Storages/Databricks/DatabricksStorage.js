@@ -381,6 +381,7 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
       const liveTable = `${catalog}.${schema}.${quoteIdentifier(configuredTableName)}`;
       const stagingTable = `${catalog}.${schema}.${quoteIdentifier(stagingTableName)}`;
       const originalExistingColumns = this.existingColumns;
+      const liveColumns = await this.getAListOfExistingColumns();
       let published = false;
 
       try {
@@ -402,9 +403,14 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
 
         this.config.DestinationTableName.value = configuredTableName;
 
-        // DEEP CLONE is a single replacement transaction and leaves the live table
-        // independent from the staging table that is removed in finally.
-        await this.executeQuery(`CREATE OR REPLACE TABLE ${liveTable} DEEP CLONE ${stagingTable}`);
+        if (this.hasSameSchema(liveColumns, stagedColumns)) {
+          const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+          await this.executeQuery(
+            `INSERT OVERWRITE TABLE ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
+          );
+        } else {
+          await this.executeQuery(`CREATE OR REPLACE TABLE ${liveTable} DEEP CLONE ${stagingTable}`);
+        }
         this.existingColumns = stagedColumns;
         published = true;
 

@@ -226,6 +226,13 @@ describe('ConnectorExecutorService', () => {
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+    const successUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.findIndex(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    );
+    expect(successUpdate).toBeGreaterThanOrEqual(0);
+    expect(
+      (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdate]
+    ).toBeLessThan((dataMartService.actualizeSchema as jest.Mock).mock.invocationCallOrder[0]);
   });
 
   it('persists sanitized fields emitted by a successful connector run', async () => {
@@ -283,6 +290,9 @@ describe('ConnectorExecutorService', () => {
     expect(
       (dataMartService.updateConnectorSourceFields as jest.Mock).mock.invocationCallOrder[0]
     ).toBeLessThan(
+      (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdateIndex]
+    );
+    expect((dataMartService.actualizeSchema as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdateIndex]
     );
   });

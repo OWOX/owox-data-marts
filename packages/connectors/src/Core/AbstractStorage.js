@@ -144,6 +144,31 @@ class AbstractStorage {
       throw new Error(`${this.constructor.name} does not support full-refresh table replacement`);
     }
     //----------------------------------------------------------------
+
+  //---- hasSameSchema -----------------------------------------------
+    hasSameSchema(actualColumns, expectedColumns, normalizeType = type => String(type).toUpperCase()) {
+
+      const actualNames = Object.keys(actualColumns || {});
+      const expectedNames = Object.keys(expectedColumns || {});
+      if (actualNames.length !== expectedNames.length) {
+        return false;
+      }
+
+      return expectedNames.every(name => {
+        if (!(name in actualColumns)) {
+          return false;
+        }
+
+        const actualColumn = actualColumns[name];
+        const expectedColumn = expectedColumns[name];
+        const actualType = typeof actualColumn === 'string' ? actualColumn : actualColumn?.type;
+        const expectedType = typeof expectedColumn === 'string' ? expectedColumn : expectedColumn?.type;
+
+        return normalizeType(actualType) === normalizeType(expectedType);
+      });
+
+    }
+    //----------------------------------------------------------------
   
   //---- saveRecordsAddedToBuffer ------------------------------------
     /**

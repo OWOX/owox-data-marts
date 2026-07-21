@@ -674,14 +674,10 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     if (!preview) {
       const startColumn = bounds.startColumn || 1;
       const endColumn = bounds.endColumn || this._columnLettersToNumber('ZZZ');
-      const endRow = Math.min(
-        bounds.endRow || headerRow + GOOGLE_SHEETS_MAX_IMPORT_ROWS + 1,
-        headerRow + GOOGLE_SHEETS_MAX_IMPORT_ROWS + 1
-      );
 
       return (
         `${sheetPrefix}${this._columnNumberToLetters(startColumn)}${bounds.startRow}:` +
-        `${this._columnNumberToLetters(endColumn)}${endRow}`
+        `${this._columnNumberToLetters(endColumn)}${bounds.endRow || ''}`
       );
     }
 

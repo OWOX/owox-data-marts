@@ -9,6 +9,16 @@ function quoteBigQueryIdentifier(identifier) {
   return `\`${String(identifier).replace(/`/g, '``')}\``;
 }
 
+function normalizeBigQueryType(type) {
+  const normalized = String(type || '').toUpperCase();
+  const aliases = {
+    BOOLEAN: 'BOOL',
+    FLOAT: 'FLOAT64',
+    INTEGER: 'INT64',
+  };
+  return aliases[normalized] || normalized;
+}
+
 var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -143,7 +153,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         IF dataset_exists THEN 
           SELECT column_name, data_type
           FROM \`${this.config.DestinationDatasetID.value}.INFORMATION_SCHEMA.COLUMNS\`
-          WHERE table_name = '${this.config.DestinationTableName.value}';
+          WHERE table_name = '${this.config.DestinationTableName.value}'
+          ORDER BY ordinal_position;
         END IF`;
 
         /*let query = `SELECT column_name, data_type
@@ -253,6 +264,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       const originalExistingColumns = this.existingColumns;
       const originalTotalRecordsProcessed = this.totalRecordsProcessed;
       const originalQuoteFieldIdentifiers = this.quoteFieldIdentifiers;
+      const liveColumns = await this.getAListOfExistingColumns();
       let stagingTableCreated = false;
       let published = false;
 
@@ -271,7 +283,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
         await this.validateSnapshotTable(stagingTableName, data);
         this.config.DestinationTableName.value = liveTableName;
-        await this.publishSnapshotTable(stagingTableName, liveTableName);
+        await this.publishSnapshotTable(
+          stagingTableName,
+          liveTableName,
+          stagedColumns,
+          this.hasSameSchema(liveColumns, stagedColumns, normalizeBigQueryType)
+        );
         this.existingColumns = stagedColumns;
         this.updatedRecordsBuffer = {};
         published = true;
@@ -323,9 +340,20 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
     }
 
-    publishSnapshotTable(stagingTableName, liveTableName) {
+    publishSnapshotTable(stagingTableName, liveTableName, stagedColumns = {}, preserveTable = false) {
 
-      const query = `CREATE OR REPLACE TABLE \`${this.config.DestinationDatasetID.value}.${liveTableName}\` COPY \`${this.config.DestinationDatasetID.value}.${stagingTableName}\``;
+      const liveTable = quoteBigQueryIdentifier(
+        `${this.config.DestinationDatasetID.value}.${liveTableName}`
+      );
+      const stagingTable = quoteBigQueryIdentifier(
+        `${this.config.DestinationDatasetID.value}.${stagingTableName}`
+      );
+      const query = preserveTable
+        ? (() => {
+            const columns = Object.keys(stagedColumns).map(quoteBigQueryIdentifier).join(', ');
+            return `BEGIN TRANSACTION;\nTRUNCATE TABLE ${liveTable};\nINSERT INTO ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable};\nCOMMIT TRANSACTION;`;
+          })()
+        : `CREATE OR REPLACE TABLE ${liveTable} COPY ${stagingTable}`;
       return this.executeQuery(query);
 
     }
