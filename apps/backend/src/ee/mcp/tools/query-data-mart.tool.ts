@@ -195,7 +195,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const supported = SUPPORTED_MCP_OPERATORS.join(', ');
       return toStructuredToolError(
         'unsupported_operator',
-        `Filter operator '${err.operator}' is not supported yet. Supported operators: ${supported}. For a future date range, use 'between' or 'after' with explicit dates.`
+        `Filter operator '${err.operator}' is not supported. Supported operators: ${supported}. Pick the closest supported operator and retry.`
       );
     }
 

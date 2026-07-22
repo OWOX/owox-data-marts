@@ -23,24 +23,33 @@ const inputSchema = z
 
 type GetDataMartDetailsInput = z.infer<typeof inputSchema>;
 
+// Factories, not shared instances — a shared zod instance surfaces as a JSON-Schema
+// $ref that OpenAI's tool verifier cannot resolve (same hazard as makeMcpFilterSchema
+// in query-data-mart.input.ts). One factory keeps a single copy of each describe text.
+const makeCategoryField = () =>
+  z
+    .string()
+    .optional()
+    .describe(
+      'Field-type category (number/string/date/time/boolean/other) — the key into operators_by_category for the filter/slice operators this field accepts.'
+    );
+
+const makeAllowedAggregationsField = () =>
+  z
+    .array(z.string())
+    .optional()
+    .describe(
+      'The aggregation functions query_data_mart may apply to THIS field (type defaults narrowed by per-field settings). Use only these; an empty array means the field cannot be aggregated.'
+    );
+
 const DataMartFieldSchema = z
   .object({
     name: z.string(),
     type: z.string(),
     description: z.string().optional().nullable(),
     businessName: z.string().optional(),
-    category: z
-      .string()
-      .optional()
-      .describe(
-        'Field-type category (number/string/date/time/boolean/other) — the key into operators_by_category for the filter/slice operators this field accepts.'
-      ),
-    allowedAggregations: z
-      .array(z.string())
-      .optional()
-      .describe(
-        'The aggregation functions query_data_mart may apply to THIS field (type defaults narrowed by per-field settings). Use only these; an empty array means the field cannot be aggregated.'
-      ),
+    category: makeCategoryField(),
+    allowedAggregations: makeAllowedAggregationsField(),
   })
   .passthrough();
 
@@ -54,18 +63,8 @@ const JoinedFieldSchema = z
     type: z.string(),
     description: z.string().optional().nullable(),
     sourceDataMart: z.string().describe('Title of the joined data mart this field comes from.'),
-    category: z
-      .string()
-      .optional()
-      .describe(
-        'Field-type category (number/string/date/time/boolean/other) — the key into operators_by_category for the filter/slice operators this field accepts.'
-      ),
-    allowedAggregations: z
-      .array(z.string())
-      .optional()
-      .describe(
-        'The aggregation functions query_data_mart may apply to THIS blended field (type defaults narrowed by data-mart governance). Use only these.'
-      ),
+    category: makeCategoryField(),
+    allowedAggregations: makeAllowedAggregationsField(),
   })
   .passthrough();
 
@@ -122,17 +121,12 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
 
     const categories = new Set<FieldTypeCategory>();
     const fields = result.fields.map(f => this.enrichField(f as RawField, categories));
-    const joinedFields = result.joinedFields.map(f => ({
-      ...f,
-      category: categorizeFieldType(f.type),
-      allowedAggregations: effectiveMcpAggregations(
-        f.type,
-        f.allowedAggregations
-          ? { allowedAggregations: f.allowedAggregations as ReportAggregateFunction[] }
-          : undefined
-      ),
-    }));
-    for (const f of joinedFields) categories.add(f.category);
+    // Joined fields go through the same enrichment as native ones (they simply have no
+    // aggregationRole and no nested fields), so a future governance knob cannot be
+    // applied to one path and silently missed on the other.
+    const joinedFields = result.joinedFields.map(f =>
+      this.enrichField(f as unknown as RawField, categories)
+    );
 
     const operatorsByCategory: Record<string, string[]> = {};
     for (const category of categories) {

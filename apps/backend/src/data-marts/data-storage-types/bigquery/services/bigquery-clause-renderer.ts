@@ -145,20 +145,10 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         };
       }
       case 'in':
-      case 'not_in': {
-        const placeholders: string[] = [];
-        const params: { name: string; value: string | number | boolean | null }[] = [];
-        let name = paramName;
-        for (const v of rule.value) {
-          placeholders.push(this.placeholder(name, columnType));
-          params.push({ name, value: v });
-          name = this.nextParamName(name);
-        }
-        return {
-          sql: `${col} ${rule.operator === 'in' ? 'IN' : 'NOT IN'} (${placeholders.join(', ')})`,
-          params,
-        };
-      }
+      case 'not_in':
+        return this.renderInListWithParams(rule, col, paramName, name =>
+          this.placeholder(name, columnType)
+        );
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value, columnType), params: [] };
     }

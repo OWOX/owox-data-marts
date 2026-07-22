@@ -8,7 +8,11 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
-import type { FilterRule, RelativeDatePreset } from '../../../shared/types/output-config';
+import {
+  IN_LIST_MAX_VALUES,
+  type FilterRule,
+  type RelativeDatePreset,
+} from '../../../shared/types/output-config';
 import {
   type FilterOperator,
   operatorsForType,
@@ -146,7 +150,7 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
       return { column, operator: op, value: state.listValues };
     }
     // Comma-separated; entries are trimmed and empties dropped. Mirrors the backend
-    // schema bounds (1..500 values).
+    // schema bounds (1..IN_LIST_MAX_VALUES values).
     const entries = state.list
       .split(/[,\n]/)
       .map(e => e.trim())
@@ -154,8 +158,8 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     if (entries.length === 0) {
       throw new Error('At least one value is required');
     }
-    if (entries.length > 500) {
-      throw new Error('At most 500 values are allowed');
+    if (entries.length > IN_LIST_MAX_VALUES) {
+      throw new Error(`At most ${IN_LIST_MAX_VALUES} values are allowed`);
     }
     return { column, operator: op, value: entries.map(e => parseScalar(e, fieldType)) };
   }

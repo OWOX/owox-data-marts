@@ -167,19 +167,9 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
         };
       }
       case 'in':
-      case 'not_in': {
+      case 'not_in':
         // One positional placeholder per value, params in textual order.
-        const params: { name: string; value: string | number | boolean | null }[] = [];
-        let name = paramName;
-        for (const v of rule.value) {
-          params.push({ name, value: v });
-          name = this.nextParamName(name);
-        }
-        return {
-          sql: `${col} ${rule.operator === 'in' ? 'IN' : 'NOT IN'} (${rule.value.map(() => ph).join(', ')})`,
-          params,
-        };
-      }
+        return this.renderInListWithParams(rule, col, paramName, () => ph);
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }

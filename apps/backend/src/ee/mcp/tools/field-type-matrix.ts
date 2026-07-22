@@ -7,7 +7,11 @@ import {
   supportedAggregationsForCategory,
 } from '../../../data-marts/dto/schemas/field-aggregation-governance';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
-import { MCP_AGGREGATE_FUNCTIONS, SUPPORTED_MCP_OPERATORS } from './query-data-mart.input';
+import {
+  BOOLEAN_MCP_OPERATORS,
+  MCP_AGGREGATE_FUNCTIONS,
+  SUPPORTED_MCP_OPERATORS,
+} from './query-data-mart.input';
 
 /**
  * MCP operator → the internal FilterRule operator `mapOne` produces for it.
@@ -70,9 +74,9 @@ export function mcpOperatorNamesForInternal(internalOperator: string): string[] 
 
 /** MCP filter/slice operators that are legal on a field of the given category. */
 export function mcpOperatorsForCategory(category: FieldTypeCategory): string[] {
-  // eq/neq with a true|false value translate to the internal is_true/is_false,
-  // so boolean fields accept them even though 'eq' is not in the boolean op set.
-  if (category === 'boolean') return ['eq', 'neq', 'is_null', 'is_not_null'];
+  // The boolean menu is owned by BOOLEAN_MCP_OPERATORS, defined next to the eq/neq →
+  // is_true/is_false translation it depends on.
+  if (category === 'boolean') return [...BOOLEAN_MCP_OPERATORS];
   const internal = INTERNAL_OPERATORS_BY_CATEGORY[category];
   return SUPPORTED_MCP_OPERATORS.filter(op => {
     // before/after are date-language synonyms of lt/gt; they run on numbers too but

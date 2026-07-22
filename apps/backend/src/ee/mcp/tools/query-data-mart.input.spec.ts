@@ -7,12 +7,10 @@ import {
   queryDataMartInputSchema,
   McpOperatorEnum,
   SUPPORTED_MCP_OPERATORS,
-  UNSUPPORTED_MCP_OPERATORS,
 } from './query-data-mart.input';
 
 describe('SUPPORTED_MCP_OPERATORS', () => {
-  it('every advertised operator is supported — the unsupported list is empty', () => {
-    expect(UNSUPPORTED_MCP_OPERATORS).toEqual([]);
+  it('every advertised operator is supported', () => {
     expect(SUPPORTED_MCP_OPERATORS).toEqual(McpOperatorEnum.options);
   });
 

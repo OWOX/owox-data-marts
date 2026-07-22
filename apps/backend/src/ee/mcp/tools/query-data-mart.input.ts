@@ -156,13 +156,22 @@ export const queryDataMartInputSchema = z
 export type QueryDataMartInput = z.infer<typeof queryDataMartInputSchema>;
 export { DEFAULT_LIMIT, MAX_LIMIT };
 
-// Every advertised operator now maps to the internal FilterRule; the mechanism stays
-// so a future enum addition can ship ahead of its internal support with a precise error.
-export const UNSUPPORTED_MCP_OPERATORS = [] as const;
-export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options.filter(
-  o => !(UNSUPPORTED_MCP_OPERATORS as readonly string[]).includes(o)
-);
+// Every advertised operator maps to the internal FilterRule.
+export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options;
 
+/**
+ * The full operator menu for boolean fields. eq/neq appear here because mapOne
+ * translates them (with a boolean value) to the internal is_true/is_false — keep
+ * this constant next to that translation so the advertised menu and the mapping
+ * cannot drift apart. Consumed by the field-type matrix and the details tool.
+ */
+export const BOOLEAN_MCP_OPERATORS = ['eq', 'neq', 'is_null', 'is_not_null'] as const;
+
+/**
+ * Runtime guard for direct facade callers: mapOne takes `operator: string`, so a
+ * caller that bypasses the zod enum can still hand it an unknown operator. Every
+ * enum operator maps, so this is unreachable through the MCP tool itself.
+ */
 export class UnsupportedOperatorError extends Error {
   readonly operator: string;
   constructor(op: string) {

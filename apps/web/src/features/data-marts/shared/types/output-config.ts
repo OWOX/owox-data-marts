@@ -8,6 +8,10 @@ export type { ReportAggregateFunction } from './relationship.types';
 // server-side, so a config carrying them must not validate as clean here.
 const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
+// Mirror of the backend IN_LIST_MAX_VALUES (filter-config.schema.ts) — the single
+// web-side copy; the schema and the picker's value editor both read this.
+export const IN_LIST_MAX_VALUES = 500;
+
 // Mirror of the backend preset set (filter-config.schema.ts): ISO weeks (Monday),
 // calendar quarters, and next_n_days including today (like last_n_days).
 const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
@@ -64,7 +68,7 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: z.enum(['in', 'not_in']),
-    value: z.array(ScalarValueSchema).min(1).max(500),
+    value: z.array(ScalarValueSchema).min(1).max(IN_LIST_MAX_VALUES),
   }),
   z.object({
     column: z.string().min(1),

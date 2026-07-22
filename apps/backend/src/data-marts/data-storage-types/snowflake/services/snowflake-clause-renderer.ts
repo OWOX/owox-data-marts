@@ -140,9 +140,8 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
           params: [],
         };
       case 'in':
-        return { sql: `${col} IN (${rule.value.map(lit).join(', ')})`, params: [] };
       case 'not_in':
-        return { sql: `${col} NOT IN (${rule.value.map(lit).join(', ')})`, params: [] };
+        return this.renderInListWithLiterals(rule, col, lit);
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }
