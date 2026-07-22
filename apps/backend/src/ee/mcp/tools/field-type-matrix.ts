@@ -56,6 +56,18 @@ export const FIELD_TYPE_CATEGORIES: readonly FieldTypeCategory[] = [
 
 const MCP_AGG_SET: ReadonlySet<string> = new Set(MCP_AGGREGATE_FUNCTIONS);
 
+/**
+ * The MCP operator name(s) that produce the given INTERNAL operator. Validation
+ * errors carry the internal (post-mapping) operator; error messages must speak the
+ * caller's vocabulary — e.g. internal 'relative_date' came from one of the calendar
+ * presets, internal 'lt' from 'lt' or 'before'.
+ */
+export function mcpOperatorNamesForInternal(internalOperator: string): string[] {
+  return Object.entries(MCP_TO_INTERNAL_OPERATOR)
+    .filter(([, internal]) => internal === internalOperator)
+    .map(([mcpName]) => mcpName);
+}
+
 /** MCP filter/slice operators that are legal on a field of the given category. */
 export function mcpOperatorsForCategory(category: FieldTypeCategory): string[] {
   // eq/neq with a true|false value translate to the internal is_true/is_false,

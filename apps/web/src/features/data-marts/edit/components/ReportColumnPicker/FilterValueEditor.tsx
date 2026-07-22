@@ -30,6 +30,13 @@ interface EditorState {
   scalar: string;
   /** Raw comma-separated text for in/not_in; split/parsed in buildRule. */
   list: string;
+  /**
+   * The untouched value array of an existing in/not_in rule. The comma-text display
+   * is lossy (a value containing a comma splits; numbers/booleans stringify), so as
+   * long as the user has not edited the text, buildRule returns THIS array verbatim
+   * instead of re-parsing the display string. Cleared to null on the first edit.
+   */
+  listValues: (string | number | boolean)[] | null;
   betweenFrom: string;
   betweenTo: string;
   relativeKind: RelativeDatePreset['kind'];
@@ -77,6 +84,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
     op: fallbackOp,
     scalar: '',
     list: '',
+    listValues: null,
     betweenFrom: '',
     betweenTo: '',
     relativeKind: 'today',
@@ -89,6 +97,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
     state.betweenTo = String(rule.value.to);
   } else if (rule.operator === 'in' || rule.operator === 'not_in') {
     state.list = rule.value.map(String).join(', ');
+    state.listValues = [...rule.value];
   } else if (rule.operator === 'relative_date') {
     state.relativeKind = rule.value.kind;
     if ('n' in rule.value) state.relativeN = String(rule.value.n);
@@ -131,6 +140,11 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
   }
 
   if (op === 'in' || op === 'not_in') {
+    // Untouched existing rule: return the original array verbatim — the comma-text
+    // display cannot round-trip values containing commas or non-string types.
+    if (state.listValues !== null && state.listValues.length > 0) {
+      return { column, operator: op, value: state.listValues };
+    }
     // Comma-separated; entries are trimmed and empties dropped. Mirrors the backend
     // schema bounds (1..500 values).
     const entries = state.list
@@ -281,7 +295,9 @@ export function FilterValueEditor({
             type='text'
             value={state.list}
             onChange={e => {
-              setState(s => ({ ...s, list: e.target.value }));
+              // First edit invalidates the pristine array — from here on the (lossy)
+              // text is the source of truth.
+              setState(s => ({ ...s, list: e.target.value, listValues: null }));
             }}
             placeholder={
               isNumberType(fieldType)

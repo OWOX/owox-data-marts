@@ -117,6 +117,13 @@ describe('GetDataMartDetailsTool', () => {
             sourceDataMart: 'costs',
             allowedAggregations: ['SUM'],
           },
+          {
+            name: 'costs__locked',
+            type: 'FLOAT',
+            description: '',
+            sourceDataMart: 'costs',
+            allowedAggregations: [],
+          },
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
@@ -139,6 +146,9 @@ describe('GetDataMartDetailsTool', () => {
     });
     // Restricted joined field keeps its restriction.
     expect(sc.joined_fields[0]).toMatchObject({ allowedAggregations: ['SUM'] });
+    // Explicit [] ("no aggregations allowed") must stay [], NOT fall back to type defaults —
+    // the validator enforces the empty set, so advertising defaults would guarantee rejections.
+    expect(sc.joined_fields[1]).toMatchObject({ allowedAggregations: [] });
     // 'other' category only allows null checks.
     expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
   });

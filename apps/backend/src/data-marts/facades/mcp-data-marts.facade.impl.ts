@@ -125,9 +125,11 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,
-          ...(f.postJoinAggregations?.length
-            ? { allowedAggregations: f.postJoinAggregations }
-            : {}),
+          // Forward an EMPTY override too: [] means "no aggregations allowed" (the
+          // validator enforces it via `postJoinAggregations ?? …`, where [] is not
+          // nullish). Dropping it would make consumers fall back to type defaults
+          // and advertise aggregations every query would then reject.
+          ...(f.postJoinAggregations ? { allowedAggregations: f.postJoinAggregations } : {}),
         }));
     } catch (err) {
       this.logger.warn(

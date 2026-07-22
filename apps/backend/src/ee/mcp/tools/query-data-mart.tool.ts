@@ -30,7 +30,11 @@ import {
 } from './query-data-mart.input';
 import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
-import { buildFieldTypeMatrixSection, mcpOperatorsForCategory } from './field-type-matrix';
+import {
+  buildFieldTypeMatrixSection,
+  mcpOperatorNamesForInternal,
+  mcpOperatorsForCategory,
+} from './field-type-matrix';
 import { categorizeFieldType } from '../../../data-marts/dto/schemas/field-type-category';
 
 const DATE_BUCKET_ERROR_CODES = new Set([
@@ -273,19 +277,32 @@ If truncated is true, not all matching rows were returned: narrow the query (few
 
       // Operator doesn't fit the field's type — name the field, its type, and the operators
       // that DO fit, so the model fixes the operator instead of re-fetching the schema.
+      // The validator reports the INTERNAL (post-mapping) operator; every message below
+      // must speak the caller's MCP vocabulary instead.
       const badOperators = errors?.filter(e => e.code === 'INVALID_OPERATOR_FOR_TYPE') ?? [];
       if (badOperators.length > 0) {
         const details = badOperators
           .map(e => {
             const category = categorizeFieldType(e.type ?? '');
-            // eq/neq on a boolean column ARE legal via translation — reaching here means the
-            // value was not a real boolean (e.g. the string "true"), so say that instead of
-            // listing eq/neq as both invalid and valid.
+            // Internal is_true/is_false only exist via the eq/neq boolean-value translation,
+            // so seeing them on a NON-boolean column means the caller's VALUE was a boolean.
+            if ((e.operator === 'is_true' || e.operator === 'is_false') && category !== 'boolean') {
+              return `field '${e.column}' has type ${e.type}, but its filter got a boolean true/false value (eq/neq with a boolean targets boolean fields) — keep the operator and send a value matching the field's type instead (e.g. the string "true" or a number)`;
+            }
+            // eq/neq reported ON a boolean column means the value was NOT a real boolean
+            // (e.g. the string "true") — eq/neq with a boolean value would have translated.
             if (category === 'boolean' && (e.operator === 'eq' || e.operator === 'neq')) {
               return `field '${e.column}' is boolean — use '${e.operator}' with a boolean true or false as the value (not a string)`;
             }
+            const mcpNames = mcpOperatorNamesForInternal(e.operator ?? '');
+            const operatorLabel =
+              mcpNames.length === 1
+                ? `operator '${mcpNames[0]}'`
+                : mcpNames.length > 1
+                  ? `your ${mcpNames.join('/')} filter`
+                  : `operator '${e.operator}'`;
             const allowed = mcpOperatorsForCategory(category).join(', ');
-            return `operator '${e.operator}' cannot apply to field '${e.column}' (type ${e.type}); operators valid for this field: ${allowed}`;
+            return `${operatorLabel} cannot apply to field '${e.column}' (type ${e.type}); operators valid for this field: ${allowed}`;
           })
           .join('. ');
         return toStructuredToolError(

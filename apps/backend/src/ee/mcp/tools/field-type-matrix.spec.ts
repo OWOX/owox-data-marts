@@ -4,6 +4,7 @@ import {
   buildFieldTypeMatrixSection,
   effectiveMcpAggregations,
   mcpDefaultAggregationsForCategory,
+  mcpOperatorNamesForInternal,
   mcpOperatorsForCategory,
   mcpSupportedAggregationsForCategory,
 } from './field-type-matrix';
@@ -126,6 +127,25 @@ describe('field-type-matrix', () => {
     expect(
       effectiveMcpAggregations('STRING', { allowedAggregations: ['COUNT', 'STRING_AGG'] })
     ).toEqual(['COUNT']);
+  });
+
+  it('maps internal operators back to the MCP names that produce them', () => {
+    expect(mcpOperatorNamesForInternal('relative_date')).toEqual(
+      expect.arrayContaining([
+        'in_last_n_days',
+        'in_next_n_days',
+        'this_week',
+        'last_week',
+        'this_month',
+        'this_quarter',
+        'last_quarter',
+        'this_year',
+      ])
+    );
+    expect(mcpOperatorNamesForInternal('lt').sort()).toEqual(['before', 'lt']);
+    expect(mcpOperatorNamesForInternal('eq')).toEqual(['eq']);
+    // Unknown/unmapped internal names yield an empty list (caller falls back to the raw name).
+    expect(mcpOperatorNamesForInternal('is_true')).toEqual([]);
   });
 
   it('renders one matrix line per category for the tool description', () => {

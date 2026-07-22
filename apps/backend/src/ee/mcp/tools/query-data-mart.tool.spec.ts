@@ -367,6 +367,74 @@ describe('QueryDataMartTool', () => {
       expect(msg).not.toContain('contains, ');
     });
 
+    it('translates internal relative_date back to the MCP preset names in the error', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'session_time',
+              type: 'TIME',
+              operator: 'relative_date',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['session_time'],
+          filters: [{ field: 'session_time', operator: 'this_week' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      // The caller's vocabulary, not the internal operator name.
+      expect(msg).not.toContain("'relative_date'");
+      expect(msg).toContain('this_week');
+      expect(msg).toContain('in_last_n_days');
+      expect(msg).toContain("'session_time'");
+    });
+
+    it('explains a boolean VALUE on a non-boolean field instead of naming is_true', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'utm_source',
+              type: 'STRING',
+              operator: 'is_true',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['utm_source'],
+          filters: [{ field: 'utm_source', operator: 'eq', value: true }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      // Points at the VALUE (the real problem), not at an operator the caller never sent.
+      expect(msg).toContain('boolean true/false value');
+      expect(msg).toContain("'utm_source'");
+      expect(msg).not.toContain("operator 'is_true'");
+    });
+
     it('maps boolean eq with a non-boolean value → value guidance, not an operator list', async () => {
       const err = new BadRequestException({
         message: 'Output controls validation failed',

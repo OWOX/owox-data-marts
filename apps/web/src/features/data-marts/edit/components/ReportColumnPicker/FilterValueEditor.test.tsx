@@ -398,6 +398,43 @@ describe('FilterValueEditor — in / not_in operators', () => {
     expect(screen.getByDisplayValue('a, b')).toBeInTheDocument();
     expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b'] });
   });
+
+  it('preserves comma-containing and non-string values of an untouched existing rule', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.', 5, true] },
+    });
+
+    // The lossy comma-text display must NOT leak into the emitted rule.
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['Acme, Inc.', 5, true],
+    });
+  });
+
+  it('keeps the pristine values when only the operator flips in↔not_in', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.'] },
+    });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'not_in' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'not_in', value: ['Acme, Inc.'] });
+  });
+
+  it('editing the text drops the pristine array and re-parses the comma list', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['a', 'b'] },
+    });
+
+    const input = screen.getByDisplayValue('a, b');
+    fireEvent.change(input, { target: { value: 'a, b, c' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b', 'c'] });
+  });
 });
 
 // ---------------------------------------------------------------------------
