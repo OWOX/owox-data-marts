@@ -17,7 +17,7 @@ dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               154 |     6/154 (4%) |       6/154 (4%) |         6/154 (4%) |        148 |
+|               155 |     6/155 (4%) |       6/155 (4%) |         6/155 (4%) |        149 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -268,3 +268,9 @@ whose UI is reachable only through direct links is excluded.
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
 | `GET /api/project-setup-progress` | Covered · 2026-07-21 | Covered · 2026-07-21 |
+
+## Utilities
+
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `POST /api/markdown/parse-to-html` | Unassessed | Unassessed |

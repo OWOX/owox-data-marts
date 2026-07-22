@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 import { parseCoverageMatrix, validateCoverageMatrix } from './api-coverage-matrix.mjs';
+
+const checkedInMatrix = fs.readFileSync(
+  new URL('../../../docs/api/coverage.md', import.meta.url),
+  'utf8'
+);
 
 const validMatrix = `# API Support Matrix
 
@@ -80,4 +86,10 @@ test('rejects an empty endpoint inventory', () => {
   const markdown = validMatrix.replace(/^\| `(?:GET|POST) \/api\/.*\|$/gm, '');
 
   assert.throws(() => validateCoverageMatrix(markdown), /no endpoint rows/);
+});
+
+test('includes the API-key-compatible markdown parser endpoint', () => {
+  const matrix = parseCoverageMatrix(checkedInMatrix);
+
+  assert.ok(matrix.rows.some(row => row.endpoint === 'POST /api/markdown/parse-to-html'));
 });
