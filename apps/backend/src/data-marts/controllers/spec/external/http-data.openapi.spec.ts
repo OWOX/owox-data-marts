@@ -44,14 +44,14 @@ describe('HttpDataController OpenAPI', () => {
     await app.close();
   });
 
-  function streamParameters(): Array<Record<string, any>> {
-    const path = Object.keys(document.paths).find(p => p.includes('http-data'));
+  function parametersFor(pathNeedle: string): Array<Record<string, any>> {
+    const path = Object.keys(document.paths).find(p => p.includes(pathNeedle));
     expect(path).toBeDefined();
     return (document.paths[path!]?.get?.parameters ?? []) as Array<Record<string, any>>;
   }
 
   function queryParam(name: string): Record<string, any> | undefined {
-    return streamParameters().find(p => p.name === name && p.in === 'query');
+    return parametersFor('http-data/data-marts').find(p => p.name === name && p.in === 'query');
   }
 
   it('documents the aggregation query parameter as an optional base64url string', () => {
@@ -73,5 +73,13 @@ describe('HttpDataController OpenAPI', () => {
   it('still documents the pre-existing filter and sort query parameters', () => {
     expect(queryParam('filter')).toBeDefined();
     expect(queryParam('sort')).toBeDefined();
+  });
+
+  it('documents the report route with only an optional limit query param', () => {
+    const params = parametersFor('http-data/reports');
+    const queryParams = params.filter(p => p.in === 'query');
+    expect(queryParams.map(p => p.name)).toEqual(['limit']);
+    expect(queryParams[0]?.required).toBe(false);
+    expect(params.some(p => p.name === 'reportId' && p.in === 'path')).toBe(true);
   });
 });

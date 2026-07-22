@@ -1,4 +1,8 @@
-import { HTTP_DATA_MAX_ENCODED_PARAM_LENGTH, HttpDataQuerySchema } from './http-data-query.schema';
+import {
+  HTTP_DATA_MAX_ENCODED_PARAM_LENGTH,
+  HttpDataQuerySchema,
+  HttpReportDataQuerySchema,
+} from './http-data-query.schema';
 
 function b64(value: unknown): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
@@ -175,5 +179,23 @@ describe('HttpDataQuerySchema — aggregation/dateTrunc require an explicit proj
   it('accepts a plain (unaggregated) request with the columns=* wildcard', () => {
     const result = parse({ columns: '*' });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('HttpReportDataQuerySchema', () => {
+  it('coerces a numeric limit', () => {
+    expect(HttpReportDataQuerySchema.parse({ limit: '5' })).toEqual({ limit: 5 });
+  });
+
+  it('accepts an empty query (no limit)', () => {
+    expect(HttpReportDataQuerySchema.parse({})).toEqual({});
+  });
+
+  it('rejects any key other than limit', () => {
+    expect(HttpReportDataQuerySchema.safeParse({ filter: 'abc' }).success).toBe(false);
+  });
+
+  it('rejects limit below 1', () => {
+    expect(HttpReportDataQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
   });
 });

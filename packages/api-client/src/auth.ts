@@ -1,4 +1,4 @@
-import type { JsonRequester } from './data-marts.js';
+import type { JsonRequester } from './traversal.js';
 import { createHttpError, OWOXApiError, OWOXAuthError, OWOXConfigError } from './errors.js';
 import { requestApi } from './transport.js';
 

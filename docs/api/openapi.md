@@ -70,6 +70,19 @@ X-OWOX-Api-Key-Id: <apiKeyId>
 Keep `X-OWOX-Api-Key-Id` on protected requests that use an access token created from an API
 key. The server binds API-key access tokens to their API Key ID.
 
+The HTTP Data API can also stream a saved report's data — applying the report's stored filters,
+aggregations, date buckets, and sorting — instead of a Data Mart's raw output. Pass an optional
+`limit` query parameter to cap rows:
+
+```http
+GET /api/external/http-data/reports/<reportId>.ndjson
+x-owox-authorization: Bearer <accessToken>
+X-OWOX-Api-Key-Id: <apiKeyId>
+```
+
+Both endpoints return an `x-owox-run-id` response header identifying the created run; use it to look up
+the run (and its executed query) through the run history endpoint.
+
 ## Compatibility
 
 The same client and OWOX Data Marts server version is supported. Different versions are best effort.

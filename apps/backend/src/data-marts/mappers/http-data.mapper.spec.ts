@@ -35,3 +35,21 @@ describe('HttpDataMapper', () => {
     expect(command.roles).toEqual([]);
   });
 });
+
+describe('toStreamHttpReportDataCommand', () => {
+  it('maps reportId + auth context + raw query', () => {
+    const mapper = new HttpDataMapper();
+    const command = mapper.toStreamHttpReportDataCommand(
+      'report-1',
+      { userId: 'u1', projectId: 'p1', roles: ['viewer'] },
+      { limit: '5' }
+    );
+    expect(command).toEqual({
+      reportId: 'report-1',
+      userId: 'u1',
+      projectId: 'p1',
+      roles: ['viewer'],
+      rawQuery: { limit: '5' },
+    });
+  });
+});

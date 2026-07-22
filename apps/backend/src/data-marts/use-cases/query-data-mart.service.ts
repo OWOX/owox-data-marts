@@ -306,34 +306,6 @@ export class QueryDataMartService {
         totals,
         executedSql: executionSqlQuery,
       };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      const status =
-        err instanceof QueryAbortedError ? DataMartRunStatus.CANCELLED : DataMartRunStatus.FAILED;
-      try {
-        await this.dataMartRunService.recordMcpQueryRun({
-          runId,
-          dataMart,
-          createdById: r.userId,
-          startedAt,
-          status,
-          metadata: {
-            columns: [],
-            rowCount: 0,
-            truncated: false,
-            executionSqlQuery,
-            filterCount: r.filterConfig?.length,
-            aggregationCount: r.aggregationConfig?.length,
-            query: queryMetadata,
-          },
-          errors: [errorMessage],
-        });
-      } catch (auditErr) {
-        this.logger.warn(
-          `recordMcpQueryRun (FAILED) failed; swallowing: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`
-        );
-      }
-      throw err;
     } finally {
       if (deadlineTimer) clearTimeout(deadlineTimer);
       // The SDK reuses one signal across the request — detach so nothing outlives this run.

@@ -19,9 +19,11 @@ import {
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
+import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { Action, EntityType } from '../services/access-decision/access-decision.types';
@@ -31,6 +33,7 @@ import { ConsumptionTrackingService } from '../services/consumption-tracking.ser
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { ReportService } from '../services/report.service';
 import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
@@ -62,6 +65,48 @@ class StreamCancelledError extends Error {
   override readonly name = 'StreamCancelledError';
 }
 
+// Discriminates the two executeStream callers instead of a loose bag of co-varying fields
+// (projectionColumns: null sentinel, optional reportId/captureExecutionSql).
+type ExecuteStreamPlan =
+  | { kind: 'data-mart'; readPlan: ReportLikeReadPlan; columns: string[] }
+  | { kind: 'report'; readPlan: ReportLikeReadPlan; reportId: string; savedColumns: string[] };
+
+// Exhaustiveness guard: if a 3rd ExecuteStreamPlan kind is ever added, the switch in executeStream
+// that doesn't handle it fails to compile here instead of silently falling through at runtime.
+function assertNever(value: never): never {
+  throw new Error(`Unhandled ExecuteStreamPlan kind: ${JSON.stringify(value)}`);
+}
+
+// Per-kind values derived once from the discriminated plan; the rest of executeStream reads these
+// locals instead of re-inspecting plan.kind at each usage site.
+interface StreamPlanContext {
+  metadataColumns: string[];
+  reportId: string | undefined;
+  captureExecutionSql: boolean;
+  projectsByResolvedHeaders: boolean;
+}
+
+function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanContext {
+  switch (plan.kind) {
+    case 'data-mart':
+      return {
+        metadataColumns: plan.columns,
+        reportId: undefined,
+        captureExecutionSql: false,
+        projectsByResolvedHeaders: false,
+      };
+    case 'report':
+      return {
+        metadataColumns: plan.savedColumns,
+        reportId: plan.reportId,
+        captureExecutionSql: true,
+        projectsByResolvedHeaders: true,
+      };
+    default:
+      return assertNever(plan);
+  }
+}
+
 @Injectable()
 export class StreamHttpDataService {
   private readonly logger = new Logger(StreamHttpDataService.name);
@@ -85,7 +130,8 @@ export class StreamHttpDataService {
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     @Inject(DATA_STORAGE_ERROR_MAPPER_RESOLVER)
     private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>,
-    private readonly reportTotalsService: ReportTotalsService
+    private readonly reportTotalsService: ReportTotalsService,
+    private readonly reportService: ReportService
   ) {}
 
   async stream(command: StreamHttpDataCommand, res: Response): Promise<void> {
@@ -103,11 +149,113 @@ export class StreamHttpDataService {
     const accessor: BlendableSchemaAccessor = { userId: ctx.userId, roles: ctx.roles ?? [] };
 
     const dataMart = await this.loadAccessibleDataMart(command.dataMartId, ctx);
-    const runId = randomUUID();
-    const startedAt = this.systemTimeService.now();
+
+    await this.executeStream({
+      dataMart,
+      accessor,
+      userId: ctx.userId,
+      res,
+      runId: randomUUID(),
+      startedAt: this.systemTimeService.now(),
+      buildPlan: async currentDataMart => {
+        const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+          currentDataMart.id,
+          currentDataMart.projectId,
+          accessor
+        );
+        const reportingColumns: ReportingColumns = {
+          native: nativeColumnNames(blendableSchema),
+          blended: visibleBlendedColumnNames(blendableSchema),
+        };
+        const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
+        this.columnValidator.validate(
+          {
+            selectedColumns: columns,
+            filter: query.filter,
+            sort: query.sort,
+            aggregation: query.aggregation,
+            dateTrunc: query.dateTrunc,
+          },
+          reportingColumns
+        );
+
+        const readPlan: ReportLikeReadPlan = {
+          dataMart: currentDataMart,
+          columnConfig: columns,
+          filterConfig: query.filter,
+          sortConfig: query.sort,
+          aggregationConfig: query.aggregation,
+          dateTruncConfig: query.dateTrunc,
+          limitConfig: limit ?? null,
+        };
+
+        return { kind: 'data-mart', readPlan, columns };
+      },
+    });
+  }
+
+  async streamReport(command: StreamHttpReportDataCommand, res: Response): Promise<void> {
+    if (this.gracefulShutdownService.isInShutdownMode()) {
+      throw new ServiceUnavailableException('Server is shutting down');
+    }
+
+    const { limit } = this.requestValidator.validateReportQuery(command.rawQuery);
+    const ctx: AuthorizationContext = {
+      userId: command.userId,
+      projectId: command.projectId,
+      roles: command.roles,
+    };
+    const accessor: BlendableSchemaAccessor = { userId: ctx.userId, roles: ctx.roles ?? [] };
+
+    const report = await this.reportService.getByIdAndProjectId(
+      command.reportId,
+      command.projectId
+    );
+    const dataMart = await this.loadAccessibleDataMart(report.dataMart.id, ctx);
+
+    await this.executeStream({
+      dataMart,
+      accessor,
+      userId: ctx.userId,
+      res,
+      runId: randomUUID(),
+      startedAt: this.systemTimeService.now(),
+      buildPlan: async currentDataMart => {
+        const readPlan: ReportLikeReadPlan = {
+          dataMart: currentDataMart,
+          columnConfig: report.columnConfig ?? undefined,
+          filterConfig: report.filterConfig ?? undefined,
+          sortConfig: report.sortConfig ?? undefined,
+          aggregationConfig: report.aggregationConfig ?? undefined,
+          dateTruncConfig: report.dateTruncConfig ?? undefined,
+          uniqueCountConfig: report.uniqueCountConfig ?? undefined,
+          limitConfig: limit ?? report.limitConfig ?? null,
+        };
+
+        return {
+          kind: 'report',
+          readPlan,
+          reportId: report.id,
+          savedColumns: report.columnConfig ?? [],
+        };
+      },
+    });
+  }
+
+  private async executeStream(params: {
+    dataMart: DataMart;
+    accessor: BlendableSchemaAccessor;
+    userId: string;
+    res: Response;
+    runId: string;
+    startedAt: Date;
+    buildPlan: (dataMart: DataMart) => Promise<ExecuteStreamPlan>;
+  }): Promise<void> {
+    const { dataMart, accessor, userId, res, runId, startedAt, buildPlan } = params;
 
     let reader: DataStorageReportReader | null = null;
     let baseMetadata: HttpDataRunMetadata | null = null;
+    let reportId: string | undefined;
     let schemaActualizationInProgress = false;
 
     try {
@@ -117,36 +265,27 @@ export class StreamHttpDataService {
         HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS
       );
       schemaActualizationInProgress = false;
-      const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-        dataMart.id,
-        dataMart.projectId,
-        accessor
-      );
-      const reportingColumns: ReportingColumns = {
-        native: nativeColumnNames(blendableSchema),
-        blended: visibleBlendedColumnNames(blendableSchema),
-      };
-      const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
-      this.columnValidator.validate(
-        {
-          selectedColumns: columns,
-          filter: query.filter,
-          sort: query.sort,
-          aggregation: query.aggregation,
-          dateTrunc: query.dateTrunc,
-        },
-        reportingColumns
-      );
+
+      const plan = await buildPlan(dataMart);
+      const { readPlan } = plan;
+      const planContext = deriveStreamPlanContext(plan);
+      const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders } = planContext;
+      reportId = planContext.reportId;
+
       await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
-      const readPlan: ReportLikeReadPlan = {
-        dataMart,
-        columnConfig: columns,
-        filterConfig: query.filter,
-        sortConfig: query.sort,
-        aggregationConfig: query.aggregation,
-        dateTruncConfig: query.dateTrunc,
-        limitConfig: limit ?? null,
+      // Seeded here (before blending is resolved) so any failure from this point on — including a
+      // report config-drift error inside resolveBlendingDecision, or the missing-blended-SQL guard
+      // below — records a FAILED run with an x-owox-run-id. Pre-execution gates (buildPlan throwing,
+      // or verifyCanPerformOperations rejecting) still throw before this point and record no run.
+      baseMetadata = {
+        format: HTTP_DATA_FORMAT,
+        columns: metadataColumns,
+        filter: readPlan.filterConfig ?? undefined,
+        sort: readPlan.sortConfig ?? undefined,
+        aggregation: readPlan.aggregationConfig ?? undefined,
+        dateTrunc: readPlan.dateTruncConfig ?? undefined,
+        limit: readPlan.limitConfig ?? undefined,
       };
 
       const decision = await this.blendedReportDataService.resolveBlendingDecision(
@@ -166,15 +305,13 @@ export class StreamHttpDataService {
         sqlOverrideParams = composed.params;
       }
 
-      baseMetadata = {
-        format: HTTP_DATA_FORMAT,
-        columns,
-        filter: query.filter,
-        sort: query.sort,
-        aggregation: query.aggregation,
-        dateTrunc: query.dateTrunc,
-        limit,
-      };
+      const executionSqlQuery = captureExecutionSql
+        ? this.tryInlineExecutedSql(dataMart, sqlOverride, sqlOverrideParams)
+        : undefined;
+
+      if (executionSqlQuery) {
+        baseMetadata.executionSqlQuery = executionSqlQuery;
+      }
 
       reader = await this.readerResolver.resolve(dataMart.storage.type);
       const description = await reader.prepareReportData(readPlan, {
@@ -183,23 +320,21 @@ export class StreamHttpDataService {
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
         aggregationConfig: readPlan.aggregationConfig ?? undefined,
+        uniqueCount: readPlan.uniqueCountConfig ?? undefined,
       });
 
-      // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id
-      // (no extra header in v1). Computed BEFORE streamRows: NDJSON headers cannot change
-      // once the first chunk is flushed. BEST-EFFORT — a failure must never break the stream.
+      // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
+      // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
       const totals = await this.computeTotalsBestEffort(readPlan, accessor, dataMart);
 
-      // An aggregation renames each aggregated column's header to its "<column> | <FN>" output
-      // label and appends Row Count, so the resolved headers no longer match the raw requested
-      // column names. Project by the resolved header names in that case (mirroring the report
-      // reader / query_data_mart), else the aggregated metric would stream as null and Row Count
-      // would be dropped. A plain or date-bucketed-only request keeps the requested-column
-      // projection (its headers are unchanged), preserving the "requested names as keys" contract.
+      // Aggregated reports rename headers to "<column> | <FN>" and append Row Count, so project by
+      // the resolved header names. A report always projects by resolved headers — correct for both
+      // an explicit columnConfig and a null (all-columns) config.
+      const aggregated = (readPlan.aggregationConfig?.length ?? 0) > 0;
       const outputColumns =
-        (readPlan.aggregationConfig?.length ?? 0) > 0
+        projectsByResolvedHeaders || aggregated
           ? description.dataHeaders.map(header => header.name)
-          : columns;
+          : metadataColumns;
 
       const { rowCount, bytesWritten } = await this.streamRows(
         res,
@@ -209,14 +344,30 @@ export class StreamHttpDataService {
         runId
       );
 
-      await this.recordSuccessfulRun(dataMart, ctx.userId, runId, startedAt, {
-        ...baseMetadata,
-        dataDescription: this.toMetadataDataDescription(description.dataHeaders),
-        rowCount,
-        bytesWritten,
-        completed: true,
-        ...(totals ? { totals } : {}),
-      });
+      // F2: an all-columns report has no explicit columnConfig, so the plan's metadata columns are
+      // empty; fall back to the resolved header names now that they're known. The data-mart path
+      // always has explicit resolved columns, so its recorded columns are left untouched.
+      const runColumns =
+        projectsByResolvedHeaders && metadataColumns.length === 0
+          ? description.dataHeaders.map(h => h.name)
+          : metadataColumns;
+
+      await this.recordSuccessfulRun(
+        dataMart,
+        userId,
+        runId,
+        startedAt,
+        {
+          ...baseMetadata,
+          columns: runColumns,
+          dataDescription: this.toMetadataDataDescription(description.dataHeaders),
+          rowCount,
+          bytesWritten,
+          completed: true,
+          ...(totals ? { totals } : {}),
+        },
+        reportId
+      );
 
       res.end();
     } catch (error) {
@@ -230,16 +381,39 @@ export class StreamHttpDataService {
       if (baseMetadata) {
         await this.recordFailedRun(
           dataMart,
-          ctx.userId,
+          userId,
           runId,
           startedAt,
           { ...baseMetadata, completed: false },
-          mappedError
+          mappedError,
+          reportId
         );
       }
       this.handleStreamFailure(res, mappedError);
     } finally {
       if (reader) await this.safelyFinalizeReader(reader);
+    }
+  }
+
+  private tryInlineExecutedSql(
+    dataMart: DataMart,
+    sqlOverride: string | undefined,
+    sqlOverrideParams: SqlParameter[] | undefined
+  ): string | undefined {
+    if (!sqlOverride) {
+      return undefined;
+    }
+    try {
+      return this.reportSqlComposerService.inlineStaticSql(
+        dataMart.storage.type,
+        sqlOverride,
+        sqlOverrideParams
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to inline executed SQL for HTTP Data run: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return undefined;
     }
   }
 
@@ -282,7 +456,8 @@ export class StreamHttpDataService {
     createdById: string,
     runId: string,
     startedAt: Date,
-    metadata: HttpDataRunMetadata
+    metadata: HttpDataRunMetadata,
+    reportId?: string
   ): Promise<void> {
     try {
       await this.dataMartRunService.recordHttpDataRun({
@@ -292,6 +467,7 @@ export class StreamHttpDataService {
         startedAt,
         status: DataMartRunStatus.SUCCESS,
         metadata,
+        reportId,
       });
     } catch (err) {
       this.logger.error(
@@ -315,7 +491,8 @@ export class StreamHttpDataService {
     runId: string,
     startedAt: Date,
     metadata: HttpDataRunMetadata,
-    error: unknown
+    error: unknown,
+    reportId?: string
   ): Promise<void> {
     const message = this.clientFacingErrorMessage(error);
     try {
@@ -327,6 +504,7 @@ export class StreamHttpDataService {
         status: DataMartRunStatus.FAILED,
         metadata,
         errors: [message],
+        reportId,
       });
     } catch (err) {
       this.logger.warn(

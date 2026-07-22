@@ -1,6 +1,13 @@
 import { Buffer } from 'node:buffer';
 
-import { OWOXApiError, OWOXAuthError } from './errors.js';
+import { OWOXApiError } from './errors.js';
+import {
+  HttpNdjsonTraversal,
+  isRecord,
+  type JsonRequester,
+  type TraversalSource,
+  withSourceContext,
+} from './traversal.js';
 
 export type OWOXDataMart = Record<string, unknown> & {
   id: string;
@@ -24,15 +31,6 @@ type DataMartsPage = {
   total: number;
   nextOffset: number | null;
 };
-
-export type JsonRequester = {
-  getJson<T>(path: string, query?: Record<string, string>): Promise<T>;
-  getStream(path: string, query?: URLSearchParams): Promise<Response>;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function parsePage(response: unknown): DataMartsPage {
   if (
@@ -84,146 +82,10 @@ function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams |
   return query.size === 0 ? undefined : query;
 }
 
-function withDataMartContext(error: OWOXApiError, dataMartId: string): OWOXApiError {
-  const details = isRecord(error.details)
-    ? { dataMartId, ...error.details }
-    : {
-        dataMartId,
-        ...(error.details === undefined ? {} : { details: error.details }),
-      };
-  const ErrorClass = error instanceof OWOXAuthError ? OWOXAuthError : OWOXApiError;
-
-  return new ErrorClass(error.message, {
-    status: error.status,
-    code: error.code,
-    details,
-    cause: error,
-  });
-}
-
-export class DataMartDataTraversal {
-  readonly runId: string | undefined;
-  private consumed = false;
-  private cancelled = false;
-
-  constructor(
-    private readonly response: Response,
-    private readonly dataMartId: string
-  ) {
-    this.runId = response.headers.get('x-owox-run-id') ?? undefined;
-  }
-
-  async cancel(): Promise<void> {
-    if (this.consumed || this.cancelled) {
-      return;
-    }
-
-    this.cancelled = true;
-    await this.response.body?.cancel().catch(() => undefined);
-  }
-
-  async *rowChunks(): AsyncIterable<OWOXDataMartRow[]> {
-    if (this.consumed || this.cancelled) {
-      throw new OWOXApiError('OWOX Data Mart data stream can only be traversed once', {
-        details: this.contextDetails(),
-      });
-    }
-    this.consumed = true;
-
-    if (!this.response.body) {
-      throw new OWOXApiError('OWOX Data Mart data stream response did not include a body', {
-        details: this.contextDetails(),
-      });
-    }
-
-    const reader = this.response.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = '';
-    let lineNumber = 0;
-    let streamEnded = false;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        streamEnded = done;
-        pending += decoder.decode(value, { stream: !done });
-
-        const lines = pending.split('\n');
-        pending = lines.pop() ?? '';
-
-        const rows: OWOXDataMartRow[] = [];
-        for (const line of lines) {
-          if (line.length === 0) {
-            continue;
-          }
-          lineNumber += 1;
-          rows.push(this.parseLine(line, lineNumber));
-        }
-
-        if (rows.length > 0) {
-          yield rows;
-        }
-
-        if (done) {
-          break;
-        }
-      }
-
-      if (pending.length > 0) {
-        lineNumber += 1;
-        yield [this.parseLine(pending, lineNumber)];
-      }
-    } catch (error) {
-      if (error instanceof OWOXApiError) {
-        throw error;
-      }
-
-      throw new OWOXApiError('Failed to read OWOX Data Mart data stream', {
-        details: this.contextDetails(),
-        cause: error,
-      });
-    } finally {
-      if (!streamEnded) {
-        await reader.cancel().catch(() => undefined);
-      }
-      reader.releaseLock();
-    }
-  }
-
-  private parseLine(line: string, lineNumber: number): OWOXDataMartRow {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch (error) {
-      throw new OWOXApiError(`Malformed NDJSON line ${lineNumber} in OWOX Data Mart data stream`, {
-        details: {
-          ...this.contextDetails(),
-          lineNumber,
-          linePreview: line.slice(0, 200),
-        },
-        cause: error,
-      });
-    }
-
-    if (!isRecord(parsed)) {
-      throw new OWOXApiError(`NDJSON line ${lineNumber} is not a JSON object`, {
-        details: {
-          ...this.contextDetails(),
-          lineNumber,
-        },
-      });
-    }
-
-    return parsed;
-  }
-
-  private contextDetails(): Record<string, string> {
-    return {
-      dataMartId: this.dataMartId,
-      ...(this.runId ? { runId: this.runId } : {}),
-    };
-  }
-}
+const DATA_MART_TRAVERSAL_SOURCE: TraversalSource = {
+  idKey: 'dataMartId',
+  label: 'OWOX Data Mart',
+};
 
 export class DataMartsApi {
   constructor(private readonly requester: JsonRequester) {}
@@ -262,7 +124,7 @@ export class DataMartsApi {
   async traverseData(
     dataMartId: string,
     options: TraverseDataOptions = {}
-  ): Promise<DataMartDataTraversal> {
+  ): Promise<HttpNdjsonTraversal> {
     const query = buildTraverseDataQuery(options);
     let response: Response;
     try {
@@ -272,7 +134,7 @@ export class DataMartsApi {
       );
     } catch (error) {
       if (error instanceof OWOXApiError) {
-        throw withDataMartContext(error, dataMartId);
+        throw withSourceContext(error, DATA_MART_TRAVERSAL_SOURCE.idKey, dataMartId);
       }
 
       throw new OWOXApiError('Failed to open OWOX Data Mart data stream', {
@@ -281,6 +143,6 @@ export class DataMartsApi {
       });
     }
 
-    return new DataMartDataTraversal(response, dataMartId);
+    return new HttpNdjsonTraversal(response, dataMartId, DATA_MART_TRAVERSAL_SOURCE);
   }
 }
