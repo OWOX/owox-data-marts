@@ -9,6 +9,14 @@ const SUMMARY_HEADER =
   '| API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |';
 const COVERED_TARGETS = new Map([
   [
+    'GET /api/auth/context',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/Authentication/AuthContextController_getContext',
+      'API client': './api-client/#get-auth-context',
+    },
+  ],
+  [
     'GET /api/data-marts/insight-templates',
     {
       OpenAPI:

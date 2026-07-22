@@ -18,7 +18,7 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               155 |     8/155 (5%) |       8/155 (5%) |         8/155 (5%) |        147 |
+|               155 |     9/155 (6%) |       9/155 (6%) |         9/155 (6%) |        146 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -27,7 +27,7 @@ percentages use the complete endpoint inventory below as their denominator.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/auth/context` | Unassessed | Unassessed |
+| `GET /api/auth/context` | [Covered](https://app.owox.com/api/swagger-ui#/Authentication/AuthContextController_getContext) · 2026-07-22 | [Covered](./api-client/#get-auth-context) · 2026-07-22 |
 
 ## Connectors
 
