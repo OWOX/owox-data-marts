@@ -118,16 +118,6 @@ export function ConfigurationOneOfRender({
               />
             ) : (
               Object.entries(option.items).map(([itemName, itemSpec]) => {
-                const currentObjectValue = (
-                  configuration[specification.name] &&
-                  typeof configuration[specification.name] === 'object'
-                    ? configuration[specification.name]
-                    : {}
-                ) as Record<string, unknown>;
-                const isSecret =
-                  Array.isArray(itemSpec.attributes) &&
-                  itemSpec.attributes.includes('SECRET') &&
-                  Object.keys(currentObjectValue)[0] === option.value;
                 const isFieldSecretEditing = fieldSecretEditing[itemName] ?? false;
                 const optionConfiguration =
                   typeof configuration[specification.name] === 'object' &&
@@ -139,6 +129,11 @@ export function ConfigurationOneOfRender({
                   optionConfiguration[option.value] !== null
                     ? (optionConfiguration[option.value] as Record<string, unknown>)
                     : {};
+                // Spec-derived only: keying this off the config made it flip on the
+                // first keystroke, remounting the input and dropping focus.
+                const isSecret = itemSpec.attributes?.includes('SECRET') ?? false;
+                const hasStoredSecret =
+                  isSecret && isEditingExisting && nestedConfiguration[itemName] === SECRET_MASK;
                 return (
                   <div key={itemName} className='mb-4'>
                     <div className='flex items-center justify-between'>
@@ -150,7 +145,7 @@ export function ConfigurationOneOfRender({
                       >
                         {itemName}
                       </AppWizardStepLabel>
-                      {isSecret && isEditingExisting && (
+                      {hasStoredSecret && (
                         <Button
                           variant='ghost'
                           size='sm'
@@ -174,7 +169,7 @@ export function ConfigurationOneOfRender({
                         handleNestedValueChange(option.value, name, value);
                       },
                       flags: {
-                        isEditingExisting: isEditingExisting,
+                        isEditingExisting: hasStoredSecret,
                         isSecret: isSecret,
                         isSecretEditing: isFieldSecretEditing,
                       },

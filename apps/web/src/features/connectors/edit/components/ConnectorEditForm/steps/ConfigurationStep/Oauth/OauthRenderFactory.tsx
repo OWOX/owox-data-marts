@@ -16,6 +16,7 @@ import type {
 import { Button } from '@owox/ui/components/button';
 import { configurationFieldRender } from '../ConfigurationFieldRender';
 import { AppWizardStepLabel } from '@owox/ui/components/common/wizard';
+import { SECRET_MASK } from '../../../../../../../../shared/constants/secrets';
 
 const SOURCE_CREDENTIAL_KEY = '_source_credential_id';
 
@@ -235,10 +236,14 @@ export function OauthRenderFactory({
     return (
       <div className='space-y-4'>
         {Object.entries(option.items).map(([itemName, itemSpec]) => {
-          const isSecret = Array.isArray(itemSpec.attributes)
-            ? itemSpec.attributes.includes('SECRET') && nestedConfiguration[itemName] !== undefined
-            : false;
+          // Spec-derived only: keying this off the value made it flip on the first
+          // keystroke, swapping the rendered field component and remounting the input.
+          const isSecret = itemSpec.attributes?.includes('SECRET') ?? false;
           const isSecretEditing = secretEditing[specification.name] ?? false;
+          // A secret is masked and readonly only once stored; the backend sends
+          // those back as SECRET_MASK.
+          const hasStoredSecret =
+            isSecret && isEditingExisting && nestedConfiguration[itemName] === SECRET_MASK;
 
           return (
             <div key={itemName} className='mb-4'>
@@ -251,7 +256,7 @@ export function OauthRenderFactory({
                 >
                   {itemSpec.title ?? itemName}
                 </AppWizardStepLabel>
-                {isSecret && isEditingExisting && onSecretEditToggle && (
+                {hasStoredSecret && onSecretEditToggle && (
                   <Button
                     variant='ghost'
                     size='sm'
@@ -271,7 +276,7 @@ export function OauthRenderFactory({
                   handleNestedValueChange(name, value);
                 },
                 flags: {
-                  isEditingExisting: isEditingExisting,
+                  isEditingExisting: hasStoredSecret,
                   isSecret: isSecret,
                   isSecretEditing: isSecretEditing,
                 },
