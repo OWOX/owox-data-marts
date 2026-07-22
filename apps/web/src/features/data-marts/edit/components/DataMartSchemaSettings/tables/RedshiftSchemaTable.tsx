@@ -13,6 +13,7 @@ import { SchemaFieldTypeSelect } from '../components';
 import { useDragAndDrop } from '../hooks';
 import { BaseSchemaTable } from './BaseSchemaTable';
 import type { SchemaAiHelper } from '../types/ai-helper';
+import type { SchemaToolbar } from '../types/schema-toolbar';
 
 /**
  * Props for the RedshiftSchemaTable component
@@ -24,6 +25,7 @@ interface RedshiftSchemaTableProps {
   onFieldsChange?: (fields: RedshiftSchemaField[]) => void;
   /** AI helper handlers; omit to hide AI buttons. */
   aiHelper?: SchemaAiHelper;
+  schemaToolbar: SchemaToolbar;
 }
 
 /**
@@ -33,6 +35,7 @@ export function RedshiftSchemaTable({
   fields,
   onFieldsChange,
   aiHelper,
+  schemaToolbar,
 }: RedshiftSchemaTableProps) {
   // Function to create a new Redshift field
   const createNewField = useCallback(() => {
@@ -90,6 +93,7 @@ export function RedshiftSchemaTable({
         }}
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     </DndContext>
   );

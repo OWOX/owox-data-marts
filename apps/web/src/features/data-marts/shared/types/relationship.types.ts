@@ -39,6 +39,7 @@ export interface RelatedDataMart {
   description?: string;
   status: string;
   userHasAccess: boolean;
+  hasPrimaryKey?: boolean;
 }
 
 export interface DataMartRelationship {
@@ -103,6 +104,11 @@ export interface BlendedField {
   targetAlias: string;
   originalFieldName: string;
   type: string;
+  /**
+   * The RAW source-field type, before the dedup effective-type resolution overwrites `type`.
+   * Absent on legacy payloads → callers fall back to `type` (#6733).
+   */
+  sourceFieldType?: string;
   alias: string;
   description: string;
   isHidden: boolean;

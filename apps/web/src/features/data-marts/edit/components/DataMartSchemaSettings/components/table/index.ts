@@ -5,3 +5,4 @@
 
 export * from './TableActionsButton';
 export * from './TableToolbar';
+export * from './SchemaHeaderAiButton';

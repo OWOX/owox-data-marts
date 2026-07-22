@@ -31,6 +31,7 @@ describe('AddReportTool', () => {
     const facade = {
       addReport: jest.fn().mockResolvedValue({
         report_id: 'report-1',
+        destination_type: 'google_sheets',
         owner: 'ann@owox.com',
         status: 'created',
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
@@ -40,6 +41,7 @@ describe('AddReportTool', () => {
 
     const structuredContent = {
       report_id: 'report-1',
+      destination_type: 'google_sheets',
       report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       owner: 'ann@owox.com',
@@ -67,6 +69,58 @@ describe('AddReportTool', () => {
     });
   });
 
+  it('creates a Looker Studio report with connection guidance instead of sheet fields', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-2',
+        destination_type: 'looker_studio',
+        owner: 'ann@owox.com',
+        status: 'created',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler(input, context);
+
+    expect(result.structuredContent).toMatchObject({
+      report_id: 'report-2',
+      destination_type: 'looker_studio',
+      report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
+      owner: 'ann@owox.com',
+      status: 'created',
+      setup_guide_url:
+        'https://docs.owox.com/docs/destinations/supported-destinations/data-studio/',
+    });
+    // The user must finish the connection themselves — the secret never goes
+    // through MCP — so the agent gets explicit instructions to relay.
+    expect(result.structuredContent).toHaveProperty('instructions');
+    expect((result.structuredContent as { instructions: string }).instructions).toContain(
+      'JSON Config'
+    );
+    expect(result.structuredContent).not.toHaveProperty('sheet_url');
+    expect(result.structuredContent).not.toHaveProperty('placed_in_root');
+    expect(result.structuredContent).not.toHaveProperty('shared_with_requester');
+    expect((result.content[0] as { text: string }).text).not.toContain('sheet_url');
+  });
+
+  it('adds no connection guidance for non-Looker destinations', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-4',
+        destination_type: 'slack',
+        owner: 'ann@owox.com',
+        status: 'created',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler({ ...input, message: { body: '{{table}}' } }, context);
+
+    expect(result.structuredContent).toMatchObject({ destination_type: 'slack' });
+    expect(result.structuredContent).not.toHaveProperty('instructions');
+    expect(result.structuredContent).not.toHaveProperty('setup_guide_url');
+  });
+
   it('surfaces sheet placement and sharing warnings when present', async () => {
     const facade = {
       addReport: jest.fn().mockResolvedValue({
@@ -91,12 +145,62 @@ describe('AddReportTool', () => {
     );
   });
 
+  it('passes the message group through to the facade for email-family reports', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-3',
+        owner: 'ann@owox.com',
+        status: 'created',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      { ...input, message: { subject: 'Revenue digest', body: '{{table}}' } },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: { subject: 'Revenue digest', body: '{{table}}' },
+      })
+    );
+  });
+
   it('validates required input and rejects unexpected keys', () => {
     const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ destination_id: 'd', fields: ['*'], name: 'x' })).toThrow();
     expect(() => tool.parseInput({ ...input, fields: [] })).toThrow();
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
+  });
+
+  it('accepts input without a name (Looker Studio reports carry none)', () => {
+    const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
+
+    const parsed = tool.parseInput({
+      data_mart_id: 'dm-1',
+      destination_id: 'dest-1',
+      fields: ['*'],
+    });
+
+    expect(parsed.name).toBeUndefined();
+  });
+
+  it('validates the message group when present', () => {
+    const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
+
+    // body is required inside message; unexpected keys are rejected;
+    // subject and body are trimmed like the report name.
+    expect(() => tool.parseInput({ ...input, message: {} })).toThrow();
+    expect(() => tool.parseInput({ ...input, message: { body: '   ' } })).toThrow();
+    expect(() =>
+      tool.parseInput({ ...input, message: { body: '{{table}}', send_condition: 'ALWAYS' } })
+    ).toThrow();
+    expect(
+      tool.parseInput({ ...input, message: { subject: '  Digest  ', body: ' {{table}} ' } }).message
+    ).toEqual({ subject: 'Digest', body: '{{table}}' });
+    expect(tool.parseInput(input).message).toBeUndefined();
   });
 
   it('trims the report name and rejects whitespace-only names', () => {

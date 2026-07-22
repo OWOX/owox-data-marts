@@ -30,6 +30,13 @@ export interface FilterOrSliceEditorPopoverProps {
   trigger: ReactNode;
   column: string;
   fieldType: string;
+  /**
+   * RAW (pre-join) type used by the Slice tab. A slice runs before the join/dedup, on the
+   * original value, whereas `fieldType` is the post-dedup effective type used by the Filter tab.
+   * They diverge only for a joined field with a type-changing dedup (e.g. STRING deduped by COUNT
+   * → effective INTEGER, raw STRING). Falls back to `fieldType` when absent.
+   */
+  sliceFieldType?: string;
   /** Business-readable field name shown in the header; falls back to `column`. */
   displayLabel?: string;
   /** Joined data mart name shown under the field name; absent for home-mart fields. */
@@ -76,6 +83,10 @@ function TabbedPopover(props: TabbedPopoverProps) {
     props.sliceProps.initialRule ?? null
   );
   const [error, setError] = useState<string | null>(null);
+
+  // The Slice tab operates on the pre-join RAW value, so it uses the raw type; the Filter tab
+  // stays on the post-dedup effective `fieldType`. They differ only for a type-changing dedup.
+  const sliceFieldType = props.sliceFieldType ?? props.fieldType;
 
   // Reset on closed→open only — same pattern as FilterEditorPopover.
   const [openInstanceId, setOpenInstanceId] = useState(0);
@@ -217,7 +228,7 @@ function TabbedPopover(props: TabbedPopoverProps) {
                     className='bg-muted/40 flex items-center gap-2 rounded px-2 py-1 text-xs'
                   >
                     <span className='flex-1 truncate font-mono' title={valueStr}>
-                      <b>{operatorLabelFor(rule.operator, props.fieldType)}</b>
+                      <b>{operatorLabelFor(rule.operator, sliceFieldType)}</b>
                       {valueStr && <>: {valueStr}</>}
                     </span>
                     {props.sliceProps.onRemoveExistingAt && (
@@ -254,7 +265,7 @@ function TabbedPopover(props: TabbedPopoverProps) {
           <FilterValueEditor
             key={`slice-${String(openInstanceId)}`}
             column={props.sliceColumn}
-            fieldType={props.fieldType}
+            fieldType={sliceFieldType}
             initialRule={props.sliceProps.initialRule}
             onChange={handleSliceChange}
           />

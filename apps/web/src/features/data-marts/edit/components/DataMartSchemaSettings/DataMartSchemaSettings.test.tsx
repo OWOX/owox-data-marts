@@ -12,6 +12,7 @@ import {
 import { DataMartDefinitionType } from '../../../shared';
 import type { DataMartContextType } from '../../model/context/types';
 import { DataMartSchemaSettings } from './DataMartSchemaSettings';
+import type { SchemaToolbar } from './types/schema-toolbar';
 
 const testState = vi.hoisted(() => ({
   outletContext: null as unknown,
@@ -74,9 +75,11 @@ vi.mock('./SchemaContent', () => ({
   SchemaContent: ({
     schema,
     onFieldsChange,
+    schemaToolbar,
   }: {
     schema: DataMartSchema | null | undefined;
     onFieldsChange: (fields: BigQueryDataMartSchema['fields']) => void;
+    schemaToolbar: SchemaToolbar;
   }) => {
     const field = schema?.fields[0];
     return (
@@ -86,6 +89,22 @@ vi.mock('./SchemaContent', () => ({
             ? `${field.isHiddenForReporting ? 'hidden' : 'visible'}:${field.alias ?? ''}:${field.description ?? ''}`
             : ''}
         </div>
+        {/* Expose AI toolbar actions for DataMartSchemaSettings tests. */}
+        {schemaToolbar.showAiHelper && (
+          <>
+            <button type='button' onClick={schemaToolbar.ai.onGenerateDescriptions}>
+              Generate field descriptions
+            </button>
+
+            <button type='button' onClick={schemaToolbar.ai.onGenerateAliases}>
+              Generate field aliases
+            </button>
+
+            <button type='button' onClick={schemaToolbar.ai.onGenerateMetadata}>
+              Generate field aliases & descriptions
+            </button>
+          </>
+        )}
         {schema && field && (
           <button
             type='button'

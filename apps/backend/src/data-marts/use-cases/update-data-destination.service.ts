@@ -67,7 +67,9 @@ export class UpdateDataDestinationService {
         command.projectId
       );
       if (!canManage) {
-        throw new ForbiddenException('You cannot manage owners of this Destination');
+        throw new ForbiddenException(
+          'You do not have permission to manage owners of this Destination. You must be an owner of this Destination, or a Project Admin.'
+        );
       }
     }
 
@@ -85,7 +87,9 @@ export class UpdateDataDestinationService {
         command.projectId
       );
       if (!canConfigure) {
-        throw new ForbiddenException('You cannot configure sharing for this Destination');
+        throw new ForbiddenException(
+          'You do not have permission to configure sharing for this Destination. You must be an owner of this Destination, or a Project Admin.'
+        );
       }
     }
 

@@ -10,6 +10,8 @@
     "build": "npm run sync && astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "test": "npm run test:api-coverage",
+    "test:api-coverage": "node --test scripts/api-coverage-matrix.test.mjs && node scripts/api-coverage-matrix.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",

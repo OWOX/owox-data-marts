@@ -3,7 +3,13 @@ import {
   resolveFieldGovernance,
   resolveColumnAllowedAggregations,
   supportedAggregationsForType,
+  effectiveAggregationType,
+  sameAggregationCategory,
 } from './aggregation-governance';
+import {
+  isNumberType,
+  isStringType,
+} from '../../edit/components/ReportColumnPicker/output-controls-operators';
 
 describe('resolveFieldGovernance — type-derived defaults (on-by-default subset)', () => {
   it('number types are metrics with [SUM, AVG, MIN, MAX]', () => {
@@ -217,5 +223,66 @@ describe('supportedAggregationsForType — the full menu a field type permits', 
         expect(supported.has(fn)).toBe(true);
       }
     }
+  });
+});
+
+describe('effectiveAggregationType — mirrors backend computeEffectiveType CATEGORY semantics', () => {
+  it('returns the raw type unchanged when no dedup function is set', () => {
+    expect(effectiveAggregationType('STRING', undefined)).toBe('STRING');
+  });
+
+  it('COUNT / COUNT_DISTINCT widen to an integer type regardless of raw type', () => {
+    expect(effectiveAggregationType('STRING', 'COUNT')).toBe('INTEGER');
+    expect(effectiveAggregationType('STRING', 'COUNT_DISTINCT')).toBe('INTEGER');
+    expect(effectiveAggregationType('DATE', 'COUNT_DISTINCT')).toBe('INTEGER');
+  });
+
+  it('STRING_AGG widens to a string type', () => {
+    expect(effectiveAggregationType('DATE', 'STRING_AGG')).toBe('STRING');
+    expect(effectiveAggregationType('INTEGER', 'STRING_AGG')).toBe('STRING');
+  });
+
+  it('AVG and percentiles widen to a float type', () => {
+    for (const fn of ['AVG', 'P25', 'P50', 'P75', 'P95'] as const) {
+      expect(effectiveAggregationType('INTEGER', fn)).toBe('FLOAT');
+    }
+  });
+
+  it('SUM / MIN / MAX / ANY_VALUE preserve the raw type', () => {
+    for (const fn of ['SUM', 'MIN', 'MAX', 'ANY_VALUE'] as const) {
+      expect(effectiveAggregationType('INTEGER', fn)).toBe('INTEGER');
+      expect(effectiveAggregationType('STRING', fn)).toBe('STRING');
+    }
+  });
+
+  it('the returned type strings are recognized by the web numeric/string type helpers', () => {
+    expect(isNumberType(effectiveAggregationType('STRING', 'COUNT_DISTINCT'))).toBe(true);
+    expect(isNumberType(effectiveAggregationType('INTEGER', 'AVG'))).toBe(true);
+    expect(isStringType(effectiveAggregationType('DATE', 'STRING_AGG'))).toBe(true);
+  });
+
+  it('an effective INTEGER type offers arithmetic aggregations (the #6733 scenario)', () => {
+    const effective = effectiveAggregationType('STRING', 'COUNT_DISTINCT');
+    expect(supportedAggregationsForType(effective)).toEqual(
+      expect.arrayContaining(['SUM', 'AVG', 'MIN', 'MAX'])
+    );
+  });
+});
+
+describe('sameAggregationCategory — whether two effective types share an aggregation category', () => {
+  it('is true for two effective types in the same category (INTEGER and FLOAT are both numeric)', () => {
+    expect(sameAggregationCategory('INTEGER', 'FLOAT')).toBe(true);
+  });
+
+  it('is false across categories (numeric vs string)', () => {
+    expect(sameAggregationCategory('INTEGER', 'STRING')).toBe(false);
+  });
+
+  it('treats date and time as distinct categories', () => {
+    expect(sameAggregationCategory('DATE', 'TIME')).toBe(false);
+  });
+
+  it('is true for two string types', () => {
+    expect(sameAggregationCategory('STRING', 'VARCHAR')).toBe(true);
   });
 });

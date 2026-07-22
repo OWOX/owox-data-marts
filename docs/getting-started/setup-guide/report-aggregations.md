@@ -11,7 +11,7 @@ Summarize Data Mart data directly in a report — group by dimensions, apply agg
 - **Group by** the remaining columns automatically (every non-aggregated selected column becomes a grouping key).
 - **Bucket a date/timestamp** by day, week, month, quarter, or year (with an optional time zone).
 - Add a **Unique count** metric (`COUNT(DISTINCT primary key)`).
-- Get **Totals** for every numeric field — each by all of its allowed functions — returned as a separate block.
+- Get **Totals** for numeric fields and any aggregated metric — each by its allowed functions — returned as a separate block.
 - Govern, at the Data Mart level, which functions each field may use.
 
 Works across all supported storages: **BigQuery, Athena, Snowflake, Redshift, and Databricks**.
@@ -109,9 +109,9 @@ Whenever a report is aggregated, OWOX automatically adds a **`Row Count`** colum
 
 ## Totals
 
-**Totals** are a per-column summary over the full filtered dataset, with no grouping. Every selected **numeric** field is aggregated by **all of its allowed functions** — for example `Sum`, `Average`, `Min`, and `Max` of `revenue`. Totals are computed **in the warehouse** by a separate query and returned as a **separate block**, so they stay accurate and are never recomputed from the displayed rows.
+**Totals** are a per-column summary over the full filtered dataset, with no grouping. Totals cover every selected **numeric** field — aggregated by **all of its allowed functions** (for example `Sum`, `Average`, `Min`, and `Max` of `revenue`) — plus any **non-numeric field the report aggregates as a metric** (for example `Count Unique` on a text `country` column, giving its distinct count). `Sample` (`ANY_VALUE`) and `Combined` (`STRING_AGG`) are **never** part of Totals: a single representative value or a full-column concatenation is not a meaningful grand total. Totals are computed **in the warehouse** by a separate query and returned as a **separate block**, so they stay accurate and are never recomputed from the displayed rows.
 
-Totals are produced even when the report itself is not grouped, and they cover numeric fields from joined Data Marts as well. `Row Count` and `Unique count` are not part of Totals.
+Totals are produced even when the report itself is not grouped, and fields from joined Data Marts are included on the same basis (numeric fields automatically; non-numeric ones when the report aggregates them). `Row Count` and `Unique count` are not part of Totals.
 
 > ⚠️ Totals are returned in the report **data API** (used by the MCP server and HTTP destinations), not written into Google Sheets or Looker Studio report output.
 
@@ -130,6 +130,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - A date bucket's time zone affects only the bucketing. Date **filters** on the same field are evaluated in the warehouse's session time zone, so rows near midnight can land on different sides of a bucket boundary than of a filter boundary. Keep this in mind when combining a non-session time-zone bucket with a date filter on the same field.
 - Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, and Databricks, so the same percentile can differ slightly between storages.
 - For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).
+- **Totals over joined fields are approximate**, because they re-aggregate the per-join roll-up rather than raw rows: `AVG`/percentiles are unweighted (an average of per-join averages), and a `Count Unique` over a joined **text** field counts distinct rolled-up values (by default a concatenation of the joined rows), not distinct raw values. Totals over the Data Mart's own (native) fields are exact.
 
 ## Related Links
 

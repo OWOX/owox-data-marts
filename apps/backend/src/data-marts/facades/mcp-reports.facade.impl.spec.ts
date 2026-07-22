@@ -26,8 +26,14 @@ jest.mock('../services/data-mart-run.service', () => ({
 jest.mock('../services/data-mart.service', () => ({
   DataMartService: jest.fn(),
 }));
+jest.mock('../services/data-destination.service', () => ({
+  DataDestinationService: jest.fn(),
+}));
 jest.mock('../services/report-access.service', () => ({
   ReportAccessService: jest.fn(),
+}));
+jest.mock('../services/report.service', () => ({
+  ReportService: jest.fn(),
 }));
 jest.mock('../services/output-controls-validator.service', () => ({
   OutputControlsValidatorService: jest.fn(),
@@ -40,6 +46,7 @@ jest.mock('../services/access-decision', () => ({
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RunType } from '../../common/scheduler/shared/types';
+import { QueryFailedError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { DataMart } from '../entities/data-mart.entity';
@@ -52,10 +59,12 @@ import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ReportDto } from '../dto/domain/report.dto';
 import type { AccessDecisionService } from '../services/access-decision';
+import type { DataDestinationService } from '../services/data-destination.service';
 import type { DataMartRunService } from '../services/data-mart-run.service';
 import type { DataMartService } from '../services/data-mart.service';
 import type { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import type { ReportAccessService } from '../services/report-access.service';
+import type { ReportService } from '../services/report.service';
 import type { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import type { CreateReportService } from '../use-cases/create-report.service';
 import type { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
@@ -165,6 +174,12 @@ function createMocks() {
         storage: { type: 'GOOGLE_BIGQUERY' },
       } as DataMart),
     } as unknown as jest.Mocked<DataMartService>,
+    dataDestinationService: {
+      getByIdAndProjectId: jest.fn().mockResolvedValue({
+        id: 'dest-1',
+        type: DataDestinationType.GOOGLE_SHEETS,
+      }),
+    } as unknown as jest.Mocked<DataDestinationService>,
     accessDecisionService: {
       canAccess: jest.fn().mockResolvedValue(true),
     } as unknown as jest.Mocked<AccessDecisionService>,
@@ -174,6 +189,9 @@ function createMocks() {
     outputControlsValidator: {
       validateForReport: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<OutputControlsValidatorService>,
+    reportService: {
+      existsByDataMartIdAndDestinationIdAndProjectId: jest.fn().mockResolvedValue(false),
+    } as unknown as jest.Mocked<ReportService>,
   };
 }
 
@@ -203,9 +221,11 @@ function createFacade(overrides?: {
       mocks.runReportService,
       mocks.dataMartRunService,
       mocks.dataMartService,
+      mocks.dataDestinationService,
       mocks.accessDecisionService,
       mocks.reportAccessService,
-      mocks.outputControlsValidator
+      mocks.outputControlsValidator,
+      mocks.reportService
     ),
     ...mocks,
   };
@@ -467,6 +487,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
     );
     expect(result).toEqual({
       report_id: 'report-1',
+      destination_type: 'google_sheets',
       owner: 'ann@owox.com',
       status: 'created',
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
@@ -576,6 +597,339 @@ describe('McpReportsFacadeImpl.addReport', () => {
     );
     expect(createReportService.run).not.toHaveBeenCalled();
   });
+
+  it('creates a Looker Studio report with the default config and no sheet fields', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+      accessDecisionService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    createReportService.run.mockResolvedValue({
+      id: 'report-1',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport({ ...addRequest, name: undefined });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        // Looker Studio reports carry no name; the domain clears the title on
+        // insert, so the facade passes the empty string it would become anyway.
+        title: '',
+        dataMartId: 'dm-1',
+        dataDestinationId: 'dest-1',
+        destinationConfig: {
+          type: 'looker-studio-config',
+          cacheLifetime: 300,
+        },
+        columnConfig: ['channel', 'revenue'],
+      })
+    );
+    // No external side effect → no sheet and no pre-flight; CreateReportService
+    // performs every check itself, inside its transaction.
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(outputControlsValidator.validateForReport).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      report_id: 'report-1',
+      destination_type: 'looker_studio',
+      owner: 'ann@owox.com',
+      status: 'created',
+    });
+    expect(result).not.toHaveProperty('sheet_url');
+  });
+
+  it('maps fields ["*"] to no column projection for Looker Studio reports', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    createReportService.run.mockResolvedValue({ id: 'report-3', createdByUser: null } as ReportDto);
+
+    await facade.addReport({ ...addRequest, name: undefined, fields: ['*'] });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: null })
+    );
+  });
+
+  it('rejects a provided name for Looker Studio reports, which carry none', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'name parameter is not applicable to Looker Studio'
+    );
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a second Looker Studio report for the same data mart and destination', async () => {
+    const { facade, dataDestinationService, createReportService, reportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    reportService.existsByDataMartIdAndDestinationIdAndProjectId.mockResolvedValue(true);
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      'already exists for this data mart and destination'
+    );
+    expect(reportService.existsByDataMartIdAndDestinationIdAndProjectId).toHaveBeenCalledWith(
+      'dm-1',
+      'dest-1',
+      'project-1'
+    );
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('translates a lost duplicate race into the same clean error', async () => {
+    const { facade, dataDestinationService, createReportService, reportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    // First check passes (no report yet); the concurrent winner then makes the
+    // INSERT fail, and the re-check finds the now-existing report.
+    reportService.existsByDataMartIdAndDestinationIdAndProjectId
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    createReportService.run.mockRejectedValue(
+      new QueryFailedError('INSERT INTO report', [], new Error('duplicate key'))
+    );
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      'already exists for this data mart and destination'
+    );
+  });
+
+  it('keeps the original error when a Looker insert fails for another reason', async () => {
+    const { facade, dataDestinationService, createReportService, reportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    reportService.existsByDataMartIdAndDestinationIdAndProjectId.mockResolvedValue(false);
+    createReportService.run.mockRejectedValue(
+      new QueryFailedError('INSERT INTO report', [], new Error('connection reset'))
+    );
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      QueryFailedError
+    );
+  });
+
+  it('requires a name for Google Sheets reports', async () => {
+    const { facade, createGoogleSheetDocumentService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+
+    await expect(facade.addReport({ ...addRequest, name: undefined })).rejects.toThrow(
+      'name is required'
+    );
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('requires a name for email-family reports', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.EMAIL,
+    } as never);
+
+    await expect(
+      facade.addReport({ ...addRequest, name: undefined, message: { body: '{{table}}' } })
+    ).rejects.toThrow('name is required');
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('creates an email-family report with the message and the default send condition', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+      accessDecisionService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.SLACK,
+    } as never);
+    createReportService.run.mockResolvedValue({
+      id: 'report-4',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport({
+      ...addRequest,
+      message: { subject: 'Weekly revenue by channel', body: 'Fresh numbers:\n{{table}}' },
+    });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        userId: 'user-1',
+        title: 'Weekly revenue',
+        dataMartId: 'dm-1',
+        dataDestinationId: 'dest-1',
+        destinationConfig: {
+          type: 'email-config',
+          subject: 'Weekly revenue by channel',
+          templateSource: {
+            type: 'CUSTOM_MESSAGE',
+            config: { messageTemplate: 'Fresh numbers:\n{{table}}' },
+          },
+          reportCondition: 'ALWAYS',
+        },
+        columnConfig: ['channel', 'revenue'],
+      })
+    );
+    // No external side effect → no sheet and no pre-flight (same as Looker).
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(outputControlsValidator.validateForReport).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      report_id: 'report-4',
+      destination_type: 'slack',
+      owner: 'ann@owox.com',
+      status: 'created',
+    });
+    expect(result).not.toHaveProperty('sheet_url');
+  });
+
+  it('defaults the message subject to the report name', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.EMAIL,
+    } as never);
+    createReportService.run.mockResolvedValue({ id: 'report-5', createdByUser: null } as ReportDto);
+
+    await facade.addReport({ ...addRequest, message: { body: '{{table}}' } });
+
+    expect(createReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: expect.objectContaining({ subject: 'Weekly revenue' }),
+      })
+    );
+  });
+
+  it('requires message.body for email-family destinations', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.MS_TEAMS,
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'message.body is required for Microsoft Teams destinations'
+    );
+    await expect(
+      facade.addReport({ ...addRequest, message: { subject: 'Hi', body: '   ' } })
+    ).rejects.toThrow('message.body is required');
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects the message parameter for destinations that cannot carry one', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    const messageRequest = { ...addRequest, message: { body: '{{table}}' } };
+
+    await expect(facade.addReport(messageRequest)).rejects.toThrow(
+      'the target destination is Google Sheets'
+    );
+
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+    await expect(facade.addReport(messageRequest)).rejects.toThrow(
+      'the target destination is Data Studio'
+    );
+
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported destination types by name without touching any service', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    // Every current product type is supported; the guard protects against
+    // future enum values reaching the tool before it learns about them.
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: 'SOME_FUTURE_TYPE',
+    } as never);
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(
+      'add_report does not support SOME_FUTURE_TYPE destinations yet'
+    );
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('propagates a missing destination without creating anything', async () => {
+    const {
+      facade,
+      dataDestinationService,
+      createGoogleSheetDocumentService,
+      createReportService,
+    } = createFacade({ reports: [], triggers: [] });
+    dataDestinationService.getByIdAndProjectId.mockRejectedValue(
+      new NotFoundException('Data Destination with id dest-1 and projectId project-1 not found')
+    );
+
+    await expect(facade.addReport(addRequest)).rejects.toThrow(NotFoundException);
+    expect(createGoogleSheetDocumentService.run).not.toHaveBeenCalled();
+    expect(createReportService.run).not.toHaveBeenCalled();
+  });
 });
 
 describe('McpReportsFacadeImpl.updateReport', () => {
@@ -647,7 +1001,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     const { facade, getReportService, updateReportService } = buildUpdateFacade();
 
     await expect(facade.updateReport(updateRequest)).rejects.toThrow(
-      'Nothing to update: provide fields and/or name'
+      'Nothing to update: provide fields, name, and/or message'
     );
     expect(getReportService.run).not.toHaveBeenCalled();
     expect(updateReportService.run).not.toHaveBeenCalled();
@@ -694,6 +1048,154 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     await expect(facade.updateReport({ ...updateRequest, name: 'New name' })).rejects.toThrow(
       'not found'
     );
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a rename of a Looker Studio report, which carries no name', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      title: '',
+      dataDestinationAccess: { id: 'dest-3', type: DataDestinationType.LOOKER_STUDIO },
+      destinationConfig: { type: 'looker-studio-config', cacheLifetime: 300 },
+    } as unknown as ReportDto);
+
+    await expect(facade.updateReport({ ...updateRequest, name: 'New name' })).rejects.toThrow(
+      'not applicable to Looker Studio'
+    );
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('still updates the column selection of a Looker Studio report', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      title: '',
+      dataDestinationAccess: { id: 'dest-3', type: DataDestinationType.LOOKER_STUDIO },
+      destinationConfig: { type: 'looker-studio-config', cacheLifetime: 300 },
+    } as unknown as ReportDto);
+
+    await facade.updateReport({ ...updateRequest, fields: ['channel'] });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '', columnConfig: ['channel'] })
+    );
+  });
+
+  const currentEmailReport = {
+    ...currentReport,
+    dataDestinationAccess: { id: 'dest-2', type: DataDestinationType.SLACK },
+    destinationConfig: {
+      type: 'email-config',
+      subject: 'Old subject',
+      templateSource: {
+        type: 'CUSTOM_MESSAGE',
+        config: { messageTemplate: 'Old body {{table}}' },
+      },
+      reportCondition: 'RESULT_IS_NOT_EMPTY',
+    },
+  } as unknown as ReportDto;
+
+  function buildEmailUpdateFacade() {
+    const built = buildUpdateFacade();
+    built.getReportService.run.mockResolvedValue(currentEmailReport);
+    return built;
+  }
+
+  it('updates the message subject and body while preserving the send condition', async () => {
+    const { facade, updateReportService } = buildEmailUpdateFacade();
+
+    await facade.updateReport({
+      ...updateRequest,
+      message: { subject: 'New subject', body: 'New body' },
+    });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Old name',
+        dataDestinationId: 'dest-2',
+        destinationConfig: {
+          type: 'email-config',
+          subject: 'New subject',
+          templateSource: {
+            type: 'CUSTOM_MESSAGE',
+            config: { messageTemplate: 'New body' },
+          },
+          reportCondition: 'RESULT_IS_NOT_EMPTY',
+        },
+      })
+    );
+  });
+
+  it('changes only the subject, keeping the current template source untouched', async () => {
+    const { facade, getReportService, updateReportService } = buildEmailUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentEmailReport,
+      destinationConfig: {
+        type: 'email-config',
+        subject: 'Old subject',
+        templateSource: {
+          type: 'INSIGHT_TEMPLATE',
+          config: { insightTemplateId: 'tpl-1' },
+        },
+        reportCondition: 'ALWAYS',
+      },
+    } as unknown as ReportDto);
+
+    await facade.updateReport({ ...updateRequest, message: { subject: 'New subject' } });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: {
+          type: 'email-config',
+          subject: 'New subject',
+          templateSource: {
+            type: 'INSIGHT_TEMPLATE',
+            config: { insightTemplateId: 'tpl-1' },
+          },
+          reportCondition: 'ALWAYS',
+        },
+      })
+    );
+  });
+
+  it('changes only the body, keeping the current subject and switching to a custom message', async () => {
+    const { facade, updateReportService } = buildEmailUpdateFacade();
+
+    await facade.updateReport({ ...updateRequest, message: { body: 'Only new body' } });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destinationConfig: expect.objectContaining({
+          subject: 'Old subject',
+          templateSource: {
+            type: 'CUSTOM_MESSAGE',
+            config: { messageTemplate: 'Only new body' },
+          },
+        }),
+      })
+    );
+  });
+
+  it('rejects message changes for reports whose destination has no message', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      dataDestinationAccess: { id: 'dest-1', type: DataDestinationType.GOOGLE_SHEETS },
+    } as unknown as ReportDto);
+
+    await expect(
+      facade.updateReport({ ...updateRequest, message: { subject: 'New subject' } })
+    ).rejects.toThrow("this report's destination is Google Sheets");
+    expect(updateReportService.run).not.toHaveBeenCalled();
+  });
+
+  it('rejects a message group with nothing meaningful inside', async () => {
+    const { facade, updateReportService } = buildEmailUpdateFacade();
+
+    await expect(
+      facade.updateReport({ ...updateRequest, message: { subject: '   ' } })
+    ).rejects.toThrow('Provide at least one of message.subject or message.body');
     expect(updateReportService.run).not.toHaveBeenCalled();
   });
 });

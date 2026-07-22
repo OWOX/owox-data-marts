@@ -19,7 +19,7 @@ import {
   Play,
   Plus,
   Send,
-  Sparkles,
+  Bookmark,
   Trash2,
   OctagonX,
 } from 'lucide-react';
@@ -1010,9 +1010,9 @@ export default function InsightDetailsView() {
                         <Empty className='h-full'>
                           <EmptyHeader>
                             <EmptyMedia variant='icon'>
-                              <Sparkles />
+                              <Bookmark />
                             </EmptyMedia>
-                            <EmptyTitle>Even data needs a little spark</EmptyTitle>
+                            <EmptyTitle>Ready to explore your data?</EmptyTitle>
                             <EmptyDescription>
                               Run the insight to uncover the story behind your data!
                             </EmptyDescription>

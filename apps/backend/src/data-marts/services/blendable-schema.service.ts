@@ -20,6 +20,10 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { buildBlendedFieldUnifiedName } from './blended-field-name';
+import { computeEffectiveType } from '../data-storage-types/field-aggregation';
+import { StorageFieldType } from '../dto/domain/storage-field-type';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 export interface BlendableSchemaAccessor {
   userId: string;
@@ -95,6 +99,7 @@ interface CollectContext {
   availableSources: AvailableSourceDto[];
   branchDmIds: Set<string>;
   depth: number;
+  storageType: DataStorageType;
 }
 
 @Injectable()
@@ -142,6 +147,7 @@ export class BlendableSchemaService {
       availableSources,
       branchDmIds,
       depth: 1,
+      storageType: dataMart.storage.type,
     });
 
     await this.applyReportingAccess(availableSources, projectId, accessor);
@@ -222,11 +228,10 @@ export class BlendableSchemaService {
       );
       const flatTargetFields = flattenSchemaFields(targetSchemaFields);
 
-      // `sqlPrefix` is SQL‑safe because each `targetAlias` segment in
-      // `currentPath` is validated against `^[a-z0-9_]+$` in the Join
-      // Settings form. `displayPrefix` is free‑form and must never flow
-      // into SQL identifiers.
-      const sqlPrefix = currentPath.replace(/\./g, '_');
+      // Each `targetAlias` segment in `currentPath` is validated against
+      // `^[a-z0-9_]+$` in the Join Settings form, so the SQL-safe prefix
+      // derived inside `buildBlendedFieldUnifiedName` is safe. `displayPrefix`
+      // is free-form and must never flow into SQL identifiers.
       const displayPrefix = sourceConfig?.alias ?? rel.targetDataMart.title;
 
       const availableSource = new AvailableSourceDto();
@@ -245,9 +250,7 @@ export class BlendableSchemaService {
         const fieldOverride = sourceConfig?.fields?.[field.name];
 
         const dto = new BlendedFieldDto();
-        // Replace dots in nested struct field paths (e.g. `struct.field`) with
-        // underscores so the resulting alias is a valid SQL identifier.
-        dto.name = `${sqlPrefix}__${field.name.replace(/\./g, '_')}`;
+        dto.name = buildBlendedFieldUnifiedName(currentPath, field.name);
         dto.aliasPath = currentPath;
         dto.outputPrefix = displayPrefix;
         dto.sourceRelationshipId = rel.id;
@@ -255,16 +258,33 @@ export class BlendableSchemaService {
         dto.sourceDataMartTitle = rel.targetDataMart.title;
         dto.targetAlias = rel.targetAlias;
         dto.originalFieldName = field.name;
-        dto.type = field.type;
+        const dedupFunction =
+          fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type);
+        // A joined field's value in the blended result is its DEDUP (pre-join) output, so its
+        // effective type — and thus which report-level aggregations are legal/offered — follows
+        // the dedup function, not the raw source type (#6733). E.g. COUNT_DISTINCT on a STRING
+        // hitId yields a per-key INTEGER count → SUM/AVG/MIN/MAX become available (SUM default).
+        // For the default dedups the effective type is type-PRESERVING for numeric (→SUM) and
+        // date (→MAX), so it equals the raw type; but `other` (→STRING_AGG) intentionally
+        // recategorizes to string, since the STRING_AGG output genuinely IS a string.
+        const effectiveType = computeEffectiveType(
+          field.type as StorageFieldType,
+          dedupFunction,
+          ctx.storageType
+        );
+        // Carry the RAW type BEFORE overwriting `type` with the effective type, so the web can
+        // recompute effective types for type-preserving dedups off the true base (#6733).
+        dto.sourceFieldType = field.type;
+        dto.type = effectiveType;
         dto.alias = fieldOverride?.alias ?? field.alias ?? '';
         dto.description = field.description ?? '';
         dto.isHidden = fieldOverride?.isHidden ?? false;
-        dto.aggregateFunction =
-          fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type);
-        // No override → type-derived allowed set (governance default); explicit `[]` = none allowed.
+        dto.aggregateFunction = dedupFunction;
+        // No override → effective-type governance default; explicit `[]` = none allowed. Existing
+        // explicit overrides are kept verbatim — we only widen the offered set, never rewrite it.
         dto.postJoinAggregations =
           fieldOverride?.postJoinAggregations ??
-          resolveFieldGovernance(field.type).allowedAggregations;
+          resolveFieldGovernance(effectiveType).allowedAggregations;
         dto.transitiveDepth = ctx.depth;
 
         ctx.result.push(dto);

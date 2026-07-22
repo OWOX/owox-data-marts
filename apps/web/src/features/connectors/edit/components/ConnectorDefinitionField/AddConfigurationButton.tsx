@@ -6,7 +6,7 @@ import type { ConnectorConfig } from '../../../../data-marts/edit';
 
 interface AddConfigurationButtonProps {
   storageType: DataStorageType;
-  onAddConfiguration: (newConfig: Record<string, unknown>) => void;
+  onAddConfiguration: (connector: ConnectorConfig) => void;
   existingConnector?: ConnectorConfig;
 }
 
@@ -20,8 +20,9 @@ export function AddConfigurationButton({
       <DataMartConnectorView
         dataStorageType={storageType}
         onSubmit={(connector: ConnectorConfig) => {
-          const newConfig = connector.source.configuration[0] || {};
-          onAddConfiguration(newConfig);
+          // Pass the whole connector (not just configuration[0]) so the Data Level-derived
+          // fields computed in ConnectorEditForm reach addConfiguration and get merged in.
+          onAddConfiguration(connector);
         }}
         configurationOnly={true}
         existingConnector={

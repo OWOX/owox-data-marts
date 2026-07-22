@@ -1,6 +1,14 @@
 import { Badge } from '@owox/ui/components/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { ExternalLink, Info, Locate, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ExternalLink,
+  Info,
+  Locate,
+  Maximize2,
+  TriangleAlert,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
@@ -43,8 +51,11 @@ import type {
 import { NoAccessIndicatorNative } from './NoAccessIndicator';
 import {
   CYCLE_STUB_TOOLTIP,
-  getRelationshipWarningLabel,
-  hasRelationshipWarning,
+  getRelationshipIndicator,
+  hasConnectionWarning,
+  hasNodeWarning,
+  isMissingPrimaryKeyWarning,
+  MISSING_PRIMARY_KEY_TOOLTIP,
 } from './relationship-warning-state';
 import {
   GRAPH_ZOOM_MAX,
@@ -76,6 +87,8 @@ const FIT_VIEW_SCALE = 0.85;
 const FIT_VIEW_PADDING = 1 / FIT_VIEW_SCALE - 1;
 const GRAPH_ZOOM_MIN = 0.05;
 const GRAPH_PAN_PADDING = 150;
+// Functional "attention" (e.g. missing PK) — amber, distinct from the non-functional WARNING_COLOR.
+const ATTENTION_COLOR = '#f59e0b'; // amber-500
 
 export interface RelationshipNodeData {
   isSource: boolean;
@@ -87,6 +100,7 @@ export interface RelationshipNodeData {
   isBlocked: boolean;
   isJoinNotConfigured: boolean;
   isCycleStub: boolean;
+  isMissingPrimaryKey: boolean;
   userHasAccess: boolean;
   hasOutgoing: boolean;
   highlighted: boolean;
@@ -168,8 +182,8 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
     );
   }
 
-  const borderColor = hasRelationshipWarning(data) ? WARNING_COLOR : NODE_BORDER_COLOR;
-  const badgeLabel = getRelationshipWarningLabel(data);
+  const borderColor = hasNodeWarning(data) ? WARNING_COLOR : NODE_BORDER_COLOR;
+  const indicator = getRelationshipIndicator(data);
   const openExternalLabel = `Open ${data.label} in new tab`;
 
   return (
@@ -192,7 +206,7 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
-      {badgeLabel && (
+      {indicator?.kind === 'warning' && (
         <span
           style={{
             position: 'absolute',
@@ -205,7 +219,28 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
             whiteSpace: 'nowrap',
           }}
         >
-          {badgeLabel}
+          {indicator.label}
+        </span>
+      )}
+      {indicator?.kind === 'attention' && (
+        <span
+          title={MISSING_PRIMARY_KEY_TOOLTIP}
+          style={{
+            position: 'absolute',
+            top: -18,
+            right: 4,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 2,
+            fontSize: 10,
+            fontWeight: 600,
+            color: ATTENTION_COLOR,
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <TriangleAlert style={{ width: 12, height: 12 }} />
+          {indicator.label}
         </span>
       )}
       <Handle type='target' position={Position.Left} isConnectable={false} style={SOCKET_STYLE} />
@@ -335,6 +370,7 @@ interface NodeInfo {
   isBlocked?: boolean;
   isJoinNotConfigured?: boolean;
   isCycleStub?: boolean;
+  isMissingPrimaryKey?: boolean;
 }
 
 interface EdgeInfo {
@@ -364,6 +400,7 @@ function getRelationshipFlowGraphIdentity(graph: RelationshipFlowGraph): string 
       node.data.isBlocked,
       node.data.isJoinNotConfigured,
       node.data.isCycleStub,
+      node.data.isMissingPrimaryKey,
       node.data.userHasAccess,
       node.data.hasOutgoing,
     ]),
@@ -434,6 +471,10 @@ function buildRelationshipFlow(
           isBlocked: node.isBlocked,
           isJoinNotConfigured: node.relationship.joinConditions.length === 0,
           isCycleStub: node.isCycleStub,
+          isMissingPrimaryKey: isMissingPrimaryKeyWarning(
+            node.relationship.targetDataMart.hasPrimaryKey,
+            node.relationship.joinConditions.length
+          ),
           userHasAccess: node.relationship.targetDataMart.userHasAccess,
         },
         node.aliasPath
@@ -455,6 +496,10 @@ function buildRelationshipFlow(
           isBlocked: rootIsDraft,
           isJoinNotConfigured: rel.joinConditions.length === 0,
           isCycleStub: rel.targetDataMart.id === dataMartId,
+          isMissingPrimaryKey: isMissingPrimaryKeyWarning(
+            rel.targetDataMart.hasPrimaryKey,
+            rel.joinConditions.length
+          ),
           userHasAccess: rel.targetDataMart.userHasAccess,
         },
         rel.targetAlias
@@ -514,6 +559,7 @@ function buildRelationshipFlow(
         isBlocked: info.isBlocked ?? false,
         isJoinNotConfigured: info.isJoinNotConfigured ?? false,
         isCycleStub: info.isCycleStub ?? false,
+        isMissingPrimaryKey: info.isMissingPrimaryKey ?? false,
         userHasAccess: info.userHasAccess,
         hasOutgoing: hasOutgoing.has(nodeKey) && !info.isCycleStub,
         highlighted: false,
@@ -530,15 +576,8 @@ function buildRelationshipFlow(
     const src = nodeInfos.get(edge.sourceId);
     const tgt = nodeInfos.get(edge.targetId);
     if (!src || !tgt) continue;
-    const warning =
-      src.isDraft === true ||
-      src.isBlocked === true ||
-      src.isJoinNotConfigured === true ||
-      src.isCycleStub === true ||
-      tgt.isDraft === true ||
-      tgt.isBlocked === true ||
-      tgt.isJoinNotConfigured === true ||
-      tgt.isCycleStub === true;
+    // Attention-kind endpoints (e.g. missing PK) intentionally do NOT color the edge — the join works.
+    const warning = hasConnectionWarning(src, tgt);
 
     edges.push({
       id: `${edge.sourceId}->${edge.targetId}`,

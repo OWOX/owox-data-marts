@@ -286,6 +286,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       <RowFilterIcon
         column={field.name}
         fieldType={filterableType}
+        sliceFieldType={field.sourceFieldType ?? field.type}
         displayLabel={fieldDisplayLabel(field.alias, field.originalFieldName)}
         dataMartName={dataMartName}
         activeRules={columnFilters.rules}
@@ -556,19 +557,25 @@ export function ReportColumnPicker({
 
   const unresolvedSlices = useMemo(() => {
     if (!schema) return [];
-    const typeByName = new Map<string, string>();
+    // Slices run pre-join on the raw value, so their operator labels key off the raw
+    // sourceFieldType, not the post-dedup effective `type` (kept for the filter section).
+    const typeByName = new Map<string, { fieldType: string; sliceFieldType: string }>();
     for (const f of schema.blendedFields) {
-      if (f.type) typeByName.set(f.name, f.type);
+      if (f.type) {
+        typeByName.set(f.name, { fieldType: f.type, sliceFieldType: f.sourceFieldType ?? f.type });
+      }
     }
     const seen = new Set<string>();
-    const result: { column: string; fieldType?: string }[] = [];
+    const result: { column: string; fieldType?: string; sliceFieldType?: string }[] = [];
     for (const rule of effectiveOutputConfig.filterConfig) {
       if (rule.placement !== 'pre-join') continue;
       if (knownSliceKeys.has(rule.column) || seen.has(rule.column)) continue;
       seen.add(rule.column);
+      const types = typeByName.get(rule.column);
       result.push({
         column: rule.column,
-        fieldType: typeByName.get(rule.column),
+        fieldType: types?.fieldType,
+        sliceFieldType: types?.sliceFieldType,
       });
     }
     return result;
@@ -733,7 +740,9 @@ export function ReportColumnPicker({
       entry.columns.push({
         id: field.name,
         name: field.originalFieldName,
-        type: field.type,
+        // joinedSources feeds the Output settings → Slices surface only. Slices run pre-join on the
+        // raw value, so use the raw source type (not the post-dedup effective `field.type`).
+        type: field.sourceFieldType ?? field.type,
         alias: field.alias,
       });
     }
@@ -1238,7 +1247,7 @@ export function ReportColumnPicker({
                 </label>
               );
             })}
-            {visibleUnresolvedSlices.map(({ column, fieldType }) => {
+            {visibleUnresolvedSlices.map(({ column, fieldType, sliceFieldType }) => {
               const slices = preJoinByAliasPathColumn.get(column) ?? EMPTY_COLUMN_FILTERS;
               return (
                 <label
@@ -1251,6 +1260,7 @@ export function ReportColumnPicker({
                     <RowFilterIcon
                       column={column}
                       fieldType={fieldType ?? 'STRING'}
+                      sliceFieldType={sliceFieldType ?? fieldType ?? 'STRING'}
                       activeRules={EMPTY_COLUMN_FILTERS.rules}
                       onRemoveAt={() => undefined}
                       sliceIconProps={{

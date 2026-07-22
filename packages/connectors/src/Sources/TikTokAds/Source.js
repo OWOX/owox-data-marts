@@ -5,6 +5,8 @@
  * file that was distributed with this source code.
  */
 
+var TIKTOK_ADS_DATA_LEVELS = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
+
 var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
   constructor(config) {
@@ -103,8 +105,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string",
         default: "AUCTION_AD",
         label: "Data Level",
-        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        description: "Data level for ad_insights reports. Switching levels after data exists can corrupt merges — use a new table in another Data Mart instead.",
+        options: TIKTOK_ADS_DATA_LEVELS
       },
       StartDate: {
         requiredType: "date",
@@ -311,8 +313,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
       this.config.DataLevel.value : "AUCTION_AD";
 
-    const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
-    if (!validDataLevels.includes(dataLevel)) {
+    if (!TIKTOK_ADS_DATA_LEVELS.includes(dataLevel)) {
       this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
       dataLevel = "AUCTION_AD";
     }
@@ -361,8 +362,57 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   }
 
   /**
+   * Get unique key fields for a node, accounting for data-level dependent dimensions.
+   *
+   * advertiser_id is always included for the insights nodes: AdvertiserIDs can list
+   * several advertisers that all write into the same destination table (one storage
+   * instance is cached per node in Connector.js), and at AUCTION_ADVERTISER there is no
+   * other dimension to tell two advertisers' same-day rows apart, so the MERGE key would
+   * collide across advertisers without it. campaign_id/adgroup_id/ad_id are unique
+   * platform-wide, so this is a no-op (redundant-but-harmless) at the other data levels.
+   *
+   * @param {string} nodeName - The node name (e.g. ad_insights, ad_insights_by_country)
+   * @param {string} dataLevel - The reporting data level (only relevant for insights nodes)
+   * @return {array} - Array of unique key fields
+   */
+  getUniqueKeysForNode(nodeName, dataLevel) {
+    if (nodeName === 'ad_insights') {
+      return this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'advertiser_id');
+    }
+    if (nodeName === 'ad_insights_by_country') {
+      const dimensions = this.populateDimensions(this.getDimensionsForDataLevel(dataLevel), 'country_code');
+      return this.populateDimensions(dimensions, 'advertiser_id');
+    }
+    return this.fieldsSchema[nodeName]?.uniqueKeys ?? [];
+  }
+
+  /**
+   * Get fields schema, adding a uniqueKeysByDataLevel map to insights nodes so the
+   * config UI can pin the correct fields for whichever DataLevel the user picks
+   * (e.g. AUCTION_ADVERTISER doesn't require ad_id, only AUCTION_AD does). Reuses
+   * getUniqueKeysForNode so the UI can never drift from the actual merge/validation keys.
+   *
+   * @return {object} - Fields schema, keyed by node name
+   */
+  getFieldsSchema() {
+    const schema = super.getFieldsSchema();
+
+    for (const nodeName of ['ad_insights', 'ad_insights_by_country']) {
+      if (!schema[nodeName]) continue;
+
+      const uniqueKeysByDataLevel = {};
+      for (const level of TIKTOK_ADS_DATA_LEVELS) {
+        uniqueKeysByDataLevel[level] = this.getUniqueKeysForNode(nodeName, level);
+      }
+      schema[nodeName] = { ...schema[nodeName], uniqueKeysByDataLevel };
+    }
+
+    return schema;
+  }
+
+  /**
    * Filter and validate metrics for API request
-   * 
+   *
    * @param {array} filteredFields - All requested fields
    * @param {array} dimensions - Dimension fields to exclude
    * @param {array} validMetricsList - List of valid metrics
@@ -394,8 +444,12 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Validate that required unique fields are included
     if (this.fieldsSchema[nodeName].uniqueKeys) {
-      const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys;
-      const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
+      const isInsightsNode = nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country';
+      const nodeDataLevel = isInsightsNode ? this.getValidatedDataLevel() : null;
+      const uniqueKeys = this.getUniqueKeysForNode(nodeName, nodeDataLevel);
+      const missingKeys = uniqueKeys.filter(
+        key => !(isInsightsNode && key === 'advertiser_id') && !fields.includes(key)
+      );
 
       if (missingKeys.length > 0) {
         throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
@@ -606,19 +660,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     // Filter out any extremely large fields or fields not in schema
     const processedRecord = {};
 
-    // First ensure uniqueKey fields are always included
-    if (schema[nodeName].uniqueKeys) {
-      for (const keyField of schema[nodeName].uniqueKeys) {
-        if (keyField in record) {
-          processedRecord[keyField] = record[keyField];
-        }
-        else if (keyField === 'advertiser_id' && nodeName === 'ad_insights') {
-          processedRecord['advertiser_id'] = this.currentAdvertiserId || '';
-        }
-      }
-    }
-
-    // Next add all other fields defined in the schema
+    // Add all fields defined in the schema. Every node's uniqueKeys are themselves schema
+    // fields (verified across advertiser/campaigns/ad_groups/ads/ad_insights*/audiences),
+    // and advertiser_id is force-set onto the record above for ad_insights/
+    // ad_insights_by_country/audiences, so no separate "ensure uniqueKeys" pass is needed.
     for (let field in schema[nodeName].fields) {
       if (field in record && !processedRecord[field]) {
         processedRecord[field] = record[field];

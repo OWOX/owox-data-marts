@@ -8,6 +8,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { CreateRelationshipRequestApiDto } from '../dto/presentation/create-relationship-request-api.dto';
 import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 
 const mockContext: AuthorizationContext = {
   userId: 'user-123',
@@ -139,6 +140,94 @@ describe('RelationshipMapper', () => {
       expect(dto.sourceDataMart.userHasAccess).toBe(true);
       expect(dto.targetDataMart.userHasAccess).toBe(false);
     });
+
+    it('sets targetDataMart.hasPrimaryKey=true when the schema has a primary key field', () => {
+      const entityWithPk: DataMartRelationship = {
+        ...mockEntity,
+        targetDataMart: {
+          ...mockTargetDataMart,
+          schema: {
+            fields: [
+              { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+              { name: 'channel', type: 'STRING', isPrimaryKey: false },
+            ],
+          },
+        } as DataMart,
+      };
+
+      const dto = mapper.toDomainDto(entityWithPk, null, fullAccess);
+
+      expect(dto.targetDataMart.hasPrimaryKey).toBe(true);
+    });
+
+    it('sets hasPrimaryKey=true when the only primary key is hidden for reporting (still a dedup/join key)', () => {
+      const entityHiddenPk: DataMartRelationship = {
+        ...mockEntity,
+        targetDataMart: {
+          ...mockTargetDataMart,
+          schema: {
+            fields: [
+              { name: 'id', type: 'INTEGER', isPrimaryKey: true, isHiddenForReporting: true },
+              { name: 'channel', type: 'STRING', isPrimaryKey: false },
+            ],
+          },
+        } as DataMart,
+      };
+
+      const dto = mapper.toDomainDto(entityHiddenPk, null, fullAccess);
+
+      expect(dto.targetDataMart.hasPrimaryKey).toBe(true);
+    });
+
+    it('sets hasPrimaryKey=false when the only primary key is DISCONNECTED', () => {
+      const entityDisconnectedPk: DataMartRelationship = {
+        ...mockEntity,
+        targetDataMart: {
+          ...mockTargetDataMart,
+          schema: {
+            fields: [
+              {
+                name: 'id',
+                type: 'INTEGER',
+                isPrimaryKey: true,
+                status: DataMartSchemaFieldStatus.DISCONNECTED,
+              },
+            ],
+          },
+        } as DataMart,
+      };
+
+      const dto = mapper.toDomainDto(entityDisconnectedPk, null, fullAccess);
+
+      expect(dto.targetDataMart.hasPrimaryKey).toBe(false);
+    });
+
+    it('sets targetDataMart.hasPrimaryKey=false when the schema has no primary key field', () => {
+      const entityNoPk: DataMartRelationship = {
+        ...mockEntity,
+        targetDataMart: {
+          ...mockTargetDataMart,
+          schema: {
+            fields: [{ name: 'channel', type: 'STRING', isPrimaryKey: false }],
+          },
+        } as DataMart,
+      };
+
+      const dto = mapper.toDomainDto(entityNoPk, null, fullAccess);
+
+      expect(dto.targetDataMart.hasPrimaryKey).toBe(false);
+    });
+
+    it('sets targetDataMart.hasPrimaryKey=false when the schema is missing', () => {
+      const entityNoSchema: DataMartRelationship = {
+        ...mockEntity,
+        targetDataMart: { ...mockTargetDataMart, schema: undefined } as DataMart,
+      };
+
+      const dto = mapper.toDomainDto(entityNoSchema, null, fullAccess);
+
+      expect(dto.targetDataMart.hasPrimaryKey).toBe(false);
+    });
   });
 
   describe('toDomainDtoList', () => {
@@ -209,6 +298,28 @@ describe('RelationshipMapper', () => {
       expect(response.targetDataMart).toEqual(dto.targetDataMart);
       expect(response.targetAlias).toBe(dto.targetAlias);
       expect(response.joinConditions).toEqual(dto.joinConditions);
+    });
+
+    it('propagates targetDataMart.hasPrimaryKey through to the API response', () => {
+      const entityWithPk: DataMartRelationship = {
+        ...mockEntity,
+        targetDataMart: {
+          ...mockTargetDataMart,
+          schema: { fields: [{ name: 'id', type: 'INTEGER', isPrimaryKey: true }] },
+        } as DataMart,
+      };
+      const dto = mapper.toDomainDto(
+        entityWithPk,
+        null,
+        new Map([
+          ['source-dm-1', true],
+          ['target-dm-2', true],
+        ])
+      );
+
+      const response = mapper.toResponse(dto);
+
+      expect(response.targetDataMart.hasPrimaryKey).toBe(true);
     });
   });
 

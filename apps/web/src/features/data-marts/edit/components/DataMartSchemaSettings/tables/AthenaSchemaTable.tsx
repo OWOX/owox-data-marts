@@ -13,6 +13,7 @@ import { SchemaFieldTypeSelect } from '../components';
 import { useDragAndDrop } from '../hooks';
 import { BaseSchemaTable } from './BaseSchemaTable';
 import type { SchemaAiHelper } from '../types/ai-helper';
+import type { SchemaToolbar } from '../types/schema-toolbar';
 
 /**
  * Props for the AthenaSchemaTable component
@@ -24,12 +25,18 @@ interface AthenaSchemaTableProps {
   onFieldsChange?: (fields: AthenaSchemaField[]) => void;
   /** AI helper handlers; omit to hide AI buttons. */
   aiHelper?: SchemaAiHelper;
+  schemaToolbar: SchemaToolbar;
 }
 
 /**
  * Component for displaying and editing Athena schema fields
  */
-export function AthenaSchemaTable({ fields, onFieldsChange, aiHelper }: AthenaSchemaTableProps) {
+export function AthenaSchemaTable({
+  fields,
+  onFieldsChange,
+  aiHelper,
+  schemaToolbar,
+}: AthenaSchemaTableProps) {
   // Function to create a new Athena field
   const createNewField = useCallback(() => {
     return {
@@ -86,6 +93,7 @@ export function AthenaSchemaTable({ fields, onFieldsChange, aiHelper }: AthenaSc
         }}
         rowComponent={SortableTableRow}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
       />
     </DndContext>
   );

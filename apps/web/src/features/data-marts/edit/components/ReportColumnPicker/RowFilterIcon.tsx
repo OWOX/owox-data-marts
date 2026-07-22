@@ -24,6 +24,12 @@ interface SliceIconProps {
 interface RowFilterIconProps {
   column: string;
   fieldType: string;
+  /**
+   * RAW (pre-join) type for the Slice tab. A slice runs pre-join on the original value, while
+   * `fieldType` is the post-dedup effective type used by the Filter tab. Only differs for a joined
+   * field with a type-changing dedup. Falls back to `fieldType` when absent.
+   */
+  sliceFieldType?: string;
   /** Business-readable field name shown in popover headers; falls back to `column`. */
   displayLabel?: string;
   /** Joined data mart name shown under the field name; absent for home-mart fields. */
@@ -39,6 +45,7 @@ interface RowFilterIconProps {
 export function RowFilterIcon({
   column,
   fieldType,
+  sliceFieldType,
   displayLabel,
   dataMartName,
   activeRules,
@@ -144,6 +151,7 @@ export function RowFilterIcon({
         trigger={trigger}
         column={column}
         fieldType={fieldType}
+        sliceFieldType={sliceFieldType}
         displayLabel={displayLabel}
         dataMartName={dataMartName}
         sliceColumn={sliceIconProps?.unifiedFieldName}
@@ -170,6 +178,7 @@ export function RowFilterIcon({
         column={column}
         sliceColumn={sliceIconProps.unifiedFieldName}
         fieldType={fieldType}
+        sliceFieldType={sliceFieldType}
         displayLabel={displayLabel}
         dataMartName={dataMartName}
         defaultTab={defaultTab}

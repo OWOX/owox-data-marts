@@ -9,7 +9,10 @@ import {
   countPositionalPlaceholders,
 } from '../data-storage-types/athena/services/athena-clause-renderer';
 import { BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
-import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import {
+  AggregateFunction,
+  ReportAggregateFunction,
+} from '../dto/schemas/aggregate-function.schema';
 
 describe('ReportSqlComposerService — aggregations wiring', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -369,6 +372,64 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
     });
 
+    // Requirement (WI #6680 §D): a COUNT_DISTINCT metric over a STRING field with no grouping
+    // must appear in totals — totals follow the field's governance-allowed functions, not a
+    // numeric-type gate (governance permits COUNT/COUNT_DISTINCT on STRING).
+    it('scorecard: COUNT_DISTINCT over a STRING metric (NO grouping) is included in totals (WI #6680 §D)', async () => {
+      const { service } = makeBqTotalsComposer(['country']);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['country'],
+          aggregationConfig: [{ column: 'country', function: 'COUNT_DISTINCT' }],
+        } as Partial<Report>,
+        // No schema-level metric/dimension role in practice — STRING defaults to 'dimension'.
+        // The ONLY signal that `country` is a metric here is that the report aggregates it.
+        [field('country', 'STRING')]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.columns).toContain('country');
+      expect(result!.aggregations).toEqual(
+        expect.arrayContaining([{ column: 'country', function: 'COUNT_DISTINCT' }])
+      );
+    });
+
+    // ANY_VALUE (an arbitrary row's value) and STRING_AGG (whole-column concat) are meaningless
+    // as a single grand-total number, so they are excluded from the totals summary for EVERY
+    // field even when the field's allowed set (per-field override or type-default) permits them.
+    it('excludes ANY_VALUE and STRING_AGG from totals even when the field allows them', async () => {
+      const { service } = makeBqTotalsComposer(['country']);
+      const report = buildTotalsReport(
+        {
+          columnConfig: ['country'],
+          aggregationConfig: [{ column: 'country', function: 'COUNT_DISTINCT' }],
+        } as Partial<Report>,
+        [
+          field('country', 'STRING', {
+            allowedAggregations: [
+              'MIN',
+              'MAX',
+              'ANY_VALUE',
+              'COUNT',
+              'COUNT_DISTINCT',
+              'STRING_AGG',
+            ],
+          }),
+        ]
+      );
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      const fns = result!.aggregations.map(a => a.function);
+      expect(fns).not.toContain('ANY_VALUE');
+      expect(fns).not.toContain('STRING_AGG');
+      // The meaningful ones survive.
+      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
+    });
+
     it('strips HAVING (function-carrying) filters from the totals query, keeping WHERE filters', async () => {
       const { service } = makeBqTotalsComposer(['revenue']);
       const report = buildTotalsReport({
@@ -423,7 +484,11 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     const blendedField = (
       name: string,
       type: string,
-      postJoinAggregations?: ReportAggregateFunction[]
+      postJoinAggregations?: ReportAggregateFunction[],
+      // The PRE-join roll-up run inside the bottom-up CTE. Must be valid for the field type —
+      // e.g. a STRING joined field cannot roll up with SUM, so pass ANY_VALUE there. Pre-join
+      // aggregates are the base function set (no percentiles).
+      preJoinAggregation: AggregateFunction = 'SUM'
     ): BlendedFieldDto => {
       const f = new BlendedFieldDto();
       f.name = name;
@@ -436,7 +501,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       f.alias = '';
       f.description = '';
       f.isHidden = false;
-      f.aggregateFunction = 'SUM';
+      f.aggregateFunction = preJoinAggregation;
       f.postJoinAggregations = postJoinAggregations;
       f.transitiveDepth = 1;
       f.aliasPath = 'partner';
@@ -529,6 +594,108 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       const finalSelect = result!.sql.slice(result!.sql.lastIndexOf('\n\nSELECT'));
       expect(finalSelect).toContain('SUM(partner.partner__cost)');
       expect(finalSelect).not.toMatch(/GROUP BY/);
+    });
+
+    // Symmetry with the main-mart rule: a JOINED non-numeric field the report aggregates as a
+    // metric (e.g. COUNT_DISTINCT over a joined text column) must appear in totals too, by its
+    // post-join allowed functions — minus ANY_VALUE / STRING_AGG.
+    it('includes a JOINED non-numeric field in totals when the report aggregates it', async () => {
+      // A STRING joined field must roll up pre-join with a STRING-valid function (ANY_VALUE),
+      // not SUM — so the generated CTE + outer SQL is executable BigQuery.
+      const fields = [
+        blendedField(
+          'partner__country',
+          'STRING',
+          ['MIN', 'MAX', 'COUNT', 'COUNT_DISTINCT', 'STRING_AGG'],
+          'ANY_VALUE'
+        ),
+      ];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport({
+        columnConfig: ['partner__country'],
+        aggregationConfig: [{ column: 'partner__country', function: 'COUNT_DISTINCT' }],
+      } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.columns).toContain('partner__country');
+      const fns = result!.aggregations
+        .filter(a => a.column === 'partner__country')
+        .map(a => a.function);
+      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
+      // STRING_AGG (and ANY_VALUE) are excluded from totals on the joined path too.
+      expect(fns).not.toContain('STRING_AGG');
+
+      // The generated SQL must be executable: the bottom-up CTE rolls the STRING column up with
+      // ANY_VALUE (never SUM over text), and the ungrouped outer SELECT applies the post-join
+      // totals functions — COUNT / COUNT_DISTINCT / MIN / MAX — over the joined column.
+      const splitAt = result!.sql.lastIndexOf('\n\nSELECT');
+      const cte = result!.sql.slice(0, splitAt);
+      const finalSelect = result!.sql.slice(splitAt);
+      expect(cte).toContain('ANY_VALUE(country) AS partner__country');
+      expect(result!.sql).not.toMatch(/SUM\(/); // no SUM over a text column anywhere
+      expect(finalSelect).toContain('MIN(partner.partner__country)');
+      expect(finalSelect).toContain('MAX(partner.partner__country)');
+      expect(finalSelect).toContain('COUNT(partner.partner__country)');
+      expect(finalSelect).toContain('COUNT(DISTINCT partner.partner__country)');
+      // Excluded functions never reach the totals SELECT.
+      expect(finalSelect).not.toContain('ANY_VALUE');
+      expect(finalSelect).not.toMatch(/STRING_?AGG/i);
+      // Single grand-total row — no outer GROUP BY.
+      expect(finalSelect).not.toMatch(/GROUP BY/);
+    });
+
+    // A JOINED non-numeric field the report does NOT aggregate stays a plain dimension — not in
+    // totals (only the numeric joined field is auto-summarized).
+    it('excludes a JOINED non-numeric field from totals when the report does not aggregate it', async () => {
+      const fields = [
+        blendedField('partner__cost', 'FLOAT', ['SUM']),
+        blendedField('partner__country', 'STRING', ['COUNT', 'COUNT_DISTINCT'], 'ANY_VALUE'),
+      ];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport({
+        columnConfig: ['partner__cost', 'partner__country'],
+      } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.columns).toContain('partner__cost');
+      expect(result!.columns).not.toContain('partner__country');
+    });
+
+    // A stale post-join override can name functions the current type can't run (e.g. SUM saved
+    // before a field became STRING). collectBlendedAllowedSets clamps the override to the type's
+    // supported set — as the native path does — so the totals plan never carries SUM(string),
+    // which would make the validator throw and silently null the whole totals block.
+    it('clamps a stale numeric override on a joined STRING field to type-supported functions', async () => {
+      const fields = [
+        blendedField(
+          'partner__country',
+          'STRING',
+          ['SUM', 'AVG', 'COUNT', 'COUNT_DISTINCT'],
+          'ANY_VALUE'
+        ),
+      ];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport({
+        columnConfig: ['partner__country'],
+        aggregationConfig: [{ column: 'partner__country', function: 'COUNT_DISTINCT' }],
+      } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      const fns = result!.aggregations
+        .filter(a => a.column === 'partner__country')
+        .map(a => a.function);
+      // SUM / AVG are not supported for STRING → clamped away; the valid ones survive.
+      expect(fns).not.toContain('SUM');
+      expect(fns).not.toContain('AVG');
+      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT']));
+      expect(result!.sql).not.toMatch(/SUM\(/);
+      expect(result!.sql).not.toMatch(/AVG\(/);
     });
 
     it('resolves the blendable schema once and reuses it for the blended decision (no recompute)', async () => {

@@ -20,6 +20,8 @@ import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { DataMartRelationshipGraphEdgeDto } from '../dto/domain/data-mart-relationship-graph-edge.dto';
 import type { DataMartRelationshipGraphEdgeRow } from '../repositories/data-mart-relationship.repository';
+import { DataMart } from '../entities/data-mart.entity';
+import { hasUsablePrimaryKey } from '../data-storage-types/data-mart-schema.utils';
 
 @Injectable()
 export class RelationshipMapper {
@@ -108,6 +110,7 @@ export class RelationshipMapper {
         description: entity.sourceDataMart.description,
         status: entity.sourceDataMart.status,
         userHasAccess: accessByDataMartId.get(entity.sourceDataMart.id) ?? false,
+        hasPrimaryKey: this.hasPrimaryKey(entity.sourceDataMart),
       },
       targetDataMart: {
         id: entity.targetDataMart.id,
@@ -115,6 +118,7 @@ export class RelationshipMapper {
         description: entity.targetDataMart.description,
         status: entity.targetDataMart.status,
         userHasAccess: accessByDataMartId.get(entity.targetDataMart.id) ?? false,
+        hasPrimaryKey: this.hasPrimaryKey(entity.targetDataMart),
       },
       targetAlias: entity.targetAlias,
       joinConditions: entity.joinConditions,
@@ -167,6 +171,12 @@ export class RelationshipMapper {
       row.targetDataMartId,
       this.parseJoinConditions(row.joinConditions)
     );
+  }
+
+  private hasPrimaryKey(dataMart: DataMart): boolean {
+    // A hidden-for-reporting PK is still a valid dedup/join key, so it counts; only a
+    // DISCONNECTED PK (column gone from the source) does not. See `hasUsablePrimaryKey`.
+    return hasUsablePrimaryKey(dataMart.schema?.fields ?? []);
   }
 
   private toJoinCondition(dto: JoinConditionApiDto): JoinCondition {

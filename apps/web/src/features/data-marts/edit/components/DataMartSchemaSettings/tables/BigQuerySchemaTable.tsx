@@ -26,6 +26,7 @@ import type { ExtendedColumnDef } from './BaseSchemaTable';
 import { BaseSchemaTable } from './BaseSchemaTable';
 import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
 import type { SchemaAiHelper } from '../types/ai-helper';
+import type { SchemaToolbar } from '../types/schema-toolbar';
 
 /**
  * Props for the BigQuerySchemaTable component
@@ -37,6 +38,7 @@ interface BigQuerySchemaTableProps {
   onFieldsChange?: (fields: BigQuerySchemaField[]) => void;
   /** AI helper handlers; omit to hide AI buttons. */
   aiHelper?: SchemaAiHelper;
+  schemaToolbar: SchemaToolbar;
 }
 
 /**
@@ -47,6 +49,7 @@ export function BigQuerySchemaTable({
   fields,
   onFieldsChange,
   aiHelper,
+  schemaToolbar,
 }: BigQuerySchemaTableProps) {
   // Use the record expansion hook to manage expanded/collapsed state
   const {
@@ -361,6 +364,7 @@ export function BigQuerySchemaTable({
         descriptionColumnCell={descriptionColumnCell}
         actionsColumnCell={actionsColumnCell}
         aiHelper={aiHelper}
+        schemaToolbar={schemaToolbar}
         dragContext={SortableContext}
         dragContextProps={{
           items: flattenedFields.map(f => f.path ?? String(flattenedFields.indexOf(f))),

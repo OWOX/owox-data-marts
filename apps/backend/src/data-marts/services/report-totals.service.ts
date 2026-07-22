@@ -12,16 +12,17 @@ export type ReportTotals = Record<string, number | string | boolean | null>;
 /**
  * Computes the report's "Totals" summary row as a SEPARATE DWH query at run time.
  *
- * The totals SQL — every selected numeric field aggregated by all of its allowed functions,
- * over the full filtered dataset with NO grouping (see
- * {@link ReportSqlComposerService.composeTotals}) — produces a single row. This service runs
- * that SQL through a FRESH per-storage reader as an `sqlOverride`, resolves headers from the
- * SAME derived aggregation plan (so header names match the SQL output aliases), reads exactly
- * one row, and zips it into a flat `{ "<header.name>": value }` object.
+ * The totals SQL — each selected totals metric (numeric fields, plus non-numeric fields the
+ * report aggregates) summarized by all of its allowed functions, over the full filtered dataset
+ * with NO grouping (see {@link ReportSqlComposerService.composeTotals}) — produces a single row.
+ * This service runs that SQL through a FRESH per-storage reader as an `sqlOverride`, resolves
+ * headers from the SAME derived aggregation plan (so header names match the SQL output aliases),
+ * reads exactly one row, and zips it into a flat `{ "<header.name>": value }` object. A value can
+ * be a number OR a string (e.g. MIN/MAX of a text metric).
  *
- * Returns `null` when no selected numeric field has an allowed aggregation (composeTotals
- * returns null) or when the dataset is empty (the DWH produced no row). Callers treat totals
- * as BEST-EFFORT: this service never participates in the primary run/stream success path.
+ * Returns `null` when the report has no totals metric with a summarizable function (composeTotals
+ * returns null) or when the dataset is empty (the DWH produced no row). Callers treat totals as
+ * BEST-EFFORT: this service never participates in the primary run/stream success path.
  */
 @Injectable()
 export class ReportTotalsService {
@@ -51,8 +52,8 @@ export class ReportTotalsService {
       const description = await reader.prepareReportData(report, {
         sqlOverride: totals.sql,
         sqlOverrideParams: totals.params,
-        // Headers must derive from the SAME numeric-field aggregation plan composeTotals
-        // built, so each header name equals its SQL output alias.
+        // Headers must derive from the SAME metrics aggregation plan composeTotals built,
+        // so each header name equals its SQL output alias.
         columnFilter: totals.columns,
         aggregationConfig: totals.aggregations,
         // Joined-numeric totals are not native columns; their base type travels here so the

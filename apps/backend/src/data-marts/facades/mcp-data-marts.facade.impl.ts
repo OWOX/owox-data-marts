@@ -125,6 +125,10 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,
+          // Expose the raw type only when the dedup changed it — slices run pre-join on the raw value.
+          ...(f.sourceFieldType && f.sourceFieldType !== f.type
+            ? { sliceType: f.sourceFieldType }
+            : {}),
           // Forward an EMPTY override too: [] means "no aggregations allowed" (the
           // validator enforces it via `postJoinAggregations ?? …`, where [] is not
           // nullish). Dropping it would make consumers fall back to type defaults

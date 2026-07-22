@@ -470,6 +470,60 @@ describe('McpDataMartsFacadeImpl', () => {
     );
   });
 
+  it('exposes sliceType (raw pre-join type) only for a field whose dedup changed its type', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [
+        {
+          // Dedup COUNT changed STRING → INTEGER: a slice still runs on the raw STRING.
+          name: 'ga__campaign_name',
+          type: 'INTEGER',
+          sourceFieldType: 'STRING',
+          description: '',
+          sourceDataMartTitle: 'Google Ads',
+          aliasPath: 'ga',
+          isHidden: false,
+        },
+        {
+          // SUM keeps the type: effective === raw → no sliceType.
+          name: 'ga__revenue',
+          type: 'NUMERIC',
+          sourceFieldType: 'NUMERIC',
+          description: '',
+          sourceDataMartTitle: 'Google Ads',
+          aliasPath: 'ga',
+          isHidden: false,
+        },
+      ],
+      [{ aliasPath: 'ga', isIncluded: true, isAccessibleForReporting: true }]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+    });
+
+    const byName = new Map(result.joinedFields.map(f => [f.name, f]));
+    expect(byName.get('ga__campaign_name')).toMatchObject({ type: 'INTEGER', sliceType: 'STRING' });
+    expect(byName.get('ga__revenue')).not.toHaveProperty('sliceType');
+  });
+
   it('returns no joined fields (without computing the blend) for a data mart with no relationships', async () => {
     const dataMartService = createDataMartService({
       id: 'dm_1',

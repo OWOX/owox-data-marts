@@ -12,7 +12,15 @@ import { Switch } from '@owox/ui/components/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  Columns3,
+  ExternalLink,
+  GitMerge,
+  Info,
+  MoreHorizontal,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
@@ -28,7 +36,11 @@ import type {
 import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
 import { JoinSettingsForm } from './JoinSettingsForm';
 import { NoAccessIndicator } from './NoAccessIndicator';
-import { CYCLE_STUB_TOOLTIP } from './relationship-warning-state';
+import {
+  CYCLE_STUB_TOOLTIP,
+  isMissingPrimaryKeyWarning,
+  MISSING_PRIMARY_KEY_TOOLTIP,
+} from './relationship-warning-state';
 
 function WarningBadge({
   className,
@@ -41,6 +53,24 @@ function WarningBadge({
       variant='outline'
       className={cn('shrink-0 border-orange-400 text-[10px] text-orange-500', className)}
     >
+      {children}
+    </Badge>
+  );
+}
+
+/** Lower-severity than WarningBadge: "works — heads up" rather than "non-functional". */
+function AttentionBadge({
+  className,
+  children,
+  ...props
+}: Omit<ComponentProps<typeof Badge>, 'variant'>) {
+  return (
+    <Badge
+      {...props}
+      variant='outline'
+      className={cn('shrink-0 border-amber-400 text-[10px] text-amber-500', className)}
+    >
+      <TriangleAlert size={12} className='mr-1' />
       {children}
     </Badge>
   );
@@ -257,6 +287,22 @@ export function RelationshipAccordionItem({
                 {row.isBlocked && rel.targetDataMart.status !== 'DRAFT' && (
                   <WarningBadge>Blocked</WarningBadge>
                 )}
+                {isMissingPrimaryKeyWarning(
+                  rel.targetDataMart.hasPrimaryKey,
+                  rel.joinConditions.length
+                ) &&
+                  rel.targetDataMart.status !== 'DRAFT' &&
+                  !row.isBlocked &&
+                  !row.isCycleStub && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AttentionBadge>No primary key</AttentionBadge>
+                      </TooltipTrigger>
+                      <TooltipContent side='top' className='max-w-xs'>
+                        {MISSING_PRIMARY_KEY_TOOLTIP}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 {row.isCycleStub && (
                   <Tooltip>
                     <TooltipTrigger asChild>

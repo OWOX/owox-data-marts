@@ -18,6 +18,12 @@ export interface ActiveRulesPopoverProps {
   trigger: ReactNode;
   column: string;
   fieldType: string;
+  /**
+   * RAW (pre-join) type used to label slice rules. A slice runs pre-join on the original value,
+   * while `fieldType` is the post-dedup effective type used for filter rules. Only differs for a
+   * joined field with a type-changing dedup. Falls back to `fieldType` when absent.
+   */
+  sliceFieldType?: string;
   /** Business-readable field name shown in the header; falls back to `column`. */
   displayLabel?: string;
   /** Joined data mart name shown under the field name; absent for home-mart fields. */
@@ -34,6 +40,7 @@ export function ActiveRulesPopover({
   trigger,
   column,
   fieldType,
+  sliceFieldType,
   displayLabel,
   dataMartName,
   sliceColumn,
@@ -65,7 +72,7 @@ export function ActiveRulesPopover({
           <RuleSection
             label='Active slices'
             removeLabel='Remove slice'
-            fieldType={fieldType}
+            fieldType={sliceFieldType ?? fieldType}
             rules={slices.rules}
             onRemoveAt={slices.onRemoveAt}
           />

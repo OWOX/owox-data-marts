@@ -41,6 +41,11 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       credentialId?: string | null;
       sourceDestinationId?: string;
       config?: DestinationConfigOverride;
+      ownerIds?: string[];
+      userId?: string;
+      roles?: string[];
+      availableForUse?: boolean;
+      availableForMaintenance?: boolean;
     } = {}
   ): UpdateDataDestinationCommand => {
     return new UpdateDataDestinationCommand(
@@ -50,11 +55,11 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       overrides.credentials as never,
       overrides.credentialId,
       overrides.sourceDestinationId,
-      undefined, // ownerIds
-      undefined, // userId
-      undefined, // roles
-      undefined, // availableForUse
-      undefined, // availableForMaintenance
+      overrides.ownerIds, // ownerIds
+      overrides.userId, // userId
+      overrides.roles, // roles
+      overrides.availableForUse, // availableForUse
+      overrides.availableForMaintenance, // availableForMaintenance
       undefined, // contextIds
       overrides.config
     );
@@ -199,6 +204,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       dataDestinationCredentialService,
       googleOAuthClientService,
       folderValidator,
+      accessDecisionService,
     };
   };
 
@@ -408,6 +414,34 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     await expect(service.run(command)).rejects.toThrow(
       /Cannot provide both sourceDestinationId and credentialId/
     );
+  });
+
+  describe('permission checks', () => {
+    it('throws ForbiddenException with the required-role message when managing owners is denied', async () => {
+      const { service, accessDecisionService } = createService();
+      accessDecisionService.canAccess.mockResolvedValue(false);
+
+      const command = makeCommand({ ownerIds: ['user-2'], userId: 'user-1', roles: ['editor'] });
+
+      await expect(service.run(command)).rejects.toThrow(
+        'You do not have permission to manage owners of this Destination. You must be an owner of this Destination, or a Project Admin.'
+      );
+    });
+
+    it('throws ForbiddenException with the required-role message when configuring sharing is denied', async () => {
+      const { service, accessDecisionService } = createService();
+      accessDecisionService.canAccess.mockResolvedValue(false);
+
+      const command = makeCommand({
+        userId: 'user-1',
+        roles: ['editor'],
+        availableForMaintenance: true,
+      });
+
+      await expect(service.run(command)).rejects.toThrow(
+        'You do not have permission to configure sharing for this Destination. You must be an owner of this Destination, or a Project Admin.'
+      );
+    });
   });
 
   describe('Drive folder validation (only on folder change)', () => {

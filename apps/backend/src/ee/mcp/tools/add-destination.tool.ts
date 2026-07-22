@@ -10,6 +10,7 @@ import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destinati
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildConnectGoogleSheetsUiPath } from './mcp-flow-ui-path';
+import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
 const EMAIL_BASED_TYPES = ['email', 'slack', 'teams', 'google_chat'];
@@ -165,7 +166,8 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
       // destination just created in this same call — it's a live credential, not a display
       // value, so the user retrieves it themselves from the OWOX Data Marts UI.
       const instructions = `Data Studio Destination "${created.name}" has been successfully enabled!
-Open Data Destinations in OWOX Data Marts and edit "${created.name}" to copy its connector credentials (Deployment URL, Destination ID, and Destination Secret Key) into the OWOX Data Marts Data Studio connector interface.`;
+Open Data Destinations in OWOX Data Marts and edit "${created.name}" to copy its connector credentials (Deployment URL, Destination ID, and Destination Secret Key) into the OWOX Data Marts Data Studio connector interface.
+Share the setup guide with the user — it walks through every step: ${LOOKER_STUDIO_DESTINATION_GUIDE_URL}`;
 
       return jsonToolResult({
         destination_id: created.id,

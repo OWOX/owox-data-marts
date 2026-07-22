@@ -25,6 +25,7 @@ import { schemaFieldFilter, useColumnVisibility, useTableFilter } from '../hooks
 import type { DragContextProps, RowComponentProps } from './BaseSchemaTable';
 import type { Props as SortableContextProps } from '@dnd-kit/sortable/dist/components/SortableContext';
 import type { DataMartContextType } from '../../../model/context/types';
+import type { SchemaToolbar } from '../types/schema-toolbar';
 
 // Sticky columns configuration
 interface StickyColumnConfig {
@@ -68,6 +69,7 @@ interface SchemaTableProps<T extends BaseSchemaField> {
   dragContextProps: DragContextProps; // Props for the drag-and-drop context
   rowComponent?: ComponentType<RowComponentProps<Row<T>>>; // Custom row component for drag-and-drop
   getRowId?: (row: Row<T>) => string | number; // Function to get the ID for a row
+  schemaToolbar: SchemaToolbar; // Schema toolbar component
 }
 
 export function SchemaTable<T extends BaseSchemaField>({
@@ -80,6 +82,7 @@ export function SchemaTable<T extends BaseSchemaField>({
   dragContextProps,
   rowComponent = TableRow as ComponentType<RowComponentProps<Row<T>>>,
   getRowId,
+  schemaToolbar,
 }: SchemaTableProps<T>) {
   // Get schema actualization loading state and current data mart from context
   const { isSchemaActualizationLoading, dataMart } = useOutletContext<DataMartContextType>();
@@ -171,6 +174,7 @@ export function SchemaTable<T extends BaseSchemaField>({
           onFilterChange={handleFilterChange}
           statusCounts={statusCounts}
           disabled={isSchemaActualizationLoading}
+          schemaToolbar={schemaToolbar}
         />
       )}
       <div className='mb-0 w-full'>

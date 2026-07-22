@@ -34,15 +34,20 @@ export interface BlendedColumnTypes {
 }
 
 /**
- * Flat resolution entry for one blended field, keyed by its unified name
- * (`<aliasPath with dots→_>__<originalFieldName with dots→_>`). Single source of
- * truth for resolving a unified column identifier back to the data it encodes.
+ * Flat resolution entry for one blended field, keyed by its unified name from
+ * `buildBlendedFieldUnifiedName` (identity = aliasPath + originalFieldName):
+ * - flat:   `<aliasPath dots→_>`__`<originalFieldName>`
+ * - nested: `<aliasPath dots→_>`__`<originalFieldName dots→_>`__`<sha1(aliasPath|originalFieldName)[0:8]>`
+ * Single source of truth for resolving a unified column identifier back to the data it encodes.
  */
 export interface BlendedFieldEntry {
   aliasPath: string; // 'category.details'
   cteName: string; // 'category_details'
   originalFieldName: string; // 'item.event_count' (nested-struct dots preserved)
   type: string;
+  // The RAW source-field type, before the dedup effective-type resolution overwrites `type`.
+  // Pre-join slices run on the raw column BEFORE dedup, so they type-check/cast by this.
+  sourceFieldType: string;
   isIncluded: boolean; // false when the source is excluded from reporting
 }
 

@@ -39,6 +39,8 @@ Each connector has a set of required parameters. The most common ones include:
 
 📌 Some connectors may have additional parameters — see their setup guides.
 
+Some parameters use a fixed list of values. Choose these before moving to field selection, especially when the parameter changes the reporting grain. For example, TikTok Ads **Data Level** changes which fields are required for performance endpoints.
+
 ![Create Data Mart 4](../../res/screens/Connector-Based-DataMart-Connector-Config.png)
 
 ## Step 3: Add Access Credentials
@@ -69,7 +71,7 @@ Each connector includes one or more data nodes. For example, Facebook Ads has no
 
 👉 **Create a separate Data Mart for each node** you want to pull data from.
 
-Next, click **Select all** or select just the fields you want to store in your data warehouse.
+Next, click **Select all** or select just the fields you want to store in your data warehouse. Required unique-key fields stay selected because the connector needs them to merge data correctly. Some connectors adjust these required fields based on the parameters selected in the previous step.
 
 ![Create Data Mart 5](../../res/screens/Connector-Based-DataMart-Schema-Setup.png)
 

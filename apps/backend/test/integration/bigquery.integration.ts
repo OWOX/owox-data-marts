@@ -1532,3 +1532,252 @@ describeIfCredentials(
     }, 60000);
   }
 );
+
+// ---------------------------------------------------------------------------
+// Blended POST-JOIN aggregation — dedup COUNT_DISTINCT re-aggregated with SUM
+// (the #6733 funnel fix, real BigQuery). Unlike the composite-key funnel
+// above, add_to_cart/purchase are per-HIT fact tables, not pre-aggregated to
+// the join grain. Their dedup key (hitId / transactionId) is deduplicated
+// INSIDE the child CTE with COUNT_DISTINCT (grouped by the composite join key
+// date+sessionId), then the outer report-level aggregation re-sums those
+// per-session counts across the report's GROUP BY dimensions. Before #6733
+// the dedup step used STRING_AGG, which collapsed same-session hits and
+// under-counted the funnel; COUNT_DISTINCT-inside-CTE then SUM-outside is the
+// fix. Uses its OWN 3 seeded tables + beforeAll/afterAll.
+// ---------------------------------------------------------------------------
+// Seed ("Kolya's funnel" — the exact scenario #6733 fixes), joined by
+// (date, sessionId), session is MAIN:
+//   session(date, sessionId, country, dataSource):
+//     2026-01-01 s1 UA WEB · 2026-01-01 s2 UA WEB · 2026-01-02 s3 PL WEB ·
+//     2026-01-02 s4 UA APP · 2026-01-03 s5 US WEB · 2026-01-02 s6 PL WEB ·
+//     2026-01-03 s7 CA APP · 2026-01-03 s8 US APP
+//   add_to_cart(date, sessionId, hitId):
+//     2026-01-01 s1 h1 · 2026-01-01 s1 h2 · 2026-01-03 s5 h1 ·
+//     2026-01-03 s7 h1 · 2026-01-03 s7 h2
+//   purchase(date, sessionId, transactionId, revenue):
+//     2026-01-01 s1 t1 200 · 2026-01-03 s7 t1 100 · 2026-01-03 s7 t2 200
+//
+// The headline proof: session s1 (2026-01-01, UA, WEB) logged 2 add-to-cart
+// hits (h1, h2) under the SAME sessionId. STRING_AGG dedup (pre-#6733) folded
+// same-session hits into a collapsed value and under-counted; COUNT_DISTINCT
+// inside the add_to_cart CTE correctly yields 2 for s1, and the outer SUM
+// (s2 contributes NULL — no add-to-cart rows) keeps the UA/WEB total at 2.
+// Session s7 (2026-01-03, CA, APP) proves the same dedup for BOTH joined
+// marts at once: 2 distinct hits AND 2 distinct transactions.
+describeIfCredentials(
+  'Blended post-join aggregation — dedup COUNT_DISTINCT then SUM funnel (#6733, real BigQuery)',
+  () => {
+    let adapter: BigQueryApiAdapter;
+    let credentials: ReturnType<typeof BigQueryServiceAccountCredentialsSchema.parse>;
+    let config: BigQueryConfig;
+    let sessionFQN: string;
+    let addToCartFQN: string;
+    let purchaseFQN: string;
+
+    const builder = new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer());
+
+    function funnelRelationship(
+      id: string,
+      targetAlias: string,
+      joinConditions: { sourceFieldName: string; targetFieldName: string }[]
+    ): DataMartRelationship {
+      return {
+        id,
+        targetAlias,
+        joinConditions,
+        blendedFields: [],
+        projectId: 'proj',
+        createdById: 'user-1',
+        createdAt: new Date(),
+        modifiedAt: new Date(),
+      } as unknown as DataMartRelationship;
+    }
+
+    const joinOnDateAndSession = [
+      { sourceFieldName: 'date', targetFieldName: 'date' },
+      { sourceFieldName: 'sessionId', targetFieldName: 'sessionId' },
+    ];
+
+    // dims = date, country, dataSource (report GROUP BY); metrics = sessions
+    // (COUNT_DISTINCT sessionId on MAIN), addToCarts / transactions (post-join
+    // SUM of the CTE-deduped COUNT_DISTINCT), revenue (post-join SUM).
+    function funnelContext(): BlendedQueryContext {
+      return {
+        mainTableReference: `\`${sessionFQN}\``,
+        mainDataMartTitle: 'Session',
+        mainDataMartUrl: 'http://x/session',
+        chains: [
+          {
+            relationship: funnelRelationship(
+              'rel-add-to-cart',
+              'add_to_cart',
+              joinOnDateAndSession
+            ),
+            targetTableReference: `\`${addToCartFQN}\``,
+            parentAlias: 'main',
+            cteName: 'add_to_cart',
+            blendedFields: [
+              {
+                targetFieldName: 'hitId',
+                outputAlias: 'addToCarts',
+                isHidden: false,
+                aggregateFunction: 'COUNT_DISTINCT',
+              },
+            ],
+            targetDataMartTitle: 'Add To Cart',
+            targetDataMartUrl: 'http://x/add-to-cart',
+          },
+          {
+            relationship: funnelRelationship('rel-purchase', 'purchase', joinOnDateAndSession),
+            targetTableReference: `\`${purchaseFQN}\``,
+            parentAlias: 'main',
+            cteName: 'purchase',
+            blendedFields: [
+              {
+                targetFieldName: 'transactionId',
+                outputAlias: 'transactions',
+                isHidden: false,
+                aggregateFunction: 'COUNT_DISTINCT',
+              },
+              {
+                targetFieldName: 'revenue',
+                outputAlias: 'revenue',
+                isHidden: false,
+                aggregateFunction: 'SUM',
+              },
+            ],
+            targetDataMartTitle: 'Purchase',
+            targetDataMartUrl: 'http://x/purchase',
+          },
+        ],
+        columns: [
+          'date',
+          'country',
+          'dataSource',
+          'sessionId',
+          'addToCarts',
+          'transactions',
+          'revenue',
+        ],
+        aggregations: [
+          { column: 'sessionId', function: 'COUNT_DISTINCT' },
+          { column: 'addToCarts', function: 'SUM' },
+          { column: 'transactions', function: 'SUM' },
+          { column: 'revenue', function: 'SUM' },
+        ],
+      };
+    }
+
+    async function runBlend(context: BlendedQueryContext): Promise<Record<string, unknown>[]> {
+      const { sql, params } = builder.buildBlendedQuery(context);
+      const { jobId } = await adapter.executeQuery(sql, params);
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 5000, autoPaginate: false });
+      return rows as Record<string, unknown>[];
+    }
+
+    beforeAll(async () => {
+      credentials = BigQueryServiceAccountCredentialsSchema.parse(
+        JSON.parse(BQ_SERVICE_ACCOUNT_KEY!)
+      );
+      config = {
+        projectId: BQ_PROJECT_ID!,
+        location: BIGQUERY_AUTODETECT_LOCATION,
+      };
+      adapter = new BigQueryApiAdapter(credentials, config);
+
+      const stamp = `${Date.now()}`;
+      sessionFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.funnel_session_${stamp}`;
+      addToCartFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.funnel_add_to_cart_${stamp}`;
+      purchaseFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.funnel_purchase_${stamp}`;
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${sessionFQN}\` (date DATE, sessionId STRING, country STRING, dataSource STRING)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${sessionFQN}\` (date, sessionId, country, dataSource) VALUES
+        (DATE '2026-01-01', 's1', 'UA', 'WEB'),
+        (DATE '2026-01-01', 's2', 'UA', 'WEB'),
+        (DATE '2026-01-02', 's3', 'PL', 'WEB'),
+        (DATE '2026-01-02', 's4', 'UA', 'APP'),
+        (DATE '2026-01-03', 's5', 'US', 'WEB'),
+        (DATE '2026-01-02', 's6', 'PL', 'WEB'),
+        (DATE '2026-01-03', 's7', 'CA', 'APP'),
+        (DATE '2026-01-03', 's8', 'US', 'APP')`
+      );
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${addToCartFQN}\` (date DATE, sessionId STRING, hitId STRING)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${addToCartFQN}\` (date, sessionId, hitId) VALUES
+        (DATE '2026-01-01', 's1', 'h1'),
+        (DATE '2026-01-01', 's1', 'h2'),
+        (DATE '2026-01-03', 's5', 'h1'),
+        (DATE '2026-01-03', 's7', 'h1'),
+        (DATE '2026-01-03', 's7', 'h2')`
+      );
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${purchaseFQN}\` (date DATE, sessionId STRING, transactionId STRING, revenue NUMERIC)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${purchaseFQN}\` (date, sessionId, transactionId, revenue) VALUES
+        (DATE '2026-01-01', 's1', 't1', 200),
+        (DATE '2026-01-03', 's7', 't1', 100),
+        (DATE '2026-01-03', 's7', 't2', 200)`
+      );
+    }, 180000);
+
+    afterAll(async () => {
+      for (const fqn of [sessionFQN, addToCartFQN, purchaseFQN]) {
+        try {
+          await adapter.executeQuery(`DROP TABLE IF EXISTS \`${fqn}\``);
+        } catch (error) {
+          console.warn(`Failed to drop funnel table ${fqn}:`, error);
+        }
+      }
+    }, 60000);
+
+    it('dedup COUNT_DISTINCT(hitId/transactionId) then post-join SUM produces correct funnel counts', async () => {
+      const rows = await runBlend(funnelContext());
+
+      const dateKey = (r: Record<string, unknown>): string =>
+        String((r.date as { value?: string } | undefined)?.value ?? r.date).slice(0, 10);
+      const byKey = new Map(rows.map(r => [`${dateKey(r)}|${r.country}|${r.dataSource}`, r]));
+
+      // THE headline case (was under-counted pre-#6733): s1 logged 2 distinct
+      // hits (h1, h2) under the SAME sessionId; s2 has none. STRING_AGG dedup
+      // used to collapse same-session hits — COUNT_DISTINCT inside the CTE +
+      // outer SUM correctly yields 2.
+      const uaWeb = byKey.get('2026-01-01|UA|WEB')!;
+      expect(uaWeb).toBeDefined();
+      expect(Number(uaWeb['sessionId | COUNTUNIQUE'])).toBe(2);
+      expect(Number(uaWeb['addToCarts | SUM'])).toBe(2);
+      expect(Number(uaWeb['transactions | SUM'])).toBe(1);
+      expect(Number(uaWeb['revenue | SUM'])).toBe(200);
+
+      // Second proof point: s7 logged 2 distinct hits AND 2 distinct
+      // transactions under the same sessionId — dedup must hold for both
+      // joined marts simultaneously.
+      const caApp = byKey.get('2026-01-03|CA|APP')!;
+      expect(caApp).toBeDefined();
+      expect(Number(caApp['sessionId | COUNTUNIQUE'])).toBe(1);
+      expect(Number(caApp['addToCarts | SUM'])).toBe(2);
+      expect(Number(caApp['transactions | SUM'])).toBe(2);
+      expect(Number(caApp['revenue | SUM'])).toBe(300);
+
+      // us/web (s5): 1 distinct hit, no purchase.
+      const usWeb = byKey.get('2026-01-03|US|WEB')!;
+      expect(usWeb).toBeDefined();
+      expect(Number(usWeb['sessionId | COUNTUNIQUE'])).toBe(1);
+      expect(Number(usWeb['addToCarts | SUM'])).toBe(1);
+    }, 120000);
+  }
+);

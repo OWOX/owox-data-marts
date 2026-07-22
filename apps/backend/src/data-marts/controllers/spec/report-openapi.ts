@@ -132,7 +132,7 @@ export class ReportFilterRuleApiDto {
   @ApiProperty({
     minLength: 1,
     description:
-      'Output column name. For slice filters (placement=pre-join), use the fully qualified blended column identifier, e.g. category_details__item_event_count.',
+      'Output column name. For slice filters (placement=pre-join), use the fully qualified blended column identifier from the blendable schema (flat: category_details__item_count; nested fields include a hash suffix).',
   })
   column: string;
 

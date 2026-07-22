@@ -21,7 +21,8 @@
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{js,mjs,json}\"",
-    "format:check": "prettier --check \"**/*.{js,mjs,json}\""
+    "format:check": "prettier --check \"**/*.{js,mjs,json}\"",
+    "test": "vitest run"
   },
   "files": [
     "dist/**/*.js",
@@ -57,6 +58,7 @@
     "fs-extra": "^11",
     "glob": "^13",
     "globals": "^16",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^4.1.8"
   }
 }

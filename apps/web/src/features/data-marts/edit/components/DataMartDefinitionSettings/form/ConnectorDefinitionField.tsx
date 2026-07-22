@@ -101,12 +101,21 @@ export function ConnectorDefinitionField({
         const updatedConfigurations = [...currentDefinition.connector.source.configuration];
         updatedConfigurations[configIndex] = connector.source.configuration[0] || {};
 
+        // connector.source.fields may add fields required by a changed config parameter
+        // (e.g. TikTok Ads Data Level). Union rather than overwrite so editing
+        // configuration can never drop previously selected fields, regardless of what
+        // triggered the update.
+        const updatedFields = Array.from(
+          new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
+        );
+
         const updatedDefinition: ConnectorDefinitionConfig = {
           connector: {
             ...currentDefinition.connector,
             source: {
               ...currentDefinition.connector.source,
               configuration: updatedConfigurations,
+              fields: updatedFields,
             },
           },
         };
@@ -204,14 +213,24 @@ export function ConnectorDefinitionField({
     }
   };
 
-  const addConfiguration = async (newConfig: Record<string, unknown>) => {
+  const addConfiguration = async (connector: ConnectorConfig) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
     if (isConnectorDefinition(currentDefinition)) {
+      const newConfig = connector.source.configuration[0] || {};
+
+      // A new configuration can require fields the existing ones don't (e.g. a different
+      // TikTok Data Level). Union so all configurations sharing this destination have
+      // every required unique key; never drop previously selected fields.
+      const updatedFields = Array.from(
+        new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
+      );
+
       const updatedSource: ConnectorSourceConfig = {
         ...currentDefinition.connector.source,
         configuration: [...currentDefinition.connector.source.configuration, newConfig],
+        fields: updatedFields,
       };
 
       const updatedDefinition: ConnectorDefinitionConfig = {
@@ -265,7 +284,7 @@ export function ConnectorDefinitionField({
                       <div className='flex items-center gap-2'>
                         <AddConfigurationButton
                           storageType={storageType}
-                          onAddConfiguration={newConfig => void addConfiguration(newConfig)}
+                          onAddConfiguration={connector => void addConfiguration(connector)}
                           existingConnector={
                             isConnectorConfigured(field.value as ConnectorDefinitionConfig)
                               ? {

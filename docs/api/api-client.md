@@ -49,10 +49,90 @@ console.log(context.project.title);
 console.log(context.member.email);
 ```
 
+## Manage project settings
+
+Use `project.getSettings()` to read the current project's settings. Project members can read the
+settings available to their role.
+
+```ts
+const settings = await client.project.getSettings();
+
+console.log(settings.description);
+```
+
+Project admins can update the project description used as project-specific business context. Pass
+`null` to clear it.
+
+```ts
+await client.project.updateDescription(
+  'Use net revenue after refunds for monthly performance reporting.'
+);
+
+await client.project.updateDescription(null);
+```
+
+## Check project setup progress
+
+Use `project.getSetupProgress()` to inspect the current project member's merged project- and
+user-scoped onboarding state. The response includes the API contract version, persisted steps
+schema version, completion percentage, and per-step completion details.
+
+```ts
+const setupProgress = await client.project.getSetupProgress();
+
+console.log(setupProgress.progress);
+
+for (const [step, state] of Object.entries(setupProgress.steps)) {
+  console.log(step, state.done, state.completedAt);
+}
+```
+
+## Read project run history
+
+Use `runs.getHistory()` to inspect historical Data Mart executions visible to the current
+project member. Pass optional `limit` and `offset` values to page through the project-wide history;
+the API defaults to at most 100 runs.
+
+```ts
+const history = await client.runs.getHistory({ limit: 50, offset: 0 });
+
+for (const run of history.runs) {
+  console.log(run.dataMart.title, run.type, run.status, run.finishedAt);
+}
+```
+
+Each run includes its Data Mart ID and title, creator metadata when available, execution and trigger
+types, status, timestamps, and available logs, errors, metadata, and totals. This makes the method
+suitable for monitoring and automation without calling the HTTP endpoint directly.
+
 ## List data marts
 
 ```ts
 const dataMarts = await client.dataMarts.list();
+```
+
+## Read the Models canvas
+
+Use `models.getDataMarts()` to read one page of the data marts visible to the current project
+member in a storage. Pass the returned `nextOffset` to request the next page.
+
+```ts
+const firstPage = await client.models.getDataMarts('storage-id');
+
+if (firstPage.nextOffset !== null) {
+  const nextPage = await client.models.getDataMarts('storage-id', firstPage.nextOffset);
+  console.log(nextPage.items);
+}
+```
+
+Use `models.getEdges()` to read the visible relationships between those data marts.
+
+```ts
+const edges = await client.models.getEdges('storage-id');
+
+for (const edge of edges) {
+  console.log(edge.sourceDataMartId, edge.targetDataMartId, edge.joinConditions);
+}
 ```
 
 ## Stream Data Mart rows

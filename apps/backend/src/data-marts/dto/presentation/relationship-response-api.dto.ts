@@ -21,6 +21,12 @@ export class DataMartRefApiDto {
     description: 'Whether the requesting user has SEE access to this data mart',
   })
   userHasAccess: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether this data mart has at least one primary key field defined in its schema',
+  })
+  hasPrimaryKey: boolean;
 }
 
 export class RelationshipResponseApiDto {
