@@ -7,7 +7,7 @@ export default [
     ignores: ['.astro/**'],
   },
   {
-    files: ['scripts/**/*.ts', 'scripts/**/*.js'],
+    files: ['scripts/**/*.{js,mjs,ts}'],
     languageOptions: {
       globals: {
         ...globals.node,
