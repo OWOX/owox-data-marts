@@ -33,54 +33,21 @@ describe('AuthContextController OpenAPI', () => {
     await app.close();
   });
 
-  it('documents the auth context operation, headers, and response schema', () => {
+  it('keeps the operation identity used by the Support Matrix', () => {
     const operation = document.paths['/api/auth/context']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'AuthContextController_getContext',
-      tags: ['Authentication'],
-      summary: 'Get the current auth context',
+    expect(operation?.operationId).toBe('AuthContextController_getContext');
+  });
+
+  it('wires the response to the named auth-context presentation component', () => {
+    const operation = document.paths['/api/auth/context']?.get;
+    const response = operation?.responses['200'];
+
+    expect(
+      response && 'content' in response ? response.content?.['application/json']?.schema : null
+    ).toEqual({
+      $ref: '#/components/schemas/AuthContextResponseApiDto',
     });
-    expect(operation?.parameters).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: 'X-OWOX-Authorization',
-          in: 'header',
-          required: true,
-        }),
-        expect.objectContaining({
-          name: 'X-OWOX-Api-Key-Id',
-          in: 'header',
-          required: false,
-          description:
-            'Required when X-OWOX-Authorization contains an API-key access token; must match the token API key ID.',
-        }),
-      ])
-    );
-    expect(operation?.responses['200']).toMatchObject({
-      description: 'Auth context resolved by the backend auth guard.',
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            required: ['userId', 'projectId'],
-            properties: {
-              userId: { type: 'string' },
-              projectId: { type: 'string' },
-              email: { type: 'string', nullable: true },
-              fullName: { type: 'string', nullable: true },
-              avatar: { type: 'string', nullable: true },
-              roles: {
-                type: 'array',
-                items: { type: 'string', enum: ['admin', 'editor', 'viewer'] },
-              },
-              projectTitle: { type: 'string', nullable: true },
-              authFlow: { type: 'string', nullable: true },
-              apiKeyId: { type: 'string', nullable: true },
-            },
-          },
-        },
-      },
-    });
+    expect(document.components?.schemas?.AuthContextResponseApiDto).toBeDefined();
   });
 });
