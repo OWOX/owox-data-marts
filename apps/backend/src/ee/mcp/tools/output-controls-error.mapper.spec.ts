@@ -37,9 +37,37 @@ describe('translateOutputControlsError', () => {
     expect(translated?.message).toContain('do not re-fetch the schema');
   });
 
-  it('returns null for a BadRequestException without recognized validation errors', () => {
+  it('translates HAVING_FILTER_NOT_AGGREGATED with both ways out of the stuck state', () => {
+    const translated = translateOutputControlsError(
+      validatorError([{ code: 'HAVING_FILTER_NOT_AGGREGATED', column: 'revenue', function: 'SUM' }])
+    );
+    expect(translated).toMatchObject({ code: 'having_filter_not_aggregated' });
+    expect(translated?.message).toContain('SUM(revenue)');
+    // The stored rule is invisible and inexpressible over MCP, so the message
+    // must name both recoveries: re-add the aggregation or clear via filters: [].
+    expect(translated?.message).toContain('re-add the matching aggregation');
+    expect(translated?.message).toContain('filters: []');
+  });
+
+  it('falls back to an informative translation naming unrecognized codes and columns', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'channel' },
+        { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' },
+      ])
+    );
+    expect(translated).toMatchObject({ code: 'output_controls_invalid' });
+    expect(translated?.message).toContain('DATE_TRUNC_REQUIRES_DATE_COLUMN (channel)');
+    expect(translated?.message).toContain('PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG');
+  });
+
+  it('returns null for a BadRequestException without structured validation errors', () => {
     expect(translateOutputControlsError(new BadRequestException('plain message'))).toBeNull();
-    expect(translateOutputControlsError(validatorError([{ code: 'SOMETHING_ELSE' }]))).toBeNull();
+    expect(
+      translateOutputControlsError(
+        new BadRequestException({ message: 'shaped but empty', details: { errors: [] } })
+      )
+    ).toBeNull();
   });
 });
 

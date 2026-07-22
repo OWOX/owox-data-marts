@@ -88,6 +88,21 @@ export function translateOutputControlsError(
     };
   }
 
+  // A stored HAVING rule (UI-created; not expressible over MCP) lost its matching
+  // aggregation. Without recovery guidance this dead-ends: the agent can neither
+  // see the rule nor re-create it, so name both ways out of the stuck state.
+  if (errors?.some(e => e.code === 'HAVING_FILTER_NOT_AGGREGATED')) {
+    const rules = errors
+      .filter(e => e.code === 'HAVING_FILTER_NOT_AGGREGATED')
+      .map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
+      .filter(Boolean)
+      .join(', ');
+    return {
+      code: 'having_filter_not_aggregated',
+      message: `This report carries a stored post-aggregation (HAVING) constraint${rules ? ` on ${rules}` : ''} whose aggregation is no longer configured. It was created in the OWOX UI and cannot be expressed over MCP. Either re-add the matching aggregation, or pass filters: [] to clear the stored constraint together with the row filters, then re-apply the filters you want.`,
+    };
+  }
+
   // Filter/slice operator not valid for the field's type. A slice carries an aliasPath (it runs
   // pre-join on the field's RAW type), so point the model at the field's `sliceType`.
   const badOperator = errors?.filter(e => e.code === 'INVALID_OPERATOR_FOR_TYPE') ?? [];
@@ -112,6 +127,22 @@ export function translateOutputControlsError(
           : ''
       }Choose an operator that matches the field type and retry.`,
     };
+  }
+
+  // Informative fallback: no specific branch matched, but the validator DID
+  // report structured errors — append the codes and columns so no current or
+  // future validator code is ever fully opaque to the MCP client. Specific
+  // branches above stay reserved for cases needing real recovery guidance.
+  if (errors && errors.length > 0) {
+    const detail = [...new Set(errors.map(e => (e.column ? `${e.code} (${e.column})` : e.code)))]
+      .filter(Boolean)
+      .join(', ');
+    if (detail) {
+      return {
+        code: 'output_controls_invalid',
+        message: `${err.message}: ${detail}. Fix the named output controls and retry; call get_data_mart_details_by_id if you need the field types.`,
+      };
+    }
   }
 
   return null;

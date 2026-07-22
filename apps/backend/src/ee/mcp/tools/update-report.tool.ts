@@ -38,7 +38,7 @@ const baseInputSchema = z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters (stored slices are untouched); pass [] to remove every row filter; omit to keep current.'
+        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters (stored slices are untouched) — including any post-aggregation (HAVING) constraints created in the OWOX UI, which cannot be expressed over MCP; pass [] to remove every row filter; omit to keep current.'
       ),
     slices: z
       .array(makeMcpFilterSchema())

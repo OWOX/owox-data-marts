@@ -43,9 +43,13 @@ function wrapMappingError(err: unknown): never {
 }
 
 /**
- * `slices` (pre-join) and `filters` (post-join) form ONE domain FilterConfig, so
- * they replace it as a unit: providing either replaces every stored rule of both
- * placements. Slices only apply to blended data marts, mirroring query_data_mart.
+ * Combines slice (pre-join) and filter (post-join) inputs into domain
+ * FilterRules. This mapper does NOT decide replacement scope — that is the
+ * caller's contract: add_report passes both kinds together (there is no stored
+ * state to preserve), while update_report maps each kind in a SEPARATE call and
+ * the facade replaces per placement, so updating one kind never wipes the
+ * stored rules of the other. Slices only apply to blended data marts,
+ * mirroring query_data_mart.
  */
 export function mapReportFilters(
   slices: McpFilterInput[] | undefined,
