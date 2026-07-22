@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import * as supertest from 'supertest';
 
 jest.mock('../../common/markdown/markdown-parser.service', () => ({
   MarkdownParser: jest.fn(),
@@ -18,20 +19,25 @@ jest.mock('../../idp', () => ({
 }));
 
 import { MarkdownParser } from '../../common/markdown/markdown-parser.service';
+import { setupGlobalPipes } from '../../config/global-pipes.config';
 import { MarkdownParserController } from './markdown-parser.controller';
 
 describe('MarkdownParserController OpenAPI', () => {
+  const markdownParser = {
+    parseToHtml: jest.fn(),
+  };
   let app: INestApplication;
   let document: OpenAPIObject;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [MarkdownParserController],
-      providers: [{ provide: MarkdownParser, useValue: {} }],
+      providers: [{ provide: MarkdownParser, useValue: markdownParser }],
     }).compile();
 
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
+    setupGlobalPipes(app);
     await app.init();
 
     document = SwaggerModule.createDocument(
@@ -48,6 +54,19 @@ describe('MarkdownParserController OpenAPI', () => {
     const schemaName = ref.split('/').at(-1)!;
     return document.components?.schemas?.[schemaName] as Record<string, any>;
   }
+
+  it('accepts a valid Markdown body through global validation', async () => {
+    markdownParser.parseToHtml.mockResolvedValue('<h1>Revenue</h1>');
+
+    await supertest
+      .default(app.getHttpServer())
+      .post('/api/markdown/parse-to-html')
+      .send({ markdown: '# Revenue' })
+      .expect(201)
+      .expect('<h1>Revenue</h1>');
+
+    expect(markdownParser.parseToHtml).toHaveBeenCalledWith('# Revenue');
+  });
 
   it('documents the Markdown request and raw HTML response', () => {
     const operation = document.paths['/api/markdown/parse-to-html']?.post;
@@ -67,7 +86,7 @@ describe('MarkdownParserController OpenAPI', () => {
       },
     });
 
-    expect(operation?.responses['200']).toMatchObject({
+    expect(operation?.responses['201']).toMatchObject({
       description: 'Rendered HTML using the same Markdown pipeline as the OWOX Data Marts UI',
       content: {
         'text/html': {

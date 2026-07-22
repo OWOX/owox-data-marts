@@ -1,12 +1,12 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiBody, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
+import { ApiBody, ApiCreatedResponse, ApiOperation } from '@nestjs/swagger';
 import { MarkdownParseRequestApiDto } from '../../dto/presentation/markdown-parse-request-api.dto';
 
 export function ParseMarkdownToHtmlSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Convert Markdown to application-rendered HTML' }),
     ApiBody({ type: MarkdownParseRequestApiDto }),
-    ApiOkResponse({
+    ApiCreatedResponse({
       description: 'Rendered HTML using the same Markdown pipeline as the OWOX Data Marts UI',
       content: {
         'text/html': {
