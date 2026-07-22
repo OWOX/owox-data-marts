@@ -3,7 +3,6 @@ export { type OWOXAuthContext } from './auth.js';
 export { OWOXApiClient, type OWOXApiClientOptions } from './client.js';
 export { OWOXApiError, OWOXAuthError, OWOXConfigError } from './errors.js';
 export {
-  DataMartDataTraversal,
   type OWOXDataMart,
   type OWOXDataMartContext,
   type OWOXDataMartDefinitionType,
@@ -59,3 +58,8 @@ export {
   type OWOXSearchOptions,
   type OWOXSearchResult,
 } from './search.js';
+export {
+  HttpNdjsonTraversal,
+  /** @deprecated Use {@link HttpNdjsonTraversal} instead. Kept for backward compatibility. */
+  HttpNdjsonTraversal as DataMartDataTraversal,
+} from './traversal.js';

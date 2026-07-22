@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { Auth, AuthContext, AuthorizationContext, Role } from '../../../idp';
 import { HttpDataMapper } from '../../mappers/http-data.mapper';
 import { StreamHttpDataService } from '../../use-cases/stream-http-data.service';
-import { StreamHttpDataSpec } from '../spec/external/http-data.api';
+import { StreamHttpDataSpec, StreamHttpReportDataSpec } from '../spec/external/http-data.api';
 
 @Controller('external/http-data')
 @ApiTags('HTTP Data')
@@ -25,5 +25,18 @@ export class HttpDataController {
   ): Promise<void> {
     const command = this.mapper.toStreamHttpDataCommand(dataMartId, ctx, rawQuery);
     await this.streamHttpDataService.stream(command, res);
+  }
+
+  @Auth(Role.viewer())
+  @Get('reports/:reportId.ndjson')
+  @StreamHttpReportDataSpec()
+  async streamReport(
+    @Param('reportId') reportId: string,
+    @Query() rawQuery: Record<string, unknown>,
+    @AuthContext() ctx: AuthorizationContext,
+    @Res() res: Response
+  ): Promise<void> {
+    const command = this.mapper.toStreamHttpReportDataCommand(reportId, ctx, rawQuery);
+    await this.streamHttpDataService.streamReport(command, res);
   }
 }

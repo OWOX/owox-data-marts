@@ -53,24 +53,31 @@ describe('HttpDataController OpenAPI', () => {
     await app.close();
   });
 
-  function streamOperation(): Record<string, any> {
-    const operation = document.paths['/api/external/http-data/data-marts/{dataMartId}.ndjson']?.get;
+  function operationFor(pathNeedle: string): Record<string, any> {
+    const path = Object.keys(document.paths).find(p => p.includes(pathNeedle));
+    expect(path).toBeDefined();
+    const operation = document.paths[path!]?.get;
     expect(operation).toBeDefined();
     return operation as Record<string, any>;
   }
 
-  function parametersByName(): Record<string, Record<string, any>> {
+  function parametersFor(pathNeedle: string): Array<Record<string, any>> {
+    return (operationFor(pathNeedle).parameters ?? []) as Array<Record<string, any>>;
+  }
+
+  function parametersByNameFor(pathNeedle: string): Record<string, Record<string, any>> {
     return Object.fromEntries(
-      (streamOperation().parameters ?? []).map((parameter: Record<string, any>) => [
-        parameter.name,
-        parameter,
-      ])
+      parametersFor(pathNeedle).map((parameter: Record<string, any>) => [parameter.name, parameter])
     );
   }
 
+  function queryParam(name: string): Record<string, any> | undefined {
+    return parametersFor('http-data/data-marts').find(p => p.name === name && p.in === 'query');
+  }
+
   it('publishes the stable HTTP Data operation identity and parameter contract', () => {
-    const operation = streamOperation();
-    const parameters = parametersByName();
+    const operation = operationFor('http-data/data-marts');
+    const parameters = parametersByNameFor('http-data/data-marts');
 
     expect(operation).toMatchObject({
       operationId: 'HttpDataController_stream',
@@ -110,7 +117,7 @@ describe('HttpDataController OpenAPI', () => {
   it.each(['filter', 'sort', 'aggregation', 'dateTrunc'])(
     'publishes %s as an optional bounded base64url string',
     name => {
-      const parameter = parametersByName()[name];
+      const parameter = queryParam(name);
 
       expect(parameter).toMatchObject({
         in: 'query',
@@ -121,12 +128,12 @@ describe('HttpDataController OpenAPI', () => {
           maxLength: 8192,
         },
       });
-      expect(parameter.description).toMatch(/base64url/i);
+      expect(parameter?.description).toMatch(/base64url/i);
     }
   );
 
   it('publishes the NDJSON response, run ID header, and endpoint-specific failures', () => {
-    const responses = streamOperation().responses;
+    const responses = operationFor('http-data/data-marts').responses;
 
     expect(responses['200']).toMatchObject({
       headers: {
@@ -153,5 +160,13 @@ describe('HttpDataController OpenAPI', () => {
     expect(responses['404'].description).toMatch(/not visible.*not published/i);
     expect(responses['424'].description).toMatch(/storage dependency.*provider context/i);
     expect(responses['503'].description).toMatch(/server is shutting down/i);
+  });
+
+  it('documents the report route with only an optional limit query param', () => {
+    const params = parametersFor('http-data/reports');
+    const queryParams = params.filter(p => p.in === 'query');
+    expect(queryParams.map(p => p.name)).toEqual(['limit']);
+    expect(queryParams[0]?.required).toBe(false);
+    expect(params.some(p => p.name === 'reportId' && p.in === 'path')).toBe(true);
   });
 });
