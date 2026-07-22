@@ -62,6 +62,34 @@ test('parses a linked covered cell into semantic status, date, and target', () =
   );
 });
 
+test('accepts the exact auth context coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Authentication/AuthContextController_getContext) · 2026-07-22',
+      'OpenAPI',
+      'GET /api/auth/context'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-22',
+      target:
+        'https://app.owox.com/api/swagger-ui#/Authentication/AuthContextController_getContext',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#get-auth-context) · 2026-07-22',
+      'API client',
+      'GET /api/auth/context'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-22',
+      target: './api-client/#get-auth-context',
+    }
+  );
+});
+
 test('accepts the exact Markdown parser coverage targets', () => {
   assert.deepEqual(
     matrixModule.parseCoverageCell(

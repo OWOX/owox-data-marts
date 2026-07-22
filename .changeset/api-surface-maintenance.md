@@ -51,3 +51,11 @@ request and raw HTML response. `@owox/api-client` adds
 `OWOXMarkdownParseResponse` for rendering with the same pipeline as the OWOX Data Marts web
 interface. Existing viewer access and HTTP behavior are unchanged, and consumers can adopt the
 client method without a migration.
+
+## Add auth context introspection
+
+`GET /api/auth/context` now publishes an explicit OpenAPI response contract for the current
+API-key-derived project and member context. `@owox/api-client` exposes `auth.getContext()` and
+`OWOXAuthContext` for validating a configured API key and reading that context without exposing
+the API key secret. Existing authentication and authorization behavior are unchanged, and
+consumers can adopt the client method without a migration.
