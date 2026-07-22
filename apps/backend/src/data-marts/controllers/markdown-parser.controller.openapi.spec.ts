@@ -52,6 +52,10 @@ describe('MarkdownParserController OpenAPI', () => {
   it('documents the Markdown request and raw HTML response', () => {
     const operation = document.paths['/api/markdown/parse-to-html']?.post;
 
+    expect(operation).toMatchObject({
+      operationId: 'MarkdownParserController_parseToHtml',
+      tags: ['Utils'],
+    });
     expect(operation?.summary).toBe('Convert Markdown to application-rendered HTML');
 
     const requestBody = operation?.requestBody as Record<string, any>;
