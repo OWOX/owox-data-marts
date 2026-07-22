@@ -17,7 +17,7 @@ dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               155 |     6/155 (4%) |       6/155 (4%) |         6/155 (4%) |        149 |
+|               155 |     7/155 (5%) |       7/155 (5%) |         7/155 (5%) |        148 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -164,7 +164,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/data-marts/insight-templates` | Unassessed | Unassessed |
+| `GET /api/data-marts/insight-templates` | Covered · 2026-07-21 | Covered · 2026-07-21 |
 | `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers` | Unassessed | Unassessed |
 | `DELETE /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}` | Unassessed | Unassessed |
 | `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}` | Unassessed | Unassessed |

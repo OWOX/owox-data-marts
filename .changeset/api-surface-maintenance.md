@@ -32,3 +32,13 @@ project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRuns
 `OWOXProjectDataMartRunStatus`, `OWOXProjectDataMartRunType`,
 `OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. Existing viewer access
 and HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
+
+## Add project insight-template discovery API client support
+
+`@owox/api-client` adds `insights.getTemplates({ limit, offset })` for authenticated,
+project-wide discovery of reusable insight definitions across accessible Data Marts. It exports
+`OWOXProjectInsightTemplatesResponse`, `OWOXProjectInsightTemplate`,
+`OWOXProjectInsightTemplateDataMartRef`, `OWOXProjectInsightTemplateUser`, and
+`OWOXProjectInsightTemplateListOptions`. Each result includes its Data Mart reference, creator
+metadata when available, and the current member's `canDelete` state. Existing viewer access and
+HTTP behavior are unchanged, and consumers can adopt the client method without a migration.

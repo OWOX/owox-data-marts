@@ -5,6 +5,7 @@ import { AuthApi, exchangeAccessToken, normalizeApiOrigin, readResponseBody } fr
 import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
+import { InsightsApi } from './insight-templates.js';
 import { ModelCanvasApi } from './model-canvas.js';
 import { ProjectApi } from './project.js';
 import { RunsApi } from './runs.js';
@@ -33,6 +34,7 @@ export class OWOXApiClient {
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
   readonly destinations: DestinationsApi;
+  readonly insights: InsightsApi;
   readonly models: ModelCanvasApi;
   readonly project: ProjectApi;
   readonly runs: RunsApi;
@@ -54,6 +56,7 @@ export class OWOXApiClient {
     this.dataMarts = new DataMartsApi(this);
     this.storages = new StoragesApi(this);
     this.destinations = new DestinationsApi(this);
+    this.insights = new InsightsApi(this);
     this.models = new ModelCanvasApi(this);
     this.project = new ProjectApi(this);
     this.runs = new RunsApi(this);
