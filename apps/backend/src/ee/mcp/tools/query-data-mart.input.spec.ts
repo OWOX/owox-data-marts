@@ -84,15 +84,27 @@ describe('mapMcpFiltersToRules', () => {
     expect(rules![0]).toMatchObject({ column: 'active', operator: 'eq', value: 'true' });
   });
 
-  it('maps in/not_in with an array of scalars, preserving placement', () => {
+  it('maps in/not_in with an array of same-type scalars, preserving placement', () => {
     const rules = mapMcpFiltersToRules(
       [{ field: 'channel', operator: 'in', value: ['fb', 'google'] }],
-      [{ field: 'status', operator: 'not_in', value: ['draft', 5, true] }]
+      [{ field: 'amount', operator: 'not_in', value: [1, 2, 3] }]
     );
     expect(rules).toEqual([
       { column: 'channel', operator: 'in', value: ['fb', 'google'], placement: 'pre-join' },
-      { column: 'status', operator: 'not_in', value: ['draft', 5, true], placement: 'post-join' },
+      { column: 'amount', operator: 'not_in', value: [1, 2, 3], placement: 'post-join' },
     ]);
+  });
+
+  it('rejects mixed-type and non-finite in lists with a precise error', () => {
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: ['draft', 5, true] }])
+    ).toThrow(/same type/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [1, Infinity] }])
+    ).toThrow(/finite numbers/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [Number.NaN] }])
+    ).toThrow(/finite numbers/);
   });
 
   it('rejects in with an empty array, a non-array, or non-scalar entries', () => {
@@ -104,7 +116,7 @@ describe('mapMcpFiltersToRules', () => {
     );
     expect(() =>
       mapMcpFiltersToRules([], [{ field: 'c', operator: 'not_in', value: [{ v: 1 }] }])
-    ).toThrow(/strings, numbers, or booleans/);
+    ).toThrow(/strings, finite numbers, or booleans/);
   });
 
   it('rejects an in list longer than the cap', () => {
@@ -150,6 +162,23 @@ describe('mapMcpFiltersToRules', () => {
     expect(() =>
       mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 'abc' }])
     ).toThrow(/positive integer/);
+  });
+
+  it('rejects boolean/array day counts instead of coercing them (Number(true)=1, Number([7])=7)', () => {
+    for (const operator of ['in_last_n_days', 'in_next_n_days'] as const) {
+      expect(() => mapMcpFiltersToRules([], [{ field: 'd', operator, value: true }])).toThrow(
+        /positive integer/
+      );
+      expect(() => mapMcpFiltersToRules([], [{ field: 'd', operator, value: [7] }])).toThrow(
+        /positive integer/
+      );
+    }
+    // A numeric string stays accepted — a common client habit.
+    const rules = mapMcpFiltersToRules(
+      [],
+      [{ field: 'd', operator: 'in_last_n_days', value: '7' }]
+    );
+    expect(rules![0]).toMatchObject({ value: { kind: 'last_n_days', n: 7 } });
   });
 
   it('rejects in_last_n_days with NaN value', () => {

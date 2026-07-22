@@ -251,10 +251,23 @@ function mapOne(
         );
       }
       if (
-        !list.every(v => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+        !list.every(
+          v =>
+            typeof v === 'string' ||
+            (typeof v === 'number' && Number.isFinite(v)) ||
+            typeof v === 'boolean'
+        )
       ) {
         throw new InvalidFilterValueError(
-          `'${f.operator}' values must all be strings, numbers, or booleans`
+          `'${f.operator}' values must all be strings, finite numbers, or booleans`
+        );
+      }
+      // Mixed types die in the warehouse (BigQuery types each bound param from its JS
+      // value → "No matching signature for operator IN") — reject with a precise error here.
+      const firstType = typeof list[0];
+      if (!list.every(v => typeof v === firstType)) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' values must all be the same type (all strings, all numbers, or all booleans) — got a mix`
         );
       }
       return { ...base, operator: f.operator, value: list as never };
@@ -270,10 +283,18 @@ function mapOne(
     }
     case 'in_last_n_days':
     case 'in_next_n_days': {
-      const n = Number(f.value);
-      if (Number.isNaN(n) || !Number.isInteger(n) || n <= 0) {
+      // Only a number or a numeric string counts — Number() alone would coerce
+      // true→1 and [7]→7, silently running a query the caller didn't ask for.
+      const raw = f.value;
+      const n =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string' && raw.trim() !== ''
+            ? Number(raw)
+            : NaN;
+      if (!Number.isInteger(n) || n <= 0) {
         throw new InvalidFilterValueError(
-          `'${f.operator}' value must be a positive integer, got: ${String(f.value)}`
+          `'${f.operator}' value must be a positive integer, got: ${JSON.stringify(f.value)}`
         );
       }
       return {

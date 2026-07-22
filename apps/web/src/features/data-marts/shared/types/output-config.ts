@@ -4,7 +4,9 @@ import { REPORT_AGGREGATE_FUNCTIONS } from './relationship.types';
 export { PERCENTILE_FUNCTIONS, REPORT_AGGREGATE_FUNCTIONS } from './relationship.types';
 export type { ReportAggregateFunction } from './relationship.types';
 
-const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+// .finite() mirrors the backend schema: Infinity/NaN would render invalid SQL
+// server-side, so a config carrying them must not validate as clean here.
+const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
 // Mirror of the backend preset set (filter-config.schema.ts): ISO weeks (Monday),
 // calendar quarters, and next_n_days including today (like last_n_days).
@@ -57,8 +59,8 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
     column: z.string().min(1),
     operator: NoValueOperatorEnum,
   }),
-  // Mirror of the backend in/not_in branch (filter-config.schema.ts) — the picker does
-  // not offer these yet, but configs created via MCP/API must still parse.
+  // Mirror of the backend in/not_in branch (filter-config.schema.ts). Offered in the
+  // picker as "is any of" / "is none of"; MCP/API-created rules parse through here too.
   z.object({
     column: z.string().min(1),
     operator: z.enum(['in', 'not_in']),

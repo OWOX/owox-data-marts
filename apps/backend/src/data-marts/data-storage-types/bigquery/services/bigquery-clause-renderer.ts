@@ -169,6 +169,12 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     preset: Extract<FilterRule, { operator: 'relative_date' }>['value'],
     columnType?: string
   ): string {
+    // `n` is inlined into SQL below; re-assert the integer locally so the injection
+    // barrier does not live solely in the zod schema on the request path (the other
+    // renderers carry the same guard).
+    if ('n' in preset && (!Number.isInteger(preset.n) || preset.n < 0)) {
+      throw new Error(`Invalid relative_date n: ${String(preset.n)}`);
+    }
     // Compare the DATE part of a sub-day column so the whole day matches and the
     // DATE-typed bounds don't raise a type mismatch. DATE columns compare directly.
     const lhs =

@@ -189,6 +189,12 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     col: string,
     preset: Extract<FilterRule, { operator: 'relative_date' }>['value']
   ): string {
+    // `n` is inlined into SQL below; re-assert the integer locally so the injection
+    // barrier does not live solely in the zod schema on the request path (the other
+    // renderers carry the same guard).
+    if ('n' in preset && (!Number.isInteger(preset.n) || preset.n < 0)) {
+      throw new Error(`Invalid relative_date n: ${String(preset.n)}`);
+    }
     switch (preset.kind) {
       // Half-open ranges, not equality: `col = current_date` only matches the
       // midnight instant on a TIMESTAMP/DATETIME column (a row at 13:45 is

@@ -367,6 +367,39 @@ describe('QueryDataMartTool', () => {
       expect(msg).not.toContain('contains, ');
     });
 
+    it('reports ALL validation-error families in one response (no round-trip per class)', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'revenue',
+              type: 'FLOAT',
+              operator: 'contains',
+            },
+            { code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD', column: 'name', function: 'SUM' },
+            { code: 'SORT_COLUMN_NOT_SELECTED', column: 'ts' },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['revenue'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      // error_code = highest-priority family, but the message carries every family.
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'contains'");
+      expect(msg).toContain('SUM(name)');
+      expect(msg).toContain('missing from "fields"');
+      expect(msg).toContain('ts');
+    });
+
     it('translates internal relative_date back to the MCP preset names in the error', async () => {
       const err = new BadRequestException({
         message: 'Output controls validation failed',

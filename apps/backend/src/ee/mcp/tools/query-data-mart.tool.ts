@@ -267,12 +267,18 @@ If truncated is true, not all matching rows were returned: narrow the query (few
           }>
         | undefined;
 
+      // The validator reports EVERY problem in one details.errors array; surface every
+      // recognized family in one response so the caller fixes them all in one retry
+      // instead of discovering one class per (billable) round-trip. error_code is the
+      // first (highest-priority) family; the message carries the rest.
+      const sections: { code: string; message: string }[] = [];
+
       // Wrong field name — point at the schema.
       if (errors?.some(e => e.code === 'FILTER_COLUMN_UNKNOWN')) {
-        return toStructuredToolError(
-          'field_not_found',
-          `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`
-        );
+        sections.push({
+          code: 'field_not_found',
+          message: `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`,
+        });
       }
 
       // Operator doesn't fit the field's type — name the field, its type, and the operators
@@ -305,10 +311,10 @@ If truncated is true, not all matching rows were returned: narrow the query (few
             return `${operatorLabel} cannot apply to field '${e.column}' (type ${e.type}); operators valid for this field: ${allowed}`;
           })
           .join('. ');
-        return toStructuredToolError(
-          'invalid_operator_for_type',
-          `Filter/slice operator does not fit the field's type — ${details}. The field name(s) are correct, so do not re-fetch the schema; change the operator (or value) and retry.`
-        );
+        sections.push({
+          code: 'invalid_operator_for_type',
+          message: `Filter/slice operator does not fit the field's type — ${details}. The field name(s) are correct, so do not re-fetch the schema; change the operator (or value) and retry.`,
+        });
       }
 
       // date_buckets misuse — each variant names the field and the exact fix.
@@ -330,18 +336,19 @@ If truncated is true, not all matching rows were returned: narrow the query (few
             }
           })
           .join('. ');
-        return toStructuredToolError(
-          'invalid_date_bucket',
-          `Invalid date_buckets — ${details}. The field name(s) are correct, so do not re-fetch the schema.`
-        );
+        sections.push({
+          code: 'invalid_date_bucket',
+          message: `Invalid date_buckets — ${details}. The field name(s) are correct, so do not re-fetch the schema.`,
+        });
       }
 
       // slices are pre-join filters; on a non-blended data mart they don't apply.
       if (errors?.some(e => e.code === 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART')) {
-        return toStructuredToolError(
-          'slices_not_applicable',
-          'This data mart has no joined/blended sources, so slices (pre-join filters) do not apply. Move these predicates to "filters" and retry.'
-        );
+        sections.push({
+          code: 'slices_not_applicable',
+          message:
+            'This data mart has no joined/blended sources, so slices (pre-join filters) do not apply. Move these predicates to "filters" and retry.',
+        });
       }
 
       // Field name is correct but missing from `fields` — a re-fetch would loop the model; fix is to add it.
@@ -353,10 +360,10 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const missing = errors?.filter(e => notSelected.has(e.code ?? '')) ?? [];
       if (missing.length > 0) {
         const cols = [...new Set(missing.map(e => e.column).filter(Boolean))].join(', ');
-        return toStructuredToolError(
-          'field_not_selected',
-          `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated, bucketed, or sorted field must also be listed in "fields". Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`
-        );
+        sections.push({
+          code: 'field_not_selected',
+          message: `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated, bucketed, or sorted field must also be listed in "fields". Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`,
+        });
       }
 
       // Output controls reject this aggregate on this field (or it's a duplicate) — name field+function.
@@ -374,9 +381,16 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         ]
           .filter(Boolean)
           .join(', ');
+        sections.push({
+          code: 'aggregation_not_allowed',
+          message: `Aggregation not permitted on the requested field(s)${detail ? `: ${detail}` : ''}. This data mart's output controls restrict which aggregate functions each field allows (or the same field+function was requested twice). Choose a different aggregation, or ask an admin to enable it — the field name(s) are correct, so do not re-fetch the schema.`,
+        });
+      }
+
+      if (sections.length > 0) {
         return toStructuredToolError(
-          'aggregation_not_allowed',
-          `Aggregation not permitted on the requested field(s)${detail ? `: ${detail}` : ''}. This data mart's output controls restrict which aggregate functions each field allows (or the same field+function was requested twice). Choose a different aggregation, or ask an admin to enable it — the field name(s) are correct, so do not re-fetch the schema.`
+          sections[0].code,
+          sections.map(s => s.message).join(' ALSO: ')
         );
       }
     }
