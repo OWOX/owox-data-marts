@@ -942,7 +942,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">data_mart_id</code></td><td>Data mart to export</td></tr><tr><td><code dir="auto">destination_id</code></td><td>The destination to export to (from <code dir="auto">list_destinations</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Exact column names to include, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">name</code></td><td>Report name — also the new sheet’s title (Google Sheets) and the default message subject (email family). Required for those destination types; not accepted for Looker Studio</td></tr><tr><td><code dir="auto">message</code></td><td>Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types</td></tr><tr><td><code dir="auto">message.subject</code></td><td>Optional message subject or heading. Defaults to the report name</td></tr><tr><td><code dir="auto">message.body</code></td><td>Message body template. Supports the <code dir="auto">{{table}}</code> placeholder, which renders the report’s result table</td></tr></tbody></table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">data_mart_id</code></td><td>Data mart to export</td></tr><tr><td><code dir="auto">destination_id</code></td><td>The destination to export to (from <code dir="auto">list_destinations</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Exact column names to include, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">filters</code></td><td>Optional. Row filters applied on every report run — same shape and operator vocabulary as <code dir="auto">query_data_mart</code>’s <code dir="auto">filters</code>, so the assistant can create a report that exports exactly the filtered result you were looking at. A filter may reference a field that is not in <code dir="auto">fields</code>. Omit to export all rows</td></tr><tr><td><code dir="auto">slices</code></td><td>Optional. Pre-join filters that narrow a joined data mart before blending — same as <code dir="auto">query_data_mart</code>’s <code dir="auto">slices</code>. Blended data marts only</td></tr><tr><td><code dir="auto">aggregations</code></td><td>Optional. Aggregations applied on every run — same as <code dir="auto">query_data_mart</code>’s <code dir="auto">aggregations</code>. Each aggregated field must also appear in <code dir="auto">fields</code>; other fields become group-by dimensions</td></tr><tr><td><code dir="auto">date_buckets</code></td><td>Optional. Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR — same as <code dir="auto">query_data_mart</code>’s <code dir="auto">date_buckets</code>. Each bucketed field must also appear in <code dir="auto">fields</code></td></tr><tr><td><code dir="auto">sort</code></td><td>Optional. Order of the exported rows — same as <code dir="auto">query_data_mart</code>’s <code dir="auto">sort</code></td></tr><tr><td><code dir="auto">limit</code></td><td>Optional. Max rows each run exports; omit for no cap (the interactive query limit is deliberately NOT carried over)</td></tr><tr><td><code dir="auto">name</code></td><td>Report name — also the new sheet’s title (Google Sheets) and the default message subject (email family). Required for those destination types; not accepted for Looker Studio</td></tr><tr><td><code dir="auto">message</code></td><td>Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types</td></tr><tr><td><code dir="auto">message.subject</code></td><td>Optional message subject or heading. Defaults to the report name</td></tr><tr><td><code dir="auto">message.body</code></td><td>Message body template. Supports the <code dir="auto">{{table}}</code> placeholder, which renders the report’s result table</td></tr></tbody></table>
 <p><strong>Returns:</strong></p>
 
 
@@ -995,7 +1019,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 <table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report identifier</td></tr><tr><td><code dir="auto">destination_type</code></td><td>Type of the destination the report was created for</td></tr><tr><td><code dir="auto">report_url</code></td><td>Link to the report in OWOX Data Marts</td></tr><tr><td><code dir="auto">sheet_url</code></td><td>Google Sheets only. Link to the created Google Sheet</td></tr><tr><td><code dir="auto">owner</code></td><td>The user who created the report</td></tr><tr><td><code dir="auto">status</code></td><td><code dir="auto">created</code></td></tr><tr><td><code dir="auto">placed_in_root</code></td><td>Google Sheets only. <code dir="auto">true</code> if the configured Drive folder could not be used, so the sheet was created in the Drive root</td></tr><tr><td><code dir="auto">shared_with_requester</code></td><td>Google Sheets only. <code dir="auto">false</code> if the sheet could not be shared with you — opening the link may require requesting access</td></tr><tr><td><code dir="auto">instructions</code></td><td>Looker Studio only. What has to happen before dashboard data flows — the assistant relays this to you</td></tr><tr><td><code dir="auto">setup_guide_url</code></td><td>Looker Studio only. Link to the step-by-step Looker Studio connection guide</td></tr></tbody></table>
 <div class="sl-heading-wrapper level-h3"><h3 id="update_report-requires-mcpwrite"><code dir="auto">update_report</code> (requires <code dir="auto">mcp:write</code>)</h3><a class="sl-anchor-link" href="#update_report-requires-mcpwrite"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “update_report (requires mcp:write)”</span></a></div>
-<p>Updates an existing report: renames it, replaces which data mart fields it exports, and/or — for reports with an email, Slack, Teams, or Google Chat destination — changes the message subject or body. Anything not provided stays unchanged — the destination, filters, sorting, owners, schedules, and send condition are preserved as-is.</p>
+<p>Updates an existing report: renames it, replaces which data mart fields it exports, replaces its output controls (filters/slices, aggregations, date buckets, sort, limit — same vocabulary as <code dir="auto">query_data_mart</code>), and/or — for reports with an email, Slack, Teams, or Google Chat destination — changes the message subject or body. Anything not provided stays unchanged — the destination, owners, schedules, and send condition are preserved as-is.</p>
 <p><strong>Input:</strong></p>
 
 
@@ -1030,8 +1054,32 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report to update (from <code dir="auto">get_data_mart_reports</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Optional. Replacement column selection, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">name</code></td><td>Optional. New report name</td></tr><tr><td><code dir="auto">message</code></td><td>Optional. Message changes — only for reports with an email-family destination, rejected for other types</td></tr><tr><td><code dir="auto">message.subject</code></td><td>Optional. New message subject or heading</td></tr><tr><td><code dir="auto">message.body</code></td><td>Optional. New message body template (supports <code dir="auto">{{table}}</code>). Replaces the current body; if the report used an insight template, it switches to this custom message</td></tr></tbody></table>
-<p>At least one of <code dir="auto">fields</code> / <code dir="auto">name</code> / <code dir="auto">message</code> must be provided (and <code dir="auto">message</code>, when present, needs <code dir="auto">subject</code> and/or <code dir="auto">body</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">report_id</code></td><td>Report to update (from <code dir="auto">get_data_mart_reports</code>)</td></tr><tr><td><code dir="auto">fields</code></td><td>Optional. Replacement column selection, or <code dir="auto">["*"]</code> for every field</td></tr><tr><td><code dir="auto">filters</code></td><td>Optional. Replacement row filters (same vocabulary as <code dir="auto">query_data_mart</code>’s <code dir="auto">filters</code>). Replaces only the current row filters — stored slices are untouched; <code dir="auto">[]</code> removes every row filter</td></tr><tr><td><code dir="auto">slices</code></td><td>Optional. Replacement pre-join filters (blended data marts only). Replaces only the current slices — stored row filters are untouched; <code dir="auto">[]</code> removes every slice</td></tr><tr><td><code dir="auto">aggregations</code></td><td>Optional. Replacement aggregations; <code dir="auto">[]</code> removes them</td></tr><tr><td><code dir="auto">date_buckets</code></td><td>Optional. Replacement date buckets; <code dir="auto">[]</code> removes them</td></tr><tr><td><code dir="auto">sort</code></td><td>Optional. Replacement sort order; <code dir="auto">[]</code> removes it</td></tr><tr><td><code dir="auto">limit</code></td><td>Optional. New max rows per run; <code dir="auto">null</code> removes the cap</td></tr><tr><td><code dir="auto">name</code></td><td>Optional. New report name</td></tr><tr><td><code dir="auto">message</code></td><td>Optional. Message changes — only for reports with an email-family destination, rejected for other types</td></tr><tr><td><code dir="auto">message.subject</code></td><td>Optional. New message subject or heading</td></tr><tr><td><code dir="auto">message.body</code></td><td>Optional. New message body template (supports <code dir="auto">{{table}}</code>). Replaces the current body; if the report used an insight template, it switches to this custom message</td></tr></tbody></table>
+<p>At least one change parameter must be provided (and <code dir="auto">message</code>, when present, needs <code dir="auto">subject</code> and/or <code dir="auto">body</code>).</p>
 <p><strong>Returns:</strong></p>
 
 
@@ -1114,7 +1162,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>“Delete the old ‘Test export’ report from the Sales data mart.”</li>
 </ul>
 <blockquote>
-<p><strong>What these tools can and cannot do:</strong> They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With <code dir="auto">query_data_mart</code>, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (<code dir="auto">add_destination</code>), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination (<code dir="auto">add_report</code>), rename a report, change which fields it exports, or edit the message of email-family reports (<code dir="auto">update_report</code>), delete a report (<code dir="auto">delete_report</code>), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (<code dir="auto">run_report</code>). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through <code dir="auto">run_report</code>.</p>
+<p><strong>What these tools can and cannot do:</strong> They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With <code dir="auto">query_data_mart</code>, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (<code dir="auto">add_destination</code>), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a <code dir="auto">query_data_mart</code> call, so the export matches the numbers you saw (<code dir="auto">add_report</code>) — rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (<code dir="auto">update_report</code>), delete a report (<code dir="auto">delete_report</code>), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (<code dir="auto">run_report</code>). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through <code dir="auto">run_report</code>.</p>
 <p><strong>What is shared with your AI provider:</strong> To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs <code dir="auto">query_data_mart</code>, the <strong>resulting data rows and totals are sent</strong> to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.</p>
 </blockquote>
 <div class="sl-heading-wrapper level-h2"><h2 id="troubleshooting">Troubleshooting</h2><a class="sl-anchor-link" href="#troubleshooting"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Troubleshooting”</span></a></div>
