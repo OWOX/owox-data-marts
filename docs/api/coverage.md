@@ -1,4 +1,4 @@
-# API Support Matrix
+# Support Matrix
 
 This page tracks externally supported OWOX Data Marts business endpoints that
 accept authentication derived from an OWOX API key.
@@ -9,9 +9,10 @@ and legacy routes, authentication infrastructure such as
 deprecated direct-link-only Insights family. Only the current Insights family
 accessible through the regular UI is included.
 
-`Covered · YYYY-MM-DD` records when a coverage dimension became complete.
-`Gap` means required coverage is known to be missing. `Unassessed` means the
-dimension has not been evaluated and does not imply a gap.
+A linked `Covered` value opens the exact Swagger operation or API-client guide
+section. Its `YYYY-MM-DD` date records when that coverage dimension became
+complete. `Gap` means required coverage is known to be missing. `Unassessed`
+means the dimension has not been evaluated and does not imply a gap.
 
 ## Summary
 
@@ -164,7 +165,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/data-marts/insight-templates` | Covered · 2026-07-21 | Covered · 2026-07-21 |
+| `GET /api/data-marts/insight-templates` | [Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-21 | [Covered](./api-client/#list-project-insight-templates) · 2026-07-21 |
 | `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers` | Unassessed | Unassessed |
 | `DELETE /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}` | Unassessed | Unassessed |
 | `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}` | Unassessed | Unassessed |
@@ -206,8 +207,8 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/model-canvas/data-marts` | Covered · 2026-07-21 | Covered · 2026-07-21 |
-| `GET /api/model-canvas/edges` | Covered · 2026-07-21 | Covered · 2026-07-21 |
+| `GET /api/model-canvas/data-marts` | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts) · 2026-07-21 | [Covered](./api-client/#read-the-models-canvas) · 2026-07-21 |
+| `GET /api/model-canvas/edges` | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getEdges) · 2026-07-21 | [Covered](./api-client/#read-the-models-canvas) · 2026-07-21 |
 
 ## Project notification settings
 
@@ -222,8 +223,8 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/projects/settings` | Covered · 2026-07-21 | Covered · 2026-07-21 |
-| `PUT /api/projects/settings/description` | Covered · 2026-07-21 | Covered · 2026-07-21 |
+| `GET /api/projects/settings` | [Covered](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings) · 2026-07-21 | [Covered](./api-client/#manage-project-settings) · 2026-07-21 |
+| `PUT /api/projects/settings/description` | [Covered](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_updateDescription) · 2026-07-21 | [Covered](./api-client/#manage-project-settings) · 2026-07-21 |
 
 ## Reports
 
@@ -244,7 +245,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/data-marts/runs` | Covered · 2026-07-21 | Covered · 2026-07-21 |
+| `GET /api/data-marts/runs` | [Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-21 | [Covered](./api-client/#read-project-run-history) · 2026-07-21 |
 
 ## Scheduled triggers
 
@@ -267,7 +268,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/project-setup-progress` | Covered · 2026-07-21 | Covered · 2026-07-21 |
+| `GET /api/project-setup-progress` | [Covered](https://app.owox.com/api/swagger-ui#/project-setup-progress/ProjectSetupProgressController_getProgress) · 2026-07-21 | [Covered](./api-client/#check-project-setup-progress) · 2026-07-21 |
 
 ## Utilities
 
