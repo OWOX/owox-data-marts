@@ -18,7 +18,7 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               155 |     7/155 (5%) |       7/155 (5%) |         7/155 (5%) |        148 |
+|               155 |     8/155 (5%) |       8/155 (5%) |         8/155 (5%) |        147 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -274,4 +274,4 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `POST /api/markdown/parse-to-html` | Unassessed | Unassessed |
+| `POST /api/markdown/parse-to-html` | [Covered](https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml) · 2026-07-22 | [Covered](./api-client/#convert-markdown-to-html) · 2026-07-22 |

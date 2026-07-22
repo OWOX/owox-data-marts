@@ -6,6 +6,7 @@ import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
 import { InsightsApi } from './insight-templates.js';
+import { MarkdownApi } from './markdown.js';
 import { ModelCanvasApi } from './model-canvas.js';
 import { ProjectApi } from './project.js';
 import { RunsApi } from './runs.js';
@@ -20,7 +21,7 @@ export type OWOXApiClientOptions = {
 type QueryParams = Record<string, string> | URLSearchParams;
 type FetchInit = RequestInit & { dispatcher?: Dispatcher };
 type AuthenticatedRequestOptions = {
-  method: 'GET' | 'PUT';
+  method: 'GET' | 'POST' | 'PUT';
   query?: QueryParams;
   accept?: string;
   jsonBody?: unknown;
@@ -35,6 +36,7 @@ export class OWOXApiClient {
   readonly storages: StoragesApi;
   readonly destinations: DestinationsApi;
   readonly insights: InsightsApi;
+  readonly markdown: MarkdownApi;
   readonly models: ModelCanvasApi;
   readonly project: ProjectApi;
   readonly runs: RunsApi;
@@ -57,6 +59,7 @@ export class OWOXApiClient {
     this.storages = new StoragesApi(this);
     this.destinations = new DestinationsApi(this);
     this.insights = new InsightsApi(this);
+    this.markdown = new MarkdownApi(this);
     this.models = new ModelCanvasApi(this);
     this.project = new ProjectApi(this);
     this.runs = new RunsApi(this);
@@ -72,6 +75,10 @@ export class OWOXApiClient {
 
   async putJson<T>(path: string, jsonBody: unknown): Promise<T> {
     return this.requestJsonWithAuth<T>(path, { method: 'PUT', jsonBody });
+  }
+
+  async postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T> {
+    return this.requestJsonWithAuth<T>(path, { method: 'POST', jsonBody, accept });
   }
 
   async getStream(path: string, query?: URLSearchParams): Promise<Response> {

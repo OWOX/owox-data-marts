@@ -63,6 +63,13 @@ const COVERED_TARGETS = new Map([
       'API client': './api-client/#check-project-setup-progress',
     },
   ],
+  [
+    'POST /api/markdown/parse-to-html',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml',
+      'API client': './api-client/#convert-markdown-to-html',
+    },
+  ],
 ]);
 
 function splitTableRow(line) {

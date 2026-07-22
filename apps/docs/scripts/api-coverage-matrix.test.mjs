@@ -62,6 +62,33 @@ test('parses a linked covered cell into semantic status, date, and target', () =
   );
 });
 
+test('accepts the exact Markdown parser coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml) · 2026-07-22',
+      'OpenAPI',
+      'POST /api/markdown/parse-to-html'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-22',
+      target: 'https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#convert-markdown-to-html) · 2026-07-22',
+      'API client',
+      'POST /api/markdown/parse-to-html'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-22',
+      target: './api-client/#convert-markdown-to-html',
+    }
+  );
+});
+
 test('accepts a summary that matches calculated totals', () => {
   assert.deepEqual(validateCoverageMatrix(validMatrix), {
     endpoints: 3,
