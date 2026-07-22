@@ -49,6 +49,10 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { QueryFailedError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { GetReportCommand } from '../dto/domain/get-report.command';
+import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
+import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
+import type { FilterConfig } from '../dto/schemas/filter-config.schema';
+import type { SortConfig } from '../dto/schemas/sort-config.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
@@ -535,6 +539,56 @@ describe('McpReportsFacadeImpl.addReport', () => {
     );
   });
 
+  it('threads the filter rules into the pre-flight validation and the created report', async () => {
+    const {
+      facade,
+      createGoogleSheetDocumentService,
+      createReportService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+    createReportService.run.mockResolvedValue({ id: 'report-1', createdByUser: null } as ReportDto);
+
+    const filterConfig: FilterConfig = [
+      { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
+    ];
+    await facade.addReport({ ...addRequest, filterConfig });
+
+    // Filters must be validated BEFORE the sheet side effect, exactly like columns.
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({ filterConfig })
+    );
+    expect(createReportService.run).toHaveBeenCalledWith(expect.objectContaining({ filterConfig }));
+  });
+
+  it('threads aggregations, date buckets, sort, and limit into the pre-flight and the report', async () => {
+    const {
+      facade,
+      createGoogleSheetDocumentService,
+      createReportService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+    createReportService.run.mockResolvedValue({ id: 'report-1', createdByUser: null } as ReportDto);
+
+    const aggregationConfig: AggregationConfig = [{ column: 'revenue', function: 'SUM' }];
+    const dateTruncConfig: DateTruncConfig = [{ column: 'date', unit: 'MONTH' }];
+    const sortConfig: SortConfig = [{ column: 'revenue', direction: 'desc' }];
+    await facade.addReport({
+      ...addRequest,
+      aggregationConfig,
+      dateTruncConfig,
+      sortConfig,
+      limitConfig: 500,
+    });
+
+    const expected = { aggregationConfig, dateTruncConfig, sortConfig, limitConfig: 500 };
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining(expected)
+    );
+    expect(createReportService.run).toHaveBeenCalledWith(expect.objectContaining(expected));
+  });
+
   it('rejects a non-published data mart before creating the sheet', async () => {
     const { facade, createGoogleSheetDocumentService, dataMartService } = createFacade({
       reports: [],
@@ -830,6 +884,29 @@ describe('McpReportsFacadeImpl.addReport', () => {
     expect(result).not.toHaveProperty('sheet_url');
   });
 
+  it('threads the filter rules into side-effect-free (non-sheets) reports too', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.SLACK,
+    } as never);
+    createReportService.run.mockResolvedValue({ id: 'report-5', createdByUser: null } as ReportDto);
+
+    const filterConfig: FilterConfig = [
+      { column: 'revenue', operator: 'gt', value: 100, placement: 'post-join' },
+    ];
+    await facade.addReport({
+      ...addRequest,
+      filterConfig,
+      message: { body: '{{table}}' },
+    });
+
+    expect(createReportService.run).toHaveBeenCalledWith(expect.objectContaining({ filterConfig }));
+  });
+
   it('defaults the message subject to the report name', async () => {
     const { facade, dataDestinationService, createReportService } = createFacade({
       reports: [],
@@ -1001,7 +1078,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     const { facade, getReportService, updateReportService } = buildUpdateFacade();
 
     await expect(facade.updateReport(updateRequest)).rejects.toThrow(
-      'Nothing to update: provide fields, name, and/or message'
+      'Nothing to update: provide fields, filters, slices, aggregations, date_buckets, sort, limit, name, and/or message'
     );
     expect(getReportService.run).not.toHaveBeenCalled();
     expect(updateReportService.run).not.toHaveBeenCalled();
@@ -1028,6 +1105,106 @@ describe('McpReportsFacadeImpl.updateReport', () => {
 
     expect(updateReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({ columnConfig: null })
+    );
+  });
+
+  it('replaces the row filters while preserving the name and columns', async () => {
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    const postJoinFilters: FilterConfig = [
+      { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
+    ];
+    await facade.updateReport({ ...updateRequest, postJoinFilters });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Old name',
+        columnConfig: ['channel', 'revenue'],
+        filterConfig: postJoinFilters,
+      })
+    );
+  });
+
+  it('replaces only the touched filter kind, preserving the stored rules of the other', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    const storedSlice = { column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' };
+    const storedFilter = {
+      column: 'channel',
+      operator: 'eq',
+      value: 'ads',
+      placement: 'post-join',
+    };
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      filterConfig: [storedSlice, storedFilter],
+    } as unknown as ReportDto);
+
+    // Row filters only → the stored slice survives untouched.
+    const postJoinFilters: FilterConfig = [
+      { column: 'purchases', operator: 'gt', value: 10, placement: 'post-join' },
+    ];
+    await facade.updateReport({ ...updateRequest, postJoinFilters });
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ filterConfig: [storedSlice, ...(postJoinFilters ?? [])] })
+    );
+
+    // Slices only → the stored row filter survives untouched.
+    const preJoinFilters: FilterConfig = [
+      { column: 'source', operator: 'eq', value: 'meta', placement: 'pre-join' },
+    ];
+    await facade.updateReport({ ...updateRequest, preJoinFilters });
+    expect(updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: [...(preJoinFilters ?? []), storedFilter] })
+    );
+
+    // Clearing one kind with null leaves the other kind in place.
+    await facade.updateReport({ ...updateRequest, postJoinFilters: null });
+    expect(updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: [storedSlice] })
+    );
+  });
+
+  it('clears the row filters with null, treating placement-less stored rules as post-join', async () => {
+    // currentReport's stored rule carries no placement (UI-created) — it must be
+    // treated as post-join and thus removed by a post-join clear.
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    await facade.updateReport({ ...updateRequest, postJoinFilters: null });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ filterConfig: null })
+    );
+  });
+
+  it('replaces aggregations, date buckets, sort, and limit while preserving untouched controls', async () => {
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    const aggregationConfig: AggregationConfig = [{ column: 'revenue', function: 'SUM' }];
+    const dateTruncConfig: DateTruncConfig = [{ column: 'date', unit: 'MONTH' }];
+    await facade.updateReport({ ...updateRequest, aggregationConfig, dateTruncConfig });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aggregationConfig,
+        dateTruncConfig,
+        // Untouched controls keep their current values.
+        filterConfig: currentReport.filterConfig,
+        sortConfig: currentReport.sortConfig,
+        limitConfig: 100,
+      })
+    );
+
+    await facade.updateReport({
+      ...updateRequest,
+      sortConfig: null,
+      limitConfig: null,
+    });
+    expect(updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sortConfig: null,
+        limitConfig: null,
+        aggregationConfig: currentReport.aggregationConfig,
+      })
     );
   });
 

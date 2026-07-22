@@ -106,16 +106,19 @@ function parseSummary(markdown) {
   };
 }
 
-function parseEndpointRows(markdown) {
-  return [...markdown.matchAll(ENDPOINT_ROW_RE)].map(match => ({
-    endpoint: match[1].trim(),
-    openapi: match[2].trim(),
-    client: match[3].trim(),
-  }));
+function parseEndpointRows(markdown, coverageEvidenceTargets) {
+  return [...markdown.matchAll(ENDPOINT_ROW_RE)].map(match => {
+    const endpoint = match[1].trim();
+    return {
+      endpoint,
+      openapi: parseCoverageCell(match[2].trim(), 'OpenAPI', endpoint, coverageEvidenceTargets),
+      client: parseCoverageCell(match[3].trim(), 'API client', endpoint, coverageEvidenceTargets),
+    };
+  });
 }
 
-function isCovered(status) {
-  return COVERED_RE.test(status);
+function isCovered(coverage) {
+  return coverage.status === 'Covered';
 }
 
 function headingSlug(heading) {
@@ -156,7 +159,8 @@ function isValidDate(value) {
 function assertOpenApiTarget(target, endpoint) {
   if (!target.startsWith(OPENAPI_TARGET_PREFIX)) {
     throw new Error(
-      `OpenAPI coverage for ${endpoint} must link to an operation-level Swagger UI target`
+      `Invalid OpenAPI target for ${endpoint}: ${target}; ` +
+        'coverage must link to an operation-level Swagger UI target'
     );
   }
 
@@ -168,45 +172,46 @@ function assertOpenApiTarget(target, endpoint) {
     !/^[A-Za-z0-9._~-]+$/.test(parts[1])
   ) {
     throw new Error(
-      `OpenAPI coverage for ${endpoint} must link to an operation-level Swagger UI target`
+      `Invalid OpenAPI target for ${endpoint}: ${target}; ` +
+        'coverage must link to an operation-level Swagger UI target'
     );
   }
 }
 
-function assertApiClientTarget(target, endpoint, apiClientGuideTargets) {
+function assertApiClientTarget(target, endpoint) {
   if (!API_CLIENT_TARGET_RE.test(target)) {
-    throw new Error(`API client coverage for ${endpoint} must link to an API-client guide heading`);
-  }
-  if (!apiClientGuideTargets.has(target)) {
     throw new Error(
-      `API client coverage for ${endpoint} links to a missing public API-client guide heading`
+      `Invalid API client target for ${endpoint}: ${target}; ` +
+        'coverage must link to an API-client guide heading'
     );
   }
 }
 
-function assertValidStatus(
-  status,
+export function parseCoverageCell(
+  value,
   dimension,
   endpoint,
-  apiClientGuideTargets,
-  coverageEvidenceTargets
+  coverageEvidenceTargets = COVERAGE_EVIDENCE_TARGETS
 ) {
-  if (status === 'Gap' || status === 'Unassessed') {
-    return;
+  if (value === 'Gap' || value === 'Unassessed') {
+    return { status: value, coveredSince: null, target: null };
   }
 
-  const covered = COVERED_RE.exec(status);
+  const covered = COVERED_RE.exec(value);
   if (!covered) {
-    throw new Error(`Unsupported ${dimension} status for ${endpoint}: ${status}`);
+    throw new Error(`Unsupported ${dimension} status for ${endpoint}: ${value}`);
   }
-  const [, target, date] = covered;
-  if (!isValidDate(date)) {
-    throw new Error(`Invalid ${dimension} covered date for ${endpoint}: ${date}`);
+  const [, target, coveredSince] = covered;
+  if (!isValidDate(coveredSince)) {
+    throw new Error(`Invalid ${dimension} covered date for ${endpoint}: ${coveredSince}`);
   }
+
   if (dimension === 'OpenAPI') {
     assertOpenApiTarget(target, endpoint);
+  } else if (dimension === 'API client') {
+    assertApiClientTarget(target, endpoint);
   } else {
-    assertApiClientTarget(target, endpoint, apiClientGuideTargets);
+    throw new Error(`Unsupported coverage dimension: ${dimension}`);
   }
 
   const evidenceKey = dimension === 'OpenAPI' ? 'openapi' : 'client';
@@ -217,28 +222,22 @@ function assertValidStatus(
         ? 'exact audited Swagger operation'
         : 'exact audited API-client capability heading';
     throw new Error(
-      `${dimension} coverage for ${endpoint} must link to the ${evidenceDescription}`
+      `Incorrect ${dimension} target for ${endpoint}: expected ${expectedTarget ?? 'no target'}, ` +
+        `received ${target}; coverage must link to the ${evidenceDescription}`
     );
   }
+
+  return { status: 'Covered', coveredSince, target };
 }
 
-function assertValidStatuses(rows, apiClientGuideMarkdown, coverageEvidenceTargets) {
+function assertApiClientGuideTargets(rows, apiClientGuideMarkdown) {
   const apiClientGuideTargets = parseApiClientGuideTargets(apiClientGuideMarkdown);
   for (const row of rows) {
-    assertValidStatus(
-      row.openapi,
-      'OpenAPI',
-      row.endpoint,
-      apiClientGuideTargets,
-      coverageEvidenceTargets
-    );
-    assertValidStatus(
-      row.client,
-      'API client',
-      row.endpoint,
-      apiClientGuideTargets,
-      coverageEvidenceTargets
-    );
+    if (row.client.status === 'Covered' && !apiClientGuideTargets.has(row.client.target)) {
+      throw new Error(
+        `API client coverage for ${row.endpoint} links to a missing public API-client guide heading`
+      );
+    }
   }
 }
 
@@ -293,8 +292,8 @@ function assertSummaryMatches(summary, totals) {
   }
 }
 
-export function parseCoverageMatrix(markdown) {
-  const rows = parseEndpointRows(markdown);
+export function parseCoverageMatrix(markdown, coverageEvidenceTargets = COVERAGE_EVIDENCE_TARGETS) {
+  const rows = parseEndpointRows(markdown, coverageEvidenceTargets);
   if (rows.length === 0) {
     throw new Error('API coverage matrix has no endpoint rows');
   }
@@ -304,8 +303,9 @@ export function parseCoverageMatrix(markdown) {
     fullyCovered: rows.filter(row => isCovered(row.openapi) && isCovered(row.client)).length,
     openapiCovered: rows.filter(row => isCovered(row.openapi)).length,
     clientCovered: rows.filter(row => isCovered(row.client)).length,
-    unassessed: rows.filter(row => row.openapi === 'Unassessed' || row.client === 'Unassessed')
-      .length,
+    unassessed: rows.filter(
+      row => row.openapi.status === 'Unassessed' || row.client.status === 'Unassessed'
+    ).length,
   };
 
   return { rows, totals, summary: parseSummary(markdown) };
@@ -320,9 +320,9 @@ export function validateCoverageMatrix(
   if (typeof apiClientGuideMarkdown !== 'string') {
     throw new Error('API-client guide Markdown is required to validate coverage links');
   }
-  const matrix = parseCoverageMatrix(markdown);
+  const matrix = parseCoverageMatrix(markdown, coverageEvidenceTargets);
   assertUniqueEndpoints(matrix.rows);
-  assertValidStatuses(matrix.rows, apiClientGuideMarkdown, coverageEvidenceTargets);
+  assertApiClientGuideTargets(matrix.rows, apiClientGuideMarkdown);
   assertSummaryMatches(matrix.summary, matrix.totals);
   return matrix.totals;
 }

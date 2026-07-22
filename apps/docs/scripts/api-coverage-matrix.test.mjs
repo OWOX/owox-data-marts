@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
-import { parseCoverageMatrix, validateCoverageMatrix } from './api-coverage-matrix.mjs';
+import * as matrixModule from './api-coverage-matrix.mjs';
+
+const { parseCoverageMatrix, validateCoverageMatrix } = matrixModule;
 
 const checkedInMatrix = fs.readFileSync(
   new URL('../../../docs/api/coverage.md', import.meta.url),
@@ -46,18 +48,19 @@ const validMatrix = `# Support Matrix
 | \`GET /api/projects/settings\` | Unassessed | Unassessed |
 `;
 
-function validate(markdown) {
-  return validateCoverageMatrix(markdown, validApiClientGuide, validEvidenceTargets);
-}
-
-function coveredTarget(status) {
-  return /^\[Covered\]\(([^)]+)\) · /.exec(status)?.[1];
+function validate(markdown, evidenceTargets = validEvidenceTargets) {
+  return validateCoverageMatrix(markdown, validApiClientGuide, evidenceTargets);
 }
 
 test('calculates totals from endpoint rows', () => {
-  const matrix = parseCoverageMatrix(validMatrix);
+  const matrix = parseCoverageMatrix(validMatrix, validEvidenceTargets);
 
   assert.equal(matrix.rows.length, 3);
+  assert.deepEqual(matrix.rows[0].openapi, {
+    status: 'Covered',
+    coveredSince: '2026-07-01',
+    target: 'https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list',
+  });
   assert.deepEqual(matrix.totals, {
     endpoints: 3,
     fullyCovered: 1,
@@ -65,6 +68,97 @@ test('calculates totals from endpoint rows', () => {
     clientCovered: 1,
     unassessed: 1,
   });
+});
+
+test('exports the semantic coverage-cell parser from current main', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-01',
+      'OpenAPI',
+      'GET /api/data-marts/insight-templates'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-01',
+      target:
+        'https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell('Gap', 'API client', 'GET /api/model-canvas/data-marts'),
+    { status: 'Gap', coveredSince: null, target: null }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell('Unassessed', 'OpenAPI', 'GET /api/projects/settings'),
+    { status: 'Unassessed', coveredSince: null, target: null }
+  );
+});
+
+test('semantic coverage-cell parser rejects generic and wrong-dimension targets', () => {
+  for (const target of [
+    'https://app.owox.com/api/swagger-ui',
+    'https://app.owox.com/api/swagger-ui#/Model%20Canvas',
+    './api-client/#read-the-models-canvas',
+  ]) {
+    assert.throws(
+      () =>
+        matrixModule.parseCoverageCell(
+          `[Covered](${target}) · 2026-07-03`,
+          'OpenAPI',
+          'GET /api/model-canvas/data-marts'
+        ),
+      /Invalid OpenAPI target/
+    );
+  }
+
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-02',
+        'API client',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Invalid API client target/
+  );
+});
+
+test('semantic coverage-cell parser rejects stale audited targets and linked non-covered values', () => {
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-01',
+        'OpenAPI',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Incorrect OpenAPI target/
+  );
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](./api-client/#read-project-run-history) · 2026-07-02',
+        'API client',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Incorrect API client target/
+  );
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Gap](./api-client/#read-the-models-canvas)',
+        'API client',
+        'GET /api/model-canvas/data-marts'
+      ),
+    /Unsupported API client status/
+  );
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Unassessed](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings)',
+        'OpenAPI',
+        'GET /api/projects/settings'
+      ),
+    /Unsupported OpenAPI status/
+  );
 });
 
 test('accepts a summary that matches calculated totals', () => {
@@ -159,8 +253,13 @@ test('rejects a wrong-dimension target', () => {
 
 test('rejects an API-client target whose heading is absent from the public guide', () => {
   const markdown = validMatrix.replace('./api-client/#list-data-marts', './api-client/#missing');
+  const evidenceTargets = structuredClone(validEvidenceTargets);
+  evidenceTargets['GET /api/data-marts'].client = './api-client/#missing';
 
-  assert.throws(() => validate(markdown), /missing public API-client guide heading/);
+  assert.throws(
+    () => validate(markdown, evidenceTargets),
+    /missing public API-client guide heading/
+  );
 });
 
 test('rejects a generic API-client guide heading', () => {
@@ -219,14 +318,14 @@ test('uses the exact audited evidence targets for every covered endpoint', () =>
   };
 
   const coveredRows = matrix.rows.filter(
-    row => row.openapi.startsWith('[Covered]') || row.client.startsWith('[Covered]')
+    row => row.openapi.status === 'Covered' || row.client.status === 'Covered'
   );
   assert.equal(coveredRows.length, Object.keys(expectedTargets).length);
 
   for (const row of coveredRows) {
     const expected = expectedTargets[row.endpoint];
     assert.ok(expected, `Unexpected covered endpoint: ${row.endpoint}`);
-    assert.equal(coveredTarget(row.openapi), expected.openapi);
-    assert.equal(coveredTarget(row.client), expected.client);
+    assert.equal(row.openapi.target, expected.openapi);
+    assert.equal(row.client.target, expected.client);
   }
 });

@@ -12,6 +12,19 @@ import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mc
 import { buildReportsUiPath } from './data-mart-ui-path';
 import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
 import { joinPublicOrigin } from './mcp-public-url.util';
+import {
+  makeMcpAggregationSchema,
+  makeMcpDateBucketSchema,
+  makeMcpFilterSchema,
+  makeMcpSortSchema,
+} from './query-data-mart.input';
+import {
+  mapReportAggregations,
+  mapReportDateBuckets,
+  mapReportFilters,
+  mapReportSort,
+} from './report-output-controls-input';
+import { rethrowTranslatedOutputControlsError } from './output-controls-error.mapper';
 
 /**
  * Looker Studio reports are pull-based: creating one only makes the data mart
@@ -37,6 +50,49 @@ const inputSchema = z
       .array(z.string().min(1))
       .min(1)
       .describe("Column names to include, or ['*'] for every field"),
+    filters: z
+      .array(makeMcpFilterSchema())
+      .min(1)
+      .optional()
+      .describe(
+        'Row filters applied on every report run, so the export matches a filtered query_data_mart result — same shape and operator vocabulary as query_data_mart\'s "filters"; copy them verbatim from the query whose numbers the user is looking at. A filter may reference a field that is not in fields. Omit to export all rows.'
+      ),
+    slices: z
+      .array(makeMcpFilterSchema())
+      .min(1)
+      .optional()
+      .describe(
+        'Pre-join filters, same as query_data_mart\'s "slices": narrow a JOINED data mart before it is blended in. Only applicable to blended data marts; criteria on the main data mart belong in "filters".'
+      ),
+    aggregations: z
+      .array(makeMcpAggregationSchema())
+      .min(1)
+      .optional()
+      .describe(
+        'Aggregations applied on every report run, same as query_data_mart\'s "aggregations". Each aggregated field must also appear in fields; fields that are neither aggregated nor bucketed become group-by dimensions. Omit to export raw rows.'
+      ),
+    date_buckets: z
+      .array(makeMcpDateBucketSchema())
+      .min(1)
+      .optional()
+      .describe(
+        'Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR, same as query_data_mart\'s "date_buckets". Each bucketed field must also appear in fields.'
+      ),
+    sort: z
+      .array(makeMcpSortSchema())
+      .min(1)
+      .optional()
+      .describe(
+        'Order the exported rows, same as query_data_mart\'s "sort". Each sorted field must also appear in fields.'
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        'Max rows each report run exports. Omit for no cap. Do NOT copy the interactive limit from a query_data_mart call unless the user explicitly wants the export capped.'
+      ),
     name: z
       .string()
       .trim()
@@ -75,7 +131,7 @@ type AddReportInput = z.infer<typeof inputSchema>;
 export class AddReportTool implements McpToolDefinition<AddReportInput> {
   readonly name = 'add_report';
   readonly description =
-    'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no extra parameters — not even name (Looker Studio reports carry no name), and each data mart + destination pair can have only one Looker report; the result includes instructions and a setup_guide_url to relay to the user, because dashboard data only flows after they connect Looker Studio to OWOX themselves. Email, Slack, Microsoft Teams, Google Chat: requires the message parameter; each report run sends the rendered message to the recipients or channels configured on the destination.';
+    'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). Every destination type accepts the same optional output controls as query_data_mart — filters, slices, aggregations, date_buckets, sort — applied on each run: when the user asks to export numbers they saw in a query, copy those parameters verbatim from that query so the report matches what they saw. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no Looker-specific parameters and no name (Looker Studio reports carry no name) — the shared output controls above DO apply — and each data mart + destination pair can have only one Looker report; the result includes instructions and a setup_guide_url to relay to the user, because dashboard data only flows after they connect Looker Studio to OWOX themselves. Email, Slack, Microsoft Teams, Google Chat: requires the message parameter; each report run sends the rendered message to the recipients or channels configured on the destination.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -137,19 +193,43 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
   }
 
   async handler(input: AddReportInput, context: McpAuthContext): Promise<McpToolResult> {
-    const { data_mart_id, destination_id, fields, name, message } = this.parseInput(input);
+    const {
+      data_mart_id,
+      destination_id,
+      fields,
+      filters,
+      slices,
+      aggregations,
+      date_buckets,
+      sort,
+      limit,
+      name,
+      message,
+    } = this.parseInput(input);
 
-    const result = await this.reports.addReport({
+    const request = {
       dataMartId: data_mart_id,
       destinationId: destination_id,
       fields,
+      filterConfig: mapReportFilters(slices, filters),
+      aggregationConfig: mapReportAggregations(aggregations),
+      dateTruncConfig: mapReportDateBuckets(date_buckets),
+      sortConfig: mapReportSort(sort),
+      limitConfig: limit,
       name,
       message,
       projectId: context.projectId,
       userId: context.userId,
       userEmail: context.email,
       roles: context.roles,
-    });
+    };
+
+    let result;
+    try {
+      result = await this.reports.addReport(request);
+    } catch (err) {
+      rethrowTranslatedOutputControlsError(err);
+    }
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const isLookerStudio = result.destination_type === 'looker_studio';
