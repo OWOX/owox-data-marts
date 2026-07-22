@@ -71,7 +71,6 @@ export function DataQualitySummaryChips({ summary }: { summary: DataQualitySumma
   const chips = [
     counter(summary.enabledChecks, 'enabled'),
     counter(summary.passedChecks, 'passed'),
-    counter(summary.failedChecks, 'failed', 'destructive'),
     counter(summary.notApplicableChecks, 'not applicable'),
     counter(
       summary.errorChecks,

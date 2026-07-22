@@ -35,7 +35,7 @@ describe('DataQualitySummaryPanel', () => {
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
   });
 
-  it('shows non-zero rule and finding counters with the checked time', () => {
+  it('shows non-zero rule and finding counters without a redundant failed total', () => {
     render(
       <DataQualitySummaryPanel
         summary={{
@@ -53,13 +53,32 @@ describe('DataQualitySummaryPanel', () => {
       />
     );
 
-    expect(screen.getByText('2 failed')).toBeInTheDocument();
+    expect(screen.queryByText('2 failed')).not.toBeInTheDocument();
     expect(screen.getByText('1 not applicable')).toBeInTheDocument();
     expect(screen.getByText('1 error')).toBeInTheDocument();
     expect(screen.getByText('1 warning')).toBeInTheDocument();
     expect(screen.queryByText('0 passed')).not.toBeInTheDocument();
     expect(screen.queryByText('18 violations')).not.toBeInTheDocument();
     expect(screen.getByText(/Last checked/)).toBeInTheDocument();
+  });
+
+  it('does not present a notice-only finding as a destructive failed counter', () => {
+    render(
+      <DataQualitySummaryPanel
+        summary={{
+          ...baseSummary,
+          state: 'ISSUES',
+          enabledChecks: 1,
+          totalChecks: 1,
+          failedChecks: 1,
+          noticeFindings: 1,
+          highestSeverity: 'notice',
+        }}
+      />
+    );
+
+    expect(screen.getByText('1 notice')).toBeInTheDocument();
+    expect(screen.queryByText('1 failed')).not.toBeInTheDocument();
   });
 
   it('uses an explicit no-findings chip for passed runs without zero-filled counters', () => {

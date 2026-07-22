@@ -100,7 +100,7 @@ describe('DataQualityRunHistoryDetails', () => {
     expect(screen.getByText('Started')).toBeInTheDocument();
     expect(screen.getByText('9 sec')).toBeInTheDocument();
     expect(screen.getByText('SQL')).toBeInTheDocument();
-    expect(screen.getByText('1 failed')).toBeInTheDocument();
+    expect(screen.queryByText('1 failed')).not.toBeInTheDocument();
     expect(screen.getByText('1 warning')).toBeInTheDocument();
     expect(screen.queryByText(/A-1/)).not.toBeInTheDocument();
 
