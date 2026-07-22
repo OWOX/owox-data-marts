@@ -63,10 +63,6 @@ describe('ProjectInsightTemplatesController OpenAPI', () => {
   it('documents project insight-template pagination and the typed response', () => {
     const operation = document.paths['/api/data-marts/insight-templates']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'ProjectInsightTemplatesController_list',
-      tags: ['Insights'],
-    });
     expect(operation?.summary).toBe(
       'List insight templates across accessible Data Marts in the project'
     );

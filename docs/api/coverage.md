@@ -9,10 +9,10 @@ and legacy routes, authentication infrastructure such as
 deprecated direct-link-only Insights family. Only the current Insights family
 accessible through the regular UI is included.
 
-`[Covered](target) · YYYY-MM-DD` records when a coverage dimension became complete and links to
-the exact operation-level Swagger UI target or relevant API-client guide heading.
-`Gap` means required coverage is known to be missing. `Unassessed` means the
-dimension has not been evaluated and does not imply a gap.
+A linked `Covered` value opens the exact Swagger operation or API-client guide
+section. Its `YYYY-MM-DD` date records when that coverage dimension became
+complete. `Gap` means required coverage is known to be missing. `Unassessed`
+means the dimension has not been evaluated and does not imply a gap.
 
 ## Summary
 

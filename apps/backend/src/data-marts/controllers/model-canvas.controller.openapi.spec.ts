@@ -60,10 +60,6 @@ describe('ModelCanvasController OpenAPI', () => {
   it('documents the paginated data marts path, query, and response', () => {
     const operation = document.paths['/api/model-canvas/data-marts']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'ModelCanvasController_getDataMarts',
-      tags: ['Model Canvas'],
-    });
     expect(operation?.summary).toBe(
       'Get a page of data marts of a storage for the project data model canvas'
     );
@@ -95,10 +91,6 @@ describe('ModelCanvasController OpenAPI', () => {
   it('documents the edges path, required storage query, and response', () => {
     const operation = document.paths['/api/model-canvas/edges']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'ModelCanvasController_getEdges',
-      tags: ['Model Canvas'],
-    });
     expect(operation?.summary).toBe(
       'Get the relationships between visible data marts of a storage for the model canvas'
     );

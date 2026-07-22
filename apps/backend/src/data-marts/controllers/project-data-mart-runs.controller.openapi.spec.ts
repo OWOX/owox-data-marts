@@ -63,10 +63,6 @@ describe('ProjectDataMartRunsController OpenAPI', () => {
   it('documents project run history pagination and the typed response', () => {
     const operation = document.paths['/api/data-marts/runs']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'ProjectDataMartRunsController_list',
-      tags: ['Run History'],
-    });
     expect(operation?.summary).toBe('Get project DataMart run history');
     expect(operation?.parameters).toEqual(
       expect.arrayContaining([

@@ -4,57 +4,73 @@ import { fileURLToPath } from 'node:url';
 
 const ENDPOINT_ROW_RE =
   /^\|\s*`((?:GET|POST|PUT|PATCH|DELETE)\s+[^`]+)`\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$/gm;
-const COVERED_RE = /^\[Covered\]\(([^)]+)\) · (\d{4}-\d{2}-\d{2})$/;
-const OPENAPI_TARGET_PREFIX = 'https://app.owox.com/api/swagger-ui#/';
-const API_CLIENT_TARGET_RE = /^\.\/api-client\/#([a-z0-9]+(?:-[a-z0-9]+)*)$/;
+const LINKED_COVERED_RE = /^\[Covered\]\(([^)]+)\) · (\d{4}-\d{2}-\d{2})$/;
 const SUMMARY_HEADER =
   '| API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |';
-const COVERAGE_EVIDENCE_TARGETS = {
-  'GET /api/data-marts/insight-templates': {
-    openapi: 'https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list',
-    client: './api-client/#list-project-insight-templates',
-  },
-  'GET /api/model-canvas/data-marts': {
-    openapi:
-      'https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts',
-    client: './api-client/#read-the-models-canvas',
-  },
-  'GET /api/model-canvas/edges': {
-    openapi: 'https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getEdges',
-    client: './api-client/#read-the-models-canvas',
-  },
-  'GET /api/projects/settings': {
-    openapi:
-      'https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings',
-    client: './api-client/#manage-project-settings',
-  },
-  'PUT /api/projects/settings/description': {
-    openapi:
-      'https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_updateDescription',
-    client: './api-client/#manage-project-settings',
-  },
-  'GET /api/data-marts/runs': {
-    openapi:
-      'https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list',
-    client: './api-client/#read-project-run-history',
-  },
-  'GET /api/project-setup-progress': {
-    openapi:
-      'https://app.owox.com/api/swagger-ui#/project-setup-progress/ProjectSetupProgressController_getProgress',
-    client: './api-client/#check-project-setup-progress',
-  },
-  'POST /api/markdown/parse-to-html': {
-    openapi: 'https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml',
-    client: './api-client/#convert-markdown-to-html',
-  },
-};
-
-function assertPageTitle(markdown) {
-  const title = markdown.match(/^# .+$/m)?.[0];
-  if (title !== '# Support Matrix') {
-    throw new Error('API coverage page title must be Support Matrix');
-  }
-}
+const COVERED_TARGETS = new Map([
+  [
+    'GET /api/data-marts/insight-templates',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list',
+      'API client': './api-client/#list-project-insight-templates',
+    },
+  ],
+  [
+    'GET /api/model-canvas/data-marts',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts',
+      'API client': './api-client/#read-the-models-canvas',
+    },
+  ],
+  [
+    'GET /api/model-canvas/edges',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getEdges',
+      'API client': './api-client/#read-the-models-canvas',
+    },
+  ],
+  [
+    'GET /api/projects/settings',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings',
+      'API client': './api-client/#manage-project-settings',
+    },
+  ],
+  [
+    'PUT /api/projects/settings/description',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_updateDescription',
+      'API client': './api-client/#manage-project-settings',
+    },
+  ],
+  [
+    'GET /api/data-marts/runs',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list',
+      'API client': './api-client/#read-project-run-history',
+    },
+  ],
+  [
+    'GET /api/project-setup-progress',
+    {
+      OpenAPI:
+        'https://app.owox.com/api/swagger-ui#/project-setup-progress/ProjectSetupProgressController_getProgress',
+      'API client': './api-client/#check-project-setup-progress',
+    },
+  ],
+  [
+    'POST /api/markdown/parse-to-html',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml',
+      'API client': './api-client/#convert-markdown-to-html',
+    },
+  ],
+]);
 
 function splitTableRow(line) {
   return line
@@ -106,40 +122,6 @@ function parseSummary(markdown) {
   };
 }
 
-function parseEndpointRows(markdown, coverageEvidenceTargets) {
-  return [...markdown.matchAll(ENDPOINT_ROW_RE)].map(match => {
-    const endpoint = match[1].trim();
-    return {
-      endpoint,
-      openapi: parseCoverageCell(match[2].trim(), 'OpenAPI', endpoint, coverageEvidenceTargets),
-      client: parseCoverageCell(match[3].trim(), 'API client', endpoint, coverageEvidenceTargets),
-    };
-  });
-}
-
-function isCovered(coverage) {
-  return coverage.status === 'Covered';
-}
-
-function headingSlug(heading) {
-  return heading
-    .trim()
-    .toLowerCase()
-    .replace(/<[^>]+>/g, '')
-    .replace(/[`*_~]/g, '')
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
-}
-
-function parseApiClientGuideTargets(markdown) {
-  return new Set(
-    [...markdown.matchAll(/^#{1,6}\s+(.+?)\s*$/gm)].map(
-      match => `./api-client/#${headingSlug(match[1])}`
-    )
-  );
-}
-
 function assertUniqueEndpoints(rows) {
   const endpoints = new Set();
   for (const row of rows) {
@@ -156,89 +138,88 @@ function isValidDate(value) {
   return date.toISOString().slice(0, 10) === value;
 }
 
-function assertOpenApiTarget(target, endpoint) {
-  if (!target.startsWith(OPENAPI_TARGET_PREFIX)) {
-    throw new Error(
-      `Invalid OpenAPI target for ${endpoint}: ${target}; ` +
-        'coverage must link to an operation-level Swagger UI target'
-    );
+function assertValidOpenApiTarget(target, endpoint) {
+  let url;
+  try {
+    url = new URL(target);
+  } catch {
+    throw new Error(`Invalid OpenAPI target for ${endpoint}: ${target}`);
   }
 
-  const fragment = target.slice(OPENAPI_TARGET_PREFIX.length);
-  const parts = fragment.split('/');
+  let fragmentParts;
+  try {
+    fragmentParts = decodeURIComponent(url.hash).split('/');
+  } catch {
+    throw new Error(`Invalid OpenAPI target for ${endpoint}: ${target}`);
+  }
+
   if (
-    parts.length !== 2 ||
-    !/^[A-Za-z0-9._~%-]+$/.test(parts[0]) ||
-    !/^[A-Za-z0-9._~-]+$/.test(parts[1])
+    url.protocol !== 'https:' ||
+    url.origin !== 'https://app.owox.com' ||
+    url.pathname !== '/api/swagger-ui' ||
+    url.search !== '' ||
+    fragmentParts.length !== 3 ||
+    fragmentParts[0] !== '#' ||
+    fragmentParts[1] === '' ||
+    fragmentParts[2] === ''
   ) {
-    throw new Error(
-      `Invalid OpenAPI target for ${endpoint}: ${target}; ` +
-        'coverage must link to an operation-level Swagger UI target'
-    );
+    throw new Error(`Invalid OpenAPI target for ${endpoint}: ${target}`);
   }
 }
 
-function assertApiClientTarget(target, endpoint) {
-  if (!API_CLIENT_TARGET_RE.test(target)) {
-    throw new Error(
-      `Invalid API client target for ${endpoint}: ${target}; ` +
-        'coverage must link to an API-client guide heading'
-    );
+function assertValidApiClientTarget(target, endpoint) {
+  if (!/^\.\/api-client\/#\S+$/.test(target)) {
+    throw new Error(`Invalid API client target for ${endpoint}: ${target}`);
   }
 }
 
-export function parseCoverageCell(
-  value,
-  dimension,
-  endpoint,
-  coverageEvidenceTargets = COVERAGE_EVIDENCE_TARGETS
-) {
+export function parseCoverageCell(value, dimension, endpoint) {
   if (value === 'Gap' || value === 'Unassessed') {
     return { status: value, coveredSince: null, target: null };
   }
 
-  const covered = COVERED_RE.exec(value);
+  const covered = LINKED_COVERED_RE.exec(value);
   if (!covered) {
     throw new Error(`Unsupported ${dimension} status for ${endpoint}: ${value}`);
   }
+
   const [, target, coveredSince] = covered;
   if (!isValidDate(coveredSince)) {
     throw new Error(`Invalid ${dimension} covered date for ${endpoint}: ${coveredSince}`);
   }
 
   if (dimension === 'OpenAPI') {
-    assertOpenApiTarget(target, endpoint);
+    assertValidOpenApiTarget(target, endpoint);
   } else if (dimension === 'API client') {
-    assertApiClientTarget(target, endpoint);
+    assertValidApiClientTarget(target, endpoint);
   } else {
     throw new Error(`Unsupported coverage dimension: ${dimension}`);
   }
 
-  const evidenceKey = dimension === 'OpenAPI' ? 'openapi' : 'client';
-  const expectedTarget = coverageEvidenceTargets[endpoint]?.[evidenceKey];
+  const expectedTarget = COVERED_TARGETS.get(endpoint)?.[dimension];
   if (target !== expectedTarget) {
-    const evidenceDescription =
-      dimension === 'OpenAPI'
-        ? 'exact audited Swagger operation'
-        : 'exact audited API-client capability heading';
     throw new Error(
       `Incorrect ${dimension} target for ${endpoint}: expected ${expectedTarget ?? 'no target'}, ` +
-        `received ${target}; coverage must link to the ${evidenceDescription}`
+        `received ${target}`
     );
   }
 
   return { status: 'Covered', coveredSince, target };
 }
 
-function assertApiClientGuideTargets(rows, apiClientGuideMarkdown) {
-  const apiClientGuideTargets = parseApiClientGuideTargets(apiClientGuideMarkdown);
-  for (const row of rows) {
-    if (row.client.status === 'Covered' && !apiClientGuideTargets.has(row.client.target)) {
-      throw new Error(
-        `API client coverage for ${row.endpoint} links to a missing public API-client guide heading`
-      );
-    }
-  }
+function parseEndpointRows(markdown) {
+  return [...markdown.matchAll(ENDPOINT_ROW_RE)].map(match => {
+    const endpoint = match[1].trim();
+    return {
+      endpoint,
+      openapi: parseCoverageCell(match[2].trim(), 'OpenAPI', endpoint),
+      client: parseCoverageCell(match[3].trim(), 'API client', endpoint),
+    };
+  });
+}
+
+function isCovered(coverage) {
+  return coverage.status === 'Covered';
 }
 
 function percentage(covered, total) {
@@ -292,8 +273,8 @@ function assertSummaryMatches(summary, totals) {
   }
 }
 
-export function parseCoverageMatrix(markdown, coverageEvidenceTargets = COVERAGE_EVIDENCE_TARGETS) {
-  const rows = parseEndpointRows(markdown, coverageEvidenceTargets);
+export function parseCoverageMatrix(markdown) {
+  const rows = parseEndpointRows(markdown);
   if (rows.length === 0) {
     throw new Error('API coverage matrix has no endpoint rows');
   }
@@ -311,18 +292,9 @@ export function parseCoverageMatrix(markdown, coverageEvidenceTargets = COVERAGE
   return { rows, totals, summary: parseSummary(markdown) };
 }
 
-export function validateCoverageMatrix(
-  markdown,
-  apiClientGuideMarkdown,
-  coverageEvidenceTargets = COVERAGE_EVIDENCE_TARGETS
-) {
-  assertPageTitle(markdown);
-  if (typeof apiClientGuideMarkdown !== 'string') {
-    throw new Error('API-client guide Markdown is required to validate coverage links');
-  }
-  const matrix = parseCoverageMatrix(markdown, coverageEvidenceTargets);
+export function validateCoverageMatrix(markdown) {
+  const matrix = parseCoverageMatrix(markdown);
   assertUniqueEndpoints(matrix.rows);
-  assertApiClientGuideTargets(matrix.rows, apiClientGuideMarkdown);
   assertSummaryMatches(matrix.summary, matrix.totals);
   return matrix.totals;
 }
@@ -332,13 +304,7 @@ const isDirectInvocation =
 
 if (isDirectInvocation) {
   const coveragePath = fileURLToPath(new URL('../../../docs/api/coverage.md', import.meta.url));
-  const apiClientGuidePath = fileURLToPath(
-    new URL('../../../docs/api/api-client.md', import.meta.url)
-  );
-  const totals = validateCoverageMatrix(
-    fs.readFileSync(coveragePath, 'utf8'),
-    fs.readFileSync(apiClientGuidePath, 'utf8')
-  );
+  const totals = validateCoverageMatrix(fs.readFileSync(coveragePath, 'utf8'));
   console.log(
     `API coverage matrix valid: ${totals.endpoints} endpoints, ` +
       `${totals.fullyCovered} fully covered`

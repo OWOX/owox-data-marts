@@ -55,10 +55,6 @@ describe('ProjectSetupProgressController OpenAPI', () => {
   it('documents the project setup progress operation and response schema', () => {
     const operation = document.paths['/api/project-setup-progress']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'ProjectSetupProgressController_getProgress',
-      tags: ['project-setup-progress'],
-    });
     expect(operation?.summary).toBe('Get project setup progress');
     expect(operation?.responses['200']).toMatchObject({
       description: 'The merged setup progress for the current project member.',

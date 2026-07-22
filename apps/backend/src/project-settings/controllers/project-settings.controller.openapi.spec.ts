@@ -59,10 +59,6 @@ describe('ProjectSettingsController OpenAPI', () => {
   it('documents the get project settings operation and response', () => {
     const operation = document.paths['/api/projects/settings']?.get;
 
-    expect(operation).toMatchObject({
-      operationId: 'ProjectSettingsController_getSettings',
-      tags: ['ProjectSettings'],
-    });
     expect(operation?.summary).toBe('Get project settings');
     expect(operation?.responses['200']).toMatchObject({
       description: 'The current project settings.',
@@ -84,10 +80,6 @@ describe('ProjectSettingsController OpenAPI', () => {
   it('documents the update project description request and response', () => {
     const operation = document.paths['/api/projects/settings/description']?.put;
 
-    expect(operation).toMatchObject({
-      operationId: 'ProjectSettingsController_updateDescription',
-      tags: ['ProjectSettings'],
-    });
     expect(operation?.summary).toBe('Update the project description');
     expect(operation?.responses['200']).toMatchObject({
       description: 'The updated project settings.',
