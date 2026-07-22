@@ -1,5 +1,9 @@
 import type { ReportRunStatus } from '../enums/report-run-status.enum';
 import type { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
+import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
+import type { FilterConfig } from '../dto/schemas/filter-config.schema';
+import type { SortConfig } from '../dto/schemas/sort-config.schema';
 import type { McpDestinationType } from './mcp-destination-type';
 
 export const MCP_REPORTS_FACADE = Symbol('MCP_REPORTS_FACADE');
@@ -65,6 +69,20 @@ export interface McpAddReportRequest {
   /** Column names to include; `['*']` (or containing `'*'`) selects every field. */
   fields: string[];
   /**
+   * Row filter rules applied on every report run (already mapped to the domain
+   * vocabulary; includes pre-join slice rules). Omitted, `null`, or empty — no
+   * row filtering.
+   */
+  filterConfig?: FilterConfig;
+  /** Aggregations applied on every run (domain vocabulary). Omitted or `null` — raw rows. */
+  aggregationConfig?: AggregationConfig;
+  /** Date-trunc buckets applied on every run. Omitted or `null` — none. */
+  dateTruncConfig?: DateTruncConfig;
+  /** Sort order of the exported rows. Omitted or `null` — storage default. */
+  sortConfig?: SortConfig;
+  /** Max rows per run. Omitted or `null` — no cap. */
+  limitConfig?: number | null;
+  /**
    * Report name (also the new sheet's title and the default email subject).
    * Required for Google Sheets and email-family destinations; rejected for
    * Looker Studio, whose reports carry no name.
@@ -112,6 +130,26 @@ export interface McpUpdateReportRequest {
   reportId: string;
   /** Replacement column selection; `['*']` (or containing `'*'`) selects every field. Omit to keep the current selection. */
   fields?: string[];
+  /**
+   * Replacement post-join filter rules (the tool's `filters`). Replaces only
+   * the report's current post-join rules — stored pre-join (slice) rules are
+   * untouched; `null` removes every post-join rule. Omit to keep current.
+   */
+  postJoinFilters?: FilterConfig;
+  /**
+   * Replacement pre-join slice rules (the tool's `slices`). Replaces only the
+   * report's current pre-join rules — stored post-join rules are untouched;
+   * `null` removes every pre-join rule. Omit to keep current.
+   */
+  preJoinFilters?: FilterConfig;
+  /** Replacement aggregations; `null` removes them. Omit to keep current. */
+  aggregationConfig?: AggregationConfig;
+  /** Replacement date-trunc buckets; `null` removes them. Omit to keep current. */
+  dateTruncConfig?: DateTruncConfig;
+  /** Replacement sort order; `null` removes it. Omit to keep current. */
+  sortConfig?: SortConfig;
+  /** New max rows per run; `null` removes the cap. Omit to keep current. */
+  limitConfig?: number | null;
   /** New report name. Omit to keep the current name. */
   name?: string;
   /** Message changes — only valid when the report's destination is email-family. */
@@ -191,14 +229,15 @@ export interface McpReportsFacade {
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**
-   * Partially updates a report (name, column selection, and/or — for
-   * email-family reports — the message subject/body). The domain update
+   * Partially updates a report (name, column selection, output controls —
+   * filters, aggregations, date buckets, sort, limit — and/or, for
+   * email-family reports, the message subject/body). The domain update
    * command requires the full report state, so the facade loads the current
    * report and merges the requested changes into it; everything else
-   * (destination, filters, sorting, owners, send condition, …) is preserved
-   * as-is. At least one change must be provided — a call with nothing to
-   * change is rejected by the implementation, independent of the tool-layer
-   * validation. `message` is rejected for non-email-family reports.
+   * (destination, owners, send condition, …) is preserved as-is.
+   * At least one change must be provided — a call with nothing to change is
+   * rejected by the implementation, independent of the tool-layer validation.
+   * `message` is rejected for non-email-family reports.
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
   /**
