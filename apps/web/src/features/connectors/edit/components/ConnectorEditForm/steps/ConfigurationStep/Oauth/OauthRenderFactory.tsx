@@ -26,8 +26,6 @@ interface OauthRenderFactoryProps {
   configuration: Record<string, unknown>;
   onValueChange: (name: string, value: unknown) => void;
   connectorName: string;
-  onSecretEditToggle?: (name: string, enable: boolean) => void;
-  secretEditing?: Record<string, boolean>;
   isEditingExisting?: boolean;
 }
 
@@ -49,11 +47,10 @@ export function OauthRenderFactory({
   configuration,
   onValueChange,
   connectorName,
-  onSecretEditToggle,
-  secretEditing = {},
   isEditingExisting = false,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<OAuthStatusResponseDto | null>(null);
   const [settings, setSettings] = useState<OAuthSettingsResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +148,14 @@ export function OauthRenderFactory({
     });
   };
 
+  // Must go through handleNestedValueChange: the parent's onSecretEditToggle keys
+  // off the oneOf container name, so it would overwrite the entire credentials
+  // object with a scalar instead of clearing the one field being edited.
+  const handleFieldSecretEditToggle = (itemName: string, enable: boolean) => {
+    setFieldSecretEditing(prev => ({ ...prev, [itemName]: enable }));
+    handleNestedValueChange(itemName, enable ? '' : SECRET_MASK);
+  };
+
   const { checkStatus, getSettings, exchangeCredentials } = useOAuth();
 
   const handleOAuthSuccess = async (credentials: Record<string, unknown>) => {
@@ -239,7 +244,7 @@ export function OauthRenderFactory({
           // Spec-derived only: keying this off the value made it flip on the first
           // keystroke, swapping the rendered field component and remounting the input.
           const isSecret = itemSpec.attributes?.includes('SECRET') ?? false;
-          const isSecretEditing = secretEditing[specification.name] ?? false;
+          const isSecretEditing = fieldSecretEditing[itemName] ?? false;
           // A secret is masked and readonly only once stored; the backend sends
           // those back as SECRET_MASK.
           const hasStoredSecret =
@@ -256,13 +261,15 @@ export function OauthRenderFactory({
                 >
                   {itemSpec.title ?? itemName}
                 </AppWizardStepLabel>
-                {hasStoredSecret && onSecretEditToggle && (
+                {/* Editing clears the mask, so `hasStoredSecret` alone would drop
+                    the button and leave no way to cancel. */}
+                {(hasStoredSecret || isSecretEditing) && (
                   <Button
                     variant='ghost'
                     size='sm'
                     type='button'
                     onClick={() => {
-                      onSecretEditToggle(specification.name, !isSecretEditing);
+                      handleFieldSecretEditToggle(itemName, !isSecretEditing);
                     }}
                   >
                     {isSecretEditing ? 'Cancel' : 'Edit'}

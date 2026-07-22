@@ -12,8 +12,6 @@ interface ConfigurationOneOfRenderProps {
   configuration: Record<string, unknown>;
   onValueChange: (name: string, value: unknown) => void;
   isEditingExisting: boolean;
-  isSecretEditing: boolean;
-  onSecretEditToggle: (name: string, enable: boolean) => void;
   connectorName: string;
 }
 
@@ -22,8 +20,6 @@ export function ConfigurationOneOfRender({
   configuration,
   onValueChange,
   isEditingExisting,
-  isSecretEditing,
-  onSecretEditToggle,
   connectorName,
 }: ConfigurationOneOfRenderProps) {
   const detectSelectedOption = useMemo(() => {
@@ -112,8 +108,6 @@ export function ConfigurationOneOfRender({
                 configuration={configuration}
                 onValueChange={onValueChange}
                 connectorName={connectorName}
-                onSecretEditToggle={onSecretEditToggle}
-                secretEditing={{ [specification.name]: isSecretEditing }}
                 isEditingExisting={isEditingExisting}
               />
             ) : (
@@ -145,7 +139,9 @@ export function ConfigurationOneOfRender({
                       >
                         {itemName}
                       </AppWizardStepLabel>
-                      {hasStoredSecret && (
+                      {/* Editing clears the mask, so `hasStoredSecret` alone would
+                          drop the button and leave no way to cancel. */}
+                      {(hasStoredSecret || isFieldSecretEditing) && (
                         <Button
                           variant='ghost'
                           size='sm'
