@@ -59,3 +59,14 @@ API-key-derived project and member context. `@owox/api-client` exposes `auth.get
 `OWOXAuthContext` for validating a configured API key and reading that context without exposing
 the API key secret. Existing authentication and authorization behavior are unchanged, and
 consumers can adopt the client method without a migration.
+
+## Require interactive authentication for OAuth flows
+
+OAuth-flow-only connector, Data Destination, and Data Storage operations now reject
+API-key-derived authentication. This includes connector OAuth settings, exchange, and status;
+Data Destination OAuth settings, credential status, authorization, exchange, status, and
+revocation; Google Sheets connection completion at
+`POST /api/data-destinations/connect/google-sheets`; and Data Storage OAuth settings, exchange,
+authorization, status, and revocation. Consumers using API keys for these routes must migrate the
+flow to an interactively authenticated user session; API keys remain available for independently
+useful non-OAuth resource operations.

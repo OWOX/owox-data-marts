@@ -18,7 +18,7 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               155 |     9/155 (6%) |       9/155 (6%) |         9/155 (6%) |        146 |
+|               139 |     9/139 (6%) |       9/139 (6%) |         9/139 (6%) |        130 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -35,9 +35,6 @@ percentages use the complete endpoint inventory below as their denominator.
 | --- | --- | --- |
 | `GET /api/connectors` | Unassessed | Unassessed |
 | `GET /api/connectors/{connectorName}/fields` | Unassessed | Unassessed |
-| `POST /api/connectors/{connectorName}/oauth/exchange` | Unassessed | Unassessed |
-| `GET /api/connectors/{connectorName}/oauth/settings` | Unassessed | Unassessed |
-| `GET /api/connectors/{connectorName}/oauth/status/{credentialId}` | Unassessed | Unassessed |
 | `GET /api/connectors/{connectorName}/specification` | Unassessed | Unassessed |
 
 ## Contexts
@@ -73,20 +70,12 @@ percentages use the complete endpoint inventory below as their denominator.
 | `GET /api/data-destinations` | Unassessed | Unassessed |
 | `POST /api/data-destinations` | Unassessed | Unassessed |
 | `GET /api/data-destinations/by-type/{type}` | Unassessed | Unassessed |
-| `POST /api/data-destinations/connect/google-sheets` | Unassessed | Unassessed |
-| `POST /api/data-destinations/oauth/authorize` | Unassessed | Unassessed |
-| `GET /api/data-destinations/oauth/credential-status/{credentialId}` | Unassessed | Unassessed |
-| `POST /api/data-destinations/oauth/exchange` | Unassessed | Unassessed |
-| `GET /api/data-destinations/oauth/settings` | Unassessed | Unassessed |
 | `DELETE /api/data-destinations/{id}` | Unassessed | Unassessed |
 | `GET /api/data-destinations/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-destinations/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-destinations/{id}/availability` | Unassessed | Unassessed |
 | `POST /api/data-destinations/{id}/google-sheets/documents` | Unassessed | Unassessed |
 | `GET /api/data-destinations/{id}/impact` | Unassessed | Unassessed |
-| `DELETE /api/data-destinations/{id}/oauth` | Unassessed | Unassessed |
-| `POST /api/data-destinations/{id}/oauth/authorize` | Unassessed | Unassessed |
-| `GET /api/data-destinations/{id}/oauth/status` | Unassessed | Unassessed |
 | `POST /api/data-destinations/{id}/rotate-secret-key` | Unassessed | Unassessed |
 
 ## Data Marts
@@ -136,8 +125,6 @@ percentages use the complete endpoint inventory below as their denominator.
 | `GET /api/data-storages` | Unassessed | Unassessed |
 | `POST /api/data-storages` | Unassessed | Unassessed |
 | `GET /api/data-storages/by-type/{type}` | Unassessed | Unassessed |
-| `POST /api/data-storages/oauth/exchange` | Unassessed | Unassessed |
-| `GET /api/data-storages/oauth/settings` | Unassessed | Unassessed |
 | `POST /api/data-storages/{dataStorageId}/publish-drafts-triggers` | Unassessed | Unassessed |
 | `DELETE /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}` | Unassessed | Unassessed |
 | `GET /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}` | Unassessed | Unassessed |
@@ -146,9 +133,6 @@ percentages use the complete endpoint inventory below as their denominator.
 | `GET /api/data-storages/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-storages/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-storages/{id}/availability` | Unassessed | Unassessed |
-| `DELETE /api/data-storages/{id}/oauth` | Unassessed | Unassessed |
-| `POST /api/data-storages/{id}/oauth/authorize` | Unassessed | Unassessed |
-| `GET /api/data-storages/{id}/oauth/status` | Unassessed | Unassessed |
 | `GET /api/data-storages/{id}/resources` | Unassessed | Unassessed |
 | `POST /api/data-storages/{id}/validate-access` | Unassessed | Unassessed |
 

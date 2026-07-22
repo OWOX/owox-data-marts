@@ -258,3 +258,32 @@ test('includes the API-key-compatible markdown parser endpoint', () => {
 test('checked-in matrix uses the public Support Matrix title', () => {
   assert.equal(checkedInMatrix.split('\n', 1)[0], '# Support Matrix');
 });
+
+test('checked-in matrix excludes OAuth-flow-only business routes', () => {
+  const oauthFlowOnlyEndpoints = [
+    'GET /api/connectors/{connectorName}/oauth/settings',
+    'POST /api/connectors/{connectorName}/oauth/exchange',
+    'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
+    'POST /api/data-destinations/connect/google-sheets',
+    'GET /api/data-destinations/oauth/settings',
+    'GET /api/data-destinations/oauth/credential-status/{credentialId}',
+    'POST /api/data-destinations/oauth/authorize',
+    'POST /api/data-destinations/oauth/exchange',
+    'POST /api/data-destinations/{id}/oauth/authorize',
+    'GET /api/data-destinations/{id}/oauth/status',
+    'DELETE /api/data-destinations/{id}/oauth',
+    'GET /api/data-storages/oauth/settings',
+    'POST /api/data-storages/oauth/exchange',
+    'POST /api/data-storages/{id}/oauth/authorize',
+    'GET /api/data-storages/{id}/oauth/status',
+    'DELETE /api/data-storages/{id}/oauth',
+  ];
+  const checkedInEndpoints = new Set(
+    parseCoverageMatrix(checkedInMatrix).rows.map(row => row.endpoint)
+  );
+
+  assert.deepEqual(
+    oauthFlowOnlyEndpoints.filter(endpoint => checkedInEndpoints.has(endpoint)),
+    []
+  );
+});
