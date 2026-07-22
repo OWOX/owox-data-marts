@@ -443,6 +443,29 @@ describe('SqlClauseRenderer', () => {
       expect(r.renderHaving([{ column: 'a', operator: 'eq', value: 1 }]).sql).toBe('');
     });
   });
+
+  // renderHaving reuses renderFilterFragment, so the null-inclusive negative operators
+  // apply to metric (HAVING) filters too — collateral but intended. The aggregate
+  // EXPRESSION is the LHS, so it is emitted twice in the `(agg IS NULL OR agg …)` form.
+  describe('renderHaving — negative operators are null-inclusive on metric filters', () => {
+    it('neq metric filter → `(SUM(col) IS NULL OR SUM(col) <> @h0)` (real BigQuery renderer)', () => {
+      const bq = new BigQueryClauseRenderer();
+      const out = bq.renderHaving([
+        { column: 'amount', function: 'SUM', operator: 'neq', value: 0 },
+      ]);
+      expect(out.sql).toBe('\nHAVING (SUM(`amount`) IS NULL OR SUM(`amount`) <> @h0)');
+      expect(out.params).toEqual([{ name: 'h0', value: 0 }]);
+    });
+
+    it('not_contains metric filter emits the aggregate twice (real Athena renderer)', () => {
+      const athena = new AthenaClauseRenderer();
+      const out = athena.renderHaving([
+        { column: 'name', function: 'MAX', operator: 'not_contains', value: 'x' },
+      ]);
+      expect(out.sql).toBe('\nHAVING (MAX("name") IS NULL OR strpos(MAX("name"), ?) = 0)');
+      expect(out.params).toEqual([{ name: 'h0', value: 'x' }]);
+    });
+  });
 });
 
 // Terminal allow-list at the render boundary — the date-trunc unit and time zone are INLINED

@@ -187,7 +187,11 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
         (6, 'gamma',    0.00, 'active',
           current_date,
           cast(current_date as timestamp) + interval 825 minute,
-          cast(cast(current_date as timestamp) + interval 825 minute as timestamp_ntz))
+          cast(cast(current_date as timestamp) + interval 825 minute as timestamp_ntz)),
+        -- Row 7: the all-NULL row (bare NULLs coerce to each typed column). Proves negative
+        -- operators keep NULLs — neq / not_contains / not_regex include it, while
+        -- comparison / affix / regex / date filters drop it.
+        (7, NULL, NULL, NULL, NULL, NULL, NULL)
     `);
   }, 180000);
 
@@ -300,10 +304,10 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
     ).toEqual(['1']);
   }, 60000);
 
-  it('neq on status: not "active" → rows 2,4', async () => {
+  it('neq on status: not "active" → rows 2,4,7 (null-inclusive: NULL row 7 kept)', async () => {
     expect(
       ids(await runFilter({ filters: [{ column: 'status', operator: 'neq', value: 'active' }] }))
-    ).toEqual(['2', '4']);
+    ).toEqual(['2', '4', '7']);
   }, 60000);
 
   it('gt: amount > 20 → rows 3,4,5', async () => {
@@ -324,12 +328,12 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
     ).toEqual(['1']);
   }, 60000);
 
-  it('not_contains "eta" → rows 1,3,4,5,6', async () => {
+  it('not_contains "eta" → rows 1,3,4,5,6,7 (null-inclusive: NULL row 7 kept)', async () => {
     expect(
       ids(
         await runFilter({ filters: [{ column: 'name', operator: 'not_contains', value: 'eta' }] })
       )
-    ).toEqual(['1', '3', '4', '5', '6']);
+    ).toEqual(['1', '3', '4', '5', '6', '7']);
   }, 60000);
 
   it('starts_with "al" → row 1', async () => {
@@ -355,10 +359,10 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
     expect(ids(rows)).toEqual(['1']);
   }, 60000);
 
-  it('not_regex "^alp" → rows 2,3,4,5,6', async () => {
+  it('not_regex "^alp" → rows 2,3,4,5,6,7 (null-inclusive: NULL row 7 kept)', async () => {
     expect(
       ids(await runFilter({ filters: [{ column: 'name', operator: 'not_regex', value: '^alp' }] }))
-    ).toEqual(['2', '3', '4', '5', '6']);
+    ).toEqual(['2', '3', '4', '5', '6', '7']);
   }, 60000);
 
   it('regex "\\\\d" (digit class) → row 4 (100%) — backslash survives into RLIKE', async () => {
@@ -451,7 +455,9 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
         ],
       });
 
-      expect(rows).toHaveLength(2);
+      // 3 groups: active, inactive, and the NULL-status row 7 (its amount is NULL, so it
+      // contributes nothing to the active/inactive aggregates below).
+      expect(rows).toHaveLength(3);
       const byStatus = new Map(rows.map(r => [String(r.status), r]));
 
       const active = byStatus.get('active')!;
@@ -527,7 +533,8 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
         aggregations: [{ column: 'name', function: 'STRING_AGG' }],
       });
 
-      expect(rows).toHaveLength(2);
+      // 3 groups: active, inactive, and the NULL-status row 7 (asserted loosely below).
+      expect(rows).toHaveLength(3);
       const byStatus = new Map(rows.map(r => [String(r.status), r]));
 
       const splitSorted = (v: unknown): string[] =>
@@ -621,8 +628,9 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
       expect(rows).toHaveLength(1);
       const row = rows[0];
       expect(Number(row['amount | SUM'])).toBeCloseTo(150, 5);
-      expect(Number(row['id | COUNTUNIQUE'])).toBe(6);
-      expect(Number(row['Row Count'])).toBe(6);
+      // 7 rows now (all-NULL row 7 added); its id is non-NULL so COUNT DISTINCT id = 7.
+      expect(Number(row['id | COUNTUNIQUE'])).toBe(7);
+      expect(Number(row['Row Count'])).toBe(7);
     }, 60000);
 
     // totals shape WITH a WHERE filter.

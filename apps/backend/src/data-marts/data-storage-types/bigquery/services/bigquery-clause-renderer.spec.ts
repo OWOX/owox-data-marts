@@ -10,8 +10,10 @@ describe('BigQueryClauseRenderer', () => {
       expect(out.sql).toBe('\nWHERE `name` = @p0');
       expect(out.params).toEqual([{ name: 'p0', value: 'X' }]);
     });
-    it('neq', () => {
-      expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toContain('!=');
+    it('neq is null-inclusive (keeps NULLs)', () => {
+      const out = r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]);
+      expect(out.sql).toBe('\nWHERE (`a` IS NULL OR `a` <> @p0)');
+      expect(out.params).toEqual([{ name: 'p0', value: 1 }]);
     });
     it('gt/lt/gte/lte', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'gt', value: 1 }]).sql).toContain('>');
@@ -24,9 +26,9 @@ describe('BigQueryClauseRenderer', () => {
       expect(out.sql).toBe('\nWHERE STRPOS(`a`, @p0) > 0');
       expect(out.params).toEqual([{ name: 'p0', value: 'foo' }]);
     });
-    it('not_contains', () => {
+    it('not_contains is null-inclusive', () => {
       const out = r.renderWhere([{ column: 'a', operator: 'not_contains', value: 'X' }]);
-      expect(out.sql).toBe('\nWHERE STRPOS(`a`, @p0) = 0');
+      expect(out.sql).toBe('\nWHERE (`a` IS NULL OR STRPOS(`a`, @p0) = 0)');
       expect(out.params).toEqual([{ name: 'p0', value: 'X' }]);
     });
     it('starts_with / ends_with use BigQuery built-ins with raw values', () => {
@@ -50,7 +52,7 @@ describe('BigQueryClauseRenderer', () => {
         '\nWHERE REGEXP_CONTAINS(`a`, @p0)'
       );
       expect(r.renderWhere([{ column: 'a', operator: 'not_regex', value: '^x' }]).sql).toBe(
-        '\nWHERE NOT REGEXP_CONTAINS(`a`, @p0)'
+        '\nWHERE (`a` IS NULL OR NOT REGEXP_CONTAINS(`a`, @p0))'
       );
     });
   });
@@ -253,6 +255,17 @@ describe('BigQueryClauseRenderer', () => {
           withType('DATE')
         ).sql
       ).toBe('\nWHERE `d` = CAST(@p0 AS DATE)');
+    });
+
+    it('wraps neq on a DATE column, null-inclusive', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'd', operator: 'neq', value: '2024-01-01' }],
+          undefined,
+          'p',
+          withType('DATE')
+        ).sql
+      ).toBe('\nWHERE (`d` IS NULL OR `d` <> CAST(@p0 AS DATE))');
     });
 
     it.each(['DATETIME', 'TIME', 'TIMESTAMP'])('wraps gte on a %s column', type => {
