@@ -7,6 +7,8 @@ import {
 } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import { makeMcpFilterSchema } from './query-data-mart.input';
+import { mapReportFilters } from './report-filter-input';
 
 // The raw shape (exposed to MCP clients) has every change field optional; the
 // parsed schema additionally requires at least one of them, since an update
@@ -19,7 +21,13 @@ const baseInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one of fields/name/message is required."
+        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one of fields/filters/name/message is required."
+      ),
+    filters: z
+      .array(makeMcpFilterSchema())
+      .optional()
+      .describe(
+        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces ALL current filters; pass [] to remove every filter; omit to keep current.'
       ),
     name: z
       .string()
@@ -56,9 +64,13 @@ const baseInputSchema = z
 
 const inputSchema = baseInputSchema
   .refine(
-    input => input.fields !== undefined || input.name !== undefined || input.message !== undefined,
+    input =>
+      input.fields !== undefined ||
+      input.filters !== undefined ||
+      input.name !== undefined ||
+      input.message !== undefined,
     {
-      message: 'Provide at least one of fields, name, or message to update',
+      message: 'Provide at least one of fields, filters, name, or message to update',
     }
   )
   .refine(
@@ -78,7 +90,7 @@ type UpdateReportInput = z.infer<typeof inputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it, replace which data mart fields it exports, and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one of name, fields, or message; anything not provided stays unchanged.';
+    'Update an existing report: rename it, replace which data mart fields it exports, replace its row filters (same vocabulary as query_data_mart; [] removes all filters), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one of name, fields, filters, or message; anything not provided stays unchanged.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the updated report'),
@@ -102,11 +114,12 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   }
 
   async handler(input: UpdateReportInput, context: McpAuthContext): Promise<McpToolResult> {
-    const { report_id, fields, name, message } = this.parseInput(input);
+    const { report_id, fields, filters, name, message } = this.parseInput(input);
 
     const result = await this.reports.updateReport({
       reportId: report_id,
       fields,
+      filterConfig: mapReportFilters(filters),
       name,
       message,
       projectId: context.projectId,

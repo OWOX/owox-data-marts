@@ -45,7 +45,8 @@ const MCP_OPERATORS = [
 export const McpOperatorEnum = z.enum(MCP_OPERATORS);
 
 // Fresh instance per use — a shared one becomes a JSON-Schema $ref that OpenAI can't resolve (filters → any[]).
-const makeMcpFilterSchema = () =>
+// Also reused by add_report/update_report so report filters speak the exact same vocabulary as query filters.
+export const makeMcpFilterSchema = () =>
   z.object({
     field: z.string().min(1),
     operator: z.enum(MCP_OPERATORS),

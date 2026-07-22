@@ -153,10 +153,13 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     // is enforced here as well, not only by the tool-layer input schema.
     if (
       request.fields === undefined &&
+      request.filterConfig === undefined &&
       request.name === undefined &&
       request.message === undefined
     ) {
-      throw new BadRequestException('Nothing to update: provide fields, name, and/or message');
+      throw new BadRequestException(
+        'Nothing to update: provide fields, filters, name, and/or message'
+      );
     }
 
     // UpdateReportCommand carries the FULL report state and the service
@@ -202,7 +205,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         request.fields !== undefined
           ? this.toColumnConfig(request.fields)
           : (current.columnConfig ?? null),
-        current.filterConfig ?? null,
+        request.filterConfig !== undefined ? request.filterConfig : (current.filterConfig ?? null),
         current.sortConfig ?? null,
         current.limitConfig ?? null,
         current.aggregationConfig ?? null,
@@ -450,7 +453,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         destinationConfig,
         undefined,
         request.roles,
-        this.toColumnConfig(request.fields)
+        this.toColumnConfig(request.fields),
+        request.filterConfig ?? null
       )
     );
 
@@ -499,7 +503,8 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         },
         undefined,
         request.roles,
-        columnConfig
+        columnConfig,
+        request.filterConfig ?? null
       )
     );
 
@@ -563,7 +568,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       dataMartId: dataMart.id,
       projectId: request.projectId,
       columnConfig,
-      filterConfig: null,
+      filterConfig: request.filterConfig ?? null,
       sortConfig: null,
       limitConfig: null,
       aggregationConfig: null,

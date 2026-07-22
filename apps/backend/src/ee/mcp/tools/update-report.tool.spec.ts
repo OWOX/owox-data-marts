@@ -64,11 +64,70 @@ describe('UpdateReportTool', () => {
     );
   });
 
+  it('maps replacement filters into domain rules, and [] into null (remove all)', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    await tool.handler(
+      { report_id: 'report-1', filters: [{ field: 'purchases', operator: 'eq', value: 0 }] },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [{ column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' }],
+      })
+    );
+
+    await tool.handler({ report_id: 'report-1', filters: [] }, context);
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: null })
+    );
+
+    // Omitted filters must stay undefined so the facade keeps the current ones.
+    await tool.handler({ report_id: 'report-1', name: 'New name' }, context);
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: undefined })
+    );
+  });
+
+  it('rejects an unsupported filter operator before touching the facade', async () => {
+    const facade = {
+      updateReport: jest.fn(),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    await expect(
+      tool.handler(
+        {
+          report_id: 'report-1',
+          filters: [{ field: 'channel', operator: 'in', value: ['ads'] }],
+        },
+        context
+      )
+    ).rejects.toThrow(/not supported yet.*Supported operators/);
+    expect(facade.updateReport).not.toHaveBeenCalled();
+  });
+
+  it('accepts filters alone as a valid change', () => {
+    const tool = new UpdateReportTool({} as McpReportsFacade);
+
+    expect(() =>
+      tool.parseInput({
+        report_id: 'report-1',
+        filters: [{ field: 'purchases', operator: 'eq', value: 0 }],
+      })
+    ).not.toThrow();
+    // An explicit empty array is a valid change: it removes every filter.
+    expect(() => tool.parseInput({ report_id: 'report-1', filters: [] })).not.toThrow();
+  });
+
   it('requires at least one change and rejects malformed input', () => {
     const tool = new UpdateReportTool({} as McpReportsFacade);
 
     expect(() => tool.parseInput({ report_id: 'report-1' })).toThrow(
-      'Provide at least one of fields, name, or message'
+      'Provide at least one of fields, filters, name, or message'
     );
     expect(() => tool.parseInput({ name: 'New name' })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', fields: [] })).toThrow();

@@ -1,5 +1,6 @@
 import type { ReportRunStatus } from '../enums/report-run-status.enum';
 import type { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import type { McpDestinationType } from './mcp-destination-type';
 
 export const MCP_REPORTS_FACADE = Symbol('MCP_REPORTS_FACADE');
@@ -65,6 +66,11 @@ export interface McpAddReportRequest {
   /** Column names to include; `['*']` (or containing `'*'`) selects every field. */
   fields: string[];
   /**
+   * Row filter rules applied on every report run (already mapped to the domain
+   * vocabulary). Omitted, `null`, or empty — no row filtering.
+   */
+  filterConfig?: FilterConfig;
+  /**
    * Report name (also the new sheet's title and the default email subject).
    * Required for Google Sheets and email-family destinations; rejected for
    * Looker Studio, whose reports carry no name.
@@ -112,6 +118,12 @@ export interface McpUpdateReportRequest {
   reportId: string;
   /** Replacement column selection; `['*']` (or containing `'*'`) selects every field. Omit to keep the current selection. */
   fields?: string[];
+  /**
+   * Replacement row filter rules (already mapped to the domain vocabulary).
+   * Replaces ALL current filters; `null` removes every filter. Omit
+   * (`undefined`) to keep the current filters.
+   */
+  filterConfig?: FilterConfig;
   /** New report name. Omit to keep the current name. */
   name?: string;
   /** Message changes — only valid when the report's destination is email-family. */
@@ -191,14 +203,14 @@ export interface McpReportsFacade {
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**
-   * Partially updates a report (name, column selection, and/or — for
-   * email-family reports — the message subject/body). The domain update
+   * Partially updates a report (name, column selection, row filters, and/or —
+   * for email-family reports — the message subject/body). The domain update
    * command requires the full report state, so the facade loads the current
    * report and merges the requested changes into it; everything else
-   * (destination, filters, sorting, owners, send condition, …) is preserved
-   * as-is. At least one change must be provided — a call with nothing to
-   * change is rejected by the implementation, independent of the tool-layer
-   * validation. `message` is rejected for non-email-family reports.
+   * (destination, sorting, owners, send condition, …) is preserved as-is.
+   * At least one change must be provided — a call with nothing to change is
+   * rejected by the implementation, independent of the tool-layer validation.
+   * `message` is rejected for non-email-family reports.
    */
   updateReport(request: McpUpdateReportRequest): Promise<McpUpdateReportResult>;
   /**

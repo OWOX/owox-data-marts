@@ -167,11 +167,67 @@ describe('AddReportTool', () => {
     );
   });
 
+  it('maps filters into the domain filter rules for the facade', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-6',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      {
+        ...input,
+        filters: [
+          { field: 'purchases', operator: 'eq', value: 0 },
+          { field: 'created_at', operator: 'in_last_n_days', value: 30 },
+        ],
+      },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
+          {
+            column: 'created_at',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 30 },
+            placement: 'post-join',
+          },
+        ],
+      })
+    );
+  });
+
+  it('rejects an unsupported filter operator with the supported vocabulary, before the facade', async () => {
+    const facade = {
+      addReport: jest.fn(),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await expect(
+      tool.handler(
+        { ...input, filters: [{ field: 'channel', operator: 'in', value: ['ads', 'email'] }] },
+        context
+      )
+    ).rejects.toThrow(/not supported yet.*Supported operators/);
+    expect(facade.addReport).not.toHaveBeenCalled();
+  });
+
   it('validates required input and rejects unexpected keys', () => {
     const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ destination_id: 'd', fields: ['*'], name: 'x' })).toThrow();
     expect(() => tool.parseInput({ ...input, fields: [] })).toThrow();
+    // An empty filters array on create is a caller mistake — omit it instead.
+    expect(() => tool.parseInput({ ...input, filters: [] })).toThrow();
+    expect(() => tool.parseInput({ ...input, filters: [{ field: 'x' }] })).toThrow();
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
   });
 

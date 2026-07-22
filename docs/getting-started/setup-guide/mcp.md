@@ -451,6 +451,7 @@ Creates a report that exports a data mart to an existing destination (see `list_
 | `data_mart_id`      | Data mart to export                                                    |
 | `destination_id`    | The destination to export to (from `list_destinations`)               |
 | `fields`            | Exact column names to include, or `["*"]` for every field              |
+| `filters`           | Optional. Row filters applied on every report run — same shape and operator vocabulary as `query_data_mart`'s `filters`, so the assistant can create a report that exports exactly the filtered result you were looking at. A filter may reference a field that is not in `fields`. Omit to export all rows |
 | `name`              | Report name — also the new sheet's title (Google Sheets) and the default message subject (email family). Required for those destination types; not accepted for Looker Studio |
 | `message`           | Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types |
 | `message.subject`   | Optional message subject or heading. Defaults to the report name       |
@@ -473,7 +474,7 @@ Creates a report that exports a data mart to an existing destination (see `list_
 
 ### `update_report` (requires `mcp:write`)
 
-Updates an existing report: renames it, replaces which data mart fields it exports, and/or — for reports with an email, Slack, Teams, or Google Chat destination — changes the message subject or body. Anything not provided stays unchanged — the destination, filters, sorting, owners, schedules, and send condition are preserved as-is.
+Updates an existing report: renames it, replaces which data mart fields it exports, replaces its row filters, and/or — for reports with an email, Slack, Teams, or Google Chat destination — changes the message subject or body. Anything not provided stays unchanged — the destination, sorting, owners, schedules, and send condition are preserved as-is.
 
 **Input:**
 
@@ -481,12 +482,13 @@ Updates an existing report: renames it, replaces which data mart fields it expor
 | ----------- | --------------------------------------------------------------------------------- |
 | `report_id` | Report to update (from `get_data_mart_reports`)                                   |
 | `fields`    | Optional. Replacement column selection, or `["*"]` for every field                |
+| `filters`   | Optional. Replacement row filters (same vocabulary as `query_data_mart`'s `filters`). Replaces all current filters; `[]` removes every filter |
 | `name`      | Optional. New report name                                                          |
 | `message`   | Optional. Message changes — only for reports with an email-family destination, rejected for other types |
 | `message.subject` | Optional. New message subject or heading                                     |
 | `message.body`    | Optional. New message body template (supports `{{table}}`). Replaces the current body; if the report used an insight template, it switches to this custom message |
 
-At least one of `fields` / `name` / `message` must be provided (and `message`, when present, needs `subject` and/or `body`).
+At least one of `fields` / `filters` / `name` / `message` must be provided (and `message`, when present, needs `subject` and/or `body`).
 
 **Returns:**
 
@@ -539,7 +541,7 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination (`add_report`), rename a report, change which fields it exports, or edit the message of email-family reports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same row filters as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`) — rename a report, change which fields it exports, replace its row filters, or edit the message of email-family reports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
 > **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 
