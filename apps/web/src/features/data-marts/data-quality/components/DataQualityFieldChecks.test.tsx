@@ -36,6 +36,8 @@ describe('DataQualityFieldChecks', () => {
               {
                 key: 'constant_column:field:email',
                 label: 'Constant column',
+                description: 'Finds fields that contain only one distinct value.',
+                isAdded: false,
               },
             ],
           },
@@ -48,13 +50,11 @@ describe('DataQualityFieldChecks', () => {
 
     expect(screen.getByText('Null rate')).toBeInTheDocument();
     expect(screen.queryByText('Constant column')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'email' })).toHaveClass('bg-background');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add checks' }));
-    fireEvent.click(screen.getByRole('combobox', { name: 'Select field' }));
-    fireEvent.click(screen.getByRole('option', { name: 'email' }));
-    fireEvent.click(await screen.findByRole('combobox', { name: 'Select check' }));
-    fireEvent.click(screen.getByRole('option', { name: 'Constant column' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    fireEvent.click(screen.getByRole('option', { name: /email/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Constant column/ }));
 
     expect(onAddCheck).toHaveBeenCalledOnce();
     expect(onAddCheck).toHaveBeenCalledWith('constant_column:field:email');

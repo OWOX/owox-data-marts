@@ -5,9 +5,11 @@ import {
   getDataQualityStatusPresentation,
   getSelectableDataQualityFields,
   groupDataQualityFieldRules,
+  sortDataQualityResults,
   toStoredDataQualityConfig,
 } from './data-quality.model';
 import type {
+  DataQualityCheckResult,
   DataQualityConfig,
   DataQualityRuleConfig,
   EffectiveDataQualityConfig,
@@ -70,13 +72,13 @@ describe('data quality model', () => {
   });
 
   it.each([
-    ['NEVER_RUN', 'Quality has not been run yet'],
-    ['QUEUED', 'Quality run queued'],
-    ['RUNNING', 'Quality checks are running'],
-    ['PASSED', 'All enabled checks passed'],
-    ['ISSUES', 'Quality issues found'],
-    ['EXECUTION_FAILED', 'Quality run failed'],
-    ['CANCELLED', 'Quality run cancelled'],
+    ['NEVER_RUN', 'No runs yet'],
+    ['QUEUED', 'Run queued…'],
+    ['RUNNING', 'Running checks…'],
+    ['PASSED', 'All checks passed'],
+    ['ISSUES', 'Issues found'],
+    ['EXECUTION_FAILED', 'Execution failed'],
+    ['CANCELLED', 'Run cancelled'],
     ['ALL_DISABLED', 'All checks are disabled'],
   ] as const)('presents %s', (state, title) => {
     expect(getDataQualityStatusPresentation({ state }).title).toBe(title);
@@ -163,7 +165,15 @@ describe('data quality model', () => {
       {
         id: 'current-field',
         label: 'current-field',
-        checks: [{ key: 'null_rate:field:current-field', label: 'Null rate' }],
+        checks: [
+          {
+            key: 'null_rate:field:current-field',
+            label: 'Null rate',
+            description:
+              'Checks whether the share of null values exceeds the configured threshold.',
+            isAdded: false,
+          },
+        ],
       },
     ]);
   });
@@ -195,14 +205,73 @@ describe('data quality model', () => {
         label: 'new-field',
         checks: [
           {
+            key: 'null_rate:field:new-field',
+            label: 'Null rate',
+            description:
+              'Checks whether the share of null values exceeds the configured threshold.',
+            isAdded: true,
+          },
+          {
             key: 'constant_column:field:new-field',
             label: 'Constant column',
+            description: 'Finds fields that contain only one distinct value.',
+            isAdded: false,
           },
         ],
       },
     ]);
   });
+
+  it('sorts results by execution errors, finding severity, passed, then not applicable', () => {
+    const results = [
+      result('not-applicable', 'NOT_APPLICABLE', 'error'),
+      result('passed', 'PASSED', 'error'),
+      result('notice', 'FAILED', 'notice'),
+      result('execution-error', 'ERROR', 'warning'),
+      result('warning', 'FAILED', 'warning'),
+      result('critical', 'FAILED', 'error'),
+    ];
+
+    expect(sortDataQualityResults(results).map(item => item.id)).toEqual([
+      'execution-error',
+      'critical',
+      'warning',
+      'notice',
+      'passed',
+      'not-applicable',
+    ]);
+    expect(results.map(item => item.id)).toEqual([
+      'not-applicable',
+      'passed',
+      'notice',
+      'execution-error',
+      'warning',
+      'critical',
+    ]);
+  });
 });
+
+function result(
+  id: string,
+  status: DataQualityCheckResult['status'],
+  severity: DataQualityCheckResult['severity']
+): DataQualityCheckResult {
+  return {
+    id,
+    ruleKey: id,
+    category: 'empty_table',
+    scope: { type: 'DATA_MART' },
+    severity,
+    status,
+    violationCount: status === 'FAILED' ? 1 : 0,
+    description: id,
+    examples: [],
+    executedSql: [],
+    reproductionSql: null,
+    error: status === 'ERROR' ? { code: null, message: 'failed', details: null } : null,
+    redacted: false,
+  };
+}
 
 function config(rules: DataQualityRuleConfig[]): DataQualityConfig {
   return { timezone: 'UTC', rules };

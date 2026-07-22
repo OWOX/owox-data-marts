@@ -20,6 +20,7 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum';
 import { resolveEffectiveDataQualityConfig } from './data-quality-config-resolver';
@@ -163,7 +164,17 @@ export class DataQualityRunService {
         await dataMartRepository.save(dataMart);
       }
 
-      const enabledChecks = effectiveConfig.rules.filter(rule => rule.enabled).length;
+      const enabledRules = effectiveConfig.rules.filter(rule => rule.enabled);
+      const enabledRelationshipIds = new Set(
+        enabledRules.flatMap(rule =>
+          rule.scope.type === DataQualityScope.RELATIONSHIP ? [rule.scope.relationshipId] : []
+        )
+      );
+      const snapshotConfig = { ...effectiveConfig, rules: enabledRules };
+      const snapshotRelationships = relationships.filter(relationship =>
+        enabledRelationshipIds.has(relationship.id)
+      );
+      const enabledChecks = enabledRules.length;
       const dataMartRun = await dataMartRunRepository.save(
         dataMartRunRepository.create({
           id: uuidv7(),
@@ -176,9 +187,9 @@ export class DataQualityRunService {
           logs: [],
           errors: [],
           dataQualitySnapshot: {
-            config: cloneJson(effectiveConfig),
+            config: cloneJson(snapshotConfig),
             schema: cloneJson(dataMart.schema!),
-            relationships: cloneJson(relationships),
+            relationships: cloneJson(snapshotRelationships),
             definitionType: dataMart.definitionType!,
             timezone: effectiveConfig.timezone,
           },

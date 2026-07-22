@@ -18,10 +18,10 @@ interface DataQualityCompactStatusLinkProps {
 const BORDER_CLASSES = {
   neutral: 'border-muted-foreground/30',
   progress: 'border-brand-blue-500/40',
-  success: 'border-green-500/40',
-  warning: 'border-amber-500/50',
-  error: 'border-red-500/40',
-  notice: 'border-muted-foreground/40',
+  success: 'border-success/40',
+  warning: 'border-warning/50',
+  error: 'border-destructive/40',
+  notice: 'border-notice/40',
 } as const;
 
 const COMPACT_STATUS_LABELS: Record<DataQualityStatusLabel, string> = {

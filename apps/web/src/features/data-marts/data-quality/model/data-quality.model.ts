@@ -1,6 +1,7 @@
 import type {
   DataQualityCategory,
   DataQualityConfig,
+  DataQualityCheckResult,
   DataQualityStatusPresentation,
   DataQualitySummaryState,
   EffectiveDataQualityConfig,
@@ -22,39 +23,54 @@ export const DATA_QUALITY_CATEGORY_LABELS: Record<DataQualityCategory, string> =
   reverse_relationship: 'Reverse relationship',
 };
 
+export const DATA_QUALITY_CATEGORY_DESCRIPTIONS: Record<DataQualityCategory, string> = {
+  empty_table: 'Finds a problem when the Data Mart contains no rows.',
+  pk_uniqueness: 'Checks that the Output Schema primary key identifies each row once.',
+  duplicate_rows: 'Finds duplicate rows across all materialized Output Schema fields.',
+  null_rate: 'Checks whether the share of null values exceeds the configured threshold.',
+  column_uniqueness: 'Finds repeated non-null values in this field.',
+  constant_column: 'Finds fields that contain only one distinct value.',
+  type_mismatch: 'Compares the stored column type with the saved Output Schema type.',
+  data_freshness: 'Checks the latest value in a date or timestamp field.',
+  future_values: 'Finds dates or timestamps later than the current local time.',
+  negative_values: 'Finds numeric values below zero.',
+  relationship_integrity: 'Finds source join values missing from the target Data Mart.',
+  reverse_relationship: 'Finds target join values unused by the source Data Mart.',
+};
+
 const STATUS_PRESENTATIONS: Record<DataQualitySummaryState, DataQualityStatusPresentation> = {
   NEVER_RUN: {
-    title: 'Quality has not been run yet',
+    title: 'No runs yet',
     description: 'Run the enabled checks to create the first quality report.',
     tone: 'neutral',
   },
   QUEUED: {
-    title: 'Quality run queued',
+    title: 'Run queued…',
     description: 'The run will start as soon as a worker is available.',
     tone: 'progress',
   },
   RUNNING: {
-    title: 'Quality checks are running',
+    title: 'Running checks…',
     description: 'Results are saved after each check.',
     tone: 'progress',
   },
   PASSED: {
-    title: 'All enabled checks passed',
+    title: 'All checks passed',
     description: 'No data quality findings were detected.',
     tone: 'success',
   },
   ISSUES: {
-    title: 'Quality issues found',
+    title: 'Issues found',
     description: 'Review the failed checks and reproduce findings with SQL.',
     tone: 'warning',
   },
   EXECUTION_FAILED: {
-    title: 'Quality run failed',
+    title: 'Execution failed',
     description: 'Some checks could not execute. Completed results are still available below.',
     tone: 'error',
   },
   CANCELLED: {
-    title: 'Quality run cancelled',
+    title: 'Run cancelled',
     description: 'Results completed before cancellation are preserved.',
     tone: 'neutral',
   },
@@ -123,6 +139,46 @@ export function dataQualityScopeLabel(scope: DataQualityConfig['rules'][number][
   return 'Data Mart';
 }
 
+export interface DataQualityRelationshipPresentation {
+  titleSuffix?: string;
+  scopeLabel: string;
+  scopeDetails: string[];
+  targetAlias?: string;
+}
+
+export function getDataQualityRelationshipPresentation(
+  relationshipId: string,
+  relationships: readonly unknown[]
+): DataQualityRelationshipPresentation {
+  const relationshipIdLabel = `Relationship ID: ${relationshipId}`;
+  const relationship = relationships.find(item => isRecord(item) && item.id === relationshipId);
+  if (!isRecord(relationship)) {
+    return { scopeLabel: relationshipIdLabel, scopeDetails: [] };
+  }
+
+  const targetAlias =
+    typeof relationship.targetAlias === 'string' && relationship.targetAlias.trim()
+      ? relationship.targetAlias
+      : undefined;
+  const joinMapping = Array.isArray(relationship.joinConditions)
+    ? relationship.joinConditions
+        .flatMap(condition => {
+          if (!isRecord(condition)) return [];
+          const sourceFieldName = condition.sourceFieldName;
+          const targetFieldName = condition.targetFieldName;
+          if (typeof sourceFieldName !== 'string' || typeof targetFieldName !== 'string') return [];
+          return `${sourceFieldName} → ${targetFieldName}`;
+        })
+        .join(', ')
+    : '';
+
+  return {
+    ...(targetAlias ? { titleSuffix: targetAlias, targetAlias } : {}),
+    scopeLabel: joinMapping || relationshipIdLabel,
+    scopeDetails: joinMapping ? [relationshipIdLabel] : [],
+  };
+}
+
 export function areDataQualityConfigsEqual(
   left: DataQualityConfig | null,
   right: DataQualityConfig | null
@@ -138,11 +194,14 @@ export interface DataQualityFieldRuleGroup {
 export interface DataQualitySelectableCheck {
   key: string;
   label: string;
+  description: string;
+  isAdded: boolean;
 }
 
 export interface DataQualitySelectableField {
   id: string;
   label: string;
+  type?: string;
   checks: DataQualitySelectableCheck[];
 }
 
@@ -191,11 +250,45 @@ export function getSelectableDataQualityFields(
       id: group.fieldId,
       label: group.fieldId,
       checks: group.rules
-        .filter(rule => rule.isApplicable && !displayed.has(rule.key))
+        .filter(rule => rule.isApplicable)
         .map(rule => ({
           key: rule.key,
           label: DATA_QUALITY_CATEGORY_LABELS[rule.category],
+          description: DATA_QUALITY_CATEGORY_DESCRIPTIONS[rule.category],
+          isAdded: displayed.has(rule.key),
         })),
     }))
-    .filter(field => field.checks.length > 0);
+    .filter(field => field.checks.some(check => !check.isAdded));
+}
+
+const RESULT_STATUS_ORDER: Record<DataQualityCheckResult['status'], number> = {
+  ERROR: 0,
+  FAILED: 1,
+  PASSED: 2,
+  NOT_APPLICABLE: 3,
+};
+
+const RESULT_SEVERITY_ORDER: Record<DataQualityCheckResult['severity'], number> = {
+  error: 0,
+  warning: 1,
+  notice: 2,
+};
+
+export function sortDataQualityResults(
+  results: readonly DataQualityCheckResult[]
+): DataQualityCheckResult[] {
+  return [...results].sort((left, right) => {
+    const statusDifference = RESULT_STATUS_ORDER[left.status] - RESULT_STATUS_ORDER[right.status];
+    if (statusDifference !== 0) return statusDifference;
+
+    const severityDifference =
+      RESULT_SEVERITY_ORDER[left.severity] - RESULT_SEVERITY_ORDER[right.severity];
+    if (severityDifference !== 0) return severityDifference;
+
+    return left.ruleKey.localeCompare(right.ruleKey);
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

@@ -8,9 +8,10 @@ import { CollapsibleCardHeaderActions } from './CollapsibleCardHeaderActions';
 
 export interface CollapsibleCardHeaderProps {
   children: React.ReactNode;
+  className?: string;
 }
 
-export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) {
+export function CollapsibleCardHeader({ children, className }: CollapsibleCardHeaderProps) {
   const { collapsible, isCollapsed, handleCollapse } = useContext(CollapsibleCardContext);
 
   let title, actions;
@@ -33,7 +34,8 @@ export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) 
     <CardHeader
       className={cn(
         'group flex items-start justify-between gap-4 px-4 py-4',
-        collapsible && 'cursor-pointer'
+        collapsible && 'cursor-pointer',
+        className
       )}
       onClick={collapsible ? handleCollapse : undefined}
     >

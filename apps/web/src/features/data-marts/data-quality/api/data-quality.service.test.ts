@@ -154,6 +154,16 @@ describe('DataQualityService', () => {
     await expect(service.getLatestRun('mart-1')).resolves.toBeNull();
   });
 
+  it('cancels a Data Quality run through the shared Data Mart run endpoint', async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: undefined });
+
+    await service.cancelRun('mart-1', 'run-1');
+
+    expect(apiClient.post).toHaveBeenCalledWith('/data-marts/mart-1/runs/run-1/cancel', undefined, {
+      skipErrorToast: true,
+    });
+  });
+
   it('loads and normalizes an embedded Quality detail through the generic run route', async () => {
     const signal = new AbortController().signal;
     vi.mocked(apiClient.get).mockResolvedValueOnce({

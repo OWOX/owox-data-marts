@@ -1,42 +1,54 @@
 import { Badge } from '@owox/ui/components/badge';
 import { Card, CardContent, CardHeader } from '@owox/ui/components/card';
 import { cn } from '@owox/ui/lib/utils';
-import { AlertTriangle, CheckCircle2, CircleDashed, Loader2, XCircle } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { formatDateShort } from '../../../../utils/date-formatters';
 import { getDataQualityStatusPresentation } from '../model/data-quality.model';
-import type { DataQualityStatusPresentation, DataQualitySummary } from '../model/types';
-import type { LucideIcon } from 'lucide-react';
+import {
+  DATA_QUALITY_STATUS_TEXT_CLASSES,
+  getDataQualityStatusVisual,
+} from '../../shared/utils/data-quality-status';
+import type { DataQualityStatusTone } from '../../shared/utils/data-quality-status';
+import type { DataQualitySummary } from '../model/types';
 
 interface DataQualitySummaryPanelProps {
   summary: DataQualitySummary;
   checkedAt?: string | null;
+  actions?: ReactNode;
 }
 
-const TONE_CLASSES: Record<DataQualityStatusPresentation['tone'], string> = {
+const TONE_CLASSES: Record<DataQualityStatusTone, string> = {
   neutral: 'border-border',
   progress: 'border-brand-blue-300 bg-brand-blue-50/40 dark:bg-brand-blue-950/10',
-  success: 'border-green-300 bg-green-50/40 dark:bg-green-950/10',
-  warning: 'border-amber-300 bg-amber-50/40 dark:bg-amber-950/10',
-  error: 'border-red-300 bg-red-50/40 dark:bg-red-950/10',
+  success: 'border-success/40 bg-success-bg',
+  warning: 'border-warning/40 bg-warning-bg',
+  error: 'border-destructive/40 bg-destructive-bg',
+  notice: 'border-notice/30 bg-notice-bg',
 };
 
-const STATUS_ICONS: Record<DataQualityStatusPresentation['tone'], LucideIcon> = {
-  neutral: CircleDashed,
-  progress: Loader2,
-  success: CheckCircle2,
-  warning: AlertTriangle,
-  error: XCircle,
-};
-
-export function DataQualitySummaryPanel({ summary, checkedAt }: DataQualitySummaryPanelProps) {
+export function DataQualitySummaryPanel({
+  summary,
+  checkedAt,
+  actions,
+}: DataQualitySummaryPanelProps) {
   const presentation = getDataQualityStatusPresentation(summary);
-  const Icon = STATUS_ICONS[presentation.tone];
-  const isActive = summary.state === 'QUEUED' || summary.state === 'RUNNING';
+  const visual = getDataQualityStatusVisual(summary);
+  const Icon = visual.icon;
 
   return (
-    <Card className={cn('gap-4 py-5', TONE_CLASSES[presentation.tone])}>
-      <CardHeader className='grid grid-cols-[auto_1fr] gap-x-3 px-5'>
-        <Icon className={cn('mt-0.5 size-5', isActive && 'animate-spin')} aria-hidden='true' />
+    <Card
+      className={cn('gap-4 py-4', TONE_CLASSES[visual.tone])}
+      aria-live={visual.isActive ? 'polite' : undefined}
+    >
+      <CardHeader className='grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-5'>
+        <Icon
+          className={cn(
+            'mt-0.5 size-5',
+            DATA_QUALITY_STATUS_TEXT_CLASSES[visual.tone],
+            visual.isActive && 'animate-spin'
+          )}
+          aria-hidden='true'
+        />
         <div className='min-w-0'>
           <h2 className='font-semibold'>{presentation.title}</h2>
           <p className='text-muted-foreground mt-1 text-sm'>{presentation.description}</p>
@@ -46,19 +58,58 @@ export function DataQualitySummaryPanel({ summary, checkedAt }: DataQualitySumma
             </p>
           )}
         </div>
+        {actions && <div className='flex shrink-0 items-center gap-2'>{actions}</div>}
       </CardHeader>
-      <CardContent className='flex flex-wrap gap-2 px-5'>
-        <Badge variant='outline'>{summary.enabledChecks} enabled</Badge>
-        <Badge variant='outline'>{summary.passedChecks} passed</Badge>
-        <Badge variant={summary.failedChecks > 0 ? 'destructive' : 'outline'}>
-          {summary.failedChecks} failed
-        </Badge>
-        <Badge variant='outline'>{summary.notApplicableChecks} not applicable</Badge>
-        {summary.errorChecks > 0 && (
-          <Badge variant='destructive'>{summary.errorChecks} execution errors</Badge>
-        )}
-        <Badge variant='outline'>{summary.violationCount} violations</Badge>
+      <CardContent className='px-5'>
+        <DataQualitySummaryChips summary={summary} />
       </CardContent>
     </Card>
   );
+}
+
+export function DataQualitySummaryChips({ summary }: { summary: DataQualitySummary }) {
+  const chips = [
+    counter(summary.enabledChecks, 'enabled'),
+    counter(summary.passedChecks, 'passed'),
+    counter(summary.failedChecks, 'failed', 'destructive'),
+    counter(summary.notApplicableChecks, 'not applicable'),
+    counter(
+      summary.errorChecks,
+      summary.errorChecks === 1 ? 'execution error' : 'execution errors',
+      'destructive'
+    ),
+    counter(summary.errorFindings, 'error', 'destructive'),
+    counter(summary.warningFindings, 'warning', 'warning'),
+    counter(summary.noticeFindings, 'notice'),
+  ].filter((chip): chip is NonNullable<typeof chip> => chip !== null);
+
+  if (summary.state === 'PASSED' && summary.failedChecks === 0 && summary.errorChecks === 0) {
+    chips.push({ label: 'No findings', variant: 'outline' });
+  }
+
+  if (chips.length === 0) return null;
+
+  return (
+    <div className='flex flex-wrap gap-2'>
+      {chips.map(chip => (
+        <Badge
+          key={chip.label}
+          variant={chip.variant === 'destructive' ? 'destructive' : 'outline'}
+          className={cn(
+            chip.variant === 'warning' && 'border-warning/50 bg-warning-bg text-warning'
+          )}
+        >
+          {chip.label}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
+function counter(
+  count: number,
+  label: string,
+  variant: 'outline' | 'warning' | 'destructive' = 'outline'
+) {
+  return count > 0 ? { label: `${count} ${label}`, variant } : null;
 }

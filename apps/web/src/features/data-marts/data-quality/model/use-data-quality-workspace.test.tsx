@@ -18,6 +18,7 @@ vi.mock('../api/data-quality.service', () => ({
     getRun: vi.fn(),
     replaceConfig: vi.fn(),
     startRun: vi.fn(),
+    cancelRun: vi.fn(),
   },
 }));
 
@@ -42,6 +43,7 @@ describe('useDataQualityWorkspace', () => {
     vi.mocked(dataQualityService.getRun).mockResolvedValue(buildRun('RUNNING'));
     vi.mocked(dataQualityService.replaceConfig).mockResolvedValue(configResponse);
     vi.mocked(dataQualityService.startRun).mockResolvedValue(buildRun('RUNNING'));
+    vi.mocked(dataQualityService.cancelRun).mockResolvedValue(undefined);
   });
 
   afterEach(() => vi.useRealTimers());
@@ -101,6 +103,26 @@ describe('useDataQualityWorkspace', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: dataQualityQueryKeys.config('project-1', 'mart-1'),
     });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: dataQualityQueryKeys.latest('project-1', 'mart-1'),
+    });
+  });
+
+  it('cancels the active shared Data Mart run and refreshes its latest state', async () => {
+    vi.mocked(dataQualityService.getLatestRun).mockResolvedValue(buildRun('RUNNING'));
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useDataQualityWorkspace('project-1', 'mart-1'), {
+      wrapper,
+    });
+    await waitFor(() => {
+      expect(result.current.latestRun?.summary.state).toBe('RUNNING');
+    });
+
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+
+    expect(dataQualityService.cancelRun).toHaveBeenCalledWith('mart-1', 'run-1');
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: dataQualityQueryKeys.latest('project-1', 'mart-1'),
     });

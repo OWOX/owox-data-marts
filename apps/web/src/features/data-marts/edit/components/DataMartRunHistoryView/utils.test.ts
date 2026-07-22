@@ -43,6 +43,26 @@ describe('getRunSummaryParts', () => {
     const [description, title] = getRunSummaryParts(run, null);
 
     expect(description).toBe('Manual data quality run');
-    expect(title).toBe('2 warning findings');
+    expect(title).toBe('2 findings');
+  });
+
+  it('describes a wholly not-applicable Data Quality run without calling it passed', () => {
+    const run = {
+      type: DataMartRunType.DATA_QUALITY,
+      triggerType: 'manual',
+      qualitySummary: {
+        state: 'PASSED',
+        totalChecks: 4,
+        passedChecks: 0,
+        notApplicableChecks: 4,
+        warningFindings: 0,
+        errorFindings: 0,
+        noticeFindings: 0,
+      },
+    } as unknown as DataMartRunItem;
+
+    const [, title] = getRunSummaryParts(run, null);
+
+    expect(title).toBe('Nothing to check · all not applicable');
   });
 });

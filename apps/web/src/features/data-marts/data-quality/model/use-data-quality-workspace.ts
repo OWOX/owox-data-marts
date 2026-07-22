@@ -82,6 +82,19 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: () => {
+      const runId = latestQuery.data?.id;
+      if (!runId) throw new Error('There is no active Data Quality run to cancel');
+      return dataQualityService.cancelRun(dataMartId, runId);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: dataQualityQueryKeys.latest(projectId, dataMartId),
+      });
+    },
+  });
+
   return {
     configResponse: configQuery.data,
     latestRun: runQuery.data ?? latestQuery.data ?? null,
@@ -92,7 +105,9 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
     resultsError: runQuery.error,
     isSaving: saveMutation.isPending,
     isStarting: runMutation.isPending,
+    isCancelling: cancelMutation.isPending,
     saveConfig: saveMutation.mutateAsync,
     startRun: (config?: DataQualityConfig) => runMutation.mutateAsync(config),
+    cancelRun: () => cancelMutation.mutateAsync(),
   };
 }

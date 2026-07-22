@@ -21,13 +21,13 @@ const baseSummary: DataQualitySummary = {
 
 describe('DataQualitySummaryPanel', () => {
   it.each([
-    ['NEVER_RUN', 'Quality has not been run yet'],
-    ['QUEUED', 'Quality run queued'],
-    ['RUNNING', 'Quality checks are running'],
-    ['PASSED', 'All enabled checks passed'],
-    ['ISSUES', 'Quality issues found'],
-    ['EXECUTION_FAILED', 'Quality run failed'],
-    ['CANCELLED', 'Quality run cancelled'],
+    ['NEVER_RUN', 'No runs yet'],
+    ['QUEUED', 'Run queued…'],
+    ['RUNNING', 'Running checks…'],
+    ['PASSED', 'All checks passed'],
+    ['ISSUES', 'Issues found'],
+    ['EXECUTION_FAILED', 'Execution failed'],
+    ['CANCELLED', 'Run cancelled'],
     ['ALL_DISABLED', 'All checks are disabled'],
   ] as const)('renders the %s state', (state, title) => {
     render(<DataQualitySummaryPanel summary={{ ...baseSummary, state }} />);
@@ -35,7 +35,7 @@ describe('DataQualitySummaryPanel', () => {
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
   });
 
-  it('shows not-applicable and finding counters with the checked time', () => {
+  it('shows non-zero rule and finding counters with the checked time', () => {
     render(
       <DataQualitySummaryPanel
         summary={{
@@ -55,8 +55,23 @@ describe('DataQualitySummaryPanel', () => {
 
     expect(screen.getByText('2 failed')).toBeInTheDocument();
     expect(screen.getByText('1 not applicable')).toBeInTheDocument();
-    expect(screen.getByText('18 violations')).toBeInTheDocument();
+    expect(screen.getByText('1 error')).toBeInTheDocument();
+    expect(screen.getByText('1 warning')).toBeInTheDocument();
+    expect(screen.queryByText('0 passed')).not.toBeInTheDocument();
+    expect(screen.queryByText('18 violations')).not.toBeInTheDocument();
     expect(screen.getByText(/Last checked/)).toBeInTheDocument();
+  });
+
+  it('uses an explicit no-findings chip for passed runs without zero-filled counters', () => {
+    render(
+      <DataQualitySummaryPanel
+        summary={{ ...baseSummary, state: 'PASSED', enabledChecks: 3, passedChecks: 3 }}
+      />
+    );
+
+    expect(screen.getByText('No findings')).toBeInTheDocument();
+    expect(screen.queryByText('0 failed')).not.toBeInTheDocument();
+    expect(screen.queryByText('0 not applicable')).not.toBeInTheDocument();
   });
 
   it('derives the dedicated all-not-applicable state', () => {

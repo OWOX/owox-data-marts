@@ -45,9 +45,9 @@ describe('DataQualityCanvasStatusIcon', () => {
       buildSummary({ state: 'PASSED', notApplicableChecks: 3, passedChecks: 0 }),
       'text-muted-foreground',
     ],
-    ['queued', buildSummary({ state: 'QUEUED' }), 'text-brand-blue-500'],
-    ['running', buildSummary({ state: 'RUNNING' }), 'text-brand-blue-500'],
-    ['passed', buildSummary(), 'text-green-500'],
+    ['queued', buildSummary({ state: 'QUEUED' }), 'text-primary'],
+    ['running', buildSummary({ state: 'RUNNING' }), 'text-primary'],
+    ['passed', buildSummary(), 'text-success'],
     [
       'critical findings ahead of warning and notice findings',
       buildSummary({
@@ -57,7 +57,7 @@ describe('DataQualityCanvasStatusIcon', () => {
         noticeFindings: 1,
         highestSeverity: 'error',
       }),
-      'text-red-500',
+      'text-destructive',
     ],
     [
       'warning findings ahead of notice findings',
@@ -67,14 +67,14 @@ describe('DataQualityCanvasStatusIcon', () => {
         noticeFindings: 1,
         highestSeverity: 'warning',
       }),
-      'text-amber-500',
+      'text-warning',
     ],
     [
       'notice findings',
       buildSummary({ state: 'ISSUES', noticeFindings: 1, highestSeverity: 'notice' }),
-      'text-muted-foreground',
+      'text-notice',
     ],
-    ['execution failure', buildSummary({ state: 'EXECUTION_FAILED' }), 'text-red-500'],
+    ['execution failure', buildSummary({ state: 'EXECUTION_FAILED' }), 'text-destructive'],
     [
       'cancelled run with preserved critical findings',
       buildSummary({ state: 'CANCELLED', errorFindings: 1, highestSeverity: 'error' }),
@@ -167,9 +167,9 @@ describe('DataQualityCanvasStatusIcon', () => {
     const warning = within(button).getByLabelText('2 warning findings');
     const notice = within(button).getByLabelText('1 notice finding');
 
-    expect(critical).toHaveClass('text-red-500');
-    expect(warning).toHaveClass('text-amber-500');
-    expect(notice).toHaveClass('text-muted-foreground');
+    expect(critical).toHaveClass('text-destructive');
+    expect(warning).toHaveClass('text-warning');
+    expect(notice).toHaveClass('text-notice');
     expect(critical).toHaveTextContent('3');
     expect(warning).toHaveTextContent('2');
     expect(notice).toHaveTextContent('1');
@@ -202,7 +202,7 @@ describe('DataQualityCanvasStatusIcon', () => {
     const critical = within(button).getByLabelText('1 critical finding');
     const warning = within(button).getByLabelText('1 warning finding');
 
-    expect(executionErrors).toHaveClass('text-red-500');
+    expect(executionErrors).toHaveClass('text-destructive');
     expect(executionErrors.querySelector('svg')).toHaveClass('lucide-shield-x', 'size-4');
     expect(critical.querySelector('svg')).toHaveClass('lucide-shield-alert', 'size-4');
     expect(warning.querySelector('svg')).toHaveClass('lucide-shield-alert', 'size-4');

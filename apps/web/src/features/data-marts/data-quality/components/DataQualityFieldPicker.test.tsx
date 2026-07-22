@@ -1,113 +1,100 @@
 // @vitest-environment happy-dom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataQualityFieldPicker } from './DataQualityFieldPicker';
 
+const fields = [
+  {
+    id: 'account_id',
+    label: 'account_id',
+    type: 'INTEGER',
+    checks: [
+      {
+        key: 'column_uniqueness:field:account_id',
+        label: 'Column uniqueness',
+        description: 'Finds repeated non-null values in this field.',
+        isAdded: false,
+      },
+    ],
+  },
+  {
+    id: 'email',
+    label: 'email',
+    type: 'STRING',
+    checks: [
+      {
+        key: 'null_rate:field:email',
+        label: 'Null rate',
+        description: 'Checks whether the share of null values exceeds the configured threshold.',
+        isAdded: true,
+      },
+      {
+        key: 'constant_column:field:email',
+        label: 'Constant column',
+        description: 'Finds fields that contain only one distinct value.',
+        isAdded: false,
+      },
+    ],
+  },
+];
+
 describe('DataQualityFieldPicker', () => {
-  it('adds only the selected check for the selected field', async () => {
+  it('searches for a field, then adds exactly one selected check', () => {
     const onAdd = vi.fn();
-    render(
-      <DataQualityFieldPicker
-        fields={[
-          {
-            id: 'account_id',
-            label: 'account_id',
-            checks: [
-              {
-                key: 'column_uniqueness:field:account_id',
-                label: 'Column uniqueness',
-              },
-            ],
-          },
-          {
-            id: 'email',
-            label: 'email',
-            checks: [
-              { key: 'null_rate:field:email', label: 'Null rate' },
-              { key: 'constant_column:field:email', label: 'Constant column' },
-            ],
-          },
-        ]}
-        disabled={false}
-        onAdd={onAdd}
-      />
+    render(<DataQualityFieldPicker fields={fields} disabled={false} onAdd={onAdd} />);
+
+    expect(screen.queryByPlaceholderText('Search fields…')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add checks' }));
+    expect(screen.getByRole('dialog', { name: 'Add field check' })).toHaveAttribute(
+      'data-align',
+      'end'
     );
 
-    expect(screen.getByRole('combobox', { name: 'Select check' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    const search = screen.getByPlaceholderText('Search fields…');
+    fireEvent.change(search, { target: { value: 'email' } });
+    expect(screen.queryByRole('option', { name: /account_id/ })).not.toBeInTheDocument();
+    expect(screen.getByText('1 added')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: /email/ }));
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Select field' }));
-    fireEvent.change(screen.getByPlaceholderText('Search...'), {
-      target: { value: 'email' },
-    });
-
-    expect(screen.queryByText('account_id')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('option', { name: 'email' }));
-
-    fireEvent.click(await screen.findByRole('combobox', { name: 'Select check' }));
-    fireEvent.click(screen.getByRole('option', { name: 'Constant column' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    expect(screen.getByText('Choose one check to add')).toBeInTheDocument();
+    const checkDescription = screen.getByText(
+      'Checks whether the share of null values exceeds the configured threshold.'
+    );
+    expect(checkDescription).toHaveClass('whitespace-normal');
+    expect(checkDescription).not.toHaveClass('truncate');
+    expect(screen.getByRole('option', { name: /Null rate.*Added/ })).toHaveAttribute(
+      'data-disabled',
+      'true'
+    );
+    fireEvent.click(screen.getByRole('option', { name: /Constant column/ }));
 
     expect(onAdd).toHaveBeenCalledOnce();
     expect(onAdd).toHaveBeenCalledWith('constant_column:field:email');
+    expect(screen.queryByRole('dialog', { name: 'Add field check' })).not.toBeInTheDocument();
   });
 
-  it('resets the selected check when the field changes', async () => {
+  it('opens directly on the check list from a field-level add button', () => {
     render(
       <DataQualityFieldPicker
-        fields={[
-          {
-            id: 'account_id',
-            label: 'account_id',
-            checks: [
-              {
-                key: 'column_uniqueness:field:account_id',
-                label: 'Column uniqueness',
-              },
-            ],
-          },
-          {
-            id: 'email',
-            label: 'email',
-            checks: [{ key: 'null_rate:field:email', label: 'Null rate' }],
-          },
-        ]}
+        fields={fields}
         disabled={false}
+        initialFieldId='email'
+        triggerLabel='Add a check to email'
         onAdd={vi.fn()}
       />
     );
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Select field' }));
-    fireEvent.click(screen.getByRole('option', { name: 'email' }));
-    fireEvent.click(await screen.findByRole('combobox', { name: 'Select check' }));
-    fireEvent.click(screen.getByRole('option', { name: 'Null rate' }));
-    expect(await screen.findByRole('button', { name: 'Add' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a check to email' }));
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Select field' }));
-    fireEvent.click(screen.getByRole('option', { name: 'account_id' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
-    });
+    expect(screen.getByText('email')).toBeInTheDocument();
+    expect(screen.getByText('Choose one check to add')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search fields…')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose another field' })).toBeInTheDocument();
   });
 
-  it('disables field selection when editing is unavailable', () => {
-    render(
-      <DataQualityFieldPicker
-        fields={[
-          {
-            id: 'email',
-            label: 'email',
-            checks: [{ key: 'null_rate:field:email', label: 'Null rate' }],
-          },
-        ]}
-        disabled
-        onAdd={vi.fn()}
-      />
-    );
+  it('disables the trigger when editing is unavailable', () => {
+    render(<DataQualityFieldPicker fields={fields} disabled onAdd={vi.fn()} />);
 
-    expect(screen.getByRole('combobox', { name: 'Select field' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Select check' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add checks' })).toBeDisabled();
   });
 });

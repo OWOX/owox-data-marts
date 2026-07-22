@@ -33,26 +33,91 @@ describe('DataQualityResultCard', () => {
     });
   });
 
-  it('renders severity, violation count, three examples and executed SQL', () => {
+  it('keeps technical detail collapsed until requested and discloses SQL separately', () => {
     render(<DataQualityResultCard result={result} />);
 
     expect(screen.getByText('Negative values')).toBeInTheDocument();
     expect(screen.getByText('warning')).toBeInTheDocument();
     expect(screen.getByText('7 violations')).toBeInTheDocument();
+    expect(screen.queryByTestId('quality-example')).not.toBeInTheDocument();
+    expect(screen.queryByText('Negative values were found')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Negative values/ }));
+
     expect(screen.getAllByTestId('quality-example')).toHaveLength(3);
     expect(screen.getByText(/A-1/)).toBeInTheDocument();
     expect(screen.getByText('Executed SQL (1)')).toBeInTheDocument();
+    expect(screen.queryByText(result.executedSql[0])).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Executed SQL (1)' }));
+
+    expect(screen.getByText(result.executedSql[0])).toBeInTheDocument();
+  });
+
+  it('identifies a relationship by alias and join fields in the collapsed report card', () => {
+    render(
+      <DataQualityResultCard
+        result={{
+          ...result,
+          category: 'relationship_integrity',
+          scope: { type: 'RELATIONSHIP', relationshipId: 'relationship-1' },
+        }}
+        titleSuffix='orders'
+        scopeLabel='customer_id → id'
+        scopeDetails={['Relationship ID: relationship-1']}
+      />
+    );
+
+    expect(screen.getByText('Relationship integrity · orders')).toBeInTheDocument();
+    expect(screen.getByText('customer_id → id')).toBeInTheDocument();
+    expect(screen.getByText('Relationship ID: relationship-1')).toBeInTheDocument();
   });
 
   it('copies the unlimited reproduction SQL', async () => {
     render(<DataQualityResultCard result={result} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy SQL' }));
+    fireEvent.click(screen.getByRole('button', { name: /Negative values/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy reproduction SQL' }));
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(result.reproductionSql);
     });
     expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
+    expect(screen.queryByText(result.reproductionSql ?? '')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes an execution failure from a data finding', () => {
+    render(
+      <DataQualityResultCard
+        result={{
+          ...result,
+          status: 'ERROR',
+          violationCount: 0,
+          error: { code: 'WAREHOUSE_ERROR', message: 'Query timed out', details: null },
+        }}
+      />
+    );
+
+    expect(screen.getByText('Execution error')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Negative values/ }));
+    expect(screen.getByText("Execution error — this check didn't run")).toBeInTheDocument();
+    expect(screen.getByText('Query timed out')).toBeInTheDocument();
+  });
+
+  it('does not show finding severity when a check passed', () => {
+    render(
+      <DataQualityResultCard
+        result={{
+          ...result,
+          status: 'PASSED',
+          violationCount: 0,
+          examples: [],
+        }}
+      />
+    );
+
+    expect(screen.getByText('Passed')).toBeInTheDocument();
+    expect(screen.queryByText('warning')).not.toBeInTheDocument();
   });
 
   it('shows a redaction message when relationship SQL and examples are omitted', () => {
@@ -67,13 +132,17 @@ describe('DataQualityResultCard', () => {
           reproductionSql: null,
           redacted: true,
         }}
+        targetAlias='orders'
       />
     );
 
+    fireEvent.click(screen.getByRole('button', { name: /Relationship integrity/ }));
     expect(
-      screen.getByText('SQL and examples are hidden because the target Data Mart is not visible.')
+      screen.getByText(
+        "SQL and examples are hidden because you don't have access to the target Data Mart orders. The counts above are still accurate."
+      )
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Copy SQL' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy reproduction SQL' })).not.toBeInTheDocument();
   });
 
   it('does not infer access redaction from naturally empty relationship output', () => {
@@ -92,8 +161,7 @@ describe('DataQualityResultCard', () => {
       />
     );
 
-    expect(
-      screen.queryByText('SQL and examples are hidden because the target Data Mart is not visible.')
-    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Relationship integrity/ }));
+    expect(screen.queryByText(/SQL and examples are hidden because/)).not.toBeInTheDocument();
   });
 });

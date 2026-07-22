@@ -9,6 +9,9 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
+import { DataQualityCategory } from '../enums/data-quality-category.enum';
+import { DataQualityScope } from '../enums/data-quality-scope.enum';
+import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
@@ -194,6 +197,37 @@ describe('DataQualityRunService.enqueue', () => {
       manager
     );
     expect(result.dataMartRunId).toBe(savedRun.id);
+  });
+
+  it('stores only enabled checks and their relationship metadata in a new run snapshot', async () => {
+    source.dataQualityConfig = {
+      timezone: 'UTC',
+      rules: [
+        {
+          key: 'empty_table:data_mart',
+          category: DataQualityCategory.EMPTY_TABLE,
+          scope: { type: DataQualityScope.DATA_MART },
+          severity: DataQualitySeverity.ERROR,
+          enabled: true,
+          parameters: {},
+        },
+      ],
+    };
+
+    await service.enqueue({
+      dataMartId: source.id,
+      projectId: source.projectId,
+      createdById: 'user-1',
+      runType: RunType.manual,
+      relationshipTargetAccess: new Map([['dm-2', true]]),
+    });
+
+    const savedRun = repositories.get(DataMartRun)!.save.mock.calls[0][0] as DataMartRun;
+    expect(savedRun.dataQualitySnapshot?.config.rules).toEqual([
+      expect.objectContaining({ key: 'empty_table:data_mart', enabled: true }),
+    ]);
+    expect(savedRun.dataQualitySnapshot?.relationships).toEqual([]);
+    expect(savedRun.dataQualitySummary?.enabledChecks).toBe(1);
   });
 
   it('uses creation-ordered UUIDs when database timestamps tie', async () => {

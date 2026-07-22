@@ -113,6 +113,10 @@ export class DataQualityService extends ApiService {
       finishedAt: response.finishedAt,
     });
   }
+
+  async cancelRun(dataMartId: string, runId: string): Promise<void> {
+    await dataMartService.cancelDataMartRun(dataMartId, runId);
+  }
 }
 
 function toStoredConfig(config: DataQualityConfig | EffectiveDataQualityConfig): DataQualityConfig {

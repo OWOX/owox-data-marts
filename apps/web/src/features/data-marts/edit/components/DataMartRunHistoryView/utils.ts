@@ -183,29 +183,29 @@ export const getRunSummaryParts = (
 function getDataQualitySummaryLabel(run: DataMartRunItem): string {
   const summary = run.qualitySummary;
   if (!summary) return '';
-  const findings: [number, string][] = [
-    [summary.errorFindings, 'error'],
-    [summary.warningFindings, 'warning'],
-    [summary.noticeFindings, 'notice'],
-  ];
-  const finding = findings.find(([count]) => count > 0);
-  if (finding) {
-    const [count, severity] = finding;
-    return `${String(count)} ${severity} finding${count === 1 ? '' : 's'}`;
+  if (summary.totalChecks > 0 && summary.notApplicableChecks === summary.totalChecks) {
+    return 'Nothing to check · all not applicable';
+  }
+
+  const findingCount = summary.errorFindings + summary.warningFindings + summary.noticeFindings;
+  if (findingCount > 0) {
+    return `${String(findingCount)} finding${findingCount === 1 ? '' : 's'}`;
   }
   switch (summary.state) {
     case 'PASSED':
-      return 'All checks passed';
+      return summary.totalChecks > 0
+        ? `${String(summary.passedChecks)} of ${String(summary.totalChecks)} checks`
+        : 'All checks passed';
     case 'QUEUED':
       return 'Queued';
     case 'RUNNING':
       return 'Running';
     case 'EXECUTION_FAILED':
-      return 'Execution failed';
+      return 'Partial results';
     case 'CANCELLED':
-      return 'Cancelled';
+      return 'Partial results kept';
     case 'ALL_DISABLED':
-      return 'All checks disabled';
+      return 'Nothing to check · all checks disabled';
     case 'NEVER_RUN':
       return 'Never run';
     default:

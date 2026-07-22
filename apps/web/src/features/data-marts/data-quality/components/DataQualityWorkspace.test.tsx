@@ -10,6 +10,7 @@ import type {
   DataQualityConfigResponse,
 } from '../model/types';
 import { useDataQualityWorkspace } from '../model/use-data-quality-workspace';
+import { timezoneService } from '../../../../services';
 
 vi.mock('../model/use-data-quality-workspace', () => ({
   useDataQualityWorkspace: vi.fn(),
@@ -74,6 +75,7 @@ const configResponse: DataQualityConfigResponse = {
 
 const saveConfig = vi.fn();
 const startRun = vi.fn();
+const cancelRun = vi.fn();
 
 function mockWorkspace(overrides: Record<string, unknown> = {}) {
   vi.mocked(useDataQualityWorkspace).mockReturnValue({
@@ -86,8 +88,10 @@ function mockWorkspace(overrides: Record<string, unknown> = {}) {
     resultsError: null,
     isSaving: false,
     isStarting: false,
+    isCancelling: false,
     saveConfig,
     startRun,
+    cancelRun,
     ...overrides,
   } as ReturnType<typeof useDataQualityWorkspace>);
 }
@@ -95,26 +99,83 @@ function mockWorkspace(overrides: Record<string, unknown> = {}) {
 describe('DataQualityWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    vi.spyOn(timezoneService, 'getTimezonesWithOffset').mockReturnValue([
+      {
+        identifier: 'UTC',
+        displayName: 'UTC (+00:00)',
+        offsetMinutes: 0,
+        offsetString: '+00:00',
+        isDST: false,
+      },
+      {
+        identifier: 'Europe/Kyiv',
+        displayName: 'Europe/Kyiv (+03:00)',
+        offsetMinutes: 180,
+        offsetString: '+03:00',
+        isDST: true,
+      },
+    ]);
     saveConfig.mockImplementation(async (config: DataQualityConfig) => responseForConfig(config));
     startRun.mockResolvedValue(null);
+    cancelRun.mockResolvedValue(undefined);
     mockWorkspace();
   });
 
   afterEach(() => vi.restoreAllMocks());
 
-  it('shows the default preset in Table, Field and Relationship groups', () => {
+  it('shows Table, Field and Relationship groups without a configuration source badge', () => {
     renderWorkspace();
 
-    expect(screen.getByText('System preset')).toBeInTheDocument();
+    const timezoneControl = screen.getByLabelText('Timezone');
+    const timezoneRow = timezoneControl.closest('[data-testid="data-quality-timezone-row"]');
+    expect(timezoneRow).toBeInTheDocument();
+    expect(timezoneControl.closest('[data-slot="card-header"]')).not.toBeInTheDocument();
+    expect(timezoneRow).toHaveClass('flex', 'flex-wrap', 'items-center');
+    expect(timezoneRow?.parentElement?.firstElementChild).toBe(timezoneRow);
+    expect(screen.queryByText('System preset')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved configuration')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Table checks' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Field checks' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Relationship checks' })).toBeInTheDocument();
     expect(screen.getByText('Target Data Mart is unavailable')).toBeInTheDocument();
-    expect(screen.getByText('orders')).toBeInTheDocument();
+    expect(screen.getByText('Relationship integrity · orders')).toBeInTheDocument();
     expect(screen.getByText('customer_id → id')).toBeInTheDocument();
     expect(screen.getByText('Relationship ID: rel-1')).toBeInTheDocument();
-    expect(screen.getByLabelText('Enable Relationship integrity')).toBeDisabled();
+    const tableRule = screen.getByTestId('quality-rule-empty_table:data_mart');
+    expect(tableRule.parentElement).toHaveClass('bg-background');
+    expect(within(tableRule).queryByText('Data Mart')).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId('quality-rule-relationship_integrity:relationship:rel-1').parentElement
+    ).toHaveClass('bg-background');
+    expect(screen.getByLabelText('Enable Relationship integrity · orders')).toBeDisabled();
     expect(screen.getByText('1 enabled')).toBeInTheDocument();
+  });
+
+  it('does not show the configuration source badge for saved configuration', () => {
+    mockWorkspace({
+      configResponse: { ...configResponse, source: 'SAVED' },
+    });
+
+    renderWorkspace();
+
+    expect(screen.queryByText('System preset')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved configuration')).not.toBeInTheDocument();
+  });
+
+  it('uses the searchable trigger timezone control with offset labels', async () => {
+    renderWorkspace();
+
+    const timezone = screen.getByLabelText('Timezone');
+    expect(timezone).toHaveAttribute('aria-expanded', 'false');
+    expect(timezone).toHaveTextContent('UTC (+00:00)');
+
+    fireEvent.click(timezone);
+    fireEvent.click(screen.getByRole('option', { name: 'Europe/Kyiv (+03:00)' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Timezone')).toHaveTextContent('Europe/Kyiv (+03:00)');
+    });
   });
 
   it('does not render legacy table-level freshness returned by the API', () => {
@@ -169,20 +230,14 @@ describe('DataQualityWorkspace', () => {
     renderWorkspace();
 
     fireEvent.click(screen.getByRole('button', { name: 'Add checks' }));
-    const fieldPicker = screen.getByRole('combobox', { name: 'Select field' });
-    const checkPicker = screen.getByRole('combobox', { name: 'Select check' });
-    expect(fieldPicker).toBeInTheDocument();
-    expect(checkPicker).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    expect(screen.getByRole('dialog', { name: 'Add field check' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search fields…')).toBeInTheDocument();
     expect(screen.queryByLabelText('Enable Null rate')).not.toBeInTheDocument();
 
-    fireEvent.click(fieldPicker);
-    fireEvent.click(screen.getByRole('option', { name: 'email' }));
+    fireEvent.click(screen.getByRole('option', { name: /email/ }));
     expect(screen.queryByRole('region', { name: 'email' })).not.toBeInTheDocument();
 
-    fireEvent.click(await screen.findByRole('combobox', { name: 'Select check' }));
-    fireEvent.click(screen.getByRole('option', { name: 'Null rate' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    fireEvent.click(screen.getByRole('option', { name: /Null rate/ }));
 
     expect(screen.getByRole('region', { name: 'email' })).toBeInTheDocument();
     expect(screen.getByLabelText('Enable Null rate')).toBeInTheDocument();
@@ -254,7 +309,7 @@ describe('DataQualityWorkspace', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'email' })).toBeInTheDocument();
-      expect(screen.getByLabelText('Timezone')).toHaveValue('UTC');
+      expect(screen.getByLabelText('Timezone')).toHaveTextContent('UTC (+00:00)');
     });
   });
 
@@ -274,7 +329,7 @@ describe('DataQualityWorkspace', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Timezone')).toHaveValue('Europe/Kyiv');
+      expect(screen.getByLabelText('Timezone')).toHaveTextContent('Europe/Kyiv (+03:00)');
     });
   });
 
@@ -295,7 +350,7 @@ describe('DataQualityWorkspace', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Timezone')).toHaveValue('Europe/Kyiv');
+      expect(screen.getByLabelText('Timezone')).toHaveTextContent('Europe/Kyiv (+03:00)');
       expect(screen.queryByRole('region', { name: 'email' })).not.toBeInTheDocument();
     });
   });
@@ -450,7 +505,7 @@ describe('DataQualityWorkspace', () => {
 
     renderWorkspace();
 
-    const toggle = screen.getByLabelText('Enable Relationship integrity');
+    const toggle = screen.getByLabelText('Enable Relationship integrity · orders');
     expect(toggle).toBeEnabled();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-checked', 'false');
@@ -461,7 +516,7 @@ describe('DataQualityWorkspace', () => {
     const registerUnsavedGuard = vi.fn();
     renderWorkspace({ registerUnsavedGuard });
 
-    fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'Europe/Kyiv' } });
+    await selectTimezone('Europe/Kyiv (+03:00)');
     await addFieldCheck('email', 'Null rate');
     fireEvent.change(screen.getByLabelText('Null rate threshold percent'), {
       target: { value: '3.5' },
@@ -501,6 +556,26 @@ describe('DataQualityWorkspace', () => {
 
   it('runs without saving when the form is clean', async () => {
     renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+
+    await waitFor(() => {
+      expect(startRun).toHaveBeenCalledWith();
+    });
+  });
+
+  it('keeps Run on the saved configuration while dirty edits use the floating Save & Run action', async () => {
+    renderWorkspace();
+
+    await addFieldCheck('email', 'Null rate');
+
+    expect(screen.getByText('Unsaved configuration changes')).toBeInTheDocument();
+    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Save the draft or run these changes together.')
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save & Run' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Run' }));
 
@@ -614,7 +689,11 @@ describe('DataQualityWorkspace', () => {
     expect(screen.getByLabelText('Enable Empty table')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Add checks' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
-    expect(screen.getByText('You have read-only access to Data Quality.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'You have view-only access. You can browse the configuration and reports, but editing and running checks requires the Editor role.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('renders all-disabled state returned by the latest run', () => {
@@ -662,7 +741,7 @@ describe('DataQualityWorkspace', () => {
     renderWorkspace();
 
     expect(screen.getByRole('heading', { name: 'All checks are disabled' })).toBeInTheDocument();
-    expect(screen.getByText('0 enabled')).toBeInTheDocument();
+    expect(screen.queryByText('0 enabled')).not.toBeInTheDocument();
   });
 
   it('uses the compact Data Mart summary only as a fallback while latest is unavailable', () => {
@@ -685,19 +764,177 @@ describe('DataQualityWorkspace', () => {
       },
     });
 
-    expect(screen.getByRole('heading', { name: 'Quality issues found' })).toBeInTheDocument();
-    expect(screen.getByText('3 violations')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Issues found' })).toBeInTheDocument();
+    expect(screen.getByText('1 warning')).toBeInTheDocument();
+    expect(screen.queryByText('3 violations')).not.toBeInTheDocument();
     expect(screen.getByText(/Last checked/)).toBeInTheDocument();
   });
 
-  it.each(['QUEUED', 'RUNNING'] as const)('prevents a second run while the latest is %s', state => {
+  it('prioritizes latest report problems and filters result cards without leaving the tab', () => {
+    mockWorkspace({
+      latestRun: {
+        id: 'quality-run-terminal',
+        dataMartRunId: 'quality-run-terminal',
+        summary: {
+          state: 'ISSUES',
+          enabledChecks: 3,
+          totalChecks: 3,
+          passedChecks: 1,
+          failedChecks: 1,
+          notApplicableChecks: 0,
+          errorChecks: 1,
+          noticeFindings: 0,
+          warningFindings: 1,
+          errorFindings: 0,
+          violationCount: 2,
+          highestSeverity: 'warning',
+        },
+        results: [
+          buildResult('passed-result', 'PASSED', 'error'),
+          buildResult('failed-result', 'FAILED', 'warning'),
+          buildResult('error-result', 'ERROR', 'error'),
+        ],
+        createdAt: '2026-07-15T12:00:00.000Z',
+        startedAt: '2026-07-15T12:00:01.000Z',
+        finishedAt: '2026-07-15T12:00:02.000Z',
+      },
+    });
+
+    renderWorkspace();
+
+    expect(screen.getByRole('heading', { name: 'Latest report' })).toBeInTheDocument();
+    const reportCard = screen
+      .getByRole('heading', { name: 'Latest report' })
+      .closest('[data-slot="card"]');
+    expect(reportCard).toContainElement(screen.getByLabelText('Filter check results'));
+    const cards = screen.getAllByTestId(/quality-result-/);
+    expect(cards.map(card => card.dataset.testid)).toEqual([
+      'quality-result-error-result',
+      'quality-result-failed-result',
+      'quality-result-passed-result',
+    ]);
+    expect(screen.getByRole('link', { name: 'View in Run History' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/data-marts/mart-1/run-history'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Passed 1' }));
+
+    expect(screen.getByTestId('quality-result-passed-result')).toBeInTheDocument();
+    expect(screen.queryByTestId('quality-result-error-result')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('quality-result-failed-result')).not.toBeInTheDocument();
+  });
+
+  it('shows the relationship alias and join fields from the run snapshot in the latest report', () => {
+    mockWorkspace({
+      latestRun: {
+        id: 'quality-run-relationship',
+        dataMartRunId: 'quality-run-relationship',
+        snapshot: {
+          config: configResponse.effectiveConfig,
+          schema: null,
+          relationships: [
+            {
+              id: 'rel-1',
+              sourceDataMartId: 'mart-1',
+              targetDataMartId: 'mart-orders',
+              targetAlias: 'orders',
+              joinConditions: [
+                { sourceFieldName: 'customer_id', targetFieldName: 'id' },
+                { sourceFieldName: 'region_id', targetFieldName: 'region_id' },
+              ],
+            },
+          ],
+          timezone: 'UTC',
+          definitionType: 'TABLE',
+        },
+        summary: {
+          state: 'ISSUES',
+          enabledChecks: 1,
+          totalChecks: 1,
+          passedChecks: 0,
+          failedChecks: 1,
+          notApplicableChecks: 0,
+          errorChecks: 0,
+          noticeFindings: 0,
+          warningFindings: 1,
+          errorFindings: 0,
+          violationCount: 2,
+          highestSeverity: 'warning',
+        },
+        results: [
+          {
+            id: 'relationship-result',
+            ruleKey: 'relationship_integrity:relationship:rel-1',
+            category: 'relationship_integrity',
+            scope: { type: 'RELATIONSHIP', relationshipId: 'rel-1' },
+            severity: 'warning',
+            status: 'FAILED',
+            violationCount: 2,
+            description: 'Missing target rows',
+            examples: [],
+            executedSql: [],
+            reproductionSql: null,
+            error: null,
+            redacted: false,
+          },
+        ],
+        createdAt: '2026-07-15T12:00:00.000Z',
+        startedAt: '2026-07-15T12:00:01.000Z',
+        finishedAt: '2026-07-15T12:00:02.000Z',
+      },
+    });
+
+    renderWorkspace();
+
+    const resultCard = screen.getByTestId('quality-result-relationship-result');
+    expect(within(resultCard).getByText('Relationship integrity · orders')).toBeInTheDocument();
+    expect(
+      within(resultCard).getByText('customer_id → id, region_id → region_id')
+    ).toBeInTheDocument();
+    expect(within(resultCard).getByText('Relationship ID: rel-1')).toBeInTheDocument();
+  });
+
+  it('remembers whether Checks configuration and Latest report are collapsed', () => {
+    const activeRun = buildLatestRun('RUNNING');
+    mockWorkspace({
+      latestRun: {
+        ...activeRun,
+        summary: {
+          ...activeRun.summary,
+          state: 'ISSUES',
+          failedChecks: 1,
+          warningFindings: 1,
+          violationCount: 2,
+          highestSeverity: 'warning',
+        },
+        results: [buildResult('failed-result', 'FAILED', 'warning')],
+        finishedAt: '2026-07-15T12:00:02.000Z',
+      },
+    });
+
+    const { unmount } = renderWorkspace();
+
+    fireEvent.click(screen.getByText('Checks configuration'));
+    fireEvent.click(screen.getByText('Latest report'));
+
+    expect(localStorage.getItem('collapsed-card-data-quality-checks-configuration')).toBe('true');
+    expect(localStorage.getItem('collapsed-card-data-quality-latest-report')).toBe('true');
+
+    unmount();
+    renderWorkspace();
+
+    expect(getCollapsibleBody('Checks configuration')).toHaveClass('grid-rows-[0fr]');
+    expect(getCollapsibleBody('Latest report')).toHaveClass('grid-rows-[0fr]');
+  });
+
+  it.each(['QUEUED', 'RUNNING'] as const)('offers cancellation while the latest is %s', state => {
     mockWorkspace({ latestRun: buildLatestRun(state) });
 
     renderWorkspace();
 
-    expect(
-      screen.getByRole('button', { name: state === 'QUEUED' ? 'Queued' : 'Running' })
-    ).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
+    expect(cancelRun).toHaveBeenCalledOnce();
     expect(screen.queryByText(/Last checked/)).not.toBeInTheDocument();
   });
 
@@ -777,13 +1014,25 @@ function renderWorkspace({
   );
 }
 
+function getCollapsibleBody(title: string): Element {
+  const card = screen.getByText(title).closest('[data-slot="card"]');
+  const body = card?.children.item(1);
+  if (!body) throw new Error(`Collapsible body for ${title} was not found`);
+  return body;
+}
+
 async function addFieldCheck(fieldId: string, checkLabel: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Add checks' }));
-  fireEvent.click(screen.getByRole('combobox', { name: 'Select field' }));
-  fireEvent.click(screen.getByRole('option', { name: fieldId }));
-  fireEvent.click(await screen.findByRole('combobox', { name: 'Select check' }));
-  fireEvent.click(screen.getByRole('option', { name: checkLabel }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(fieldId) }));
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(checkLabel) }));
+}
+
+async function selectTimezone(optionLabel: string) {
+  fireEvent.click(screen.getByLabelText('Timezone'));
+  fireEvent.click(screen.getByRole('option', { name: optionLabel }));
+  await waitFor(() => {
+    expect(screen.getByLabelText('Timezone')).toHaveTextContent(optionLabel);
+  });
 }
 
 function withFieldRule(
@@ -838,5 +1087,27 @@ function buildLatestRun(state: 'QUEUED' | 'RUNNING') {
     createdAt: '2026-07-15T12:00:00.000Z',
     startedAt: state === 'RUNNING' ? '2026-07-15T12:00:01.000Z' : null,
     finishedAt: null,
+  };
+}
+
+function buildResult(
+  id: string,
+  status: 'PASSED' | 'FAILED' | 'ERROR',
+  severity: 'error' | 'warning'
+) {
+  return {
+    id,
+    ruleKey: id,
+    category: 'empty_table' as const,
+    scope: { type: 'DATA_MART' as const },
+    severity,
+    status,
+    violationCount: status === 'FAILED' ? 2 : 0,
+    description: id,
+    examples: [],
+    executedSql: [],
+    reproductionSql: null,
+    error: status === 'ERROR' ? { code: null, message: 'failed', details: null } : null,
+    redacted: false,
   };
 }

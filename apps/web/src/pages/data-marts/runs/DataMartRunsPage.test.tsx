@@ -162,8 +162,30 @@ describe('DataMartRunsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Manual data quality run')).toBeInTheDocument();
-    expect(screen.getByText('1 warning finding')).toBeInTheDocument();
+    expect(screen.getByText('1 finding')).toBeInTheDocument();
+    expect(screen.getByText('Success')).toBeInTheDocument();
     expect(document.querySelector('.lucide-shield-check')).toBeInTheDocument();
+  });
+
+  it('keeps the shared history shell free of Data Quality-specific filters', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns).mockResolvedValueOnce({
+      runs: [
+        buildProjectRun({ id: 'connector-run', status: DataMartRunStatus.SUCCESS }),
+        buildProjectRun({
+          id: 'quality-run',
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: buildQualitySummary('quality-run'),
+        }),
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Manual connector run')).toBeInTheDocument();
+    expect(screen.getByText('Manual data quality run')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Data quality' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'All runs' })).not.toBeInTheDocument();
   });
 
   it('requests only the expanded project-level Quality run through generic detail', async () => {
@@ -192,6 +214,7 @@ describe('DataMartRunsPage', () => {
 
     fireEvent.click(runRows[1]);
 
+    fireEvent.click(await screen.findByRole('button', { name: /Negative values/ }));
     expect(await screen.findByText('Result for run-older')).toBeInTheDocument();
     expect(screen.queryByText('Result for run-latest')).not.toBeInTheDocument();
     expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledTimes(1);

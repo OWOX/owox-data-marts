@@ -311,7 +311,9 @@ describe('RunItem', () => {
   it('shows the lightweight Quality summary without requesting full details while collapsed', () => {
     renderRunItem(createQualityRun(), false);
 
-    expect(screen.getByText('1 warning finding')).toBeInTheDocument();
+    expect(screen.getByText('1 finding')).toBeInTheDocument();
+    expect(screen.getByText('Success')).toBeInTheDocument();
+    expect(screen.queryByText('Issues found')).not.toBeInTheDocument();
     expect(screen.queryByTestId('data-quality-run-details')).not.toBeInTheDocument();
     expect(dataMartServiceMock.getDataMartRunById).not.toHaveBeenCalled();
     expect(apiClientMock.get).not.toHaveBeenCalled();
@@ -320,6 +322,7 @@ describe('RunItem', () => {
   it('requests the exact Quality run through generic detail only when expanded', async () => {
     renderRunItem(createQualityRun(), true);
 
+    fireEvent.click(await screen.findByRole('button', { name: /Negative values/ }));
     expect(await screen.findByText('Expanded run finding')).toBeInTheDocument();
     expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledTimes(1);
     expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledWith(
@@ -340,6 +343,7 @@ describe('RunItem', () => {
 
     renderRunItem(createQualityRun(), true, undefined, dataMartRef.id, dataMartRef);
 
+    fireEvent.click(await screen.findByRole('button', { name: /Negative values/ }));
     expect(await screen.findByText('Expanded run finding')).toBeInTheDocument();
     expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledWith(
       'dm-1',
