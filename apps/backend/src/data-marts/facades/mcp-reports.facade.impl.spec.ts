@@ -49,7 +49,10 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { QueryFailedError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { GetReportCommand } from '../dto/domain/get-report.command';
+import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
+import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
+import type { SortConfig } from '../dto/schemas/sort-config.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
@@ -558,6 +561,34 @@ describe('McpReportsFacadeImpl.addReport', () => {
     expect(createReportService.run).toHaveBeenCalledWith(expect.objectContaining({ filterConfig }));
   });
 
+  it('threads aggregations, date buckets, sort, and limit into the pre-flight and the report', async () => {
+    const {
+      facade,
+      createGoogleSheetDocumentService,
+      createReportService,
+      outputControlsValidator,
+    } = createFacade({ reports: [], triggers: [] });
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+    createReportService.run.mockResolvedValue({ id: 'report-1', createdByUser: null } as ReportDto);
+
+    const aggregationConfig: AggregationConfig = [{ column: 'revenue', function: 'SUM' }];
+    const dateTruncConfig: DateTruncConfig = [{ column: 'date', unit: 'MONTH' }];
+    const sortConfig: SortConfig = [{ column: 'revenue', direction: 'desc' }];
+    await facade.addReport({
+      ...addRequest,
+      aggregationConfig,
+      dateTruncConfig,
+      sortConfig,
+      limitConfig: 500,
+    });
+
+    const expected = { aggregationConfig, dateTruncConfig, sortConfig, limitConfig: 500 };
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining(expected)
+    );
+    expect(createReportService.run).toHaveBeenCalledWith(expect.objectContaining(expected));
+  });
+
   it('rejects a non-published data mart before creating the sheet', async () => {
     const { facade, createGoogleSheetDocumentService, dataMartService } = createFacade({
       reports: [],
@@ -1047,7 +1078,7 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     const { facade, getReportService, updateReportService } = buildUpdateFacade();
 
     await expect(facade.updateReport(updateRequest)).rejects.toThrow(
-      'Nothing to update: provide fields, filters, name, and/or message'
+      'Nothing to update: provide fields, filters, slices, aggregations, date_buckets, sort, limit, name, and/or message'
     );
     expect(getReportService.run).not.toHaveBeenCalled();
     expect(updateReportService.run).not.toHaveBeenCalled();
@@ -1101,6 +1132,38 @@ describe('McpReportsFacadeImpl.updateReport', () => {
 
     expect(updateReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({ filterConfig: null })
+    );
+  });
+
+  it('replaces aggregations, date buckets, sort, and limit while preserving untouched controls', async () => {
+    const { facade, updateReportService } = buildUpdateFacade();
+
+    const aggregationConfig: AggregationConfig = [{ column: 'revenue', function: 'SUM' }];
+    const dateTruncConfig: DateTruncConfig = [{ column: 'date', unit: 'MONTH' }];
+    await facade.updateReport({ ...updateRequest, aggregationConfig, dateTruncConfig });
+
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aggregationConfig,
+        dateTruncConfig,
+        // Untouched controls keep their current values.
+        filterConfig: currentReport.filterConfig,
+        sortConfig: currentReport.sortConfig,
+        limitConfig: 100,
+      })
+    );
+
+    await facade.updateReport({
+      ...updateRequest,
+      sortConfig: null,
+      limitConfig: null,
+    });
+    expect(updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sortConfig: null,
+        limitConfig: null,
+        aggregationConfig: currentReport.aggregationConfig,
+      })
     );
   });
 

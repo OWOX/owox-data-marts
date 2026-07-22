@@ -92,6 +92,47 @@ describe('UpdateReportTool', () => {
     );
   });
 
+  it('maps replacement aggregations, date buckets, sort, and limit; [] clears each', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    await tool.handler(
+      {
+        report_id: 'report-1',
+        slices: [{ field: 'source', operator: 'eq', value: 'ga4' }],
+        aggregations: [{ field: 'revenue', function: 'SUM' }],
+        date_buckets: [{ field: 'date', unit: 'MONTH' }],
+        sort: [{ field: 'revenue', direction: 'desc' }],
+        limit: 250,
+      },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
+        limitConfig: 250,
+      })
+    );
+
+    await tool.handler(
+      { report_id: 'report-1', aggregations: [], date_buckets: [], sort: [], limit: null },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        sortConfig: null,
+        limitConfig: null,
+      })
+    );
+  });
+
   it('rejects an unsupported filter operator before touching the facade', async () => {
     const facade = {
       updateReport: jest.fn(),
@@ -127,7 +168,7 @@ describe('UpdateReportTool', () => {
     const tool = new UpdateReportTool({} as McpReportsFacade);
 
     expect(() => tool.parseInput({ report_id: 'report-1' })).toThrow(
-      'Provide at least one of fields, filters, name, or message'
+      'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message'
     );
     expect(() => tool.parseInput({ name: 'New name' })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', fields: [] })).toThrow();

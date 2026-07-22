@@ -154,11 +154,15 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     if (
       request.fields === undefined &&
       request.filterConfig === undefined &&
+      request.aggregationConfig === undefined &&
+      request.dateTruncConfig === undefined &&
+      request.sortConfig === undefined &&
+      request.limitConfig === undefined &&
       request.name === undefined &&
       request.message === undefined
     ) {
       throw new BadRequestException(
-        'Nothing to update: provide fields, filters, name, and/or message'
+        'Nothing to update: provide fields, filters, slices, aggregations, date_buckets, sort, limit, name, and/or message'
       );
     }
 
@@ -206,10 +210,14 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
           ? this.toColumnConfig(request.fields)
           : (current.columnConfig ?? null),
         request.filterConfig !== undefined ? request.filterConfig : (current.filterConfig ?? null),
-        current.sortConfig ?? null,
-        current.limitConfig ?? null,
-        current.aggregationConfig ?? null,
-        current.dateTruncConfig ?? null,
+        request.sortConfig !== undefined ? request.sortConfig : (current.sortConfig ?? null),
+        request.limitConfig !== undefined ? request.limitConfig : (current.limitConfig ?? null),
+        request.aggregationConfig !== undefined
+          ? request.aggregationConfig
+          : (current.aggregationConfig ?? null),
+        request.dateTruncConfig !== undefined
+          ? request.dateTruncConfig
+          : (current.dateTruncConfig ?? null),
         current.uniqueCountConfig
       )
     );
@@ -454,7 +462,11 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         undefined,
         request.roles,
         this.toColumnConfig(request.fields),
-        request.filterConfig ?? null
+        request.filterConfig ?? null,
+        request.sortConfig ?? null,
+        request.limitConfig ?? null,
+        request.aggregationConfig ?? null,
+        request.dateTruncConfig ?? null
       )
     );
 
@@ -504,7 +516,11 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         undefined,
         request.roles,
         columnConfig,
-        request.filterConfig ?? null
+        request.filterConfig ?? null,
+        request.sortConfig ?? null,
+        request.limitConfig ?? null,
+        request.aggregationConfig ?? null,
+        request.dateTruncConfig ?? null
       )
     );
 
@@ -569,10 +585,10 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       projectId: request.projectId,
       columnConfig,
       filterConfig: request.filterConfig ?? null,
-      sortConfig: null,
-      limitConfig: null,
-      aggregationConfig: null,
-      dateTruncConfig: null,
+      sortConfig: request.sortConfig ?? null,
+      limitConfig: request.limitConfig ?? null,
+      aggregationConfig: request.aggregationConfig ?? null,
+      dateTruncConfig: request.dateTruncConfig ?? null,
       uniqueCountConfig: null,
       accessor: { userId: request.userId, roles: request.roles },
     });

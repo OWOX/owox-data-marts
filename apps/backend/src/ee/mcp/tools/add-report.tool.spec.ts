@@ -205,6 +205,41 @@ describe('AddReportTool', () => {
     );
   });
 
+  it('maps slices, aggregations, date buckets, sort, and limit into domain configs', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-7',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      {
+        ...input,
+        slices: [{ field: 'source', operator: 'eq', value: 'ga4' }],
+        aggregations: [{ field: 'revenue', function: 'SUM' }],
+        date_buckets: [{ field: 'date', unit: 'MONTH' }],
+        sort: [{ field: 'revenue', direction: 'desc' }],
+        limit: 500,
+      },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
+        limitConfig: 500,
+      })
+    );
+  });
+
   it('rejects an unsupported filter operator with the supported vocabulary, before the facade', async () => {
     const facade = {
       addReport: jest.fn(),
@@ -225,9 +260,20 @@ describe('AddReportTool', () => {
 
     expect(() => tool.parseInput({ destination_id: 'd', fields: ['*'], name: 'x' })).toThrow();
     expect(() => tool.parseInput({ ...input, fields: [] })).toThrow();
-    // An empty filters array on create is a caller mistake — omit it instead.
+    // Empty output-control arrays on create are caller mistakes — omit them instead.
     expect(() => tool.parseInput({ ...input, filters: [] })).toThrow();
     expect(() => tool.parseInput({ ...input, filters: [{ field: 'x' }] })).toThrow();
+    expect(() => tool.parseInput({ ...input, slices: [] })).toThrow();
+    expect(() => tool.parseInput({ ...input, aggregations: [] })).toThrow();
+    expect(() =>
+      tool.parseInput({ ...input, aggregations: [{ field: 'x', function: 'NOPE' }] })
+    ).toThrow();
+    expect(() => tool.parseInput({ ...input, date_buckets: [] })).toThrow();
+    expect(() => tool.parseInput({ ...input, sort: [] })).toThrow();
+    expect(() =>
+      tool.parseInput({ ...input, sort: [{ field: 'x', direction: 'sideways' }] })
+    ).toThrow();
+    expect(() => tool.parseInput({ ...input, limit: 0 })).toThrow();
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
   });
 

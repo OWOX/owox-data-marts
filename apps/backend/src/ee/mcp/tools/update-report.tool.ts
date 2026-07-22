@@ -7,8 +7,18 @@ import {
 } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
-import { makeMcpFilterSchema } from './query-data-mart.input';
-import { mapReportFilters } from './report-filter-input';
+import {
+  makeMcpAggregationSchema,
+  makeMcpDateBucketSchema,
+  makeMcpFilterSchema,
+  makeMcpSortSchema,
+} from './query-data-mart.input';
+import {
+  mapReportAggregations,
+  mapReportDateBuckets,
+  mapReportFilters,
+  mapReportSort,
+} from './report-output-controls-input';
 
 // The raw shape (exposed to MCP clients) has every change field optional; the
 // parsed schema additionally requires at least one of them, since an update
@@ -21,21 +31,52 @@ const baseInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one of fields/filters/name/message is required."
+        "Replacement column selection, e.g. ['field_name_1', 'field_name_2'], or ['*'] for every field; omit to keep current. At least one change parameter is required."
       ),
     filters: z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces ALL current filters; pass [] to remove every filter; omit to keep current.'
+        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". filters and slices together replace ALL current filter rules (both kinds); pass [] (with slices omitted or empty) to remove every filter; omit both to keep current.'
       ),
+    slices: z
+      .array(makeMcpFilterSchema())
+      .optional()
+      .describe(
+        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". filters and slices together replace ALL current filter rules; omit both to keep current.'
+      ),
+    aggregations: z
+      .array(makeMcpAggregationSchema())
+      .optional()
+      .describe(
+        'Replacement aggregations, same as query_data_mart\'s "aggregations". Each aggregated field must also appear in the report\'s column selection. Replaces ALL current aggregations; pass [] to remove them; omit to keep current.'
+      ),
+    date_buckets: z
+      .array(makeMcpDateBucketSchema())
+      .optional()
+      .describe(
+        'Replacement date buckets (DAY/WEEK/MONTH/QUARTER/YEAR), same as query_data_mart\'s "date_buckets". Replaces ALL current buckets; pass [] to remove them; omit to keep current.'
+      ),
+    sort: z
+      .array(makeMcpSortSchema())
+      .optional()
+      .describe(
+        'Replacement sort order, same as query_data_mart\'s "sort". Replaces the current order; pass [] to remove it; omit to keep current.'
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .nullable()
+      .optional()
+      .describe('New max rows per report run; pass null to remove the cap; omit to keep current.'),
     name: z
       .string()
       .trim()
       .min(1)
       .optional()
       .describe(
-        'New report name; omit to keep current. At least one of fields/name/message is required.'
+        'New report name; omit to keep current. At least one change parameter is required.'
       ),
     message: z
       .object({
@@ -67,10 +108,16 @@ const inputSchema = baseInputSchema
     input =>
       input.fields !== undefined ||
       input.filters !== undefined ||
+      input.slices !== undefined ||
+      input.aggregations !== undefined ||
+      input.date_buckets !== undefined ||
+      input.sort !== undefined ||
+      input.limit !== undefined ||
       input.name !== undefined ||
       input.message !== undefined,
     {
-      message: 'Provide at least one of fields, filters, name, or message to update',
+      message:
+        'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message to update',
     }
   )
   .refine(
@@ -90,7 +137,7 @@ type UpdateReportInput = z.infer<typeof inputSchema>;
 export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   readonly name = 'update_report';
   readonly description =
-    'Update an existing report: rename it, replace which data mart fields it exports, replace its row filters (same vocabulary as query_data_mart; [] removes all filters), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one of name, fields, filters, or message; anything not provided stays unchanged.';
+    'Update an existing report: rename it, replace which data mart fields it exports, replace its output controls — filters/slices, aggregations, date_buckets, sort, limit — using the same vocabulary as query_data_mart ([] removes a control, null removes the limit), and/or — for reports with an email, slack, teams, or google_chat destination — change the message subject or body. Provide at least one change; anything not provided stays unchanged.';
   readonly zodSchema = baseInputSchema.shape;
   readonly outputSchema = {
     report_id: z.string().describe('Id of the updated report'),
@@ -114,12 +161,27 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
   }
 
   async handler(input: UpdateReportInput, context: McpAuthContext): Promise<McpToolResult> {
-    const { report_id, fields, filters, name, message } = this.parseInput(input);
+    const {
+      report_id,
+      fields,
+      filters,
+      slices,
+      aggregations,
+      date_buckets,
+      sort,
+      limit,
+      name,
+      message,
+    } = this.parseInput(input);
 
     const result = await this.reports.updateReport({
       reportId: report_id,
       fields,
-      filterConfig: mapReportFilters(filters),
+      filterConfig: mapReportFilters(slices, filters),
+      aggregationConfig: mapReportAggregations(aggregations),
+      dateTruncConfig: mapReportDateBuckets(date_buckets),
+      sortConfig: mapReportSort(sort),
+      limitConfig: limit,
       name,
       message,
       projectId: context.projectId,
