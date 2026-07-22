@@ -31,12 +31,41 @@ declare global {
   }
 }
 
+/**
+ * When true, no events are pushed to dataLayer (GTM / GA4 / PostHog tags).
+ * Used for view-only sessions so product analytics stay off for these users.
+ */
+let analyticsDisabled = false;
+
+/**
+ * Enable or disable client analytics emission (dataLayer pushes).
+ */
+export function setAnalyticsDisabled(disabled: boolean): void {
+  analyticsDisabled = disabled;
+}
+
+export function isAnalyticsDisabled(): boolean {
+  return analyticsDisabled;
+}
+
+/**
+ * Suppress client analytics for view-only sessions by no-op'ing dataLayer pushes.
+ * GTM is not bootstrapped for these sessions separately in GoogleTagManager.
+ */
+export function suppressClientAnalytics(): void {
+  setAnalyticsDisabled(true);
+}
+
 const initializeDataLayer = (): void => {
   if (typeof window !== 'undefined' && !window.dataLayer) {
     window.dataLayer = [] as unknown as DataLayer;
   }
 };
+
 export const trackEvent = (eventData: AnalyticsEvent): void => {
+  if (analyticsDisabled) {
+    return;
+  }
   eventData.timestamp = eventData.timestamp ?? Date.now();
   eventData.eventType = eventData.eventType ?? 'app';
   pushToDataLayer(eventData);
@@ -62,6 +91,9 @@ export const trackLogout = (): void => {
 };
 
 export const pushToDataLayer = (data: Record<string, unknown>): void => {
+  if (analyticsDisabled) {
+    return;
+  }
   if (typeof window !== 'undefined') {
     initializeDataLayer();
     try {

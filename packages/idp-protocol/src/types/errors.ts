@@ -33,8 +33,24 @@ export class AuthenticationError extends IdpError {
  * Authorization error
  */
 export class AuthorizationError extends IdpError {
-  constructor(message: string = 'Insufficient permissions') {
-    super(message, 'AUTHORIZATION_ERROR', 403);
+  constructor(message: string = 'Insufficient permissions', code: string = 'AUTHORIZATION_ERROR') {
+    super(message, code, 403);
+  }
+}
+
+/**
+ * Error code returned when a view-only session attempts a state-changing
+ * HTTP method.
+ */
+export const ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE = 'ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE';
+
+/**
+ * View-only session attempted a mutating request.
+ */
+export class ViewOnlyModeError extends AuthorizationError {
+  constructor(message: string = 'Action not allowed in view-only mode') {
+    super(message, ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE);
+    this.name = 'ViewOnlyModeError';
   }
 }
 

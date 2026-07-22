@@ -44,6 +44,7 @@ describe('AuthContextController', () => {
       projectTitle: 'Demo Project',
       authFlow: 'api_key',
       apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      viewOnly: undefined,
     });
   });
 
@@ -66,7 +67,27 @@ describe('AuthContextController', () => {
       projectTitle: undefined,
       authFlow: undefined,
       apiKeyId: undefined,
+      viewOnly: undefined,
     });
+  });
+
+  it('propagates viewOnly for view-only sessions', () => {
+    expect(
+      controller.getContext({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Example',
+        roles: ['admin'],
+        viewOnly: true,
+      })
+    ).toEqual(
+      expect.objectContaining({
+        userId: 'user-1',
+        projectId: 'project-1',
+        viewOnly: true,
+      })
+    );
   });
 
   it('does not expose MCP server URL from generic auth context', () => {
@@ -90,6 +111,7 @@ describe('AuthContextController', () => {
       projectTitle: undefined,
       authFlow: undefined,
       apiKeyId: undefined,
+      viewOnly: undefined,
     });
   });
 });

@@ -31,6 +31,12 @@ export class AuthContextController {
         projectTitle: { type: 'string', nullable: true },
         authFlow: { type: 'string', nullable: true },
         apiKeyId: { type: 'string', nullable: true },
+        viewOnly: {
+          type: 'boolean',
+          nullable: true,
+          description:
+            'True when the session is in view-only mode. Clients should disable analytics and mutating UI actions.',
+        },
       },
     },
   })
@@ -45,6 +51,7 @@ export class AuthContextController {
       projectTitle: context.projectTitle,
       authFlow: context.authFlow,
       apiKeyId: context.apiKeyId,
+      viewOnly: context.viewOnly,
     };
   }
 }

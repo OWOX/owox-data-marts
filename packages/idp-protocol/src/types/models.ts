@@ -33,6 +33,11 @@ export const PayloadSchema = z
     signinProvider: z.string().optional(),
     authFlow: z.string().optional(),
     apiKeyId: z.string().optional(),
+    /**
+     * When true, the session is in view-only mode.
+     * Providers should normalize provider-specific claims into this field.
+     */
+    viewOnly: z.boolean().optional(),
   })
   .passthrough();
 

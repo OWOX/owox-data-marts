@@ -14,7 +14,17 @@ export function currentUserResponseToUser(payload: CurrentUserResponse): User {
     mcpServerUrl: payload.mcpServerUrl,
     avatar: payload.avatar,
     onboarding: payload.onboarding,
+    // Only surface when true so normal sessions stay free of the flag.
+    viewOnly: payload.viewOnly === true ? true : undefined,
   };
+}
+
+/**
+ * Whether the current session is in view-only mode.
+ * Prefer this helper over raw field checks so analytics/UI gates stay consistent.
+ */
+export function isViewOnlySession(user: User | null | undefined): boolean {
+  return user?.viewOnly === true;
 }
 
 /**
@@ -43,6 +53,7 @@ export function hasAllRoles(user: User | null, roles: Role[]): boolean {
 
 export const AuthService = {
   currentUserResponseToUser,
+  isViewOnlySession,
   hasRole,
   hasAnyRole,
   hasAllRoles,
