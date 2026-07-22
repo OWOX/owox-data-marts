@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpReportsFacade } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
@@ -167,11 +168,145 @@ describe('AddReportTool', () => {
     );
   });
 
+  it('maps filters into the domain filter rules for the facade', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-6',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      {
+        ...input,
+        filters: [
+          { field: 'purchases', operator: 'eq', value: 0 },
+          { field: 'created_at', operator: 'in_last_n_days', value: 30 },
+        ],
+      },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
+          {
+            column: 'created_at',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 30 },
+            placement: 'post-join',
+          },
+        ],
+      })
+    );
+  });
+
+  it('maps slices, aggregations, date buckets, sort, and limit into domain configs', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-7',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      {
+        ...input,
+        slices: [{ field: 'source', operator: 'eq', value: 'ga4' }],
+        aggregations: [{ field: 'revenue', function: 'SUM' }],
+        date_buckets: [{ field: 'date', unit: 'MONTH' }],
+        sort: [{ field: 'revenue', direction: 'desc' }],
+        limit: 500,
+      },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
+        limitConfig: 500,
+      })
+    );
+  });
+
+  it('passes an in filter through to the facade (natively supported)', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-6',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    await tool.handler(
+      { ...input, filters: [{ field: 'channel', operator: 'in', value: ['ads', 'email'] }] },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          { column: 'channel', operator: 'in', value: ['ads', 'email'], placement: 'post-join' },
+        ],
+      })
+    );
+  });
+
+  it('translates output-controls validation errors from the facade into agent guidance', async () => {
+    const facade = {
+      addReport: jest.fn().mockRejectedValue(
+        new BadRequestException({
+          message: 'Output controls validation failed',
+          details: { errors: [{ code: 'AGGREGATION_REQUIRES_COLUMN_CONFIG' }] },
+        })
+      ),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    // fields ['*'] + aggregations is a plausible agent mistake ("export everything,
+    // summed"); the opaque validator message must become an actionable fix.
+    await expect(
+      tool.handler(
+        { ...input, fields: ['*'], aggregations: [{ field: 'revenue', function: 'SUM' }] },
+        context
+      )
+    ).rejects.toThrow(/explicit column selection/);
+  });
+
   it('validates required input and rejects unexpected keys', () => {
     const tool = new AddReportTool({} as McpReportsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ destination_id: 'd', fields: ['*'], name: 'x' })).toThrow();
     expect(() => tool.parseInput({ ...input, fields: [] })).toThrow();
+    // Empty output-control arrays on create are caller mistakes — omit them instead.
+    expect(() => tool.parseInput({ ...input, filters: [] })).toThrow();
+    expect(() => tool.parseInput({ ...input, filters: [{ field: 'x' }] })).toThrow();
+    expect(() => tool.parseInput({ ...input, slices: [] })).toThrow();
+    expect(() => tool.parseInput({ ...input, aggregations: [] })).toThrow();
+    expect(() =>
+      tool.parseInput({ ...input, aggregations: [{ field: 'x', function: 'NOPE' }] })
+    ).toThrow();
+    expect(() => tool.parseInput({ ...input, date_buckets: [] })).toThrow();
+    expect(() => tool.parseInput({ ...input, sort: [] })).toThrow();
+    expect(() =>
+      tool.parseInput({ ...input, sort: [{ field: 'x', direction: 'sideways' }] })
+    ).toThrow();
+    expect(() => tool.parseInput({ ...input, limit: 0 })).toThrow();
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
   });
 

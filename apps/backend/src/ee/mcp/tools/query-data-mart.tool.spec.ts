@@ -328,7 +328,7 @@ describe('QueryDataMartTool', () => {
       expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
     });
 
-    it('maps INVALID_OPERATOR_FOR_TYPE → invalid_operator_for_type listing the operators that fit', async () => {
+    it('maps INVALID_OPERATOR_FOR_TYPE → invalid_operator listing the operators that fit', async () => {
       const err = new BadRequestException({
         message: 'Output controls validation failed',
         details: {
@@ -354,7 +354,7 @@ describe('QueryDataMartTool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
       expect(msg).toContain("'contains'");
       expect(msg).toContain("'revenue'");
@@ -391,8 +391,8 @@ describe('QueryDataMartTool', () => {
       );
 
       expect(result.isError).toBe(true);
-      // error_code = highest-priority family, but the message carries every family.
-      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      // error_code = highest-priority family (shared-mapper order), message carries every family.
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_selected' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
       expect(msg).toContain("'contains'");
       expect(msg).toContain('SUM(name)');
@@ -426,7 +426,7 @@ describe('QueryDataMartTool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
       // The caller's vocabulary, not the internal operator name.
       expect(msg).not.toContain("'relative_date'");
@@ -494,7 +494,7 @@ describe('QueryDataMartTool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator_for_type' });
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
       expect(msg).toContain("'active'");
       expect(msg).toContain('boolean true or false');

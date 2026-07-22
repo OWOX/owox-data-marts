@@ -25,24 +25,13 @@ import {
   InvalidFilterValueError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
-  SUPPORTED_MCP_OPERATORS,
+  unsupportedOperatorMessage,
   DEFAULT_LIMIT,
 } from './query-data-mart.input';
 import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
+import { translateOutputControlsError } from './output-controls-error.mapper';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
-import {
-  buildFieldTypeMatrixSection,
-  mcpOperatorNamesForInternal,
-  mcpOperatorsForCategory,
-} from './field-type-matrix';
-import { categorizeFieldType } from '../../../data-marts/dto/schemas/field-type-category';
-
-const DATE_BUCKET_ERROR_CODES = new Set([
-  'DATE_TRUNC_REQUIRES_DATE_COLUMN',
-  'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP',
-  'DATE_TRUNC_INVALID_TIMEZONE',
-  'DATE_TRUNC_COLUMN_IS_AGGREGATED',
-]);
+import { buildFieldTypeMatrixSection } from './field-type-matrix';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -192,10 +181,9 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     }
 
     if (err instanceof UnsupportedOperatorError) {
-      const supported = SUPPORTED_MCP_OPERATORS.join(', ');
       return toStructuredToolError(
         'unsupported_operator',
-        `Filter operator '${err.operator}' is not supported. Supported operators: ${supported}. Pick the closest supported operator and retry.`
+        unsupportedOperatorMessage(err.operator)
       );
     }
 
@@ -255,170 +243,9 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     }
 
     if (err instanceof BadRequestException) {
-      const body = err.getResponse() as Record<string, unknown> | undefined;
-      const errors = (body?.['details'] as Record<string, unknown> | undefined)?.['errors'] as
-        | Array<{
-            code?: string;
-            column?: string;
-            function?: string;
-            type?: string;
-            operator?: string;
-            aliasPath?: string;
-            timeZone?: string;
-          }>
-        | undefined;
-
-      // The validator reports EVERY problem in one details.errors array; surface every
-      // recognized family in one response so the caller fixes them all in one retry
-      // instead of discovering one class per (billable) round-trip. error_code is the
-      // first (highest-priority) family; the message carries the rest.
-      const sections: { code: string; message: string }[] = [];
-
-      // Wrong field name — point at the schema.
-      if (errors?.some(e => e.code === 'FILTER_COLUMN_UNKNOWN')) {
-        sections.push({
-          code: 'field_not_found',
-          message: `${err.message}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and use them verbatim; never guess or invent field names.`,
-        });
-      }
-
-      // Operator doesn't fit the field's type — name the field, its type, and the operators
-      // that DO fit, so the model fixes the operator instead of re-fetching the schema.
-      // The validator reports the INTERNAL (post-mapping) operator; every message below
-      // must speak the caller's MCP vocabulary instead.
-      const badOperators = errors?.filter(e => e.code === 'INVALID_OPERATOR_FOR_TYPE') ?? [];
-      if (badOperators.length > 0) {
-        const details = badOperators
-          .map(e => {
-            const category = categorizeFieldType(e.type ?? '');
-            // Internal is_true/is_false only exist via the eq/neq boolean-value translation,
-            // so seeing them on a NON-boolean column means the caller's VALUE was a boolean.
-            if ((e.operator === 'is_true' || e.operator === 'is_false') && category !== 'boolean') {
-              return `field '${e.column}' has type ${e.type}, but its filter got a boolean true/false value (eq/neq with a boolean targets boolean fields) — keep the operator and send a value matching the field's type instead (e.g. the string "true" or a number)`;
-            }
-            // eq/neq reported ON a boolean column means the value was NOT a real boolean
-            // (e.g. the string "true") — eq/neq with a boolean value would have translated.
-            if (category === 'boolean' && (e.operator === 'eq' || e.operator === 'neq')) {
-              return `field '${e.column}' is boolean — use '${e.operator}' with a boolean true or false as the value (not a string)`;
-            }
-            const mcpNames = mcpOperatorNamesForInternal(e.operator ?? '');
-            const operatorLabel =
-              mcpNames.length === 1
-                ? `operator '${mcpNames[0]}'`
-                : mcpNames.length > 1
-                  ? `your ${mcpNames.join('/')} filter`
-                  : `operator '${e.operator}'`;
-            const allowed = mcpOperatorsForCategory(category).join(', ');
-            return `${operatorLabel} cannot apply to field '${e.column}' (type ${e.type}); operators valid for this field: ${allowed}`;
-          })
-          .join('. ');
-        sections.push({
-          code: 'invalid_operator_for_type',
-          message: `Filter/slice operator does not fit the field's type — ${details}. The field name(s) are correct, so do not re-fetch the schema; change the operator (or value) and retry.`,
-        });
-      }
-
-      // date_buckets misuse — each variant names the field and the exact fix.
-      const dateBucketIssues = errors?.filter(e => DATE_BUCKET_ERROR_CODES.has(e.code ?? '')) ?? [];
-      if (dateBucketIssues.length > 0) {
-        const details = dateBucketIssues
-          .map(e => {
-            switch (e.code) {
-              case 'DATE_TRUNC_REQUIRES_DATE_COLUMN':
-                return `field '${e.column}' (type ${e.type}) is not a date/timestamp — date_buckets only apply to date-category fields; bucket a date field or drop this bucket`;
-              case 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP':
-                return `field '${e.column}' (type ${e.type}) has no time-of-day component — remove time_zone for this bucket (it only applies to TIMESTAMP/DATETIME fields)`;
-              case 'DATE_TRUNC_INVALID_TIMEZONE':
-                return `'${e.timeZone}' is not a valid IANA time zone for field '${e.column}' — use e.g. "Europe/Kyiv" or omit time_zone`;
-              case 'DATE_TRUNC_COLUMN_IS_AGGREGATED':
-                return `field '${e.column}' is both aggregated and date-bucketed — a field can be one or the other; drop one of the two`;
-              default:
-                return `date bucket on '${e.column}' is invalid`;
-            }
-          })
-          .join('. ');
-        sections.push({
-          code: 'invalid_date_bucket',
-          message: `Invalid date_buckets — ${details}. The field name(s) are correct, so do not re-fetch the schema.`,
-        });
-      }
-
-      // slices are pre-join filters; on a non-blended data mart they don't apply.
-      if (errors?.some(e => e.code === 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART')) {
-        sections.push({
-          code: 'slices_not_applicable',
-          message:
-            'This data mart has no joined/blended sources, so slices (pre-join filters) do not apply. Move these predicates to "filters" and retry.',
-        });
-      }
-
-      // Field name is correct but missing from `fields` — a re-fetch would loop the model; fix is to add it.
-      const notSelected = new Set([
-        'AGGREGATION_COLUMN_NOT_SELECTED',
-        'DATE_TRUNC_COLUMN_NOT_SELECTED',
-        'SORT_COLUMN_NOT_SELECTED',
-      ]);
-      const missing = errors?.filter(e => notSelected.has(e.code ?? '')) ?? [];
-      if (missing.length > 0) {
-        const cols = [...new Set(missing.map(e => e.column).filter(Boolean))].join(', ');
-        sections.push({
-          code: 'field_not_selected',
-          message: `Field(s) referenced by aggregations, date_buckets, or sort but missing from "fields"${cols ? `: ${cols}` : ''}. Every aggregated, bucketed, or sorted field must also be listed in "fields". Add ${cols || 'them'} to "fields" and retry — the field name(s) are correct, so do not re-fetch the schema.`,
-        });
-      }
-
-      // Output controls reject this aggregate on this field (or it's a duplicate) — name field+function.
-      const aggNotAllowed = new Set([
-        'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
-        'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
-        'DUPLICATE_AGGREGATION',
-      ]);
-      const rejected = errors?.filter(e => aggNotAllowed.has(e.code ?? '')) ?? [];
-      if (rejected.length > 0) {
-        const detail = [
-          ...new Set(
-            rejected.map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
-          ),
-        ]
-          .filter(Boolean)
-          .join(', ');
-        sections.push({
-          code: 'aggregation_not_allowed',
-          message: `Aggregation not permitted on the requested field(s)${detail ? `: ${detail}` : ''}. This data mart's output controls restrict which aggregate functions each field allows (or the same field+function was requested twice). Choose a different aggregation, or ask an admin to enable it — the field name(s) are correct, so do not re-fetch the schema.`,
-        });
-      }
-
-      if (sections.length > 0) {
-        return toStructuredToolError(
-          sections[0].code,
-          sections.map(s => s.message).join(' ALSO: ')
-        );
-      }
-
-      // Filter/slice operator not valid for the field's type. A slice carries an aliasPath (it runs
-      // pre-join on the field's RAW type), so point the model at the field's `sliceType`.
-      const badOperator = errors?.filter(e => e.code === 'INVALID_OPERATOR_FOR_TYPE') ?? [];
-      if (badOperator.length > 0) {
-        const detail = [
-          ...new Set(
-            badOperator.map(e =>
-              e.operator && e.column
-                ? `${e.operator} on ${e.column} (${e.type ?? 'unknown type'})`
-                : e.column
-            )
-          ),
-        ]
-          .filter(Boolean)
-          .join('; ');
-        const hasSlice = badOperator.some(e => e.aliasPath);
-        return toStructuredToolError(
-          'invalid_operator',
-          `Operator not valid for the field's type: ${detail}. ${
-            hasSlice
-              ? 'A slice filters a joined field on its PRE-JOIN values, so use an operator valid for that field’s "sliceType" from get_data_mart_details, not its blended-result "type". '
-              : ''
-          }Choose an operator that matches the field type and retry.`
-        );
+      const translated = translateOutputControlsError(err);
+      if (translated) {
+        return toStructuredToolError(translated.code, translated.message);
       }
     }
 
