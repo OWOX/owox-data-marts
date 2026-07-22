@@ -10,7 +10,12 @@ export class AuthContextController {
   @Get()
   @ApiOperation({ summary: 'Get the current auth context' })
   @ApiHeader({ name: 'X-OWOX-Authorization', required: true })
-  @ApiHeader({ name: 'X-OWOX-Api-Key-Id', required: false })
+  @ApiHeader({
+    name: 'X-OWOX-Api-Key-Id',
+    required: false,
+    description:
+      'Required when X-OWOX-Authorization contains an API-key access token; must match the token API key ID.',
+  })
   @ApiOkResponse({
     description: 'Auth context resolved by the backend auth guard.',
     schema: {

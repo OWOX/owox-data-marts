@@ -52,6 +52,8 @@ describe('AuthContextController OpenAPI', () => {
           name: 'X-OWOX-Api-Key-Id',
           in: 'header',
           required: false,
+          description:
+            'Required when X-OWOX-Authorization contains an API-key access token; must match the token API key ID.',
         }),
       ])
     );
