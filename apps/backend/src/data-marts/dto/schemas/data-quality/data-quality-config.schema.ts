@@ -66,7 +66,7 @@ export const DATA_QUALITY_CATEGORY_SCOPES: Readonly<
   [DataQualityCategory.CONSTANT_COLUMN]: [DataQualityScope.FIELD],
   [DataQualityCategory.EMPTY_TABLE]: [DataQualityScope.DATA_MART],
   [DataQualityCategory.TYPE_MISMATCH]: [DataQualityScope.FIELD],
-  [DataQualityCategory.DATA_FRESHNESS]: [DataQualityScope.DATA_MART, DataQualityScope.FIELD],
+  [DataQualityCategory.DATA_FRESHNESS]: [DataQualityScope.FIELD],
   [DataQualityCategory.FUTURE_VALUES]: [DataQualityScope.FIELD],
   [DataQualityCategory.NEGATIVE_VALUES]: [DataQualityScope.FIELD],
   [DataQualityCategory.RELATIONSHIP_INTEGRITY]: [DataQualityScope.RELATIONSHIP],
@@ -213,6 +213,11 @@ export const DataQualityConfigSchema = z
 
 export type DataQualityConfig = z.infer<typeof DataQualityConfigSchema>;
 
+export const PersistedDataQualityConfigSchema = z.preprocess(
+  removeLegacyTableLevelFreshness,
+  DataQualityConfigSchema
+);
+
 export const EffectiveDataQualityConfigSchema = z
   .object({
     timezone: DataQualityTimezoneSchema,
@@ -222,6 +227,21 @@ export const EffectiveDataQualityConfigSchema = z
   .superRefine(validateUniqueRuleKeys);
 
 export type EffectiveDataQualityConfig = z.infer<typeof EffectiveDataQualityConfigSchema>;
+
+export function removeLegacyTableLevelFreshness(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.rules)) return value;
+  return {
+    ...value,
+    rules: value.rules.filter(rule => {
+      if (!isRecord(rule) || rule.category !== DataQualityCategory.DATA_FRESHNESS) return true;
+      return !isRecord(rule.scope) || rule.scope.type !== DataQualityScope.DATA_MART;
+    }),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export function createAllDisabledDataQualityConfig(): DataQualityConfig {
   return {

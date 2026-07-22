@@ -75,9 +75,9 @@ describe('resolveEffectiveDataQualityConfig', () => {
     savedConfig: DataQualityConfig | null | undefined,
     outputSchema: DataMartSchema | null | undefined,
     relationships: readonly DataQualityRelationshipSnapshot[],
-    definitionType: DataMartDefinitionType | null | undefined = DataMartDefinitionType.SQL
+    _definitionType: DataMartDefinitionType | null | undefined = DataMartDefinitionType.SQL
   ): EffectiveDataQualityConfig =>
-    resolveEffectiveDataQualityConfig(savedConfig, outputSchema, relationships, definitionType);
+    resolveEffectiveDataQualityConfig(savedConfig, outputSchema, relationships);
 
   it('resolves null config to the documented system preset', () => {
     const result = resolveForDefinition(
@@ -155,7 +155,6 @@ describe('resolveEffectiveDataQualityConfig', () => {
       [DataQualityCategory.EMPTY_TABLE, DataQualitySeverity.ERROR, {}],
       [DataQualityCategory.PK_UNIQUENESS, DataQualitySeverity.ERROR, {}],
       [DataQualityCategory.DUPLICATE_ROWS, DataQualitySeverity.ERROR, {}],
-      [DataQualityCategory.DATA_FRESHNESS, DataQualitySeverity.WARNING, { thresholdHours: 24 }],
     ] as const;
     for (const [category, severity, parameters] of expectedTableRules) {
       expect(findRule(result, category, DataQualityScope.DATA_MART)).toMatchObject({
@@ -163,6 +162,9 @@ describe('resolveEffectiveDataQualityConfig', () => {
         parameters,
       });
     }
+    expect(
+      findRule(result, DataQualityCategory.DATA_FRESHNESS, DataQualityScope.DATA_MART)
+    ).toBeUndefined();
 
     const expectedFieldRules = [
       [DataQualityCategory.NULL_RATE, DataQualitySeverity.WARNING, { thresholdPercent: 0 }],
@@ -419,7 +421,7 @@ describe('resolveEffectiveDataQualityConfig', () => {
   });
 
   it.each([DataMartDefinitionType.TABLE, DataMartDefinitionType.CONNECTOR])(
-    'uses only DATA_MART metadata freshness for physical %s definitions',
+    'uses only FIELD freshness for physical %s definitions',
     definitionType => {
       const result = resolveForDefinition(
         null,
@@ -433,7 +435,7 @@ describe('resolveEffectiveDataQualityConfig', () => {
 
       expect(
         findRule(result, DataQualityCategory.DATA_FRESHNESS, DataQualityScope.DATA_MART)
-      ).toMatchObject({ isApplicable: true });
+      ).toBeUndefined();
       expect(
         result.rules.filter(
           rule =>
@@ -442,12 +444,10 @@ describe('resolveEffectiveDataQualityConfig', () => {
         )
       ).toEqual([
         expect.objectContaining({
-          isApplicable: false,
-          notApplicableReason: expect.stringContaining('physical'),
+          isApplicable: true,
         }),
         expect.objectContaining({
-          isApplicable: false,
-          notApplicableReason: expect.stringContaining('physical'),
+          isApplicable: true,
         }),
       ]);
     }
@@ -470,10 +470,7 @@ describe('resolveEffectiveDataQualityConfig', () => {
 
     expect(
       findRule(result, DataQualityCategory.DATA_FRESHNESS, DataQualityScope.DATA_MART)
-    ).toMatchObject({
-      isApplicable: false,
-      notApplicableReason: expect.stringContaining('logical'),
-    });
+    ).toBeUndefined();
     expect(
       findRule(result, DataQualityCategory.DATA_FRESHNESS, DataQualityScope.FIELD, 'updated_at')
     ).toMatchObject({ isApplicable: true });
@@ -485,7 +482,7 @@ describe('resolveEffectiveDataQualityConfig', () => {
     });
   });
 
-  it('marks both freshness strategies not applicable without a definition type', () => {
+  it('does not require a definition type for field freshness', () => {
     const result = resolveForDefinition(
       null,
       schema(field('updated_at', { type: BigQueryFieldType.TIMESTAMP })),
@@ -497,14 +494,8 @@ describe('resolveEffectiveDataQualityConfig', () => {
       result.rules.filter(rule => rule.category === DataQualityCategory.DATA_FRESHNESS)
     ).toEqual([
       expect.objectContaining({
-        scope: { type: DataQualityScope.DATA_MART },
-        isApplicable: false,
-        notApplicableReason: expect.stringContaining('definition type'),
-      }),
-      expect.objectContaining({
         scope: { type: DataQualityScope.FIELD, fieldId: 'updated_at' },
-        isApplicable: false,
-        notApplicableReason: expect.stringContaining('definition type'),
+        isApplicable: true,
       }),
     ]);
   });

@@ -12,6 +12,7 @@ import {
   DataQualityIdentifierSchema,
   DataQualityRuleKeySchema,
   DataQualityTimezoneSchema,
+  removeLegacyTableLevelFreshness,
 } from './data-quality-config.schema';
 
 export const DataQualityRelationshipSnapshotSchema = z
@@ -65,6 +66,12 @@ export const DataQualityRunSnapshotSchema = z
   .strict();
 
 export type DataQualityRunSnapshot = z.infer<typeof DataQualityRunSnapshotSchema>;
+
+export const PersistedDataQualityRunSnapshotSchema = z.preprocess(value => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const snapshot = value as Record<string, unknown>;
+  return { ...snapshot, config: removeLegacyTableLevelFreshness(snapshot.config) };
+}, DataQualityRunSnapshotSchema);
 
 export const DataQualityMappedErrorSchema = z
   .object({

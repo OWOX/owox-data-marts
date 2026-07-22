@@ -27,7 +27,7 @@ import {
 } from '../dto/schemas/blended-fields-config.schema';
 import {
   DataQualityConfig,
-  DataQualityConfigSchema,
+  PersistedDataQualityConfigSchema,
 } from '../dto/schemas/data-quality/data-quality-config.schema';
 
 @Entity()
@@ -91,7 +91,7 @@ export class DataMart implements CreatorAwareEntity {
 
   @Column({
     type: 'json',
-    transformer: createZodTransformer<DataQualityConfig>(DataQualityConfigSchema, false),
+    transformer: createZodTransformer<DataQualityConfig>(PersistedDataQualityConfigSchema, false),
     nullable: true,
   })
   dataQualityConfig?: DataQualityConfig | null;

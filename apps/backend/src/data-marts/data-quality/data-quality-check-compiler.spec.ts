@@ -6,7 +6,6 @@ import {
   EffectiveDataQualityRuleConfig,
 } from '../dto/schemas/data-quality/data-quality-config.schema';
 import { DataQualityRelationshipSnapshot } from '../dto/schemas/data-quality/data-quality-run.schema';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
@@ -208,7 +207,6 @@ describe('DataQualityCheckCompiler', () => {
       { ...base, rule: fieldRule(DataQualityCategory.TYPE_MISMATCH, 'amount') },
       {
         ...base,
-        definitionType: DataMartDefinitionType.SQL,
         rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'updated_at', {
           thresholdHours: 24,
         }),
@@ -344,7 +342,6 @@ describe('DataQualityCheckCompiler', () => {
       }),
       compiler.compile({
         ...base,
-        definitionType: DataMartDefinitionType.SQL,
         rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'updated_at', {
           thresholdHours: 24,
         }),
@@ -620,8 +617,6 @@ describe('DataQualityCheckCompiler', () => {
     });
     const freshnessPlan = await compiler.compile({
       ...base,
-      definitionType: DataMartDefinitionType.SQL,
-      definition: { sqlQuery: sourceQuery },
       rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'updated_at', {
         thresholdHours: 24,
       }),
@@ -740,8 +735,6 @@ describe('DataQualityCheckCompiler', () => {
         sourceQuery,
         schema: schemaWithFieldType(storageType, 'updated_at', nativeType),
         timezone: 'America/New_York',
-        definitionType: DataMartDefinitionType.SQL,
-        definition: { sqlQuery: sourceQuery },
         rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'updated_at', {
           thresholdHours: 24,
         }),
@@ -903,147 +896,20 @@ describe('DataQualityCheckCompiler', () => {
     ).rejects.toThrow(/isApplicable|effective/i);
   });
 
-  it('supports physical metadata freshness where available and reports unsupported metadata', async () => {
-    const compiler = createDataQualityCheckCompiler();
-    const compile = (storageType: DataStorageType, fullyQualifiedName: string) =>
-      compiler.compile({
-        storageType,
+  it('rejects table-scoped data freshness', async () => {
+    await expect(
+      createDataQualityCheckCompiler().compile({
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
         sourceQuery,
-        schema: schema(storageType),
+        schema: schema(DataStorageType.GOOGLE_BIGQUERY),
         timezone: 'UTC',
-        definitionType: DataMartDefinitionType.TABLE,
-        definition: { fullyQualifiedName },
-        rule: rule(
-          DataQualityCategory.DATA_FRESHNESS,
-          { type: DataQualityScope.DATA_MART },
-          { thresholdHours: 24 }
-        ),
-      });
-
-    await expect(
-      compile(DataStorageType.GOOGLE_BIGQUERY, 'project.dataset.table')
-    ).resolves.toMatchObject({
-      kind: 'EXECUTABLE',
-      strategy: 'METADATA_FRESHNESS',
-    });
-    await expect(compile(DataStorageType.SNOWFLAKE, 'DB.SCHEMA.TABLE')).resolves.toMatchObject({
-      kind: 'EXECUTABLE',
-      strategy: 'METADATA_FRESHNESS',
-    });
-    await expect(
-      compile(DataStorageType.DATABRICKS, 'catalog.schema.table')
-    ).resolves.toMatchObject({
-      kind: 'EXECUTABLE',
-      strategy: 'METADATA_FRESHNESS',
-    });
-    await expect(
-      compile(DataStorageType.AWS_ATHENA, 'catalog.schema.table')
-    ).resolves.toMatchObject({
-      kind: 'NOT_APPLICABLE',
-    });
-    await expect(compile(DataStorageType.AWS_REDSHIFT, 'schema.table')).resolves.toMatchObject({
-      kind: 'NOT_APPLICABLE',
-    });
-  });
-
-  it.each([
-    [DataStorageType.GOOGLE_BIGQUERY, 'project.dataset.table', 'TIMESTAMP_SUB', false],
-    [DataStorageType.SNOWFLAKE, 'DB.SCHEMA.TABLE', 'DATEADD', false],
-    [DataStorageType.DATABRICKS, 'catalog.schema.table', 'current_timestamp()', true],
-  ])(
-    'builds a bounded, threshold-aware metadata reproduction for %s',
-    async (storageType, fullyQualifiedName, currentExpression, usesDatabricksFileMetadata) => {
-      const plan = await createDataQualityCheckCompiler().compile({
-        storageType,
-        sourceQuery,
-        schema: schema(storageType),
-        timezone: 'America/New_York',
-        definitionType: DataMartDefinitionType.TABLE,
-        definition: { fullyQualifiedName },
-        rule: rule(
-          DataQualityCategory.DATA_FRESHNESS,
-          { type: DataQualityScope.DATA_MART },
-          { thresholdHours: 24 }
-        ),
-      });
-      if (plan.kind !== 'EXECUTABLE') throw new Error(plan.reason);
-
-      expect(plan.reproductionSql).toContain(currentExpression);
-      expect(plan.reproductionSql).toMatch(/(?:last_modified_at|lastModified)\s*</i);
-      if (usesDatabricksFileMetadata) {
-        expect(plan.queries).toEqual([
-          expect.objectContaining({
-            purpose: DataQualityQueryPurpose.METADATA_FRESHNESS,
-            sql: expect.stringContaining('_metadata.file_modification_time'),
-          }),
-        ]);
-        expect(plan.queries[0].sql).not.toMatch(/DESCRIBE (?:DETAIL|HISTORY)/i);
-        expect(plan.reproductionSql).toContain('_metadata.file_modification_time');
-        expect(plan.reproductionSql).toContain('FROM `catalog`.`schema`.`table`');
-        expect(plan.reproductionSql).toMatch(/WHERE last_modified_at < .*current_timestamp\(\)/i);
-        expect(plan.reproductionSql).not.toMatch(/DESCRIBE (?:DETAIL|HISTORY)/i);
-        expect(plan.reproductionSql).not.toMatch(/\bLIMIT\b/i);
-      } else {
-        expect(plan.reproductionSql).not.toMatch(/\bLIMIT\b/i);
-      }
-    }
-  );
-
-  it('uses metadata only for physical TABLE or CONNECTOR and field MAX only for logical sources', async () => {
-    const compiler = createDataQualityCheckCompiler();
-    const base = {
-      storageType: DataStorageType.GOOGLE_BIGQUERY,
-      sourceQuery,
-      schema: schema(DataStorageType.GOOGLE_BIGQUERY),
-      timezone: 'UTC',
-    };
-
-    await expect(
-      compiler.compile({
-        ...base,
-        definitionType: DataMartDefinitionType.TABLE,
-        definition: { fullyQualifiedName: 'project.dataset.table' },
-        rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'updated_at', {
-          thresholdHours: 24,
-        }),
-      })
-    ).resolves.toMatchObject({ kind: 'NOT_APPLICABLE' });
-
-    await expect(
-      compiler.compile({
-        ...base,
-        definitionType: DataMartDefinitionType.CONNECTOR,
-        definition: {
-          connector: {
-            source: {
-              name: 'google-ads',
-              configuration: [{}],
-              node: 'ad_group',
-              fields: ['id'],
-            },
-            storage: { fullyQualifiedName: 'project.dataset.connector_table' },
-          },
-        },
         rule: rule(
           DataQualityCategory.DATA_FRESHNESS,
           { type: DataQualityScope.DATA_MART },
           { thresholdHours: 24 }
         ),
       })
-    ).resolves.toMatchObject({ kind: 'EXECUTABLE', strategy: 'METADATA_FRESHNESS' });
-
-    await expect(
-      compiler.compile({
-        ...base,
-        definitionType: DataMartDefinitionType.SQL,
-        definition: { sqlQuery: sourceQuery },
-        rule: rule(
-          DataQualityCategory.DATA_FRESHNESS,
-          { type: DataQualityScope.DATA_MART },
-          { thresholdHours: 24 }
-        ),
-      })
-    ).resolves.toMatchObject({ kind: 'NOT_APPLICABLE' });
+    ).rejects.toThrow(/scope/i);
   });
 
   it('converts DATE freshness values into a timezone-aware timestamp before hour comparison', async () => {
@@ -1052,8 +918,6 @@ describe('DataQualityCheckCompiler', () => {
       sourceQuery,
       schema: schema(DataStorageType.GOOGLE_BIGQUERY),
       timezone: 'Europe/Kyiv',
-      definitionType: DataMartDefinitionType.SQL,
-      definition: { sqlQuery: sourceQuery },
       rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'event_date', {
         thresholdHours: 24,
       }),
@@ -1078,8 +942,6 @@ describe('DataQualityCheckCompiler', () => {
         sourceQuery,
         schema: datetimeSchema as unknown as DataMartSchema,
         timezone: 'UTC',
-        definitionType: DataMartDefinitionType.SQL,
-        definition: { sqlQuery: sourceQuery },
         rule: fieldRule(
           category,
           'updated_at',
@@ -1109,7 +971,6 @@ describe('DataQualityCheckCompiler', () => {
       { ...base, rule: fieldRule(DataQualityCategory.TYPE_MISMATCH, 'amount') },
       {
         ...base,
-        definitionType: DataMartDefinitionType.SQL,
         rule: fieldRule(DataQualityCategory.DATA_FRESHNESS, 'updated_at', {
           thresholdHours: 24,
         }),

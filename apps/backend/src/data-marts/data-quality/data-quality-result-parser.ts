@@ -40,10 +40,6 @@ export interface DataQualityParsedResult {
   error: DataQualityMappedError | null;
 }
 
-export interface DataQualityParseOptions {
-  now?: Date;
-}
-
 export const DATA_QUALITY_EXAMPLE_SERIALIZATION_LIMITS = {
   maxDepth: 8,
   maxCollectionItems: 50,
@@ -61,8 +57,7 @@ export class DataQualityResultParser {
   async parse(
     storageType: DataStorageType,
     plan: DataQualityCompiledCheck,
-    executions: readonly DataQualityQueryExecution[],
-    options: DataQualityParseOptions = {}
+    executions: readonly DataQualityQueryExecution[]
   ): Promise<DataQualityParsedResult> {
     const common = {
       category: plan.category,
@@ -84,12 +79,6 @@ export class DataQualityResultParser {
 
     const failedExecution = executions.find(execution => execution.error);
     if (failedExecution?.error) {
-      if (
-        plan.strategy === 'METADATA_FRESHNESS' &&
-        isMetadataUnavailableError(storageType, failedExecution.error)
-      ) {
-        return metadataUnavailable(common);
-      }
       return {
         ...common,
         status: DataQualityCheckStatus.ERROR,
@@ -105,8 +94,6 @@ export class DataQualityResultParser {
         return this.parseCount(plan, executions, common);
       case 'TYPE_MISMATCH':
         return this.parseTypeMismatch(storageType, plan, executions, common);
-      case 'METADATA_FRESHNESS':
-        return this.parseMetadataFreshness(plan, executions, common, options);
     }
   }
 
@@ -184,49 +171,6 @@ export class DataQualityResultParser {
       error: null,
     };
   }
-
-  private parseMetadataFreshness(
-    plan: Extract<DataQualityCompiledCheck, { kind: 'EXECUTABLE' }>,
-    executions: readonly DataQualityQueryExecution[],
-    common: ParsedCommon,
-    options: DataQualityParseOptions
-  ): DataQualityParsedResult {
-    const metadata = findExecution(executions, DataQualityQueryPurpose.METADATA_FRESHNESS);
-    const row = metadata?.rows?.[0];
-    if (!row) {
-      return metadataUnavailable(common);
-    }
-    const value =
-      readValue(row, 'last_modified_at') ??
-      readValue(row, 'lastModified') ??
-      readValue(row, 'timestamp') ??
-      readValue(row, 'last_altered');
-    if (value === null || value === undefined || value === '') {
-      return metadataUnavailable(common);
-    }
-    const lastModified = parseWarehouseTimestamp(value);
-    if (!lastModified) {
-      return parserError(common, 'Warehouse returned an invalid last-modified timestamp');
-    }
-    const now = options.now ?? new Date();
-    if (Number.isNaN(now.getTime()))
-      return parserError(common, 'Invalid freshness comparison time');
-    const thresholdHours = plan.thresholdHours;
-    if (thresholdHours === undefined || !Number.isFinite(thresholdHours) || thresholdHours < 0) {
-      return parserError(common, 'Invalid freshness threshold');
-    }
-    const stale = now.getTime() - lastModified.getTime() > thresholdHours * 60 * 60 * 1000;
-    return {
-      ...common,
-      status: stale ? DataQualityCheckStatus.FAILED : DataQualityCheckStatus.PASSED,
-      violationCount: stale ? 1 : 0,
-      description: stale
-        ? 'Table data is older than the configured threshold'
-        : 'Table data is fresh',
-      examples: stale ? [{ values: safeSerializeRow(row) }] : [],
-      error: null,
-    };
-  }
 }
 
 type ParsedCommon = Pick<
@@ -293,39 +237,6 @@ function parserError(common: ParsedCommon, message: string): DataQualityParsedRe
     examples: [],
     error: { code: 'INVALID_DATA_QUALITY_RESULT', message, details: null },
   };
-}
-
-function metadataUnavailable(common: ParsedCommon): DataQualityParsedResult {
-  return {
-    ...common,
-    status: DataQualityCheckStatus.NOT_APPLICABLE,
-    violationCount: 0,
-    description: 'Last-modified metadata is unavailable',
-    examples: [],
-    error: null,
-  };
-}
-
-function isMetadataUnavailableError(
-  storageType: DataStorageType,
-  error: DataQualityMappedError
-): boolean {
-  const code = String(error.code ?? '')
-    .trim()
-    .toUpperCase()
-    .replace(/^\[|\]$/g, '');
-  if (code === 'METADATA_UNAVAILABLE') return true;
-  const providerCodes: Partial<Record<DataStorageType, readonly string[]>> = {
-    [DataStorageType.GOOGLE_BIGQUERY]: ['NOT_FOUND', 'NOTFOUND', 'TABLE_NOT_FOUND'],
-    [DataStorageType.LEGACY_GOOGLE_BIGQUERY]: ['NOT_FOUND', 'NOTFOUND', 'TABLE_NOT_FOUND'],
-    [DataStorageType.SNOWFLAKE]: ['OBJECT_NOT_FOUND'],
-    [DataStorageType.DATABRICKS]: [
-      'DELTA_MISSING_DELTA_TABLE',
-      'DELTA_NOT_A_TABLE',
-      'TABLE_OR_VIEW_NOT_FOUND',
-    ],
-  };
-  return providerCodes[storageType]?.includes(code) ?? false;
 }
 
 function parseExamples(
@@ -461,29 +372,6 @@ function uniqueMarkerKey(keys: readonly string[]): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function parseWarehouseTimestamp(value: unknown): Date | null {
-  const unwrapped = isRecord(value) && 'value' in value ? value.value : value;
-  let parsed: Date;
-
-  if (unwrapped instanceof Date) {
-    parsed = unwrapped;
-  } else if (typeof unwrapped === 'string') {
-    parsed = new Date(unwrapped);
-  } else if (typeof unwrapped === 'number' && Number.isFinite(unwrapped)) {
-    parsed = new Date(unwrapped);
-  } else if (
-    typeof unwrapped === 'bigint' &&
-    unwrapped >= BigInt(Number.MIN_SAFE_INTEGER) &&
-    unwrapped <= BigInt(Number.MAX_SAFE_INTEGER)
-  ) {
-    parsed = new Date(Number(unwrapped));
-  } else {
-    return null;
-  }
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function readValue(row: Record<string, unknown>, key: string): unknown {

@@ -1,6 +1,5 @@
 import { HttpException } from '@nestjs/common';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { wrapProviderError } from '../data-storage-types/utils/provider-error.utils';
 import { SqlRunBatch } from '../dto/domain/sql-run-batch.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
@@ -314,61 +313,4 @@ describe('DataQualityQueryExecutorService', () => {
 
     expect(mapper.toStorageReadError).not.toHaveBeenCalled();
   });
-
-  it('classifies explicit metadata-unavailable provider errors before generic mapping', async () => {
-    const executeBatches = jest.fn(() =>
-      (async function* () {
-        yield new SqlRunBatch([], null, []);
-        throw { errors: [{ reason: 'notFound', message: 'table metadata is unavailable' }] };
-      })()
-    );
-    const { service, mapper } = createService(executeBatches, () => new Error('generic'));
-    const check = executableCheck('freshness', [
-      { purpose: DataQualityQueryPurpose.METADATA_FRESHNESS, sql: 'metadata-sql' },
-    ]);
-
-    const [result] = await collect(service.executeChecks(dataMart, [check]));
-
-    expect(result.executions[0].error).toEqual({
-      code: 'METADATA_UNAVAILABLE',
-      message: 'table metadata is unavailable',
-      details: null,
-    });
-    expect(mapper.toStorageReadError).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [DataStorageType.GOOGLE_BIGQUERY, { reason: 'notFound' }],
-    [DataStorageType.SNOWFLAKE, { code: '002003' }],
-    [DataStorageType.DATABRICKS, { errorCode: 'TABLE_OR_VIEW_NOT_FOUND' }],
-  ])(
-    'classifies a provider identity preserved on a wrapped %s error as metadata unavailable',
-    async (storageType, identity) => {
-      const providerError = Object.assign(new Error('Provider metadata error'), identity);
-      const wrappedError = wrapProviderError('Wrapped provider metadata error', providerError);
-      const executeBatches = jest.fn(() =>
-        (async function* () {
-          yield new SqlRunBatch([], null, []);
-          throw wrappedError;
-        })()
-      );
-      const { service, mapper } = createService(executeBatches, () => new Error('generic'));
-      const check = executableCheck('freshness', [
-        { purpose: DataQualityQueryPurpose.METADATA_FRESHNESS, sql: 'metadata-sql' },
-      ]);
-      const providerDataMart = {
-        ...dataMart,
-        storage: { ...dataMart.storage, type: storageType },
-      } as DataMart;
-
-      const [result] = await collect(service.executeChecks(providerDataMart, [check]));
-
-      expect(result.executions[0].error).toEqual({
-        code: 'METADATA_UNAVAILABLE',
-        message: 'Wrapped provider metadata error',
-        details: null,
-      });
-      expect(mapper.toStorageReadError).not.toHaveBeenCalled();
-    }
-  );
 });

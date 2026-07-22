@@ -160,7 +160,8 @@ describe('DataQualityConfigSchema', () => {
       key: 'data_freshness:field:updated_at',
       scope: { type: DataQualityScope.FIELD, fieldId: 'updated_at' },
     };
-    expect(parseRules([tableFreshness, fieldFreshness]).rules).toHaveLength(2);
+    expect(() => parseRules([tableFreshness])).toThrow(/scope/i);
+    expect(parseRules([fieldFreshness]).rules).toEqual([fieldFreshness]);
   });
 
   it('validates field and relationship identifiers', () => {
@@ -251,8 +252,9 @@ describe('DataQualityConfigSchema', () => {
   it.each([0, 0.5, 24])('accepts thresholdHours boundary value %p', thresholdHours => {
     const rule = {
       ...tableRule,
-      key: 'data_freshness:data_mart',
+      key: 'data_freshness:field:updated_at',
       category: DataQualityCategory.DATA_FRESHNESS,
+      scope: { type: DataQualityScope.FIELD, fieldId: 'updated_at' },
       parameters: { thresholdHours },
     };
     expect(parseRules([rule]).rules[0].parameters.thresholdHours).toBe(thresholdHours);
@@ -263,8 +265,9 @@ describe('DataQualityConfigSchema', () => {
     thresholdHours => {
       const rule = {
         ...tableRule,
-        key: 'data_freshness:data_mart',
+        key: 'data_freshness:field:updated_at',
         category: DataQualityCategory.DATA_FRESHNESS,
+        scope: { type: DataQualityScope.FIELD, fieldId: 'updated_at' },
         parameters: { thresholdHours },
       };
       expect(() => parseRules([rule])).toThrow();
@@ -274,8 +277,9 @@ describe('DataQualityConfigSchema', () => {
   it('requires thresholdHours on every data_freshness rule, including disabled rules', () => {
     const rule = {
       ...tableRule,
-      key: 'data_freshness:data_mart',
+      key: 'data_freshness:field:updated_at',
       category: DataQualityCategory.DATA_FRESHNESS,
+      scope: { type: DataQualityScope.FIELD, fieldId: 'updated_at' },
       enabled: false,
       parameters: {},
     };
@@ -288,8 +292,9 @@ describe('DataQualityConfigSchema', () => {
     thresholdHours => {
       const rule = {
         ...tableRule,
-        key: 'data_freshness:data_mart',
+        key: 'data_freshness:field:updated_at',
         category: DataQualityCategory.DATA_FRESHNESS,
+        scope: { type: DataQualityScope.FIELD, fieldId: 'updated_at' },
         parameters: { thresholdHours },
       };
 

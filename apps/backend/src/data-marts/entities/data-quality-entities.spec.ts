@@ -39,6 +39,55 @@ describe('data quality entity metadata', () => {
     ).toThrow();
   });
 
+  it('drops legacy table-level freshness when loading persisted Data Quality config', () => {
+    const legacyConfig = {
+      timezone: 'UTC',
+      rules: [
+        {
+          key: 'data_freshness:data_mart',
+          category: DataQualityCategory.DATA_FRESHNESS,
+          scope: { type: DataQualityScope.DATA_MART },
+          severity: DataQualitySeverity.WARNING,
+          enabled: true,
+          parameters: { thresholdHours: 24 },
+        },
+      ],
+    };
+
+    expect(transformer(DataMart, 'dataQualityConfig').from(legacyConfig)).toEqual({
+      timezone: 'UTC',
+      rules: [],
+    });
+  });
+
+  it('drops legacy table-level freshness when loading a persisted run snapshot', () => {
+    const snapshot = {
+      config: {
+        timezone: 'UTC',
+        rules: [
+          {
+            key: 'data_freshness:data_mart',
+            category: DataQualityCategory.DATA_FRESHNESS,
+            scope: { type: DataQualityScope.DATA_MART },
+            severity: DataQualitySeverity.WARNING,
+            enabled: true,
+            parameters: { thresholdHours: 24 },
+            isApplicable: true,
+          },
+        ],
+      },
+      schema: null,
+      relationships: [],
+      timezone: 'UTC',
+      definitionType: DataMartDefinitionType.TABLE,
+    };
+
+    expect(transformer(DataMartRun, 'dataQualitySnapshot').from(snapshot)).toEqual({
+      ...snapshot,
+      config: { timezone: 'UTC', rules: [] },
+    });
+  });
+
   it('persists a one-shot Data Quality run trigger using the shared trigger contract', () => {
     const entity = getMetadataArgsStorage().tables.find(
       item => item.target === DataQualityRunTrigger

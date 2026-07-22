@@ -19,7 +19,7 @@ import { DataMartRunAiSourceDefinition } from '../dto/schemas/data-mart-run/data
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import {
   DataQualityRunSnapshot,
-  DataQualityRunSnapshotSchema,
+  PersistedDataQualityRunSnapshotSchema,
   DataQualityStoredCheckResult,
   DataQualityStoredCheckResultsSchema,
   DataQualitySummary,
@@ -97,7 +97,7 @@ export class DataMartRun implements CreatorAwareEntity {
     nullable: true,
     select: false,
     transformer: createZodTransformer<DataQualityRunSnapshot | null>(
-      DataQualityRunSnapshotSchema,
+      PersistedDataQualityRunSnapshotSchema,
       false
     ),
   })

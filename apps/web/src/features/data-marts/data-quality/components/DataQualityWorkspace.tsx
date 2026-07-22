@@ -11,6 +11,7 @@ import {
   areDataQualityConfigsEqual,
   getDisplayedDataQualityFieldRuleKeys,
   getSelectableDataQualityFields,
+  isTableLevelDataFreshness,
   toStoredDataQualityConfig,
 } from '../model/data-quality.model';
 import type {
@@ -366,7 +367,7 @@ export function DataQualityWorkspace({
           <RuleGroup
             title='Table checks'
             rules={configResponse.effectiveConfig.rules.filter(
-              rule => rule.scope.type === 'DATA_MART'
+              rule => rule.scope.type === 'DATA_MART' && !isTableLevelDataFreshness(rule)
             )}
             draft={draft}
             disabled={!canEdit || isMutationBusy}

@@ -133,9 +133,6 @@ export class RunDataQualityService {
           schema: snapshot.schema ?? undefined,
         } as DataMart;
         const sourceQuery = await this.buildSourceQuery(dataMart, dataMartRun.definitionRun);
-        const compilerDefinition = isSqlDefinition(dataMartRun.definitionRun)
-          ? undefined
-          : dataMartRun.definitionRun;
         const targets = await this.loadRelationshipTargets(snapshot, expectedProjectId);
         const targetSourceQueries = new Map<string, Promise<string | QueryBuildResult>>();
         const compiled: DataQualityCompiledCheck[] = [];
@@ -165,8 +162,6 @@ export class RunDataQualityService {
                 schema: snapshot.schema,
                 timezone: snapshot.timezone,
                 rule,
-                definitionType: snapshot.definitionType,
-                definition: compilerDefinition,
                 relationship: relationshipSnapshot
                   ? this.buildRelationshipContext(
                       dataMart,
@@ -202,8 +197,7 @@ export class RunDataQualityService {
               const preliminary = await this.resultParser.parse(
                 dataMart.storage.type,
                 check,
-                executions,
-                { now: this.systemClock.now() }
+                executions
               );
               return preliminary.status === DataQualityCheckStatus.FAILED;
             } catch {
@@ -221,8 +215,7 @@ export class RunDataQualityService {
             parsed = await this.resultParser.parse(
               dataMart.storage.type,
               executed.check,
-              executed.executions,
-              { now: this.systemClock.now() }
+              executed.executions
             );
           } catch (error) {
             parsed = parsingError(rule, executed.check, executed.executions, error);

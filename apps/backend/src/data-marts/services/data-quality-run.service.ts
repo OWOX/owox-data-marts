@@ -73,8 +73,7 @@ export class DataQualityRunService {
       effectiveConfig: resolveEffectiveDataQualityConfig(
         dataMart.dataQualityConfig,
         dataMart.schema,
-        relationships,
-        dataMart.definitionType
+        relationships
       ),
       relationshipSnapshots: relationships,
     };
@@ -96,12 +95,7 @@ export class DataQualityRunService {
       );
       dataMart.dataQualityConfig = parsedConfig;
       await dataMartRepository.save(dataMart);
-      return resolveEffectiveDataQualityConfig(
-        parsedConfig,
-        dataMart.schema,
-        relationships,
-        dataMart.definitionType
-      );
+      return resolveEffectiveDataQualityConfig(parsedConfig, dataMart.schema, relationships);
     });
   }
 
@@ -136,8 +130,7 @@ export class DataQualityRunService {
       const effectiveConfig = resolveEffectiveDataQualityConfig(
         savedConfig,
         dataMart.schema,
-        relationships,
-        dataMart.definitionType
+        relationships
       );
       const applicableEnabledChecks = effectiveConfig.rules.filter(
         rule => rule.enabled && rule.isApplicable

@@ -6,14 +6,12 @@ import {
   QueryBuildResult,
   isQueryBuildResult,
 } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
-import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
   EffectiveDataQualityRuleConfig as DataQualityRuleConfig,
   EffectiveDataQualityRuleConfigSchema as DataQualityRuleConfigSchema,
   DataQualityTimezoneSchema,
 } from '../dto/schemas/data-quality/data-quality-config.schema';
 import { DataQualityRelationshipSnapshot } from '../dto/schemas/data-quality/data-quality-run.schema';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import {
@@ -27,7 +25,6 @@ export enum DataQualityQueryPurpose {
   MEASUREMENT = 'MEASUREMENT',
   EXAMPLES = 'EXAMPLES',
   TYPE_INTROSPECTION = 'TYPE_INTROSPECTION',
-  METADATA_FRESHNESS = 'METADATA_FRESHNESS',
 }
 
 export interface DataQualityCompiledQuery {
@@ -35,7 +32,7 @@ export interface DataQualityCompiledQuery {
   sql: string;
 }
 
-export type DataQualityExecutionStrategy = 'COUNT' | 'TYPE_MISMATCH' | 'METADATA_FRESHNESS';
+export type DataQualityExecutionStrategy = 'COUNT' | 'TYPE_MISMATCH';
 
 interface DataQualityCompiledBase {
   category: DataQualityCategory;
@@ -51,7 +48,6 @@ export interface DataQualityExecutableCheck extends DataQualityCompiledBase {
   expectedType?: DataQualityCanonicalType;
   expectedNativeType?: string;
   expectedMode?: string;
-  thresholdHours?: number;
 }
 
 export interface DataQualityNotApplicableCheck extends DataQualityCompiledBase {
@@ -81,8 +77,6 @@ export interface DataQualityCompileInput {
   schema: DataMartSchema | null;
   timezone: string;
   rule: DataQualityRuleConfig;
-  definitionType?: DataMartDefinitionType;
-  definition?: DataMartDefinition;
   relationship?: DataQualityRelationshipCompileContext;
 }
 
@@ -139,7 +133,7 @@ export class DataQualityCheckCompiler {
       case DataQualityCategory.TYPE_MISMATCH:
         return this.compileTypeMismatch(rule, sourceSql, input.schema, dialect);
       case DataQualityCategory.DATA_FRESHNESS:
-        return this.compileDataFreshness(input, sourceSql, dialect);
+        return this.compileDataFreshness(rule, sourceSql, input.schema, input.timezone, dialect);
       case DataQualityCategory.FUTURE_VALUES:
         return this.compileFutureValues(rule, sourceSql, input.schema, input.timezone, dialect);
       case DataQualityCategory.NEGATIVE_VALUES:
@@ -334,53 +328,29 @@ export class DataQualityCheckCompiler {
   }
 
   private compileDataFreshness(
-    input: DataQualityCompileInput & { rule: DataQualityRuleConfig },
+    rule: DataQualityRuleConfig,
     sourceSql: string,
+    schema: DataMartSchema | null,
+    timezone: string,
     dialect: DataQualitySqlDialect
   ): DataQualityCompiledCheck {
-    const thresholdHours = input.rule.parameters.thresholdHours;
+    const thresholdHours = rule.parameters.thresholdHours;
     if (thresholdHours === undefined) {
-      return notApplicable(input.rule, 'data_freshness requires thresholdHours');
-    }
-    const isPhysical =
-      input.definitionType === DataMartDefinitionType.TABLE ||
-      input.definitionType === DataMartDefinitionType.CONNECTOR;
-    if (isPhysical && input.rule.scope.type !== DataQualityScope.DATA_MART) {
-      return notApplicable(input.rule, 'Physical freshness uses table last-modified metadata');
-    }
-    if (!isPhysical && input.rule.scope.type !== DataQualityScope.FIELD) {
-      return notApplicable(input.rule, 'Logical freshness requires a configured field');
-    }
-    if (isPhysical) {
-      const fullyQualifiedName = getFullyQualifiedName(input.definition);
-      if (!fullyQualifiedName) {
-        return notApplicable(input.rule, 'Physical freshness requires a table reference');
-      }
-      const metadataSql = dialect.tableLastModifiedSql(fullyQualifiedName);
-      if (!metadataSql) {
-        return notApplicable(input.rule, 'Last-modified metadata is unavailable for this storage');
-      }
-      return executable(
-        input.rule,
-        'METADATA_FRESHNESS',
-        dialect.metadataFreshnessReproductionSql(metadataSql, thresholdHours),
-        [query(DataQualityQueryPurpose.METADATA_FRESHNESS, metadataSql)],
-        { thresholdHours }
-      );
+      return notApplicable(rule, 'data_freshness requires thresholdHours');
     }
 
-    const field = resolveFieldRule(input.rule, input.schema);
+    const field = resolveFieldRule(rule, schema);
     if (!field) {
-      return notApplicable(input.rule, 'Query freshness requires a configured Output Schema field');
+      return notApplicable(rule, 'Data freshness requires a configured Output Schema field');
     }
     const type = dialect.normalizeType(field.type);
     if (type !== DataQualityCanonicalType.DATE && type !== DataQualityCanonicalType.TIMESTAMP) {
-      return notApplicable(input.rule, 'Freshness field must be DATE or TIMESTAMP');
+      return notApplicable(rule, 'Freshness field must be DATE or TIMESTAMP');
     }
-    const current = dialect.freshnessCurrent(field.type, input.timezone);
-    const freshnessValue = dialect.freshnessTimestamp('max_value', field.type, input.timezone);
+    const current = dialect.freshnessCurrent(field.type, timezone);
+    const freshnessValue = dialect.freshnessTimestamp('max_value', field.type, timezone);
     if (!current || !freshnessValue) {
-      return notApplicable(input.rule, 'Freshness field temporal kind is not supported');
+      return notApplicable(rule, 'Freshness field temporal kind is not supported');
     }
     const expression = dialect.quoteIdentifier(field.id);
     const cutoff = dialect.subtractHours(current, thresholdHours);
@@ -391,23 +361,12 @@ export class DataQualityCheckCompiler {
     const qualifiedExpression = `s.${expression}`;
     const relevantRow = dialect.nullSafeEquals(qualifiedExpression, 'max_value');
     const reproductionSql = `${prefix}\nSELECT s.* FROM dq_source s CROSS JOIN dq_stats WHERE ${freshnessPredicate} AND ${relevantRow}`;
-    const exampleProjection = fieldExampleProjection(
-      field,
-      collectFields(input.schema),
-      dialect,
-      's'
-    );
+    const exampleProjection = fieldExampleProjection(field, collectFields(schema), dialect, 's');
     const exampleSql = `${prefix}\nSELECT ${exampleProjection} FROM dq_source s CROSS JOIN dq_stats WHERE ${freshnessPredicate} AND ${relevantRow}`;
-    return executable(
-      input.rule,
-      'COUNT',
-      reproductionSql,
-      [
-        query(DataQualityQueryPurpose.MEASUREMENT, measurementSql),
-        query(DataQualityQueryPurpose.EXAMPLES, dialect.limit(exampleSql, 3)),
-      ],
-      { thresholdHours }
-    );
+    return executable(rule, 'COUNT', reproductionSql, [
+      query(DataQualityQueryPurpose.MEASUREMENT, measurementSql),
+      query(DataQualityQueryPurpose.EXAMPLES, dialect.limit(exampleSql, 3)),
+    ]);
   }
 
   private compileFutureValues(
@@ -576,7 +535,7 @@ function executable(
   queries: DataQualityCompiledQuery[],
   metadata: Pick<
     DataQualityExecutableCheck,
-    'expectedType' | 'expectedNativeType' | 'expectedMode' | 'thresholdHours'
+    'expectedType' | 'expectedNativeType' | 'expectedMode'
   > = {}
 ): DataQualityExecutableCheck {
   return {
@@ -737,11 +696,4 @@ function formatNumber(value: number): string {
     throw new Error('Data Quality numeric parameters must be finite and non-negative');
   }
   return String(value);
-}
-
-function getFullyQualifiedName(definition?: DataMartDefinition): string | null {
-  if (!definition) return null;
-  if ('fullyQualifiedName' in definition) return definition.fullyQualifiedName;
-  if ('connector' in definition) return definition.connector.storage.fullyQualifiedName;
-  return null;
 }

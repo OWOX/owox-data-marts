@@ -47,8 +47,6 @@ export interface DataQualitySqlDialect {
   ): boolean;
   freshnessTimestamp(expression: string, nativeType: string, timezone: string): string | null;
   typeIntrospectionSql(sourceSql: string, fieldExpression: string): string;
-  tableLastModifiedSql(fullyQualifiedName: string): string | null;
-  metadataFreshnessReproductionSql(metadataSql: string, thresholdHours: number): string;
   limit(sql: string, count: number): string;
 }
 
@@ -76,13 +74,6 @@ abstract class BaseDataQualitySqlDialect implements DataQualitySqlDialect {
     timezone: string
   ): string | null;
   abstract typeIntrospectionSql(sourceSql: string, fieldExpression: string): string;
-  abstract tableLastModifiedSql(fullyQualifiedName: string): string | null;
-
-  metadataFreshnessReproductionSql(metadataSql: string, thresholdHours: number): string {
-    const boundedMetadataSql = stripTrailingRowLimit(metadataSql);
-    const cutoff = this.subtractHours(this.currentTimestamp('UTC'), thresholdHours);
-    return `WITH dq_metadata AS (\n${boundedMetadataSql}\n)\nSELECT * FROM dq_metadata WHERE last_modified_at < ${cutoff}`;
-  }
 
   nullSafeEquals(left: string, right: string): string {
     return `${left} IS NOT DISTINCT FROM ${right}`;
@@ -183,16 +174,6 @@ export class BigQueryDataQualitySqlDialect extends BaseDataQualitySqlDialect {
   typeIntrospectionSql(sourceSql: string, fieldExpression: string): string {
     return `${sourceCte(sourceSql)}\nSELECT TYPEOF((SELECT ANY_VALUE(${fieldExpression}) FROM dq_source)) AS actual_type`;
   }
-
-  tableLastModifiedSql(fullyQualifiedName: string): string | null {
-    const parts = splitQualifiedName(fullyQualifiedName);
-    if (parts.length < 2 || parts.length > 3) return null;
-    const [project, dataset, table] = parts.length === 3 ? parts : [undefined, parts[0], parts[1]];
-    const metadataTable = project
-      ? this.quoteIdentifier(`${project}.${dataset}.__TABLES__`)
-      : this.quoteIdentifier(`${dataset}.__TABLES__`);
-    return `SELECT TIMESTAMP_MILLIS(last_modified_time) AS last_modified_at\nFROM ${metadataTable}\nWHERE table_id = ${quoteSqlString(table)}\nLIMIT 1`;
-  }
 }
 
 @Injectable()
@@ -264,10 +245,6 @@ export class AthenaDataQualitySqlDialect extends BaseDataQualitySqlDialect {
   typeIntrospectionSql(sourceSql: string, fieldExpression: string): string {
     return `${sourceCte(sourceSql)}\nSELECT typeof((SELECT arbitrary(${fieldExpression}) FROM dq_source)) AS actual_type`;
   }
-
-  tableLastModifiedSql(): string | null {
-    return null;
-  }
 }
 
 @Injectable()
@@ -335,19 +312,6 @@ export class SnowflakeDataQualitySqlDialect extends BaseDataQualitySqlDialect {
   typeIntrospectionSql(sourceSql: string, fieldExpression: string): string {
     return `${sourceCte(sourceSql)}\nSELECT SYSTEM$TYPEOF((SELECT ANY_VALUE(${fieldExpression}) FROM dq_source)) AS actual_type`;
   }
-
-  tableLastModifiedSql(fullyQualifiedName: string): string | null {
-    const parts = splitQualifiedNameParts(fullyQualifiedName);
-    if (parts.length !== 3) return null;
-    const [database, schema, table] = parts;
-    if (!database.quoted && !/^[A-Za-z_][A-Za-z0-9_$]*$/.test(database.value)) return null;
-    const databaseReference = database.quoted
-      ? `"${database.value.replaceAll('"', '""')}"`
-      : database.value;
-    const schemaName = schema.quoted ? schema.value : schema.value.toUpperCase();
-    const tableName = table.quoted ? table.value : table.value.toUpperCase();
-    return `SELECT LAST_ALTERED AS last_modified_at\nFROM ${databaseReference}."INFORMATION_SCHEMA"."TABLES"\nWHERE TABLE_SCHEMA = ${quoteSqlString(schemaName)} AND TABLE_NAME = ${quoteSqlString(tableName)}\nLIMIT 1`;
-  }
 }
 
 @Injectable()
@@ -414,10 +378,6 @@ export class RedshiftDataQualitySqlDialect extends BaseDataQualitySqlDialect {
 
   typeIntrospectionSql(sourceSql: string, fieldExpression: string): string {
     return `${sourceCte(sourceSql)}\nSELECT ${fieldExpression} AS dq_value FROM dq_source WHERE 1 = 0`;
-  }
-
-  tableLastModifiedSql(): string | null {
-    return null;
   }
 
   private currentUtcTimestamp(): string {
@@ -490,12 +450,6 @@ export class DatabricksDataQualitySqlDialect extends BaseDataQualitySqlDialect {
 
   typeIntrospectionSql(sourceSql: string, fieldExpression: string): string {
     return `${sourceCte(sourceSql)}\nSELECT typeof((SELECT first(${fieldExpression}, true) FROM dq_source)) AS actual_type`;
-  }
-
-  tableLastModifiedSql(fullyQualifiedName: string): string | null {
-    const parts = splitQualifiedName(fullyQualifiedName);
-    if (parts.length < 1 || parts.length > 3) return null;
-    return `SELECT MAX(_metadata.file_modification_time) AS last_modified_at\nFROM ${this.quoteIdentifier(fullyQualifiedName)}`;
   }
 }
 
@@ -747,64 +701,6 @@ function hoursToSafeInteger(hours: number, multiplier: number): number {
 
 function stripTrailingSemicolon(sql: string): string {
   return sql.trimEnd().replace(/;\s*$/, '');
-}
-
-function stripTrailingRowLimit(sql: string): string {
-  return stripTrailingSemicolon(sql).replace(/\s+LIMIT\s+\d+\s*$/i, '');
-}
-
-function splitQualifiedName(value: string): string[] {
-  return splitQualifiedNameParts(value).map(part => part.value);
-}
-
-interface QualifiedNamePart {
-  value: string;
-  quoted: boolean;
-}
-
-function splitQualifiedNameParts(value: string): QualifiedNamePart[] {
-  const rawParts: string[] = [];
-  let current = '';
-  let quote: '`' | '"' | null = null;
-  for (let index = 0; index < value.length; index += 1) {
-    const character = value[index];
-    if (quote) {
-      current += character;
-      if (character === quote) {
-        if (value[index + 1] === quote) {
-          current += value[index + 1];
-          index += 1;
-        } else {
-          quote = null;
-        }
-      }
-      continue;
-    }
-    if (character === '`' || character === '"') {
-      quote = character;
-      current += character;
-    } else if (character === '.') {
-      rawParts.push(current);
-      current = '';
-    } else {
-      current += character;
-    }
-  }
-  rawParts.push(current);
-  return rawParts
-    .map(raw => raw.trim())
-    .filter(Boolean)
-    .map(raw => {
-      const quoteCharacter = raw[0];
-      const quoted =
-        (quoteCharacter === '`' || quoteCharacter === '"') && raw.endsWith(quoteCharacter);
-      return {
-        quoted,
-        value: quoted
-          ? raw.slice(1, -1).replaceAll(`${quoteCharacter}${quoteCharacter}`, quoteCharacter)
-          : raw,
-      };
-    });
 }
 
 function typeHead(nativeType: string): string {

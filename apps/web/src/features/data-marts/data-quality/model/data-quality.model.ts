@@ -68,24 +68,32 @@ const STATUS_PRESENTATIONS: Record<DataQualitySummaryState, DataQualityStatusPre
 export function toStoredDataQualityConfig(config: EffectiveDataQualityConfig): DataQualityConfig {
   return {
     timezone: config.timezone,
-    rules: config.rules.map(
-      ({
-        key,
-        category,
-        scope,
-        severity,
-        enabled,
-        parameters,
-      }): DataQualityConfig['rules'][number] => ({
-        key,
-        category,
-        scope: { ...scope },
-        severity,
-        enabled,
-        parameters: { ...parameters },
-      })
-    ),
+    rules: config.rules
+      .filter(rule => !isTableLevelDataFreshness(rule))
+      .map(
+        ({
+          key,
+          category,
+          scope,
+          severity,
+          enabled,
+          parameters,
+        }): DataQualityConfig['rules'][number] => ({
+          key,
+          category,
+          scope: { ...scope },
+          severity,
+          enabled,
+          parameters: { ...parameters },
+        })
+      ),
   };
+}
+
+export function isTableLevelDataFreshness(
+  rule: Pick<EffectiveDataQualityRuleConfig, 'category' | 'scope'>
+): boolean {
+  return rule.category === 'data_freshness' && rule.scope.type === 'DATA_MART';
 }
 
 export function getDataQualityStatusPresentation(summary: {

@@ -7,11 +7,7 @@ import { SqlRunExecutorFacade } from '../data-storage-types/facades/sql-run-exec
 import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataQualityMappedError } from '../dto/schemas/data-quality/data-quality-run.schema';
 import { DataMart } from '../entities/data-mart.entity';
-import {
-  DataQualityCompiledCheck,
-  DataQualityCompiledQuery,
-  DataQualityQueryPurpose,
-} from './data-quality-check-compiler';
+import { DataQualityCompiledCheck, DataQualityCompiledQuery } from './data-quality-check-compiler';
 import type { DataQualityQueryExecution } from './data-quality-result-parser';
 
 export interface DataQualityExecutedCheck {
@@ -84,13 +80,11 @@ export class DataQualityQueryExecutorService {
             executions.push({
               purpose: query.purpose,
               sql: query.sql,
-              error:
-                metadataUnavailableError(storage.type, query.purpose, error) ??
-                toDataQualityMappedError(
-                  errorMapper.toStorageReadError(error, {
-                    force: true,
-                  })
-                ),
+              error: toDataQualityMappedError(
+                errorMapper.toStorageReadError(error, {
+                  force: true,
+                })
+              ),
             });
             break;
           }
@@ -143,51 +137,6 @@ function isCancellation(error: unknown, signal?: AbortSignal): boolean {
   );
 }
 
-function metadataUnavailableError(
-  storageType: DataStorageType,
-  purpose: DataQualityQueryPurpose,
-  error: unknown
-): DataQualityMappedError | null {
-  if (purpose !== DataQualityQueryPurpose.METADATA_FRESHNESS) return null;
-  const code = explicitProviderErrorCode(error);
-  if (!code || !METADATA_UNAVAILABLE_CODES[storageType]?.includes(normalizeCode(code))) {
-    return null;
-  }
-  return {
-    code: 'METADATA_UNAVAILABLE',
-    message: explicitProviderErrorMessage(error) ?? 'Last-modified metadata is unavailable',
-    details: null,
-  };
-}
-
-const METADATA_UNAVAILABLE_CODES: Partial<Record<DataStorageType, readonly string[]>> = {
-  [DataStorageType.GOOGLE_BIGQUERY]: ['NOTFOUND', 'NOT_FOUND', 'TABLE_NOT_FOUND'],
-  [DataStorageType.LEGACY_GOOGLE_BIGQUERY]: ['NOTFOUND', 'NOT_FOUND', 'TABLE_NOT_FOUND'],
-  [DataStorageType.SNOWFLAKE]: ['OBJECT_NOT_FOUND', '002003'],
-  [DataStorageType.DATABRICKS]: [
-    'DELTA_MISSING_DELTA_TABLE',
-    'DELTA_NOT_A_TABLE',
-    'TABLE_OR_VIEW_NOT_FOUND',
-  ],
-};
-
-function explicitProviderErrorCode(error: unknown): string | null {
-  const record = asRecord(error);
-  const response = asRecord(record.response);
-  const status = asRecord(response.status);
-  const errorResult = asRecord(status.errorResult);
-  const firstError = Array.isArray(record.errors) ? asRecord(record.errors[0]) : {};
-  const candidates = [
-    record.code,
-    record.errorCode,
-    record.reason,
-    errorResult.reason,
-    firstError.reason,
-  ];
-  const value = candidates.find(candidate => typeof candidate === 'string' && candidate.trim());
-  return typeof value === 'string' ? value : null;
-}
-
 function explicitProviderErrorMessage(error: unknown): string | null {
   const record = asRecord(error);
   const response = asRecord(record.response);
@@ -197,13 +146,6 @@ function explicitProviderErrorMessage(error: unknown): string | null {
   const candidates = [record.message, errorResult.message, firstError.message];
   const value = candidates.find(candidate => typeof candidate === 'string' && candidate.trim());
   return typeof value === 'string' ? value : null;
-}
-
-function normalizeCode(code: string): string {
-  return code
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]+/g, '_');
 }
 
 function toDataQualityMappedError(error: unknown): DataQualityMappedError {

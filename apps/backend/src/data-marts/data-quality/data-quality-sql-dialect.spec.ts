@@ -68,22 +68,10 @@ describe('DataQualitySqlDialect registry', () => {
     );
   });
 
-  it('uses Snowflake resource casing rules for metadata while preserving field-path casing', async () => {
+  it('preserves Snowflake field-path casing', async () => {
     const dialect = await createDataQualitySqlDialectRegistry().resolve(DataStorageType.SNOWFLAKE);
 
     expect(dialect.quoteIdentifier('payload.CustomerId')).toBe('"payload"."CustomerId"');
-    expect(dialect.tableLastModifiedSql('mydb.public.orders')).toContain(
-      'FROM mydb."INFORMATION_SCHEMA"."TABLES"'
-    );
-    expect(dialect.tableLastModifiedSql('mydb.public.orders')).toContain(
-      "TABLE_SCHEMA = 'PUBLIC' AND TABLE_NAME = 'ORDERS'"
-    );
-    expect(dialect.tableLastModifiedSql('"mydb"."MixedCase"."Orders"')).toContain(
-      "TABLE_SCHEMA = 'MixedCase' AND TABLE_NAME = 'Orders'"
-    );
-    expect(dialect.tableLastModifiedSql('"mydb"."MixedCase"."Orders"')).toContain(
-      'FROM "mydb"."INFORMATION_SCHEMA"."TABLES"'
-    );
   });
 
   it('uses executable Redshift null-safe equality without IS NOT DISTINCT FROM', async () => {
@@ -122,17 +110,6 @@ describe('DataQualitySqlDialect registry', () => {
     expect(sql).toContain('SELECT "amount" AS dq_value FROM dq_source WHERE 1 = 0');
     expect(sql).not.toMatch(/\bLIMIT\b/i);
     expect(sql).not.toContain('pg_typeof');
-  });
-
-  it('uses the same Databricks file metadata query for measurement and reproduction', async () => {
-    const dialect = await createDataQualitySqlDialectRegistry().resolve(DataStorageType.DATABRICKS);
-    const metadataSql = dialect.tableLastModifiedSql('catalog.schema.orders');
-
-    expect(metadataSql).toBe(
-      'SELECT MAX(_metadata.file_modification_time) AS last_modified_at\n' +
-        'FROM `catalog`.`schema`.`orders`'
-    );
-    expect(dialect.metadataFreshnessReproductionSql(metadataSql!, 24)).toContain(metadataSql);
   });
 
   it.each([

@@ -17,7 +17,6 @@ import {
   buildDataQualityRuleKey,
 } from '../dto/schemas/data-quality/data-quality-config.schema';
 import { DataQualityRelationshipSnapshot } from '../dto/schemas/data-quality/data-quality-run.schema';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataQualityCategory } from '../enums/data-quality-category.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
@@ -26,7 +25,6 @@ const TABLE_CATEGORIES = [
   DataQualityCategory.PK_UNIQUENESS,
   DataQualityCategory.DUPLICATE_ROWS,
   DataQualityCategory.EMPTY_TABLE,
-  DataQualityCategory.DATA_FRESHNESS,
 ] as const;
 
 const FIELD_CATEGORIES = [
@@ -73,10 +71,9 @@ const NESTED_COLLECTION_FIELD_REASON =
 export function resolveEffectiveDataQualityConfig(
   savedConfig: DataQualityConfig | null | undefined,
   schema: DataMartSchema | null | undefined,
-  relationships: readonly DataQualityRelationshipSnapshot[],
-  definitionType: DataMartDefinitionType | null | undefined
+  relationships: readonly DataQualityRelationshipSnapshot[]
 ): EffectiveDataQualityConfig {
-  const systemPreset = deriveSystemPreset(schema, relationships, definitionType);
+  const systemPreset = deriveSystemPreset(schema, relationships);
   if (savedConfig === null || savedConfig === undefined) {
     return systemPreset;
   }
@@ -113,8 +110,7 @@ export function resolveEffectiveDataQualityConfig(
 
 function deriveSystemPreset(
   schema: DataMartSchema | null | undefined,
-  relationships: readonly DataQualityRelationshipSnapshot[],
-  definitionType: DataMartDefinitionType | null | undefined
+  relationships: readonly DataQualityRelationshipSnapshot[]
 ): EffectiveDataQualityConfig {
   const fields = collectCurrentFields(schema?.fields ?? []);
   const storageType = storageTypeForSchema(schema);
@@ -142,13 +138,11 @@ function deriveSystemPreset(
   for (const category of TABLE_CATEGORIES) {
     const scope: DataQualityCheckScope = { type: DataQualityScope.DATA_MART };
     const hasPrimaryKey = primaryKeyIds.size > 0;
-    const freshnessApplicability = getDataMartFreshnessApplicability(category, definitionType);
     const duplicateRowsApplicable =
       category !== DataQualityCategory.DUPLICATE_ROWS ||
       (topLevelFields.length > 0 && unsupportedDuplicateField === undefined);
     const isApplicable =
       (category !== DataQualityCategory.PK_UNIQUENESS || (hasPrimaryKey && !hasUnsafePrimaryKey)) &&
-      freshnessApplicability.isApplicable &&
       duplicateRowsApplicable;
     rules.push(
       createRule(category, scope, {
@@ -166,7 +160,7 @@ function deriveSystemPreset(
                 ? 'No connected materialized Output Schema fields are available'
                 : category === DataQualityCategory.DUPLICATE_ROWS && unsupportedDuplicateField
                   ? `Field ${unsupportedDuplicateField.id} cannot be canonicalized for duplicate comparison`
-                  : freshnessApplicability.reason,
+                  : undefined,
       })
     );
   }
@@ -181,7 +175,7 @@ function deriveSystemPreset(
         category === DataQualityCategory.NULL_RATE && primaryKeyIds.has(field.id);
       const isRelationshipNullRate =
         category === DataQualityCategory.NULL_RATE && relationshipJoinFieldIds.has(field.id);
-      const applicability = getFieldApplicability(category, field, schema, definitionType);
+      const applicability = getFieldApplicability(category, field, schema);
       rules.push(
         createRule(category, scope, {
           enabled: applicability.isApplicable && (isPrimaryKeyNullRate || isRelationshipNullRate),
@@ -307,26 +301,10 @@ function collectCurrentFields(
 function getFieldApplicability(
   category: DataQualityCategory,
   field: CurrentField,
-  schema: DataMartSchema | null | undefined,
-  definitionType: DataMartDefinitionType | null | undefined
+  schema: DataMartSchema | null | undefined
 ): { isApplicable: boolean; reason?: string } {
   if (field.requiresFlattening) {
     return { isApplicable: false, reason: NESTED_COLLECTION_FIELD_REASON };
-  }
-
-  if (category === DataQualityCategory.DATA_FRESHNESS) {
-    if (isPhysicalDefinition(definitionType)) {
-      return {
-        isApplicable: false,
-        reason: 'Field freshness is not applicable to physical TABLE or CONNECTOR definitions',
-      };
-    }
-    if (!isLogicalDefinition(definitionType)) {
-      return {
-        isApplicable: false,
-        reason: 'Data Mart definition type is required to determine freshness strategy',
-      };
-    }
   }
 
   const storageType = storageTypeForSchema(schema);
@@ -373,41 +351,6 @@ function descendantsRequireFlattening(field: DataMartSchemaField): boolean {
   const mode = 'mode' in field && typeof field.mode === 'string' ? field.mode.toUpperCase() : '';
   const type = String(field.type).trim().toUpperCase();
   return mode === 'REPEATED' || type === 'VARIANT' || /^(?:ARRAY|MAP)(?:$|[<(])/.test(type);
-}
-
-function getDataMartFreshnessApplicability(
-  category: DataQualityCategory,
-  definitionType: DataMartDefinitionType | null | undefined
-): { isApplicable: boolean; reason?: string } {
-  if (category !== DataQualityCategory.DATA_FRESHNESS || isPhysicalDefinition(definitionType)) {
-    return { isApplicable: true };
-  }
-  if (isLogicalDefinition(definitionType)) {
-    return {
-      isApplicable: false,
-      reason:
-        'Metadata freshness is not applicable to logical SQL, VIEW, or TABLE_PATTERN definitions',
-    };
-  }
-  return {
-    isApplicable: false,
-    reason: 'Data Mart definition type is required to determine freshness strategy',
-  };
-}
-
-function isPhysicalDefinition(definitionType: DataMartDefinitionType | null | undefined): boolean {
-  return (
-    definitionType === DataMartDefinitionType.TABLE ||
-    definitionType === DataMartDefinitionType.CONNECTOR
-  );
-}
-
-function isLogicalDefinition(definitionType: DataMartDefinitionType | null | undefined): boolean {
-  return (
-    definitionType === DataMartDefinitionType.SQL ||
-    definitionType === DataMartDefinitionType.VIEW ||
-    definitionType === DataMartDefinitionType.TABLE_PATTERN
-  );
 }
 
 function storageTypeForSchema(schema: DataMartSchema | null | undefined): DataStorageType | null {

@@ -47,6 +47,28 @@ describe('data quality model', () => {
     });
   });
 
+  it('drops legacy table-level freshness from stored configs', () => {
+    const effective: EffectiveDataQualityConfig = {
+      timezone: 'UTC',
+      rules: [
+        dataMartRule(),
+        {
+          key: 'data_freshness:data_mart',
+          category: 'data_freshness',
+          scope: { type: 'DATA_MART' },
+          severity: 'warning',
+          enabled: true,
+          parameters: { thresholdHours: 24 },
+          isApplicable: true,
+        },
+      ],
+    };
+
+    expect(toStoredDataQualityConfig(effective).rules).toEqual([
+      expect.objectContaining({ key: 'empty_table:data_mart' }),
+    ]);
+  });
+
   it.each([
     ['NEVER_RUN', 'Quality has not been run yet'],
     ['QUEUED', 'Quality run queued'],

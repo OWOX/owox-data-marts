@@ -117,6 +117,34 @@ describe('DataQualityWorkspace', () => {
     expect(screen.getByText('1 enabled')).toBeInTheDocument();
   });
 
+  it('does not render legacy table-level freshness returned by the API', () => {
+    mockWorkspace({
+      configResponse: {
+        ...configResponse,
+        effectiveConfig: {
+          ...configResponse.effectiveConfig,
+          rules: [
+            ...configResponse.effectiveConfig.rules,
+            {
+              key: 'data_freshness:data_mart',
+              category: 'data_freshness',
+              scope: { type: 'DATA_MART' },
+              severity: 'warning',
+              enabled: true,
+              parameters: { thresholdHours: 24 },
+              isApplicable: true,
+            },
+          ],
+        },
+      },
+    });
+
+    renderWorkspace();
+
+    expect(screen.queryByTestId('quality-rule-data_freshness:data_mart')).not.toBeInTheDocument();
+    expect(screen.queryByText('Data freshness')).not.toBeInTheDocument();
+  });
+
   it('falls back to the relationship id when display metadata is unavailable', () => {
     mockWorkspace({ configResponse: { ...configResponse, relationships: [] } });
 

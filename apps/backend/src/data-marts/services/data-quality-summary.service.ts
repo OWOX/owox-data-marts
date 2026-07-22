@@ -86,8 +86,7 @@ export class DataQualitySummaryService {
       const effective = resolveEffectiveDataQualityConfig(
         dataMart.dataQualityConfig,
         dataMart.schema,
-        relationships,
-        dataMart.definitionType
+        relationships
       );
       const enabledChecks = effective.rules.filter(rule => rule.enabled).length;
       latest.set(dataMart.id, createNoRunDataQualitySummary(enabledChecks));
