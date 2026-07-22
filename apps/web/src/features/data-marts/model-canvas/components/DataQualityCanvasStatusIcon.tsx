@@ -1,4 +1,4 @@
-import { LoaderCircle, Play } from 'lucide-react';
+import { LoaderCircle, Play, ShieldAlert, ShieldX } from 'lucide-react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@owox/ui/components/hover-card';
 import { useState } from 'react';
 import type { MouseEvent } from 'react';
@@ -28,8 +28,40 @@ export function DataQualityCanvasStatusIcon({
 }: DataQualityCanvasStatusIconProps) {
   const [isStartingQuality, setIsStartingQuality] = useState(false);
   const presentation = getDataQualityStatusVisual(summary);
-  const Icon = presentation.icon;
-  const actionLabel = `Open Data Quality for ${dataMartTitle}: ${presentation.label}`;
+  const StatusIcon = presentation.icon;
+  const resultIndicators = [
+    {
+      count: summary.errorChecks,
+      singular: 'execution error',
+      tone: 'error' as const,
+      icon: ShieldX,
+    },
+    {
+      count: summary.errorFindings,
+      singular: 'critical finding',
+      tone: 'error' as const,
+      icon: ShieldAlert,
+    },
+    {
+      count: summary.warningFindings,
+      singular: 'warning finding',
+      tone: 'warning' as const,
+      icon: ShieldAlert,
+    },
+    {
+      count: summary.noticeFindings,
+      singular: 'notice finding',
+      tone: 'notice' as const,
+      icon: ShieldAlert,
+    },
+  ].filter(indicator => indicator.count > 0);
+  const showResultIndicators =
+    (summary.state === 'ISSUES' || summary.state === 'EXECUTION_FAILED') &&
+    resultIndicators.length > 0;
+  const resultIndicatorLabel = resultIndicators
+    .map(indicator => pluralize(indicator.count, indicator.singular))
+    .join(', ');
+  const actionLabel = `Open Data Quality for ${dataMartTitle}: ${presentation.label}${showResultIndicators ? `, ${resultIndicatorLabel}` : ''}`;
   const isActive = presentation.isActive;
   const timeLabel =
     summary.state === 'QUEUED'
@@ -62,17 +94,35 @@ export function DataQualityCanvasStatusIcon({
       <HoverCardTrigger asChild>
         <button
           type='button'
-          className={`${DATA_QUALITY_STATUS_TEXT_CLASSES[presentation.tone]} -ml-0.5 inline-flex shrink-0 cursor-pointer rounded p-0.5 transition-colors`}
+          className={`${showResultIndicators ? '' : DATA_QUALITY_STATUS_TEXT_CLASSES[presentation.tone]} -ml-0.5 inline-flex shrink-0 cursor-pointer items-center rounded p-0.5 transition-colors ${showResultIndicators ? 'gap-1.5' : ''}`}
           aria-label={actionLabel}
           onPointerDown={event => {
             event.stopPropagation();
           }}
           onClick={handleClick}
         >
-          <Icon
-            className={`size-4 ${summary.state === 'RUNNING' ? 'animate-spin' : ''}`}
-            aria-hidden={true}
-          />
+          {showResultIndicators ? (
+            resultIndicators.map(indicator => {
+              const label = pluralize(indicator.count, indicator.singular);
+              const IndicatorIcon = indicator.icon;
+              return (
+                <span
+                  key={indicator.singular}
+                  role='img'
+                  aria-label={label}
+                  className={`${DATA_QUALITY_STATUS_TEXT_CLASSES[indicator.tone]} inline-flex items-center gap-0.5`}
+                >
+                  <IndicatorIcon className='size-4' aria-hidden={true} />
+                  <span className='leading-none font-medium tabular-nums'>{indicator.count}</span>
+                </span>
+              );
+            })
+          ) : (
+            <StatusIcon
+              className={`size-4 ${summary.state === 'RUNNING' ? 'animate-spin' : ''}`}
+              aria-hidden={true}
+            />
+          )}
         </button>
       </HoverCardTrigger>
       <HoverCardContent
@@ -100,7 +150,6 @@ export function DataQualityCanvasStatusIcon({
           ) : (
             <>
               {summary.passedChecks > 0 && <p>{summary.passedChecks} passed</p>}
-              {summary.failedChecks > 0 && <p>{summary.failedChecks} failed</p>}
               {summary.notApplicableChecks > 0 && (
                 <p>{summary.notApplicableChecks} not applicable</p>
               )}

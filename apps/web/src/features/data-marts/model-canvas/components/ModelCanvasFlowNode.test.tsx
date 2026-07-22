@@ -120,7 +120,7 @@ describe('ModelCanvasFlowNode', () => {
     renderNode(vi.fn(), onOpenQuality, undefined, parentClick);
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Open Data Quality for Orders: Issues found' })
+      screen.getByRole('button', { name: /^Open Data Quality for Orders: Issues found/ })
     );
 
     expect(onOpenQuality).toHaveBeenCalledOnce();
@@ -131,7 +131,7 @@ describe('ModelCanvasFlowNode', () => {
     renderNode();
 
     expect(
-      screen.getByRole('button', { name: 'Open Data Quality for Orders: Issues found' })
+      screen.getByRole('button', { name: /^Open Data Quality for Orders: Issues found/ })
     ).toHaveClass('-ml-0.5');
   });
 
@@ -139,7 +139,7 @@ describe('ModelCanvasFlowNode', () => {
     renderNode();
 
     const qualityAction = screen.getByRole('button', {
-      name: 'Open Data Quality for Orders: Issues found',
+      name: /^Open Data Quality for Orders: Issues found/,
     });
     fireEvent.pointerEnter(qualityAction, { pointerType: 'mouse' });
 
@@ -163,7 +163,7 @@ describe('ModelCanvasFlowNode', () => {
       screen.queryByRole('button', { name: 'Run Quality for Orders' })
     ).not.toBeInTheDocument();
     fireEvent.pointerEnter(
-      screen.getByRole('button', { name: 'Open Data Quality for Orders: Issues found' }),
+      screen.getByRole('button', { name: /^Open Data Quality for Orders: Issues found/ }),
       { pointerType: 'mouse' }
     );
     const runAction = await screen.findByRole('button', { name: 'Run Quality for Orders' });

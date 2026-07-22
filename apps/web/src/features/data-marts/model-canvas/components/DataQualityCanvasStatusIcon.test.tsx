@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import { formatDateShort } from '../../../../utils/date-formatters';
@@ -95,9 +95,9 @@ describe('DataQualityCanvasStatusIcon', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: /Open Data Quality for Orders/ })).toHaveClass(
-      colorClass
-    );
+    const button = screen.getByRole('button', { name: /Open Data Quality for Orders/ });
+    const colorTarget = button.querySelector('[role="img"]') ?? button;
+    expect(colorTarget).toHaveClass(colorClass);
   });
 
   it.each([
@@ -142,6 +142,96 @@ describe('DataQualityCanvasStatusIcon', () => {
       .getByRole('button', { name: /Open Data Quality for Orders/ })
       .querySelector('svg');
     expect(icon).toHaveClass(iconClass, 'size-4');
+  });
+
+  it('shows a colored icon and count for every finding severity', () => {
+    render(
+      <DataQualityCanvasStatusIcon
+        dataMartTitle='Orders'
+        summary={buildSummary({
+          state: 'ISSUES',
+          passedChecks: 0,
+          failedChecks: 6,
+          errorFindings: 3,
+          warningFindings: 2,
+          noticeFindings: 1,
+          highestSeverity: 'error',
+        })}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Open Data Quality for Orders/ });
+    const critical = within(button).getByLabelText('3 critical findings');
+    const warning = within(button).getByLabelText('2 warning findings');
+    const notice = within(button).getByLabelText('1 notice finding');
+
+    expect(critical).toHaveClass('text-red-500');
+    expect(warning).toHaveClass('text-amber-500');
+    expect(notice).toHaveClass('text-muted-foreground');
+    expect(critical).toHaveTextContent('3');
+    expect(warning).toHaveTextContent('2');
+    expect(notice).toHaveTextContent('1');
+    expect(button.querySelectorAll('svg')).toHaveLength(3);
+    button.querySelectorAll('svg').forEach(icon => {
+      expect(icon).toHaveClass('lucide-shield-alert', 'size-4');
+    });
+  });
+
+  it('shows execution errors alongside findings from a partially failed run', () => {
+    render(
+      <DataQualityCanvasStatusIcon
+        dataMartTitle='Orders'
+        summary={buildSummary({
+          state: 'EXECUTION_FAILED',
+          passedChecks: 1,
+          failedChecks: 2,
+          errorChecks: 2,
+          errorFindings: 1,
+          warningFindings: 1,
+          highestSeverity: 'error',
+        })}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Open Data Quality for Orders/ });
+    const executionErrors = within(button).getByLabelText('2 execution errors');
+    const critical = within(button).getByLabelText('1 critical finding');
+    const warning = within(button).getByLabelText('1 warning finding');
+
+    expect(executionErrors).toHaveClass('text-red-500');
+    expect(executionErrors.querySelector('svg')).toHaveClass('lucide-shield-x', 'size-4');
+    expect(critical.querySelector('svg')).toHaveClass('lucide-shield-alert', 'size-4');
+    expect(warning.querySelector('svg')).toHaveClass('lucide-shield-alert', 'size-4');
+    expect(button.querySelectorAll('svg')).toHaveLength(3);
+  });
+
+  it('omits zero-valued severity indicators from the canvas node', () => {
+    render(
+      <DataQualityCanvasStatusIcon
+        dataMartTitle='Orders'
+        summary={buildSummary({
+          state: 'ISSUES',
+          passedChecks: 1,
+          failedChecks: 2,
+          errorFindings: 0,
+          warningFindings: 2,
+          noticeFindings: 0,
+          highestSeverity: 'warning',
+        })}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Open Data Quality for Orders/ });
+    expect(within(button).getByLabelText('2 warning findings')).toBeInTheDocument();
+    expect(within(button).queryByLabelText(/critical finding/)).not.toBeInTheDocument();
+    expect(within(button).queryByLabelText(/notice finding/)).not.toBeInTheDocument();
+    expect(button.querySelectorAll('svg')).toHaveLength(1);
   });
 
   it('animates only while quality checks are running', () => {
@@ -241,7 +331,7 @@ describe('DataQualityCanvasStatusIcon', () => {
     expect(screen.getByText('All checks disabled')).toHaveClass('whitespace-nowrap');
   });
 
-  it('shows terminal results, findings, and the last checked time on focus', async () => {
+  it('shows non-overlapping terminal results, findings, and the last checked time on focus', async () => {
     const summary = buildSummary({
       state: 'ISSUES',
       passedChecks: 2,
@@ -268,7 +358,7 @@ describe('DataQualityCanvasStatusIcon', () => {
     expect(details).toHaveTextContent('3 enabled');
     expect(details).not.toHaveTextContent('enableds');
     expect(details).toHaveTextContent('2 passed');
-    expect(details).toHaveTextContent('1 failed');
+    expect(details).not.toHaveTextContent('1 failed');
     expect(details).not.toHaveTextContent('0 not applicable');
     expect(details).toHaveTextContent('1 execution error');
     expect(details).toHaveTextContent('3 critical findings');
