@@ -169,6 +169,21 @@ export class UnsupportedOperatorError extends Error {
   }
 }
 
+/**
+ * Single construction site for the client-facing unsupported-operator message,
+ * shared by query_data_mart and the report tools so the copies cannot drift.
+ * Deliberately does NOT suggest emulating 'in' with repeated 'eq' filters:
+ * filters combine with AND, so two 'eq' rules on one field match nothing.
+ */
+export function unsupportedOperatorMessage(op: string): string {
+  return (
+    `Filter operator '${op}' is not supported yet. Supported operators: ` +
+    `${SUPPORTED_MCP_OPERATORS.join(', ')}. Filters combine with AND, so an OR match across ` +
+    `several values of one field (like 'in') cannot be expressed in the current vocabulary — ` +
+    `do not emulate it with repeated 'eq' filters on the same field.`
+  );
+}
+
 export class UnsupportedAggregationError extends Error {
   constructor(fn: string) {
     super(`unsupported_aggregation: '${fn}' is not a supported aggregate function`);

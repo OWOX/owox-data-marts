@@ -19,6 +19,7 @@ import {
   mapReportFilters,
   mapReportSort,
 } from './report-output-controls-input';
+import { rethrowTranslatedOutputControlsError } from './output-controls-error.mapper';
 
 // The raw shape (exposed to MCP clients) has every change field optional; the
 // parsed schema additionally requires at least one of them, since an update
@@ -37,13 +38,13 @@ const baseInputSchema = z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". filters and slices together replace ALL current filter rules (both kinds); pass [] (with slices omitted or empty) to remove every filter; omit both to keep current.'
+        'Replacement row filters applied on every report run — same shape and operator vocabulary as query_data_mart\'s "filters". Replaces only the current row filters (stored slices are untouched); pass [] to remove every row filter; omit to keep current.'
       ),
     slices: z
       .array(makeMcpFilterSchema())
       .optional()
       .describe(
-        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". filters and slices together replace ALL current filter rules; omit both to keep current.'
+        'Replacement pre-join filters (blended data marts only), same as query_data_mart\'s "slices". Replaces only the current slices (stored row filters are untouched); pass [] to remove every slice; omit to keep current.'
       ),
     aggregations: z
       .array(makeMcpAggregationSchema())
@@ -174,10 +175,13 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       message,
     } = this.parseInput(input);
 
-    const result = await this.reports.updateReport({
+    // filters and slices are mapped separately: each replaces only its own kind
+    // of stored rule (post-join vs pre-join), so updating one never wipes the other.
+    const request = {
       reportId: report_id,
       fields,
-      filterConfig: mapReportFilters(slices, filters),
+      postJoinFilters: filters !== undefined ? mapReportFilters(undefined, filters) : undefined,
+      preJoinFilters: slices !== undefined ? mapReportFilters(slices, undefined) : undefined,
       aggregationConfig: mapReportAggregations(aggregations),
       dateTruncConfig: mapReportDateBuckets(date_buckets),
       sortConfig: mapReportSort(sort),
@@ -187,7 +191,14 @@ export class UpdateReportTool implements McpToolDefinition<UpdateReportInput> {
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles,
-    });
+    };
+
+    let result;
+    try {
+      result = await this.reports.updateReport(request);
+    } catch (err) {
+      rethrowTranslatedOutputControlsError(err);
+    }
 
     return jsonToolResult({ report_id: result.report_id, status: result.status });
   }

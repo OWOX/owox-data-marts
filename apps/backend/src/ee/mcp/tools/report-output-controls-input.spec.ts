@@ -45,6 +45,14 @@ describe('mapReportFilters', () => {
     expect(() =>
       mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
     ).toThrow(/Supported operators/);
+    // Regression: filters combine with AND, so the message must not steer the
+    // client into emulating 'in' with repeated eq filters — that matches nothing.
+    expect(() =>
+      mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
+    ).toThrow(/cannot be expressed.*do not emulate it with repeated 'eq'/);
+    expect(() =>
+      mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
+    ).not.toThrow(/use multiple filters/);
   });
 
   it('turns a malformed operand into a BadRequestException', () => {

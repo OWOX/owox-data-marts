@@ -131,11 +131,17 @@ export interface McpUpdateReportRequest {
   /** Replacement column selection; `['*']` (or containing `'*'`) selects every field. Omit to keep the current selection. */
   fields?: string[];
   /**
-   * Replacement row filter rules (already mapped to the domain vocabulary;
-   * includes pre-join slice rules). Replaces ALL current filters; `null`
-   * removes every filter. Omit (`undefined`) to keep the current filters.
+   * Replacement post-join filter rules (the tool's `filters`). Replaces only
+   * the report's current post-join rules — stored pre-join (slice) rules are
+   * untouched; `null` removes every post-join rule. Omit to keep current.
    */
-  filterConfig?: FilterConfig;
+  postJoinFilters?: FilterConfig;
+  /**
+   * Replacement pre-join slice rules (the tool's `slices`). Replaces only the
+   * report's current pre-join rules — stored post-join rules are untouched;
+   * `null` removes every pre-join rule. Omit to keep current.
+   */
+  preJoinFilters?: FilterConfig;
   /** Replacement aggregations; `null` removes them. Omit to keep current. */
   aggregationConfig?: AggregationConfig;
   /** Replacement date-trunc buckets; `null` removes them. Omit to keep current. */

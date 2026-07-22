@@ -1108,27 +1108,68 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     );
   });
 
-  it('replaces the filter rules while preserving the name and columns', async () => {
+  it('replaces the row filters while preserving the name and columns', async () => {
     const { facade, updateReportService } = buildUpdateFacade();
 
-    const filterConfig: FilterConfig = [
+    const postJoinFilters: FilterConfig = [
       { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
     ];
-    await facade.updateReport({ ...updateRequest, filterConfig });
+    await facade.updateReport({ ...updateRequest, postJoinFilters });
 
     expect(updateReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Old name',
         columnConfig: ['channel', 'revenue'],
-        filterConfig,
+        filterConfig: postJoinFilters,
       })
     );
   });
 
-  it('clears every filter when filterConfig is null', async () => {
+  it('replaces only the touched filter kind, preserving the stored rules of the other', async () => {
+    const { facade, getReportService, updateReportService } = buildUpdateFacade();
+    const storedSlice = { column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' };
+    const storedFilter = {
+      column: 'channel',
+      operator: 'eq',
+      value: 'ads',
+      placement: 'post-join',
+    };
+    getReportService.run.mockResolvedValue({
+      ...currentReport,
+      filterConfig: [storedSlice, storedFilter],
+    } as unknown as ReportDto);
+
+    // Row filters only → the stored slice survives untouched.
+    const postJoinFilters: FilterConfig = [
+      { column: 'purchases', operator: 'gt', value: 10, placement: 'post-join' },
+    ];
+    await facade.updateReport({ ...updateRequest, postJoinFilters });
+    expect(updateReportService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ filterConfig: [storedSlice, ...(postJoinFilters ?? [])] })
+    );
+
+    // Slices only → the stored row filter survives untouched.
+    const preJoinFilters: FilterConfig = [
+      { column: 'source', operator: 'eq', value: 'meta', placement: 'pre-join' },
+    ];
+    await facade.updateReport({ ...updateRequest, preJoinFilters });
+    expect(updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: [...(preJoinFilters ?? []), storedFilter] })
+    );
+
+    // Clearing one kind with null leaves the other kind in place.
+    await facade.updateReport({ ...updateRequest, postJoinFilters: null });
+    expect(updateReportService.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterConfig: [storedSlice] })
+    );
+  });
+
+  it('clears the row filters with null, treating placement-less stored rules as post-join', async () => {
+    // currentReport's stored rule carries no placement (UI-created) — it must be
+    // treated as post-join and thus removed by a post-join clear.
     const { facade, updateReportService } = buildUpdateFacade();
 
-    await facade.updateReport({ ...updateRequest, filterConfig: null });
+    await facade.updateReport({ ...updateRequest, postJoinFilters: null });
 
     expect(updateReportService.run).toHaveBeenCalledWith(
       expect.objectContaining({ filterConfig: null })

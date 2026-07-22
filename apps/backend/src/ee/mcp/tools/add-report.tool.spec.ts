@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpReportsFacade } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
@@ -253,6 +254,27 @@ describe('AddReportTool', () => {
       )
     ).rejects.toThrow(/not supported yet.*Supported operators/);
     expect(facade.addReport).not.toHaveBeenCalled();
+  });
+
+  it('translates output-controls validation errors from the facade into agent guidance', async () => {
+    const facade = {
+      addReport: jest.fn().mockRejectedValue(
+        new BadRequestException({
+          message: 'Output controls validation failed',
+          details: { errors: [{ code: 'AGGREGATION_REQUIRES_COLUMN_CONFIG' }] },
+        })
+      ),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    // fields ['*'] + aggregations is a plausible agent mistake ("export everything,
+    // summed"); the opaque validator message must become an actionable fix.
+    await expect(
+      tool.handler(
+        { ...input, fields: ['*'], aggregations: [{ field: 'revenue', function: 'SUM' }] },
+        context
+      )
+    ).rejects.toThrow(/explicit column selection/);
   });
 
   it('validates required input and rejects unexpected keys', () => {

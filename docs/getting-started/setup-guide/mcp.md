@@ -487,8 +487,8 @@ Updates an existing report: renames it, replaces which data mart fields it expor
 | ----------- | --------------------------------------------------------------------------------- |
 | `report_id` | Report to update (from `get_data_mart_reports`)                                   |
 | `fields`    | Optional. Replacement column selection, or `["*"]` for every field                |
-| `filters`   | Optional. Replacement row filters (same vocabulary as `query_data_mart`'s `filters`). Together with `slices` replaces all current filter rules; `[]` removes every filter |
-| `slices`    | Optional. Replacement pre-join filters (blended data marts only). Together with `filters` replaces all current filter rules |
+| `filters`   | Optional. Replacement row filters (same vocabulary as `query_data_mart`'s `filters`). Replaces only the current row filters — stored slices are untouched; `[]` removes every row filter |
+| `slices`    | Optional. Replacement pre-join filters (blended data marts only). Replaces only the current slices — stored row filters are untouched; `[]` removes every slice |
 | `aggregations` | Optional. Replacement aggregations; `[]` removes them |
 | `date_buckets` | Optional. Replacement date buckets; `[]` removes them |
 | `sort`      | Optional. Replacement sort order; `[]` removes it |

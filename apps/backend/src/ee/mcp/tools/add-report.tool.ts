@@ -24,6 +24,7 @@ import {
   mapReportFilters,
   mapReportSort,
 } from './report-output-controls-input';
+import { rethrowTranslatedOutputControlsError } from './output-controls-error.mapper';
 
 /**
  * Looker Studio reports are pull-based: creating one only makes the data mart
@@ -130,7 +131,7 @@ type AddReportInput = z.infer<typeof inputSchema>;
 export class AddReportTool implements McpToolDefinition<AddReportInput> {
   readonly name = 'add_report';
   readonly description =
-    'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). Every destination type accepts the same optional output controls as query_data_mart — filters, slices, aggregations, date_buckets, sort — applied on each run: when the user asks to export numbers they saw in a query, copy those parameters verbatim from that query so the report matches what they saw. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no extra parameters — not even name (Looker Studio reports carry no name), and each data mart + destination pair can have only one Looker report; the result includes instructions and a setup_guide_url to relay to the user, because dashboard data only flows after they connect Looker Studio to OWOX themselves. Email, Slack, Microsoft Teams, Google Chat: requires the message parameter; each report run sends the rendered message to the recipients or channels configured on the destination.';
+    'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). Every destination type accepts the same optional output controls as query_data_mart — filters, slices, aggregations, date_buckets, sort — applied on each run: when the user asks to export numbers they saw in a query, copy those parameters verbatim from that query so the report matches what they saw. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no Looker-specific parameters and no name (Looker Studio reports carry no name) — the shared output controls above DO apply — and each data mart + destination pair can have only one Looker report; the result includes instructions and a setup_guide_url to relay to the user, because dashboard data only flows after they connect Looker Studio to OWOX themselves. Email, Slack, Microsoft Teams, Google Chat: requires the message parameter; each report run sends the rendered message to the recipients or channels configured on the destination.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -206,7 +207,7 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       message,
     } = this.parseInput(input);
 
-    const result = await this.reports.addReport({
+    const request = {
       dataMartId: data_mart_id,
       destinationId: destination_id,
       fields,
@@ -221,7 +222,14 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       userId: context.userId,
       userEmail: context.email,
       roles: context.roles,
-    });
+    };
+
+    let result;
+    try {
+      result = await this.reports.addReport(request);
+    } catch (err) {
+      rethrowTranslatedOutputControlsError(err);
+    }
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const isLookerStudio = result.destination_type === 'looker_studio';

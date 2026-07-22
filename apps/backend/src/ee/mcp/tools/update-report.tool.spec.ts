@@ -64,31 +64,35 @@ describe('UpdateReportTool', () => {
     );
   });
 
-  it('maps replacement filters into domain rules, and [] into null (remove all)', async () => {
+  it('maps filters and slices independently per placement, and [] into null (remove that kind)', async () => {
     const facade = {
       updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
+    // filters alone touches only the post-join kind; slices stay undefined (keep current).
     await tool.handler(
       { report_id: 'report-1', filters: [{ field: 'purchases', operator: 'eq', value: 0 }] },
       context
     );
     expect(facade.updateReport).toHaveBeenCalledWith(
       expect.objectContaining({
-        filterConfig: [{ column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' }],
+        postJoinFilters: [
+          { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
+        ],
+        preJoinFilters: undefined,
       })
     );
 
     await tool.handler({ report_id: 'report-1', filters: [] }, context);
     expect(facade.updateReport).toHaveBeenLastCalledWith(
-      expect.objectContaining({ filterConfig: null })
+      expect.objectContaining({ postJoinFilters: null, preJoinFilters: undefined })
     );
 
     // Omitted filters must stay undefined so the facade keeps the current ones.
     await tool.handler({ report_id: 'report-1', name: 'New name' }, context);
     expect(facade.updateReport).toHaveBeenLastCalledWith(
-      expect.objectContaining({ filterConfig: undefined })
+      expect.objectContaining({ postJoinFilters: undefined, preJoinFilters: undefined })
     );
   });
 
@@ -111,7 +115,8 @@ describe('UpdateReportTool', () => {
     );
     expect(facade.updateReport).toHaveBeenCalledWith(
       expect.objectContaining({
-        filterConfig: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+        preJoinFilters: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+        postJoinFilters: undefined,
         aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
         dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
         sortConfig: [{ column: 'revenue', direction: 'desc' }],
@@ -148,6 +153,14 @@ describe('UpdateReportTool', () => {
         context
       )
     ).rejects.toThrow(/not supported yet.*Supported operators/);
+    // Regression: filters combine with AND, so the error must NOT steer the
+    // agent into emulating 'in' with repeated eq filters (that matches nothing).
+    await expect(
+      tool.handler(
+        { report_id: 'report-1', filters: [{ field: 'channel', operator: 'in', value: ['ads'] }] },
+        context
+      )
+    ).rejects.toThrow(/cannot be expressed.*do not emulate it with repeated 'eq'/);
     expect(facade.updateReport).not.toHaveBeenCalled();
   });
 

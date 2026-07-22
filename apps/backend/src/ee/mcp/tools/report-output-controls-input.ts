@@ -8,7 +8,7 @@ import {
   mapMcpDateBuckets,
   mapMcpFiltersToRules,
   mapMcpSort,
-  SUPPORTED_MCP_OPERATORS,
+  unsupportedOperatorMessage,
   UnsupportedOperatorError,
 } from './query-data-mart.input';
 
@@ -32,11 +32,7 @@ type McpSortInput = { field: string; direction: 'asc' | 'desc' };
  */
 function wrapMappingError(err: unknown): never {
   if (err instanceof UnsupportedOperatorError) {
-    throw new BadRequestException(
-      `Filter operator '${err.operator}' is not supported yet. Supported operators: ` +
-        `${SUPPORTED_MCP_OPERATORS.join(', ')}. To match one of several values, use multiple ` +
-        `filters with 'eq' (there is no 'in'/'not_in').`
-    );
+    throw new BadRequestException(unsupportedOperatorMessage(err.operator));
   }
   if (err instanceof Error) {
     // Operand-shape and unsupported-function/unit errors from the mappers
