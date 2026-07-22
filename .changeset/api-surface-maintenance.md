@@ -42,3 +42,12 @@ project-wide discovery of reusable insight definitions across accessible Data Ma
 `OWOXProjectInsightTemplateListOptions`. Each result includes its Data Mart reference, creator
 metadata when available, and the current member's `canDelete` state. Existing viewer access and
 HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
+
+## Add Markdown rendering API contract and client support
+
+`POST /api/markdown/parse-to-html` now publishes an explicit OpenAPI contract for its Markdown
+request and raw HTML response. `@owox/api-client` adds
+`markdown.parseToHtml({ markdown })` and exports `OWOXMarkdownParseRequest` and
+`OWOXMarkdownParseResponse` for rendering with the same pipeline as the OWOX Data Marts web
+interface. Existing viewer access and HTTP behavior are unchanged, and consumers can adopt the
+client method without a migration.

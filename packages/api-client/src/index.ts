@@ -23,6 +23,7 @@ export {
   type OWOXModelCanvasJoinCondition,
   type OWOXModelCanvasNode,
 } from './model-canvas.js';
+export { type OWOXMarkdownParseRequest, type OWOXMarkdownParseResponse } from './markdown.js';
 export {
   type OWOXProjectDataMartRun,
   type OWOXProjectDataMartRunRef,

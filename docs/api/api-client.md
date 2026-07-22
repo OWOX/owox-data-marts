@@ -128,6 +128,22 @@ from 1 through 100, increment `offset` by the number of returned templates, and 
 contains fewer items than that limit or the next offset would exceed 100,000. The endpoint cannot
 page beyond that maximum offset.
 
+## Convert Markdown to HTML
+
+Use `markdown.parseToHtml()` to render Markdown with the same pipeline and styling wrapper used by
+the OWOX Data Marts web interface. The method returns the rendered HTML string directly.
+
+```ts
+const html = await client.markdown.parseToHtml({
+  markdown: '# Weekly revenue\n\n**Net revenue** after refunds.',
+});
+
+console.log(html);
+```
+
+The method requires viewer access to the API key's project. Treat the returned HTML according to
+the same trust and embedding rules as Markdown rendered in the application.
+
 ## List data marts
 
 ```ts
