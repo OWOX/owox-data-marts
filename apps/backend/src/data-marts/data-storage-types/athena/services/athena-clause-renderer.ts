@@ -102,8 +102,14 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${ph}`, params: [{ name: paramName, value: rule.value }] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} != ${ph}`, params: [{ name: paramName, value: rule.value }] };
+        return {
+          sql: `(${col} IS NULL OR ${col} <> ${ph})`,
+          params: [{ name: paramName, value: rule.value }],
+        };
       case 'gt':
         return { sql: `${col} > ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'lt':
@@ -118,8 +124,9 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
           params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'not_contains':
+        // strpos(NULL, …) is NULL, so bare `= 0` drops NULL rows; keep them.
         return {
-          sql: `strpos(${col}, ?) = 0`,
+          sql: `(${col} IS NULL OR strpos(${col}, ?) = 0)`,
           params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'starts_with':
@@ -141,7 +148,7 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
         return { sql: `regexp_like(${col}, ?)`, params: [{ name: paramName, value: rule.value }] };
       case 'not_regex':
         return {
-          sql: `NOT regexp_like(${col}, ?)`,
+          sql: `(${col} IS NULL OR NOT regexp_like(${col}, ?))`,
           params: [{ name: paramName, value: rule.value }],
         };
       case 'is_empty':

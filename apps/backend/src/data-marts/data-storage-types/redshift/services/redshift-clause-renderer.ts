@@ -106,8 +106,11 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${lit(rule.value)}`, params: [] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} <> ${lit(rule.value)}`, params: [] };
+        return { sql: `(${col} IS NULL OR ${col} <> ${lit(rule.value)})`, params: [] };
       case 'gt':
         return { sql: `${col} > ${lit(rule.value)}`, params: [] };
       case 'lt':
@@ -121,7 +124,11 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
       case 'contains':
         return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) > 0`, params: [] };
       case 'not_contains':
-        return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) = 0`, params: [] };
+        // STRPOS(NULL, …) is NULL, so bare `= 0` drops NULL rows; keep them.
+        return {
+          sql: `(${col} IS NULL OR STRPOS(${col}, ${lit(String(rule.value))}) = 0)`,
+          params: [],
+        };
       case 'starts_with':
         return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) = 1`, params: [] };
       case 'ends_with': {
@@ -131,7 +138,10 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
       case 'regex':
         return { sql: `${col} ~ ${lit(String(rule.value))}`, params: [] };
       case 'not_regex':
-        return { sql: `${col} !~ ${lit(String(rule.value))}`, params: [] };
+        return {
+          sql: `(${col} IS NULL OR ${col} !~ ${lit(String(rule.value))})`,
+          params: [],
+        };
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':

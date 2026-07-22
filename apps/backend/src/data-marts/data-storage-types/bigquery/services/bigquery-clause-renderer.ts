@@ -77,8 +77,14 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${ph}`, params: [{ name: paramName, value: rule.value }] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} != ${ph}`, params: [{ name: paramName, value: rule.value }] };
+        return {
+          sql: `(${col} IS NULL OR ${col} <> ${ph})`,
+          params: [{ name: paramName, value: rule.value }],
+        };
       case 'gt':
         return { sql: `${col} > ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'lt':
@@ -97,8 +103,9 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'not_contains':
+        // STRPOS(NULL, …) is NULL, so bare `= 0` drops NULL rows; keep them.
         return {
-          sql: `STRPOS(${col}, @${paramName}) = 0`,
+          sql: `(${col} IS NULL OR STRPOS(${col}, @${paramName}) = 0)`,
           params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'starts_with':
@@ -118,7 +125,7 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         };
       case 'not_regex':
         return {
-          sql: `NOT REGEXP_CONTAINS(${col}, @${paramName})`,
+          sql: `(${col} IS NULL OR NOT REGEXP_CONTAINS(${col}, @${paramName}))`,
           params: [{ name: paramName, value: rule.value }],
         };
       case 'is_empty':

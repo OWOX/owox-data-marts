@@ -782,6 +782,9 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
     //   5  ALPHA    a_b    50  false  today
     //   6  (empty)  x       0  true   mid last year (anchored: Jul 1 of last year)
     //   7  future   f      70  true   ~13 months from now (next calendar year)
+    //   8  NULL     NULL  NULL NULL   NULL / NULL  (all-NULL row — proves negative
+    //                    operators keep NULLs: neq/not_contains/not_regex include it,
+    //                    is_null returns it, comparison/affix/regex/date filters drop it)
     //
     // Row-date expressions are anchored to the calendar year (not sliding day
     // offsets near a boundary) so relative_date assertions hold whenever the suite
@@ -799,7 +802,8 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
         (4, 'alphabet', 'a%b',  40,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 5 DAY),      TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 5 DAY))),
         (5, 'ALPHA',    'a_b',  50,  false, CURRENT_DATE(),                                TIMESTAMP_ADD(TIMESTAMP(CURRENT_DATE()), INTERVAL 13 HOUR)),
         (6, '',         'x',     0,  true,  DATE_SUB(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 6 MONTH),  TIMESTAMP(DATE_SUB(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 6 MONTH))),
-        (7, 'future',   'f',    70,  true,  DATE_ADD(CURRENT_DATE(), INTERVAL 13 MONTH),   TIMESTAMP(DATE_ADD(CURRENT_DATE(), INTERVAL 13 MONTH)))`
+        (7, 'future',   'f',    70,  true,  DATE_ADD(CURRENT_DATE(), INTERVAL 13 MONTH),   TIMESTAMP(DATE_ADD(CURRENT_DATE(), INTERVAL 13 MONTH))),
+        (8, NULL,       NULL,   NULL, NULL, NULL,                                          NULL)`
     );
   }, 120000);
 
@@ -813,11 +817,11 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
 
   // --- Scalar operators on score ---
 
-  it('neq: score != 20 → rows 1,3,4,5,6,7', async () => {
+  it('neq: score != 20 → rows 1,3,4,5,6,7,8 (null-inclusive: NULL row 8 kept)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'score', operator: 'neq', value: 20 }],
     });
-    expect(ids(rows)).toEqual([1, 3, 4, 5, 6, 7]);
+    expect(ids(rows)).toEqual([1, 3, 4, 5, 6, 7, 8]);
   }, 60000);
 
   it('gt: score > 30 → rows 4,5,7', async () => {
@@ -850,11 +854,11 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
 
   // --- Substring / affix operators on name ---
 
-  it('not_contains: name not contains "alpha" → rows 2,3,5,6,7 (case-sensitive; ALPHA excluded; future row 7)', async () => {
+  it('not_contains: name not contains "alpha" → rows 2,3,5,6,7,8 (case-sensitive; ALPHA excluded; NULL row 8 kept)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'not_contains', value: 'alpha' }],
     });
-    expect(ids(rows)).toEqual([2, 3, 5, 6, 7]);
+    expect(ids(rows)).toEqual([2, 3, 5, 6, 7, 8]);
   }, 60000);
 
   it('starts_with: name starts with "alpha" → rows 1,4', async () => {
@@ -914,20 +918,20 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
     expect(ids(rows)).toEqual([1, 4]);
   }, 60000);
 
-  it('not_regex: name not matching "^alpha" → rows 2,3,5,6,7', async () => {
+  it('not_regex: name not matching "^alpha" → rows 2,3,5,6,7,8 (null-inclusive: NULL row 8 kept)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'not_regex', value: '^alpha' }],
     });
-    expect(ids(rows)).toEqual([2, 3, 5, 6, 7]);
+    expect(ids(rows)).toEqual([2, 3, 5, 6, 7, 8]);
   }, 60000);
 
   // --- No-value operators ---
 
-  it('is_empty on name → row 6 (empty string)', async () => {
+  it('is_empty on name → rows 6,8 (empty string + NULL; is_empty is null-inclusive)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'is_empty' }],
     });
-    expect(ids(rows)).toEqual([6]);
+    expect(ids(rows)).toEqual([6, 8]);
   }, 60000);
 
   it('is_not_empty on name → rows 1,2,3,4,5,7', async () => {
@@ -937,11 +941,11 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
     expect(ids(rows)).toEqual([1, 2, 3, 4, 5, 7]);
   }, 60000);
 
-  it('is_null on name → 0 rows (no NULLs in seed)', async () => {
+  it('is_null on name → row 8 (the NULL-seeded row)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'is_null' }],
     });
-    expect(rows).toHaveLength(0);
+    expect(ids(rows)).toEqual([8]);
   }, 60000);
 
   it('is_not_null on name → all 7 rows', async () => {

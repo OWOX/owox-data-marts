@@ -214,7 +214,7 @@ describe('RedshiftBlendedQueryBuilder — output controls', () => {
         ],
       })
     );
-    expect(sql).toContain("WHERE main.a = 'x'\n  AND main.a <> 'y'");
+    expect(sql).toContain("WHERE main.a = 'x'\n  AND (main.a IS NULL OR main.a <> 'y')");
     expect(params).toEqual([]);
   });
 });

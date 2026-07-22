@@ -88,8 +88,11 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${lit(rule.value)}`, params: [] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} <> ${lit(rule.value)}`, params: [] };
+        return { sql: `(${col} IS NULL OR ${col} <> ${lit(rule.value)})`, params: [] };
       case 'gt':
         return { sql: `${col} > ${lit(rule.value)}`, params: [] };
       case 'lt':
@@ -101,7 +104,11 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
       case 'contains':
         return { sql: `contains(${col}, ${text(rule.value)})`, params: [] };
       case 'not_contains':
-        return { sql: `NOT contains(${col}, ${text(rule.value)})`, params: [] };
+        // contains(NULL, …) is NULL, so bare NOT drops NULL rows; keep them.
+        return {
+          sql: `(${col} IS NULL OR NOT contains(${col}, ${text(rule.value)}))`,
+          params: [],
+        };
       case 'starts_with':
         return { sql: `startswith(${col}, ${text(rule.value)})`, params: [] };
       case 'ends_with':
@@ -111,7 +118,10 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
         // full-anchored RLIKE — so `^prefix` works like the other storages. Live-verified.
         return { sql: `${col} RLIKE ${text(rule.value)}`, params: [] };
       case 'not_regex':
-        return { sql: `NOT (${col} RLIKE ${text(rule.value)})`, params: [] };
+        return {
+          sql: `(${col} IS NULL OR NOT (${col} RLIKE ${text(rule.value)}))`,
+          params: [],
+        };
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':

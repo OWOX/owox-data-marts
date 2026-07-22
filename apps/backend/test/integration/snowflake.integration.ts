@@ -178,7 +178,9 @@ describeIfSnowflakeCredentials(
           (6, 'gamma',     0.00, 'active',
             CURRENT_DATE,
             DATEADD(minute, 825, CAST(CURRENT_DATE AS TIMESTAMP_NTZ)),
-            '13:45:00')
+            '13:45:00'),
+          -- Row 7: all-NULL row (except id). Proves negative operators keep NULL rows.
+          (7, NULL, NULL, NULL, NULL, NULL, NULL)
       `);
     }, 120000);
 
@@ -273,11 +275,11 @@ describeIfSnowflakeCredentials(
       expect(ids(rows)).toEqual(['1']);
     }, 30000);
 
-    it('neq on status: not "active" → rows 2,4 (inactive)', async () => {
+    it('neq on status: not "active" → rows 2,4,7 (inactive + NULL row, null-inclusive)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'status', operator: 'neq', value: 'active' }],
       });
-      expect(ids(rows)).toEqual(['2', '4']);
+      expect(ids(rows)).toEqual(['2', '4', '7']);
     }, 30000);
 
     it('gt: amount > 20 → rows 3,4,5 (30,40,50)', async () => {
@@ -315,11 +317,11 @@ describeIfSnowflakeCredentials(
       expect(ids(rows)).toEqual(['1']);
     }, 30000);
 
-    it('not_contains "eta" on name → rows 1,3,4,5,6 (all except beta)', async () => {
+    it('not_contains "eta" on name → rows 1,3,4,5,6,7 (all except beta + NULL row, null-inclusive)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'not_contains', value: 'eta' }],
       });
-      expect(ids(rows)).toEqual(['1', '3', '4', '5', '6']);
+      expect(ids(rows)).toEqual(['1', '3', '4', '5', '6', '7']);
     }, 30000);
 
     it('starts_with "al" on name → row 1 (alpha)', async () => {
@@ -343,18 +345,18 @@ describeIfSnowflakeCredentials(
       expect(ids(rows)).toEqual(['1']);
     }, 30000);
 
-    it('not_regex: name NOT REGEXP_INSTR "^alp" → rows 2,3,4,5,6', async () => {
+    it('not_regex: name NOT REGEXP_INSTR "^alp" → rows 2,3,4,5,6,7 (NULL row included, null-inclusive)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'not_regex', value: '^alp' }],
       });
-      expect(ids(rows)).toEqual(['2', '3', '4', '5', '6']);
+      expect(ids(rows)).toEqual(['2', '3', '4', '5', '6', '7']);
     }, 30000);
 
-    it('is_empty: no empty-name rows → 0 rows', async () => {
+    it('is_empty on name → row 7 (the NULL-seeded row; is_empty is null-inclusive)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_empty' }],
       });
-      expect(rows).toHaveLength(0);
+      expect(ids(rows)).toEqual(['7']);
     }, 30000);
 
     it('is_not_empty: all 6 rows have non-empty names', async () => {
@@ -364,11 +366,11 @@ describeIfSnowflakeCredentials(
       expect(rows).toHaveLength(6);
     }, 30000);
 
-    it('is_null: no NULLs in seed → 0 rows', async () => {
+    it('is_null on name → row 7 (the NULL-seeded row)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_null' }],
       });
-      expect(rows).toHaveLength(0);
+      expect(ids(rows)).toEqual(['7']);
     }, 30000);
 
     it('is_not_null: all 6 rows', async () => {
@@ -518,7 +520,8 @@ describeIfSnowflakeCredentials(
           ],
         });
 
-        expect(rows).toHaveLength(2);
+        // 3 groups: active, inactive, and the NULL-status row 7.
+        expect(rows).toHaveLength(3);
         const byStatus = new Map(rows.map(r => [String(r.status ?? r.STATUS ?? ''), r]));
 
         const active = byStatus.get('active')!;
@@ -547,7 +550,8 @@ describeIfSnowflakeCredentials(
           ],
         });
 
-        expect(rows).toHaveLength(2);
+        // 3 groups: active, inactive, and the NULL-status row 7.
+        expect(rows).toHaveLength(3);
         const byStatus = new Map(rows.map(r => [String(r.status ?? r.STATUS ?? ''), r]));
 
         const active = byStatus.get('active')!;
@@ -571,7 +575,8 @@ describeIfSnowflakeCredentials(
           aggregations: [{ column: 'name', function: 'STRING_AGG' }],
         });
 
-        expect(rows).toHaveLength(2);
+        // 3 groups: active, inactive, and the NULL-status row 7.
+        expect(rows).toHaveLength(3);
         const byStatus = new Map(rows.map(r => [String(r.status ?? r.STATUS ?? ''), r]));
 
         const splitSorted = (v: unknown): string[] =>
@@ -596,7 +601,8 @@ describeIfSnowflakeCredentials(
         expect(splitSorted(inactive['name | STRINGAGG'])).toEqual(['100%', 'beta']);
       }, 60000);
 
-      // Case 4 — all percentiles P25/P50/P75/P95 on amount (all 6 rows).
+      // Case 4 — all percentiles P25/P50/P75/P95 on amount (6 non-NULL amounts;
+      // row 7's NULL amount is ignored by PERCENTILE_CONT).
       // PERCENTILE_CONT uses exact linear interpolation:
       //   sorted amounts: [0, 10, 20, 30, 40, 50]
       //   P25=12.5, P50=25.0, P75=37.5, P95=47.5
@@ -640,7 +646,7 @@ describeIfSnowflakeCredentials(
       // The seed has dates spread across multiple months; row 5 is next year.
       // We only assert: correct number of distinct month buckets ≥ 3 (rows 3 and 4
       // are guaranteed to be in different months from today), and total SUM = 150.
-      it('date-trunc MONTH + SUM on date_col — total SUM covers all 6 rows', async () => {
+      it('date-trunc MONTH + SUM on date_col — total SUM covers non-NULL amounts; Row Count covers all 7 rows', async () => {
         const rows = await runFilter({
           columns: ['date_col', 'amount'],
           rowCount: true,
@@ -649,18 +655,20 @@ describeIfSnowflakeCredentials(
         });
 
         expect(rows.length).toBeGreaterThanOrEqual(3);
+        // NULL amount on row 7 does not change SUM; Number(null)→0 for that bucket.
         const totalSum = rows.reduce((acc, r) => acc + Number(r['amount | SUM']), 0);
         expect(totalSum).toBeCloseTo(150, 5);
 
+        // Includes the NULL-date bucket for row 7.
         const totalRows = rows.reduce((acc, r) => acc + Number(r['Row Count']), 0);
-        expect(totalRows).toBe(6);
+        expect(totalRows).toBe(7);
       }, 60000);
 
       // Case 6 — date-trunc YEAR + SUM on date_col.
       // Rows 1,2,3,6 are within the past year; row 4 is ~13 months ago (prev yr);
       // row 5 is next year. So at least 3 distinct year buckets exist.
-      // We only assert: total SUM = 150 (all rows covered), length ≥ 2.
-      it('date-trunc YEAR + SUM on date_col — total SUM covers all 6 rows', async () => {
+      // We only assert: total SUM = 150 (non-NULL amounts), length ≥ 2.
+      it('date-trunc YEAR + SUM on date_col — total SUM covers non-NULL amounts', async () => {
         const rows = await runFilter({
           columns: ['date_col', 'amount'],
           dateTruncs: [{ column: 'date_col', unit: 'YEAR' }],
@@ -685,9 +693,10 @@ describeIfSnowflakeCredentials(
 
         expect(rows).toHaveLength(1);
         const row = rows[0];
+        // SUM ignores NULL amount on row 7; COUNT/Row Count include the all-NULL row.
         expect(Number(row['amount | SUM'])).toBeCloseTo(150, 5);
-        expect(Number(row['id | COUNTUNIQUE'])).toBe(6);
-        expect(Number(row['Row Count'])).toBe(6);
+        expect(Number(row['id | COUNTUNIQUE'])).toBe(7);
+        expect(Number(row['Row Count'])).toBe(7);
       }, 60000);
 
       // Case 8 — aggregation respects a WHERE filter (totals-respect-filters guarantee).
@@ -721,7 +730,7 @@ describeIfSnowflakeCredentials(
       }, 60000);
 
       // Case 10 — multi-dimension group-by (status + date-trunc MONTH).
-      // Combined (status, month) pairs across 6 rows; total SUM must still be 150.
+      // Combined (status, month) pairs across 7 rows (incl. NULL bucket); total SUM must still be 150.
       it('multi-dimension group-by (status + date-trunc MONTH) — groups sum to 150', async () => {
         const rows = await runFilter({
           columns: ['status', 'date_col', 'amount'],
