@@ -67,3 +67,12 @@ OAuth routes under `/api/connectors/{connectorName}/oauth`, `/api/data-destinati
 `/api/data-storages/{id}/oauth`, plus `POST /api/data-destinations/connect/google-sheets`, now
 reject API-key authentication and require an interactive user session. API-key access to non-OAuth
 resource operations is unchanged.
+
+## Publish canonical API-key authentication headers
+
+Protected OpenAPI operations now declare `X-OWOX-Authorization` and, only when API-key-derived
+tokens are accepted, the optional `X-OWOX-Api-Key-Id` header that must match the token's API key
+ID. Routes that reject API-key authentication omit that conditional header, while
+`POST /api/auth/api-keys/exchange` retains its required API key ID input. Runtime authentication
+behavior is unchanged; generated clients and API tooling can use the shared header contract
+without endpoint-specific metadata.

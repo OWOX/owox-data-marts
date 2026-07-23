@@ -1,7 +1,8 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@nestjs/swagger';
+import { ApiForbiddenResponse, ApiSecurity, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { RoleConfig } from '../types/role-config.types';
 import { IdpGuard } from '../guards/idp.guard';
+import { OWOX_AUTHORIZATION_SECURITY_SCHEME } from '../openapi/authentication.openapi';
 
 const ROLE_DISPLAY_NAMES: Record<string, string> = {
   admin: 'Project Admin',
@@ -38,9 +39,11 @@ const ROLE_DISPLAY_NAMES: Record<string, string> = {
  * ```
  */
 export const Auth = (roleConfig: RoleConfig) => {
-  const decorators = [SetMetadata('roleConfig', roleConfig), UseGuards(IdpGuard), ApiBearerAuth()];
+  const decorators = [SetMetadata('roleConfig', roleConfig), UseGuards(IdpGuard)];
 
   if (!roleConfig.optional) {
+    decorators.push(ApiSecurity(OWOX_AUTHORIZATION_SECURITY_SCHEME));
+
     decorators.push(ApiUnauthorizedResponse({ description: 'Authentication required' }));
   }
 
