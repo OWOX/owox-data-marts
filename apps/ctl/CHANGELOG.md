@@ -1,5 +1,12 @@
 # @owox/ctl
 
+## 0.30.0
+
+### Patch Changes
+
+- @owox/internal-helpers@0.30.0
+- @owox/api-client@0.30.0
+
 ## 0.29.0
 
 ### Patch Changes 0.29.0

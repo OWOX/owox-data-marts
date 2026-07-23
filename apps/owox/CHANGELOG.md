@@ -1,5 +1,249 @@
 # owox
 
+## 0.30.0
+
+### Minor Changes
+
+- 2740556: # Improve Output Schema AI actions
+
+  This PR improves the discoverability and organization of Output Schema actions. The **Refresh schema** and global **Generate field aliases & descriptions** actions are now located in the table toolbar, keeping all primary actions in one place. The global AI action has also been simplified by removing the dropdown menu, allowing users to generate both field aliases and descriptions with a single click.
+
+  To make AI features easier to discover, AI action buttons have been added to the **Alias** and **Description** column headers, allowing users to generate values for an entire column directly where the action applies.
+
+  To support these changes, all business logic remains in `DataMartSchemaSettings`, while `TableToolbar` stays a presentational component. A new `SchemaToolbar` interface is used to pass toolbar state and callbacks through the component hierarchy.
+
+- 091d502: # Data Level selection for TikTok Ads performance reports
+
+  TikTok Ads `ad_insights` and `ad_insights_by_country` now honor the selected **Data Level** (advertiser, campaign, ad group, or ad). Data Level is a dropdown in the main connector settings, and the field selector pins only the unique-key fields that level requires. Advertiser-level reports no longer force you to include `ad_id` and can group by date alone. Choose Data Level before selecting fields; when you change it on a connector that already has data, use a new Data Mart so rows merge correctly.
+
+- cb6bc43: # Model canvas
+
+  Add Models canvas: a project-level read-only visualization of the data marts visible to the user in a storage and their relationships, available from the new "Models" sidebar item under Data Marts. Includes filters by storage, status and relationships, search with highlighting, join-field labels on edges, node-avoiding edge routing, selectable layout directions, and directional (including bidirectional) join edges. Both the new canvas and the existing Joinable Data Marts graph are now rendered with React Flow (replacing Rete.js) while preserving their established graph styling and interactions.
+
+- 5595bbd: # Google Sheets A1 note shows import finish time
+
+  The A1 cell note for a Google Sheets export now records **when the import finished**, not when the first data batch started writing. While rows are still streaming, only the short ODM marker is present; the full provenance block (`Imported at …`, data mart title, and link) is written in the finalize step after all data is on the sheet.
+
+- 1fc1bd2: # Clearer Data Mart details in Google Sheets reports
+
+  The Data Mart section on a report card no longer shows “Details are unavailable” while information is still loading. You now see a loading indicator, a clear message if details fail to load, or “No details available” when the Data Mart has no description or owners to show.
+
+- 33cb1ec: # Fix BigQuery report runs when table name matches a filter column
+
+  BigQuery treats an unaliased table’s short name as a row `STRUCT` alias. When a Table Data Mart pointed at a table such as `…country` and a report filtered on a column also named `country`, the generated SQL compared a `STRUCT` to a string and failed (for example on Google Sheets export).
+
+  Output-controls and explicit-projection queries now alias the source as `src` and qualify filter/sort references (`src.\`country\``) in `WHERE`, `ORDER BY`, and `HAVING`. SELECT and GROUP BY stay unqualified so nested RECORD paths keep their previous shape. Existing reports need no reconfiguration; only the generated SQL shape changes.
+
+- f3a83b3: # Add project-based MCP server URLs
+
+  OWOX MCP now supports project-specific server URLs in the form
+  `https://{projectId}.mcp.owox.com/mcp` alongside the existing shared
+  `https://mcp.owox.com/mcp` server.
+
+  Shared MCP connections keep the existing project-selection flow. Project-specific
+  connections derive the project from the MCP host, skip project selection, and still
+  verify that the authenticated user has access to that project before issuing MCP
+  tokens.
+
+  Project settings now show the project-specific MCP URL with copy support for users
+  who need separate custom MCP servers for multiple projects.
+
+- 480e8bc: # Add project-aware MCP instructions
+
+  OWOX MCP servers now provide clients with built-in instructions for discovering and querying Data Marts with the current tool workflow. Project admins can also add project-specific business context in Project settings. The project description is stored per project and appended to the MCP instructions when a client connects.
+
+- 0781310: # Clearer permission errors when managing Storages, Destinations, and Data Marts
+
+  Previously, actions like managing owners or configuring sharing failed with a vague message that did not explain who could perform them, and the error toast disappeared after a few seconds. Now each message names the exact role required — such as owner with the Technical User role, or Project Admin — and the "access forbidden" toast stays on screen until you dismiss it. This helps users understand why an action was blocked and what role they need to proceed.
+
+- 55fcba9: # Improved the reports table UX by making frequently used actions easier to discover and access
+  - Moved **Open document** and **Preview SQL** actions next to the report title.
+  - Kept the **More actions** menu in the actions column.
+  - Added tooltips for truncated report titles.
+  - Extracted reusable report action components for better consistency across report tables.
+
+  This update improves discoverability and provides faster access to common report actions while keeping the table layout clean and consistent.
+
+- b1fc8ff: # Output schema edits no longer get silently reverted
+
+  Previously, unchecking a column (like Alias or Description) in the Output Schema table would revert to visible again after a few seconds, or reset whenever you switched tabs and came back. Toggling "Hidden from reports" on a field while an AI-generated alias or description was still loading would also get undone once the generation finished. Now, column visibility choices persist per data mart across tab switches and page reloads, and any field edits made while AI generation is running are preserved instead of being overwritten. Generating metadata that fills in nothing new also no longer marks the schema as unsaved.
+
+- 5a4eb6d: # Improve Document Link field UX
+
+  Improve the UX of the Document Link section in the Google Sheets Report form by simplifying the available actions and making the primary workflow more obvious.
+  - Show Open document only when a valid Google Sheets URL is provided.
+  - Replace the disabled external link icon with a contextual action.
+  - Present New Sheet as an alternative to pasting a URL by adding an "or" separator.
+  - Update the input placeholder to "Paste a Google Sheets URL".
+  - Replace the custom icon button with a standard ghost button for better UI consistency.
+  - Refine the external link icon size and stroke for improved visual balance.
+
+  Previously, the field displayed three actions at the same time (URL input, Open, and Create document), making the workflow harder to understand.
+
+- 3a5abb3: # Create and update reports for every destination type through MCP
+
+  The `add_report` MCP tool now supports all destination types, not just Google Sheets. Data Studio reports are created with default settings (a data cache lifetime of 5 minutes), and the response includes instructions plus a setup-guide link the assistant relays so the user can connect Data Studio to OWOX — the same guide link is now also part of the `add_destination` response for `looker_studio`. Email, Slack, Microsoft Teams, and Google Chat reports take a new `message` parameter with the subject (defaults to the report name) and the body template (supports the `{{table}}` placeholder); recipients stay on the destination and the send condition gets the product default ("Send always"). The `update_report` tool accepts the same `message` parameter to change the subject and/or body of an existing email-family report, preserving everything else including the send condition. Every `add_report` response now also reports the `destination_type` it created.
+
+- 1fc1bd2: # Clearer report errors and easier recovery in Google Sheets
+
+  When a report cannot run because some columns are missing from the Data Mart schema, the Google Sheets extension now shows the same actionable error as OWOX Data Marts — including which columns to uncheck. If the report is created but the first run fails, the editor still opens so you can fix the setup and try again. Valid report slices also stay in sync with OWOX Data Marts and no longer appear broken in the extension.
+
+- b0f0247: # Shared Login Customer ID field for Google Ads
+
+  The **Login Customer ID** for Google Ads is now a single top-level field shared across all authentication types instead of a separate field nested inside each auth type. Previously the value could be lost when switching between authentication methods and was not reachable from the OAuth button flow. Existing connectors keep working — the old stored value is still read as a fallback. The field is now optional for Service Account authentication and, in the configuration form, appears directly under Customer ID.
+
+- 18c8d9d: # Clearer failed-report errors and selective refresh in Google Sheets
+
+  Refreshing reports from the Google Sheets extension is easier to control and troubleshoot:
+  - On **Refresh all reports**, see each report’s title, sheet, and last-run status, including a clear error message when the last run failed.
+  - Choose which reports to refresh with checkboxes, select all, or quickly target only failed, successful, or never-run reports, then start refresh when you’re ready.
+  - On the single-report refresh screen, failed runs show the actual error details and an **Open report** action so you can jump straight into fixing the setup.
+  - The same last-run error details are available from the **All reports** list.
+
+  This helps you understand what went wrong and refresh only the reports that need it, without re-running everything in the document.
+
+- ba53b3a: # Create and update reports with query-parity output controls through MCP
+
+  The `add_report` MCP tool accepts new optional `filters`, `slices`, `aggregations`, `date_buckets`, `sort`, and `limit` parameters — the same shape and vocabulary as `query_data_mart` — applied to the report on every run. When a user explores data with a filtered or aggregated query and asks to export it, the assistant can now create a report that matches exactly the numbers they saw, instead of silently exporting the full raw data mart. `update_report` accepts the same parameters as replacements for an existing report (`[]` removes a control, `null` removes the row limit; omitting a parameter keeps the current value; `filters` and `slices` each replace only their own kind of stored rule, so touching one never wipes the other). All controls work for every destination type and are validated against the data mart schema before any side effect — for Google Sheets, before the sheet document is created.
+
+- 873c74f: # Report column picker fixes: aggregation editor, Unique count font, filter input & delete
+
+  Adding a column in the report column picker's Aggregations panel now opens the
+  aggregation editor immediately, instead of showing only an icon that required a
+  second click, and its Apply button stays disabled until you pick a function or
+  bucket so a new column can no longer be discarded by an empty Apply. The
+  auto-generated "Unique count" row now uses the same font as the
+  other fields in the column list, so it no longer stands out as visually inconsistent.
+  The relative-date "Last N days/months" filter input can now be cleared with
+  Backspace instead of snapping back to 0. When editing a single filter or slice, a
+  trash button in the editor header now lets you delete it directly, instead of only
+  being able to remove it from the top Filters section.
+
+- 72f3d47: # API surface maintenance
+
+  ## Add project settings API contracts and client support
+
+  The project settings endpoints now publish explicit OpenAPI request and response contracts.
+  `@owox/api-client` adds `project.getSettings()` and `project.updateDescription()` with the
+  same authenticated retry and error behavior as existing client requests.
+
+  ## Add Models canvas API client support
+
+  `@owox/api-client` now exposes paginated Models canvas data marts through
+  `models.getDataMarts()` and their visible relationship edges through `models.getEdges()`.
+
+  ## Add project setup progress API contract and client support
+
+  `GET /api/project-setup-progress` now publishes an explicit OpenAPI response contract.
+  `@owox/api-client` adds `project.getSetupProgress()` and exports
+  `OWOXProjectSetupProgress`, `OWOXProjectSetupProgressSteps`, and
+  `OWOXProjectSetupStepState` for inspecting versioned, member-aware setup state. Existing
+  authenticated viewer access is unchanged, and consumers can adopt the client method without a
+  migration.
+
+  ## Add project run history API client support
+
+  `@owox/api-client` adds `runs.getHistory({ limit, offset })` for authenticated,
+  project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRunsResponse`,
+  `OWOXProjectDataMartRun`, `OWOXProjectDataMartRunRef`, `OWOXProjectDataMartRunUser`,
+  `OWOXProjectDataMartRunStatus`, `OWOXProjectDataMartRunType`,
+  `OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. Existing viewer access
+  and HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
+
+  ## Add project insight-template discovery API client support
+
+  `@owox/api-client` adds `insights.getTemplates({ limit, offset })` for authenticated,
+  project-wide discovery of reusable insight definitions across accessible Data Marts. It exports
+  `OWOXProjectInsightTemplatesResponse`, `OWOXProjectInsightTemplate`,
+  `OWOXProjectInsightTemplateDataMartRef`, `OWOXProjectInsightTemplateUser`, and
+  `OWOXProjectInsightTemplateListOptions`. Each result includes its Data Mart reference, creator
+  metadata when available, and the current member's `canDelete` state. Existing viewer access and
+  HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
+
+  ## Add Markdown rendering API contract and client support
+
+  `POST /api/markdown/parse-to-html` now publishes an explicit OpenAPI contract for its Markdown
+  request and raw HTML response. `@owox/api-client` adds
+  `markdown.parseToHtml({ markdown })` and exports `OWOXMarkdownParseRequest` and
+  `OWOXMarkdownParseResponse` for rendering with the same pipeline as the OWOX Data Marts web
+  interface. Existing viewer access and HTTP behavior are unchanged, and consumers can adopt the
+  client method without a migration.
+
+  ## Add auth context introspection
+
+  `GET /api/auth/context` now publishes an explicit OpenAPI response contract for the current
+  API-key-derived project and member context. `@owox/api-client` exposes `auth.getContext()` and
+  `OWOXAuthContext` for validating a configured API key and reading that context without exposing
+  the API key secret. Existing authentication and authorization behavior are unchanged, and
+  consumers can adopt the client method without a migration.
+
+  ## Require interactive authentication for OAuth flows
+
+  OAuth routes under `/api/connectors/{connectorName}/oauth`, `/api/data-destinations/oauth`,
+  `/api/data-destinations/{id}/oauth`, `/api/data-storages/oauth`, and
+  `/api/data-storages/{id}/oauth`, plus `POST /api/data-destinations/connect/google-sheets`, now
+  reject API-key authentication and require an interactive user session. API-key access to non-OAuth
+  resource operations is unchanged.
+
+  ## Publish canonical API-key authentication headers
+
+  Protected OpenAPI operations now declare `X-OWOX-Authorization` and, only when API-key-derived
+  tokens are accepted, the optional `X-OWOX-Api-Key-Id` header that must match the token's API key
+  ID. Routes that reject API-key authentication omit that conditional header, while
+  `POST /api/auth/api-keys/exchange` retains its required API key ID input. Runtime authentication
+  behavior is unchanged; generated clients and API tooling can use the shared header contract
+  without endpoint-specific metadata.
+
+- 7d09e62: # HTTP Data streaming supports aggregations and date buckets
+
+  The HTTP Data streaming API, the [`@owox/api-client`](../docs/api/api-client.md) `traverseData()`
+  method, and the [`owox-ctl data-marts stream`](../docs/api/owox-ctl.md) command now accept
+  `aggregation` and `dateTrunc` parameters (`--aggregation` / `--date-bucket` on the CLI), matching
+  the aggregation and date-bucket grouping already available for Reports. Any selected column without
+  an aggregation rule becomes a grouping key, so you can stream pre-aggregated rows — for example
+  monthly revenue totals — directly from a published Data Mart without building a Report. Grand
+  totals and the applied aggregation are recorded in the HTTP_DATA run history.
+
+- 97f0c0f: # Correct joined data mart aggregations and flag missing primary keys
+
+  When a joinable data mart field is deduplicated with a count (COUNT / Count Unique), its value in the blended result is a whole number, so reports can now sum, average, or take the min/max of it — the arithmetic aggregations appear automatically with Sum active by default. This makes funnel-style reports (for example sessions, add-to-carts, and purchases across shared dimensions) add up correctly instead of collapsing the joined events into a single concatenated string and under-counting them. Slices (pre-join filters) on such a deduplicated field now offer the operators for its original type, since a slice runs on the raw values before the join. Separately, a joined data mart that has no primary key now shows a "No primary key" warning in both the relationship list and the relationship graph, because without a key the join cannot deduplicate rows reliably and metrics from that data mart can be double-counted (fan-out).
+
+- 52b3245: # Sort rows from the query_data_mart MCP tool
+
+  The `query_data_mart` MCP tool now accepts a `sort` parameter — an ordered list of `{ field, direction }` rules (`asc`/`desc`, first rule primary) — so an AI assistant can order query results (for example "top 10 campaigns by spend, descending") without post-processing. Each sorted field must also be listed in `fields`, matching the existing `aggregations` and `date_buckets` rules. This brings the MCP tool in line with the sorting already available in the Reports, HTTP Data streaming, and CLI query paths.
+
+- 345d78e: # Report totals cover every selected metric, not just numeric fields
+
+  Totals — returned by the `query_data_mart` MCP tool and retrievable for a Data Mart run via its
+  `x-owox-run-id` — now summarize every metric a report aggregates, including `Count` and
+  `Count Unique` on text, date, or boolean columns, across both native and joined Data Mart fields.
+  Previously totals covered numeric fields only, so a scorecard that aggregates a text column (for
+  example the number of distinct countries) came back empty even though the run succeeded. `Sample`
+  (`ANY_VALUE`) and `Combined` (`STRING_AGG`) are no longer included in totals, since neither reduces
+  to a meaningful grand total.
+
+- be8a495: # Cross-platform Windows support for dev scripts and git hooks
+
+  Two Unix-only assumptions broke first-time setup on Windows; both are fixed:
+  - **npm scripts** — inline `VAR=value command` environment-variable assignments (e.g. `npm run dev -w owox` and the package `test` scripts) are wrapped with `cross-env` so they run under cmd/PowerShell, not only Unix shells. No new dependency (`cross-env` is already a hoisted root devDependency) and no lockfile change.
+  - **git hooks** — the husky setup script emitted a Windows batch-style pre-commit hook (`@echo off …`), but Git executes hooks through `sh` on every OS (including the `sh.exe` bundled with Git for Windows), so the hook failed with `@echo: command not found` and blocked commits. It now writes a POSIX shell hook in the modern husky v9 format and self-heals only the stale/deprecated formats it previously generated, leaving hand-edited hooks untouched. This also clears the `husky - DEPRECATED` warning that breaks under husky v10.
+
+### Patch Changes
+
+- 52149e4: # Fix nested blended field name collisions in joinable data marts
+
+  Nested (struct) fields in joined sources no longer share report column names with flat siblings after dots are replaced with underscores. For example, flat `campaign_id` and nested `campaign.id` under the same join alias now produce distinct unified names (`ads__campaign_id` vs `ads__campaign_id__a8702665`).
+  - **Flat blended names** stay byte-for-byte unchanged; existing reports that only use flat joined columns need no config changes.
+  - **Nested blended names** always include a stable 8-character hash of `(aliasPath, originalFieldName)`. New saves and reloads use the hashed form end-to-end.
+  - **Legacy nested names** in already-saved `columnConfig` / filter / sort (pre-hash form such as `customers__campaign_id` for `campaign.id`) are intentionally not migrated in this release and will not resolve after deploy. That population was empty when this shipped; a follow-up migration can re-key them if needed. The pre-join filter migration (`MigratePreJoinFilterToUnifiedColumn`) still emits the pre-hash form for historical rules only.
+  - **Rolling deploy:** during a mixed old/new backend fleet, nested-field reports saved or run mid-rollout can briefly orphan until every pod serves the hashed names. Self-heals once the fleet is fully on the new version; prefer rolling through before bulk-editing nested-column reports.
+  - @owox/internal-helpers@0.30.0
+  - @owox/idp-protocol@0.30.0
+  - @owox/idp-better-auth@0.30.0
+  - @owox/idp-owox-better-auth@0.30.0
+  - @owox/backend@0.30.0
+  - @owox/web@0.30.0
+
 ## 0.29.0
 
 ### Minor Changes 0.29.0
@@ -9,7 +253,6 @@
 - 36fb4d3: **Data Mart report aggregations**
 
   Reports can now aggregate Data Mart data server-side across all supported storages (BigQuery, Athena, Snowflake, Redshift, Databricks).
-
   - **Group-by + metric functions** — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, and percentiles `P25`/`P50`/`P75`/`P95`. Every selected column without an aggregation rule becomes a grouping key.
   - **Date bucketing** (`dateTruncConfig`) — group a date/timestamp dimension by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`, with an optional per-rule IANA `timeZone` applied before truncation.
   - **Aggregated column naming** — outputs are named `<column> | <TOKEN>` (e.g. `revenue | SUM`, `customer_id | COUNTUNIQUE`) and carry the function's effective type. A column can carry several functions, each as its own output column.
@@ -26,7 +269,6 @@
 - 627880f: **Auto-create Google Sheets documents for reports**
 
   A "Create document" action in the Google Sheets report form auto-creates a new spreadsheet for the selected destination and fills in its link. Works for both auth methods — OAuth (document created in the connected account's Drive and shared with the requesting user) and Service Account (created in a configured Shared Drive folder).
-
   - Destinations can target a Drive folder: paste a folder URL for Service Account destinations (validated on save — must be a Shared Drive folder the service account can write to), or pick one via the Google Drive Picker for OAuth destinations.
   - The Picker requires a new `GOOGLE_PICKER_API_KEY` environment variable.
   - The OAuth destination flow now also requests the `drive.file` scope — existing OAuth destinations must reconnect to grant it before folder placement and sharing work.
@@ -55,7 +297,6 @@
 - 662871c: **API-key exchange and auth context**
 
   Project member API keys can now be exchanged for IDP access tokens in Better Auth and the development Null IDP. Exchanged tokens are bound to the API key ID and are rejected from API-key management, project-member administration, user provisioning, Intercom identity, and MCP OAuth authorization endpoints.
-
   - `@owox/api-client` now exposes `client.auth.getContext()`; `owox-ctl status` includes the project and member context resolved from the exchanged token, without exposing key secrets.
   - The auth-context endpoint uses IDP token introspection, and Better Auth refreshes API-key token context from current user and membership state during introspection.
   - Exchanged tokens include the project title used by auth-context responses, and now expire after 15 minutes, so clients re-exchange the underlying API key instead of holding indefinitely valid access tokens.
@@ -66,7 +307,6 @@
   Criteo Ads imports now automatically retry on server errors, rate limits, and network issues, so brief outages on Criteo's side no longer stop an import. When an import still fails, logs now include the HTTP status, the provider's own error message, and a note when the failure looks temporary. Previously a temporary server error failed the whole import immediately with only a raw stack trace in the logs.
 
 - d80b20d: **Report Column Picker search and layout improvements**
-
   - Added a search bar that works across native and blended Data Mart columns.
   - Clear empty state when no matching columns are found.
   - Reorganized toolbar for easier access to selection controls and search.
@@ -1968,7 +2208,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1976,7 +2215,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
