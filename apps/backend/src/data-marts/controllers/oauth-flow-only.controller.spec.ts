@@ -83,6 +83,8 @@ type ControllerWithHandler = Type;
 
 const SWAGGER_OPERATION_METADATA = 'swagger/apiOperation';
 
+// Keep this behavior inventory semantically aligned with the independently maintained
+// Support Matrix exclusion inventory in apps/docs/scripts/api-coverage-matrix.test.mjs.
 const oauthFlowOnlyRoutes: Array<{
   controller: ControllerWithHandler;
   handlerName: string;
@@ -190,4 +192,33 @@ describe('OAuth-flow-only controller routes', () => {
       expect(Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, handler)).toBe(true);
     }
   );
+
+  it('does not reject API keys at controller level or on other handlers', () => {
+    const controllers = [...new Set(oauthFlowOnlyRoutes.map(({ controller }) => controller))];
+    const expectedRejectedHandlers = oauthFlowOnlyRoutes
+      .map(({ controller, handlerName }) => `${controller.name}.${handlerName}`)
+      .sort();
+    const rejectedControllers = controllers
+      .filter(controller => Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, controller) === true)
+      .map(controller => controller.name);
+    const rejectedHandlers = controllers
+      .flatMap(controller =>
+        Object.getOwnPropertyNames(controller.prototype)
+          .filter(handlerName => handlerName !== 'constructor')
+          .filter(handlerName => {
+            const handler = (
+              controller.prototype as unknown as Record<string, (...args: never[]) => unknown>
+            )[handlerName];
+            return (
+              typeof handler === 'function' &&
+              Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, handler) === true
+            );
+          })
+          .map(handlerName => `${controller.name}.${handlerName}`)
+      )
+      .sort();
+
+    expect(rejectedControllers).toEqual([]);
+    expect(rejectedHandlers).toEqual(expectedRejectedHandlers);
+  });
 });

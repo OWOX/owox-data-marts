@@ -260,6 +260,8 @@ test('checked-in matrix uses the public Support Matrix title', () => {
 });
 
 test('checked-in matrix excludes OAuth-flow-only business routes', () => {
+  // Keep this scope inventory semantically aligned with the independently maintained
+  // controller behavior inventory in oauth-flow-only.controller.spec.ts.
   const oauthFlowOnlyEndpoints = [
     'GET /api/connectors/{connectorName}/oauth/settings',
     'POST /api/connectors/{connectorName}/oauth/exchange',
