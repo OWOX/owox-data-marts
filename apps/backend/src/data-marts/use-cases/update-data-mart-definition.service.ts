@@ -72,6 +72,8 @@ export class UpdateDataMartDefinitionService {
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
       const connectorDefinition = command.definition as ConnectorDefinition;
+      const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
+      let sourceDefinition: ConnectorDefinition | undefined;
       let mergedDefinition: ConnectorDefinition;
 
       if (command.sourceDataMartId) {
@@ -91,25 +93,32 @@ export class UpdateDataMartDefinitionService {
           );
         }
 
+        sourceDefinition = sourceDataMart.definition as ConnectorDefinition;
+      }
+
+      this.validateGoogleSheetsSecretReferences(
+        connectorDefinition,
+        previousDefinition,
+        sourceDefinition
+      );
+
+      if (sourceDefinition) {
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
           connectorDefinition,
-          sourceDataMart.definition as ConnectorDefinition
+          sourceDefinition
         );
-
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
           mergedDefinition,
-          dataMart.definition as ConnectorDefinition | undefined
+          previousDefinition
         );
       } else {
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
           connectorDefinition,
-          dataMart.definition as ConnectorDefinition | undefined
+          previousDefinition
         );
       }
 
       // Store previous definition for orphaned secrets cleanup
-      const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
-
       // Extract non-OAuth secrets and save them to a separate table
       dataMart.definition = await this.connectorSecretService.extractAndSaveSecrets(
         dataMart.id,
@@ -202,6 +211,48 @@ export class UpdateDataMartDefinitionService {
       throw new ForbiddenException(
         'You do not have permission to copy Google Sheets credentials from the source DataMart'
       );
+    }
+  }
+
+  private validateGoogleSheetsSecretReferences(
+    incoming: ConnectorDefinition,
+    previous: ConnectorDefinition | undefined,
+    copySource: ConnectorDefinition | undefined
+  ): void {
+    if (incoming.connector.source.name !== 'GoogleSheets') {
+      return;
+    }
+
+    const previousConfigurations = previous?.connector?.source?.configuration ?? [];
+    const sourceConfigurations = copySource?.connector?.source?.configuration ?? [];
+
+    for (const configuration of incoming.connector.source.configuration) {
+      const item = configuration as Record<string, unknown>;
+      const secretsId = typeof item._secrets_id === 'string' ? item._secrets_id : undefined;
+      if (!secretsId) {
+        continue;
+      }
+
+      const matchesPrevious = previousConfigurations.some(previousConfiguration => {
+        const previousItem = previousConfiguration as Record<string, unknown>;
+        return previousItem._id === item._id && previousItem._secrets_id === secretsId;
+      });
+      const copiedFrom =
+        item._copiedFrom && typeof item._copiedFrom === 'object'
+          ? (item._copiedFrom as Record<string, unknown>)
+          : undefined;
+      const matchesCopySource =
+        typeof copiedFrom?.configId === 'string' &&
+        sourceConfigurations.some(sourceConfiguration => {
+          const sourceItem = sourceConfiguration as Record<string, unknown>;
+          return sourceItem._id === copiedFrom.configId && sourceItem._secrets_id === secretsId;
+        });
+
+      if (!matchesPrevious && !matchesCopySource) {
+        throw new ForbiddenException(
+          'The selected Google Sheets credentials cannot be used for this DataMart'
+        );
+      }
     }
   }
 }
