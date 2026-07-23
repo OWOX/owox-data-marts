@@ -36,6 +36,7 @@ jest.mock('@owox/idp-protocol', () => ({}), { virtual: true });
 jest.mock('../use-cases/connector/available-connector.service', () => ({}));
 jest.mock('../use-cases/connector/specification-connector.service', () => ({}));
 jest.mock('../use-cases/connector/fields-connector.service', () => ({}));
+jest.mock('../use-cases/connector/google-sheets-fields-preview.service', () => ({}));
 jest.mock('../mappers/connector.mapper', () => ({}));
 jest.mock('../services/connector/connector-oauth.service', () => ({}));
 jest.mock('../use-cases/create-data-destination.service', () => ({}));

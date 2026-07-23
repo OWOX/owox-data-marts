@@ -83,10 +83,10 @@ describe('useConnector preview requests', () => {
     expect(result.current.connectorFields?.[0]?.fields?.[0]?.name).toBe('Sheet Column');
   });
 
-  it('clears preview loading when the editor unmounts', async () => {
-    vi.spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields').mockReturnValue(
-      new Promise(() => undefined)
-    );
+  it('aborts the preview request when the editor unmounts', async () => {
+    const previewSpy = vi
+      .spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields')
+      .mockReturnValue(new Promise(() => undefined));
     const PreviewControl = () => {
       const { loadingFields, previewGoogleSheetsFields } = useConnector();
       return (
@@ -102,7 +102,12 @@ describe('useConnector preview requests', () => {
     );
     fireEvent.click(view.getByRole('button'));
     expect(view.getByRole('button')).toHaveTextContent('true');
+    const signal = previewSpy.mock.calls[0]?.[1]?.signal;
+    expect(signal?.aborted).toBe(false);
+
     view.rerender(<ConnectorContextProvider>{null}</ConnectorContextProvider>);
+    expect(signal?.aborted).toBe(true);
+
     view.rerender(
       <ConnectorContextProvider>
         <PreviewControl />
