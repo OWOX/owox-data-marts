@@ -20,9 +20,9 @@
     "format:check": "prettier --check \"**/*.{ts,js,mjs,json}\" --ignore-path ../../.prettierignore"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.39.2",
-    "astro": "^6.4.2",
-    "sharp": "^0.34.0",
+    "@astrojs/starlight": "^0.41.4",
+    "astro": "^7.1.3",
+    "sharp": "^0.35.0",
     "starlight-auto-sidebar": "^0.4.0"
   },
   "devDependencies": {
@@ -35,6 +35,6 @@
     "js-yaml": "^4",
     "papaparse": "^5.5.3",
     "rehype-external-links": "^3.0.0",
-    "starlight-links-validator": "^0.24.1"
+    "starlight-links-validator": "^0.25.2"
   }
 }
