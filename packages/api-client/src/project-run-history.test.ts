@@ -49,11 +49,20 @@ const runHistory: OWOXProjectDataMartRunsResponse = {
       runType: 'scheduled',
       dataMartId: 'data-mart-1',
       dataMart: { id: 'data-mart-1', title: 'Marketing performance' },
+      definitionRun: { kind: 'sql', sql: 'SELECT 1' },
+      reportId: null,
+      reportDefinition: null,
+      insightId: null,
+      insightDefinition: null,
+      insightTemplateId: null,
+      insightTemplateDefinition: null,
+      aiSourceDefinition: null,
       createdAt: '2026-07-21T12:00:00.000Z',
       startedAt: '2026-07-21T12:00:01.000Z',
       finishedAt: '2026-07-21T12:05:00.000Z',
       logs: [],
       errors: null,
+      additionalParams: null,
       totals: null,
       createdByUser: {
         userId: 'user-1',
@@ -80,7 +89,7 @@ describe('Runs API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.getHistory({ limit: 25, offset: 50 })).resolves.toEqual(runHistory);
+    await expect(client.runs.list({ limit: 25, offset: 50 })).resolves.toEqual(runHistory);
   });
 
   it('omits pagination query parameters when options are not provided', async () => {
@@ -95,7 +104,7 @@ describe('Runs API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.getHistory()).resolves.toEqual({ runs: [] });
+    await expect(client.runs.list()).resolves.toEqual({ runs: [] });
   });
 
   it('rejects an unexpected run-history response shape', async () => {
@@ -115,7 +124,7 @@ describe('Runs API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    const result = client.runs.getHistory();
+    const result = client.runs.list();
     await expect(result).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Run History API returned an unexpected response shape',
@@ -141,7 +150,7 @@ describe('Runs API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.getHistory()).rejects.toMatchObject({
+    await expect(client.runs.list()).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Run History API returned an unexpected response shape',
       details: response,
@@ -159,7 +168,180 @@ describe('Runs API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.getHistory()).rejects.toMatchObject({
+    await expect(client.runs.list()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Project Run History API returned an unexpected response shape',
+      details: response,
+    });
+  });
+
+  it.each([
+    ['createdAt', 'not-a-date'],
+    ['startedAt', '2026-07-21'],
+    ['finishedAt', '21 July 2026'],
+    ['createdAt', '2026-02-30T12:00:00Z'],
+    ['startedAt', '2026-04-31T12:00:00Z'],
+    ['finishedAt', '2026-01-01T24:00:00Z'],
+    ['finishedAt', '2026-07-21T12:00:60Z'],
+    ['createdAt', '2026-07-21t12:00:00z'],
+    ['finishedAt', '2026-01-01T12:00:00+24:00'],
+  ] as const)('rejects an unsupported %s timestamp', async (field, value) => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          [field]: value,
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Project Run History API returned an unexpected response shape',
+      details: response,
+    });
+  });
+
+  it('accepts valid RFC3339 fractional seconds and non-UTC offsets', async () => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          createdAt: '2026-07-21T12:00:00.123456Z',
+          startedAt: '2026-07-21T12:00:01+02:30',
+          finishedAt: '2026-07-21T12:05:00-04:00',
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).resolves.toEqual(response);
+  });
+
+  it.each([
+    ['a run without an attributable author', null],
+    ['an author with only the required user ID', { userId: 'user-1' }],
+  ])('accepts %s', async (_case, createdByUser) => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          createdByUser,
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).resolves.toEqual(response);
+  });
+
+  it('accepts a historical run whose definition snapshot is unavailable', async () => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          definitionRun: null,
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).resolves.toEqual(response);
+  });
+
+  it.each([
+    ['status', 'UNKNOWN'],
+    ['type', 'UNKNOWN'],
+    ['runType', 'automatic'],
+    ['definitionRun', []],
+    ['reportId', 42],
+    ['reportDefinition', []],
+    ['insightId', 42],
+    ['insightDefinition', []],
+    ['insightTemplateId', 42],
+    ['insightTemplateDefinition', []],
+    ['aiSourceDefinition', []],
+    ['logs', [42]],
+    ['errors', [42]],
+    ['additionalParams', []],
+    ['totals', { total: [] }],
+  ])('rejects an invalid %s field', async (field, value) => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          [field]: value,
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Project Run History API returned an unexpected response shape',
+      details: response,
+    });
+  });
+
+  it.each([
+    'definitionRun',
+    'reportId',
+    'reportDefinition',
+    'insightId',
+    'insightDefinition',
+    'insightTemplateId',
+    'insightTemplateDefinition',
+    'aiSourceDefinition',
+    'logs',
+    'errors',
+    'startedAt',
+    'finishedAt',
+    'additionalParams',
+    'totals',
+  ])('rejects a response that omits the required %s field', async field => {
+    const run = { ...runHistory.runs[0] } as Record<string, unknown>;
+    delete run[field];
+    const response = { runs: [run] };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Project Run History API returned an unexpected response shape',
       details: response,

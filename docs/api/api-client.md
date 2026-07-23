@@ -89,21 +89,45 @@ for (const [step, state] of Object.entries(setupProgress.steps)) {
 
 ## Read project run history
 
-Use `runs.getHistory()` to inspect historical Data Mart executions visible to the current
-project member. Pass optional `limit` and `offset` values to page through the project-wide history;
-the API defaults to at most 100 runs.
+Use `runs.list()` to inspect historical Data Mart executions visible to the current
+project member. The API key must resolve to a member with viewer access. Administrators can see
+runs for every non-deleted Data Mart in the project. Owners see their owned Data Marts. Editors
+can also see shared Data Marts available for reporting or maintenance, subject to configured
+context access; viewers can see shared Data Marts available for reporting, subject to the same
+context-access filter.
+
+Pass optional `limit` and `offset` values to page through the newest-first history. `limit` defaults
+to 100, floors finite fractions, falls back to 100 for non-finite or non-positive values, and caps
+at 100. `offset` defaults to 0, floors finite fractions, falls back to 0 for non-finite or
+non-positive values, and caps at 100,000. The response has no total or next-page marker. Prefer a
+`limit` from 1 through 100, increment `offset` by the number of returned runs, and stop when a page
+contains fewer runs than the server-normalized effective limit or the next offset would exceed
+100,000. Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate
+by `run.id` when walking multiple pages.
 
 ```ts
-const history = await client.runs.getHistory({ limit: 50, offset: 0 });
+const history = await client.runs.list({ limit: 50, offset: 0 });
 
 for (const run of history.runs) {
-  console.log(run.dataMart.title, run.type, run.status, run.finishedAt);
+  const author =
+    run.createdByUser?.fullName ?? run.createdByUser?.email ?? 'System or unavailable author';
+
+  console.log(run.dataMart.title, run.type, run.status, author, run.finishedAt);
 }
 ```
 
-Each run includes its Data Mart ID and title, creator metadata when available, execution and trigger
-types, status, timestamps, and available logs, errors, metadata, and totals. This makes the method
-suitable for monitoring and automation without calling the HTTP endpoint directly.
+`createdByUser` is the run author field. It is always present, but can be `null` when the run has no
+creator ID or the corresponding user projection is unavailable. When an author is available,
+`createdByUser.userId` is required; `fullName`, `email`, and `avatar` are optional and can also be
+`null`.
+
+`definitionRun` is always present but can be `null` when a historical definition snapshot is
+unavailable.
+
+`@owox/api-client` validates the response shape, enum values, nested references and author data,
+nullable fields, logs and errors, totals, and the backend's RFC3339 timestamp profile: uppercase
+`T`/`Z`, seconds from `00` through `59`, optional fractional seconds, and valid numeric offsets. It
+throws `OWOXApiError` when the endpoint returns an incompatible payload.
 
 ## List project insight templates
 
