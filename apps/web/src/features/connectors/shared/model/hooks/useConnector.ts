@@ -12,8 +12,12 @@ export function useConnector() {
   useEffect(() => {
     return () => {
       fieldsRequestIdRef.current += 1;
-      previewAbortControllerRef.current?.abort();
-      dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_RESET });
+      const activePreview = previewAbortControllerRef.current;
+      previewAbortControllerRef.current = null;
+      if (activePreview) {
+        activePreview.abort();
+        dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_RESET });
+      }
     };
   }, [dispatch]);
 
