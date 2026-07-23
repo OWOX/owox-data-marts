@@ -30,6 +30,7 @@
     "@owox/prettier-config": "*",
     "@types/js-yaml": "^4",
     "@types/papaparse": "^5",
+    "cookie": "^2.0.1",
     "glob": "^13",
     "globals": "^16",
     "js-yaml": "^4",
