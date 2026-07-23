@@ -82,6 +82,10 @@ export function ConfigurationStep({
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
   const updatingFromParentRef = useRef(false);
+  // The exact object last reported upwards. The wizard stores it as-is and hands it
+  // straight back as `initialConfiguration`, so reference equality identifies our
+  // own echo and distinguishes it from a genuine outside change.
+  const lastEchoedConfigRef = useRef<Record<string, unknown> | null>(null);
   const [secretEditing, setSecretEditing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -94,7 +98,10 @@ export function ConfigurationStep({
   }, [connector]);
 
   useEffect(() => {
-    if (connectorSpecification) {
+    // `initialConfiguration` is a dependency so a genuinely new configuration seeds
+    // the form, but our own echo must not: re-seeding from it discarded characters
+    // as they were typed, which is why input appeared to lag a keystroke behind.
+    if (connectorSpecification && initialConfiguration !== lastEchoedConfigRef.current) {
       updatingFromParentRef.current = true;
 
       const config = migrateNestedConfigValuesToTopLevel(
@@ -129,7 +136,10 @@ export function ConfigurationStep({
       initializedRef.current &&
       initialConfiguration &&
       Object.keys(initialConfiguration).length > 0 &&
-      connectorSpecification
+      connectorSpecification &&
+      // Ignore our own echo. It is always at least one keystroke behind local
+      // state, so re-applying it here overwrote characters as they were typed.
+      initialConfiguration !== lastEchoedConfigRef.current
     ) {
       updatingFromParentRef.current = true;
       setConfiguration(
@@ -147,6 +157,7 @@ export function ConfigurationStep({
       !updatingFromParentRef.current &&
       Object.keys(configuration).length > 0
     ) {
+      lastEchoedConfigRef.current = configuration;
       onConfigurationChange?.(configuration);
     }
   }, [configuration, onConfigurationChange]);
