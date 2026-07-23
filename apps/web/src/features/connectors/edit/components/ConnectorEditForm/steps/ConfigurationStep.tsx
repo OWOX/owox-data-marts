@@ -182,7 +182,6 @@ export function ConfigurationStep({
       if (typeof value === 'number') {
         if (isNaN(value)) return false;
         if (spec?.minimum !== undefined && value < spec.minimum) return false;
-        if (spec?.maximum !== undefined && value > spec.maximum) return false;
       }
       if (Array.isArray(value) && value.length === 0) return false;
 

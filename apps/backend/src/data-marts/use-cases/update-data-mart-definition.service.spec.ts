@@ -213,4 +213,97 @@ describe('UpdateDataMartDefinitionService', () => {
     );
     expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
   });
+
+  it('rejects an unowned Google Sheets secret reference but preserves an existing one', async () => {
+    const { service, dataMart, connectorSecretService } = createService();
+    const definition = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          fields: ['name'],
+          configuration: [{ _id: 'config-1', _secrets_id: 'foreign-secret' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      definition,
+      undefined,
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(
+      'The selected Google Sheets credentials cannot be used for this DataMart'
+    );
+    expect(connectorSecretService.mergeDefinitionSecrets).not.toHaveBeenCalled();
+    expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+
+    dataMart.definition = definition;
+    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
+    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
+
+    await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
+  });
+
+  it('allows a Google Sheets secret reference from an authorized copy source', async () => {
+    const { service, dataMartService, connectorSecretService, dataMart } = createService();
+    const definition = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          fields: ['name'],
+          configuration: [
+            {
+              _secrets_id: 'source-secret',
+              _copiedFrom: { configId: 'source-config' },
+            },
+          ],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const sourceDefinition = {
+      connector: {
+        source: {
+          name: 'GoogleSheets',
+          node: 'sheet',
+          fields: ['name'],
+          configuration: [{ _id: 'source-config', _secrets_id: 'source-secret' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.source_table' },
+      },
+    };
+    dataMartService.getByIdAndProjectId.mockResolvedValueOnce(dataMart).mockResolvedValueOnce({
+      id: 'source-dm-1',
+      projectId: 'proj-1',
+      definitionType: DataMartDefinitionType.CONNECTOR,
+      definition: sourceDefinition,
+    });
+    connectorSecretService.mergeDefinitionSecretsFromSource.mockResolvedValue(definition);
+    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
+    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      definition,
+      'source-dm-1',
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
+      definition,
+      sourceDefinition
+    );
+  });
 });
