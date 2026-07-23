@@ -158,7 +158,9 @@ describe('ProjectDataMartRunsController OpenAPI', () => {
       properties: {
         definitionRun: {
           type: 'object',
+          nullable: true,
           additionalProperties: true,
+          description: expect.stringMatching(/null.*historical.*snapshot.*unavailable/i),
         },
         reportId: { type: 'string', nullable: true },
         reportDefinition: {
@@ -219,7 +221,6 @@ describe('ProjectDataMartRunsController OpenAPI', () => {
         },
       },
     });
-    expect(runSchema.properties.definitionRun).not.toHaveProperty('nullable');
     expect(resolveRef('#/components/schemas/ProjectDataMartRunRefResponseApiDto')).toMatchObject({
       required: ['id', 'title'],
       properties: {

@@ -32,8 +32,8 @@ export class DataMartRun implements CreatorAwareEntity {
   @Column()
   type: DataMartRunType;
 
-  @Column({ type: 'json' })
-  definitionRun: DataMartDefinition;
+  @Column({ type: 'json', nullable: true })
+  definitionRun: DataMartDefinition | null;
 
   @Column({ type: 'varchar', nullable: true })
   insightId?: string | null;

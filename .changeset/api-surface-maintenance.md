@@ -33,7 +33,8 @@ project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRuns
 `OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. The response contract
 identifies `createdByUser` as the nullable run author and defines its `userId`, `fullName`, `email`,
 and `avatar` fields. Run fields that are always emitted are required in the schema and client
-types, while their runtime nullability remains explicit. Pagination normalization and RFC3339
+types, while their runtime nullability remains explicit; `definitionRun` stays present but can be
+null when a historical definition snapshot is unavailable. Pagination normalization and RFC3339
 timestamp formats are documented, and the client rejects malformed or impossible timestamps.
 Existing viewer access and HTTP behavior are unchanged, and consumers can adopt the client method
 without a migration.

@@ -65,7 +65,8 @@ export type OWOXProjectDataMartRun = {
    * is unavailable.
    */
   createdByUser: OWOXProjectDataMartRunUser | null;
-  definitionRun: Record<string, unknown>;
+  /** Masked definition snapshot, or null when unavailable for a historical run. */
+  definitionRun: Record<string, unknown> | null;
   reportId: string | null;
   reportDefinition: Record<string, unknown> | null;
   insightId: string | null;
@@ -208,7 +209,7 @@ function isProjectDataMartRun(value: unknown): value is OWOXProjectDataMartRun {
     typeof value.dataMart.id === 'string' &&
     typeof value.dataMart.title === 'string' &&
     isNullableProjectDataMartRunUser(value.createdByUser) &&
-    isRecord(value.definitionRun) &&
+    isNullableRecord(value.definitionRun) &&
     isNullableString(value.reportId) &&
     isNullableRecord(value.reportDefinition) &&
     isNullableString(value.insightId) &&

@@ -73,9 +73,11 @@ export class DataMartRunResponseApiDto {
     type: Object,
     additionalProperties: true,
     example: { connector: { source: { name: 'Example' } } },
-    description: 'Masked definition snapshot at run time',
+    description:
+      'Masked definition snapshot at run time. Null when a historical snapshot is unavailable.',
+    nullable: true,
   })
-  definitionRun: DataMartDefinition;
+  definitionRun: DataMartDefinition | null;
 
   @ApiProperty({
     type: String,

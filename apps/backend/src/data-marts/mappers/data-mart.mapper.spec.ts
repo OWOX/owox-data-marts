@@ -213,4 +213,27 @@ describe('DataMartMapper', () => {
       expect(response.totals).toBeNull();
     });
   });
+
+  describe('toProjectRunsResponse', () => {
+    it('preserves an unavailable definition snapshot from a historical run', async () => {
+      const entity = {
+        id: 'legacy-run-1',
+        status: 'FAILED',
+        type: DataMartRunType.CONNECTOR,
+        runType: 'manual',
+        dataMartId: 'dm-legacy',
+        definitionRun: null,
+        createdAt: new Date('2025-01-01T00:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toProjectRunsResponse([
+        {
+          run: mapper.toDataMartRunDto(entity),
+          dataMart: { id: 'dm-legacy', title: 'Legacy Data Mart' },
+        },
+      ]);
+
+      expect(response.runs[0].definitionRun).toBeNull();
+    });
+  });
 });

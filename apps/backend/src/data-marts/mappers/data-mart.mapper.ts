@@ -681,7 +681,7 @@ export class DataMartMapper {
   }
 
   private async maskDefinitionRun(
-    definitionRun?: DataMartDefinition
+    definitionRun?: DataMartDefinition | null
   ): Promise<DataMartDefinition | undefined> {
     if (definitionRun && isConnectorDefinition(definitionRun)) {
       return this.connectorSecretService.mask(definitionRun);

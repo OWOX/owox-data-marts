@@ -120,6 +120,9 @@ creator ID or the corresponding user projection is unavailable. When an author i
 `createdByUser.userId` is required; `fullName`, `email`, and `avatar` are optional and can also be
 `null`.
 
+`definitionRun` is always present but can be `null` when a historical definition snapshot is
+unavailable.
+
 `@owox/api-client` validates the response shape, enum values, nested references and author data,
 nullable fields, logs and errors, totals, and RFC3339 timestamps. It throws `OWOXApiError` when the
 endpoint returns an incompatible payload.
