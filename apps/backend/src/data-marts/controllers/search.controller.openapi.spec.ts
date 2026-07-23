@@ -67,11 +67,14 @@ describe('SearchController OpenAPI', () => {
       required: true,
       schema: { type: 'string' },
     });
+    expect(parameters.q.description).toContain('trimmed');
+    expect(parameters.q.description).toContain('configured minimum and maximum');
     expect(parameters.limit).toMatchObject({
       in: 'query',
       required: false,
       schema: { type: 'integer', minimum: 1, maximum: 50 },
     });
+    expect(parameters.limit.description).toContain('server-configured default');
     expect(parameters.entityTypes).toMatchObject({
       in: 'query',
       required: false,
@@ -85,11 +88,13 @@ describe('SearchController OpenAPI', () => {
         },
       },
     });
+    expect(parameters.entityTypes.description).toContain('all supported entity types');
     expect(parameters.excludeDrafts).toMatchObject({
       in: 'query',
       required: false,
       schema: { type: 'boolean' },
     });
+    expect(parameters.excludeDrafts.description).toContain('omitted or false');
   });
 
   it('documents keyword fallback when prompt embeddings are unavailable', () => {

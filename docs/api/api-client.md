@@ -131,8 +131,10 @@ page beyond that maximum offset.
 ## Search project entities
 
 Use `search.query()` to find Data Marts, data storages, and data destinations visible to the
-current project member. Pass an optional result limit from 1 through 50, restrict the search to
-specific entity types, or exclude draft Data Marts.
+current project member. The server trims surrounding query whitespace and enforces its configured
+minimum and maximum query lengths. Pass an optional result limit from 1 through 50, restrict the
+search to specific entity types, or exclude draft Data Marts. When omitted, the server's result
+limit is used, all supported entity types are searched, and draft Data Marts may be included.
 
 ```ts
 const results = await client.search.query('monthly revenue', {

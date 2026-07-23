@@ -17,7 +17,9 @@ export function SearchSpec() {
       required: true,
       type: String,
       example: 'monthly revenue by channel',
-      description: 'Search query',
+      description:
+        'Search query. Surrounding whitespace is trimmed, and the server enforces its ' +
+        'configured minimum and maximum query lengths.',
     }),
     ApiQuery({
       name: 'limit',
@@ -28,7 +30,9 @@ export function SearchSpec() {
         maximum: 50,
       },
       example: 10,
-      description: 'Maximum number of results to return (1-50)',
+      description:
+        'Maximum number of results to return (1-50). When omitted, the server-configured ' +
+        'default is used.',
     }),
     ApiQuery({
       name: 'entityTypes',
@@ -38,14 +42,18 @@ export function SearchSpec() {
       style: 'form',
       explode: false,
       example: [SearchableEntityType.DATA_MART],
-      description: 'Restrict results to the given entity types (comma-separated)',
+      description:
+        'Restrict results to the given entity types (comma-separated). When omitted, all ' +
+        'supported entity types are searched.',
     }),
     ApiQuery({
       name: 'excludeDrafts',
       required: false,
       type: Boolean,
       example: true,
-      description: 'When true, exclude draft data marts from results',
+      description:
+        'When true, exclude draft data marts from results. When omitted or false, drafts may ' +
+        'be included.',
     }),
     ApiOkResponse({ type: [SearchResultResponseApiDto] })
   );
