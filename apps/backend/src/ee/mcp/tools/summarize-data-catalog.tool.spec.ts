@@ -16,6 +16,11 @@ describe('SummarizeDataCatalogTool', () => {
   const publicOrigin = {
     getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
   } as unknown as jest.Mocked<PublicOriginService>;
+  const projectContext = {
+    getProjectContext: jest.fn().mockResolvedValue({
+      project: { id: 'project-1', title: 'Analytics' },
+    }),
+  };
 
   it('returns data catalog summary for the token project-member context', async () => {
     const facade = {
@@ -35,10 +40,11 @@ describe('SummarizeDataCatalogTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new SummarizeDataCatalogTool(facade, publicOrigin);
+    const tool = new SummarizeDataCatalogTool(facade, publicOrigin, projectContext as never);
 
     await expect(tool.handler({}, context)).resolves.toEqual({
       structuredContent: {
+        project: { id: 'project-1', title: 'Analytics' },
         project_id: 'project-1',
         data_mart_count: 1,
         top_data_marts_by_connectivity: [
@@ -61,6 +67,7 @@ describe('SummarizeDataCatalogTool', () => {
           type: 'text',
           text: JSON.stringify(
             {
+              project: { id: 'project-1', title: 'Analytics' },
               project_id: 'project-1',
               data_mart_count: 1,
               top_data_marts_by_connectivity: [
@@ -92,18 +99,54 @@ describe('SummarizeDataCatalogTool', () => {
   });
 
   it('rejects explicit project input', () => {
-    const tool = new SummarizeDataCatalogTool({} as McpDataMartsFacade, publicOrigin);
+    const tool = new SummarizeDataCatalogTool(
+      {} as McpDataMartsFacade,
+      publicOrigin,
+      projectContext as never
+    );
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
   });
 
+  it('returns the summary when optional project metadata is unavailable', async () => {
+    const facade = {
+      summarizeDataCatalog: jest.fn().mockResolvedValue({
+        projectId: 'project-1',
+        dataMartCount: 0,
+        topDataMartsByConnectivity: [],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const unavailableProjectContext = {
+      getProjectContext: jest.fn().mockRejectedValue(new Error('Project context unavailable')),
+    };
+    const tool = new SummarizeDataCatalogTool(
+      facade,
+      publicOrigin,
+      unavailableProjectContext as never
+    );
+
+    const result = await tool.handler({}, context);
+
+    expect(result.structuredContent).toMatchObject({
+      project_id: 'project-1',
+      data_mart_count: 0,
+      top_data_marts_by_connectivity: [],
+    });
+    expect(result.structuredContent).not.toHaveProperty('project');
+  });
+
   it('describes read-only summary access without promising rows or freshness', () => {
-    const tool = new SummarizeDataCatalogTool({} as McpDataMartsFacade, publicOrigin);
+    const tool = new SummarizeDataCatalogTool(
+      {} as McpDataMartsFacade,
+      publicOrigin,
+      projectContext as never
+    );
 
     expect(tool).toMatchObject({
       name: 'summarize_data_catalog',
       requiredScopes: ['mcp:read'],
       outputSchema: expect.objectContaining({
+        project: expect.any(Object),
         project_id: expect.any(Object),
         data_mart_count: expect.any(Object),
         top_data_marts_by_connectivity: expect.any(Object),

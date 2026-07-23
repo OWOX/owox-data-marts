@@ -7,9 +7,14 @@ import {
   SearchableEntityType,
 } from '../../../common/search/search.facade';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
+import {
+  MCP_PROJECT_CONTEXT_FACADE,
+  type McpProjectContextFacade,
+} from '../../../idp/facades/mcp-project-context.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
 const DEFAULT_LIMIT = 10;
@@ -31,6 +36,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
     'Find relevant non-draft data marts in the current OWOX project from a natural-language prompt, limited to data marts visible to the current MCP user. This is the default discovery step for a concrete analytical question when the data mart has not already been confirmed. Use it when the user asks to find, discover, or search published data marts by title, description, business meaning, schema fields, or metrics. This tool returns only data marts, not data storages or destinations, and it intentionally excludes draft data marts.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
+    project: z.object({ id: z.string(), title: z.string() }).optional(),
     data_marts: z.array(
       z.object({
         id: z.string(),
@@ -52,7 +58,9 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
   constructor(
     @Inject(SEARCH_FACADE)
     private readonly searchFacade: SearchFacade,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    @Inject(MCP_PROJECT_CONTEXT_FACADE)
+    private readonly projectContext: McpProjectContextFacade
   ) {}
 
   parseInput(input: unknown): SearchDataMartsInput {
@@ -61,18 +69,22 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
 
   async handler(input: SearchDataMartsInput, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = this.parseInput(input);
-    const results = await this.searchFacade.search(context.projectId, parsed.prompt, {
-      topK: parsed.limit ?? DEFAULT_LIMIT,
-      entityTypes: [SearchableEntityType.DATA_MART],
-      excludeDrafts: true,
-      accessScope: {
-        userId: context.userId,
-        roles: context.roles,
-      },
-    });
+    const [results, projectContext] = await Promise.all([
+      this.searchFacade.search(context.projectId, parsed.prompt, {
+        topK: parsed.limit ?? DEFAULT_LIMIT,
+        entityTypes: [SearchableEntityType.DATA_MART],
+        excludeDrafts: true,
+        accessScope: {
+          userId: context.userId,
+          roles: context.roles,
+        },
+      }),
+      tryGetMcpProjectSummary(this.projectContext, context),
+    ]);
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
+      ...(projectContext ? { project: projectContext } : {}),
       data_marts: results
         .filter(result => result.entityType === SearchableEntityType.DATA_MART)
         .map(result => ({

@@ -17,6 +17,11 @@ describe('SearchDataMartsTool', () => {
   const publicOrigin = {
     getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
   } as unknown as jest.Mocked<PublicOriginService>;
+  const projectContext = {
+    getProjectContext: jest.fn().mockResolvedValue({
+      project: { id: 'project-1', title: 'Analytics' },
+    }),
+  };
 
   it('searches only non-draft data marts visible to the MCP project member', async () => {
     const facade = {
@@ -32,10 +37,11 @@ describe('SearchDataMartsTool', () => {
         },
       ]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade, publicOrigin);
+    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never);
 
     await expect(tool.handler({ prompt: 'orders revenue', limit: 5 }, context)).resolves.toEqual({
       structuredContent: {
+        project: { id: 'project-1', title: 'Analytics' },
         data_marts: [
           {
             id: 'dm_1',
@@ -51,6 +57,7 @@ describe('SearchDataMartsTool', () => {
           type: 'text',
           text: JSON.stringify(
             {
+              project: { id: 'project-1', title: 'Analytics' },
               data_marts: [
                 {
                   id: 'dm_1',
@@ -82,7 +89,7 @@ describe('SearchDataMartsTool', () => {
     const facade = {
       search: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade, publicOrigin);
+    const tool = new SearchDataMartsTool(facade, publicOrigin, projectContext as never);
 
     await tool.handler({ prompt: 'orders' }, context);
 
@@ -93,8 +100,22 @@ describe('SearchDataMartsTool', () => {
     );
   });
 
+  it('returns search results when optional project metadata is unavailable', async () => {
+    const facade = {
+      search: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<SearchFacade>;
+    const unavailableProjectContext = {
+      getProjectContext: jest.fn().mockRejectedValue(new Error('Project context unavailable')),
+    };
+    const tool = new SearchDataMartsTool(facade, publicOrigin, unavailableProjectContext as never);
+
+    const result = await tool.handler({ prompt: 'orders' }, context);
+
+    expect(result.structuredContent).toEqual({ data_marts: [] });
+  });
+
   it('rejects explicit project_id, legacy query, and too-wide limits', () => {
-    const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin);
+    const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin, projectContext as never);
 
     expect(() => tool.parseInput({ prompt: 'orders', project_id: 'another-project' })).toThrow();
     expect(() => tool.parseInput({ query: 'orders' })).toThrow();
@@ -102,12 +123,13 @@ describe('SearchDataMartsTool', () => {
   });
 
   it('describes that it only searches non-draft data marts', () => {
-    const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin);
+    const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin, projectContext as never);
 
     expect(tool).toMatchObject({
       name: 'get_relevant_data_marts_by_prompt',
       requiredScopes: ['mcp:read'],
       outputSchema: expect.objectContaining({
+        project: expect.any(Object),
         data_marts: expect.any(Object),
       }),
       annotations: {

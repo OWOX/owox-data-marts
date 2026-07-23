@@ -164,7 +164,7 @@ Use this tool when you need to confirm which project is active, or when the assi
 
 ### `list_data_marts`
 
-Lists all data marts visible to you in the current project.
+Lists published data marts visible to you in the current project. Draft data marts are never exposed through MCP.
 
 **Returns** an array of data mart objects:
 
@@ -178,6 +178,8 @@ Lists all data marts visible to you in the current project.
 | `updated_at`  | Last update timestamp                         |
 
 Use this tool to discover available data marts before running queries or building reports.
+
+The response also includes `project.id` and `project.title`, so the assistant can state which project its discovery results belong to.
 
 The list reflects your access: it includes only the data marts your [project role](../../project/roles-and-permissions.md) permits you to see. If a data mart you expect is missing, check your role in that project.
 
@@ -202,6 +204,8 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 | `url`             | Link to open the data mart in OWOX Data Marts   |
 | `relevance_score` | How closely the data mart matches your question |
 
+The response also includes `project.id` and `project.title`.
+
 Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned.
 
 ### `get_data_mart_details_by_id`
@@ -210,21 +214,24 @@ Returns field-level metadata for one data mart visible to you in the current pro
 
 **Input:**
 
-| Field          | Description                                                                               |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt` |
+| Field          | Description                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt`                                                                           |
+| `detail_level` | Optional: `native` (default) returns only the data mart's own fields; `with_joined_fields` additionally returns joined fields when the question truly requires them |
 
 **Returns:**
 
-| Field           | Description                                                                                                                                                                                |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`            | Data mart identifier                                                                                                                                                                       |
-| `name`          | Data mart name                                                                                                                                                                             |
-| `description`   | Data mart description                                                                                                                                                                      |
-| `fields`        | The data mart's own (native) output fields with names, types, descriptions, and business names when available                                                                              |
-| `joined_fields` | Fields contributed by blended/joined data marts (empty when the data mart has no joins), each with its qualified `<alias>__<field>` name, source data mart, type, and allowed aggregations |
+| Field                    | Description                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                     | Data mart identifier                                                                                                                                                       |
+| `name`                   | Data mart name                                                                                                                                                             |
+| `url`                    | Link to open the data mart in OWOX Data Marts                                                                                                                              |
+| `description`            | Data mart description                                                                                                                                                      |
+| `fields`                 | The data mart's own (native) output fields with query `name`, presentation `displayName`, types, descriptions, and business names when available                           |
+| `joined_fields_included` | Whether joined fields were requested and evaluated. When `false`, `joined_fields` was intentionally omitted rather than evaluated as empty.                                |
+| `joined_fields`          | Fields contributed by blended/joined data marts when requested, each with exact query `name`, presentation `displayName`, source data mart, type, and allowed aggregations |
 
-Use this tool when you need to understand the fields available in a specific data mart — both its native fields and any joined fields you can then query with `query_data_mart`. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
+Use this tool when you need to understand the fields available in a specific data mart. It returns native fields by default; request `detail_level=with_joined_fields` before concluding that the native schema cannot answer a question or after a `field_not_found` error. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
 
 ### `query_data_mart` (requires `mcp:read` and `mcp:write`)
 
@@ -243,17 +250,25 @@ Runs a query against one data mart and returns its data rows, plus server-side t
 | `filters`      | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total                                                                                              |
 | `limit`        | Maximum rows to return (1–1000, default 20). There is no pagination                                                                                                                                                                                                          |
 
+For a “how many” question, use `COUNT` or `COUNT_DISTINCT` (when the user means unique entities) rather than returning raw rows and counting them in the assistant. Include only the dimensions needed for the requested breakdown.
+
 **Returns:**
 
-| Field           | Description                                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `columns`       | Column names in the result. When `aggregations` are used, an extra `Row Count` column (the number of underlying rows per group) is appended |
-| `rows`          | The data rows, as a compact header-once table                                                                                               |
-| `returned_rows` | Number of rows in the response                                                                                                              |
-| `truncated`     | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
-| `totals`        | Server-side totals over all matching rows, ignoring the row limit                                                                           |
+| Field                | Description                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `columns`            | Business-friendly headers matching the header row in `rows`. When `aggregations` are used, an extra `Row Count` column is appended        |
+| `column_metadata`    | Exact technical query `name` plus business-friendly `display_name`, type, and description when available                                  |
+| `rows`               | The data rows, as a compact header-once table                                                                                               |
+| `returned_rows`      | Number of rows in the response                                                                                                              |
+| `truncated`          | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
+| `truncation`         | Present only when truncated; `reasons` is `row_limit`, `payload_byte_cap`, or both                                                         |
+| `totals`             | Server-side totals over all matching rows, ignoring the row limit                                                                           |
+| `source`             | The id, title, and OWOX link of the Data Mart that supplied the response                                                                    |
+| `calculation_origin` | Marks rows as taken from OWOX and totals as calculated by OWOX when available                                                               |
 
 Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable. For more on how aggregations and totals are computed, see [Report Aggregations and Totals](./report-aggregations.md); for why a given aggregation may be rejected on a field, see [Report Output Controls](./output-controls.md).
+
+When presenting results, the assistant must name the source Data Mart. It must distinguish OWOX-provided values from any arithmetic it performs itself. If `truncated` is true, it must explicitly tell the user that returned rows are incomplete; server-provided totals remain valid for all matching rows, but any number calculated from returned rows can be incomplete.
 
 ### `list_destinations`
 
@@ -264,6 +279,7 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | Field                    | Description                                                                                               |
 | ------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `id`                     | Destination identifier                                                                                    |
+| `url`                    | Link to open this destination in OWOX                                                                    |
 | `name`                   | Destination name                                                                                          |
 | `type`                   | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
 | `owner`                  | The user who created the destination, or `null` when unavailable                                          |
@@ -290,6 +306,7 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `authorization_url` | For `google_sheets`, a link to the OWOX "Connect Google Sheets" page where the user completes Google OAuth                 |
 | `destination_id`    | New destination identifier. Returned for `looker_studio`, `email`, `slack`, `teams`, and `google_chat`; absent for Google Sheets until setup is completed |
+| `destination_url`   | Link to open the created destination; absent for Google Sheets until OAuth creates it                   |
 | `instructions`      | Human-readable next steps for finishing setup or using the new destination                                                  |
 
 For `google_sheets`, this tool does not create the destination immediately. It returns a project-scoped setup link; the user opens it, signs in to OWOX if needed, clicks **Connect with Google**, and approves Google access. After the user confirms setup is complete, call `list_destinations` and match the new Google Sheets destination by `connectedGoogleAccount`. The created destination is usable by the person who connected it, but it starts unshared for other project members until someone shares it in the UI.
@@ -311,9 +328,11 @@ Lists the reports tied to a data mart, including each report's destination, its 
 | Field              | Description                                                            |
 | ------------------ | ----------------------------------------------------------------------- |
 | `report_id`         | Report identifier                                                      |
+| `report_url`        | Link to the report's Data Mart reports page in OWOX                   |
 | `data_mart_id`      | Data mart identifier                                                   |
 | `name`              | Report name                                                            |
 | `destination_id`    | Destination the report exports to                                      |
+| `destination_url`   | Link to the destination in OWOX                                        |
 | `destination_type`  | Destination type (for example `google_sheets`)                        |
 | `owner`             | The user who created the report                                       |
 | `schedules`         | Array of run schedules — `trigger_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`, `last_run_at` |
@@ -378,8 +397,9 @@ Lists every scheduled report-run trigger in the current project that you can see
 | Field             | Description                                                          |
 | ------------------ | ---------------------------------------------------------------------- |
 | `trigger_id`        | Schedule identifier — pass to `update_report_run_schedule` or `delete_report_run_schedule` |
-| `report`            | The report this schedule belongs to (`id`, `title`)                  |
-| `data_mart`         | The data mart the report is built on (`id`, `title`)                 |
+| `report`            | The report this schedule belongs to (`id`, `title`, `url`)           |
+| `data_mart`         | The data mart the report is built on (`id`, `title`, `url`)          |
+| `schedules_url`     | Link to the report schedules page in OWOX                            |
 | `cron_expression`   | Schedule in 5-field cron syntax                                      |
 | `time_zone`         | IANA timezone the cron expression is evaluated in                    |
 | `is_active`         | Whether the schedule is currently enabled                            |
