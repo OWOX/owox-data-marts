@@ -149,6 +149,9 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           sql: `${col} BETWEEN ${lit(rule.value.from)} AND ${lit(rule.value.to)}`,
           params: [],
         };
+      case 'in':
+      case 'not_in':
+        return this.renderInListWithLiterals(rule, col, lit);
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }
@@ -181,6 +184,22 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           `${col} >= DATEADD(month, -${preset.n}, CURRENT_DATE)` +
           ` AND ${col} < DATEADD(day, 1, CURRENT_DATE)`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return (
+          `${col} >= CURRENT_DATE` + ` AND ${col} < DATEADD(day, ${preset.n + 1}, CURRENT_DATE)`
+        );
+      // Redshift DATE_TRUNC('week') is fixed to Monday (PostgreSQL semantics) — ISO.
+      case 'this_week':
+        return (
+          `${col} >= DATE_TRUNC('week', CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(day, 7, DATE_TRUNC('week', CURRENT_DATE))`
+        );
+      case 'last_week':
+        return (
+          `${col} >= DATEADD(day, -7, DATE_TRUNC('week', CURRENT_DATE))` +
+          ` AND ${col} < DATE_TRUNC('week', CURRENT_DATE)`
+        );
       case 'this_month':
         return (
           `${col} >= DATE_TRUNC('month', CURRENT_DATE)` +
@@ -190,6 +209,16 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
         return (
           `${col} >= DATE_TRUNC('month', DATEADD(month, -1, CURRENT_DATE))` +
           ` AND ${col} < DATE_TRUNC('month', CURRENT_DATE)`
+        );
+      case 'this_quarter':
+        return (
+          `${col} >= DATE_TRUNC('quarter', CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(month, 3, DATE_TRUNC('quarter', CURRENT_DATE))`
+        );
+      case 'last_quarter':
+        return (
+          `${col} >= DATEADD(month, -3, DATE_TRUNC('quarter', CURRENT_DATE))` +
+          ` AND ${col} < DATE_TRUNC('quarter', CURRENT_DATE)`
         );
       case 'this_year':
         return (

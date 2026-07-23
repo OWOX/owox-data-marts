@@ -349,6 +349,139 @@ describe('FilterValueEditor — between operator', () => {
 // Group 6 — "relative_date" operator
 // ---------------------------------------------------------------------------
 
+describe('FilterValueEditor — in / not_in operators', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('switching to in reveals the comma-separated values input and emits the parsed list', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    fireEvent.change(input, { target: { value: ' fb, google , ,tiktok ' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['fb', 'google', 'tiktok'],
+    });
+  });
+
+  it('not_in on a number column parses each entry as a number', () => {
+    const { onChange } = renderEditor({ fieldType: INT_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'not_in' } });
+    const input = screen.getByPlaceholderText('10, 20, 30');
+    fireEvent.change(input, { target: { value: '1, 2,3' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'not_in', value: [1, 2, 3] });
+  });
+
+  it('emits null while the list is empty or contains a non-numeric entry for a number column', () => {
+    const { onChange } = renderEditor({ fieldType: INT_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    expect(lastCall(onChange)).toBeNull();
+
+    const input = screen.getByPlaceholderText('10, 20, 30');
+    fireEvent.change(input, { target: { value: '1, x' } });
+    expect(lastCall(onChange)).toBeNull();
+  });
+
+  it('initialRule with in pre-fills the list input', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['a', 'b'] },
+    });
+
+    expect(screen.getByDisplayValue('a, b')).toBeInTheDocument();
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b'] });
+  });
+
+  it('preserves comma-containing and non-string values of an untouched existing rule', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.', 5, true] },
+    });
+
+    // The lossy comma-text display must NOT leak into the emitted rule.
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['Acme, Inc.', 5, true],
+    });
+  });
+
+  it('keeps the pristine values when only the operator flips in↔not_in', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.'] },
+    });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'not_in' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'not_in', value: ['Acme, Inc.'] });
+  });
+
+  it('editing the text drops the pristine array and re-parses the comma list', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['a', 'b'] },
+    });
+
+    const input = screen.getByDisplayValue('a, b');
+    fireEvent.change(input, { target: { value: 'a, b, c' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b', 'c'] });
+  });
+
+  it('creates comma-containing values via double-quote wrapping', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    fireEvent.change(input, { target: { value: 'alpha, "Acme, Inc.", beta' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['alpha', 'Acme, Inc.', 'beta'],
+    });
+  });
+
+  it('round-trips a comma-containing value through EDIT (quoted display, comma survives)', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.'] },
+    });
+
+    // The display quotes the comma-containing value so re-parsing cannot split it.
+    const input = screen.getByDisplayValue('"Acme, Inc."');
+    fireEvent.change(input, { target: { value: '"Acme, Inc.", Beta' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['Acme, Inc.', 'Beta'],
+    });
+  });
+
+  it('supports literal double quotes via "" escaping', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    fireEvent.change(input, { target: { value: '"He said ""hi"""' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['He said "hi"'] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group — relative_date
+// ---------------------------------------------------------------------------
+
 describe('FilterValueEditor — relative_date operator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -412,6 +545,35 @@ describe('FilterValueEditor — relative_date operator', () => {
       operator: 'relative_date',
       value: { kind: 'last_n_months', n: 3 },
     });
+  });
+
+  it('next_n_days shows the N input and emits { kind: "next_n_days", n }', () => {
+    const { onChange } = renderEditor({ fieldType: DATE_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'relative_date' } });
+    fireEvent.change(getPresetSelect(), { target: { value: 'next_n_days' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'relative_date',
+      value: { kind: 'next_n_days', n: 7 },
+    });
+  });
+
+  it('week and quarter presets emit no-N rules', () => {
+    const { onChange } = renderEditor({ fieldType: DATE_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'relative_date' } });
+    for (const kind of ['this_week', 'last_week', 'this_quarter', 'last_quarter'] as const) {
+      fireEvent.change(getPresetSelect(), { target: { value: kind } });
+      expect(lastCall(onChange)).toEqual({
+        column: COL,
+        operator: 'relative_date',
+        value: { kind },
+      });
+      expect(screen.queryByRole('spinbutton')).toBeNull();
+    }
   });
 
   it('selecting "this_month" does NOT show N input', () => {

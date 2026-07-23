@@ -139,6 +139,9 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
           sql: `${col} BETWEEN ${lit(rule.value.from)} AND ${lit(rule.value.to)}`,
           params: [],
         };
+      case 'in':
+      case 'not_in':
+        return this.renderInListWithLiterals(rule, col, lit);
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }
@@ -166,6 +169,24 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
           `${col} >= DATEADD(month, -${preset.n}, CURRENT_DATE)` +
           ` AND ${col} < DATEADD(day, 1, CURRENT_DATE)`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return (
+          `${col} >= CURRENT_DATE` + ` AND ${col} < DATEADD(day, ${preset.n + 1}, CURRENT_DATE)`
+        );
+      // NOT DATE_TRUNC('week', …): that boundary follows the session-level WEEK_START
+      // parameter. DAYOFWEEKISO is parameter-independent (1=Monday…7=Sunday), so this
+      // Monday computation matches the ISO weeks every other storage produces.
+      case 'this_week':
+        return (
+          `${col} >= DATEADD(day, 1 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(day, 8 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE)`
+        );
+      case 'last_week':
+        return (
+          `${col} >= DATEADD(day, -6 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(day, 1 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE)`
+        );
       case 'this_month':
         return (
           `${col} >= DATE_TRUNC('month', CURRENT_DATE)` +
@@ -175,6 +196,16 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
         return (
           `${col} >= DATE_TRUNC('month', DATEADD(month, -1, CURRENT_DATE))` +
           ` AND ${col} < DATE_TRUNC('month', CURRENT_DATE)`
+        );
+      case 'this_quarter':
+        return (
+          `${col} >= DATE_TRUNC('quarter', CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(month, 3, DATE_TRUNC('quarter', CURRENT_DATE))`
+        );
+      case 'last_quarter':
+        return (
+          `${col} >= DATEADD(month, -3, DATE_TRUNC('quarter', CURRENT_DATE))` +
+          ` AND ${col} < DATE_TRUNC('quarter', CURRENT_DATE)`
         );
       case 'this_year':
         return (

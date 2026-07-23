@@ -22,6 +22,7 @@ import {
   mapMcpDateBuckets,
   mapMcpSort,
   UnsupportedOperatorError,
+  InvalidFilterValueError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
   unsupportedOperatorMessage,
@@ -30,6 +31,7 @@ import {
 import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
 import { translateOutputControlsError } from './output-controls-error.mapper';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
+import { buildFieldTypeMatrixSection } from './field-type-matrix';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -41,8 +43,12 @@ Call get_data_mart_details_by_id first to get the data mart's exact field names 
 When building the query:
 - Request only the fields relevant to the user's question — never request all fields.
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
-- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — but each data mart's output controls decide which functions a given field allows, so some may be rejected (pick another, or ask an admin to enable it). Group-by is implied by the non-aggregated fields you select.
-- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
+- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — which of them a given field allows depends on the field's type and the data mart's per-field settings (see the matrix below). Group-by is implied by the non-aggregated fields you select.
+- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE).
+
+Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
+${buildFieldTypeMatrixSection()}
+A data mart can narrow a field's aggregations further ("only where enabled on the field") — get_data_mart_details_by_id returns each field's effective allowedAggregations; trust that over this table. Note COUNT/COUNT_DISTINCT are NOT available on number fields — to count rows per group, rely on the automatic "Row Count" column instead.
 - sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
@@ -178,6 +184,13 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       return toStructuredToolError(
         'unsupported_operator',
         unsupportedOperatorMessage(err.operator)
+      );
+    }
+
+    if (err instanceof InvalidFilterValueError) {
+      return toStructuredToolError(
+        'invalid_filter_value',
+        `${err.message}. The operator is supported — fix the value shape and retry.`
       );
     }
 

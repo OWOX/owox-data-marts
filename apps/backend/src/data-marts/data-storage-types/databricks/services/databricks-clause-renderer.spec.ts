@@ -17,6 +17,15 @@ describe('DatabricksClauseRenderer', () => {
     expect(where(r, { column: 'age', operator: 'lte', value: 18 })).toBe('\nWHERE `age` <= 18');
   });
 
+  it('renders IN / NOT IN with inlined escaped literals and no params', () => {
+    const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', "O'Brien", 5] }]);
+    expect(out.sql).toBe("\nWHERE `channel` IN ('fb', 'O''Brien', 5)");
+    expect(out.params).toEqual([]);
+    expect(where(r, { column: 'channel', operator: 'not_in', value: ['fb', 'google'] })).toBe(
+      "\nWHERE `channel` NOT IN ('fb', 'google')"
+    );
+  });
+
   it('safely escapes malicious column names (no breakout via dots or payloads)', () => {
     // The column name is user-controlled (FilterRule.column is only z.string().min(1)); it
     // must stay fully inside backtick-quoted identifiers and never break out of the clause.
@@ -101,6 +110,28 @@ describe('DatabricksClauseRenderer', () => {
       "\nWHERE (`s` IS NOT NULL AND `s` <> '')"
     );
     expect(where(r, { column: 'n', operator: 'neq', value: 1 })).toBe('\nWHERE `n` <> 1');
+  });
+
+  it('renders the week/quarter/next_n_days presets (Monday-fixed trunc WEEK)', () => {
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } })
+    ).toBe('\nWHERE `d` >= CURRENT_DATE AND `d` < date_add(CURRENT_DATE, 8)');
+    expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'this_week' } })).toBe(
+      "\nWHERE `d` >= trunc(CURRENT_DATE, 'WEEK') AND `d` < date_add(trunc(CURRENT_DATE, 'WEEK'), 7)"
+    );
+    expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'last_week' } })).toBe(
+      "\nWHERE `d` >= date_add(trunc(CURRENT_DATE, 'WEEK'), -7) AND `d` < trunc(CURRENT_DATE, 'WEEK')"
+    );
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } })
+    ).toBe(
+      "\nWHERE `d` >= trunc(CURRENT_DATE, 'QUARTER') AND `d` < add_months(trunc(CURRENT_DATE, 'QUARTER'), 3)"
+    );
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } })
+    ).toBe(
+      "\nWHERE `d` >= add_months(trunc(CURRENT_DATE, 'QUARTER'), -3) AND `d` < trunc(CURRENT_DATE, 'QUARTER')"
+    );
   });
 
   it('renders relative_date presets as half-open ranges with upper bounds', () => {

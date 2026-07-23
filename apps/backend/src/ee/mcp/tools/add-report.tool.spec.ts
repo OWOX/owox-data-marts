@@ -241,19 +241,30 @@ describe('AddReportTool', () => {
     );
   });
 
-  it('rejects an unsupported filter operator with the supported vocabulary, before the facade', async () => {
+  it('passes an in filter through to the facade (natively supported)', async () => {
     const facade = {
-      addReport: jest.fn(),
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-6',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
+      }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new AddReportTool(facade, publicOrigin);
 
-    await expect(
-      tool.handler(
-        { ...input, filters: [{ field: 'channel', operator: 'in', value: ['ads', 'email'] }] },
-        context
-      )
-    ).rejects.toThrow(/not supported yet.*Supported operators/);
-    expect(facade.addReport).not.toHaveBeenCalled();
+    await tool.handler(
+      { ...input, filters: [{ field: 'channel', operator: 'in', value: ['ads', 'email'] }] },
+      context
+    );
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [
+          { column: 'channel', operator: 'in', value: ['ads', 'email'], placement: 'post-join' },
+        ],
+      })
+    );
   });
 
   it('translates output-controls validation errors from the facade into agent guidance', async () => {

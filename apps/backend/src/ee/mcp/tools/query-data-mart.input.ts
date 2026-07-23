@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import type {
-  FilterConfig,
-  FilterRule,
+import {
+  IN_LIST_MAX_VALUES,
+  type FilterConfig,
+  type FilterRule,
 } from '../../../data-marts/dto/schemas/filter-config.schema';
 import type { ReportAggregateFunction } from '../../../data-marts/dto/schemas/aggregate-function.schema';
 import type { AggregationConfig } from '../../../data-marts/dto/schemas/aggregation-config.schema';
@@ -15,8 +16,6 @@ import type { SortConfig } from '../../../data-marts/dto/schemas/sort-config.sch
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 20;
 
-// Operators unsupported by the internal FilterRule are accepted here and rejected
-// at mapping time with a precise error, rather than silently dropped.
 const MCP_OPERATORS = [
   'eq',
   'neq',
@@ -31,6 +30,8 @@ const MCP_OPERATORS = [
   'lt',
   'lte',
   'between',
+  'is_empty',
+  'is_not_empty',
   'is_null',
   'is_not_null',
   'before',
@@ -38,7 +39,10 @@ const MCP_OPERATORS = [
   'in_last_n_days',
   'in_next_n_days',
   'this_week',
+  'last_week',
   'this_month',
+  'this_quarter',
+  'last_quarter',
   'this_year',
 ] as const;
 
@@ -59,7 +63,10 @@ export const makeMcpFilterSchema = () =>
         z.record(z.unknown()),
         z.null(),
       ])
-      .optional(),
+      .optional()
+      .describe(
+        'Operand for the operator: scalar for comparisons; {from, to} for between; array of scalars for in/not_in; positive integer for in_last_n_days/in_next_n_days; omit for is_null/is_not_null/is_empty/is_not_empty and the this_/last_ calendar presets.'
+      ),
   });
 
 // The MCP tool advertises only these functions (tool description + docs/mcp.md). A strict subset of
@@ -155,11 +162,22 @@ export const queryDataMartInputSchema = z
 export type QueryDataMartInput = z.infer<typeof queryDataMartInputSchema>;
 export { DEFAULT_LIMIT, MAX_LIMIT };
 
-export const UNSUPPORTED_MCP_OPERATORS = ['in', 'not_in', 'in_next_n_days', 'this_week'] as const;
-export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options.filter(
-  o => !(UNSUPPORTED_MCP_OPERATORS as readonly string[]).includes(o)
-);
+// Every advertised operator maps to the internal FilterRule.
+export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options;
 
+/**
+ * The full operator menu for boolean fields. eq/neq appear here because mapOne
+ * translates them (with a boolean value) to the internal is_true/is_false — keep
+ * this constant next to that translation so the advertised menu and the mapping
+ * cannot drift apart. Consumed by the field-type matrix and the details tool.
+ */
+export const BOOLEAN_MCP_OPERATORS = ['eq', 'neq', 'is_null', 'is_not_null'] as const;
+
+/**
+ * Runtime guard for direct facade callers: mapOne takes `operator: string`, so a
+ * caller that bypasses the zod enum can still hand it an unknown operator. Every
+ * enum operator maps, so this is unreachable through the MCP tool itself.
+ */
 export class UnsupportedOperatorError extends Error {
   readonly operator: string;
   constructor(op: string) {
@@ -172,16 +190,28 @@ export class UnsupportedOperatorError extends Error {
 /**
  * Single construction site for the client-facing unsupported-operator message,
  * shared by query_data_mart and the report tools so the copies cannot drift.
- * Deliberately does NOT suggest emulating 'in' with repeated 'eq' filters:
- * filters combine with AND, so two 'eq' rules on one field match nothing.
+ * Every enum operator maps today, so this only fires for a raw operator string
+ * from a direct facade caller (or a future enum addition shipped ahead of its
+ * mapping) — keep the guidance operator-agnostic.
  */
 export function unsupportedOperatorMessage(op: string): string {
   return (
-    `Filter operator '${op}' is not supported yet. Supported operators: ` +
-    `${SUPPORTED_MCP_OPERATORS.join(', ')}. Filters combine with AND, so an OR match across ` +
-    `several values of one field (like 'in') cannot be expressed in the current vocabulary — ` +
-    `do not emulate it with repeated 'eq' filters on the same field.`
+    `Filter operator '${op}' is not supported. Supported operators: ` +
+    `${SUPPORTED_MCP_OPERATORS.join(', ')}. Pick the closest supported operator and retry.`
   );
+}
+
+/**
+ * A supported operator was given a malformed operand (wrong shape, empty list, …).
+ * Distinct from UnsupportedOperatorError so the tool can answer "fix the value"
+ * instead of "pick another operator" — and from a plain Error so the precise
+ * reason is not swallowed by the generic query_failed fallback.
+ */
+export class InvalidFilterValueError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidFilterValueError';
+  }
 }
 
 export class UnsupportedAggregationError extends Error {
@@ -211,6 +241,8 @@ const DIRECT = new Set([
   'gte',
   'lt',
   'lte',
+  'is_empty',
+  'is_not_empty',
   'is_null',
   'is_not_null',
 ]);
@@ -220,6 +252,13 @@ function mapOne(
   placement: 'pre-join' | 'post-join'
 ): FilterRule {
   const base = { column: f.field, placement } as const;
+  // Boolean columns only accept is_true/is_false internally, but 'eq true' is what
+  // callers naturally write — translate it. Only for a real boolean value: a string
+  // "true" must stay 'eq' so a boolean column rejects it with a type-targeted error.
+  if ((f.operator === 'eq' || f.operator === 'neq') && typeof f.value === 'boolean') {
+    const wantsTrue = f.operator === 'eq' ? f.value : !f.value;
+    return { ...base, operator: wantsTrue ? 'is_true' : 'is_false' };
+  }
   if (DIRECT.has(f.operator))
     return { ...base, operator: f.operator as never, value: f.value as never };
   switch (f.operator) {
@@ -227,32 +266,87 @@ function mapOne(
       return { ...base, operator: 'lt', value: f.value as never };
     case 'after':
       return { ...base, operator: 'gt', value: f.value as never };
+    case 'in':
+    case 'not_in': {
+      const list = f.value;
+      if (!Array.isArray(list) || list.length === 0) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' value must be a non-empty array of strings, numbers, or booleans`
+        );
+      }
+      if (list.length > IN_LIST_MAX_VALUES) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' value list is too long (${list.length}); at most ${IN_LIST_MAX_VALUES} values are allowed`
+        );
+      }
+      if (
+        !list.every(
+          v =>
+            typeof v === 'string' ||
+            (typeof v === 'number' && Number.isFinite(v)) ||
+            typeof v === 'boolean'
+        )
+      ) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' values must all be strings, finite numbers, or booleans`
+        );
+      }
+      // Mixed types die in the warehouse (BigQuery types each bound param from its JS
+      // value → "No matching signature for operator IN") — reject with a precise error here.
+      const firstType = typeof list[0];
+      if (!list.every(v => typeof v === firstType)) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' values must all be the same type (all strings, all numbers, or all booleans) — got a mix`
+        );
+      }
+      return { ...base, operator: f.operator, value: list as never };
+    }
     case 'between': {
       const bv = f.value as Record<string, unknown> | undefined;
       if (!bv || typeof bv !== 'object' || !('from' in bv) || !('to' in bv)) {
-        throw new Error(`'between' value must be an object with 'from' and 'to' keys`);
+        throw new InvalidFilterValueError(
+          `'between' value must be an object with 'from' and 'to' keys`
+        );
       }
       return { ...base, operator: 'between', value: f.value as never };
     }
-    case 'in_last_n_days': {
-      const n = Number(f.value);
-      if (Number.isNaN(n) || !Number.isInteger(n) || n <= 0) {
-        throw new Error(
-          `'in_last_n_days' value must be a positive integer, got: ${String(f.value)}`
+    case 'in_last_n_days':
+    case 'in_next_n_days': {
+      // Only a number or a numeric string counts — Number() alone would coerce
+      // true→1 and [7]→7, silently running a query the caller didn't ask for.
+      const raw = f.value;
+      const n =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string' && raw.trim() !== ''
+            ? Number(raw)
+            : NaN;
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' value must be a positive integer, got: ${JSON.stringify(f.value)}`
         );
       }
       return {
         ...base,
         operator: 'relative_date',
-        value: { kind: 'last_n_days', n },
+        value: { kind: f.operator === 'in_last_n_days' ? 'last_n_days' : 'next_n_days', n },
       };
     }
+    case 'this_week':
+      return { ...base, operator: 'relative_date', value: { kind: 'this_week' } };
+    case 'last_week':
+      return { ...base, operator: 'relative_date', value: { kind: 'last_week' } };
     case 'this_month':
       return { ...base, operator: 'relative_date', value: { kind: 'this_month' } };
+    case 'this_quarter':
+      return { ...base, operator: 'relative_date', value: { kind: 'this_quarter' } };
+    case 'last_quarter':
+      return { ...base, operator: 'relative_date', value: { kind: 'last_quarter' } };
     case 'this_year':
       return { ...base, operator: 'relative_date', value: { kind: 'this_year' } };
     default:
-      throw new UnsupportedOperatorError(f.operator); // in, not_in, in_next_n_days, this_week
+      // Unreachable for the current enum (kept for future not-yet-mapped additions).
+      throw new UnsupportedOperatorError(f.operator);
   }
 }
 

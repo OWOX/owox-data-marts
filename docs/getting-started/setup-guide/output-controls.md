@@ -36,21 +36,24 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 
 | Column type | Available operators |
 |---|---|
-| String | is, is not, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
-| Number | =, ≠, >, <, ≥, ≤, between, is null, is not null |
-| Date / DateTime / Timestamp | on, not on, after, before, on or after, on or before, between, relative, is null, is not null |
-| Time | at, not at, after, before, at or after, at or before, between, is null, is not null |
+| String | is, is not, is any of, is none of, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
+| Number | =, ≠, is any of, is none of, >, <, ≥, ≤, between, is null, is not null |
+| Date / DateTime / Timestamp | on, not on, is any of, is none of, after, before, on or after, on or before, between, relative, is null, is not null |
+| Time | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null |
 | Boolean | is true, is false, is null, is not null |
+
+**Is any of / is none of** match a column against a list of values (SQL `IN` / `NOT IN`). Enter the values comma-separated — up to 500 per rule.
 
 ### Relative date presets
 
 For date columns, the **relative** operator re-evaluates on every run:
 
 - Today / Yesterday
-- This month / Last month / This year
-- Last N days / Last N months (N from 1 to 3650)
+- This week / Last week (ISO weeks — Monday through Sunday, on every storage type)
+- This month / Last month / This quarter / Last quarter / This year
+- Last N days / Last N months / Next N days (N from 1 to 3650)
 
-Use it so rolling reports stay current without touching filter values manually.
+Use it so rolling reports stay current without touching filter values manually. Like **Last N days**, **Next N days** includes today (today through N days ahead).
 
 ![Filter editor popover for the order_date column. The Condition dropdown shows "relative" selected. A Preset dropdown shows "Last N days" with the value 7 entered below. An arrow points to the filter icon on the order_date row.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/00111513-5089-450d-b5b6-1724d42e5500/public)
 

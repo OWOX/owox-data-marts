@@ -380,6 +380,44 @@ export abstract class SqlClauseRenderer {
     // name across placeholders, so occurrence count need not equal params.length.
   }
 
+  /**
+   * IN/NOT IN for param-binding dialects: one placeholder and one param per value,
+   * names advanced sequentially so positional binders stay aligned. `placeholderFor`
+   * supplies the dialect's placeholder text for a given param name (BigQuery returns
+   * `@name`/CAST-wrapped, Athena ignores the name and returns `?`).
+   */
+  protected renderInListWithParams(
+    rule: Extract<FilterRule, { operator: 'in' | 'not_in' }>,
+    col: string,
+    paramName: string,
+    placeholderFor: (name: string) => string
+  ): RenderedClause {
+    const placeholders: string[] = [];
+    const params: SqlParameter[] = [];
+    let name = paramName;
+    for (const v of rule.value) {
+      placeholders.push(placeholderFor(name));
+      params.push({ name, value: v });
+      name = this.nextParamName(name);
+    }
+    return {
+      sql: `${col} ${rule.operator === 'in' ? 'IN' : 'NOT IN'} (${placeholders.join(', ')})`,
+      params,
+    };
+  }
+
+  /** IN/NOT IN for literal-inlining dialects: `lit` is the dialect's escaping formatter. */
+  protected renderInListWithLiterals(
+    rule: Extract<FilterRule, { operator: 'in' | 'not_in' }>,
+    col: string,
+    lit: (value: string | number | boolean | null) => string
+  ): RenderedClause {
+    return {
+      sql: `${col} ${rule.operator === 'in' ? 'IN' : 'NOT IN'} (${rule.value.map(v => lit(v)).join(', ')})`,
+      params: [],
+    };
+  }
+
   protected nextParamName(paramName: string): string {
     const match = paramName.match(/^(.*?)(\d+)$/);
     if (!match) {

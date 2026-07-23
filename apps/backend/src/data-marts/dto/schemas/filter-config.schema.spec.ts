@@ -40,6 +40,20 @@ describe('FilterConfigSchema', () => {
     expect(FilterConfigSchema.parse(input)).toEqual(input);
   });
 
+  it('accepts a same-type in list and rejects a mixed-type one', () => {
+    expect(
+      FilterConfigSchema.safeParse([{ column: 'c', operator: 'in', value: ['a', 'b'] }]).success
+    ).toBe(true);
+    expect(
+      FilterConfigSchema.safeParse([{ column: 'c', operator: 'not_in', value: [1, 2, 3] }]).success
+    ).toBe(true);
+    // Param-binding storages type each bound value individually — a mixed list must
+    // fail at save time, not at query time with a raw warehouse error.
+    expect(
+      FilterConfigSchema.safeParse([{ column: 'c', operator: 'in', value: ['a', 5, true] }]).success
+    ).toBe(false);
+  });
+
   it('rejects empty column', () => {
     expect(() => FilterConfigSchema.parse([{ column: '', operator: 'eq', value: 'x' }])).toThrow();
   });

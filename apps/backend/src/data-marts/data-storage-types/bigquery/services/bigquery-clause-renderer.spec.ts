@@ -105,7 +105,79 @@ describe('BigQueryClauseRenderer', () => {
     });
   });
 
+  describe('in / not_in', () => {
+    it('renders IN with one named param per value', () => {
+      const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', 'google'] }]);
+      expect(out.sql).toBe('\nWHERE `channel` IN (@p0, @p1)');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+      ]);
+    });
+    it('renders NOT IN and advances the param index for the next rule', () => {
+      const out = r.renderWhere([
+        { column: 'channel', operator: 'not_in', value: ['fb', 'google', 'tiktok'] },
+        { column: 'name', operator: 'eq', value: 'X' },
+      ]);
+      expect(out.sql).toBe('\nWHERE `channel` NOT IN (@p0, @p1, @p2)\n  AND `name` = @p3');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+        { name: 'p2', value: 'tiktok' },
+        { name: 'p3', value: 'X' },
+      ]);
+    });
+    it('casts each placeholder for a DATE column', () => {
+      const out = r.renderWhere(
+        [{ column: 'day', operator: 'in', value: ['2026-01-01', '2026-01-02'] }],
+        undefined,
+        'p',
+        () => 'DATE'
+      );
+      expect(out.sql).toBe('\nWHERE `day` IN (CAST(@p0 AS DATE), CAST(@p1 AS DATE))');
+      expect(out.params).toEqual([
+        { name: 'p0', value: '2026-01-01' },
+        { name: 'p1', value: '2026-01-02' },
+      ]);
+    });
+  });
+
   describe('relative_date', () => {
+    it('next_n_days includes today and n days ahead', () => {
+      expect(
+        r.renderWhere([
+          { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } },
+        ]).sql
+      ).toBe('\nWHERE `d` >= CURRENT_DATE() AND `d` <= DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)');
+    });
+    it('this_week / last_week truncate with ISOWEEK (Monday), not the Sunday-based WEEK', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_week' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), ISOWEEK) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY)'
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_week' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY) AND `d` < DATE_TRUNC(CURRENT_DATE(), ISOWEEK)'
+      );
+    });
+    it('this_quarter / last_quarter are calendar quarters', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), QUARTER) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH)'
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } }])
+          .sql
+      ).toBe(
+        '\nWHERE `d` >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH) AND `d` < DATE_TRUNC(CURRENT_DATE(), QUARTER)'
+      );
+    });
     it('today', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }]).sql

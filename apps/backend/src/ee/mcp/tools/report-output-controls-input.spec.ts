@@ -38,20 +38,25 @@ describe('mapReportFilters', () => {
     ]);
   });
 
-  it('turns an unsupported operator into a BadRequestException naming the vocabulary', () => {
-    expect(() =>
+  it('maps an in filter natively (no longer an unsupported operator)', () => {
+    expect(
       mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
+    ).toEqual([{ column: 'channel', operator: 'in', value: ['ads'], placement: 'post-join' }]);
+  });
+
+  it('turns an unsupported operator into a BadRequestException naming the vocabulary', () => {
+    // Every enum operator maps today; the defensive path fires only for a raw
+    // operator string a direct caller invents.
+    expect(() =>
+      mapReportFilters(undefined, [{ field: 'channel', operator: 'not_a_real_op', value: 'x' }])
     ).toThrow(BadRequestException);
     expect(() =>
-      mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
+      mapReportFilters(undefined, [{ field: 'channel', operator: 'not_a_real_op', value: 'x' }])
     ).toThrow(/Supported operators/);
-    // Regression: filters combine with AND, so the message must not steer the
-    // client into emulating 'in' with repeated eq filters — that matches nothing.
+    // Regression: the message must not steer the client into emulating an OR
+    // match with repeated eq filters — filters combine with AND.
     expect(() =>
-      mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
-    ).toThrow(/cannot be expressed.*do not emulate it with repeated 'eq'/);
-    expect(() =>
-      mapReportFilters(undefined, [{ field: 'channel', operator: 'in', value: ['ads'] }])
+      mapReportFilters(undefined, [{ field: 'channel', operator: 'not_a_real_op', value: 'x' }])
     ).not.toThrow(/use multiple filters/);
   });
 

@@ -25,12 +25,11 @@ import {
 import { buildBlendedFieldIndex } from './blended-field-index';
 import { BlendedFieldEntry } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import {
-  STRING_TYPES,
   NUMBER_TYPES,
   DATE_TYPES,
-  TIME_TYPES,
-  BOOL_TYPES,
   categorizeFieldType,
+  INTERNAL_OPERATORS_BY_CATEGORY,
+  TYPE_AGNOSTIC_OPS,
 } from '../dto/schemas/field-type-category';
 import {
   resolveFieldGovernance,
@@ -102,68 +101,9 @@ export type ValidationError =
   // name-keyed readers. `label` is the colliding output name.
   | { code: 'OUTPUT_COLUMN_NAME_COLLISION'; label: string };
 
-// Valid for any column type, including ones not in the sets above.
-const TYPE_AGNOSTIC_OPS = new Set(['is_null', 'is_not_null']);
-
-const STRING_OPS = new Set([
-  'eq',
-  'neq',
-  'contains',
-  'not_contains',
-  'starts_with',
-  'ends_with',
-  'is_empty',
-  'is_not_empty',
-  'is_null',
-  'is_not_null',
-  'regex',
-  'not_regex',
-]);
-const NUMBER_OPS = new Set([
-  'eq',
-  'neq',
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'between',
-  'is_null',
-  'is_not_null',
-]);
-const DATE_OPS = new Set([
-  'eq',
-  'neq',
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'between',
-  'relative_date',
-  'is_null',
-  'is_not_null',
-]);
-// Same comparison ops as DATE_OPS minus relative_date (date-arithmetic presets).
-const TIME_OPS = new Set([
-  'eq',
-  'neq',
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'between',
-  'is_null',
-  'is_not_null',
-]);
-const BOOL_OPS = new Set(['is_true', 'is_false', 'is_null', 'is_not_null']);
-
 function operatorAllowed(fieldType: string, operator: string): boolean {
   if (TYPE_AGNOSTIC_OPS.has(operator)) return true;
-  if (STRING_TYPES.has(fieldType)) return STRING_OPS.has(operator);
-  if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPS.has(operator);
-  if (DATE_TYPES.has(fieldType)) return DATE_OPS.has(operator);
-  if (TIME_TYPES.has(fieldType)) return TIME_OPS.has(operator);
-  if (BOOL_TYPES.has(fieldType)) return BOOL_OPS.has(operator);
-  return false;
+  return INTERNAL_OPERATORS_BY_CATEGORY[categorizeFieldType(fieldType)].has(operator);
 }
 
 @Injectable()

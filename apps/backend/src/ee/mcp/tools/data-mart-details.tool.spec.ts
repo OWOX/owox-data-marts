@@ -13,7 +13,7 @@ describe('GetDataMartDetailsTool', () => {
     authFlow: 'mcp',
   };
 
-  it('returns data mart details using token project-member context', async () => {
+  it('returns data mart details enriched with category/allowedAggregations and the operator matrix', async () => {
     const detailsResult = {
       id: 'dm_1',
       name: 'Orders',
@@ -45,29 +45,129 @@ describe('GetDataMartDetailsTool', () => {
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new GetDataMartDetailsTool(facade);
 
-    const expectedStructured = {
-      id: 'dm_1',
-      name: 'Orders',
-      description: 'Orders data mart',
-      fields: detailsResult.fields,
-      joined_fields: detailsResult.joinedFields,
+    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+    const sc = result.structuredContent as {
+      id: string;
+      fields: Array<Record<string, unknown>>;
+      joined_fields: Array<Record<string, unknown>>;
+      operators_by_category: Record<string, string[]>;
     };
 
-    await expect(tool.handler({ data_mart_id: 'dm_1' }, context)).resolves.toEqual({
-      structuredContent: expectedStructured,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(expectedStructured, null, 2),
-        },
-      ],
+    expect(sc.id).toBe('dm_1');
+    // Governance defaults, not the full type menu: DATE → MIN/MAX, STRING → COUNT/COUNT_DISTINCT.
+    expect(sc.fields[0]).toMatchObject({
+      name: 'order_date',
+      type: 'DATE',
+      category: 'date',
+      allowedAggregations: ['MIN', 'MAX'],
     });
+    expect(sc.fields[1]).toMatchObject({
+      name: 'utm_source',
+      category: 'string',
+      allowedAggregations: ['COUNT', 'COUNT_DISTINCT'],
+    });
+    // Joined fields without a governance restriction get the same type-derived defaults.
+    expect(sc.joined_fields[0]).toMatchObject({
+      name: 'blended_org__orgName',
+      sourceDataMart: 'blended_org',
+      category: 'string',
+      allowedAggregations: ['COUNT', 'COUNT_DISTINCT'],
+    });
+    // Only categories present in this data mart appear in the operator matrix.
+    expect(Object.keys(sc.operators_by_category).sort()).toEqual(['date', 'string']);
+    expect(sc.operators_by_category['string']).toEqual(
+      expect.arrayContaining(['eq', 'contains', 'starts_with', 'is_null'])
+    );
+    expect(sc.operators_by_category['string']).not.toEqual(expect.arrayContaining(['gt']));
+    expect(sc.operators_by_category['date']).toEqual(
+      expect.arrayContaining(['before', 'after', 'between', 'in_last_n_days', 'this_month'])
+    );
+
     expect(facade.getDataMartDetails).toHaveBeenCalledWith({
       projectId: 'project-1',
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
     });
+  });
+
+  it('narrows a field with an explicit allowedAggregations override and enriches nested fields', async () => {
+    const facade = {
+      getDataMartDetails: jest.fn().mockResolvedValue({
+        id: 'dm_2',
+        name: 'Events',
+        description: '',
+        fields: [
+          {
+            name: 'revenue',
+            type: 'FLOAT',
+            allowedAggregations: ['SUM', 'P95'],
+          },
+          {
+            name: 'payload',
+            type: 'RECORD',
+            fields: [{ name: 'payload.amount', type: 'INTEGER' }],
+          },
+        ],
+        joinedFields: [
+          {
+            name: 'costs__spend',
+            type: 'FLOAT',
+            description: '',
+            sourceDataMart: 'costs',
+            allowedAggregations: ['SUM'],
+          },
+          {
+            name: 'costs__locked',
+            type: 'FLOAT',
+            description: '',
+            sourceDataMart: 'costs',
+            allowedAggregations: [],
+          },
+          {
+            // Deduplicated with COUNT_DISTINCT: blended type INTEGER, pre-join STRING.
+            name: 'costs__campaign',
+            type: 'INTEGER',
+            sliceType: 'STRING',
+            description: '',
+            sourceDataMart: 'costs',
+          },
+        ],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade);
+
+    const result = await tool.handler({ data_mart_id: 'dm_2' }, context);
+    const sc = result.structuredContent as {
+      fields: Array<Record<string, unknown>>;
+      joined_fields: Array<Record<string, unknown>>;
+      operators_by_category: Record<string, string[]>;
+    };
+
+    // Explicit override is preserved (already within the number menu).
+    expect(sc.fields[0]).toMatchObject({ allowedAggregations: ['SUM', 'P95'] });
+    // RECORD container is categorized 'other'; its nested leaf is enriched as a number.
+    expect(sc.fields[1]).toMatchObject({ category: 'other', allowedAggregations: ['COUNT'] });
+    expect((sc.fields[1].fields as Array<Record<string, unknown>>)[0]).toMatchObject({
+      category: 'number',
+      allowedAggregations: ['SUM', 'AVG', 'MIN', 'MAX'],
+    });
+    // Restricted joined field keeps its restriction.
+    expect(sc.joined_fields[0]).toMatchObject({ allowedAggregations: ['SUM'] });
+    // Explicit [] ("no aggregations allowed") must stay [], NOT fall back to type defaults —
+    // the validator enforces the empty set, so advertising defaults would guarantee rejections.
+    expect(sc.joined_fields[1]).toMatchObject({ allowedAggregations: [] });
+    // A type-changing dedup: slices run on the PRE-join type, so the field gets its own
+    // sliceCategory and that category joins the operator matrix.
+    expect(sc.joined_fields[2]).toMatchObject({
+      category: 'number',
+      sliceCategory: 'string',
+    });
+    expect(Object.keys(sc.operators_by_category)).toEqual(
+      expect.arrayContaining(['number', 'string'])
+    );
+    // 'other' category only allows null checks.
+    expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
   });
 
   it('rejects explicit project_id and legacy camelCase dataMartId input', () => {
@@ -89,6 +189,7 @@ describe('GetDataMartDetailsTool', () => {
         description: expect.any(Object),
         fields: expect.any(Object),
         joined_fields: expect.any(Object),
+        operators_by_category: expect.any(Object),
       }),
       annotations: {
         title: 'Get Data Mart Details',
@@ -101,6 +202,8 @@ describe('GetDataMartDetailsTool', () => {
     expect(tool.description).toContain('joined_fields');
     expect(tool.description).toContain('get_relevant_data_marts_by_prompt');
     expect(tool.description).toContain('field-level metadata');
+    expect(tool.description).toContain('allowedAggregations');
+    expect(tool.description).toContain('operators_by_category');
     expect(tool.description).toContain('does not return data owners');
     expect(tool.description).toContain('data freshness');
     expect(tool.description).toContain('sample values');

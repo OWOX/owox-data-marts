@@ -5,21 +5,28 @@ import {
   mapMcpDateBuckets,
   mapMcpSort,
   queryDataMartInputSchema,
+  McpOperatorEnum,
   SUPPORTED_MCP_OPERATORS,
-  UNSUPPORTED_MCP_OPERATORS,
 } from './query-data-mart.input';
 
 describe('SUPPORTED_MCP_OPERATORS', () => {
-  it('excludes all 4 unsupported operators', () => {
-    for (const op of UNSUPPORTED_MCP_OPERATORS) {
-      expect(SUPPORTED_MCP_OPERATORS).not.toContain(op);
-    }
+  it('every advertised operator is supported', () => {
+    expect(SUPPORTED_MCP_OPERATORS).toEqual(McpOperatorEnum.options);
   });
 
   it('includes representative supported operators', () => {
     expect(SUPPORTED_MCP_OPERATORS).toContain('eq');
     expect(SUPPORTED_MCP_OPERATORS).toContain('between');
     expect(SUPPORTED_MCP_OPERATORS).toContain('this_month');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('in');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('not_in');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('is_empty');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('is_not_empty');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('this_week');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('last_week');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('this_quarter');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('last_quarter');
+    expect(SUPPORTED_MCP_OPERATORS).toContain('in_next_n_days');
   });
 });
 
@@ -53,10 +60,123 @@ describe('mapMcpFiltersToRules', () => {
     });
   });
 
-  it('rejects unsupported operators', () => {
-    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'this_week' }])).toThrow(
-      /unsupported_operator/
+  it('translates eq/neq with a boolean value to is_true/is_false (value dropped)', () => {
+    const rules = mapMcpFiltersToRules(
+      [{ field: 'active', operator: 'eq', value: false }],
+      [
+        { field: 'active', operator: 'eq', value: true },
+        { field: 'active', operator: 'neq', value: true },
+        { field: 'active', operator: 'neq', value: false },
+      ]
     );
+    expect(rules).toEqual([
+      { column: 'active', operator: 'is_false', placement: 'pre-join' },
+      { column: 'active', operator: 'is_true', placement: 'post-join' },
+      { column: 'active', operator: 'is_false', placement: 'post-join' },
+      { column: 'active', operator: 'is_true', placement: 'post-join' },
+    ]);
+  });
+
+  it('keeps eq with the STRING "true" untranslated so type validation can flag it', () => {
+    const rules = mapMcpFiltersToRules([], [{ field: 'active', operator: 'eq', value: 'true' }]);
+    expect(rules![0]).toMatchObject({ column: 'active', operator: 'eq', value: 'true' });
+  });
+
+  it('maps in/not_in with an array of same-type scalars, preserving placement', () => {
+    const rules = mapMcpFiltersToRules(
+      [{ field: 'channel', operator: 'in', value: ['fb', 'google'] }],
+      [{ field: 'amount', operator: 'not_in', value: [1, 2, 3] }]
+    );
+    expect(rules).toEqual([
+      { column: 'channel', operator: 'in', value: ['fb', 'google'], placement: 'pre-join' },
+      { column: 'amount', operator: 'not_in', value: [1, 2, 3], placement: 'post-join' },
+    ]);
+  });
+
+  it('rejects mixed-type and non-finite in lists with a precise error', () => {
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: ['draft', 5, true] }])
+    ).toThrow(/same type/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [1, Infinity] }])
+    ).toThrow(/finite numbers/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [Number.NaN] }])
+    ).toThrow(/finite numbers/);
+  });
+
+  it('rejects in with an empty array, a non-array, or non-scalar entries', () => {
+    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [] }])).toThrow(
+      /non-empty array/
+    );
+    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: 'fb' }])).toThrow(
+      /non-empty array/
+    );
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'not_in', value: [{ v: 1 }] }])
+    ).toThrow(/strings, finite numbers, or booleans/);
+  });
+
+  it('rejects an in list longer than the cap', () => {
+    const long = Array.from({ length: 501 }, (_, i) => i);
+    expect(() => mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: long }])).toThrow(
+      /too long/
+    );
+  });
+
+  it('maps is_empty/is_not_empty as no-value operators', () => {
+    const rules = mapMcpFiltersToRules([], [{ field: 'note', operator: 'is_empty' }]);
+    expect(rules![0]).toMatchObject({ column: 'note', operator: 'is_empty' });
+  });
+
+  it('maps the calendar presets to relative_date kinds', () => {
+    const rules = mapMcpFiltersToRules(
+      [],
+      [
+        { field: 'd', operator: 'this_week' },
+        { field: 'd', operator: 'last_week' },
+        { field: 'd', operator: 'this_quarter' },
+        { field: 'd', operator: 'last_quarter' },
+      ]
+    );
+    expect(rules!.map(r => (r as { value: { kind: string } }).value.kind)).toEqual([
+      'this_week',
+      'last_week',
+      'this_quarter',
+      'last_quarter',
+    ]);
+    expect(rules!.every(r => r.operator === 'relative_date')).toBe(true);
+  });
+
+  it('maps in_next_n_days to relative_date next_n_days and validates n', () => {
+    const rules = mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 14 }]);
+    expect(rules![0]).toMatchObject({
+      operator: 'relative_date',
+      value: { kind: 'next_n_days', n: 14 },
+    });
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 0 }])
+    ).toThrow(/positive integer/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'd', operator: 'in_next_n_days', value: 'abc' }])
+    ).toThrow(/positive integer/);
+  });
+
+  it('rejects boolean/array day counts instead of coercing them (Number(true)=1, Number([7])=7)', () => {
+    for (const operator of ['in_last_n_days', 'in_next_n_days'] as const) {
+      expect(() => mapMcpFiltersToRules([], [{ field: 'd', operator, value: true }])).toThrow(
+        /positive integer/
+      );
+      expect(() => mapMcpFiltersToRules([], [{ field: 'd', operator, value: [7] }])).toThrow(
+        /positive integer/
+      );
+    }
+    // A numeric string stays accepted — a common client habit.
+    const rules = mapMcpFiltersToRules(
+      [],
+      [{ field: 'd', operator: 'in_last_n_days', value: '7' }]
+    );
+    expect(rules![0]).toMatchObject({ value: { kind: 'last_n_days', n: 7 } });
   });
 
   it('rejects in_last_n_days with NaN value', () => {
