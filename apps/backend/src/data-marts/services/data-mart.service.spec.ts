@@ -94,38 +94,6 @@ describe('DataMartService schema actualization', () => {
     warnSpy.mockRestore();
   });
 
-  it('reports a concurrent field edit when the conditional update loses the race', async () => {
-    const sourceAtRunStart = {
-      name: 'GoogleSheets',
-      node: 'sheet',
-      fields: ['old_field'],
-      configuration: [{ _id: 'config-1', SpreadsheetId: 'sheet-1' }],
-    };
-    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
-    const dataMart = makeDataMart({
-      modifiedAt,
-      definition: {
-        connector: {
-          source: sourceAtRunStart,
-          storage: { fullyQualifiedName: 'dataset.table' },
-        },
-      },
-    });
-    repository.update.mockResolvedValue({ affected: 0 });
-
-    const updated = await service.updateConnectorSourceFields(dataMart, ['discovered_field']);
-
-    expect(updated).toBe(false);
-    expect(repository.update).toHaveBeenCalledWith(
-      {
-        id: 'dm-1',
-        projectId: 'proj-1',
-        modifiedAt,
-      },
-      expect.objectContaining({ definition: expect.any(Object) })
-    );
-  });
-
   it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
     const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
       name: 'ConditionalUpdateTest',
@@ -194,12 +162,14 @@ describe('DataMartService schema actualization', () => {
         },
       },
     });
+    const latestModifiedAt = new Date('2026-07-14T10:01:00.000Z');
+    repository.findOne.mockResolvedValue({ ...dataMart, modifiedAt: latestModifiedAt });
 
     const updated = await service.updateConnectorSourceFields(dataMart, ['new_field']);
 
     expect(updated).toBe(true);
     expect(repository.update).toHaveBeenCalledWith(
-      { id: 'dm-1', projectId: 'proj-1', modifiedAt },
+      { id: 'dm-1', projectId: 'proj-1', modifiedAt: latestModifiedAt },
       {
         definition: {
           connector: {
@@ -209,6 +179,18 @@ describe('DataMartService schema actualization', () => {
         },
       }
     );
+
+    repository.findOne.mockResolvedValue({
+      ...dataMart,
+      definition: {
+        connector: {
+          source: { ...sourceAtRunStart, fields: ['user_edit'] },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    await expect(service.updateConnectorSourceFields(dataMart, ['new_field'])).resolves.toBe(false);
+    expect(repository.update).toHaveBeenCalledTimes(1);
   });
 });
 

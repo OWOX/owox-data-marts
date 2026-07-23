@@ -102,7 +102,7 @@ describe('useConnector preview requests', () => {
     );
     fireEvent.click(view.getByRole('button'));
     expect(view.getByRole('button')).toHaveTextContent('true');
-    view.rerender(<ConnectorContextProvider />);
+    view.rerender(<ConnectorContextProvider>{null}</ConnectorContextProvider>);
     view.rerender(
       <ConnectorContextProvider>
         <PreviewControl />

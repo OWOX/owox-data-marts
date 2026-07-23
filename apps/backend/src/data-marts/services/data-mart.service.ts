@@ -348,24 +348,41 @@ export class DataMartService {
   }
 
   async updateConnectorSourceFields(dataMart: DataMart, fields: string[]): Promise<boolean> {
-    const definition = dataMart.definition;
+    const definitionAtRunStart = dataMart.definition;
 
-    if (!definition || !isConnectorDefinition(definition)) {
+    if (!definitionAtRunStart || !isConnectorDefinition(definitionAtRunStart)) {
       return false;
     }
 
-    const source = definition.connector.source;
-    const currentFields = source.fields;
-    if (this.areStringArraysEqual(currentFields, fields)) {
+    const latestDataMart = await this.dataMartRepository.findOne({
+      where: { id: dataMart.id, projectId: dataMart.projectId },
+    });
+    const latestDefinition = latestDataMart?.definition;
+    if (!latestDataMart || !latestDefinition || !isConnectorDefinition(latestDefinition)) {
+      return false;
+    }
+
+    const sourceAtRunStart = definitionAtRunStart.connector.source;
+    const latestSource = latestDefinition.connector.source;
+    if (this.areStringArraysEqual(latestSource.fields, fields)) {
       return true;
+    }
+    if (
+      sourceAtRunStart.name !== latestSource.name ||
+      sourceAtRunStart.node !== latestSource.node ||
+      JSON.stringify(sourceAtRunStart.configuration) !==
+        JSON.stringify(latestSource.configuration) ||
+      !this.areStringArraysEqual(sourceAtRunStart.fields, latestSource.fields)
+    ) {
+      return false;
     }
 
     const nextDefinition = {
-      ...definition,
+      ...latestDefinition,
       connector: {
-        ...definition.connector,
+        ...latestDefinition.connector,
         source: {
-          ...source,
+          ...latestSource,
           fields,
         },
       },
@@ -375,7 +392,7 @@ export class DataMartService {
       {
         id: dataMart.id,
         projectId: dataMart.projectId,
-        modifiedAt: this.createModifiedAtUpdateCriterion(dataMart.modifiedAt),
+        modifiedAt: this.createModifiedAtUpdateCriterion(latestDataMart.modifiedAt),
       },
       { definition: nextDefinition }
     );

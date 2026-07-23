@@ -388,16 +388,18 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
   }
 
   tableExists(tableName) {
-    const tableNamePattern = String(tableName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const escapedTableNamePattern = `^${tableNamePattern}$`.replace(/'/g, "''");
+    const escapedDatabaseName = String(this.config.AthenaDatabaseName.value).replace(/'/g, "''");
+    const escapedTableName = String(tableName).replace(/'/g, "''");
     const params = {
-      QueryString: `SHOW TABLES IN \`${this.config.AthenaDatabaseName.value}\` '${escapedTableNamePattern}'`,
+      QueryString: `SELECT table_name FROM information_schema.tables WHERE table_schema = '${escapedDatabaseName}' AND table_name = '${escapedTableName}'`,
       ResultConfiguration: {
         OutputLocation: this.config.AthenaOutputLocation.value
       }
     };
 
-    return this.executeQuery(params, 'ddl').then(results => Boolean(results && results.length));
+    return this.executeQuery(params, 'query').then(results =>
+      (results || []).some(row => row.table_name === tableName)
+    );
   }
 
   async recoverSnapshotBackupIfNeeded(liveTableName) {
@@ -421,9 +423,9 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
 
   listSnapshotTables(liveTableName, kind) {
     const prefix = `${liveTableName}__owox_${kind}_`;
-    const pattern = `^${String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*$`.replace(/'/g, "''");
+    const escapedPrefix = String(prefix).replace(/'/g, "''");
     const params = {
-      QueryString: `SHOW TABLES IN \`${this.config.AthenaDatabaseName.value}\` '${pattern}'`,
+      QueryString: `SHOW TABLES IN \`${this.config.AthenaDatabaseName.value}\` '*${escapedPrefix}*'`,
       ResultConfiguration: {
         OutputLocation: this.config.AthenaOutputLocation.value
       }
@@ -431,14 +433,14 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
 
     return this.executeQuery(params, 'ddl').then(results =>
       (results || [])
-        .map(row => Object.values(row || {})[0])
+        .map(row => typeof row === 'string' ? row : Object.values(row || {})[0])
         .filter(tableName => typeof tableName === 'string' && tableName.startsWith(prefix))
     );
   }
 
   renameTable(fromTableName, toTableName) {
     const params = {
-      QueryString: `ALTER TABLE \`${this.config.AthenaDatabaseName.value}\`.\`${fromTableName}\` RENAME TO \`${toTableName}\``,
+      QueryString: `ALTER TABLE \`${this.config.AthenaDatabaseName.value}\`.\`${fromTableName}\` RENAME TO \`${this.config.AthenaDatabaseName.value}\`.\`${toTableName}\``,
       ResultConfiguration: {
         OutputLocation: this.config.AthenaOutputLocation.value
       }
