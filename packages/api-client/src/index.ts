@@ -40,3 +40,8 @@ export {
   type OWOXProjectSetupProgressSteps,
   type OWOXProjectSetupStepState,
 } from './project.js';
+export {
+  type OWOXSearchEntityType,
+  type OWOXSearchOptions,
+  type OWOXSearchResult,
+} from './search.js';

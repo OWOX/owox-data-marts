@@ -21,7 +21,11 @@ export function SearchSpec() {
     ApiQuery({
       name: 'limit',
       required: false,
-      type: Number,
+      schema: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+      },
       example: 10,
       description: 'Maximum number of results to return (1-50)',
     }),
@@ -30,6 +34,8 @@ export function SearchSpec() {
       required: false,
       enum: SearchableEntityType,
       isArray: true,
+      style: 'form',
+      explode: false,
       example: [SearchableEntityType.DATA_MART],
       description: 'Restrict results to the given entity types (comma-separated)',
     }),

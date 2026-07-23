@@ -128,6 +128,28 @@ from 1 through 100, increment `offset` by the number of returned templates, and 
 contains fewer items than that limit or the next offset would exceed 100,000. The endpoint cannot
 page beyond that maximum offset.
 
+## Search project entities
+
+Use `search.query()` to find Data Marts, data storages, and data destinations visible to the
+current project member. Pass an optional result limit from 1 through 50, restrict the search to
+specific entity types, or exclude draft Data Marts.
+
+```ts
+const results = await client.search.query('monthly revenue', {
+  limit: 25,
+  entityTypes: ['DATA_MART', 'DATA_STORAGE'],
+  excludeDrafts: true,
+});
+
+for (const result of results) {
+  console.log(result.entityType, result.title, result.description, result.finalScore);
+}
+```
+
+Each result includes the entity type and ID, title, nullable description, combined relevance
+score, keyword score, and a vector score when semantic matching contributed. Search returns an
+empty array when no visible entity matches or embeddings are unavailable.
+
 ## Convert Markdown to HTML
 
 Use `markdown.parseToHtml()` to render Markdown with the same pipeline and styling wrapper used by
