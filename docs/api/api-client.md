@@ -89,7 +89,7 @@ for (const [step, state] of Object.entries(setupProgress.steps)) {
 
 ## Read project run history
 
-Use `runs.getHistory()` to inspect historical Data Mart executions visible to the current
+Use `runs.list()` to inspect historical Data Mart executions visible to the current
 project member. The API key must resolve to a member with viewer access. Administrators can see
 runs for every non-deleted Data Mart in the project. Owners see their owned Data Marts. Editors
 can also see shared Data Marts available for reporting or maintenance, subject to configured
@@ -105,7 +105,7 @@ contains fewer runs than the server-normalized effective limit or the next offse
 100,000.
 
 ```ts
-const history = await client.runs.getHistory({ limit: 50, offset: 0 });
+const history = await client.runs.list({ limit: 50, offset: 0 });
 
 for (const run of history.runs) {
   const author =
@@ -120,7 +120,7 @@ creator ID or the corresponding user projection is unavailable. When an author i
 `createdByUser.userId` is required; `fullName`, `email`, and `avatar` are optional and can also be
 `null`.
 
-The response object contains one required `runs` array. Each run has this contract:
+Each run in the required `runs` array has this contract:
 
 | Field                                            | Presence           | Meaning                                                                                                                                                                        |
 | ------------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

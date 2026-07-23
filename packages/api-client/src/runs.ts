@@ -243,9 +243,7 @@ function parseProjectRunHistory(response: unknown): OWOXProjectDataMartRunsRespo
 export class RunsApi {
   constructor(private readonly requester: RunsRequester) {}
 
-  async getHistory(
-    options: OWOXProjectRunHistoryOptions = {}
-  ): Promise<OWOXProjectDataMartRunsResponse> {
+  async list(options: OWOXProjectRunHistoryOptions = {}): Promise<OWOXProjectDataMartRunsResponse> {
     const query = {
       ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
       ...(options.offset === undefined ? {} : { offset: String(options.offset) }),
