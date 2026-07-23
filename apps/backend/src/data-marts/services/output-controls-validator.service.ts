@@ -28,7 +28,8 @@ import {
   NUMBER_TYPES,
   DATE_TYPES,
   categorizeFieldType,
-  type FieldTypeCategory,
+  INTERNAL_OPERATORS_BY_CATEGORY,
+  TYPE_AGNOSTIC_OPS,
 } from '../dto/schemas/field-type-category';
 import {
   resolveFieldGovernance,
@@ -99,83 +100,6 @@ export type ValidationError =
   // two projected columns colliding. Duplicate alias error on BigQuery / silent clobber on
   // name-keyed readers. `label` is the colliding output name.
   | { code: 'OUTPUT_COLUMN_NAME_COLLISION'; label: string };
-
-// Valid for any column type, including ones not in the sets above.
-const TYPE_AGNOSTIC_OPS = new Set(['is_null', 'is_not_null']);
-
-const STRING_OPS = new Set([
-  'eq',
-  'neq',
-  'contains',
-  'not_contains',
-  'starts_with',
-  'ends_with',
-  'in',
-  'not_in',
-  'is_empty',
-  'is_not_empty',
-  'is_null',
-  'is_not_null',
-  'regex',
-  'not_regex',
-]);
-const NUMBER_OPS = new Set([
-  'eq',
-  'neq',
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'between',
-  'in',
-  'not_in',
-  'is_null',
-  'is_not_null',
-]);
-const DATE_OPS = new Set([
-  'eq',
-  'neq',
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'between',
-  'in',
-  'not_in',
-  'relative_date',
-  'is_null',
-  'is_not_null',
-]);
-// Same comparison ops as DATE_OPS minus relative_date (date-arithmetic presets).
-const TIME_OPS = new Set([
-  'eq',
-  'neq',
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'between',
-  'in',
-  'not_in',
-  'is_null',
-  'is_not_null',
-]);
-const BOOL_OPS = new Set(['is_true', 'is_false', 'is_null', 'is_not_null']);
-
-/**
- * Internal filter operators legal per field-type category — the authority
- * `operatorAllowed` enforces. Exported so other layers (e.g. the MCP tools) can
- * derive "which operators fit this field" guidance from the same source instead
- * of keeping a copy that drifts.
- */
-export const INTERNAL_OPERATORS_BY_CATEGORY: Record<FieldTypeCategory, ReadonlySet<string>> = {
-  string: STRING_OPS,
-  number: NUMBER_OPS,
-  date: DATE_OPS,
-  time: TIME_OPS,
-  boolean: BOOL_OPS,
-  other: TYPE_AGNOSTIC_OPS,
-};
 
 function operatorAllowed(fieldType: string, operator: string): boolean {
   if (TYPE_AGNOSTIC_OPS.has(operator)) return true;

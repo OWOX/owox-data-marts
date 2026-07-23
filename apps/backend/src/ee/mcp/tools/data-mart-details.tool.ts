@@ -31,7 +31,7 @@ const makeCategoryField = () =>
     .string()
     .optional()
     .describe(
-      'Field-type category (number/string/date/time/boolean/other) — the key into operators_by_category for the filter/slice operators this field accepts.'
+      'Field-type category (number/string/date/time/boolean/other) — the key into operators_by_category for the operators this field accepts in filters. For slice operators, use "sliceCategory" instead when it is present.'
     );
 
 const makeAllowedAggregationsField = () =>
@@ -73,6 +73,12 @@ const JoinedFieldSchema = z
       .optional()
       .describe(
         'Present only when this field is deduplicated with a type-changing aggregation. A slice runs BEFORE the join on the original value, so pick slice operators for this pre-join type — not "type". Absent when the two are the same.'
+      ),
+    sliceCategory: z
+      .string()
+      .optional()
+      .describe(
+        'Category of "sliceType" — the operators_by_category key for SLICE operators on this field. Present exactly when sliceType is; when absent, "category" covers slices too.'
       ),
     allowedAggregations: makeAllowedAggregationsField(),
   })
@@ -171,6 +177,14 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
         aggregationRole: out.aggregationRole as AggregationRole | undefined,
         allowedAggregations: out.allowedAggregations as ReportAggregateFunction[] | undefined,
       });
+    }
+    // sliceType is present only when a type-changing dedup makes the pre-join type
+    // differ from the blended "type". Slices run on the PRE-join value, so give the
+    // slice operator lookup its own category (and register it in the matrix).
+    if (typeof out.sliceType === 'string') {
+      const sliceCategory = categorizeFieldType(out.sliceType);
+      categories.add(sliceCategory);
+      out.sliceCategory = sliceCategory;
     }
     if (Array.isArray(out.fields)) {
       out.fields = (out.fields as RawField[]).map(f => this.enrichField(f, categories));

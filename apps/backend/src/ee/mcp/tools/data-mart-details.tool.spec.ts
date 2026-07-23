@@ -124,6 +124,14 @@ describe('GetDataMartDetailsTool', () => {
             sourceDataMart: 'costs',
             allowedAggregations: [],
           },
+          {
+            // Deduplicated with COUNT_DISTINCT: blended type INTEGER, pre-join STRING.
+            name: 'costs__campaign',
+            type: 'INTEGER',
+            sliceType: 'STRING',
+            description: '',
+            sourceDataMart: 'costs',
+          },
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
@@ -149,6 +157,15 @@ describe('GetDataMartDetailsTool', () => {
     // Explicit [] ("no aggregations allowed") must stay [], NOT fall back to type defaults —
     // the validator enforces the empty set, so advertising defaults would guarantee rejections.
     expect(sc.joined_fields[1]).toMatchObject({ allowedAggregations: [] });
+    // A type-changing dedup: slices run on the PRE-join type, so the field gets its own
+    // sliceCategory and that category joins the operator matrix.
+    expect(sc.joined_fields[2]).toMatchObject({
+      category: 'number',
+      sliceCategory: 'string',
+    });
+    expect(Object.keys(sc.operators_by_category)).toEqual(
+      expect.arrayContaining(['number', 'string'])
+    );
     // 'other' category only allows null checks.
     expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
   });

@@ -100,7 +100,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
     state.betweenFrom = String(rule.value.from);
     state.betweenTo = String(rule.value.to);
   } else if (rule.operator === 'in' || rule.operator === 'not_in') {
-    state.list = rule.value.map(String).join(', ');
+    state.list = rule.value.map(formatListValue).join(', ');
     state.listValues = [...rule.value];
   } else if (rule.operator === 'relative_date') {
     state.relativeKind = rule.value.kind;
@@ -119,6 +119,56 @@ function parseScalar(raw: string, fieldType: string): string | number | boolean 
     return n;
   }
   return raw;
+}
+
+/**
+ * Serializes one in/not_in value for the comma-separated text input. A value that
+ * contains a comma, a double quote, or a newline is wrapped in double quotes with
+ * `""` escaping the quote — the CSV-style grammar parseListText understands — so
+ * comma-containing values round-trip through create and edit.
+ */
+function formatListValue(value: string | number | boolean): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Splits the comma-separated list text into values. Double-quoted sections keep
+ * commas/newlines literal and use `""` for a literal quote; unquoted content is
+ * split on commas and newlines. Assembled tokens are trimmed; empties dropped.
+ */
+function parseListText(text: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  const push = () => {
+    const token = current.trim();
+    if (token !== '') values.push(token);
+    current = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',' || ch === '\n') {
+      push();
+    } else {
+      current += ch;
+    }
+  }
+  push();
+  return values;
 }
 
 function buildRule(args: { column: string; fieldType: string; state: EditorState }): FilterRule {
@@ -149,12 +199,10 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     if (state.listValues !== null && state.listValues.length > 0) {
       return { column, operator: op, value: state.listValues };
     }
-    // Comma-separated; entries are trimmed and empties dropped. Mirrors the backend
+    // CSV-style grammar: double quotes keep commas literal ("" escapes a quote);
+    // unquoted entries are trimmed and empties dropped. Mirrors the backend
     // schema bounds (1..IN_LIST_MAX_VALUES values).
-    const entries = state.list
-      .split(/[,\n]/)
-      .map(e => e.trim())
-      .filter(e => e !== '');
+    const entries = parseListText(state.list);
     if (entries.length === 0) {
       throw new Error('At least one value is required');
     }
@@ -293,7 +341,9 @@ export function FilterValueEditor({
 
       {(state.op === 'in' || state.op === 'not_in') && (
         <div className='space-y-1'>
-          <Label>Values (comma-separated)</Label>
+          <Label>
+            Values (comma-separated; wrap a value in "double quotes" if it contains a comma)
+          </Label>
           {/* Plain text even for number/date columns — the field holds a comma list, not one value. */}
           <Input
             type='text'

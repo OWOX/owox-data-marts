@@ -68,7 +68,16 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: z.enum(['in', 'not_in']),
-    value: z.array(ScalarValueSchema).min(1).max(IN_LIST_MAX_VALUES),
+    // Same-type only — mirror of the backend refine (mixed lists fail at query time
+    // on param-binding storages).
+    value: z
+      .array(ScalarValueSchema)
+      .min(1)
+      .max(IN_LIST_MAX_VALUES)
+      .refine(list => list.every(v => typeof v === typeof list[0]), {
+        message:
+          'in/not_in values must all be the same type (all strings, all numbers, or all booleans)',
+      }),
   }),
   z.object({
     column: z.string().min(1),

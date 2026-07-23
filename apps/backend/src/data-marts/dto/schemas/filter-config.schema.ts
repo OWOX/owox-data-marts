@@ -69,7 +69,17 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: z.enum(['in', 'not_in']),
-    value: z.array(ScalarValueSchema).min(1).max(IN_LIST_MAX_VALUES),
+    // Same-type only: param-binding storages type each bound value individually
+    // (BigQuery raises "No matching signature for operator IN" on a mixed list),
+    // so a mixed list saved via the API would fail only at query time otherwise.
+    value: z
+      .array(ScalarValueSchema)
+      .min(1)
+      .max(IN_LIST_MAX_VALUES)
+      .refine(list => list.every(v => typeof v === typeof list[0]), {
+        message:
+          'in/not_in values must all be the same type (all strings, all numbers, or all booleans)',
+      }),
   }),
   z.object({
     column: z.string().min(1),

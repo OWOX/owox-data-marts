@@ -13,7 +13,7 @@ import {
   SUPPORTED_MCP_OPERATORS,
   mapMcpFiltersToRules,
 } from './query-data-mart.input';
-import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/services/output-controls-validator.service';
+import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/dto/schemas/field-type-category';
 
 /** A value each MCP operator accepts, so mapOne can run without validation errors. */
 function dummyValueFor(op: string): unknown {

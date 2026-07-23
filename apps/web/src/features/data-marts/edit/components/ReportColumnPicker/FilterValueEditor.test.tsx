@@ -435,6 +435,47 @@ describe('FilterValueEditor — in / not_in operators', () => {
 
     expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b', 'c'] });
   });
+
+  it('creates comma-containing values via double-quote wrapping', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    fireEvent.change(input, { target: { value: 'alpha, "Acme, Inc.", beta' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['alpha', 'Acme, Inc.', 'beta'],
+    });
+  });
+
+  it('round-trips a comma-containing value through EDIT (quoted display, comma survives)', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.'] },
+    });
+
+    // The display quotes the comma-containing value so re-parsing cannot split it.
+    const input = screen.getByDisplayValue('"Acme, Inc."');
+    fireEvent.change(input, { target: { value: '"Acme, Inc.", Beta' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['Acme, Inc.', 'Beta'],
+    });
+  });
+
+  it('supports literal double quotes via "" escaping', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    fireEvent.change(input, { target: { value: '"He said ""hi"""' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['He said "hi"'] });
+  });
 });
 
 // ---------------------------------------------------------------------------

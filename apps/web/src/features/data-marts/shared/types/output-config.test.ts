@@ -30,6 +30,15 @@ describe('FilterRuleSchema — in/not_in (backend mirror)', () => {
       false
     );
   });
+
+  it('rejects a mixed-type in list (backend refine mirror)', () => {
+    expect(
+      FilterRuleSchema.safeParse({ column: 'c', operator: 'in', value: ['a', 5, true] }).success
+    ).toBe(false);
+    expect(
+      FilterRuleSchema.safeParse({ column: 'c', operator: 'not_in', value: [1, 2, 3] }).success
+    ).toBe(true);
+  });
 });
 
 describe('FilterRuleSchema — week/quarter/next_n_days presets (backend mirror)', () => {

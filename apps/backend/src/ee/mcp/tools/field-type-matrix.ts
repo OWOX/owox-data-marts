@@ -1,5 +1,5 @@
 import type { FieldTypeCategory } from '../../../data-marts/dto/schemas/field-type-category';
-import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/services/output-controls-validator.service';
+import { INTERNAL_OPERATORS_BY_CATEGORY } from '../../../data-marts/dto/schemas/field-type-category';
 import {
   type AggregationRole,
   defaultAggregationsForCategory,
