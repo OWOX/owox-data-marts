@@ -6,6 +6,47 @@ export const ROWS_PAYLOAD_BYTE_CAP = 131072; // 128 KiB — hard ceiling for the
 // The ceiling is hard: a pathological row that alone exceeds it is dropped (not emitted in full),
 // and the result is flagged `capped` (→ `truncated: true`) so the caller narrows the query.
 
+export interface TsvColumnLabel {
+  /** Stable technical name used to disambiguate a duplicate display label. */
+  name: string;
+  /** Business-facing label supplied by the query header. */
+  displayName: string;
+}
+
+function escapeTsvText(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\t/g, '\\t')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
+/**
+ * Produces non-empty, unambiguous labels for a tabular result. Schema aliases are optional and
+ * user-controlled, so blanks fall back to the technical name and duplicates carry that name.
+ */
+export function formatTsvColumnLabels(columns: readonly TsvColumnLabel[]): string[] {
+  const baseLabels = columns.map(column => column.displayName.trim() || column.name);
+  const labelCounts = new Map<string, number>();
+  for (const label of baseLabels) {
+    labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  }
+
+  const usedLabels = new Set<string>();
+  return baseLabels.map((label, index) => {
+    const column = columns[index];
+    const candidate = (labelCounts.get(label) ?? 0) > 1 ? `${label} (${column.name})` : label;
+    let result = candidate;
+    let collisionNumber = 2;
+    while (usedLabels.has(result)) {
+      result = `${candidate} [${column.name} ${collisionNumber}]`;
+      collisionNumber++;
+    }
+    usedLabels.add(result);
+    return result;
+  });
+}
+
 // JSON.stringify throws on a nested BigInt (TypeError) or a circular reference. A struct/array cell
 // can carry a BigInt warehouse value (e.g. BigQuery INT64 inside a RECORD), and that throw would
 // happen AFTER the query ran and was billed — surfacing as a misleading generic error. Encode
@@ -24,15 +65,18 @@ function cell(v: unknown): string {
   // JSON-encode them so the LLM sees the actual value. Date keeps its String() form to preserve
   // the existing timestamp rendering.
   const s = typeof v === 'object' && !(v instanceof Date) ? stringifyObjectCell(v) : String(v);
-  return s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  return escapeTsvText(s);
 }
 
 export function serializeTsvWithByteCap(
   columns: string[],
   rows: unknown[][],
   maxBytes: number
-): { tsv: string; rowCount: number; capped: boolean } {
-  const header = columns.join('\t');
+): { tsv: string; headerColumns: string[]; rowCount: number; capped: boolean } {
+  // Header labels are user-controlled aliases too. Escape them using the same contract as cells
+  // so tabs/newlines cannot create phantom TSV columns or rows.
+  const headerColumns = columns.map(escapeTsvText);
+  const header = headerColumns.join('\t');
   let total = Buffer.byteLength(header, 'utf8');
   const lines = [header];
   let count = 0;
@@ -46,7 +90,7 @@ export function serializeTsvWithByteCap(
     lines.push(line);
     count++;
   }
-  return { tsv: lines.join('\n'), rowCount: count, capped: count < rows.length };
+  return { tsv: lines.join('\n'), headerColumns, rowCount: count, capped: count < rows.length };
 }
 
 export function serializeTsv(columns: string[], rows: unknown[][]): string {

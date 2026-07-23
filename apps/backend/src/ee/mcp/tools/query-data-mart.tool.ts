@@ -11,6 +11,7 @@ import { BusinessViolationException } from '../../../common/exceptions/business-
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
 import { ClsContextService } from '../../../common/logger/cls-context.service';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import { MCP_TOOL_DIAGNOSTICS_KEY } from '../observability/mcp-tool-diagnostics';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
@@ -27,9 +28,15 @@ import {
   unsupportedOperatorMessage,
   DEFAULT_LIMIT,
 } from './query-data-mart.input';
-import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
+import {
+  formatTsvColumnLabels,
+  serializeTsvWithByteCap,
+  ROWS_PAYLOAD_BYTE_CAP,
+} from './tabular-serializer';
 import { translateOutputControlsError } from './output-controls-error.mapper';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
+import { buildDataMartUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -42,6 +49,7 @@ When building the query:
 - Request only the fields relevant to the user's question — never request all fields.
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
 - aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — but each data mart's output controls decide which functions a given field allows, so some may be rejected (pick another, or ask an admin to enable it). Group-by is implied by the non-aggregated fields you select.
+- For “how many” questions, use COUNT or COUNT_DISTINCT (when the business meaning is unique entities) instead of returning raw rows and counting them yourself. Keep only dimensions the user asked to break the count by.
 - date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
 - sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
@@ -56,16 +64,47 @@ Choosing between slices and filters (both are row-level predicates applied to ra
 Using the results:
 - Use metrics and totals from the response directly — never recompute a value already present (totals are computed server-side over all matching rows, so they stay correct even when rows are truncated).
 - The totals block is separate from the rows.
+- Totals keys are technical output column names. Match a totals key to column_metadata[].name, not to a business-friendly columns label.
 - When you use aggregations, the rows include an extra "Row Count" column — the number of underlying rows in each group. It is grouping metadata, not one of your requested fields; ignore it unless the user asked how many rows a group contains.
 
-If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000).`;
+If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000). Always use the source metadata in the response: name the Data Mart the answer came from, distinguish numbers calculated by OWOX from arithmetic you perform yourself, and clearly warn the user when rows were truncated.`;
   readonly zodSchema = queryDataMartInputSchema.shape;
   readonly outputSchema = {
-    columns: z.array(z.string()),
+    columns: z.array(z.string()).describe('Business-friendly result headers, in rows order.'),
+    column_metadata: z.array(
+      z.object({
+        name: z.string().describe('Exact output column name.'),
+        display_name: z.string().describe('Business-friendly label for presentation.'),
+        description: z.string().optional(),
+        type: z.string().optional(),
+      })
+    ),
     rows: z.string(),
     returned_rows: z.number(),
     truncated: z.boolean(),
-    totals: z.record(z.string(), z.unknown()).nullable(),
+    truncation: z
+      .object({
+        reasons: z.array(z.enum(['row_limit', 'payload_byte_cap'])).min(1),
+      })
+      .optional(),
+    totals: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .describe(
+        'Server-side totals keyed by technical output column name. Match each key to column_metadata[].name.'
+      ),
+    source: z.object({
+      data_mart: z.object({
+        id: z.string(),
+        title: z.string(),
+        url: z.string(),
+      }),
+    }),
+    calculation_origin: z.object({
+      rows: z.literal('taken_from_owox'),
+      totals: z.enum(['calculated_by_owox', 'not_available']),
+    }),
+    _instruction: z.string(),
   };
   readonly annotations = {
     title: 'Query Data Mart',
@@ -79,7 +118,8 @@ If truncated is true, not all matching rows were returned: narrow the query (few
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
     private readonly dataMarts: McpDataMartsFacade,
-    private readonly cls: ClsContextService
+    private readonly cls: ClsContextService,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   // The SDK already validates against zodSchema before handler(); this strict re-parse guards
@@ -124,17 +164,50 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         }
       }
 
-      const { tsv, rowCount, capped } = serializeTsvWithByteCap(
-        res.columns,
+      const displayColumns = formatTsvColumnLabels(res.columnMetadata);
+      const { tsv, headerColumns, rowCount, capped } = serializeTsvWithByteCap(
+        displayColumns,
         res.rows,
         ROWS_PAYLOAD_BYTE_CAP
       );
+      const truncationReasons = [
+        ...(res.truncated ? (['row_limit'] as const) : []),
+        ...(capped ? (['payload_byte_cap'] as const) : []),
+      ];
+      const isTruncated = truncationReasons.length > 0;
+      const totalsKeyInstruction = res.totals
+        ? ' Totals keys are technical output names; match them to column_metadata[].name, not to display labels.'
+        : '';
       const structuredContent = {
-        columns: res.columns,
+        columns: headerColumns,
+        column_metadata: res.columnMetadata.map((column, index) => ({
+          name: column.name,
+          display_name: headerColumns[index],
+          ...(column.description ? { description: column.description } : {}),
+          ...(column.type ? { type: column.type } : {}),
+        })),
         rows: tsv,
         returned_rows: rowCount, // actual rows in the payload (post-cap)
-        truncated: res.truncated || capped, // row-limit OR byte-cap truncation
+        truncated: isTruncated,
+        ...(isTruncated ? { truncation: { reasons: truncationReasons } } : {}),
         totals: res.totals,
+        source: {
+          data_mart: {
+            id: res.dataMart.id,
+            title: res.dataMart.title,
+            url: joinPublicOrigin(
+              this.publicOriginService.getPublicOrigin(),
+              buildDataMartUiPath(context.projectId, res.dataMart.id)
+            ),
+          },
+        },
+        calculation_origin: {
+          rows: 'taken_from_owox' as const,
+          totals: res.totals ? ('calculated_by_owox' as const) : ('not_available' as const),
+        },
+        _instruction: isTruncated
+          ? `IMPORTANT: Rows are incomplete. Tell the user explicitly that the result was truncated and that any conclusion based on rows may be incomplete. State the Data Mart source. Server-provided totals still cover all matching rows; do not describe a value you calculate from returned rows as an OWOX-calculated total.${totalsKeyInstruction}`
+          : `State which Data Mart supplied the data. Identify server-provided rows and totals as taken from or calculated by OWOX. If you perform arithmetic from those values yourself, label it as an AI-side calculation.${totalsKeyInstruction}`,
       };
 
       return {

@@ -3,23 +3,38 @@ import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
+  MCP_PROJECT_CONTEXT_FACADE,
+  type McpProjectContextFacade,
+} from '../../../idp/facades/mcp-project-context.facade';
+import {
   MCP_DATA_MARTS_FACADE,
   type McpDataMartsFacade,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
-type ListDataMartsInput = Record<string, never>;
+const inputSchema = z
+  .object({
+    status: z
+      .literal('published')
+      .optional()
+      .describe('Catalog state filter. Only published Data Marts are available through MCP.'),
+  })
+  .strict();
+
+type ListDataMartsInput = z.infer<typeof inputSchema>;
 
 @Injectable()
 export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> {
   readonly name = 'list_data_marts';
   readonly description =
     'List data marts available to the current OWOX project member. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog.';
-  readonly zodSchema = {};
+  readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
+    project: z.object({ id: z.string(), title: z.string() }).optional(),
     data_marts: z.array(
       z.object({
         id: z.string(),
@@ -39,29 +54,34 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
   };
   readonly requiredScopes: McpScope[] = ['mcp:read'];
 
-  private readonly inputSchema = z.object({}).strict();
-
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
     private readonly dataMarts: McpDataMartsFacade,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    @Inject(MCP_PROJECT_CONTEXT_FACADE)
+    private readonly projectContext: McpProjectContextFacade
   ) {}
 
   parseInput(input: unknown): ListDataMartsInput {
-    return this.inputSchema.parse(input);
+    return inputSchema.parse(input);
   }
 
   async handler(input: ListDataMartsInput, context: McpAuthContext): Promise<McpToolResult> {
-    this.parseInput(input);
+    const parsed = this.parseInput(input);
 
-    const result = await this.dataMarts.listDataMarts({
-      projectId: context.projectId,
-      userId: context.userId,
-      roles: context.roles,
-    });
+    const [result, projectContext] = await Promise.all([
+      this.dataMarts.listDataMarts({
+        projectId: context.projectId,
+        userId: context.userId,
+        roles: context.roles,
+        status: parsed.status ?? 'published',
+      }),
+      tryGetMcpProjectSummary(this.projectContext, context),
+    ]);
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
+      ...(projectContext ? { project: projectContext } : {}),
       data_marts: result.dataMarts.map(dataMart => ({
         id: dataMart.id,
         title: dataMart.title,
