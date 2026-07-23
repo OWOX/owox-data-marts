@@ -59,3 +59,12 @@ API-key-derived project and member context. `@owox/api-client` exposes `auth.get
 `OWOXAuthContext` for validating a configured API key and reading that context without exposing
 the API key secret. Existing authentication and authorization behavior are unchanged, and
 consumers can adopt the client method without a migration.
+
+## Publish canonical API-key authentication headers
+
+Protected OpenAPI operations now declare `X-OWOX-Authorization` and, only when API-key-derived
+tokens are accepted, the optional `X-OWOX-Api-Key-Id` header that must match the token's API key
+ID. Routes that reject API-key authentication omit that conditional header, while
+`POST /api/auth/api-keys/exchange` retains its required API key ID input. Runtime authentication
+behavior is unchanged; generated clients and API tooling can use the shared header contract
+without endpoint-specific metadata.
