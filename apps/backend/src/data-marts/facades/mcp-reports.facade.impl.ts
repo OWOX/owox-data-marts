@@ -25,6 +25,7 @@ import { GetReportCommand } from '../dto/domain/get-report.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
+import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
@@ -153,10 +154,18 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     // is enforced here as well, not only by the tool-layer input schema.
     if (
       request.fields === undefined &&
+      request.postJoinFilters === undefined &&
+      request.preJoinFilters === undefined &&
+      request.aggregationConfig === undefined &&
+      request.dateTruncConfig === undefined &&
+      request.sortConfig === undefined &&
+      request.limitConfig === undefined &&
       request.name === undefined &&
       request.message === undefined
     ) {
-      throw new BadRequestException('Nothing to update: provide fields, name, and/or message');
+      throw new BadRequestException(
+        'Nothing to update: provide fields, filters, slices, aggregations, date_buckets, sort, limit, name, and/or message'
+      );
     }
 
     // UpdateReportCommand carries the FULL report state and the service
@@ -202,16 +211,53 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         request.fields !== undefined
           ? this.toColumnConfig(request.fields)
           : (current.columnConfig ?? null),
-        current.filterConfig ?? null,
-        current.sortConfig ?? null,
-        current.limitConfig ?? null,
-        current.aggregationConfig ?? null,
-        current.dateTruncConfig ?? null,
+        this.mergeFilterConfig(
+          current.filterConfig ?? null,
+          request.preJoinFilters,
+          request.postJoinFilters
+        ),
+        request.sortConfig !== undefined ? request.sortConfig : (current.sortConfig ?? null),
+        request.limitConfig !== undefined ? request.limitConfig : (current.limitConfig ?? null),
+        request.aggregationConfig !== undefined
+          ? request.aggregationConfig
+          : (current.aggregationConfig ?? null),
+        request.dateTruncConfig !== undefined
+          ? request.dateTruncConfig
+          : (current.dateTruncConfig ?? null),
         current.uniqueCountConfig
       )
     );
 
     return { report_id: request.reportId, status: 'updated' };
+  }
+
+  /**
+   * Replaces the report's filter rules PER PLACEMENT: `filters` (post-join) and
+   * `slices` (pre-join) are independent controls, so touching one must not wipe
+   * the stored rules of the other — an agent that never saw the report's current
+   * slices could not restore them (no read tool exposes output controls). Rules
+   * without a `placement` (e.g. created in the UI) count as post-join, matching
+   * how the query engine applies them.
+   */
+  private mergeFilterConfig(
+    current: FilterConfig,
+    preJoinReplacement: FilterConfig | undefined,
+    postJoinReplacement: FilterConfig | undefined
+  ): FilterConfig {
+    if (preJoinReplacement === undefined && postJoinReplacement === undefined) {
+      return current;
+    }
+    const currentRules = current ?? [];
+    const nextPreJoin =
+      preJoinReplacement !== undefined
+        ? (preJoinReplacement ?? [])
+        : currentRules.filter(rule => rule.placement === 'pre-join');
+    const nextPostJoin =
+      postJoinReplacement !== undefined
+        ? (postJoinReplacement ?? [])
+        : currentRules.filter(rule => rule.placement !== 'pre-join');
+    const merged = [...nextPreJoin, ...nextPostJoin];
+    return merged.length ? merged : null;
   }
 
   /**
@@ -450,7 +496,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         destinationConfig,
         undefined,
         request.roles,
-        this.toColumnConfig(request.fields)
+        this.toColumnConfig(request.fields),
+        request.filterConfig ?? null,
+        request.sortConfig ?? null,
+        request.limitConfig ?? null,
+        request.aggregationConfig ?? null,
+        request.dateTruncConfig ?? null
       )
     );
 
@@ -499,7 +550,12 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         },
         undefined,
         request.roles,
-        columnConfig
+        columnConfig,
+        request.filterConfig ?? null,
+        request.sortConfig ?? null,
+        request.limitConfig ?? null,
+        request.aggregationConfig ?? null,
+        request.dateTruncConfig ?? null
       )
     );
 
@@ -563,11 +619,11 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       dataMartId: dataMart.id,
       projectId: request.projectId,
       columnConfig,
-      filterConfig: null,
-      sortConfig: null,
-      limitConfig: null,
-      aggregationConfig: null,
-      dateTruncConfig: null,
+      filterConfig: request.filterConfig ?? null,
+      sortConfig: request.sortConfig ?? null,
+      limitConfig: request.limitConfig ?? null,
+      aggregationConfig: request.aggregationConfig ?? null,
+      dateTruncConfig: request.dateTruncConfig ?? null,
       uniqueCountConfig: null,
       accessor: { userId: request.userId, roles: request.roles },
     });

@@ -64,11 +64,124 @@ describe('UpdateReportTool', () => {
     );
   });
 
+  it('maps filters and slices independently per placement, and [] into null (remove that kind)', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    // filters alone touches only the post-join kind; slices stay undefined (keep current).
+    await tool.handler(
+      { report_id: 'report-1', filters: [{ field: 'purchases', operator: 'eq', value: 0 }] },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postJoinFilters: [
+          { column: 'purchases', operator: 'eq', value: 0, placement: 'post-join' },
+        ],
+        preJoinFilters: undefined,
+      })
+    );
+
+    await tool.handler({ report_id: 'report-1', filters: [] }, context);
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ postJoinFilters: null, preJoinFilters: undefined })
+    );
+
+    // Omitted filters must stay undefined so the facade keeps the current ones.
+    await tool.handler({ report_id: 'report-1', name: 'New name' }, context);
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ postJoinFilters: undefined, preJoinFilters: undefined })
+    );
+  });
+
+  it('maps replacement aggregations, date buckets, sort, and limit; [] clears each', async () => {
+    const facade = {
+      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    await tool.handler(
+      {
+        report_id: 'report-1',
+        slices: [{ field: 'source', operator: 'eq', value: 'ga4' }],
+        aggregations: [{ field: 'revenue', function: 'SUM' }],
+        date_buckets: [{ field: 'date', unit: 'MONTH' }],
+        sort: [{ field: 'revenue', direction: 'desc' }],
+        limit: 250,
+      },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preJoinFilters: [{ column: 'source', operator: 'eq', value: 'ga4', placement: 'pre-join' }],
+        postJoinFilters: undefined,
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+        sortConfig: [{ column: 'revenue', direction: 'desc' }],
+        limitConfig: 250,
+      })
+    );
+
+    await tool.handler(
+      { report_id: 'report-1', aggregations: [], date_buckets: [], sort: [], limit: null },
+      context
+    );
+    expect(facade.updateReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        sortConfig: null,
+        limitConfig: null,
+      })
+    );
+  });
+
+  it('rejects an unsupported filter operator before touching the facade', async () => {
+    const facade = {
+      updateReport: jest.fn(),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new UpdateReportTool(facade);
+
+    await expect(
+      tool.handler(
+        {
+          report_id: 'report-1',
+          filters: [{ field: 'channel', operator: 'in', value: ['ads'] }],
+        },
+        context
+      )
+    ).rejects.toThrow(/not supported yet.*Supported operators/);
+    // Regression: filters combine with AND, so the error must NOT steer the
+    // agent into emulating 'in' with repeated eq filters (that matches nothing).
+    await expect(
+      tool.handler(
+        { report_id: 'report-1', filters: [{ field: 'channel', operator: 'in', value: ['ads'] }] },
+        context
+      )
+    ).rejects.toThrow(/cannot be expressed.*do not emulate it with repeated 'eq'/);
+    expect(facade.updateReport).not.toHaveBeenCalled();
+  });
+
+  it('accepts filters alone as a valid change', () => {
+    const tool = new UpdateReportTool({} as McpReportsFacade);
+
+    expect(() =>
+      tool.parseInput({
+        report_id: 'report-1',
+        filters: [{ field: 'purchases', operator: 'eq', value: 0 }],
+      })
+    ).not.toThrow();
+    // An explicit empty array is a valid change: it removes every filter.
+    expect(() => tool.parseInput({ report_id: 'report-1', filters: [] })).not.toThrow();
+  });
+
   it('requires at least one change and rejects malformed input', () => {
     const tool = new UpdateReportTool({} as McpReportsFacade);
 
     expect(() => tool.parseInput({ report_id: 'report-1' })).toThrow(
-      'Provide at least one of fields, name, or message'
+      'Provide at least one of fields, filters, slices, aggregations, date_buckets, sort, limit, name, or message'
     );
     expect(() => tool.parseInput({ name: 'New name' })).toThrow();
     expect(() => tool.parseInput({ report_id: 'report-1', fields: [] })).toThrow();

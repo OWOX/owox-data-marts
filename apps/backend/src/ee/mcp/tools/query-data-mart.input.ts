@@ -45,7 +45,8 @@ const MCP_OPERATORS = [
 export const McpOperatorEnum = z.enum(MCP_OPERATORS);
 
 // Fresh instance per use — a shared one becomes a JSON-Schema $ref that OpenAI can't resolve (filters → any[]).
-const makeMcpFilterSchema = () =>
+// Also reused by add_report/update_report so report filters speak the exact same vocabulary as query filters.
+export const makeMcpFilterSchema = () =>
   z.object({
     field: z.string().min(1),
     operator: z.enum(MCP_OPERATORS),
@@ -78,21 +79,26 @@ export const MCP_AGGREGATE_FUNCTIONS = [
   'P95',
 ] as const satisfies readonly ReportAggregateFunction[];
 
-const McpAggregationSchema = z.object({
-  field: z.string().min(1),
-  function: z.enum(MCP_AGGREGATE_FUNCTIONS),
-});
+// Fresh instances per use, same as makeMcpFilterSchema — and reused by
+// add_report/update_report so report output controls share the query vocabulary.
+export const makeMcpAggregationSchema = () =>
+  z.object({
+    field: z.string().min(1),
+    function: z.enum(MCP_AGGREGATE_FUNCTIONS),
+  });
 
-const McpDateBucketSchema = z.object({
-  field: z.string().min(1),
-  unit: z.enum(DATE_TRUNC_UNITS),
-  time_zone: z.string().min(1).regex(IANA_TIME_ZONE_PATTERN, 'Invalid IANA time zone').optional(),
-});
+export const makeMcpDateBucketSchema = () =>
+  z.object({
+    field: z.string().min(1),
+    unit: z.enum(DATE_TRUNC_UNITS),
+    time_zone: z.string().min(1).regex(IANA_TIME_ZONE_PATTERN, 'Invalid IANA time zone').optional(),
+  });
 
-const McpSortSchema = z.object({
-  field: z.string().min(1),
-  direction: z.enum(['asc', 'desc']),
-});
+export const makeMcpSortSchema = () =>
+  z.object({
+    field: z.string().min(1),
+    direction: z.enum(['asc', 'desc']),
+  });
 
 export const queryDataMartInputSchema = z
   .object({
@@ -121,17 +127,17 @@ export const queryDataMartInputSchema = z
         'Post-join filters on the blended result. May reference a field that is NOT in "fields" (e.g. filter on a column you do not display).'
       ),
     aggregations: z
-      .array(McpAggregationSchema)
+      .array(makeMcpAggregationSchema())
       .optional()
       .describe('Aggregations over a field. Each aggregated field must also appear in "fields".'),
     date_buckets: z
-      .array(McpDateBucketSchema)
+      .array(makeMcpDateBucketSchema())
       .optional()
       .describe(
         'Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR. Each bucketed field must also appear in "fields".'
       ),
     sort: z
-      .array(McpSortSchema)
+      .array(makeMcpSortSchema())
       .optional()
       .describe(
         'Order the result rows. Each rule is { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also appear in "fields".'
@@ -161,6 +167,21 @@ export class UnsupportedOperatorError extends Error {
     this.name = 'UnsupportedOperatorError';
     this.operator = op;
   }
+}
+
+/**
+ * Single construction site for the client-facing unsupported-operator message,
+ * shared by query_data_mart and the report tools so the copies cannot drift.
+ * Deliberately does NOT suggest emulating 'in' with repeated 'eq' filters:
+ * filters combine with AND, so two 'eq' rules on one field match nothing.
+ */
+export function unsupportedOperatorMessage(op: string): string {
+  return (
+    `Filter operator '${op}' is not supported yet. Supported operators: ` +
+    `${SUPPORTED_MCP_OPERATORS.join(', ')}. Filters combine with AND, so an OR match across ` +
+    `several values of one field (like 'in') cannot be expressed in the current vocabulary — ` +
+    `do not emulate it with repeated 'eq' filters on the same field.`
+  );
 }
 
 export class UnsupportedAggregationError extends Error {

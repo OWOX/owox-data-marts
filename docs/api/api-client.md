@@ -87,6 +87,63 @@ for (const [step, state] of Object.entries(setupProgress.steps)) {
 }
 ```
 
+## Read project run history
+
+Use `runs.getHistory()` to inspect historical Data Mart executions visible to the current
+project member. Pass optional `limit` and `offset` values to page through the project-wide history;
+the API defaults to at most 100 runs.
+
+```ts
+const history = await client.runs.getHistory({ limit: 50, offset: 0 });
+
+for (const run of history.runs) {
+  console.log(run.dataMart.title, run.type, run.status, run.finishedAt);
+}
+```
+
+Each run includes its Data Mart ID and title, creator metadata when available, execution and trigger
+types, status, timestamps, and available logs, errors, metadata, and totals. This makes the method
+suitable for monitoring and automation without calling the HTTP endpoint directly.
+
+## List project insight templates
+
+Use `insights.getTemplates()` to discover reusable insight definitions across the Data Marts
+visible to the current project member. Pass optional `limit` and `offset` values to page through
+the project-wide list. The API defaults `limit` to 100, caps it at 100, and caps `offset` at
+100,000; invalid or non-positive values fall back to the defaults.
+
+```ts
+const templates = await client.insights.getTemplates({ limit: 50, offset: 0 });
+
+for (const template of templates.insights) {
+  console.log(template.dataMart.title, template.title, template.canDelete);
+}
+```
+
+Each result includes the template summary, its Data Mart ID and title, creator metadata when
+available, and whether the current member can delete it. This makes the method suitable for
+automation and agent workflows that need to find reusable insight definitions without scanning
+Data Marts individually. Because the response has no total or next-page marker, choose a `limit`
+from 1 through 100, increment `offset` by the number of returned templates, and stop when a page
+contains fewer items than that limit or the next offset would exceed 100,000. The endpoint cannot
+page beyond that maximum offset.
+
+## Convert Markdown to HTML
+
+Use `markdown.parseToHtml()` to render Markdown with the same pipeline and styling wrapper used by
+the OWOX Data Marts web interface. The method returns the rendered HTML string directly.
+
+```ts
+const html = await client.markdown.parseToHtml({
+  markdown: '# Weekly revenue\n\n**Net revenue** after refunds.',
+});
+
+console.log(html);
+```
+
+The method requires viewer access to the API key's project. Treat the returned HTML according to
+the same trust and embedding rules as Markdown rendered in the application.
+
 ## List data marts
 
 ```ts

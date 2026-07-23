@@ -1,6 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
 import {
-  ApiHeader,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -29,11 +28,6 @@ export function StreamHttpDataSpec() {
         'would group by every column). Authenticated ' +
         'with the ODM member token via `x-owox-authorization`. Creates one DataMartRun ' +
         'of type HTTP_DATA per request, available through the run history endpoint.',
-    }),
-    ApiHeader({
-      name: 'x-owox-authorization',
-      description: 'ODM member token',
-      required: true,
     }),
     ApiParam({
       name: 'dataMartId',
