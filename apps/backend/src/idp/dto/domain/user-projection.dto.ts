@@ -21,7 +21,6 @@ export class UserProjectionDto {
 
   @ApiProperty({
     type: String,
-    format: 'email',
     example: 'ada@example.com',
     description: 'User email address when available.',
     required: false,
@@ -31,7 +30,6 @@ export class UserProjectionDto {
 
   @ApiProperty({
     type: String,
-    format: 'uri',
     example: 'https://example.com/avatar.png',
     description: 'User avatar URL when available.',
     required: false,

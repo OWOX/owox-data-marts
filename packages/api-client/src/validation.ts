@@ -16,36 +16,13 @@ export function isOptionalNullableString(value: unknown): boolean {
   return value === undefined || value === null || typeof value === 'string';
 }
 
-function isOptionalNullableEmail(value: unknown): boolean {
-  return (
-    value === undefined ||
-    value === null ||
-    (typeof value === 'string' && /^[^\s@]+@[^\s@]+$/.test(value))
-  );
-}
-
-function isOptionalNullableUri(value: unknown): boolean {
-  if (value === undefined || value === null) {
-    return true;
-  }
-  if (typeof value !== 'string') {
-    return false;
-  }
-
-  try {
-    return new URL(value).protocol.length > 1;
-  } catch {
-    return false;
-  }
-}
-
 export function isUserProjection(value: unknown): value is UserProjectionShape {
   return (
     isRecord(value) &&
     typeof value.userId === 'string' &&
     isOptionalNullableString(value.fullName) &&
-    isOptionalNullableEmail(value.email) &&
-    isOptionalNullableUri(value.avatar)
+    isOptionalNullableString(value.email) &&
+    isOptionalNullableString(value.avatar)
   );
 }
 

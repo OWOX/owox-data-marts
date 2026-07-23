@@ -166,6 +166,7 @@ describe('DataMartController list OpenAPI', () => {
       definitionType: {
         type: 'string',
         enum: ['SQL', 'TABLE', 'VIEW', 'TABLE_PATTERN', 'CONNECTOR'],
+        nullable: true,
       },
       connectorSourceName: { type: 'string' },
       triggersCount: { type: 'integer', minimum: 0 },
@@ -201,6 +202,18 @@ describe('DataMartController list OpenAPI', () => {
         title: { type: 'string' },
       },
     });
+    const userSchema = resolveRef('#/components/schemas/UserProjectionDto');
+    expect(userSchema).toMatchObject({
+      required: ['userId'],
+      properties: {
+        userId: { type: 'string' },
+        fullName: { type: 'string', nullable: true },
+        email: { type: 'string', nullable: true },
+        avatar: { type: 'string', nullable: true },
+      },
+    });
+    expect(userSchema.properties.email).not.toHaveProperty('format');
+    expect(userSchema.properties.avatar).not.toHaveProperty('format');
     expect(resolveRef('#/components/schemas/DataMartListItemContextApiDto')).toMatchObject({
       required: ['id', 'name'],
       properties: {

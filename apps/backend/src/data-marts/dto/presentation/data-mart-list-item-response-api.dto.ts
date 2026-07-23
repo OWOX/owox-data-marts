@@ -25,8 +25,9 @@ export class DataMartListItemResponseApiDto {
     enum: DataMartDefinitionType,
     example: DataMartDefinitionType.SQL,
     required: false,
+    nullable: true,
   })
-  definitionType?: DataMartDefinitionType;
+  definitionType?: DataMartDefinitionType | null;
 
   @ApiProperty({ example: 'OpenExchangeRates', required: false })
   connectorSourceName?: string;

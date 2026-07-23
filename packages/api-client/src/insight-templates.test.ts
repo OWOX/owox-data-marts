@@ -85,6 +85,30 @@ describe('Insight Templates API', () => {
     );
   });
 
+  it('accepts opaque insight-creator email and avatar strings', async () => {
+    const response = {
+      insights: [
+        {
+          ...insightTemplates.insights[0],
+          createdByUser: {
+            ...insightTemplates.insights[0].createdByUser!,
+            email: '',
+            avatar: '/avatars/user-1',
+          },
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.insights.getTemplates()).resolves.toEqual(response);
+  });
+
   it('omits pagination query parameters when options are not provided', async () => {
     const fetchImpl = createFetchMock(request => {
       if (request.method === 'POST') {

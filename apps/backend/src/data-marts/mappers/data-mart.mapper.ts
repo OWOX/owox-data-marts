@@ -106,7 +106,7 @@ export class DataMartMapper {
       this.dataStorageMapper.toDomainDto(entity.storage),
       entity.createdAt,
       entity.modifiedAt,
-      entity.definitionType,
+      entity.definitionType ?? undefined,
       entity.definition,
       entity.description,
       entity.schema,

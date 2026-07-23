@@ -58,7 +58,7 @@ export type OWOXDataMart = Record<string, unknown> & {
   status: OWOXDataMartStatus;
   storage: OWOXDataMartStorage;
   description: string | null;
-  definitionType?: OWOXDataMartDefinitionType;
+  definitionType?: OWOXDataMartDefinitionType | null;
   connectorSourceName?: string;
   triggersCount: number;
   reportsCount: number;
@@ -203,6 +203,7 @@ function isDataMart(value: unknown): value is OWOXDataMart {
     typeof value.storage.title === 'string' &&
     (typeof value.description === 'string' || value.description === null) &&
     (value.definitionType === undefined ||
+      value.definitionType === null ||
       (typeof value.definitionType === 'string' &&
         DATA_MART_DEFINITION_TYPES.has(value.definitionType))) &&
     (value.connectorSourceName === undefined || typeof value.connectorSourceName === 'string') &&

@@ -166,6 +166,51 @@ describe('Data Marts API', () => {
     ]);
   });
 
+  it('accepts a nullable definition type for a draft Data Mart', async () => {
+    const draftDataMart = {
+      ...dataMart,
+      status: 'DRAFT',
+      definitionType: null,
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, {
+        items: [draftDataMart],
+        total: 1,
+        nextOffset: null,
+      });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.dataMarts.list()).resolves.toEqual([draftDataMart]);
+  });
+
+  it('accepts opaque user email and avatar strings allowed by the backend schema', async () => {
+    const dataMartWithOpaqueUserMetadata = {
+      ...dataMart,
+      createdByUser: {
+        ...dataMart.createdByUser!,
+        email: '',
+        avatar: '/avatars/user-1',
+      },
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, {
+        items: [dataMartWithOpaqueUserMetadata],
+        total: 1,
+        nextOffset: null,
+      });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.dataMarts.list()).resolves.toEqual([dataMartWithOpaqueUserMetadata]);
+  });
+
   it.each([
     ['a negative offset', { offset: -1 }],
     ['a fractional offset', { offset: 1.5 }],
@@ -194,16 +239,14 @@ describe('Data Marts API', () => {
     ['a fractional trigger count', { ...dataMart, triggersCount: 1.5 }],
     ['a malformed creator', { ...dataMart, createdByUser: { userId: 42 } }],
     [
-      'an invalid creator email',
-      { ...dataMart, createdByUser: { ...dataMart.createdByUser!, email: 'not-an-email' } },
+      'a non-string creator email',
+      { ...dataMart, createdByUser: { ...dataMart.createdByUser!, email: 42 } },
     ],
     [
-      'an invalid owner avatar URL',
+      'a non-string owner avatar',
       {
         ...dataMart,
-        technicalOwnerUsers: [
-          { ...dataMart.technicalOwnerUsers[0]!, avatar: 'not an absolute URL' },
-        ],
+        technicalOwnerUsers: [{ ...dataMart.technicalOwnerUsers[0]!, avatar: { path: '/avatar' } }],
       },
     ],
     ['a malformed context', { ...dataMart, contexts: [{ id: 'context-1' }] }],

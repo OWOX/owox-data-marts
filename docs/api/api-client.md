@@ -225,7 +225,8 @@ Each `OWOXDataMart` contains:
 
 - `id`, `title`, and `status` (`DRAFT` or `PUBLISHED`);
 - `storage.type` and `storage.title`;
-- required nullable `description`, plus optional `definitionType` and `connectorSourceName`;
+- required nullable `description`, optional nullable `definitionType`, and optional
+  `connectorSourceName`;
 - non-negative `triggersCount` and `reportsCount`;
 - nullable `createdByUser`, owner-user arrays, and `contexts` with `id` and `name`;
 - RFC 3339 `createdAt` and `modifiedAt` strings; and
