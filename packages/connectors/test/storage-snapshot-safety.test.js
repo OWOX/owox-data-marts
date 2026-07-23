@@ -201,9 +201,12 @@ test('Athena uses backticks for DDL identifiers and double quotes for DML', asyn
     },
     true
   );
-
+  await storage.renameTable('staging_table', 'live_table');
   assert.match(queries[0], /`analytics`\.`staging_table`/);
-  assert.match(queries[0], /`id` string/);
+  assert.equal(
+    queries[2],
+    'ALTER TABLE `analytics`.`staging_table` RENAME TO `analytics`.`live_table`'
+  );
   assert.match(queries[0], /`select` string/);
   assert.match(queries[1], /MERGE INTO "analytics"\."staging_table"/);
   assert.match(queries[1], /tgt\."id" = src\."id"/);
@@ -212,17 +215,16 @@ test('Athena uses backticks for DDL identifiers and double quotes for DML', asyn
   assert.doesNotMatch(queries[1], /`id`/);
 });
 
-test('Athena table existence uses the supported exact-match SHOW TABLES expression', async () => {
+test('Athena table existence uses an exact information schema lookup', async () => {
   const storage = athenaStorage();
-  let query;
-  storage.executeQuery = async params => {
-    query = params.QueryString;
+  storage.executeQuery = async (params, type) => {
+    assert.equal(type, 'query');
+    assert.match(params.QueryString, /FROM information_schema\.tables/);
+    assert.match(params.QueryString, /table_name = 'goals\.v2'/);
     return [{ table_name: 'goals.v2' }];
   };
 
   assert.equal(await storage.tableExists('goals.v2'), true);
-  assert.equal(query, "SHOW TABLES IN `analytics` '^goals\\.v2$'");
-  assert.equal(query.includes(' LIKE '), false);
 });
 
 test('Athena snapshot imports use stable JSON parsing with an explicit timestamp format', async () => {
