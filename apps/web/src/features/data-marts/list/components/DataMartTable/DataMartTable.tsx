@@ -320,11 +320,11 @@ export function DataMartTable<TData, TValue>({
                       );
                       setShowRunQuality(true);
                     }}
-                    title='Run Data Quality for selected data marts'
+                    title='Check Data Quality for selected data marts'
                     data-testid='run-selected-data-quality'
                   >
                     <ShieldCheck className='h-4 w-4' />
-                    <span className='hidden md:block'>Run Quality</span>
+                    <span className='hidden md:block'>Check Quality</span>
                   </Button>
                 </div>
               )}

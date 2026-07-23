@@ -1,19 +1,12 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartTable } from './DataMartTable';
 import type { DataMartListItem } from '../../model/types';
-import { dataQualityService } from '../../../data-quality/api/data-quality.service';
-
-vi.mock('../../../data-quality/api/data-quality.service', () => ({
-  dataQualityService: {
-    getConfig: vi.fn(),
-  },
-}));
 
 vi.mock('../../../../../shared/hooks', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../../../shared/hooks')>();
@@ -33,20 +26,7 @@ vi.mock('../../model/hooks/useDataMartHealthStatusPrefetch', () => ({
 }));
 
 describe('DataMartTable', () => {
-  it('opens the Run Quality dialog from the selected-items toolbar', async () => {
-    vi.mocked(dataQualityService.getConfig).mockResolvedValue({
-      savedConfig: null,
-      effectiveConfig: { timezone: 'UTC', rules: [] },
-      source: 'DEFAULT',
-      permissions: { canEdit: false, canRun: false },
-      runEligibility: {
-        eligible: false,
-        code: 'OUTPUT_SCHEMA_REQUIRED',
-        activeRunId: null,
-      },
-      availableChecks: [],
-      relationships: [],
-    });
+  it('opens the Check Quality confirmation from the selected-items toolbar', () => {
     const columns: ColumnDef<DataMartListItem>[] = [
       { accessorKey: 'title', header: 'Title', cell: ({ row }) => row.original.title },
     ];
@@ -67,13 +47,10 @@ describe('DataMartTable', () => {
     );
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select row' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Run Quality' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check Quality' }));
 
-    expect(screen.getByRole('heading', { name: 'Run Data Quality' })).toBeVisible();
-    await waitFor(() => {
-      expect(dataQualityService.getConfig).toHaveBeenCalledWith('mart-1');
-    });
-    expect(screen.getByText('Output Schema required')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Check Data Quality' })).toBeVisible();
+    expect(screen.getByText('Run Data Quality checks for 1 selected Data Mart?')).toBeVisible();
   });
 });
 
