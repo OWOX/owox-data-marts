@@ -134,7 +134,8 @@ Use `search.query()` to find Data Marts, data storages, and data destinations vi
 current project member. The server trims surrounding query whitespace and enforces its configured
 minimum and maximum query lengths. Pass an optional result limit from 1 through 50, restrict the
 search to specific entity types, or exclude draft Data Marts. When omitted, the server's result
-limit is used, all supported entity types are searched, and draft Data Marts may be included.
+limit is used, all supported entity types are searched, and draft Data Marts may be included. Pass
+an empty `entityTypes` array to preserve an explicit no-types filter and return no matches.
 
 ```ts
 const results = await client.search.query('monthly revenue', {

@@ -106,6 +106,21 @@ describe('Search API', () => {
     await expect(client.search.query('revenue')).resolves.toEqual([]);
   });
 
+  it('preserves an explicitly empty entity type filter', async () => {
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      if (request.method === 'GET' && request.url === '/api/search?q=revenue&entityTypes=') {
+        return createJsonResponse(200, []);
+      }
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.search.query('revenue', { entityTypes: [] })).resolves.toEqual([]);
+  });
+
   it.each([
     ['a non-array response', { results: searchResults }],
     ['an unknown entity type', [{ ...searchResults[0], entityType: 'REPORT' }]],

@@ -63,7 +63,7 @@ export class SearchApi {
     const queryParams = {
       q: query,
       ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
-      ...(options.entityTypes?.length ? { entityTypes: options.entityTypes.join(',') } : {}),
+      ...(options.entityTypes === undefined ? {} : { entityTypes: options.entityTypes.join(',') }),
       ...(options.excludeDrafts === undefined
         ? {}
         : { excludeDrafts: String(options.excludeDrafts) }),
