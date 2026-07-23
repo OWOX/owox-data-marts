@@ -219,6 +219,12 @@ export class QueryDataMartService {
             signal: workController.signal,
           });
           const columns = description.dataHeaders.map(header => header.name);
+          const columnMetadata = description.dataHeaders.map(header => ({
+            name: header.name,
+            displayName: header.alias ?? header.name,
+            ...(header.description ? { description: header.description } : {}),
+            ...(header.storageFieldType ? { type: header.storageFieldType } : {}),
+          }));
 
           const rows: unknown[][] = [];
           let batchId: string | undefined;
@@ -238,7 +244,7 @@ export class QueryDataMartService {
           const truncated = rows.length > r.limit;
           const trimmed = truncated ? rows.slice(0, r.limit) : rows;
           const totals = await totalsPromise;
-          return { columns, trimmed, truncated, totals };
+          return { columns, columnMetadata, trimmed, truncated, totals };
         } finally {
           workController.abort();
           try {
@@ -251,7 +257,7 @@ export class QueryDataMartService {
         }
       })();
 
-      const { columns, trimmed, truncated, totals } = await Promise.race([
+      const { columns, columnMetadata, trimmed, truncated, totals } = await Promise.race([
         produce,
         deadline,
         aborted,
@@ -301,9 +307,14 @@ export class QueryDataMartService {
 
       return {
         columns,
+        columnMetadata,
         rows: trimmed,
         truncated,
         totals,
+        dataMart: {
+          id: dataMart.id,
+          title: dataMart.title,
+        },
         executedSql: executionSqlQuery,
       };
     } catch (err) {

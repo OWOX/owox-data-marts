@@ -12,6 +12,8 @@ import {
   QueryAbortedError,
   QueryTimeoutError,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
+import { ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
 
 const AUTH_CTX = {
   projectId: 'p1',
@@ -22,7 +24,10 @@ const AUTH_CTX = {
 describe('QueryDataMartTool', () => {
   const facade = { queryDataMart: jest.fn(), listDataMarts: jest.fn() };
   const cls = { update: jest.fn(), get: jest.fn(), set: jest.fn(), runWithContext: jest.fn() };
-  const tool = new QueryDataMartTool(facade as never, cls as never);
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
+  const tool = new QueryDataMartTool(facade as never, cls as never, publicOrigin);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -40,6 +45,10 @@ describe('QueryDataMartTool', () => {
     it('returns returned_rows from serializer and truncated from facade when cap is not hit', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['name', 'value'],
+        columnMetadata: [
+          { name: 'name', displayName: 'Customer name' },
+          { name: 'value', displayName: 'Revenue' },
+        ],
         rows: [
           ['alpha', '1'],
           ['beta', '2'],
@@ -47,6 +56,7 @@ describe('QueryDataMartTool', () => {
         returnedRows: 2,
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
 
       const result = await tool.handler(
@@ -64,31 +74,146 @@ describe('QueryDataMartTool', () => {
       };
       expect(sc.returned_rows).toBe(2);
       expect(sc.truncated).toBe(false);
-      expect(sc.columns).toEqual(['name', 'value']);
+      expect(sc.columns).toEqual(['Customer name', 'Revenue']);
+      expect(sc.rows.split('\n')[0]).toBe(sc.columns.join('\t'));
+      expect(result.structuredContent).toMatchObject({
+        column_metadata: [
+          { name: 'name', display_name: 'Customer name' },
+          { name: 'value', display_name: 'Revenue' },
+        ],
+        source: {
+          data_mart: {
+            id: 'dm1',
+            title: 'Orders',
+            url: 'https://app.owox.com/ui/p1/data-marts/dm1/data-setup',
+          },
+        },
+        calculation_origin: { rows: 'taken_from_owox', totals: 'not_available' },
+      });
+    });
+
+    it('keeps result headers non-empty, unique, and TSV-safe when aliases are malformed', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['created_at', 'updated_at', 'event_date', 'notes'],
+        columnMetadata: [
+          { name: 'created_at', displayName: '  ' },
+          { name: 'updated_at', displayName: 'Date' },
+          { name: 'event_date', displayName: 'Date' },
+          { name: 'notes', displayName: 'Notes\tand\ncomments' },
+        ],
+        rows: [['2026-01-01', '2026-01-02', '2026-01-03', 'hello']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['created_at', 'updated_at', 'event_date', 'notes'] },
+        AUTH_CTX as never
+      );
+
+      const structuredContent = result.structuredContent as {
+        columns: string[];
+        column_metadata: Array<{ name: string; display_name: string }>;
+        rows: string;
+      };
+      expect(structuredContent.columns).toEqual([
+        'created_at',
+        'Date (updated_at)',
+        'Date (event_date)',
+        'Notes\\tand\\ncomments',
+      ]);
+      expect(structuredContent.rows.split('\n')[0]).toBe(structuredContent.columns.join('\t'));
+      expect(structuredContent.column_metadata).toEqual([
+        { name: 'created_at', display_name: 'created_at' },
+        { name: 'updated_at', display_name: 'Date (updated_at)' },
+        { name: 'event_date', display_name: 'Date (event_date)' },
+        { name: 'notes', display_name: 'Notes\\tand\\ncomments' },
+      ]);
+    });
+
+    it('explains how technical totals keys map to display columns', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['revenue | SUM'],
+        columnMetadata: [{ name: 'revenue | SUM', displayName: 'Revenue' }],
+        rows: [['42']],
+        truncated: false,
+        totals: { 'revenue | SUM': 42 },
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['revenue'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.structuredContent).toMatchObject({
+        columns: ['Revenue'],
+        column_metadata: [{ name: 'revenue | SUM', display_name: 'Revenue' }],
+        totals: { 'revenue | SUM': 42 },
+      });
+      expect((result.structuredContent as { _instruction: string })._instruction).toContain(
+        'column_metadata[].name'
+      );
     });
 
     it('sets truncated: true when the facade signals truncation', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],
+        columnMetadata: [{ name: 'id', displayName: 'Order ID' }],
         rows: [['1'], ['2'], ['3']],
         returnedRows: 3,
         truncated: true,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
 
       const result = await tool.handler({ data_mart_id: 'dm1', fields: ['id'] }, AUTH_CTX as never);
 
       expect(result.isError).toBeFalsy();
-      const sc = result.structuredContent as { truncated: boolean };
+      const sc = result.structuredContent as {
+        truncated: boolean;
+        truncation?: { reasons: string[] };
+        _instruction: string;
+      };
       expect(sc.truncated).toBe(true);
+      expect(sc.truncation).toEqual({ reasons: ['row_limit'] });
+      expect(sc._instruction).toContain('Rows are incomplete');
+    });
+
+    it('reports the payload byte cap separately from a row-limit truncation', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['notes'],
+        columnMetadata: [{ name: 'notes', displayName: 'Notes' }],
+        rows: [['x'.repeat(ROWS_PAYLOAD_BYTE_CAP)]],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['notes'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.structuredContent).toMatchObject({
+        returned_rows: 0,
+        truncated: true,
+        truncation: { reasons: ['payload_byte_cap'] },
+      });
     });
 
     it('maps sort rules to the facade sortConfig (field → column)', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['date', 'revenue'],
+        columnMetadata: [
+          { name: 'date', displayName: 'Order date' },
+          { name: 'revenue', displayName: 'Revenue' },
+        ],
         rows: [['2026-05-01', '10']],
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
 
       await tool.handler(
@@ -111,9 +236,11 @@ describe('QueryDataMartTool', () => {
     it('forwards the request AbortSignal to the facade', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],
+        columnMetadata: [{ name: 'id', displayName: 'Order ID' }],
         rows: [['1']],
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
       const controller = new AbortController();
 
@@ -131,9 +258,11 @@ describe('QueryDataMartTool', () => {
       cls.update.mockClear();
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],
+        columnMetadata: [{ name: 'id', displayName: 'Order ID' }],
         rows: [['1']],
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
         executedSql: 'SELECT id FROM t',
       });
       await tool.handler({ data_mart_id: 'dm1', fields: ['id'] }, AUTH_CTX as never);

@@ -1,12 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
   MCP_SCHEDULED_TRIGGERS_FACADE,
   type McpScheduledTriggersFacade,
 } from '../../../data-marts/facades/mcp-scheduled-triggers.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import { buildReportSchedulesUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z
   .object({
@@ -28,6 +31,7 @@ export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateRepo
   readonly outputSchema = {
     trigger_id: z.string(),
     report_id: z.string(),
+    schedules_url: z.string().describe('Open report schedules in OWOX.'),
     cron_expression: z.string(),
     time_zone: z.string(),
     is_active: z.boolean(),
@@ -43,7 +47,8 @@ export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateRepo
 
   constructor(
     @Inject(MCP_SCHEDULED_TRIGGERS_FACADE)
-    private readonly facade: McpScheduledTriggersFacade
+    private readonly facade: McpScheduledTriggersFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): UpdateReportRunScheduleInput {
@@ -67,6 +72,10 @@ export class UpdateReportRunScheduleTool implements McpToolDefinition<UpdateRepo
     return jsonToolResult({
       trigger_id: result.triggerId,
       report_id: result.reportId,
+      schedules_url: joinPublicOrigin(
+        this.publicOriginService.getPublicOrigin(),
+        buildReportSchedulesUiPath(context.projectId)
+      ),
       cron_expression: result.cronExpression,
       time_zone: result.timeZone,
       is_active: result.isActive,

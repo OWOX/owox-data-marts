@@ -9,6 +9,12 @@ export interface McpListDataMartsRequest {
   projectId: string;
   userId: string;
   roles: string[];
+  /**
+   * MCP is a reporting surface, therefore published is deliberately the only supported catalog
+   * state. The explicit property documents the default at the facade boundary as well as in the
+   * tool input, so direct facade users cannot accidentally re-introduce drafts.
+   */
+  status?: 'published';
 }
 
 export interface McpSummarizeDataCatalogRequest {
@@ -19,6 +25,7 @@ export interface McpSummarizeDataCatalogRequest {
 
 export interface McpGetDataMartDetailsRequest extends McpListDataMartsRequest {
   dataMartId: string;
+  includeJoinedFields?: boolean;
 }
 
 export interface McpDataMartListItem {
@@ -35,6 +42,7 @@ export interface McpListDataMartsResponse {
 
 export interface McpJoinedFieldDto {
   name: string;
+  displayName: string;
   type: string;
   description: string;
   sourceDataMart: string;
@@ -70,9 +78,19 @@ export interface McpQueryDataMartRequest {
 
 export interface McpQueryDataMartResponse {
   columns: string[];
+  columnMetadata: Array<{
+    name: string;
+    displayName: string;
+    description?: string;
+    type?: string;
+  }>;
   rows: unknown[][];
   truncated: boolean;
   totals: Record<string, number | string | boolean | null> | null;
+  dataMart: {
+    id: string;
+    title: string;
+  };
   executedSql?: string;
 }
 
