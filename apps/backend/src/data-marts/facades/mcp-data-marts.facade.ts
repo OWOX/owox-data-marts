@@ -5,16 +5,17 @@ import type { SortConfig } from '../dto/schemas/sort-config.schema';
 
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
 
+export type McpDataMartCatalogStatus = 'published' | 'draft';
+
 export interface McpListDataMartsRequest {
   projectId: string;
   userId: string;
   roles: string[];
   /**
-   * MCP is a reporting surface, therefore published is deliberately the only supported catalog
-   * state. The explicit property documents the default at the facade boundary as well as in the
-   * tool input, so direct facade users cannot accidentally re-introduce drafts.
+   * Published is the default state for the reporting catalog. Drafts are discoverable only when
+   * explicitly requested; all other MCP Data Mart operations still require published state.
    */
-  status?: 'published';
+  status?: McpDataMartCatalogStatus;
 }
 
 export interface McpSummarizeDataCatalogRequest {
@@ -23,7 +24,10 @@ export interface McpSummarizeDataCatalogRequest {
   roles: string[];
 }
 
-export interface McpGetDataMartDetailsRequest extends McpListDataMartsRequest {
+export interface McpGetDataMartDetailsRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
   dataMartId: string;
   includeJoinedFields?: boolean;
 }
