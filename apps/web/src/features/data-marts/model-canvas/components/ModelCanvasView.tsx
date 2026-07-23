@@ -15,6 +15,7 @@ import { dataQualityService } from '../../data-quality/api/data-quality.service'
 import { dataMartService } from '../../shared';
 import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
 import { trackEvent } from '../../../../utils/data-layer';
+import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
 
@@ -40,7 +41,11 @@ function extractErrorMessage(error: unknown): string | undefined {
   return apiError?.message;
 }
 
-function ModelCanvasViewContent() {
+interface ModelCanvasViewProps {
+  onActiveQualityRunChange?: (active: boolean) => void;
+}
+
+function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   const { dataStorages, loading: loadingStorages, fetchDataStorages } = useDataStorage();
   const [storageLoadError, setStorageLoadError] = useState<unknown>(null);
   const [storageLoadPending, setStorageLoadPending] = useState(true);
@@ -53,6 +58,8 @@ function ModelCanvasViewContent() {
   const { data, isLoading, error, refetch } = useModelCanvas(
     storageKnown ? filters.storageId : null
   );
+  const hasActiveQualityRun =
+    data?.nodes.some(node => isDataQualityActivityState(node.qualitySummary.state)) ?? false;
 
   const loadDataStorages = useCallback(async () => {
     const generation = ++storageLoadGenerationRef.current;
@@ -79,6 +86,10 @@ function ModelCanvasViewContent() {
       storageLoadGenerationRef.current += 1;
     };
   }, [loadDataStorages]);
+
+  useEffect(() => {
+    onActiveQualityRunChange?.(hasActiveQualityRun);
+  }, [hasActiveQualityRun, onActiveQualityRunChange]);
 
   const filtered = useMemo(
     () => (data ? filterCanvasData(data, filters.status, filters.rel) : null),
@@ -254,10 +265,10 @@ const QUALITY_ELIGIBILITY_MESSAGES: Record<string, string> = {
   ACTIVE_RUN: 'A Data Quality run is already active',
 };
 
-export function ModelCanvasView() {
+export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   return (
     <DataStorageProvider>
-      <ModelCanvasViewContent />
+      <ModelCanvasViewContent onActiveQualityRunChange={onActiveQualityRunChange} />
     </DataStorageProvider>
   );
 }

@@ -141,6 +141,46 @@ describe('useDataQualityWorkspace', () => {
     expect(dataQualityService.getRun).not.toHaveBeenCalled();
   });
 
+  it('refreshes run eligibility when the latest run becomes terminal', async () => {
+    vi.useFakeTimers();
+    const activeRunConfig: DataQualityConfigResponse = {
+      ...configResponse,
+      permissions: { canEdit: true, canRun: false },
+      runEligibility: {
+        eligible: false,
+        code: 'ACTIVE_RUN',
+        activeRunId: 'run-1',
+      },
+    };
+    vi.mocked(dataQualityService.getConfig)
+      .mockResolvedValueOnce(activeRunConfig)
+      .mockResolvedValue(configResponse);
+    vi.mocked(dataQualityService.getLatestRun)
+      .mockResolvedValueOnce(buildRun('RUNNING'))
+      .mockResolvedValue(buildRun('PASSED'));
+    vi.mocked(dataQualityService.getRun).mockResolvedValue(buildRun('PASSED'));
+
+    const { result } = renderHook(() => useDataQualityWorkspace('project-1', 'mart-1'), {
+      wrapper,
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.latestRun?.summary.state).toBe('RUNNING');
+      expect(result.current.configResponse?.runEligibility.code).toBe('ACTIVE_RUN');
+    });
+    expect(dataQualityService.getConfig).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.latestRun?.summary.state).toBe('PASSED');
+      expect(result.current.configResponse?.runEligibility.eligible).toBe(true);
+    });
+    expect(dataQualityService.getConfig).toHaveBeenCalledTimes(2);
+  });
+
   it('loads terminal run details once for result cards and SQL', async () => {
     vi.mocked(dataQualityService.getLatestRun).mockResolvedValue(buildRun('PASSED'));
     vi.mocked(dataQualityService.getRun).mockResolvedValue({

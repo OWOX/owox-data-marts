@@ -81,6 +81,45 @@ describe('DataQualitySummaryPanel', () => {
     expect(screen.queryByText('1 failed')).not.toBeInTheDocument();
   });
 
+  it('uses tonal treatment for passed checks and every finding severity', () => {
+    render(
+      <DataQualitySummaryPanel
+        summary={{
+          ...baseSummary,
+          state: 'ISSUES',
+          enabledChecks: 7,
+          passedChecks: 4,
+          errorFindings: 1,
+          warningFindings: 2,
+          noticeFindings: 3,
+          highestSeverity: 'error',
+        }}
+      />
+    );
+
+    expect(screen.getByText('1 error')).toHaveClass(
+      'border-destructive/40',
+      'bg-destructive/10',
+      'text-destructive'
+    );
+    expect(screen.getByText('2 warning')).toHaveClass(
+      'border-warning/40',
+      'bg-warning/10',
+      'text-warning'
+    );
+    expect(screen.getByText('3 notice')).toHaveClass(
+      'border-notice/40',
+      'bg-notice/10',
+      'text-notice'
+    );
+    expect(screen.getByText('4 passed')).toHaveClass(
+      'border-success/40',
+      'bg-success/10',
+      'text-success'
+    );
+    expect(screen.getByText('7 enabled')).not.toHaveClass('bg-destructive/10', 'bg-warning/10');
+  });
+
   it('uses an explicit no-findings chip for passed runs without zero-filled counters', () => {
     render(
       <DataQualitySummaryPanel

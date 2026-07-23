@@ -26,6 +26,16 @@ const TONE_CLASSES: Record<DataQualityStatusTone, string> = {
   notice: 'border-notice/30 bg-notice-bg',
 };
 
+type SummaryChipTone = 'neutral' | 'success' | 'error' | 'warning' | 'notice';
+
+const SUMMARY_CHIP_TONE_CLASSES: Record<SummaryChipTone, string | undefined> = {
+  neutral: undefined,
+  success: 'border-success/40 bg-success/10 text-success',
+  error: 'border-destructive/40 bg-destructive/10 text-destructive',
+  warning: 'border-warning/40 bg-warning/10 text-warning',
+  notice: 'border-notice/40 bg-notice/10 text-notice',
+};
+
 export function DataQualitySummaryPanel({
   summary,
   checkedAt,
@@ -70,20 +80,20 @@ export function DataQualitySummaryPanel({
 export function DataQualitySummaryChips({ summary }: { summary: DataQualitySummary }) {
   const chips = [
     counter(summary.enabledChecks, 'enabled'),
-    counter(summary.passedChecks, 'passed'),
+    counter(summary.passedChecks, 'passed', 'success'),
     counter(summary.notApplicableChecks, 'not applicable'),
     counter(
       summary.errorChecks,
       summary.errorChecks === 1 ? 'execution error' : 'execution errors',
-      'destructive'
+      'error'
     ),
-    counter(summary.errorFindings, 'error', 'destructive'),
+    counter(summary.errorFindings, 'error', 'error'),
     counter(summary.warningFindings, 'warning', 'warning'),
-    counter(summary.noticeFindings, 'notice'),
+    counter(summary.noticeFindings, 'notice', 'notice'),
   ].filter((chip): chip is NonNullable<typeof chip> => chip !== null);
 
   if (summary.state === 'PASSED' && summary.failedChecks === 0 && summary.errorChecks === 0) {
-    chips.push({ label: 'No findings', variant: 'outline' });
+    chips.push({ label: 'No findings', tone: 'neutral' });
   }
 
   if (chips.length === 0) return null;
@@ -91,13 +101,7 @@ export function DataQualitySummaryChips({ summary }: { summary: DataQualitySumma
   return (
     <div className='flex flex-wrap gap-2'>
       {chips.map(chip => (
-        <Badge
-          key={chip.label}
-          variant={chip.variant === 'destructive' ? 'destructive' : 'outline'}
-          className={cn(
-            chip.variant === 'warning' && 'border-warning/50 bg-warning-bg text-warning'
-          )}
-        >
+        <Badge key={chip.label} variant='outline' className={SUMMARY_CHIP_TONE_CLASSES[chip.tone]}>
           {chip.label}
         </Badge>
       ))}
@@ -105,10 +109,6 @@ export function DataQualitySummaryChips({ summary }: { summary: DataQualitySumma
   );
 }
 
-function counter(
-  count: number,
-  label: string,
-  variant: 'outline' | 'warning' | 'destructive' = 'outline'
-) {
-  return count > 0 ? { label: `${count} ${label}`, variant } : null;
+function counter(count: number, label: string, tone: SummaryChipTone = 'neutral') {
+  return count > 0 ? { label: `${count} ${label}`, tone } : null;
 }

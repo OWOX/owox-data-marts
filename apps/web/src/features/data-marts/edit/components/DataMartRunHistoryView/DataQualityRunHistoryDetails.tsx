@@ -85,12 +85,9 @@ export function DataQualityRunHistoryDetails({
       <RunSummary run={data} />
 
       <section className='space-y-3' aria-labelledby={`quality-results-${runId}`}>
-        <div className='flex flex-wrap items-baseline justify-between gap-2'>
-          <h4 id={`quality-results-${runId}`} className='font-semibold'>
-            Check results
-          </h4>
-          <span className='text-muted-foreground text-xs'>Problems are shown first</span>
-        </div>
+        <h4 id={`quality-results-${runId}`} className='font-semibold'>
+          Check results
+        </h4>
         {sortedResults.length === 0 ? (
           <p className='text-muted-foreground rounded-md border p-4 text-sm'>
             No check results were saved for this run.
@@ -173,7 +170,7 @@ function RunSummary({ run }: { run: DataQualityRun }) {
 
   return (
     <Card className='gap-3 py-4 shadow-none'>
-      <CardHeader className='flex-row items-center gap-2 px-4'>
+      <CardHeader className='flex flex-row items-center gap-2 px-4'>
         <Icon
           className={cn(
             'size-5',

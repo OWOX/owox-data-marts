@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { dataQualityService } from '../api/data-quality.service';
 import { dataQualityPollingInterval } from './data-quality.model';
 import type { DataQualityConfig } from './types';
@@ -53,11 +54,26 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
   const configQuery = useDataQualityConfig(projectId, dataMartId);
   const latestQuery = useLatestDataQualityRun(projectId, dataMartId);
   const latestState = latestQuery.data?.summary.state;
+  const previousLatestRef = useRef({ projectId, dataMartId, state: latestState });
   const detailRunId =
     latestQuery.data && latestState !== 'QUEUED' && latestState !== 'RUNNING'
       ? latestQuery.data.id
       : null;
   const runQuery = useDataQualityRun(projectId, dataMartId, detailRunId);
+
+  useEffect(() => {
+    const previous = previousLatestRef.current;
+    previousLatestRef.current = { projectId, dataMartId, state: latestState };
+    const isSameWorkspace = previous.projectId === projectId && previous.dataMartId === dataMartId;
+    const wasActive = previous.state === 'QUEUED' || previous.state === 'RUNNING';
+    const isActive = latestState === 'QUEUED' || latestState === 'RUNNING';
+
+    if (!isSameWorkspace || !wasActive || !latestState || isActive) return;
+
+    void queryClient.invalidateQueries({
+      queryKey: dataQualityQueryKeys.config(projectId, dataMartId),
+    });
+  }, [dataMartId, latestState, projectId, queryClient]);
 
   const saveMutation = useMutation({
     mutationFn: (config: DataQualityConfig) => dataQualityService.replaceConfig(dataMartId, config),

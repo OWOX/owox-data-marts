@@ -262,6 +262,34 @@ describe('ModelCanvasView', () => {
     expect(await screen.findByRole('button', { name: 'Actions 2' })).toBeVisible();
   });
 
+  it('reports active Data Quality runs from storage nodes excluded by canvas filters', async () => {
+    const onActiveQualityRunChange = vi.fn();
+    viewState.canvasHook.data = {
+      ...buildCanvasData(),
+      nodes: [
+        ...buildCanvasData().nodes,
+        {
+          id: 'mart-3',
+          title: 'Draft quality run',
+          status: DataMartStatus.DRAFT,
+          description: null,
+          fieldCount: 1,
+          qualitySummary: {
+            ...buildQualitySummary(),
+            state: 'RUNNING',
+            dataMartRunId: 'quality-run-1',
+          },
+        },
+      ],
+    };
+
+    render(<ModelCanvasView onActiveQualityRunChange={onActiveQualityRunChange} />);
+
+    await waitFor(() => {
+      expect(onActiveQualityRunChange).toHaveBeenCalledWith(true);
+    });
+  });
+
   it('shows a stable fallback when the canvas request fails without an Axios response', async () => {
     viewState.canvasHook.error = new Error('Network Error');
 

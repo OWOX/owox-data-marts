@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartDetails } from './DataMartDetails';
 
 const mocks = vi.hoisted(() => ({
@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   showPromo: vi.fn(),
   dismissAllPromos: vi.fn(),
   registerSchemaGuard: vi.fn(),
+  hasActiveRuns: false,
+  latestQualityRun: null as null | { summary: { state: string } },
 }));
 
 vi.mock('../../../../app/store/hooks', () => ({
@@ -29,6 +31,10 @@ vi.mock('../hooks/useDataMartNextStepPromo', () => ({
     showPromo: mocks.showPromo,
     dismissAllPromos: mocks.dismissAllPromos,
   }),
+}));
+
+vi.mock('../../data-quality/model/use-data-quality-workspace', () => ({
+  useLatestDataQualityRun: () => ({ data: mocks.latestQualityRun }),
 }));
 
 vi.mock('../../shared/hooks/useSchemaActualizeTrigger', () => ({
@@ -82,7 +88,7 @@ vi.mock('../model', () => ({
     isLoading: false,
     isLoadingMoreRuns: false,
     hasMoreRunsToLoad: false,
-    hasActiveRuns: false,
+    hasActiveRuns: mocks.hasActiveRuns,
     error: null,
     getErrorMessage: vi.fn(),
     runs: [],
@@ -106,14 +112,73 @@ vi.mock('./SchemaUnsavedChangesDialog', () => ({
 }));
 
 describe('DataMartDetails navigation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.hasActiveRuns = false;
+    mocks.latestQualityRun = null;
+  });
+
   it('labels the quality route as Data Quality', () => {
-    render(
-      <MemoryRouter initialEntries={['/data-marts/data-mart-1/overview']}>
-        <DataMartDetails id='data-mart-1' />
-      </MemoryRouter>
-    );
+    renderDetails();
 
     expect(screen.getByRole('link', { name: 'Data Quality' })).toHaveAttribute('href', '/quality');
     expect(screen.queryByRole('link', { name: 'Quality' })).not.toBeInTheDocument();
   });
+
+  it.each(['QUEUED', 'RUNNING'])(
+    'shows Data Quality activity while the latest run is %s',
+    state => {
+      mocks.latestQualityRun = { summary: { state } };
+
+      renderDetails();
+
+      expect(screen.getByRole('status')).toHaveTextContent('Checking data quality');
+      expect(screen.getByRole('button', { name: 'View runs' })).toBeVisible();
+    }
+  );
+
+  it('preserves the data-update activity label', () => {
+    mocks.hasActiveRuns = true;
+
+    renderDetails();
+
+    expect(screen.getByRole('status')).toHaveTextContent('Updating data');
+  });
+
+  it('uses combined copy when data and Data Quality runs are active together', () => {
+    mocks.hasActiveRuns = true;
+    mocks.latestQualityRun = { summary: { state: 'RUNNING' } };
+
+    renderDetails();
+
+    expect(screen.getByRole('status')).toHaveTextContent('Runs in progress');
+    expect(screen.queryByText('Updating data')).not.toBeInTheDocument();
+    expect(screen.queryByText('Checking data quality')).not.toBeInTheDocument();
+  });
+
+  it('does not show run activity for a terminal Data Quality run', () => {
+    mocks.latestQualityRun = { summary: { state: 'PASSED' } };
+
+    renderDetails();
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'View runs' })).not.toBeInTheDocument();
+  });
+
+  it('opens Data Mart Run History from Data Quality activity', () => {
+    mocks.latestQualityRun = { summary: { state: 'RUNNING' } };
+
+    renderDetails();
+    screen.getByRole('button', { name: 'View runs' }).click();
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/data-marts/data-mart-1/run-history');
+  });
 });
+
+function renderDetails() {
+  return render(
+    <MemoryRouter initialEntries={['/data-marts/data-mart-1/overview']}>
+      <DataMartDetails id='data-mart-1' />
+    </MemoryRouter>
+  );
+}

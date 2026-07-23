@@ -54,6 +54,27 @@ describe('DataQualityResultCard', () => {
     expect(screen.getByText(result.executedSql[0])).toBeInTheDocument();
   });
 
+  it.each([
+    ['error', 'destructive'],
+    ['warning', 'warning'],
+    ['notice', 'notice'],
+  ] as const)(
+    'uses a border-only %s presentation for failed checks without a visible Failed badge',
+    (severity, tone) => {
+      render(<DataQualityResultCard result={{ ...result, severity }} />);
+
+      const card = screen.getByTestId('quality-result-result-1');
+      expect(card).toHaveClass(`border-${tone}/40`);
+      expect(card).not.toHaveClass(`bg-${tone}/5`, `bg-${tone}/10`);
+      expect(screen.getByText('Failed')).toHaveClass('sr-only');
+      expect(screen.getByText(severity)).toHaveClass(
+        `border-${tone}/40`,
+        `bg-${tone}/10`,
+        `text-${tone}`
+      );
+    }
+  );
+
   it('identifies a relationship by alias and join fields in the collapsed report card', () => {
     render(
       <DataQualityResultCard
@@ -98,7 +119,8 @@ describe('DataQualityResultCard', () => {
       />
     );
 
-    expect(screen.getByText('Execution error')).toBeInTheDocument();
+    expect(screen.getByText('Execution error')).not.toHaveClass('sr-only');
+    expect(screen.getByTestId('quality-result-result-1')).toHaveClass('border-destructive/40');
     fireEvent.click(screen.getByRole('button', { name: /Negative values/ }));
     expect(screen.getByText("Execution error — this check didn't run")).toBeInTheDocument();
     expect(screen.getByText('Query timed out')).toBeInTheDocument();
@@ -116,8 +138,34 @@ describe('DataQualityResultCard', () => {
       />
     );
 
-    expect(screen.getByText('Passed')).toBeInTheDocument();
+    expect(screen.getByText('Passed')).toHaveClass('sr-only');
+    expect(screen.getByTestId('quality-result-result-1')).toHaveClass('border-success/40');
+    expect(screen.getByTestId('quality-result-result-1')).not.toHaveClass(
+      'bg-success/5',
+      'bg-success/10'
+    );
     expect(screen.queryByText('warning')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Not applicable label visible on a neutral card', () => {
+    render(
+      <DataQualityResultCard
+        result={{
+          ...result,
+          status: 'NOT_APPLICABLE',
+          violationCount: 0,
+          examples: [],
+        }}
+      />
+    );
+
+    expect(screen.getByText('Not applicable')).not.toHaveClass('sr-only');
+    expect(screen.getByTestId('quality-result-result-1')).not.toHaveClass(
+      'border-success/40',
+      'border-destructive/40',
+      'border-warning/40',
+      'border-notice/40'
+    );
   });
 
   it('shows a redaction message when relationship SQL and examples are omitted', () => {

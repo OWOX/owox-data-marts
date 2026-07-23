@@ -817,12 +817,47 @@ describe('DataQualityWorkspace', () => {
       'href',
       '/ui/project-1/data-marts/mart-1/run-history'
     );
+    expect(screen.queryByRole('button', { name: 'Not applicable 0' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Passed 1' }));
 
     expect(screen.getByTestId('quality-result-passed-result')).toBeInTheDocument();
     expect(screen.queryByTestId('quality-result-error-result')).not.toBeInTheDocument();
     expect(screen.queryByTestId('quality-result-failed-result')).not.toBeInTheDocument();
+  });
+
+  it('hides every zero-count result filter', () => {
+    mockWorkspace({
+      latestRun: {
+        id: 'quality-run-passed',
+        dataMartRunId: 'quality-run-passed',
+        summary: {
+          state: 'PASSED',
+          enabledChecks: 1,
+          totalChecks: 1,
+          passedChecks: 1,
+          failedChecks: 0,
+          notApplicableChecks: 0,
+          errorChecks: 0,
+          noticeFindings: 0,
+          warningFindings: 0,
+          errorFindings: 0,
+          violationCount: 0,
+          highestSeverity: null,
+        },
+        results: [buildResult('passed-result', 'PASSED', 'error')],
+        createdAt: '2026-07-15T12:00:00.000Z',
+        startedAt: '2026-07-15T12:00:01.000Z',
+        finishedAt: '2026-07-15T12:00:02.000Z',
+      },
+    });
+
+    renderWorkspace();
+
+    expect(screen.getByRole('button', { name: 'All 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Passed 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Needs attention 0' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Not applicable 0' })).not.toBeInTheDocument();
   });
 
   it('shows the relationship alias and join fields from the run snapshot in the latest report', () => {

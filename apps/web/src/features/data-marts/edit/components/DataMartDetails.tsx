@@ -8,7 +8,7 @@ import {
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { ArrowLeft, CircleCheckBig, Loader2, MoreVertical, Play, Trash2 } from 'lucide-react';
+import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -43,6 +43,12 @@ import { AiHelperButton } from './AiHelperButton';
 import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
+import { useLatestDataQualityRun } from '../../data-quality/model/use-data-quality-workspace';
+import {
+  getDataMartRunActivityLabel,
+  isDataQualityActivityState,
+  RunActivityIndicator,
+} from '../../shared/components/RunActivityIndicator';
 
 interface DataMartDetailsProps {
   id: string;
@@ -96,11 +102,16 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     definitionType: dataMartDefinitionType = null,
     validationErrors: dataMartValidationErrors = [],
   } = dataMart ?? {};
+  const { data: latestDataQualityRun } = useLatestDataQualityRun(projectId, dataMartId);
   const storageId = dataMart?.storage.id;
 
   const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
+  const hasActiveDataQualityRun = isDataQualityActivityState(
+    latestDataQualityRun?.summary.state ?? dataMart?.qualitySummary?.state
+  );
+  const runActivityLabel = getDataMartRunActivityLabel(hasActiveRuns, hasActiveDataQualityRun);
 
   const onActualizeSuccess = useCallback(() => {
     if (!dataMartId) return;
@@ -366,33 +377,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         >
           <div className='flex min-w-0 shrink-0 items-center gap-4'>
             <div className={cn('flex shrink-0 items-center gap-4', !canPublish ? 'md:pt-1' : '')}>
-              <div
-                className={cn(
-                  'border-border flex items-center gap-2 overflow-hidden border-r motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out',
-                  hasActiveRuns
-                    ? 'max-w-[320px] pr-4 opacity-100'
-                    : 'max-w-0 border-r-0 pr-0 opacity-0'
-                )}
-              >
-                <div
-                  role='status'
-                  aria-live='polite'
-                  className='text-muted-foreground flex items-center gap-1 text-sm whitespace-nowrap'
-                >
-                  <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
-                  <span>Updating data</span>
-                </div>
-
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => {
-                    navigate(`/data-marts/${dataMartId}/run-history`);
-                  }}
-                >
-                  View runs
-                </Button>
-              </div>
+              <RunActivityIndicator
+                active={runActivityLabel !== null}
+                label={runActivityLabel ?? ''}
+                separator
+                onViewRuns={() => {
+                  navigate(`/data-marts/${dataMartId}/run-history`);
+                }}
+              />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div>

@@ -102,6 +102,11 @@ describe('DataQualityRunHistoryDetails', () => {
     expect(screen.getByText('SQL')).toBeInTheDocument();
     expect(screen.queryByText('1 failed')).not.toBeInTheDocument();
     expect(screen.getByText('1 warning')).toBeInTheDocument();
+    expect(screen.getByText('Issues found').closest('[data-slot="card-header"]')).toHaveClass(
+      'flex',
+      'items-center'
+    );
+    expect(screen.queryByText('Problems are shown first')).not.toBeInTheDocument();
     expect(screen.queryByText(/A-1/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Negative values/ }));

@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Button } from '../../../../shared/components/Button';
 import { useClipboard } from '../../../../hooks/useClipboard';
 import { DATA_QUALITY_CATEGORY_LABELS, dataQualityScopeLabel } from '../model/data-quality.model';
-import type { DataQualityCheckResult } from '../model/types';
+import type { DataQualityCheckResult, DataQualitySeverity } from '../model/types';
 
 interface DataQualityResultCardProps {
   result: DataQualityCheckResult;
@@ -24,6 +24,37 @@ interface DataQualityResultCardProps {
   targetAlias?: string;
   defaultExpanded?: boolean;
 }
+
+interface ResultStatusPresentation {
+  label: string;
+  icon: typeof CircleAlert;
+  iconClassName: string;
+  cardClassName?: string;
+  showStatusBadge: boolean;
+  statusBadgeVariant: 'outline' | 'destructive';
+  severityBadgeClassName?: string;
+}
+
+const FAILED_SEVERITY_PRESENTATIONS: Record<
+  DataQualitySeverity,
+  Pick<ResultStatusPresentation, 'cardClassName' | 'iconClassName' | 'severityBadgeClassName'>
+> = {
+  error: {
+    cardClassName: 'border-destructive/40',
+    iconClassName: 'text-destructive',
+    severityBadgeClassName: 'border-destructive/40 bg-destructive/10 text-destructive',
+  },
+  warning: {
+    cardClassName: 'border-warning/40',
+    iconClassName: 'text-warning',
+    severityBadgeClassName: 'border-warning/40 bg-warning/10 text-warning',
+  },
+  notice: {
+    cardClassName: 'border-notice/40',
+    iconClassName: 'text-notice',
+    severityBadgeClassName: 'border-notice/40 bg-notice/10 text-notice',
+  },
+};
 
 export function DataQualityResultCard({
   result,
@@ -45,11 +76,7 @@ export function DataQualityResultCard({
 
   return (
     <Card
-      className={cn(
-        'gap-0 overflow-hidden py-0 shadow-none',
-        result.status === 'ERROR' && 'border-destructive/40',
-        result.status === 'FAILED' && result.severity === 'warning' && 'border-warning/50'
-      )}
+      className={cn('gap-0 overflow-hidden py-0 shadow-none', status.cardClassName)}
       data-testid={`quality-result-${result.id}`}
     >
       <CardHeader className='p-0'>
@@ -65,8 +92,16 @@ export function DataQualityResultCard({
           <div className='min-w-0 flex-1'>
             <div className='flex flex-wrap items-center gap-2'>
               <h3 className='font-medium'>{title}</h3>
-              <Badge variant={status.badgeVariant}>{status.label}</Badge>
-              {result.status === 'FAILED' && <Badge variant='outline'>{result.severity}</Badge>}
+              {status.showStatusBadge ? (
+                <Badge variant={status.statusBadgeVariant}>{status.label}</Badge>
+              ) : (
+                <span className='sr-only'>{status.label}</span>
+              )}
+              {result.status === 'FAILED' && (
+                <Badge variant='outline' className={status.severityBadgeClassName}>
+                  {result.severity}
+                </Badge>
+              )}
             </div>
             <div className='text-muted-foreground mt-0.5 space-y-0.5 text-xs'>
               <p className='break-words'>{scopeLabel ?? dataQualityScopeLabel(result.scope)}</p>
@@ -187,40 +222,43 @@ export function DataQualityResultCard({
   );
 }
 
-function getResultStatus(result: DataQualityCheckResult) {
+function getResultStatus(result: DataQualityCheckResult): ResultStatusPresentation {
   switch (result.status) {
     case 'ERROR':
       return {
         label: 'Execution error',
         icon: CircleAlert,
         iconClassName: 'text-destructive',
-        badgeVariant: 'destructive' as const,
+        cardClassName: 'border-destructive/40',
+        showStatusBadge: true,
+        statusBadgeVariant: 'destructive',
       };
-    case 'FAILED':
+    case 'FAILED': {
+      const severityPresentation = FAILED_SEVERITY_PRESENTATIONS[result.severity];
       return {
         label: 'Failed',
         icon: AlertTriangle,
-        iconClassName:
-          result.severity === 'error'
-            ? 'text-destructive'
-            : result.severity === 'warning'
-              ? 'text-warning'
-              : 'text-notice',
-        badgeVariant: result.severity === 'error' ? ('destructive' as const) : ('outline' as const),
+        ...severityPresentation,
+        showStatusBadge: false,
+        statusBadgeVariant: 'outline',
       };
+    }
     case 'PASSED':
       return {
         label: 'Passed',
         icon: CheckCircle2,
         iconClassName: 'text-success',
-        badgeVariant: 'outline' as const,
+        cardClassName: 'border-success/40',
+        showStatusBadge: false,
+        statusBadgeVariant: 'outline',
       };
     case 'NOT_APPLICABLE':
       return {
         label: 'Not applicable',
         icon: CircleMinus,
         iconClassName: 'text-muted-foreground',
-        badgeVariant: 'outline' as const,
+        showStatusBadge: true,
+        statusBadgeVariant: 'outline',
       };
   }
 }

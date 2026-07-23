@@ -402,6 +402,9 @@ export function DataQualityWorkspace({
       count: sortedResults.filter(result => result.status === 'NOT_APPLICABLE').length,
     },
   ];
+  const visibleResultFilterOptions = resultFilterOptions.filter(
+    option => option.key === 'ALL' || option.count > 0
+  );
   const visibleResults = sortedResults.filter(result => {
     if (resultFilter === 'ALL') return true;
     if (resultFilter === 'ISSUES') return result.status === 'FAILED' || result.status === 'ERROR';
@@ -620,7 +623,7 @@ export function DataQualityWorkspace({
                     className='ml-auto flex shrink-0 flex-wrap gap-1'
                     aria-label='Filter check results'
                   >
-                    {resultFilterOptions.map(option => (
+                    {visibleResultFilterOptions.map(option => (
                       <Button
                         key={option.key}
                         type='button'
