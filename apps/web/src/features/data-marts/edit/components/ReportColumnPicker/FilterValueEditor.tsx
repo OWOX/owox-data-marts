@@ -123,48 +123,61 @@ function parseScalar(raw: string, fieldType: string): string | number | boolean 
 
 /**
  * Serializes one in/not_in value for the comma-separated text input. A value that
- * contains a comma, a double quote, or a newline is wrapped in double quotes with
- * `""` escaping the quote — the CSV-style grammar parseListText understands — so
- * comma-containing values round-trip through create and edit.
+ * contains a comma, a double quote, a newline, or edge whitespace is wrapped in
+ * double quotes with `""` escaping the quote — the CSV-style grammar parseListText
+ * understands — so such values round-trip through create and edit.
  */
 function formatListValue(value: string | number | boolean): string {
   const s = String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return /[",\n]|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /**
  * Splits the comma-separated list text into values. Double-quoted sections keep
- * commas/newlines literal and use `""` for a literal quote; unquoted content is
- * split on commas and newlines. Assembled tokens are trimmed; empties dropped.
+ * commas/newlines AND edge whitespace literal (`""` escapes a quote); unquoted
+ * content is split on commas/newlines and trimmed. Stray whitespace around a
+ * quoted token (` "a" `) is dropped; whitespace inside quotes (`" a "`) is kept.
  */
 function parseListText(text: string): string[] {
   const values: string[] = [];
   let current = '';
   let inQuotes = false;
+  let sawQuoted = false;
+  /** Length of the current run of unquoted whitespace at the token's tail. */
+  let trailingWs = 0;
+  const append = (ch: string, quoted: boolean) => {
+    current += ch;
+    trailingWs = !quoted && (ch === ' ' || ch === '\t') ? trailingWs + 1 : 0;
+  };
   const push = () => {
-    const token = current.trim();
+    const token = sawQuoted ? current.slice(0, current.length - trailingWs) : current.trim();
     if (token !== '') values.push(token);
     current = '';
+    sawQuoted = false;
+    trailingWs = 0;
   };
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (inQuotes) {
       if (ch === '"') {
         if (text[i + 1] === '"') {
-          current += '"';
+          append('"', true);
           i++;
         } else {
           inQuotes = false;
         }
       } else {
-        current += ch;
+        append(ch, true);
       }
     } else if (ch === '"') {
       inQuotes = true;
+      sawQuoted = true;
     } else if (ch === ',' || ch === '\n') {
       push();
+    } else if (current === '' && (ch === ' ' || ch === '\t')) {
+      // Leading unquoted whitespace before the token starts — skip.
     } else {
-      current += ch;
+      append(ch, false);
     }
   }
   push();

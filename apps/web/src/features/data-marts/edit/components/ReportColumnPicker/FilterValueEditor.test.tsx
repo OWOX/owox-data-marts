@@ -476,6 +476,34 @@ describe('FilterValueEditor — in / not_in operators', () => {
 
     expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['He said "hi"'] });
   });
+
+  it('preserves edge whitespace inside quotes but drops stray whitespace around them', () => {
+    const { onChange } = renderEditor({ fieldType: STRING_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('value1, value2');
+    // Quoted edges preserved; whitespace outside the quotes is not part of the value.
+    fireEvent.change(input, { target: { value: '" x " , "a" , plain' } });
+
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: [' x ', 'a', 'plain'],
+    });
+  });
+
+  it('round-trips an edge-whitespace value through EDIT (quoted display)', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: [' x '] },
+    });
+
+    // formatListValue quotes edge-whitespace values so re-parsing preserves them.
+    const input = screen.getByDisplayValue('" x "');
+    fireEvent.change(input, { target: { value: '" x ", y' } });
+
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: [' x ', 'y'] });
+  });
 });
 
 // ---------------------------------------------------------------------------

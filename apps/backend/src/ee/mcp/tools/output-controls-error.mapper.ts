@@ -21,6 +21,23 @@ const AGG_NOT_ALLOWED_CODES = new Set([
   'DUPLICATE_AGGREGATION',
 ]);
 
+/**
+ * Every code the section branches below claim. The informative fallback subtracts
+ * this set, so adding a new family means adding its codes HERE (next to the family
+ * sets) — not editing a negative list at the bottom of the function. A code both
+ * claimed by a branch and listed here renders exactly once.
+ */
+const RECOGNIZED_CODES = new Set([
+  'FILTER_COLUMN_UNKNOWN',
+  'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART',
+  'AGGREGATION_REQUIRES_COLUMN_CONFIG',
+  'HAVING_FILTER_NOT_AGGREGATED',
+  'INVALID_OPERATOR_FOR_TYPE',
+  ...NOT_SELECTED_CODES,
+  ...AGG_NOT_ALLOWED_CODES,
+  ...DATE_BUCKET_ERROR_CODES,
+]);
+
 interface ValidatorErrorEntry {
   code?: string;
   column?: string;
@@ -192,18 +209,7 @@ export function translateOutputControlsError(
   // Codes no branch above recognizes still get named — no current or future
   // validator code is ever fully opaque to the MCP client. Appended as the last
   // section so recognized families keep their targeted guidance first.
-  const unrecognized =
-    errors?.filter(
-      e =>
-        e.code !== 'FILTER_COLUMN_UNKNOWN' &&
-        e.code !== 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' &&
-        e.code !== 'AGGREGATION_REQUIRES_COLUMN_CONFIG' &&
-        e.code !== 'HAVING_FILTER_NOT_AGGREGATED' &&
-        e.code !== 'INVALID_OPERATOR_FOR_TYPE' &&
-        !NOT_SELECTED_CODES.has(e.code ?? '') &&
-        !AGG_NOT_ALLOWED_CODES.has(e.code ?? '') &&
-        !DATE_BUCKET_ERROR_CODES.has(e.code ?? '')
-    ) ?? [];
+  const unrecognized = errors?.filter(e => !RECOGNIZED_CODES.has(e.code ?? '')) ?? [];
   if (unrecognized.length > 0) {
     const detail = [
       ...new Set(unrecognized.map(e => (e.column ? `${e.code} (${e.column})` : e.code))),
