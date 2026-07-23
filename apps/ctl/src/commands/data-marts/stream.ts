@@ -111,6 +111,7 @@ export default class DataMartsStream extends BaseCommand {
     }),
     limit: Flags.integer({
       description: 'Optional row cap',
+      min: 1,
     }),
     filter: Flags.string({
       description: 'Filter config as a JSON array',

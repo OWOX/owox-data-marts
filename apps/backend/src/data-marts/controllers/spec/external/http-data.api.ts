@@ -160,9 +160,7 @@ export function StreamHttpDataSpec() {
     }),
     ApiResponse({
       status: 403,
-      description:
-        'Forbidden. The caller must have the Business User (viewer) role and `Action.USE` on ' +
-        'the requested Data Mart.',
+      description: 'Caller is authenticated but lacks `Action.USE` on the requested Data Mart.',
     }),
     ApiResponse({
       status: 404,

@@ -2,6 +2,8 @@ import { Buffer } from 'node:buffer';
 
 import { OWOXApiError, OWOXAuthError } from './errors.js';
 
+// Keep the traversal rule literals below in sync with the backend schemas in
+// `apps/backend/src/data-marts/dto/schemas/{aggregate-function,filter-config,sort-config,date-trunc-config}.schema.ts`.
 export type OWOXDataMart = Record<string, unknown> & {
   id: string;
   title: string;
@@ -366,6 +368,7 @@ export class DataMartsApi {
     if (mediaType !== 'application/x-ndjson') {
       await response.body?.cancel().catch(() => undefined);
       throw new OWOXApiError('OWOX Data Mart data stream returned an unexpected content type', {
+        status: response.status,
         details: {
           dataMartId,
           contentType: contentType ?? null,

@@ -1,5 +1,6 @@
 // Keep this list in sync with `AGGREGATE_FUNCTIONS` on the web side
-// (`apps/web/src/features/data-marts/shared/types/relationship.types.ts`).
+// (`apps/web/src/features/data-marts/shared/types/relationship.types.ts`) and the public traversal
+// rule literals in `packages/api-client/src/data-marts.ts`.
 export const AGGREGATE_FUNCTIONS = [
   'STRING_AGG',
   'MAX',

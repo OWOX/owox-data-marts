@@ -147,7 +147,9 @@ describe('HttpDataController OpenAPI', () => {
       /unknown column.*pagination.*aggregation.*dateTrunc.*storage type.*project blocked/i
     );
     expect(responses['401'].description).toBe('Authentication required');
-    expect(responses['403'].description).toMatch(/Business User.*Action\.USE/i);
+    expect(responses['403'].description).toMatch(/Business User/i);
+    expect(responses['403'].description).toMatch(/Action\.USE/i);
+    expect(responses['403'].description.match(/Business User/gi)).toHaveLength(1);
     expect(responses['404'].description).toMatch(/not visible.*not published/i);
     expect(responses['424'].description).toMatch(/storage dependency.*provider context/i);
     expect(responses['503'].description).toMatch(/server is shutting down/i);

@@ -473,6 +473,7 @@ describe('DataMartsApi.traverseData', () => {
     await expect(client.dataMarts.traverseData('dm-1')).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart data stream returned an unexpected content type',
+      status: 200,
       details: {
         dataMartId: 'dm-1',
         contentType: 'application/json',
