@@ -60,6 +60,14 @@ API-key-derived project and member context. `@owox/api-client` exposes `auth.get
 the API key secret. Existing authentication and authorization behavior are unchanged, and
 consumers can adopt the client method without a migration.
 
+## Require interactive authentication for OAuth flows
+
+OAuth routes under `/api/connectors/{connectorName}/oauth`, `/api/data-destinations/oauth`,
+`/api/data-destinations/{id}/oauth`, `/api/data-storages/oauth`, and
+`/api/data-storages/{id}/oauth`, plus `POST /api/data-destinations/connect/google-sheets`, now
+reject API-key authentication and require an interactive user session. API-key access to non-OAuth
+resource operations is unchanged.
+
 ## Publish canonical API-key authentication headers
 
 Protected OpenAPI operations now declare `X-OWOX-Authorization` and, only when API-key-derived
