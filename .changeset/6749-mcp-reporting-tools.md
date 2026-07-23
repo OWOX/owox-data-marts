@@ -1,5 +1,5 @@
 ---
-'owox': minor
+'owox': patch
 ---
 
 # More reliable MCP reporting answers
