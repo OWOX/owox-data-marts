@@ -55,6 +55,7 @@ describe('GetDataMartDetailsTool', () => {
       url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
       description: 'Orders data mart',
       fields: detailsResult.fields,
+      joined_fields_included: true,
       joined_fields: detailsResult.joinedFields,
     };
 
@@ -78,6 +79,29 @@ describe('GetDataMartDetailsTool', () => {
     });
   });
 
+  it('defaults to native fields and marks joined fields as omitted', async () => {
+    const facade = {
+      getDataMartDetails: jest.fn().mockResolvedValue({
+        id: 'dm_1',
+        name: 'Orders',
+        description: 'Orders data mart',
+        fields: [],
+        joinedFields: [],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+
+    expect(result.structuredContent).toMatchObject({
+      joined_fields_included: false,
+      joined_fields: [],
+    });
+    expect(facade.getDataMartDetails).toHaveBeenCalledWith(
+      expect.objectContaining({ includeJoinedFields: false })
+    );
+  });
+
   it('rejects explicit project_id and legacy camelCase dataMartId input', () => {
     const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
 
@@ -97,6 +121,7 @@ describe('GetDataMartDetailsTool', () => {
         url: expect.any(Object),
         description: expect.any(Object),
         fields: expect.any(Object),
+        joined_fields_included: expect.any(Object),
         joined_fields: expect.any(Object),
       }),
       annotations: {

@@ -9,6 +9,7 @@ import {
 } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
+import { formatBlendedFieldDisplayName } from './blended-field-display-name';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
@@ -242,7 +243,7 @@ export class ReportSqlComposerService {
       headers.push(
         new ReportDataHeader(
           field.name,
-          `${field.outputPrefix} ${field.alias || field.originalFieldName}`,
+          formatBlendedFieldDisplayName(field),
           field.description || undefined,
           field.type as StorageFieldType
         )

@@ -13,6 +13,7 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z.object({}).strict();
@@ -28,7 +29,7 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
     'Returns a high-level summary input for the current OWOX project published Data Mart catalog so the LLM can orient the user. Use when the user asks open-ended questions like "what data is available here?", "what can I analyze?", or "where should I start?". The tool returns counts and top published Data Marts ranked by configured relationship connectivity, with shortened descriptions and basic usage metadata. It does not query actual data rows, compute data freshness, or generate a natural-language summary.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
-    project: z.object({ id: z.string(), title: z.string() }),
+    project: z.object({ id: z.string(), title: z.string() }).optional(),
     project_id: z.string(),
     data_mart_count: z.number(),
     top_data_marts_by_connectivity: z.array(
@@ -74,18 +75,11 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
         userId: context.userId,
         roles: context.roles,
       }),
-      this.projectContext.getProjectContext({
-        projectId: context.projectId,
-        userId: context.userId,
-        roles: context.roles,
-      }),
+      tryGetMcpProjectSummary(this.projectContext, context),
     ]);
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
-      project: {
-        id: projectContext.project.id,
-        title: projectContext.project.title,
-      },
+      ...(projectContext ? { project: projectContext } : {}),
       project_id: result.projectId,
       data_mart_count: result.dataMartCount,
       top_data_marts_by_connectivity: result.topDataMartsByConnectivity.map(dataMart => ({

@@ -13,6 +13,7 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z
@@ -33,7 +34,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
     'List data marts available to the current OWOX project member. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
-    project: z.object({ id: z.string(), title: z.string() }),
+    project: z.object({ id: z.string(), title: z.string() }).optional(),
     data_marts: z.array(
       z.object({
         id: z.string(),
@@ -75,19 +76,12 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         roles: context.roles,
         status: parsed.status ?? 'published',
       }),
-      this.projectContext.getProjectContext({
-        projectId: context.projectId,
-        userId: context.userId,
-        roles: context.roles,
-      }),
+      tryGetMcpProjectSummary(this.projectContext, context),
     ]);
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
-      project: {
-        id: projectContext.project.id,
-        title: projectContext.project.title,
-      },
+      ...(projectContext ? { project: projectContext } : {}),
       data_marts: result.dataMarts.map(dataMart => ({
         id: dataMart.id,
         title: dataMart.title,

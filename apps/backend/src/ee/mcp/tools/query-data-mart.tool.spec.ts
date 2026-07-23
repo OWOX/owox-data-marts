@@ -132,6 +132,31 @@ describe('QueryDataMartTool', () => {
       ]);
     });
 
+    it('explains how technical totals keys map to display columns', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['revenue | SUM'],
+        columnMetadata: [{ name: 'revenue | SUM', displayName: 'Revenue' }],
+        rows: [['42']],
+        truncated: false,
+        totals: { 'revenue | SUM': 42 },
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['revenue'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.structuredContent).toMatchObject({
+        columns: ['Revenue'],
+        column_metadata: [{ name: 'revenue | SUM', display_name: 'Revenue' }],
+        totals: { 'revenue | SUM': 42 },
+      });
+      expect((result.structuredContent as { _instruction: string })._instruction).toContain(
+        'column_metadata[].name'
+      );
+    });
+
     it('sets truncated: true when the facade signals truncation', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],

@@ -10,6 +10,7 @@ import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { SummarizeMcpDataCatalogCommand } from '../dto/domain/summarize-mcp-data-catalog.command';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
+import { formatBlendedFieldDisplayName } from '../services/blended-field-display-name';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -134,10 +135,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
         .map(f => ({
           name: f.name,
-          displayName:
-            f.outputPrefix && (f.alias || f.originalFieldName)
-              ? `${f.outputPrefix} ${f.alias || f.originalFieldName}`
-              : f.alias || f.originalFieldName || f.name,
+          displayName: formatBlendedFieldDisplayName(f),
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,

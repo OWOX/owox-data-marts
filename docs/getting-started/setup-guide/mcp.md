@@ -214,23 +214,24 @@ Returns field-level metadata for one data mart visible to you in the current pro
 
 **Input:**
 
-| Field          | Description                                                                               |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt` |
+| Field          | Description                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt`                                                                           |
 | `detail_level` | Optional: `native` (default) returns only the data mart's own fields; `with_joined_fields` additionally returns joined fields when the question truly requires them |
 
 **Returns:**
 
-| Field           | Description                                                                                                                                                                                |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`            | Data mart identifier                                                                                                                                                                       |
-| `name`          | Data mart name                                                                                                                                                                             |
-| `url`           | Link to open the data mart in OWOX Data Marts                                                                                                                                              |
-| `description`   | Data mart description                                                                                                                                                                      |
-| `fields`        | The data mart's own (native) output fields with query `name`, presentation `displayName`, types, descriptions, and business names when available                                           |
-| `joined_fields` | Fields contributed by blended/joined data marts when requested, each with exact query `name`, presentation `displayName`, source data mart, type, and allowed aggregations               |
+| Field                    | Description                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                     | Data mart identifier                                                                                                                                                       |
+| `name`                   | Data mart name                                                                                                                                                             |
+| `url`                    | Link to open the data mart in OWOX Data Marts                                                                                                                              |
+| `description`            | Data mart description                                                                                                                                                      |
+| `fields`                 | The data mart's own (native) output fields with query `name`, presentation `displayName`, types, descriptions, and business names when available                           |
+| `joined_fields_included` | Whether joined fields were requested and evaluated. When `false`, `joined_fields` was intentionally omitted rather than evaluated as empty.                                |
+| `joined_fields`          | Fields contributed by blended/joined data marts when requested, each with exact query `name`, presentation `displayName`, source data mart, type, and allowed aggregations |
 
-Use this tool when you need to understand the fields available in a specific data mart — both its native fields and any joined fields you can then query with `query_data_mart`. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
+Use this tool when you need to understand the fields available in a specific data mart. It returns native fields by default; request `detail_level=with_joined_fields` before concluding that the native schema cannot answer a question or after a `field_not_found` error. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
 
 ### `query_data_mart` (requires `mcp:read` and `mcp:write`)
 

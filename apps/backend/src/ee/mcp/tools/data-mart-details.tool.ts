@@ -77,10 +77,15 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
     url: z.string().describe('Open this Data Mart in OWOX.'),
     description: z.string().describe('Data mart description.'),
     fields: z.array(DataMartFieldSchema).describe("The data mart's own (native) output fields."),
+    joined_fields_included: z
+      .boolean()
+      .describe(
+        'Whether joined_fields were requested and evaluated. false means joined fields were intentionally omitted; true means an empty joined_fields array has no accessible joined fields.'
+      ),
     joined_fields: z
       .array(JoinedFieldSchema)
       .describe(
-        'Fields available from joined/blended data marts. Empty when the data mart has no joins. Reference each by its exact "name" in query_data_mart; because they come from a joined data mart they may also be used in "slices".'
+        'Fields available from joined/blended data marts when joined_fields_included is true. Reference each by its exact "name" in query_data_mart; because they come from a joined data mart they may also be used in "slices".'
       ),
   };
   readonly annotations = {
@@ -103,13 +108,14 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
 
   async handler(input: GetDataMartDetailsInput, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = this.parseInput(input);
+    const includeJoinedFields = parsed.detail_level === 'with_joined_fields';
 
     const result = await this.dataMarts.getDataMartDetails({
       projectId: context.projectId,
       userId: context.userId,
       roles: context.roles,
       dataMartId: parsed.data_mart_id,
-      includeJoinedFields: parsed.detail_level === 'with_joined_fields',
+      includeJoinedFields,
     });
     const structuredContent = {
       id: result.id,
@@ -120,6 +126,7 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       ),
       description: result.description,
       fields: result.fields,
+      joined_fields_included: includeJoinedFields,
       joined_fields: result.joinedFields,
     };
 

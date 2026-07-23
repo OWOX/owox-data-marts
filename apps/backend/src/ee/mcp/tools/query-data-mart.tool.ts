@@ -64,6 +64,7 @@ Choosing between slices and filters (both are row-level predicates applied to ra
 Using the results:
 - Use metrics and totals from the response directly — never recompute a value already present (totals are computed server-side over all matching rows, so they stay correct even when rows are truncated).
 - The totals block is separate from the rows.
+- Totals keys are technical output column names. Match a totals key to column_metadata[].name, not to a business-friendly columns label.
 - When you use aggregations, the rows include an extra "Row Count" column — the number of underlying rows in each group. It is grouping metadata, not one of your requested fields; ignore it unless the user asked how many rows a group contains.
 
 If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000). Always use the source metadata in the response: name the Data Mart the answer came from, distinguish numbers calculated by OWOX from arithmetic you perform yourself, and clearly warn the user when rows were truncated.`;
@@ -86,7 +87,12 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         reasons: z.array(z.enum(['row_limit', 'payload_byte_cap'])).min(1),
       })
       .optional(),
-    totals: z.record(z.string(), z.unknown()).nullable(),
+    totals: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .describe(
+        'Server-side totals keyed by technical output column name. Match each key to column_metadata[].name.'
+      ),
     source: z.object({
       data_mart: z.object({
         id: z.string(),
@@ -169,6 +175,9 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         ...(capped ? (['payload_byte_cap'] as const) : []),
       ];
       const isTruncated = truncationReasons.length > 0;
+      const totalsKeyInstruction = res.totals
+        ? ' Totals keys are technical output names; match them to column_metadata[].name, not to display labels.'
+        : '';
       const structuredContent = {
         columns: headerColumns,
         column_metadata: res.columnMetadata.map((column, index) => ({
@@ -197,8 +206,8 @@ If truncated is true, not all matching rows were returned: narrow the query (few
           totals: res.totals ? ('calculated_by_owox' as const) : ('not_available' as const),
         },
         _instruction: isTruncated
-          ? 'IMPORTANT: Rows are incomplete. Tell the user explicitly that the result was truncated and that any conclusion based on rows may be incomplete. State the Data Mart source. Server-provided totals still cover all matching rows; do not describe a value you calculate from returned rows as an OWOX-calculated total.'
-          : 'State which Data Mart supplied the data. Identify server-provided rows and totals as taken from or calculated by OWOX. If you perform arithmetic from those values yourself, label it as an AI-side calculation.',
+          ? `IMPORTANT: Rows are incomplete. Tell the user explicitly that the result was truncated and that any conclusion based on rows may be incomplete. State the Data Mart source. Server-provided totals still cover all matching rows; do not describe a value you calculate from returned rows as an OWOX-calculated total.${totalsKeyInstruction}`
+          : `State which Data Mart supplied the data. Identify server-provided rows and totals as taken from or calculated by OWOX. If you perform arithmetic from those values yourself, label it as an AI-side calculation.${totalsKeyInstruction}`,
       };
 
       return {

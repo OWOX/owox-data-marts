@@ -95,6 +95,20 @@ describe('ListDataMartsTool', () => {
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
   });
 
+  it('returns the catalog when optional project metadata is unavailable', async () => {
+    const facade = {
+      listDataMarts: jest.fn().mockResolvedValue({ dataMarts: [] }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const unavailableProjectContext = {
+      getProjectContext: jest.fn().mockRejectedValue(new Error('Project context unavailable')),
+    };
+    const tool = new ListDataMartsTool(facade, publicOrigin, unavailableProjectContext as never);
+
+    const result = await tool.handler({}, context);
+
+    expect(result.structuredContent).toEqual({ data_marts: [] });
+  });
+
   // Note: MCP_TOOL_PROVIDER_CLASSES assertion checks the LOCAL test registry snapshot, not
   // production gating. QueryDataMartTool IS in providers; the registry fixture here only
   // registers ListDataMartsTool so query_data_mart is absent from that local registry.

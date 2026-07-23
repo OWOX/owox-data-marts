@@ -14,6 +14,7 @@ import {
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 import { buildDataMartUiPath } from './data-mart-ui-path';
+import { tryGetMcpProjectSummary } from './mcp-project-summary.util';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
 const DEFAULT_LIMIT = 10;
@@ -35,7 +36,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
     'Find relevant non-draft data marts in the current OWOX project from a natural-language prompt, limited to data marts visible to the current MCP user. This is the default discovery step for a concrete analytical question when the data mart has not already been confirmed. Use it when the user asks to find, discover, or search published data marts by title, description, business meaning, schema fields, or metrics. This tool returns only data marts, not data storages or destinations, and it intentionally excludes draft data marts.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
-    project: z.object({ id: z.string(), title: z.string() }),
+    project: z.object({ id: z.string(), title: z.string() }).optional(),
     data_marts: z.array(
       z.object({
         id: z.string(),
@@ -78,19 +79,12 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
           roles: context.roles,
         },
       }),
-      this.projectContext.getProjectContext({
-        projectId: context.projectId,
-        userId: context.userId,
-        roles: context.roles,
-      }),
+      tryGetMcpProjectSummary(this.projectContext, context),
     ]);
 
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
-      project: {
-        id: projectContext.project.id,
-        title: projectContext.project.title,
-      },
+      ...(projectContext ? { project: projectContext } : {}),
       data_marts: results
         .filter(result => result.entityType === SearchableEntityType.DATA_MART)
         .map(result => ({

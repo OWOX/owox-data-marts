@@ -47,9 +47,9 @@ describe('McpDataMartsFacadeImpl', () => {
       actualizeSchemaIfExpired: jest.fn().mockResolvedValue(dataMart),
     }) as unknown as jest.Mocked<DataMartService>;
 
-  const createGetDataMartService = () =>
+  const createGetDataMartService = (status = DataMartStatus.PUBLISHED) =>
     ({
-      run: jest.fn().mockResolvedValue({ id: 'dm_1', status: DataMartStatus.PUBLISHED }),
+      run: jest.fn().mockResolvedValue({ id: 'dm_1', status }),
     }) as unknown as jest.Mocked<GetDataMartService>;
 
   const createQueryDataMartService = () =>
@@ -327,6 +327,29 @@ describe('McpDataMartsFacadeImpl', () => {
         userId: 'user-1',
         roles: ['viewer'],
         dataMartId: 'dm_hidden',
+      })
+    ).rejects.toThrow(NotFoundException);
+    expect(dataMartService.actualizeSchemaIfExpired).not.toHaveBeenCalled();
+  });
+
+  it('does not load details for a draft data mart', async () => {
+    const dataMartService = createDataMartService();
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(DataMartStatus.DRAFT),
+      dataMartService,
+      createQueryDataMartService(),
+      createBlendableSchemaService(),
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    await expect(
+      facade.getDataMartDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        dataMartId: 'dm_draft',
       })
     ).rejects.toThrow(NotFoundException);
     expect(dataMartService.actualizeSchemaIfExpired).not.toHaveBeenCalled();

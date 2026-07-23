@@ -100,6 +100,20 @@ describe('SearchDataMartsTool', () => {
     );
   });
 
+  it('returns search results when optional project metadata is unavailable', async () => {
+    const facade = {
+      search: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<SearchFacade>;
+    const unavailableProjectContext = {
+      getProjectContext: jest.fn().mockRejectedValue(new Error('Project context unavailable')),
+    };
+    const tool = new SearchDataMartsTool(facade, publicOrigin, unavailableProjectContext as never);
+
+    const result = await tool.handler({ prompt: 'orders' }, context);
+
+    expect(result.structuredContent).toEqual({ data_marts: [] });
+  });
+
   it('rejects explicit project_id, legacy query, and too-wide limits', () => {
     const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin, projectContext as never);
 

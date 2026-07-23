@@ -4,7 +4,7 @@ For a concrete analytical question:
 1. Call get_relevant_data_marts_by_prompt with the user's question unless the data mart has already been explicitly confirmed in the current conversation.
 2. If no useful result is returned, rephrase the search using different business terms and try again.
 3. If several data marts are plausible, ask the user which one to use.
-4. Call get_data_mart_details_by_id to obtain exact native and joined field names unless that schema is already available in the conversation.
+4. Call get_data_mart_details_by_id to obtain exact native field names unless that schema is already available in the conversation. It returns native fields by default. Before saying the selected Data Mart cannot answer the question, or after field_not_found, call it again with detail_level=with_joined_fields to inspect available joined fields.
 5. Call query_data_mart with only the fields, filters, aggregations, date buckets, and sorting needed to answer the question.
 
 Discovery:
