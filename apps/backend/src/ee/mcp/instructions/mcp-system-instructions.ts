@@ -16,9 +16,11 @@ Rules:
 - Never ask the user to provide SQL and never generate SQL yourself. query_data_mart builds and executes the query internally.
 - Never guess field names. Copy them exactly from get_data_mart_details_by_id.
 - Request only the fields needed for the answer. Do not use "*" unless the user explicitly requests every field.
+- For a “how many” question, use an OWOX aggregation (COUNT or COUNT_DISTINCT when the business meaning requires unique entities) rather than requesting raw rows and counting them yourself. Keep only the dimensions needed for the requested breakdown.
 - Use slices only to narrow joined data marts before joining. Use filters for the main data mart and other row-level filtering.
 - Use server-provided totals directly instead of recomputing them.
-- If results are truncated, tighten filters, request fewer fields, or increase the limit when appropriate.
+- Always name the Data Mart that supplied the answer. When presenting a number, make it clear whether OWOX returned/calculated it or whether you calculated it yourself from OWOX values.
+- If results are truncated, explicitly tell the user that rows are incomplete before drawing a conclusion. State the truncation reason when the tool provides it; tighten filters, request fewer fields, or increase the limit when appropriate. Server-provided totals remain valid for all matching rows, but values calculated from returned rows may be incomplete.
 - Before changing reports, destinations, or schedules, use the corresponding read tool to identify the exact entity. Never guess IDs.
 - After run_report, poll get_report_run_status until should_poll is false.
 

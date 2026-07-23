@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
 import { ReportRunStatus } from '../../../data-marts/enums/report-run-status.enum';
 import {
@@ -9,6 +10,8 @@ import {
 } from '../../../data-marts/facades/mcp-reports.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import { buildDataDestinationsUiPath, buildReportsUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z.object({ data_mart_id: z.string().min(1) }).strict();
 
@@ -24,9 +27,11 @@ export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartRepo
     reports: z.array(
       z.object({
         report_id: z.string(),
+        report_url: z.string().describe('Open this Data Mart reports page in OWOX.'),
         data_mart_id: z.string(),
         name: z.string(),
         destination_id: z.string(),
+        destination_url: z.string().describe('Open the report destination in OWOX.'),
         destination_type: z.enum(MCP_DESTINATION_TYPES),
         owner: z.string().nullable(),
         schedules: z.array(
@@ -54,7 +59,8 @@ export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartRepo
 
   constructor(
     @Inject(MCP_REPORTS_FACADE)
-    private readonly reports: McpReportsFacade
+    private readonly reports: McpReportsFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): GetDataMartReportsInput {
@@ -71,7 +77,21 @@ export class GetDataMartReportsTool implements McpToolDefinition<GetDataMartRepo
       roles: context.roles,
     });
 
-    const structuredContent = { reports: result.reports };
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const reportUrl = joinPublicOrigin(
+      publicOrigin,
+      buildReportsUiPath(context.projectId, data_mart_id)
+    );
+    const structuredContent = {
+      reports: result.reports.map(report => ({
+        ...report,
+        report_url: reportUrl,
+        destination_url: joinPublicOrigin(
+          publicOrigin,
+          buildDataDestinationsUiPath(context.projectId, report.destination_id)
+        ),
+      })),
+    };
 
     return jsonToolResult(structuredContent);
   }

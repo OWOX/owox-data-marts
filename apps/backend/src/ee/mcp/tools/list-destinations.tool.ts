@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
   MCP_DATA_DESTINATIONS_FACADE,
   type McpDataDestinationsFacade,
@@ -8,6 +9,8 @@ import {
 import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import { buildDataDestinationsUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z.object({}).strict();
 
@@ -35,6 +38,7 @@ export class ListDestinationsTool implements McpToolDefinition<ListDestinationsI
     destinations: z.array(
       z.object({
         id: z.string(),
+        url: z.string().describe('Open this destination in OWOX.'),
         name: z.string(),
         type: z.enum(MCP_DESTINATION_TYPES),
         owner: z.string().nullable(),
@@ -69,7 +73,8 @@ export class ListDestinationsTool implements McpToolDefinition<ListDestinationsI
 
   constructor(
     @Inject(MCP_DATA_DESTINATIONS_FACADE)
-    private readonly destinations: McpDataDestinationsFacade
+    private readonly destinations: McpDataDestinationsFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): ListDestinationsInput {
@@ -85,7 +90,16 @@ export class ListDestinationsTool implements McpToolDefinition<ListDestinationsI
       roles: context.roles,
     });
 
-    const structuredContent = { destinations: result.destinations };
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const structuredContent = {
+      destinations: result.destinations.map(destination => ({
+        ...destination,
+        url: joinPublicOrigin(
+          publicOrigin,
+          buildDataDestinationsUiPath(context.projectId, destination.id)
+        ),
+      })),
+    };
 
     return jsonToolResult(structuredContent);
   }

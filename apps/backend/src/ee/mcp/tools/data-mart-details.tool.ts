@@ -5,12 +5,21 @@ import {
   MCP_DATA_MARTS_FACADE,
   type McpDataMartsFacade,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import { buildDataMartUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z
   .object({
     data_mart_id: z.string().trim().min(1),
+    detail_level: z
+      .enum(['native', 'with_joined_fields'])
+      .optional()
+      .describe(
+        'Use native (default) for ordinary queries. Request with_joined_fields only when the answer requires data from a joined Data Mart.'
+      ),
   })
   .strict();
 
@@ -22,6 +31,7 @@ const DataMartFieldSchema = z
     type: z.string(),
     description: z.string().optional().nullable(),
     businessName: z.string().optional(),
+    displayName: z.string().optional(),
   })
   .passthrough();
 
@@ -32,6 +42,9 @@ const JoinedFieldSchema = z
       .describe(
         'Qualified field name (<alias>__<field>) — copy verbatim into query_data_mart fields/slices/filters.'
       ),
+    displayName: z
+      .string()
+      .describe('Business-friendly label for presentation; use name for queries.'),
     type: z
       .string()
       .describe(
@@ -56,11 +69,12 @@ const JoinedFieldSchema = z
 export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDetailsInput> {
   readonly name = 'get_data_mart_details_by_id';
   readonly description =
-    'Get available details for a specific OWOX Data Mart by data_mart_id, including id, name, description, output fields (native), and joined_fields contributed by blended/joined data marts. Native fields and joined_fields are both queryable in query_data_mart — reference joined_fields by their qualified <alias>__<field> name; joined_fields can additionally be used in query_data_mart slices (pre-join filters). This tool is optional in the discovery flow: get_relevant_data_marts_by_prompt finds relevant Data Marts, and this tool adds field-level metadata for a selected Data Mart. It does not return data owners, data freshness, sample values, or actual data rows.';
+    'Get available details for a specific published OWOX Data Mart by data_mart_id, including its URL, native output fields, and (only on explicit request) joined_fields contributed by blended/joined data marts. Use detail_level=native by default: it avoids exposing irrelevant joined fields and keeps the response fast. Request detail_level=with_joined_fields only when the question truly needs a joined Data Mart. Use displayName for user-facing wording and copy name verbatim into query_data_mart. This tool is optional in the discovery flow: get_relevant_data_marts_by_prompt finds relevant Data Marts, and this tool adds field-level metadata for a selected Data Mart. It does not return data owners, data freshness, sample values, or actual data rows.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     id: z.string().describe('Data mart identifier.'),
     name: z.string().describe('Data mart display name.'),
+    url: z.string().describe('Open this Data Mart in OWOX.'),
     description: z.string().describe('Data mart description.'),
     fields: z.array(DataMartFieldSchema).describe("The data mart's own (native) output fields."),
     joined_fields: z
@@ -79,7 +93,8 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
 
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
-    private readonly dataMarts: McpDataMartsFacade
+    private readonly dataMarts: McpDataMartsFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): GetDataMartDetailsInput {
@@ -94,10 +109,15 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       userId: context.userId,
       roles: context.roles,
       dataMartId: parsed.data_mart_id,
+      includeJoinedFields: parsed.detail_level === 'with_joined_fields',
     });
     const structuredContent = {
       id: result.id,
       name: result.name,
+      url: joinPublicOrigin(
+        this.publicOriginService.getPublicOrigin(),
+        buildDataMartUiPath(context.projectId, result.id)
+      ),
       description: result.description,
       fields: result.fields,
       joined_fields: result.joinedFields,

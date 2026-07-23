@@ -3,6 +3,10 @@ import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
+  MCP_PROJECT_CONTEXT_FACADE,
+  type McpProjectContextFacade,
+} from '../../../idp/facades/mcp-project-context.facade';
+import {
   MCP_DATA_MARTS_FACADE,
   type McpDataMartsFacade,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
@@ -24,6 +28,7 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
     'Returns a high-level summary input for the current OWOX project published Data Mart catalog so the LLM can orient the user. Use when the user asks open-ended questions like "what data is available here?", "what can I analyze?", or "where should I start?". The tool returns counts and top published Data Marts ranked by configured relationship connectivity, with shortened descriptions and basic usage metadata. It does not query actual data rows, compute data freshness, or generate a natural-language summary.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
+    project: z.object({ id: z.string(), title: z.string() }),
     project_id: z.string(),
     data_mart_count: z.number(),
     top_data_marts_by_connectivity: z.array(
@@ -51,7 +56,9 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
     private readonly dataMarts: McpDataMartsFacade,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    @Inject(MCP_PROJECT_CONTEXT_FACADE)
+    private readonly projectContext: McpProjectContextFacade
   ) {}
 
   parseInput(input: unknown): SummarizeDataCatalogInput {
@@ -61,13 +68,24 @@ export class SummarizeDataCatalogTool implements McpToolDefinition<SummarizeData
   async handler(input: SummarizeDataCatalogInput, context: McpAuthContext): Promise<McpToolResult> {
     this.parseInput(input);
 
-    const result = await this.dataMarts.summarizeDataCatalog({
-      projectId: context.projectId,
-      userId: context.userId,
-      roles: context.roles,
-    });
+    const [result, projectContext] = await Promise.all([
+      this.dataMarts.summarizeDataCatalog({
+        projectId: context.projectId,
+        userId: context.userId,
+        roles: context.roles,
+      }),
+      this.projectContext.getProjectContext({
+        projectId: context.projectId,
+        userId: context.userId,
+        roles: context.roles,
+      }),
+    ]);
     const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
+      project: {
+        id: projectContext.project.id,
+        title: projectContext.project.title,
+      },
       project_id: result.projectId,
       data_mart_count: result.dataMartCount,
       top_data_marts_by_connectivity: result.topDataMartsByConnectivity.map(dataMart => ({

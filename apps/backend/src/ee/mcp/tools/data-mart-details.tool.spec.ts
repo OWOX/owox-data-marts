@@ -1,4 +1,5 @@
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { GetDataMartDetailsTool } from './data-mart-details.tool';
 
@@ -12,6 +13,9 @@ describe('GetDataMartDetailsTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   it('returns data mart details using token project-member context', async () => {
     const detailsResult = {
@@ -43,17 +47,20 @@ describe('GetDataMartDetailsTool', () => {
     const facade = {
       getDataMartDetails: jest.fn().mockResolvedValue(detailsResult),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new GetDataMartDetailsTool(facade);
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
 
     const expectedStructured = {
       id: 'dm_1',
       name: 'Orders',
+      url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
       description: 'Orders data mart',
       fields: detailsResult.fields,
       joined_fields: detailsResult.joinedFields,
     };
 
-    await expect(tool.handler({ data_mart_id: 'dm_1' }, context)).resolves.toEqual({
+    await expect(
+      tool.handler({ data_mart_id: 'dm_1', detail_level: 'with_joined_fields' }, context)
+    ).resolves.toEqual({
       structuredContent: expectedStructured,
       content: [
         {
@@ -67,18 +74,19 @@ describe('GetDataMartDetailsTool', () => {
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
+      includeJoinedFields: true,
     });
   });
 
   it('rejects explicit project_id and legacy camelCase dataMartId input', () => {
-    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade);
+    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ data_mart_id: 'dm_1', project_id: 'project-2' })).toThrow();
     expect(() => tool.parseInput({ dataMartId: 'dm_1' })).toThrow();
   });
 
   it('describes details lookup as read-only metadata access', () => {
-    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade);
+    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
 
     expect(tool).toMatchObject({
       name: 'get_data_mart_details_by_id',
@@ -86,6 +94,7 @@ describe('GetDataMartDetailsTool', () => {
       outputSchema: expect.objectContaining({
         id: expect.any(Object),
         name: expect.any(Object),
+        url: expect.any(Object),
         description: expect.any(Object),
         fields: expect.any(Object),
         joined_fields: expect.any(Object),

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS } from '../ai-insights/ai-insights.constants';
 import { prepareSchema } from '../ai-insights/utils/prepare-schema';
 import type {
@@ -12,6 +12,7 @@ import { SummarizeMcpDataCatalogCommand } from '../dto/domain/summarize-mcp-data
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
 import { QueryDataMartCommand, QueryDataMartService } from '../use-cases/query-data-mart.service';
@@ -45,24 +46,35 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
     const result = await this.listDataMartsService.run(
-      new ListDataMartsCommand(request.projectId, request.userId, request.roles)
+      new ListDataMartsCommand(
+        request.projectId,
+        request.userId,
+        request.roles,
+        undefined,
+        undefined,
+        DataMartStatus.PUBLISHED
+      )
     );
 
     return {
-      dataMarts: result.items.map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        updatedAt: item.modifiedAt.toISOString(),
-      })),
+      dataMarts: result.items
+        // Keep this gate in the MCP facade even though the tool defaults to `published`: a direct
+        // facade caller must not make a draft discoverable through MCP either.
+        .filter(item => item.status === DataMartStatus.PUBLISHED)
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          status: item.status,
+          updatedAt: item.modifiedAt.toISOString(),
+        })),
     };
   }
 
   async getDataMartDetails(
     request: McpGetDataMartDetailsRequest
   ): Promise<McpDataMartDetailsResponse> {
-    await this.ensureDataMartAccessible(request);
+    await this.ensurePublishedDataMartAccessible(request);
 
     const dataMart = await this.dataMartService.actualizeSchemaIfExpired(
       request.dataMartId,
@@ -80,8 +92,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       id: dataMart.id,
       name: dataMart.title,
       description: dataMart.description ?? '',
-      fields: schema?.fields ?? [],
-      joinedFields: await this.resolveJoinedFields(request),
+      fields: this.withDisplayNames(schema?.fields ?? []),
+      joinedFields: request.includeJoinedFields ? await this.resolveJoinedFields(request) : [],
     };
   }
 
@@ -122,6 +134,10 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
         .map(f => ({
           name: f.name,
+          displayName:
+            f.outputPrefix && (f.alias || f.originalFieldName)
+              ? `${f.outputPrefix} ${f.alias || f.originalFieldName}`
+              : f.alias || f.originalFieldName || f.name,
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,
@@ -156,10 +172,35 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     );
   }
 
-  private async ensureDataMartAccessible(request: McpGetDataMartDetailsRequest): Promise<void> {
-    await this.getDataMartService.run(
+  private async ensurePublishedDataMartAccessible(
+    request: McpGetDataMartDetailsRequest
+  ): Promise<void> {
+    const dataMart = await this.getDataMartService.run(
       new GetDataMartCommand(request.dataMartId, request.projectId, request.userId, request.roles)
     );
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      // Do not reveal whether a non-published Data Mart exists.
+      throw new NotFoundException('Data Mart not found');
+    }
+  }
+
+  private withDisplayNames(fields: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+    return fields.map(field => {
+      const name = typeof field['name'] === 'string' ? field['name'] : undefined;
+      const businessName =
+        typeof field['businessName'] === 'string' && field['businessName'].trim()
+          ? field['businessName'].trim()
+          : undefined;
+      const nestedFields = Array.isArray(field['fields'])
+        ? this.withDisplayNames(field['fields'] as Array<Record<string, unknown>>)
+        : undefined;
+
+      return {
+        ...field,
+        ...(name ? { displayName: businessName ?? name } : {}),
+        ...(nestedFields ? { fields: nestedFields } : {}),
+      };
+    });
   }
 
   private filterAvailableFields(fields: DataMartSchemaField[]): DataMartSchemaField[] {

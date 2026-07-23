@@ -64,6 +64,7 @@ export class DataMartService {
       userId?: string;
       roles?: string[];
       roleScope?: RoleScope;
+      status?: DataMartStatus;
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const DM_ALIAS = 'dm';
@@ -104,6 +105,10 @@ export class DataMartService {
       .setParameter('connectorDefinitionType', DataMartDefinitionType.CONNECTOR)
       .where('dm.projectId = :projectId', { projectId })
       .andWhere('dm.deletedAt IS NULL');
+
+    if (options?.status) {
+      qb.andWhere('dm.status = :status', { status: options.status });
+    }
 
     this.applyNonAdminVisibilityGate(qb, projectId, options);
 

@@ -49,7 +49,7 @@ describe('McpDataMartsFacadeImpl', () => {
 
   const createGetDataMartService = () =>
     ({
-      run: jest.fn().mockResolvedValue({ id: 'dm_1' }),
+      run: jest.fn().mockResolvedValue({ id: 'dm_1', status: DataMartStatus.PUBLISHED }),
     }) as unknown as jest.Mocked<GetDataMartService>;
 
   const createQueryDataMartService = () =>
@@ -97,6 +97,16 @@ describe('McpDataMartsFacadeImpl', () => {
         new Date('2026-06-10T10:00:00.000Z'),
         'Mock Description'
       ),
+      new DataMartListItemDto(
+        'dm_draft',
+        'Draft Orders',
+        DataMartStatus.DRAFT,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Must not be exposed through MCP'
+      ),
     ]);
     const dataMartService = createDataMartService();
     const getDataMartService = createGetDataMartService();
@@ -123,6 +133,7 @@ describe('McpDataMartsFacadeImpl', () => {
         projectId: 'project-1',
         userId: 'user-1',
         roles: ['viewer'],
+        status: DataMartStatus.PUBLISHED,
       })
     );
     expect(result).toEqual({
@@ -247,12 +258,14 @@ describe('McpDataMartsFacadeImpl', () => {
       fields: [
         {
           name: 'order_date',
+          displayName: 'order_date',
           type: BigQueryFieldType.DATE,
           mode: BigQueryFieldMode.NULLABLE,
           description: 'Order date',
         },
         {
           name: 'utm_source',
+          displayName: 'Traffic source',
           type: BigQueryFieldType.STRING,
           mode: BigQueryFieldMode.NULLABLE,
           businessName: 'Traffic source',
@@ -260,12 +273,14 @@ describe('McpDataMartsFacadeImpl', () => {
         },
         {
           name: 'customer',
+          displayName: 'customer',
           type: BigQueryFieldType.RECORD,
           mode: BigQueryFieldMode.NULLABLE,
           description: 'Customer record',
           fields: [
             {
               name: 'id',
+              displayName: 'id',
               type: BigQueryFieldType.STRING,
               mode: BigQueryFieldMode.NULLABLE,
               description: 'Customer id',
@@ -422,6 +437,7 @@ describe('McpDataMartsFacadeImpl', () => {
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
+      includeJoinedFields: true,
     });
 
     // Hidden fields and fields from sources the caller cannot report on are dropped; governance
@@ -429,6 +445,7 @@ describe('McpDataMartsFacadeImpl', () => {
     expect(result.joinedFields).toEqual([
       {
         name: 'blended_org__orgName',
+        displayName: 'blended_org__orgName',
         type: 'STRING',
         description: 'Organization name',
         sourceDataMart: 'blended_org',
@@ -436,6 +453,7 @@ describe('McpDataMartsFacadeImpl', () => {
       },
       {
         name: 'blended_users__userId',
+        displayName: 'blended_users__userId',
         type: 'STRING',
         description: '',
         sourceDataMart: 'blended_users',
@@ -499,6 +517,7 @@ describe('McpDataMartsFacadeImpl', () => {
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
+      includeJoinedFields: true,
     });
 
     const byName = new Map(result.joinedFields.map(f => [f.name, f]));
@@ -551,7 +570,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createDataMartService(),
       queryDataMartService,
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
     const request = {
       projectId: 'project-1',
@@ -580,7 +600,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createDataMartService(),
       queryDataMartService,
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
     const request = {
       projectId: 'project-1',
