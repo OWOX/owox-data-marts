@@ -120,28 +120,6 @@ creator ID or the corresponding user projection is unavailable. When an author i
 `createdByUser.userId` is required; `fullName`, `email`, and `avatar` are optional and can also be
 `null`.
 
-Each run in the required `runs` array has this contract:
-
-| Field                                            | Presence           | Meaning                                                                                                                                                                        |
-| ------------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                                             | Required           | Run identifier.                                                                                                                                                                |
-| `status`                                         | Required           | `PENDING`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED`, `INTERRUPTED`, or `RESTRICTED`.                                                                                        |
-| `type`                                           | Required           | `CONNECTOR`, `GOOGLE_SHEETS_EXPORT`, `LOOKER_STUDIO`, `EMAIL`, `SLACK`, `MS_TEAMS`, `GOOGLE_CHAT`, `INSIGHT`, `INSIGHT_TEMPLATE`, `AI_ASSISTANT`, `HTTP_DATA`, or `MCP_QUERY`. |
-| `runType`                                        | Required           | Trigger type: `manual` or `scheduled`.                                                                                                                                         |
-| `dataMartId`                                     | Required           | Identifier of the Data Mart that produced the run.                                                                                                                             |
-| `dataMart`                                       | Required           | Data Mart reference with required `id` and `title` strings.                                                                                                                    |
-| `createdByUser`                                  | Required, nullable | Run author as described above.                                                                                                                                                 |
-| `definitionRun`                                  | Required           | Secret-masked Data Mart definition snapshot captured for the run.                                                                                                              |
-| `reportId`, `reportDefinition`                   | Required, nullable | Report identifier and definition snapshot for report executions.                                                                                                               |
-| `insightId`, `insightDefinition`                 | Required, nullable | Insight identifier and definition snapshot for insight executions.                                                                                                             |
-| `insightTemplateId`, `insightTemplateDefinition` | Required, nullable | Insight-template identifier and definition snapshot.                                                                                                                           |
-| `aiSourceDefinition`                             | Required, nullable | AI-source execution metadata.                                                                                                                                                  |
-| `logs`, `errors`                                 | Required, nullable | Arrays of serialized log or error strings.                                                                                                                                     |
-| `createdAt`                                      | Required           | RFC3339 creation timestamp.                                                                                                                                                    |
-| `startedAt`, `finishedAt`                        | Required, nullable | RFC3339 execution timestamps; null before the corresponding event.                                                                                                             |
-| `additionalParams`                               | Required, nullable | Safe run-type-specific metadata; internal parameters are not exposed.                                                                                                          |
-| `totals`                                         | Required, nullable | Grand-total values keyed by field and aggregation.                                                                                                                             |
-
 `@owox/api-client` validates the response shape, enum values, nested references and author data,
 nullable fields, logs and errors, totals, and RFC3339 timestamps. It throws `OWOXApiError` when the
 endpoint returns an incompatible payload.

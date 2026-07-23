@@ -229,7 +229,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/data-marts/runs` | [Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-21 | [Covered](./api-client/#read-project-run-history) · 2026-07-21 |
+| `GET /api/data-marts/runs` | [Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-23 | [Covered](./api-client/#read-project-run-history) · 2026-07-23 |
 
 ## Scheduled triggers
 
