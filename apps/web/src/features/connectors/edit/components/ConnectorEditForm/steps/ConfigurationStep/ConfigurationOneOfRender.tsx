@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { type ConnectorSpecificationResponseApiDto } from '../../../../../shared/api/types';
-import { AppWizardStepItemOneOf, AppWizardStepLabel } from '@owox/ui/components/common/wizard';
-import { configurationFieldRender } from './ConfigurationFieldRender';
+import { AppWizardStepItemOneOf } from '@owox/ui/components/common/wizard';
 import { TabsContent } from '@owox/ui/components/tabs';
-import { Button } from '@owox/ui/components/button';
 import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
+import { NestedConfigurationField } from './NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
 
 interface ConfigurationOneOfRenderProps {
@@ -112,7 +111,6 @@ export function ConfigurationOneOfRender({
               />
             ) : (
               Object.entries(option.items).map(([itemName, itemSpec]) => {
-                const isFieldSecretEditing = fieldSecretEditing[itemName] ?? false;
                 const optionConfiguration =
                   typeof configuration[specification.name] === 'object' &&
                   configuration[specification.name] !== null
@@ -123,55 +121,22 @@ export function ConfigurationOneOfRender({
                   optionConfiguration[option.value] !== null
                     ? (optionConfiguration[option.value] as Record<string, unknown>)
                     : {};
-                // Spec-derived only: keying this off the config made it flip on the
-                // first keystroke, remounting the input and dropping focus.
-                const isSecret = itemSpec.attributes?.includes('SECRET') ?? false;
-                const hasStoredSecret =
-                  isSecret && isEditingExisting && nestedConfiguration[itemName] === SECRET_MASK;
                 return (
-                  <div key={itemName} className='mb-4'>
-                    <div className='flex items-center justify-between'>
-                      <AppWizardStepLabel
-                        htmlFor={itemName}
-                        required={itemSpec.required}
-                        tooltip={itemSpec.description}
-                        className='mb-2 justify-start'
-                      >
-                        {itemName}
-                      </AppWizardStepLabel>
-                      {/* Editing clears the mask, so `hasStoredSecret` alone would
-                          drop the button and leave no way to cancel. */}
-                      {(hasStoredSecret || isFieldSecretEditing) && (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          type='button'
-                          onClick={() => {
-                            handleFieldSecretEditToggle(
-                              option.value,
-                              itemName,
-                              !isFieldSecretEditing
-                            );
-                          }}
-                        >
-                          {isFieldSecretEditing ? 'Cancel' : 'Edit'}
-                        </Button>
-                      )}
-                    </div>
-                    {configurationFieldRender({
-                      specification: { ...itemSpec, name: itemName },
-                      configuration: nestedConfiguration,
-                      onValueChange: (name, value) => {
-                        handleNestedValueChange(option.value, name, value);
-                      },
-                      flags: {
-                        isEditingExisting: hasStoredSecret,
-                        isSecret: isSecret,
-                        isSecretEditing: isFieldSecretEditing,
-                      },
-                      connectorName: connectorName,
-                    })}
-                  </div>
+                  <NestedConfigurationField
+                    key={itemName}
+                    itemName={itemName}
+                    itemSpec={itemSpec}
+                    nestedConfiguration={nestedConfiguration}
+                    isEditingExisting={isEditingExisting}
+                    isSecretEditing={fieldSecretEditing[itemName] ?? false}
+                    onSecretEditToggle={(name, enable) => {
+                      handleFieldSecretEditToggle(option.value, name, enable);
+                    }}
+                    onValueChange={(name, value) => {
+                      handleNestedValueChange(option.value, name, value);
+                    }}
+                    connectorName={connectorName}
+                  />
                 );
               })
             )}

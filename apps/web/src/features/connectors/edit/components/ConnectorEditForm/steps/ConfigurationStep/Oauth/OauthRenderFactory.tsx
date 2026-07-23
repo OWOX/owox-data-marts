@@ -14,8 +14,7 @@ import type {
   OAuthSettingsResponseDto,
 } from '../../../../../../shared/api/types/response/oauth.response.dto';
 import { Button } from '@owox/ui/components/button';
-import { configurationFieldRender } from '../ConfigurationFieldRender';
-import { AppWizardStepLabel } from '@owox/ui/components/common/wizard';
+import { NestedConfigurationField } from '../NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../../shared/constants/secrets';
 
 const SOURCE_CREDENTIAL_KEY = '_source_credential_id';
@@ -240,58 +239,19 @@ export function OauthRenderFactory({
   if ((isManualMode || !isOAuthEnabled) && option?.items) {
     return (
       <div className='space-y-4'>
-        {Object.entries(option.items).map(([itemName, itemSpec]) => {
-          // Spec-derived only: keying this off the value made it flip on the first
-          // keystroke, swapping the rendered field component and remounting the input.
-          const isSecret = itemSpec.attributes?.includes('SECRET') ?? false;
-          const isSecretEditing = fieldSecretEditing[itemName] ?? false;
-          // A secret is masked and readonly only once stored; the backend sends
-          // those back as SECRET_MASK.
-          const hasStoredSecret =
-            isSecret && isEditingExisting && nestedConfiguration[itemName] === SECRET_MASK;
-
-          return (
-            <div key={itemName} className='mb-4'>
-              <div className='flex items-center justify-between'>
-                <AppWizardStepLabel
-                  htmlFor={itemName}
-                  required={itemSpec.required}
-                  tooltip={itemSpec.description}
-                  className='mb-2 justify-start'
-                >
-                  {itemSpec.title ?? itemName}
-                </AppWizardStepLabel>
-                {/* Editing clears the mask, so `hasStoredSecret` alone would drop
-                    the button and leave no way to cancel. */}
-                {(hasStoredSecret || isSecretEditing) && (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    type='button'
-                    onClick={() => {
-                      handleFieldSecretEditToggle(itemName, !isSecretEditing);
-                    }}
-                  >
-                    {isSecretEditing ? 'Cancel' : 'Edit'}
-                  </Button>
-                )}
-              </div>
-              {configurationFieldRender({
-                specification: { ...itemSpec, name: itemName },
-                configuration: nestedConfiguration,
-                onValueChange: (name, value) => {
-                  handleNestedValueChange(name, value);
-                },
-                flags: {
-                  isEditingExisting: hasStoredSecret,
-                  isSecret: isSecret,
-                  isSecretEditing: isSecretEditing,
-                },
-                connectorName: connectorName,
-              })}
-            </div>
-          );
-        })}
+        {Object.entries(option.items).map(([itemName, itemSpec]) => (
+          <NestedConfigurationField
+            key={itemName}
+            itemName={itemName}
+            itemSpec={itemSpec}
+            nestedConfiguration={nestedConfiguration}
+            isEditingExisting={isEditingExisting}
+            isSecretEditing={fieldSecretEditing[itemName] ?? false}
+            onSecretEditToggle={handleFieldSecretEditToggle}
+            onValueChange={handleNestedValueChange}
+            connectorName={connectorName}
+          />
+        ))}
         {isOAuthEnabled && (
           <Button
             variant='link'

@@ -11,3 +11,7 @@ character, forcing users to click back into the field.
 
 Both problems are fixed. Fields now keep focus and accept every character,
 whether typed quickly or pasted.
+
+Nested credential fields now also show their readable labels everywhere. Some
+tabs previously showed the raw field name, such as "ServiceAccountKey" instead
+of "Service Account Key (JSON)".

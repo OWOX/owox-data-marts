@@ -248,6 +248,13 @@ export function ConnectorEditForm({
     setIsDirty(true);
   };
 
+  // Stores the object by reference on purpose, and `initialConfiguration` hands that
+  // same reference back to ConfigurationStep. That step compares it against the last
+  // value it reported (see its `lastEchoedConfigRef`) to tell its own echo apart from
+  // a genuine outside change, and skips re-seeding the form on an echo.
+  // Do not clone or normalise here (`{ ...configuration }`, structuredClone, etc.):
+  // every echo would become a new reference, the step would re-seed on each keystroke,
+  // and typed characters would be dropped again.
   const handleConfigurationChange = useCallback((configuration: Record<string, unknown>) => {
     setConnectorConfiguration(configuration);
     setIsDirty(true);
