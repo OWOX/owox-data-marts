@@ -114,4 +114,28 @@ describe('HttpDataRequestValidator', () => {
       BusinessViolationException
     );
   });
+
+  describe('validateReportQuery', () => {
+    it('parses limit from string', () => {
+      const result = validator.validateReportQuery({ limit: '5' });
+      expect(result).toEqual({ limit: 5 });
+    });
+
+    it('returns an empty result when no limit is provided', () => {
+      const result = validator.validateReportQuery({});
+      expect(result).toEqual({});
+    });
+
+    it('rejects unsupported query params', () => {
+      expect(() => validator.validateReportQuery({ filter: 'x' })).toThrow(
+        BusinessViolationException
+      );
+    });
+
+    it('rejects non-integer or non-positive limit', () => {
+      expect(() => validator.validateReportQuery({ limit: '0' })).toThrow(
+        BusinessViolationException
+      );
+    });
+  });
 });

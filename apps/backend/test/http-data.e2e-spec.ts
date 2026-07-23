@@ -2,7 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
 import * as supertest from 'supertest';
-import { AUTH_HEADER, closeTestApp, createTestApp, setupPublishedDataMart } from '@owox/test-utils';
+import {
+  AUTH_HEADER,
+  closeTestApp,
+  createTestApp,
+  setupPublishedDataMart,
+  setupReportPrerequisites,
+  ReportBuilder,
+} from '@owox/test-utils';
 import { TypeResolver } from '../src/common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../src/data-marts/data-storage-types/data-storage-providers';
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
@@ -94,28 +101,39 @@ function buildMockResolver(reader: DataStorageReportReader) {
   } as unknown as TypeResolver<DataStorageType, DataStorageReportReader>;
 }
 
-function buildMockBlendableSchema() {
+function buildMockBlendableSchema(
+  // Include field types so OutputControlsValidatorService can validate operators and
+  // date-trunc against column types: `date` is a DATE (so date buckets are valid, and `eq`
+  // is still accepted for it), `revenue` is NUMERIC (so `SUM` is valid). No field is a
+  // primary key by default — callers that need Unique Count (which requires one) swap the
+  // mock's implementation for the duration of their test.
+  nativeFields: { name: string; type: string; isPrimaryKey?: boolean }[] = [
+    { name: 'date', type: 'DATE' },
+    { name: 'revenue', type: 'NUMERIC' },
+  ]
+) {
   return {
     computeBlendableSchema: jest.fn(async () => ({
-      // Include field types so OutputControlsValidatorService can validate operators and
-      // date-trunc against column types: `date` is a DATE (so date buckets are valid, and `eq`
-      // is still accepted for it), `revenue` is NUMERIC (so `SUM` is valid).
-      nativeFields: [
-        { name: 'date', type: 'DATE' },
-        { name: 'revenue', type: 'NUMERIC' },
-      ],
+      nativeFields,
       blendedFields: [],
       availableSources: [],
     })),
   };
 }
 
+// Default: no persisted schema fields. Column existence/typing for most tests flows entirely
+// through the mocked BlendableSchemaService (buildMockBlendableSchema), never this facade.
+// ReportTotalsService is the one caller that reads the persisted DataMart schema directly (see
+// deriveTotalsAggregations) — the totals e2e test overrides this mock once, per data mart, with
+// realistic fields so a numeric metric resolves.
 function buildMockSchemaProviderFacade() {
   return {
-    getActualDataMartSchema: jest.fn(async () => ({
-      type: 'bigquery-data-mart-schema',
-      fields: [],
-    })),
+    getActualDataMartSchema: jest.fn(
+      async (): Promise<{ type: string; fields: Array<Record<string, unknown>> }> => ({
+        type: 'bigquery-data-mart-schema',
+        fields: [],
+      })
+    ),
   };
 }
 
@@ -154,14 +172,18 @@ describe('HTTP Data API (e2e)', () => {
   let agent: supertest.Agent;
   let dataMartId: string;
   let mockReader: DataStorageReportReader;
+  let schemaProviderFacadeMock: ReturnType<typeof buildMockSchemaProviderFacade>;
+  let blendableSchemaMock: ReturnType<typeof buildMockBlendableSchema>;
 
   beforeAll(async () => {
     mockReader = buildMockReader(MOCK_HEADERS, MOCK_ROWS);
+    schemaProviderFacadeMock = buildMockSchemaProviderFacade();
+    blendableSchemaMock = buildMockBlendableSchema();
 
     const testApp = await createTestApp([
       { provide: DATA_STORAGE_REPORT_READER_RESOLVER, useValue: buildMockResolver(mockReader) },
-      { provide: BlendableSchemaService, useValue: buildMockBlendableSchema() },
-      { provide: DataMartSchemaProviderFacade, useValue: buildMockSchemaProviderFacade() },
+      { provide: BlendableSchemaService, useValue: blendableSchemaMock },
+      { provide: DataMartSchemaProviderFacade, useValue: schemaProviderFacadeMock },
       // Override DataMartTableReferenceService so that output-controls composer
       // tests (Part B) can use the SQL-defined mart without CreateViewService.
       // This override is harmless for tests that don't use output controls.
@@ -515,6 +537,181 @@ describe('HTTP Data API (e2e)', () => {
       const httpRuns = (after.body?.runs ?? []).filter((r: HttpRunView) => r.type === 'HTTP_DATA');
       const token = AUTH_HEADER['x-owox-authorization'];
       expect(JSON.stringify(httpRuns)).not.toContain(token);
+    });
+  });
+
+  describe('Report-level HTTP Data', () => {
+    let reportDataMartId: string;
+    let reportId: string;
+
+    async function createReport(outputControls: Record<string, unknown>): Promise<string> {
+      const prereqs = await setupReportPrerequisites(agent);
+      reportDataMartId = prereqs.dataMartId;
+      const createRes = await agent
+        .post('/api/reports')
+        .set(AUTH_HEADER)
+        .send(
+          new ReportBuilder()
+            .withDataMartId(prereqs.dataMartId)
+            .withDataDestinationId(prereqs.dataDestinationId)
+            .build()
+        );
+      expect(createRes.status).toBe(201);
+      const id = createRes.body.id;
+      // PUT /api/reports/:id replaces the whole report, so the base (non-output-controls)
+      // fields required by UpdateReportRequestApiDto must travel alongside outputControls.
+      // (createRes.body.title is "" for a fresh LOOKER_STUDIO report — @IsNotEmpty() on the
+      // update DTO rejects that, so a literal non-empty title is used here instead.)
+      const put = await agent
+        .put(`/api/reports/${id}`)
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Test Report',
+          dataDestinationId: prereqs.dataDestinationId,
+          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          ...outputControls,
+        });
+      expect(put.status).toBe(200);
+      return id;
+    }
+
+    beforeAll(async () => {
+      reportId = await createReport({
+        columnConfig: ['date', 'revenue'],
+        filterConfig: [{ column: 'date', operator: 'gte', value: '2026-05-01' }],
+      });
+    });
+
+    it('streams NDJSON with an x-owox-run-id header', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/x-ndjson');
+      expect(res.headers['x-owox-run-id']).toBeDefined();
+      expect(parseNdjson(res.text).length).toBe(MOCK_ROWS.length);
+    });
+
+    it('records a HTTP_DATA run tagged with reportId + executionSqlQuery', async () => {
+      const streamed = await agent
+        .get(`/api/external/http-data/reports/${reportId}.ndjson`)
+        .set(AUTH_HEADER);
+      const runId = streamed.headers['x-owox-run-id'];
+      const run = await agent
+        .get(`/api/data-marts/${reportDataMartId}/runs/${runId}`)
+        .set(AUTH_HEADER);
+      expect(run.status).toBe(200);
+      expect(run.body.type).toBe('HTTP_DATA');
+      expect(run.body.reportId).toBe(reportId);
+      expect(run.body.additionalParams?.httpData?.executionSqlQuery).toEqual(expect.any(String));
+      expect(run.body.additionalParams?.httpData?.filter).toEqual([
+        { column: 'date', operator: 'gte', value: '2026-05-01' },
+      ]);
+    });
+
+    it('accepts a ?limit= override and records it', async () => {
+      const streamed = await agent
+        .get(`/api/external/http-data/reports/${reportId}.ndjson?limit=1`)
+        .set(AUTH_HEADER);
+      expect(streamed.status).toBe(200);
+      const runId = streamed.headers['x-owox-run-id'];
+      const run = await agent
+        .get(`/api/data-marts/${reportDataMartId}/runs/${runId}`)
+        .set(AUTH_HEADER);
+      expect(run.body.additionalParams?.httpData?.limit).toBe(1);
+    });
+
+    it('returns 400 for any query param other than limit', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/reports/${reportId}.ndjson?filter=abc`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 404 for an unknown report id', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/reports/00000000-0000-0000-0000-000000000000.ndjson`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(404);
+    });
+
+    // ReportTotalsService derives totals eligibility from the persisted DataMart schema (see
+    // deriveTotalsAggregations in report-sql-composer.service.ts), NOT from the mocked
+    // BlendableSchemaService that the rest of this file relies on for column resolution. The
+    // default schema-provider mock (buildMockSchemaProviderFacade) returns no fields, so this
+    // report's fresh Data Mart needs a one-time override — mirroring the same date/revenue field
+    // types already used by buildMockBlendableSchema — so `revenue` resolves as a NUMERIC totals
+    // metric and the aggregated report actually produces a grand-totals row.
+    it('returns grand totals in run history for an aggregated report', async () => {
+      schemaProviderFacadeMock.getActualDataMartSchema.mockResolvedValueOnce({
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'date', type: 'DATE', mode: 'NULLABLE', status: 'CONNECTED' },
+          { name: 'revenue', type: 'NUMERIC', mode: 'NULLABLE', status: 'CONNECTED' },
+        ],
+      });
+
+      const aggregatedReportId = await createReport({
+        columnConfig: ['date', 'revenue'],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+      });
+      const streamed = await agent
+        .get(`/api/external/http-data/reports/${aggregatedReportId}.ndjson`)
+        .set(AUTH_HEADER);
+      expect(streamed.status).toBe(200);
+      const runId = streamed.headers['x-owox-run-id'];
+      const run = await agent
+        .get(`/api/data-marts/${reportDataMartId}/runs/${runId}`)
+        .set(AUTH_HEADER);
+      // `totals` is surfaced at the TOP LEVEL of the run response only — HttpDataMapper
+      // deliberately strips it out of additionalParams.httpData (see maskAdditionalParams /
+      // extractTotals in data-mart.mapper.ts) so it isn't duplicated in the masked view.
+      expect(run.body.additionalParams?.httpData?.totals).toBeUndefined();
+      expect(run.body.totals).toBeDefined();
+      expect(Object.keys(run.body.totals as Record<string, unknown>).length).toBeGreaterThan(0);
+    });
+
+    // Unique Count requires a primary-key field on the data mart schema (see
+    // UNIQUE_COUNT_REQUIRES_PRIMARY_KEY in output-controls-validator.service.ts) — both when
+    // the report is saved (PUT) AND on every subsequent read (resolveBlendingDecision
+    // revalidates output controls as a schema-drift guard). buildMockBlendableSchema's default
+    // has no primary key, so the mock's implementation is swapped for the duration of this test
+    // and restored after — this is a smoke test that uniqueCountConfig flows end-to-end through
+    // save + stream + run recording, not a check of a computed distinct count (the mock reader
+    // returns fixed rows regardless of the composed SQL).
+    it('streams a report with uniqueCountConfig and records a HTTP_DATA run', async () => {
+      const originalImpl = blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+      blendableSchemaMock.computeBlendableSchema.mockImplementation(async () => ({
+        nativeFields: [
+          { name: 'date', type: 'DATE', isPrimaryKey: true },
+          { name: 'revenue', type: 'NUMERIC' },
+        ],
+        blendedFields: [],
+        availableSources: [],
+      }));
+
+      try {
+        const uniqueCountReportId = await createReport({
+          columnConfig: ['date', 'revenue'],
+          uniqueCountConfig: true,
+        });
+
+        const streamed = await agent
+          .get(`/api/external/http-data/reports/${uniqueCountReportId}.ndjson`)
+          .set(AUTH_HEADER);
+        expect(streamed.status).toBe(200);
+        const runId = streamed.headers['x-owox-run-id'];
+        expect(runId).toBeDefined();
+
+        const run = await agent
+          .get(`/api/data-marts/${reportDataMartId}/runs/${runId}`)
+          .set(AUTH_HEADER);
+        expect(run.status).toBe(200);
+        expect(run.body.type).toBe('HTTP_DATA');
+        expect(run.body.reportId).toBe(uniqueCountReportId);
+      } finally {
+        blendableSchemaMock.computeBlendableSchema.mockImplementation(originalImpl!);
+      }
     });
   });
 

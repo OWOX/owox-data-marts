@@ -81,7 +81,7 @@ const SortParamSchema = makeEncodedConfigParam(SortConfigSchema, 'sort');
 const AggregationParamSchema = makeEncodedConfigParam(AggregationConfigSchema, 'aggregation');
 const DateTruncParamSchema = makeEncodedConfigParam(DateTruncConfigSchema, 'dateTrunc');
 
-const LimitParamSchema = z.coerce
+export const LimitParamSchema = z.coerce
   .number({ invalid_type_error: 'limit must be an integer' })
   .int('limit must be an integer')
   .min(1, 'limit must be ≥ 1');
@@ -178,3 +178,10 @@ export const HttpDataQuerySchema = z
   }));
 
 export type HttpDataQuery = z.infer<typeof HttpDataQuerySchema>;
+
+// Report-level HTTP Data endpoint: the report supplies every output control from its saved config;
+// the only accepted query param is an optional `limit` override. `.strict()` turns any other query
+// key (filter/sort/aggregation/dateTrunc/column/...) into a 400 rather than silently ignoring it.
+export const HttpReportDataQuerySchema = z.object({ limit: LimitParamSchema.optional() }).strict();
+
+export type HttpReportDataQuery = z.infer<typeof HttpReportDataQuerySchema>;

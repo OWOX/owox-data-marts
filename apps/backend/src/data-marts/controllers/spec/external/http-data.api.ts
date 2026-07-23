@@ -169,3 +169,68 @@ export function StreamHttpDataSpec() {
     })
   );
 }
+
+export function StreamHttpReportDataSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: "Stream an existing report's data as NDJSON",
+      description:
+        'Streams rows of a saved report as newline-delimited JSON (one data row per line, no ' +
+        'envelope), applying the report’s stored output controls (columns, filters, aggregations, ' +
+        'date buckets, unique count, sort). The only accepted query parameter is an optional ' +
+        '`limit` override; any other query key is rejected. Authenticated with the ODM member ' +
+        'token via `x-owox-authorization`. Creates one DataMartRun of type HTTP_DATA per request ' +
+        '(tagged with the reportId; when the report applies output controls or blends fields, the ' +
+        'run also records the executed SQL under `additionalParams.httpData.executionSqlQuery`), ' +
+        'on both success and failure.',
+    }),
+    ApiHeader({ name: 'x-owox-authorization', description: 'ODM member token', required: true }),
+    ApiParam({ name: 'reportId', description: 'Report identifier (UUID)' }),
+    ApiQuery({
+      name: 'limit',
+      description: "Optional row cap (positive integer) overriding the report's saved limit.",
+      required: false,
+      type: Number,
+    }),
+    ApiProduces('application/x-ndjson'),
+    ApiOkResponse({
+      description:
+        'NDJSON stream of the report’s row objects. The response includes the `x-owox-run-id` ' +
+        'header with the created DataMartRun ID.',
+      headers: {
+        'x-owox-run-id': {
+          description: 'ID of the created DataMartRun (HTTP_DATA) for traceability',
+          schema: { type: 'string' },
+        },
+      },
+      content: {
+        'application/x-ndjson': {
+          schema: {
+            type: 'string',
+            example:
+              '{"date":"2026-05-01","revenue":42.5}\n' + '{"date":"2026-05-02","revenue":51.0}\n',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description:
+        'A query parameter other than `limit`, an invalid `limit`, or a report whose saved ' +
+        'output controls reference a column that no longer exists in the Data Mart.',
+    }),
+    ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
+    ApiResponse({
+      status: 403,
+      description: 'Caller is authenticated but lacks `Action.USE` on the report’s Data Mart.',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Report not found in the caller’s project, or its Data Mart is not published.',
+    }),
+    ApiResponse({
+      status: 424,
+      description: 'Storage dependency failed while preparing or reading the report data.',
+    })
+  );
+}
