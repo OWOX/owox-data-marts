@@ -51,7 +51,7 @@ export class DataMart implements CreatorAwareEntity {
   @Column({ type: 'datetime', nullable: true })
   schemaActualizedAt?: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   definitionType?: DataMartDefinitionType | null;
 
   @Column({ type: 'json', nullable: true })
