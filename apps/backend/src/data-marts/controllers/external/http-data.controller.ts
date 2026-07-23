@@ -14,9 +14,9 @@ export class HttpDataController {
     private readonly streamHttpDataService: StreamHttpDataService
   ) {}
 
+  @StreamHttpDataSpec()
   @Auth(Role.viewer())
   @Get('data-marts/:dataMartId.ndjson')
-  @StreamHttpDataSpec()
   async stream(
     @Param('dataMartId') dataMartId: string,
     @Query() rawQuery: Record<string, unknown>,

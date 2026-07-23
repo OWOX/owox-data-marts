@@ -1,4 +1,27 @@
-import { OWOXApiClient, OWOXApiError, OWOXAuthError } from './index.js';
+import {
+  OWOXApiClient,
+  OWOXApiError,
+  OWOXAuthError,
+  type TraverseDataOptions,
+  type TypedTraverseDataOptions,
+} from './index.js';
+
+const typedTraverseDataOptions: TypedTraverseDataOptions = {
+  column: ['Event Date (local)', 'Revenue: net = USD'],
+  filter: [
+    { column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' },
+    {
+      column: 'Event Date (local)',
+      operator: 'relative_date',
+      value: { kind: 'last_n_months', n: 3 },
+    },
+  ],
+  sort: [{ column: 'Event Date (local)', direction: 'asc' }],
+  aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
+  dateTrunc: [{ column: 'Event Date (local)', unit: 'MONTH', timeZone: 'Europe/Kyiv' }],
+};
+const legacyTraverseDataOptions: TraverseDataOptions = typedTraverseDataOptions;
+void legacyTraverseDataOptions;
 
 type RecordedRequest = {
   method: string;
@@ -45,7 +68,7 @@ function createNdjsonResponse(chunks: string[], headers: Record<string, string> 
   return new Response(body, {
     status: 200,
     headers: {
-      'content-type': 'application/x-ndjson',
+      'content-type': 'application/x-ndjson; charset=utf-8',
       ...headers,
     },
   });
@@ -69,7 +92,7 @@ function createOpenNdjsonResponse(chunk: string, onCancel: () => void): Response
   return new Response(body, {
     status: 200,
     headers: {
-      'content-type': 'application/x-ndjson',
+      'content-type': 'application/x-ndjson; charset=utf-8',
     },
   });
 }
@@ -138,6 +161,7 @@ describe('DataMartsApi.traverseData', () => {
       ) {
         expect(request.headers.accept).toBe('application/x-ndjson');
         expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
+        expect(request.headers['x-owox-api-key-id']).toBe(apiKeyId);
         return createNdjsonResponse(['{"date":"2026-05-01"}\n', '{"date":"2026-05-02"}\n'], {
           'x-owox-run-id': 'run-1',
         });
@@ -366,6 +390,77 @@ describe('DataMartsApi.traverseData', () => {
       status: 401,
       code: 'INVALID_API_KEY',
       details: { dataMartId: 'dm-1' },
+    });
+  });
+
+  it('preserves storage dependency errors with provider and data mart context', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        request.url === '/api/external/http-data/data-marts/dm-1.ndjson'
+      ) {
+        return createJsonResponse(424, {
+          code: 'STORAGE_PERMISSION_DENIED',
+          message: 'Storage dependency failed',
+          details: {
+            providerStatusCode: 403,
+            providerReason: 'accessDenied',
+          },
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.dataMarts.traverseData('dm-1')).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      status: 424,
+      code: 'STORAGE_PERMISSION_DENIED',
+      details: {
+        dataMartId: 'dm-1',
+        providerStatusCode: 403,
+        providerReason: 'accessDenied',
+      },
+    });
+  });
+
+  it('rejects a successful response that is not NDJSON', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        request.url === '/api/external/http-data/data-marts/dm-1.ndjson'
+      ) {
+        return createJsonResponse(200, { message: 'unexpected JSON response' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.dataMarts.traverseData('dm-1')).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Data Mart data stream returned an unexpected content type',
+      details: {
+        dataMartId: 'dm-1',
+        contentType: 'application/json',
+      },
     });
   });
 

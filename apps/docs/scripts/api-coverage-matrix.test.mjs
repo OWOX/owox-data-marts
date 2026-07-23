@@ -10,6 +10,10 @@ const checkedInMatrix = fs.readFileSync(
   new URL('../../../docs/api/coverage.md', import.meta.url),
   'utf8'
 );
+const checkedInApiClientGuide = fs.readFileSync(
+  new URL('../../../docs/api/api-client.md', import.meta.url),
+  'utf8'
+);
 
 const validMatrix = `# Support Matrix
 
@@ -114,6 +118,37 @@ test('accepts the exact Search coverage targets', () => {
       target: './api-client/#search-project-entities',
     }
   );
+});
+
+test('accepts the exact HTTP Data coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/external/http-data/data-marts/{dataMartId}.ndjson'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#stream-data-mart-rows) · 2026-07-23',
+      'API client',
+      'GET /api/external/http-data/data-marts/{dataMartId}.ndjson'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#stream-data-mart-rows',
+    }
+  );
+});
+
+test('resolves the HTTP Data API client coverage target to the checked-in guide', () => {
+  assert.match(checkedInApiClientGuide, /^## Stream Data Mart rows$/m);
 });
 
 test('accepts a summary that matches calculated totals', () => {
