@@ -29,7 +29,8 @@ Consumers using the previously released `runs.getHistory(...)` method must renam
 
 `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column
 projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier,
-and failure contract in OpenAPI. `@owox/api-client` rejects successful
-`dataMarts.traverseData(...)` responses that are not NDJSON before they can be consumed as rows and
-exports opt-in typed traversal controls while preserving the existing permissive options type.
-Existing valid traversal calls require no migration.
+and failure contract in OpenAPI. `@owox/api-client` now provides typed filter, sort, aggregation,
+and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media
+type before traversal. Consumers passing controls through `unknown[]` or widened variables must
+adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline
+calls remain unchanged.

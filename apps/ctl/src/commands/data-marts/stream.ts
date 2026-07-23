@@ -6,7 +6,11 @@ import {
   OWOXConfigError,
   type OWOXApiClient,
   type OWOXDataMartRow,
+  type TraverseDataAggregationRule,
+  type TraverseDataDateTruncRule,
+  type TraverseDataFilterRule,
   type TraverseDataOptions,
+  type TraverseDataSortRule,
 } from '@owox/api-client';
 
 import { BaseCommand } from '../../base-command.js';
@@ -25,10 +29,10 @@ type DataMartsStreamFlags = {
   limit?: number;
 };
 
-function parseJsonArrayFlag(
+function parseJsonArrayFlag<T>(
   value: string | undefined,
   flagName: '--filter' | '--sort' | '--aggregation' | '--date-bucket'
-): unknown[] | undefined {
+): T[] | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -44,17 +48,22 @@ function parseJsonArrayFlag(
     throw new OWOXConfigError(`${flagName} must be a JSON array`);
   }
 
-  return parsed;
+  // CLI flags cross an untyped JSON boundary. This assertion preserves the typed client surface;
+  // the backend remains the canonical runtime validator for each rule's values and constraints.
+  return parsed as T[];
 }
 
 export function buildTraverseDataOptions(flags: DataMartsStreamFlags): TraverseDataOptions {
   return {
     columns: flags.columns as TraverseDataOptions['columns'],
     column: flags.column,
-    filter: parseJsonArrayFlag(flags.filter, '--filter'),
-    sort: parseJsonArrayFlag(flags.sort, '--sort'),
-    aggregation: parseJsonArrayFlag(flags.aggregation, '--aggregation'),
-    dateTrunc: parseJsonArrayFlag(flags['date-bucket'], '--date-bucket'),
+    filter: parseJsonArrayFlag<TraverseDataFilterRule>(flags.filter, '--filter'),
+    sort: parseJsonArrayFlag<TraverseDataSortRule>(flags.sort, '--sort'),
+    aggregation: parseJsonArrayFlag<TraverseDataAggregationRule>(
+      flags.aggregation,
+      '--aggregation'
+    ),
+    dateTrunc: parseJsonArrayFlag<TraverseDataDateTruncRule>(flags['date-bucket'], '--date-bucket'),
     limit: flags.limit,
   };
 }

@@ -2,11 +2,14 @@ import {
   OWOXApiClient,
   OWOXApiError,
   OWOXAuthError,
+  type TraverseDataAggregationRule,
+  type TraverseDataDateTruncRule,
+  type TraverseDataFilterRule,
   type TraverseDataOptions,
-  type TypedTraverseDataOptions,
+  type TraverseDataSortRule,
 } from './index.js';
 
-const typedTraverseDataOptions: TypedTraverseDataOptions = {
+const typedTraverseDataOptions: TraverseDataOptions = {
   column: ['Event Date (local)', 'Revenue: net = USD'],
   filter: [
     { column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' },
@@ -20,8 +23,15 @@ const typedTraverseDataOptions: TypedTraverseDataOptions = {
   aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
   dateTrunc: [{ column: 'Event Date (local)', unit: 'MONTH', timeZone: 'Europe/Kyiv' }],
 };
-const legacyTraverseDataOptions: TraverseDataOptions = typedTraverseDataOptions;
-void legacyTraverseDataOptions;
+void typedTraverseDataOptions;
+
+const invalidTraverseDataOptions: TraverseDataOptions = {
+  filter: [
+    // @ts-expect-error unsupported filter operators must be rejected by the public options type
+    { column: 'Event Date (local)', operator: 'approximately', value: '2026-01-01' },
+  ],
+};
+void invalidTraverseDataOptions;
 
 type RecordedRequest = {
   method: string;
@@ -148,8 +158,12 @@ describe('DataMartsApi.traverseData', () => {
   const apiKey = createApiKey({ apiOrigin, apiKeyId, apiKeySecret });
 
   it('requests the NDJSON endpoint and exposes incremental row chunks with run metadata', async () => {
-    const filter = [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }];
-    const sort = [{ column: 'Revenue: net = USD', direction: 'desc' }];
+    const filter = [
+      { column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' },
+    ] satisfies TraverseDataFilterRule[];
+    const sort = [
+      { column: 'Revenue: net = USD', direction: 'desc' },
+    ] satisfies TraverseDataSortRule[];
     const fetchMock = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
         return createJsonResponse(200, { accessToken: 'access-token-1' });
@@ -205,8 +219,10 @@ describe('DataMartsApi.traverseData', () => {
   });
 
   it('encodes aggregation and dateTrunc as base64url query params', async () => {
-    const aggregation = [{ column: 'revenue', function: 'SUM' }];
-    const dateTrunc = [{ column: 'date', unit: 'MONTH' }];
+    const aggregation = [
+      { column: 'revenue', function: 'SUM' },
+    ] satisfies TraverseDataAggregationRule[];
+    const dateTrunc = [{ column: 'date', unit: 'MONTH' }] satisfies TraverseDataDateTruncRule[];
     const fetchMock = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
         return createJsonResponse(200, { accessToken: 'access-token-1' });

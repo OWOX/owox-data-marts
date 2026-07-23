@@ -92,21 +92,11 @@ export type TraverseDataDateTruncRule = {
 export type TraverseDataOptions = {
   columns?: '*' | '**';
   column?: string[];
-  filter?: unknown[] | null;
-  sort?: unknown[] | null;
-  aggregation?: unknown[] | null;
-  dateTrunc?: unknown[] | null;
-  limit?: number;
-};
-
-export type TypedTraverseDataOptions = Omit<
-  TraverseDataOptions,
-  'filter' | 'sort' | 'aggregation' | 'dateTrunc'
-> & {
   filter?: TraverseDataFilterRule[] | null;
   sort?: TraverseDataSortRule[] | null;
   aggregation?: TraverseDataAggregationRule[] | null;
   dateTrunc?: TraverseDataDateTruncRule[] | null;
+  limit?: number;
 };
 
 type DataMartsPage = {
@@ -349,14 +339,6 @@ export class DataMartsApi {
     }
   }
 
-  async traverseData(
-    dataMartId: string,
-    options?: TypedTraverseDataOptions
-  ): Promise<DataMartDataTraversal>;
-  async traverseData(
-    dataMartId: string,
-    options?: TraverseDataOptions
-  ): Promise<DataMartDataTraversal>;
   async traverseData(
     dataMartId: string,
     options: TraverseDataOptions = {}

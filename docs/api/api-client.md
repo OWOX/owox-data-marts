@@ -249,9 +249,8 @@ for await (const rows of data.rowChunks()) {
 Call `await data.cancel()` if you open a traversal and decide not to iterate `rowChunks()`.
 The client rejects a successful response whose media type is not `application/x-ndjson` instead of
 attempting to interpret it as row data.
-Use the exported `TypedTraverseDataOptions` and traversal rule types when you want compile-time
-validation of these controls. The existing `TraverseDataOptions` remains available for callers that
-need a permissive compatibility surface.
+The exported `TraverseDataOptions` and traversal rule types provide compile-time shape validation
+of these controls.
 
 Column selection uses two separate fields:
 
