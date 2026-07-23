@@ -399,17 +399,47 @@ describe('FilterValueEditor — in / not_in operators', () => {
     expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: ['a', 'b'] });
   });
 
-  it('preserves comma-containing and non-string values of an untouched existing rule', () => {
+  it('preserves comma-containing values of an untouched existing rule', () => {
     const { onChange } = renderEditor({
       fieldType: STRING_TYPE,
-      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.', 5, true] },
+      initialRule: { column: COL, operator: 'in', value: ['Acme, Inc.', 'Beta'] },
     });
 
     // The lossy comma-text display must NOT leak into the emitted rule.
     expect(lastCall(onChange)).toEqual({
       column: COL,
       operator: 'in',
-      value: ['Acme, Inc.', 5, true],
+      value: ['Acme, Inc.', 'Beta'],
+    });
+  });
+
+  it('preserves value TYPES of an untouched numeric list on a non-number column', () => {
+    const { onChange } = renderEditor({
+      fieldType: STRING_TYPE,
+      initialRule: { column: COL, operator: 'in', value: [5, 6] },
+    });
+
+    // parseScalar would stringify these on a STRING column — the pristine path must not.
+    expect(lastCall(onChange)).toEqual({ column: COL, operator: 'in', value: [5, 6] });
+  });
+
+  it('validates DATE-column list entries (typo → null, valid ISO dates → rule)', () => {
+    const { onChange } = renderEditor({ fieldType: DATE_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'in' } });
+    const input = screen.getByPlaceholderText('2026-01-01, 2026-01-15');
+
+    fireEvent.change(input, { target: { value: '2026-01-01, 2026-13-45' } });
+    expect(lastCall(onChange)).toBeNull();
+
+    fireEvent.change(input, { target: { value: '2026-02-30' } });
+    expect(lastCall(onChange)).toBeNull();
+
+    fireEvent.change(input, { target: { value: '2026-01-01, 2026-01-15' } });
+    expect(lastCall(onChange)).toEqual({
+      column: COL,
+      operator: 'in',
+      value: ['2026-01-01', '2026-01-15'],
     });
   });
 

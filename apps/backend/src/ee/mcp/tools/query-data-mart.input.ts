@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   IN_LIST_MAX_VALUES,
+  RELATIVE_DATE_MAX_N,
   type FilterConfig,
   type FilterRule,
 } from '../../../data-marts/dto/schemas/filter-config.schema';
@@ -271,7 +272,7 @@ function mapOne(
       const list = f.value;
       if (!Array.isArray(list) || list.length === 0) {
         throw new InvalidFilterValueError(
-          `'${f.operator}' value must be a non-empty array of strings, numbers, or booleans`
+          `'${f.operator}' value must be a non-empty array of strings or numbers`
         );
       }
       if (list.length > IN_LIST_MAX_VALUES) {
@@ -279,16 +280,18 @@ function mapOne(
           `'${f.operator}' value list is too long (${list.length}); at most ${IN_LIST_MAX_VALUES} values are allowed`
         );
       }
+      // No column category permits in/not_in on booleans, and a boolean list on any
+      // other column type dies only in the warehouse — steer to the boolean operators.
+      if (list.some(v => typeof v === 'boolean')) {
+        throw new InvalidFilterValueError(
+          `'${f.operator}' values must be strings or numbers — for a boolean condition use 'eq'/'neq' with a single true or false value`
+        );
+      }
       if (
-        !list.every(
-          v =>
-            typeof v === 'string' ||
-            (typeof v === 'number' && Number.isFinite(v)) ||
-            typeof v === 'boolean'
-        )
+        !list.every(v => typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)))
       ) {
         throw new InvalidFilterValueError(
-          `'${f.operator}' values must all be strings, finite numbers, or booleans`
+          `'${f.operator}' values must all be strings or finite numbers`
         );
       }
       // Mixed types die in the warehouse (BigQuery types each bound param from its JS
@@ -296,7 +299,7 @@ function mapOne(
       const firstType = typeof list[0];
       if (!list.every(v => typeof v === firstType)) {
         throw new InvalidFilterValueError(
-          `'${f.operator}' values must all be the same type (all strings, all numbers, or all booleans) — got a mix`
+          `'${f.operator}' values must all be the same type (all strings or all numbers) — got a mix`
         );
       }
       return { ...base, operator: f.operator, value: list as never };
@@ -306,6 +309,13 @@ function mapOne(
       if (!bv || typeof bv !== 'object' || !('from' in bv) || !('to' in bv)) {
         throw new InvalidFilterValueError(
           `'between' value must be an object with 'from' and 'to' keys`
+        );
+      }
+      // Mismatched bound types die only at query time on param-binding storages —
+      // reject here with a precise error (mirrors the schema-level refine).
+      if (typeof bv.from !== typeof bv.to) {
+        throw new InvalidFilterValueError(
+          `'between' bounds must be the same type (both strings or both numbers), got ${typeof bv.from} and ${typeof bv.to}`
         );
       }
       return { ...base, operator: 'between', value: f.value as never };
@@ -321,9 +331,9 @@ function mapOne(
           : typeof raw === 'string' && raw.trim() !== ''
             ? Number(raw)
             : NaN;
-      if (!Number.isInteger(n) || n <= 0) {
+      if (!Number.isInteger(n) || n <= 0 || n > RELATIVE_DATE_MAX_N) {
         throw new InvalidFilterValueError(
-          `'${f.operator}' value must be a positive integer, got: ${JSON.stringify(f.value)}`
+          `'${f.operator}' value must be a positive integer up to ${RELATIVE_DATE_MAX_N}, got: ${JSON.stringify(f.value)}`
         );
       }
       return {

@@ -42,7 +42,7 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 | Time | at, not at, is any of, is none of, after, before, at or after, at or before, between, is null, is not null |
 | Boolean | is true, is false, is null, is not null |
 
-**Is any of / is none of** match a column against a list of values (SQL `IN` / `NOT IN`). Enter the values comma-separated — up to 500 per rule.
+**Is any of / is none of** match a column against a list of values (SQL `IN` / `NOT IN`). Enter the values comma-separated — up to 500 per rule. Wrap a value in double quotes if it contains a comma — for example `"Acme, Inc."`. Use `""` for a literal quote.
 
 ### Relative date presets
 

@@ -7,6 +7,10 @@ import { REPORT_AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 // `> Infinity` (invalid SQL), not a safe rejection.
 const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
+// Upper bound for relative-date N presets (last_n_days / last_n_months / next_n_days) —
+// shared with the MCP mapper so its precise operand errors enforce the same limit.
+export const RELATIVE_DATE_MAX_N = 3650;
+
 // Semantics shared by every storage renderer:
 // - this_week/last_week are ISO weeks (Monday start) on all storages — BigQuery
 //   truncates with ISOWEEK, Snowflake computes Monday via DAYOFWEEKISO so the
@@ -23,9 +27,18 @@ const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('this_quarter') }),
   z.object({ kind: z.literal('last_quarter') }),
   z.object({ kind: z.literal('this_year') }),
-  z.object({ kind: z.literal('last_n_days'), n: z.number().int().positive().max(3650) }),
-  z.object({ kind: z.literal('last_n_months'), n: z.number().int().positive().max(3650) }),
-  z.object({ kind: z.literal('next_n_days'), n: z.number().int().positive().max(3650) }),
+  z.object({
+    kind: z.literal('last_n_days'),
+    n: z.number().int().positive().max(RELATIVE_DATE_MAX_N),
+  }),
+  z.object({
+    kind: z.literal('last_n_months'),
+    n: z.number().int().positive().max(RELATIVE_DATE_MAX_N),
+  }),
+  z.object({
+    kind: z.literal('next_n_days'),
+    n: z.number().int().positive().max(RELATIVE_DATE_MAX_N),
+  }),
 ]);
 
 const ScalarOperatorEnum = z.enum([
@@ -69,22 +82,34 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: z.enum(['in', 'not_in']),
-    // Same-type only: param-binding storages type each bound value individually
-    // (BigQuery raises "No matching signature for operator IN" on a mixed list),
-    // so a mixed list saved via the API would fail only at query time otherwise.
+    // Strings or numbers, same-type only: param-binding storages type each bound
+    // value individually (BigQuery raises "No matching signature for operator IN"
+    // on a mixed list), so a mixed list saved via the API would fail only at query
+    // time otherwise. Booleans are rejected outright — no column category permits
+    // in/not_in on booleans (use is_true/is_false), and a boolean list on any other
+    // column type would likewise die only in the warehouse.
     value: z
       .array(ScalarValueSchema)
       .min(1)
       .max(IN_LIST_MAX_VALUES)
-      .refine(list => list.every(v => typeof v === typeof list[0]), {
+      .refine((list): boolean => list.every(v => typeof v !== 'boolean'), {
         message:
-          'in/not_in values must all be the same type (all strings, all numbers, or all booleans)',
+          'in/not_in values must be strings or numbers — for boolean conditions use is_true/is_false',
+      })
+      .refine((list): boolean => list.every(v => typeof v === typeof list[0]), {
+        message: 'in/not_in values must all be the same type (all strings or all numbers)',
       }),
   }),
   z.object({
     column: z.string().min(1),
     operator: z.literal('between'),
-    value: z.object({ from: ScalarValueSchema, to: ScalarValueSchema }),
+    // Same-type bounds: a string/number pair passes save-time checks but fails at
+    // query time on param-binding storages — the same class the in/not_in refine closes.
+    value: z
+      .object({ from: ScalarValueSchema, to: ScalarValueSchema })
+      .refine((v): boolean => typeof v.from === typeof v.to, {
+        message: "'between' bounds must be the same type (both strings or both numbers)",
+      }),
   }),
   z.object({
     column: z.string().min(1),

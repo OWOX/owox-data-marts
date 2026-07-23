@@ -31,12 +31,29 @@ describe('FilterRuleSchema — in/not_in (backend mirror)', () => {
     );
   });
 
-  it('rejects a mixed-type in list (backend refine mirror)', () => {
+  it('rejects mixed-type and boolean in lists (backend refine mirror)', () => {
     expect(
-      FilterRuleSchema.safeParse({ column: 'c', operator: 'in', value: ['a', 5, true] }).success
+      FilterRuleSchema.safeParse({ column: 'c', operator: 'in', value: ['a', 5] }).success
     ).toBe(false);
+    expect(FilterRuleSchema.safeParse({ column: 'c', operator: 'in', value: [true] }).success).toBe(
+      false
+    );
     expect(
       FilterRuleSchema.safeParse({ column: 'c', operator: 'not_in', value: [1, 2, 3] }).success
+    ).toBe(true);
+  });
+
+  it('rejects between with mismatched bound types (backend refine mirror)', () => {
+    expect(
+      FilterRuleSchema.safeParse({
+        column: 'c',
+        operator: 'between',
+        value: { from: '2026-01-01', to: 100 },
+      }).success
+    ).toBe(false);
+    expect(
+      FilterRuleSchema.safeParse({ column: 'c', operator: 'between', value: { from: 1, to: 100 } })
+        .success
     ).toBe(true);
   });
 });

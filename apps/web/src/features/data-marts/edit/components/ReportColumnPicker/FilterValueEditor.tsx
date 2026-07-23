@@ -122,6 +122,34 @@ function parseScalar(raw: string, fieldType: string): string | number | boolean 
 }
 
 /**
+ * Validates one in/not_in list entry for date/time columns. The single-value path
+ * gets this for free from the native date/time inputs; the list is a free-text
+ * field, so a typo like 2026-13-45 would otherwise save clean and only fail in
+ * the warehouse. Mirrors the single-value formats: YYYY-MM-DD and HH:MM(:SS).
+ */
+function assertValidListEntry(entry: string, fieldType: string): void {
+  if (isDateType(fieldType)) {
+    // Component round-trip, not Date parsing: V8 rolls '2026-02-30' over to Mar 2
+    // instead of rejecting it, so a rolled-over date means the input was invalid.
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(entry);
+    const [y, m, d] = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : [0, 0, 0];
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const isRealDate =
+      match !== null &&
+      dt.getUTCFullYear() === y &&
+      dt.getUTCMonth() === m - 1 &&
+      dt.getUTCDate() === d;
+    if (!isRealDate) {
+      throw new Error(`Invalid date value: ${entry} (expected YYYY-MM-DD)`);
+    }
+  } else if (isTimeType(fieldType)) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(entry)) {
+      throw new Error(`Invalid time value: ${entry} (expected HH:MM or HH:MM:SS)`);
+    }
+  }
+}
+
+/**
  * Serializes one in/not_in value for the comma-separated text input. A value that
  * contains a comma, a double quote, a newline, or edge whitespace is wrapped in
  * double quotes with `""` escaping the quote — the CSV-style grammar parseListText
@@ -222,6 +250,7 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     if (entries.length > IN_LIST_MAX_VALUES) {
       throw new Error(`At most ${IN_LIST_MAX_VALUES} values are allowed`);
     }
+    for (const entry of entries) assertValidListEntry(entry, fieldType);
     return { column, operator: op, value: entries.map(e => parseScalar(e, fieldType)) };
   }
 

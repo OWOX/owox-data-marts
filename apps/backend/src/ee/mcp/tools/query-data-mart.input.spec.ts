@@ -95,7 +95,7 @@ describe('mapMcpFiltersToRules', () => {
 
   it('rejects mixed-type and non-finite in lists with a precise error', () => {
     expect(() =>
-      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: ['draft', 5, true] }])
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: ['draft', 5] }])
     ).toThrow(/same type/);
     expect(() =>
       mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [1, Infinity] }])
@@ -103,6 +103,39 @@ describe('mapMcpFiltersToRules', () => {
     expect(() =>
       mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [Number.NaN] }])
     ).toThrow(/finite numbers/);
+  });
+
+  it('rejects boolean in-list values and steers to eq/neq true|false', () => {
+    // No column category permits in/not_in on booleans; a boolean list on any other
+    // column type would die only in the warehouse.
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'in', value: [true, false] }])
+    ).toThrow(/strings or numbers.*'eq'\/'neq'/);
+    expect(() =>
+      mapMcpFiltersToRules([], [{ field: 'c', operator: 'not_in', value: [true] }])
+    ).toThrow(/strings or numbers/);
+  });
+
+  it('rejects between with mismatched bound types', () => {
+    expect(() =>
+      mapMcpFiltersToRules(
+        [],
+        [{ field: 'amount', operator: 'between', value: { from: '2026-01-01', to: 100 } }]
+      )
+    ).toThrow(/same type/);
+  });
+
+  it('rejects a relative-day count above the schema cap (3650)', () => {
+    for (const operator of ['in_last_n_days', 'in_next_n_days'] as const) {
+      expect(() => mapMcpFiltersToRules([], [{ field: 'd', operator, value: 9999 }])).toThrow(
+        /up to 3650/
+      );
+    }
+    const rules = mapMcpFiltersToRules(
+      [],
+      [{ field: 'd', operator: 'in_last_n_days', value: 3650 }]
+    );
+    expect(rules![0]).toMatchObject({ value: { kind: 'last_n_days', n: 3650 } });
   });
 
   it('rejects in with an empty array, a non-array, or non-scalar entries', () => {
@@ -114,7 +147,7 @@ describe('mapMcpFiltersToRules', () => {
     );
     expect(() =>
       mapMcpFiltersToRules([], [{ field: 'c', operator: 'not_in', value: [{ v: 1 }] }])
-    ).toThrow(/strings, finite numbers, or booleans/);
+    ).toThrow(/strings or finite numbers/);
   });
 
   it('rejects an in list longer than the cap', () => {

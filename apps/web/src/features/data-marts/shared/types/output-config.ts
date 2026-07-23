@@ -68,21 +68,29 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: z.enum(['in', 'not_in']),
-    // Same-type only — mirror of the backend refine (mixed lists fail at query time
-    // on param-binding storages).
+    // Strings or numbers, same-type only — mirror of the backend refines (booleans
+    // and mixed lists fail at query time on param-binding storages).
     value: z
       .array(ScalarValueSchema)
       .min(1)
       .max(IN_LIST_MAX_VALUES)
-      .refine(list => list.every(v => typeof v === typeof list[0]), {
+      .refine((list): boolean => list.every(v => typeof v !== 'boolean'), {
         message:
-          'in/not_in values must all be the same type (all strings, all numbers, or all booleans)',
+          'in/not_in values must be strings or numbers — for boolean conditions use is_true/is_false',
+      })
+      .refine((list): boolean => list.every(v => typeof v === typeof list[0]), {
+        message: 'in/not_in values must all be the same type (all strings or all numbers)',
       }),
   }),
   z.object({
     column: z.string().min(1),
     operator: z.literal('between'),
-    value: z.object({ from: ScalarValueSchema, to: ScalarValueSchema }),
+    // Same-type bounds — mirror of the backend refine.
+    value: z
+      .object({ from: ScalarValueSchema, to: ScalarValueSchema })
+      .refine((v): boolean => typeof v.from === typeof v.to, {
+        message: "'between' bounds must be the same type (both strings or both numbers)",
+      }),
   }),
   z.object({
     column: z.string().min(1),

@@ -40,7 +40,7 @@ describe('FilterConfigSchema', () => {
     expect(FilterConfigSchema.parse(input)).toEqual(input);
   });
 
-  it('accepts a same-type in list and rejects a mixed-type one', () => {
+  it('accepts a same-type in list and rejects mixed or boolean lists', () => {
     expect(
       FilterConfigSchema.safeParse([{ column: 'c', operator: 'in', value: ['a', 'b'] }]).success
     ).toBe(true);
@@ -50,7 +50,19 @@ describe('FilterConfigSchema', () => {
     // Param-binding storages type each bound value individually — a mixed list must
     // fail at save time, not at query time with a raw warehouse error.
     expect(
-      FilterConfigSchema.safeParse([{ column: 'c', operator: 'in', value: ['a', 5, true] }]).success
+      FilterConfigSchema.safeParse([{ column: 'c', operator: 'in', value: ['a', 5] }]).success
+    ).toBe(false);
+    // No column category permits in/not_in on booleans — use is_true/is_false.
+    expect(
+      FilterConfigSchema.safeParse([{ column: 'c', operator: 'in', value: [true, false] }]).success
+    ).toBe(false);
+  });
+
+  it('rejects between with mismatched bound types', () => {
+    expect(
+      FilterConfigSchema.safeParse([
+        { column: 'c', operator: 'between', value: { from: '2026-01-01', to: 100 } },
+      ]).success
     ).toBe(false);
   });
 
