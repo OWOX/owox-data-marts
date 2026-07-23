@@ -102,7 +102,8 @@ at 100. `offset` defaults to 0, floors finite fractions, falls back to 0 for non
 non-positive values, and caps at 100,000. The response has no total or next-page marker. Prefer a
 `limit` from 1 through 100, increment `offset` by the number of returned runs, and stop when a page
 contains fewer runs than the server-normalized effective limit or the next offset would exceed
-100,000.
+100,000. Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate
+by `run.id` when walking multiple pages.
 
 ```ts
 const history = await client.runs.list({ limit: 50, offset: 0 });
@@ -124,8 +125,9 @@ creator ID or the corresponding user projection is unavailable. When an author i
 unavailable.
 
 `@owox/api-client` validates the response shape, enum values, nested references and author data,
-nullable fields, logs and errors, totals, and RFC3339 timestamps. It throws `OWOXApiError` when the
-endpoint returns an incompatible payload.
+nullable fields, logs and errors, totals, and the backend's RFC3339 timestamp profile: uppercase
+`T`/`Z`, seconds from `00` through `59`, optional fractional seconds, and valid numeric offsets. It
+throws `OWOXApiError` when the endpoint returns an incompatible payload.
 
 ## List project insight templates
 
@@ -149,6 +151,32 @@ Data Marts individually. Because the response has no total or next-page marker, 
 from 1 through 100, increment `offset` by the number of returned templates, and stop when a page
 contains fewer items than that limit or the next offset would exceed 100,000. The endpoint cannot
 page beyond that maximum offset.
+
+## Search project entities
+
+Use `search.query()` to find Data Marts, data storages, and data destinations visible to the
+current project member. The server trims surrounding query whitespace and enforces its configured
+minimum and maximum query lengths. Pass an optional result limit from 1 through 50, restrict the
+search to specific entity types, or exclude draft Data Marts. When omitted, the server's result
+limit is used, all supported entity types are searched, and draft Data Marts may be included. Pass
+an empty `entityTypes` array to preserve an explicit no-types filter and return no matches.
+
+```ts
+const results = await client.search.query('monthly revenue', {
+  limit: 25,
+  entityTypes: ['DATA_MART', 'DATA_STORAGE'],
+  excludeDrafts: true,
+});
+
+for (const result of results) {
+  console.log(result.entityType, result.title, result.description, result.finalScore);
+}
+```
+
+Each result includes the entity type and ID, title, nullable description, combined relevance
+score, keyword score, and a vector score when semantic matching contributed. Search returns an
+empty array when no visible entity matches. When prompt embeddings are unavailable, Search falls
+back to keyword matching.
 
 ## Convert Markdown to HTML
 

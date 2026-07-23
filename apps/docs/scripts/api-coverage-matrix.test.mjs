@@ -89,6 +89,33 @@ test('accepts the exact Markdown parser coverage targets', () => {
   );
 });
 
+test('accepts the exact Search coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Search/SearchController_search) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/search'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/Search/SearchController_search',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#search-project-entities) · 2026-07-23',
+      'API client',
+      'GET /api/search'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#search-project-entities',
+    }
+  );
+});
+
 test('accepts a summary that matches calculated totals', () => {
   assert.deepEqual(validateCoverageMatrix(validMatrix), {
     endpoints: 3,

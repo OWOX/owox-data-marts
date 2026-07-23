@@ -183,8 +183,9 @@ describe('Runs API', () => {
     ['startedAt', '2026-04-31T12:00:00Z'],
     ['finishedAt', '2026-01-01T24:00:00Z'],
     ['finishedAt', '2026-07-21T12:00:60Z'],
+    ['createdAt', '2026-07-21t12:00:00z'],
     ['finishedAt', '2026-01-01T12:00:00+24:00'],
-  ] as const)('rejects a non-RFC3339 %s timestamp', async (field, value) => {
+  ] as const)('rejects an unsupported %s timestamp', async (field, value) => {
     const response = {
       runs: [
         {
