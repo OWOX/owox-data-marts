@@ -4,21 +4,39 @@ import { ProjectDataMartRunsResponseApiDto } from '../../dto/presentation/projec
 
 export function GetProjectDataMartRunsSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Get project DataMart run history' }),
+    ApiOperation({
+      summary: 'Get project DataMart run history',
+      description:
+        'Returns newest-first runs for Data Marts visible to the current project member. ' +
+        'Viewer access is required.',
+    }),
     ApiQuery({
       name: 'limit',
       required: false,
-      type: Number,
       example: 100,
-      description: 'Maximum number of runs to return. Defaults to 100; max 100.',
+      description:
+        'Maximum page size. Values default to 100 when absent, non-finite, or non-positive; ' +
+        'finite fractions are floored and values above 100 are capped at 100.',
+      schema: {
+        type: 'number',
+        default: 100,
+      },
     }),
     ApiQuery({
       name: 'offset',
       required: false,
-      type: Number,
       example: 0,
-      description: 'Number of runs to skip before returning results',
+      description:
+        'Number of newest runs to skip. Values default to 0 when absent, non-finite, or ' +
+        'non-positive; finite fractions are floored and values above 100,000 are capped at 100,000.',
+      schema: {
+        type: 'number',
+        default: 0,
+      },
     }),
-    ApiOkResponse({ type: ProjectDataMartRunsResponseApiDto })
+    ApiOkResponse({
+      description: 'Project-visible Data Mart runs in newest-first order.',
+      type: ProjectDataMartRunsResponseApiDto,
+    })
   );
 }

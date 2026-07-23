@@ -30,8 +30,13 @@ migration.
 project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRunsResponse`,
 `OWOXProjectDataMartRun`, `OWOXProjectDataMartRunRef`, `OWOXProjectDataMartRunUser`,
 `OWOXProjectDataMartRunStatus`, `OWOXProjectDataMartRunType`,
-`OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. Existing viewer access
-and HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
+`OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. The response contract
+identifies `createdByUser` as the nullable run author and defines its `userId`, `fullName`, `email`,
+and `avatar` fields. Run fields that are always emitted are required in the schema and client
+types, while their runtime nullability remains explicit. Pagination normalization and RFC3339
+timestamp formats are documented, and the client rejects malformed or impossible timestamps.
+Existing viewer access and HTTP behavior are unchanged, and consumers can adopt the client method
+without a migration.
 
 ## Add project insight-template discovery API client support
 
