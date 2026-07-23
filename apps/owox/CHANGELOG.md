@@ -1,5 +1,15 @@
 # owox
 
+## 0.30.1
+
+### Patch Changes 0.30.1
+
+- 86425d3: # More reliable MCP reporting answers
+
+  MCP reporting tools now expose only published Data Marts and use clearer, business-friendly field labels in query results. Each result identifies its source Data Mart and includes OWOX links for the related Data Marts, reports, destinations, and schedules.
+
+  When a query result is incomplete because of the row limit or response-size cap, the assistant receives an explicit truncation reason and instructions to make that limitation clear. It also receives guidance to use OWOX aggregations for count questions and to distinguish OWOX-calculated values from calculations made in the assistant response.
+
 ## 0.30.0
 
 ### Minor Changes 0.30.0
@@ -39,7 +49,6 @@
   TikTok Ads `ad_insights` and `ad_insights_by_country` now honor the selected **Data Level** (advertiser, campaign, ad group, or ad), a dropdown in the main connector settings. The field selector pins only the unique-key fields that level requires — advertiser-level reports no longer force `ad_id` and can group by date alone. Choose Data Level before selecting fields; when changing it on a connector that already has data, use a new Data Mart so rows merge correctly.
 
 - 55fcba9: **Reports table UX — discoverable actions**
-
   - Moved **Open document** and **Preview SQL** next to the report title.
   - Kept the **More actions** menu in the actions column.
   - Added tooltips for truncated report titles.
@@ -58,7 +67,6 @@
   The **Login Customer ID** is now a single top-level field shared across all authentication types, instead of a separate field nested inside each auth type. Previously the value could be lost when switching between authentication methods and was not reachable from the OAuth button flow. Existing connectors keep working — the old stored value is still read as a fallback. The field is now optional for Service Account authentication and appears directly under Customer ID in the configuration form.
 
 - 18c8d9d: **Selective refresh and clearer failed-report errors in Google Sheets**
-
   - On **Refresh all reports**, each report shows its title, sheet, and last-run status, including a clear error message when the last run failed.
   - Choose which reports to refresh with checkboxes, select all, or target only failed, successful, or never-run reports.
   - On the single-report refresh screen, failed runs show the actual error details and an **Open report** action.
@@ -105,7 +113,6 @@
   Two Unix-only assumptions broke first-time setup on Windows. Inline `VAR=value command` environment-variable assignments (e.g. `npm run dev -w owox` and the package `test` scripts) are now wrapped with `cross-env` so they run under cmd/PowerShell (no new dependency — `cross-env` is already a hoisted root devDependency — and no lockfile change). The husky setup no longer emits a Windows batch-style pre-commit hook (`@echo off …`) that failed with `@echo: command not found` under `sh` (which Git uses on every OS) and blocked commits; it now writes a POSIX shell hook in the husky v9 format, self-heals only the stale formats it previously generated (leaving hand-edited hooks untouched), and clears the `husky - DEPRECATED` warning that breaks under husky v10.
 
 - 72f3d47: **API surface maintenance**
-
   - **Project settings API** — the endpoints now publish explicit OpenAPI request/response contracts; `@owox/api-client` adds `project.getSettings()` and `project.updateDescription()`.
   - **Models canvas API** — `@owox/api-client` exposes paginated Models canvas data marts via `models.getDataMarts()` and their visible relationship edges via `models.getEdges()`.
   - **Project setup progress API** — `GET /api/project-setup-progress` publishes an explicit OpenAPI response contract; `@owox/api-client` adds `project.getSetupProgress()` and exports `OWOXProjectSetupProgress`, `OWOXProjectSetupProgressSteps`, and `OWOXProjectSetupStepState`.
@@ -116,7 +123,7 @@
   - **Require interactive authentication for OAuth flows** — OAuth routes under `/api/connectors/{connectorName}/oauth`, `/api/data-destinations/oauth`, `/api/data-destinations/{id}/oauth`, `/api/data-storages/oauth`, and `/api/data-storages/{id}/oauth`, plus `POST /api/data-destinations/connect/google-sheets`, now reject API-key authentication and require an interactive user session. API-key access to non-OAuth resource operations is unchanged.
   - **Publish canonical API-key authentication headers** — protected operations now declare `X-OWOX-Authorization` and, only when API-key-derived tokens are accepted, the optional `X-OWOX-Api-Key-Id` header (must match the token's API key ID). Routes that reject API-key authentication omit that conditional header, while `POST /api/auth/api-keys/exchange` retains its required API key ID input. Runtime authentication behavior is unchanged.
 
-### Patch Changes
+### Patch Changes 0.30.0
 
 - 52149e4: # Fix nested blended field name collisions in joinable data marts
 
