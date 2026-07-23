@@ -2,7 +2,7 @@
 
 ## 0.30.0
 
-### Minor Changes
+### Minor Changes 0.30.0
 
 - 2740556: # Improve Output Schema AI actions
 
@@ -32,7 +32,7 @@
 
   BigQuery treats an unaliased table’s short name as a row `STRUCT` alias. When a Table Data Mart pointed at a table such as `…country` and a report filtered on a column also named `country`, the generated SQL compared a `STRUCT` to a string and failed (for example on Google Sheets export).
 
-  Output-controls and explicit-projection queries now alias the source as `src` and qualify filter/sort references (`src.\`country\``) in `WHERE`, `ORDER BY`, and `HAVING`. SELECT and GROUP BY stay unqualified so nested RECORD paths keep their previous shape. Existing reports need no reconfiguration; only the generated SQL shape changes.
+  Output-controls and explicit-projection queries now alias the source as `src` and qualify filter/sort references (`src.\`country\``) in`WHERE`,`ORDER BY`, and`HAVING`. SELECT and GROUP BY stay unqualified so nested RECORD paths keep their previous shape. Existing reports need no reconfiguration; only the generated SQL shape changes.
 
 - f3a83b3: # Add project-based MCP server URLs
 
@@ -2208,6 +2208,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2215,6 +2216,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
