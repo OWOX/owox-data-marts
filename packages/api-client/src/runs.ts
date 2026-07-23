@@ -1,4 +1,5 @@
 import { OWOXApiError } from './errors.js';
+import { isRecord, isRfc3339DateTimeString, isUserProjection } from './validation.js';
 
 const PROJECT_DATA_MART_RUN_STATUS_VALUES = [
   'PENDING',
@@ -100,67 +101,16 @@ const PROJECT_DATA_MART_RUN_STATUSES = new Set<string>(PROJECT_DATA_MART_RUN_STA
 const PROJECT_DATA_MART_RUN_TYPES = new Set<string>(PROJECT_DATA_MART_RUN_TYPE_VALUES);
 const PROJECT_DATA_MART_RUN_TRIGGERS = new Set<string>(PROJECT_DATA_MART_RUN_TRIGGER_VALUES);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function isNullableRecord(value: unknown): boolean {
   return value === null || isRecord(value);
-}
-
-function isOptionalNullableString(value: unknown): boolean {
-  return value === undefined || value === null || typeof value === 'string';
 }
 
 function isNullableString(value: unknown): boolean {
   return value === null || typeof value === 'string';
 }
 
-const RFC3339_DATE_TIME =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/;
-
-function isLeapYear(year: number): boolean {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-}
-
-function isDateTimeString(value: unknown): value is string {
-  if (typeof value !== 'string') {
-    return false;
-  }
-
-  const match = RFC3339_DATE_TIME.exec(value);
-  if (!match) {
-    return false;
-  }
-
-  const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue] = match;
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
-  const hour = Number(hourValue);
-  const minute = Number(minuteValue);
-  const second = Number(secondValue);
-  const offsetHour = match[8] === undefined ? 0 : Number(match[8]);
-  const offsetMinute = match[9] === undefined ? 0 : Number(match[9]);
-  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  const daysInSelectedMonth = daysInMonth[month - 1];
-
-  return (
-    month >= 1 &&
-    month <= 12 &&
-    daysInSelectedMonth !== undefined &&
-    day >= 1 &&
-    day <= daysInSelectedMonth &&
-    hour <= 23 &&
-    minute <= 59 &&
-    second <= 59 &&
-    offsetHour <= 23 &&
-    offsetMinute <= 59
-  );
-}
-
 function isNullableDateTimeString(value: unknown): boolean {
-  return value === null || isDateTimeString(value);
+  return value === null || isRfc3339DateTimeString(value);
 }
 
 function isNullableStringArray(value: unknown): boolean {
@@ -168,14 +118,7 @@ function isNullableStringArray(value: unknown): boolean {
 }
 
 function isNullableProjectDataMartRunUser(value: unknown): boolean {
-  return (
-    value === null ||
-    (isRecord(value) &&
-      typeof value.userId === 'string' &&
-      isOptionalNullableString(value.fullName) &&
-      isOptionalNullableString(value.email) &&
-      isOptionalNullableString(value.avatar))
-  );
+  return value === null || isUserProjection(value);
 }
 
 function isNullableTotals(value: unknown): boolean {
@@ -219,7 +162,7 @@ function isProjectDataMartRun(value: unknown): value is OWOXProjectDataMartRun {
     isNullableRecord(value.aiSourceDefinition) &&
     isNullableStringArray(value.logs) &&
     isNullableStringArray(value.errors) &&
-    isDateTimeString(value.createdAt) &&
+    isRfc3339DateTimeString(value.createdAt) &&
     isNullableDateTimeString(value.startedAt) &&
     isNullableDateTimeString(value.finishedAt) &&
     isNullableRecord(value.additionalParams) &&

@@ -25,6 +25,13 @@ const COVERED_TARGETS = new Map([
     },
   ],
   [
+    'GET /api/data-marts',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list',
+      'API client': './api-client/#list-data-marts',
+    },
+  ],
+  [
     'GET /api/external/http-data/data-marts/{dataMartId}.ndjson',
     {
       OpenAPI: 'https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream',

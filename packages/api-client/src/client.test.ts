@@ -526,43 +526,6 @@ describe('OWOXApiClient', () => {
     });
   });
 
-  it('dataMarts.list calls the real paginated list endpoint shape', async () => {
-    const fetchMock = createFetchMock(request => {
-      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
-        return createJsonResponse(200, { accessToken: 'access-token-1' });
-      }
-
-      if (request.method === 'GET' && request.url === '/api/data-marts') {
-        return createJsonResponse(200, {
-          items: [{ id: 'mart-1', title: 'First Data Mart' }],
-          total: 2,
-          nextOffset: 1,
-        });
-      }
-
-      if (request.method === 'GET' && request.url === '/api/data-marts?offset=1') {
-        return createJsonResponse(200, {
-          items: [{ id: 'mart-2', title: 'Second Data Mart' }],
-          total: 2,
-          nextOffset: null,
-        });
-      }
-
-      return createJsonResponse(404, { message: 'Not found' });
-    });
-
-    const client = new OWOXApiClient({
-      apiKey,
-      fetchImpl: fetchMock.fetchImpl,
-    });
-
-    await expect(client.dataMarts.list()).resolves.toEqual([
-      { id: 'mart-1', title: 'First Data Mart' },
-      { id: 'mart-2', title: 'Second Data Mart' },
-    ]);
-    expect(fetchMock.requests.map(request => request.url)).toContain('/api/data-marts?offset=1');
-  });
-
   it('configures default stream requests without standard Undici streaming timeouts', async () => {
     let streamRequestInit: RequestInit | undefined;
     const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

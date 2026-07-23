@@ -120,6 +120,37 @@ test('accepts the exact Search coverage targets', () => {
   );
 });
 
+test('accepts the exact Data Mart list coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/data-marts'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#list-data-marts) · 2026-07-23',
+      'API client',
+      'GET /api/data-marts'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#list-data-marts',
+    }
+  );
+});
+
+test('resolves the Data Mart list API client coverage target to the checked-in guide', () => {
+  assert.match(checkedInApiClientGuide, /^## List data marts$/m);
+});
+
 test('accepts the exact HTTP Data coverage targets', () => {
   assert.deepEqual(
     matrixModule.parseCoverageCell(

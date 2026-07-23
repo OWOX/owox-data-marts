@@ -1,12 +1,75 @@
 import { Buffer } from 'node:buffer';
 
 import { OWOXApiError, OWOXAuthError } from './errors.js';
+import { isRecord, isRfc3339DateTimeString, isUserProjection } from './validation.js';
 
 // Keep the traversal rule literals below in sync with the backend schemas in
 // `apps/backend/src/data-marts/dto/schemas/{aggregate-function,filter-config,sort-config,date-trunc-config}.schema.ts`.
+const DATA_MART_STATUS_VALUES = ['DRAFT', 'PUBLISHED'] as const;
+export type OWOXDataMartStatus = (typeof DATA_MART_STATUS_VALUES)[number];
+
+const DATA_MART_DEFINITION_TYPE_VALUES = [
+  'SQL',
+  'TABLE',
+  'VIEW',
+  'TABLE_PATTERN',
+  'CONNECTOR',
+] as const;
+export type OWOXDataMartDefinitionType = (typeof DATA_MART_DEFINITION_TYPE_VALUES)[number];
+
+const DATA_STORAGE_TYPE_VALUES = [
+  'GOOGLE_BIGQUERY',
+  'AWS_ATHENA',
+  'SNOWFLAKE',
+  'AWS_REDSHIFT',
+  'DATABRICKS',
+  'LEGACY_GOOGLE_BIGQUERY',
+] as const;
+export type OWOXDataMartStorageType = (typeof DATA_STORAGE_TYPE_VALUES)[number];
+
+export type OWOXDataMartStorage = {
+  type: OWOXDataMartStorageType;
+  title: string;
+};
+
+export type OWOXDataMartUser = {
+  userId: string;
+  fullName?: string | null;
+  email?: string | null;
+  avatar?: string | null;
+};
+
+export type OWOXDataMartContext = {
+  id: string;
+  name: string;
+};
+
+const DATA_MART_OWNER_FILTER_VALUES = ['has_owners', 'no_owners'] as const;
+export type OWOXDataMartOwnerFilter = (typeof DATA_MART_OWNER_FILTER_VALUES)[number];
+
+export type OWOXDataMartListOptions = {
+  offset?: number;
+  ownerFilter?: OWOXDataMartOwnerFilter;
+};
+
 export type OWOXDataMart = Record<string, unknown> & {
   id: string;
   title: string;
+  status: OWOXDataMartStatus;
+  storage: OWOXDataMartStorage;
+  description: string | null;
+  definitionType?: OWOXDataMartDefinitionType;
+  connectorSourceName?: string;
+  triggersCount: number;
+  reportsCount: number;
+  createdByUser: OWOXDataMartUser | null;
+  businessOwnerUsers: OWOXDataMartUser[];
+  technicalOwnerUsers: OWOXDataMartUser[];
+  createdAt: string;
+  modifiedAt: string;
+  contexts: OWOXDataMartContext[];
+  availableForReporting: boolean;
+  availableForMaintenance: boolean;
 };
 
 export type OWOXDataMartRow = Record<string, unknown>;
@@ -112,16 +175,79 @@ export type JsonRequester = {
   getStream(path: string, query?: URLSearchParams): Promise<Response>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+const DATA_MART_STATUSES = new Set<string>(DATA_MART_STATUS_VALUES);
+const DATA_MART_DEFINITION_TYPES = new Set<string>(DATA_MART_DEFINITION_TYPE_VALUES);
+const DATA_STORAGE_TYPES = new Set<string>(DATA_STORAGE_TYPE_VALUES);
+const DATA_MART_OWNER_FILTERS = new Set<string>(DATA_MART_OWNER_FILTER_VALUES);
+
+function isUser(value: unknown): value is OWOXDataMartUser {
+  return isUserProjection(value);
+}
+
+function isContext(value: unknown): value is OWOXDataMartContext {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
+}
+
+function isDataMart(value: unknown): value is OWOXDataMart {
+  if (!isRecord(value) || !isRecord(value.storage)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.status === 'string' &&
+    DATA_MART_STATUSES.has(value.status) &&
+    typeof value.storage.type === 'string' &&
+    DATA_STORAGE_TYPES.has(value.storage.type) &&
+    typeof value.storage.title === 'string' &&
+    (typeof value.description === 'string' || value.description === null) &&
+    (value.definitionType === undefined ||
+      (typeof value.definitionType === 'string' &&
+        DATA_MART_DEFINITION_TYPES.has(value.definitionType))) &&
+    (value.connectorSourceName === undefined || typeof value.connectorSourceName === 'string') &&
+    Number.isInteger(value.triggersCount) &&
+    (value.triggersCount as number) >= 0 &&
+    Number.isInteger(value.reportsCount) &&
+    (value.reportsCount as number) >= 0 &&
+    (value.createdByUser === null || isUser(value.createdByUser)) &&
+    Array.isArray(value.businessOwnerUsers) &&
+    value.businessOwnerUsers.every(isUser) &&
+    Array.isArray(value.technicalOwnerUsers) &&
+    value.technicalOwnerUsers.every(isUser) &&
+    isRfc3339DateTimeString(value.createdAt) &&
+    isRfc3339DateTimeString(value.modifiedAt) &&
+    Array.isArray(value.contexts) &&
+    value.contexts.every(isContext) &&
+    typeof value.availableForReporting === 'boolean' &&
+    typeof value.availableForMaintenance === 'boolean'
+  );
+}
+
+function validateListOptions(options: unknown): asserts options is OWOXDataMartListOptions {
+  if (
+    !isRecord(options) ||
+    (options.offset !== undefined &&
+      (!Number.isInteger(options.offset) || (options.offset as number) < 0)) ||
+    (options.ownerFilter !== undefined &&
+      (typeof options.ownerFilter !== 'string' ||
+        !DATA_MART_OWNER_FILTERS.has(options.ownerFilter)))
+  ) {
+    throw new OWOXApiError('Invalid OWOX Data Mart list options', {
+      details: options,
+    });
+  }
 }
 
 function parsePage(response: unknown): DataMartsPage {
   if (
     !isRecord(response) ||
     !Array.isArray(response.items) ||
-    typeof response.total !== 'number' ||
-    (typeof response.nextOffset !== 'number' && response.nextOffset !== null)
+    !response.items.every(isDataMart) ||
+    !Number.isInteger(response.total) ||
+    (response.total as number) < 0 ||
+    (response.nextOffset !== null &&
+      (!Number.isInteger(response.nextOffset) || (response.nextOffset as number) < 0))
   ) {
     throw new OWOXApiError('OWOX Data Marts API returned an unexpected response shape', {
       details: response,
@@ -310,10 +436,12 @@ export class DataMartDataTraversal {
 export class DataMartsApi {
   constructor(private readonly requester: JsonRequester) {}
 
-  async list(): Promise<OWOXDataMart[]> {
+  async list(options: OWOXDataMartListOptions = {}): Promise<OWOXDataMart[]> {
+    validateListOptions(options);
+
     const dataMarts: OWOXDataMart[] = [];
     const requestedOffsets = new Set<string>();
-    let offset: number | undefined;
+    let offset = options.offset;
 
     while (true) {
       const offsetKey = String(offset ?? 0);
@@ -326,9 +454,14 @@ export class DataMartsApi {
       requestedOffsets.add(offsetKey);
 
       const page = parsePage(
-        await this.requester.getJson(
+        await this.requester.getJson<unknown>(
           '/api/data-marts',
-          offset === undefined ? undefined : { offset: String(offset) }
+          offset === undefined && options.ownerFilter === undefined
+            ? undefined
+            : {
+                ...(offset === undefined ? {} : { offset: String(offset) }),
+                ...(options.ownerFilter === undefined ? {} : { ownerFilter: options.ownerFilter }),
+              }
         )
       );
       dataMarts.push(...page.items);
