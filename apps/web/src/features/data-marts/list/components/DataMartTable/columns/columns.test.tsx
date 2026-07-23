@@ -4,10 +4,10 @@ import { getDataMartColumns } from './columns';
 import { DataMartColumnKey } from './columnKeys';
 
 describe('getDataMartColumns', () => {
-  it('includes a distinct visible Quality column', () => {
+  it('does not include Quality in the visible Data Marts columns', () => {
     const columns = getDataMartColumns();
 
     expect(DataMartColumnKey.QUALITY).toBe('quality');
-    expect(columns.filter(column => column.id === DataMartColumnKey.QUALITY)).toHaveLength(1);
+    expect(columns.some(column => column.id === DataMartColumnKey.QUALITY)).toBe(false);
   });
 });

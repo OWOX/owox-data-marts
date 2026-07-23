@@ -6,11 +6,7 @@ import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shar
 import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
 import { DataStorageType } from '../../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/data-storage-type.model.ts';
-import {
-  DataMartActionsCell,
-  DataMartHealthStatusCell,
-  DataMartQualityStatusCell,
-} from '../components';
+import { DataMartActionsCell, DataMartHealthStatusCell } from '../components';
 import { DataMartDefinitionType } from '../../../../shared';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
 import { DataMartColumnKey } from './columnKeys.ts';
@@ -203,25 +199,6 @@ export const getDataMartColumns = ({
         </StatusLabel>
       );
     },
-  },
-  {
-    id: DataMartColumnKey.QUALITY,
-    accessorFn: row => row.qualitySummary.state,
-    size: 120,
-    meta: {
-      title: dataMartColumnLabels[DataMartColumnKey.QUALITY],
-    },
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {dataMartColumnLabels[DataMartColumnKey.QUALITY]}
-      </SortableHeader>
-    ),
-    cell: ({ row }) => (
-      <DataMartQualityStatusCell
-        dataMartId={row.original.id}
-        summary={row.original.qualitySummary}
-      />
-    ),
   },
   {
     accessorKey: DataMartColumnKey.TRIGGERS_COUNT,
