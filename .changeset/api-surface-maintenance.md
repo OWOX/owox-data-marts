@@ -62,11 +62,8 @@ consumers can adopt the client method without a migration.
 
 ## Require interactive authentication for OAuth flows
 
-OAuth-flow-only connector, Data Destination, and Data Storage operations now reject
-API-key-derived authentication. This includes connector OAuth settings, exchange, and status;
-Data Destination OAuth settings, credential status, authorization, exchange, status, and
-revocation; Google Sheets connection completion at
-`POST /api/data-destinations/connect/google-sheets`; and Data Storage OAuth settings, exchange,
-authorization, status, and revocation. Consumers using API keys for these routes must migrate the
-flow to an interactively authenticated user session; API keys remain available for independently
-useful non-OAuth resource operations.
+OAuth routes under `/api/connectors/{connectorName}/oauth`, `/api/data-destinations/oauth`,
+`/api/data-destinations/{id}/oauth`, `/api/data-storages/oauth`, and
+`/api/data-storages/{id}/oauth`, plus `POST /api/data-destinations/connect/google-sheets`, now
+reject API-key authentication and require an interactive user session. API-key access to non-OAuth
+resource operations is unchanged.
