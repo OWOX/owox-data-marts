@@ -148,7 +148,8 @@ for (const result of results) {
 
 Each result includes the entity type and ID, title, nullable description, combined relevance
 score, keyword score, and a vector score when semantic matching contributed. Search returns an
-empty array when no visible entity matches or embeddings are unavailable.
+empty array when no visible entity matches. When prompt embeddings are unavailable, Search falls
+back to keyword matching.
 
 ## Convert Markdown to HTML
 

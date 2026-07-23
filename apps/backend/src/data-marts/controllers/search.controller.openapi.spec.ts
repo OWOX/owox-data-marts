@@ -92,6 +92,13 @@ describe('SearchController OpenAPI', () => {
     });
   });
 
+  it('documents keyword fallback when prompt embeddings are unavailable', () => {
+    const description = document.paths['/api/search']?.get?.description;
+
+    expect(description).toContain('falls back to keyword matching');
+    expect(description).not.toContain('empty result set');
+  });
+
   it('documents every required search-result field and its nullability', () => {
     const operation = document.paths['/api/search']?.get;
 

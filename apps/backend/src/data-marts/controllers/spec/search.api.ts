@@ -9,7 +9,8 @@ export function SearchSpec() {
       summary: 'Search project entities',
       description:
         'Returns data marts, data storages, and data destinations visible to the caller. ' +
-        'Search uses the semantic index and returns an empty result set when embeddings are unavailable.',
+        'Search uses semantic and keyword signals and falls back to keyword matching when ' +
+        'prompt embeddings are unavailable.',
     }),
     ApiQuery({
       name: 'q',
