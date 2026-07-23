@@ -231,8 +231,7 @@ The method returns stream metadata and exposes `rowChunks()` as the traversal pr
 
 ```ts
 const data = await client.dataMarts.traverseData('dm_123', {
-  columns: '*',
-  column: ['Revenue: net = USD'],
+  column: ['Event Date (local)', 'Revenue: net = USD'],
   filter: [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }],
   sort: [{ column: 'Event Date (local)', direction: 'asc' }],
   aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
@@ -248,6 +247,10 @@ for await (const rows of data.rowChunks()) {
 ```
 
 Call `await data.cancel()` if you open a traversal and decide not to iterate `rowChunks()`.
+The client rejects a successful response whose media type is not `application/x-ndjson` instead of
+attempting to interpret it as row data.
+The exported `TraverseDataOptions` and traversal rule types provide compile-time shape validation
+of these controls.
 
 Column selection uses two separate fields:
 
@@ -258,7 +261,9 @@ Column selection uses two separate fields:
 
 Do not pass comma-separated column lists. Column names are opaque strings and may contain commas, equals signs, spaces, quotes, or other symbols.
 
-Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` with `aliasPath` only when filtering a joined source before it is joined into the result.
+Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` only with a resolved blended column name; the rule's `column` identifies the joined source to filter before it is joined into the result.
+
+To filter an aggregated value after grouping, set the filter rule's `function` to the same aggregate function used for that `column` in `aggregation`. For example, `{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }` applies a `HAVING SUM(revenue) > 1000` condition. The `(column, function)` pair must match an aggregation rule, and a filter with `function` cannot use `placement: 'pre-join'`.
 
 Use `aggregation` and `dateTrunc` arrays to group the streamed rows, with the same rule shapes as report output controls. `aggregation` takes `{ column, function }` rules; `function` is any report aggregate function — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE`, or a percentile (`P25`, `P50`, `P75`, `P95`). `dateTrunc` takes `{ column, unit, timeZone? }` rules that bucket a date/timestamp dimension by `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`. Any selected column without an aggregation rule becomes a grouping key. Aggregation and `dateTrunc` require an explicit `column` list — they cannot combine with `columns: '*'` or `columns: '**'` (a wildcard would group by every column). The streamed row keys are the resolved labels: an aggregated column becomes `"<column> | <TOKEN>"` (plus a `"Row Count"` column), where `<TOKEN>` is an uppercase spreadsheet-style token — most match the function name, but `COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes `STRINGAGG`, and `ANY_VALUE` becomes `ANYVALUE`.
 

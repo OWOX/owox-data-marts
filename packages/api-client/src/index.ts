@@ -6,7 +6,13 @@ export {
   DataMartDataTraversal,
   type OWOXDataMart,
   type OWOXDataMartRow,
+  type TraverseDataAggregateFunction,
+  type TraverseDataAggregationRule,
+  type TraverseDataDateTruncRule,
+  type TraverseDataFilterRule,
   type TraverseDataOptions,
+  type TraverseDataRelativeDatePreset,
+  type TraverseDataSortRule,
 } from './data-marts.js';
 export { type OWOXStorage } from './storages.js';
 export { type OWOXDestination } from './destinations.js';

@@ -7,6 +7,13 @@ import {
   ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
+import { HTTP_DATA_MAX_ENCODED_PARAM_LENGTH } from '../../../dto/schemas/http-data-query.schema';
+
+const ENCODED_HTTP_DATA_QUERY_SCHEMA = {
+  type: 'string',
+  minLength: 1,
+  maxLength: HTTP_DATA_MAX_ENCODED_PARAM_LENGTH,
+} as const;
 
 export function StreamHttpDataSpec() {
   return applyDecorators(
@@ -55,8 +62,10 @@ export function StreamHttpDataSpec() {
         'columns named `*` and `**`; use `columns=*` or `columns=**` for selectors. ' +
         'Overlaps are de-duplicated.',
       required: false,
-      isArray: true,
-      type: String,
+      schema: {
+        type: 'array',
+        items: { type: 'string', minLength: 1 },
+      },
       example: ['date', 'revenue'],
     }),
     ApiQuery({
@@ -68,7 +77,7 @@ export function StreamHttpDataSpec() {
         'Example JSON: `[{"column":"date","operator":"gte","value":"2026-01-01"}]` → ' +
         'base64url `W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d`.',
       required: false,
-      type: String,
+      schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
       example: 'W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d',
     }),
     ApiQuery({
@@ -80,7 +89,7 @@ export function StreamHttpDataSpec() {
         'Example JSON: `[{"column":"date","direction":"desc"}]` → ' +
         'base64url `W3siY29sdW1uIjoiZGF0ZSIsImRpcmVjdGlvbiI6ImRlc2MifV0`.',
       required: false,
-      type: String,
+      schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
       example: 'W3siY29sdW1uIjoiZGF0ZSIsImRpcmVjdGlvbiI6ImRlc2MifV0',
     }),
     ApiQuery({
@@ -93,7 +102,7 @@ export function StreamHttpDataSpec() {
         'Example JSON: `[{"column":"revenue","function":"SUM"}]` → ' +
         'base64url `W3siY29sdW1uIjoicmV2ZW51ZSIsImZ1bmN0aW9uIjoiU1VNIn1d`.',
       required: false,
-      type: String,
+      schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
       example: 'W3siY29sdW1uIjoicmV2ZW51ZSIsImZ1bmN0aW9uIjoiU1VNIn1d',
     }),
     ApiQuery({
@@ -106,14 +115,17 @@ export function StreamHttpDataSpec() {
         'Example JSON: `[{"column":"date","unit":"MONTH"}]` → ' +
         'base64url `W3siY29sdW1uIjoiZGF0ZSIsInVuaXQiOiJNT05USCJ9XQ`.',
       required: false,
-      type: String,
+      schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
       example: 'W3siY29sdW1uIjoiZGF0ZSIsInVuaXQiOiJNT05USCJ9XQ',
     }),
     ApiQuery({
       name: 'limit',
       description: 'Optional row cap (positive integer).',
       required: false,
-      type: Number,
+      schema: {
+        type: 'integer',
+        minimum: 1,
+      },
     }),
     ApiProduces('application/x-ndjson'),
     ApiOkResponse({
@@ -143,9 +155,9 @@ export function StreamHttpDataSpec() {
         'Invalid request: unknown column (including in an aggregation or dateTrunc rule), ' +
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
         'filter/sort/aggregation/dateTrunc/limit, aggregation or dateTrunc without an explicit ' +
-        '`column` projection, or unsupported storage type.',
+        '`column` projection, unsupported storage type, or a project blocked because it is ' +
+        'inactive or has exceeded its credit limit.',
     }),
-    ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
     ApiResponse({
       status: 403,
       description: 'Caller is authenticated but lacks `Action.USE` on the requested Data Mart.',
@@ -160,6 +172,10 @@ export function StreamHttpDataSpec() {
         'Storage dependency failed while preparing or reading Data Mart data. ' +
         'The response includes provider context such as storage type, provider message, ' +
         'provider status code, and provider reason when available.',
+    }),
+    ApiResponse({
+      status: 503,
+      description: 'The server is shutting down and cannot start a new HTTP Data stream.',
     })
   );
 }

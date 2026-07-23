@@ -2,6 +2,8 @@ import { Buffer } from 'node:buffer';
 
 import { OWOXApiError, OWOXAuthError } from './errors.js';
 
+// Keep the traversal rule literals below in sync with the backend schemas in
+// `apps/backend/src/data-marts/dto/schemas/{aggregate-function,filter-config,sort-config,date-trunc-config}.schema.ts`.
 export type OWOXDataMart = Record<string, unknown> & {
   id: string;
   title: string;
@@ -9,13 +11,93 @@ export type OWOXDataMart = Record<string, unknown> & {
 
 export type OWOXDataMartRow = Record<string, unknown>;
 
+export type TraverseDataAggregateFunction =
+  | 'STRING_AGG'
+  | 'MAX'
+  | 'MIN'
+  | 'SUM'
+  | 'AVG'
+  | 'COUNT'
+  | 'COUNT_DISTINCT'
+  | 'ANY_VALUE'
+  | 'P25'
+  | 'P50'
+  | 'P75'
+  | 'P95';
+
+export type TraverseDataRelativeDatePreset =
+  | { kind: 'today' }
+  | { kind: 'yesterday' }
+  | { kind: 'this_month' }
+  | { kind: 'last_month' }
+  | { kind: 'this_year' }
+  | { kind: 'last_n_days'; n: number }
+  | { kind: 'last_n_months'; n: number };
+
+type TraverseDataScalarValue = string | number | boolean;
+type TraverseDataFilterPlacement = {
+  placement?: 'pre-join' | 'post-join';
+  function?: TraverseDataAggregateFunction;
+};
+
+export type TraverseDataFilterRule = (
+  | {
+      column: string;
+      operator:
+        | 'eq'
+        | 'neq'
+        | 'contains'
+        | 'not_contains'
+        | 'starts_with'
+        | 'ends_with'
+        | 'gt'
+        | 'lt'
+        | 'gte'
+        | 'lte'
+        | 'regex'
+        | 'not_regex';
+      value: TraverseDataScalarValue;
+    }
+  | {
+      column: string;
+      operator: 'is_empty' | 'is_not_empty' | 'is_null' | 'is_not_null' | 'is_true' | 'is_false';
+    }
+  | {
+      column: string;
+      operator: 'between';
+      value: { from: TraverseDataScalarValue; to: TraverseDataScalarValue };
+    }
+  | {
+      column: string;
+      operator: 'relative_date';
+      value: TraverseDataRelativeDatePreset;
+    }
+) &
+  TraverseDataFilterPlacement;
+
+export type TraverseDataSortRule = {
+  column: string;
+  direction: 'asc' | 'desc';
+};
+
+export type TraverseDataAggregationRule = {
+  column: string;
+  function: TraverseDataAggregateFunction;
+};
+
+export type TraverseDataDateTruncRule = {
+  column: string;
+  unit: 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
+  timeZone?: string;
+};
+
 export type TraverseDataOptions = {
   columns?: '*' | '**';
   column?: string[];
-  filter?: unknown[] | null;
-  sort?: unknown[] | null;
-  aggregation?: unknown[] | null;
-  dateTrunc?: unknown[] | null;
+  filter?: TraverseDataFilterRule[] | null;
+  sort?: TraverseDataSortRule[] | null;
+  aggregation?: TraverseDataAggregationRule[] | null;
+  dateTrunc?: TraverseDataDateTruncRule[] | null;
   limit?: number;
 };
 
@@ -278,6 +360,19 @@ export class DataMartsApi {
       throw new OWOXApiError('Failed to open OWOX Data Mart data stream', {
         details: { dataMartId },
         cause: error,
+      });
+    }
+
+    const contentType = response.headers.get('content-type');
+    const mediaType = contentType?.split(';', 1)[0]?.trim().toLowerCase();
+    if (mediaType !== 'application/x-ndjson') {
+      await response.body?.cancel().catch(() => undefined);
+      throw new OWOXApiError('OWOX Data Mart data stream returned an unexpected content type', {
+        status: response.status,
+        details: {
+          dataMartId,
+          contentType: contentType ?? null,
+        },
       });
     }
 

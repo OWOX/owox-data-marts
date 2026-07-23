@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 
-import { buildTraverseDataOptions, streamDataMart } from './stream.js';
+import DataMartsStream, { buildTraverseDataOptions, streamDataMart } from './stream.js';
 
 function writableCollector() {
   const chunks: string[] = [];
@@ -15,6 +15,10 @@ function writableCollector() {
 }
 
 describe('data-marts stream', () => {
+  it('rejects limits below the HTTP Data contract minimum', () => {
+    expect(DataMartsStream.flags.limit.min).toBe(1);
+  });
+
   it('writes each streamed row chunk to stdout as NDJSON without buffering the whole result', async () => {
     const receivedOptions: unknown[] = [];
     const { stream, chunks } = writableCollector();
