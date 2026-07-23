@@ -2,7 +2,7 @@
 
 ## 0.30.1
 
-### Patch Changes
+### Patch Changes 0.30.1
 
 - 86425d3: # More reliable MCP reporting answers
 
@@ -123,7 +123,7 @@
   - **Require interactive authentication for OAuth flows** — OAuth routes under `/api/connectors/{connectorName}/oauth`, `/api/data-destinations/oauth`, `/api/data-destinations/{id}/oauth`, `/api/data-storages/oauth`, and `/api/data-storages/{id}/oauth`, plus `POST /api/data-destinations/connect/google-sheets`, now reject API-key authentication and require an interactive user session. API-key access to non-OAuth resource operations is unchanged.
   - **Publish canonical API-key authentication headers** — protected operations now declare `X-OWOX-Authorization` and, only when API-key-derived tokens are accepted, the optional `X-OWOX-Api-Key-Id` header (must match the token's API key ID). Routes that reject API-key authentication omit that conditional header, while `POST /api/auth/api-keys/exchange` retains its required API key ID input. Runtime authentication behavior is unchanged.
 
-### Patch Changes
+### Patch Changes 0.30.0
 
 - 52149e4: # Fix nested blended field name collisions in joinable data marts
 
@@ -2103,6 +2103,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2110,6 +2111,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
