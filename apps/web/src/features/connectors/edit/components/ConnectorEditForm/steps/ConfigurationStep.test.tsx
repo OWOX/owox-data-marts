@@ -81,7 +81,7 @@ describe('ConfigurationStep', () => {
   // is pinned by reference in ConnectorEditForm.test.tsx instead.
   it('keeps every typed character in a top-level field', () => {
     render(<Harness />);
-    const input = screen.getByLabelText(/Customer ID/i);
+    const input = screen.getByLabelText<HTMLInputElement>(/Customer ID/i);
 
     for (const char of 'ABCDEFGH') {
       typeChar(input, char);
@@ -92,7 +92,7 @@ describe('ConfigurationStep', () => {
 
   it('keeps every typed character in a nested oneOf secret field', () => {
     render(<Harness />);
-    const input = screen.getByLabelText(/Service Account Key/i);
+    const input = screen.getByLabelText<HTMLInputElement>(/Service Account Key/i);
 
     for (const char of 'ABCDEFGH') {
       typeChar(input, char);
@@ -107,7 +107,7 @@ describe('ConfigurationStep', () => {
   // ConfigurationSecretField, remounted the input and dropped focus.
   it('renders a nested secret field as the same element across the first keystroke', () => {
     render(<Harness />);
-    const before = screen.getByLabelText(/Service Account Key/i);
+    const before = screen.getByLabelText<HTMLInputElement>(/Service Account Key/i);
     before.focus();
     expect(document.activeElement).toBe(before);
 
