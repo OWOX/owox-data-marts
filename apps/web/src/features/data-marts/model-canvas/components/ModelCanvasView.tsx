@@ -12,6 +12,9 @@ import { useModelCanvas } from '../model/use-model-canvas';
 import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
 import { dataQualityService } from '../../data-quality/api/data-quality.service';
+import { dataMartService } from '../../shared';
+import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
+import { trackEvent } from '../../../../utils/data-layer';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
 
@@ -44,7 +47,7 @@ function ModelCanvasViewContent() {
   const storageLoadGenerationRef = useRef(0);
   const mountedRef = useRef(false);
   const filters = useModelCanvasFilters();
-  const { navigate, scope } = useProjectRoute();
+  const { navigate, scope, projectId } = useProjectRoute();
   const storageKnown =
     Boolean(filters.storageId) && dataStorages.some(s => s.id === filters.storageId);
   const { data, isLoading, error, refetch } = useModelCanvas(
@@ -85,6 +88,16 @@ function ModelCanvasViewContent() {
     () => (filtered ? mergeBidirectionalEdges(filtered.edges) : []),
     [filtered]
   );
+  const selectedStorageType = dataStorages.find(storage => storage.id === filters.storageId)?.type;
+  const bulkActionDataMarts = useMemo(
+    () =>
+      (filtered?.nodes ?? []).map(node => ({
+        id: node.id,
+        status: node.status,
+        storageType: selectedStorageType,
+      })),
+    [filtered, selectedStorageType]
+  );
 
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
 
@@ -108,6 +121,52 @@ function ModelCanvasViewContent() {
     },
     [refetch]
   );
+
+  const deleteDataMart = useCallback(async (dataMartId: string) => {
+    try {
+      await dataMartService.deleteDataMart(dataMartId);
+      trackEvent({
+        event: 'data_mart_deleted',
+        category: 'DataMart',
+        action: 'Delete',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'DeleteError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
+  const publishDataMart = useCallback(async (dataMartId: string) => {
+    try {
+      await dataMartService.publishDataMart(dataMartId);
+      await dataMartService.createSchemaActualizeTrigger(dataMartId);
+      trackEvent({
+        event: 'data_mart_published',
+        category: 'DataMart',
+        action: 'Publish',
+        context: dataMartId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to publish data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'PublishError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
+  const refreshCanvas = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   return (
     <div className='dm-card p-4'>
@@ -170,6 +229,15 @@ function ModelCanvasViewContent() {
               navigate(`/data-marts/${dataMartId}/quality`);
             }}
             onRunQuality={runQuality}
+            topLeftControls={
+              <DataMartBulkActions
+                dataMarts={bulkActionDataMarts}
+                projectId={projectId ?? ''}
+                deleteDataMart={deleteDataMart}
+                publishDataMart={publishDataMart}
+                onCompleted={refreshCanvas}
+              />
+            }
             style={canvasStyle}
           />
         </Suspense>

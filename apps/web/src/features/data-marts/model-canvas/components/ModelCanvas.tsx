@@ -1,5 +1,5 @@
 import { Check, Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -57,6 +57,7 @@ interface ModelCanvasProps {
   onOpenDataMart: (dataMartId: string) => void;
   onOpenQuality: (dataMartId: string) => void;
   onRunQuality: (dataMartId: string) => Promise<void>;
+  topLeftControls?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -479,6 +480,7 @@ export default function ModelCanvas({
   onOpenDataMart,
   onOpenQuality,
   onRunQuality,
+  topLeftControls,
   className,
   style,
 }: ModelCanvasProps) {
@@ -490,6 +492,7 @@ export default function ModelCanvas({
       style={style ?? { height: 480 }}
     >
       <style>{NODE_PULSE_KEYFRAMES}</style>
+      {topLeftControls && <div className='absolute top-3 left-3 z-10'>{topLeftControls}</div>}
       <ReactFlowProvider>
         <ModelCanvasInner
           nodes={nodes}

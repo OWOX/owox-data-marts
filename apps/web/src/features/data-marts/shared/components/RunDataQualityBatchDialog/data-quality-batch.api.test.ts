@@ -6,7 +6,7 @@ vi.mock('../../../../../app/api/apiClient', () => ({
   default: { post: vi.fn() },
 }));
 
-describe('dataQualityBatchApi', () => {
+describe('Data Quality batch API', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });

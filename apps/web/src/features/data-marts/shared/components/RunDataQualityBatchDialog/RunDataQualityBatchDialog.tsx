@@ -3,17 +3,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { dataQualityQueryKeys } from '../../../data-quality/model/use-data-quality-workspace';
-import type { DataMartListItem } from '../../model/types';
 import {
+  DATA_QUALITY_BATCH_LIMIT,
   dataQualityBatchApi,
   type DataQualityBatchRunItem,
-  type DataQualityBatchRunResponse,
 } from './data-quality-batch.api';
 
 interface RunDataQualityBatchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  dataMarts: DataMartListItem[];
+  dataMarts: { id: string }[];
   projectId: string;
   onCompleted: () => void | Promise<void>;
 }
@@ -40,16 +39,30 @@ export function RunDataQualityBatchDialog({
     setIsRunning(true);
     setRequestError(null);
 
-    let response: DataQualityBatchRunResponse;
-    try {
-      response = await dataQualityBatchApi.run(dataMarts.map(dataMart => dataMart.id));
-    } catch {
+    const dataMartIds = dataMarts.map(dataMart => dataMart.id);
+    const items: DataQualityBatchRunItem[] = [];
+    let completedRequestCount = 0;
+
+    for (let start = 0; start < dataMartIds.length; start += DATA_QUALITY_BATCH_LIMIT) {
+      try {
+        const response = await dataQualityBatchApi.run(
+          dataMartIds.slice(start, start + DATA_QUALITY_BATCH_LIMIT)
+        );
+        items.push(...response.items);
+        completedRequestCount += 1;
+      } catch {
+        // Each backend batch is independent. Continue so one transport error
+        // does not prevent the remaining Data Marts from being queued.
+      }
+    }
+
+    if (completedRequestCount === 0) {
       setRequestError('Data Quality checks could not be started. Please try again.');
       setIsRunning(false);
       return;
     }
 
-    const successfulItems = response.items.filter(
+    const successfulItems = items.filter(
       (item): item is Extract<DataQualityBatchRunItem, { status: 'SUCCESS' }> =>
         item.status === 'SUCCESS'
     );

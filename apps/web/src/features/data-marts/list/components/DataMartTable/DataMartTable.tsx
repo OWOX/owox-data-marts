@@ -1,18 +1,7 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { CircleCheckBig, Import, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { Import, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
 import { BulkCreateFromStorageDialog } from '../BulkCreateFromStorageDialog';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
@@ -26,7 +15,6 @@ import { useBaseTable, useOnboardingVideo, useProjectRoute } from '../../../../.
 import { usePersistentFilters } from '../../../../../shared/hooks/usePersistentFilters';
 import { applyFiltersToData } from '../../../../../shared/components/TableFilters/filter-utils';
 import { DataStorageType } from '../../../../data-storage';
-import { DataMartStatus } from '../../../shared';
 import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
 import type { DataMartListItem } from '../../model/types';
 import { DataMartColumnKey } from './columns';
@@ -40,7 +28,7 @@ import {
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 import { PromoBlock } from '../../../../../shared/components/PromoBlock/PromoBlock';
 import { GoogleBigQueryIcon } from '../../../../../shared/icons/google-bigquery-icon';
-import { RunDataQualityBatchDialog } from '../RunDataQualityBatchDialog';
+import { DataMartBulkActions } from '../../../shared/components/DataMartBulkActions';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -87,13 +75,7 @@ export function DataMartTable<TData, TValue>({
     [data, appliedState]
   );
 
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
   const [showBulkCreateFromStorage, setShowBulkCreateFromStorage] = useState(false);
-  const [showRunQuality, setShowRunQuality] = useState(false);
-  const [qualityBatchDataMarts, setQualityBatchDataMarts] = useState<DataMartListItem[]>([]);
 
   // Show onboarding video if the user has not seen it yet
   const shouldShowOnboarding = !isLoading && data.length === 0;
@@ -153,75 +135,6 @@ export function DataMartTable<TData, TValue>({
 
   const selectedRows = table.getSelectedRowModel().flatRows;
   const hasSelectedRows = selectedRows.length > 0;
-  const selectedDraftRows = selectedRows.filter(
-    row => (row.original as DataMartListItem).status.code === DataMartStatus.DRAFT
-  );
-  const hasSelectedDrafts = selectedDraftRows.length > 0;
-
-  const handleBatchDelete = async () => {
-    try {
-      setIsDeleting(true);
-
-      const selectedRows = table.getSelectedRowModel().rows;
-      const selectedIds = selectedRows.map(row => (row.original as { id: string }).id);
-
-      for (const id of selectedIds) {
-        await deleteDataMart(id);
-      }
-
-      toast.success(
-        `Successfully deleted ${String(selectedIds.length)} data mart${selectedIds.length !== 1 ? 's' : ''}`
-      );
-      table.resetRowSelection();
-      await refetchDataMarts();
-    } catch (error) {
-      console.error('Error deleting data marts:', error);
-      toast.error('Failed to delete some data marts. Please try again.');
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirmation(false);
-    }
-  };
-
-  const handleBatchPublish = async () => {
-    try {
-      setIsPublishing(true);
-
-      const draftIds = selectedDraftRows.map(row => (row.original as { id: string }).id);
-
-      let successCount = 0;
-
-      for (const id of draftIds) {
-        try {
-          await publishDataMart(id);
-          successCount++;
-        } catch (error) {
-          console.error(`Error publishing data mart ${id}:`, error);
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(
-          `Successfully published ${String(successCount)} data mart${successCount !== 1 ? 's' : ''}`,
-          { duration: 10000 }
-        );
-      }
-
-      const failedCount = draftIds.length - successCount;
-      if (failedCount > 0) {
-        toast.error(
-          `Failed to publish ${String(failedCount)} data mart${failedCount !== 1 ? 's' : ''}. Please check ${failedCount !== 1 ? 'them' : 'it'} independently.`,
-          { duration: 10000 }
-        );
-      }
-
-      table.resetRowSelection();
-      await refetchDataMarts();
-    } finally {
-      setIsPublishing(false);
-      setShowPublishConfirmation(false);
-    }
-  };
 
   // Row click handler with navigation
   const handleRowClick = (row: Row<TData>, e: React.MouseEvent) => {
@@ -287,45 +200,23 @@ export function DataMartTable<TData, TValue>({
               {/* BTNs for selected Rows */}
               {hasSelectedRows && (
                 <div className='mr-2 flex items-center gap-2 border-r pr-4'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      setShowDeleteConfirmation(true);
+                  <DataMartBulkActions
+                    dataMarts={selectedRows.map(row => {
+                      const dataMart = row.original as DataMartListItem;
+                      return {
+                        id: dataMart.id,
+                        status: dataMart.status.code,
+                        storageType: dataMart.storageType,
+                      };
+                    })}
+                    projectId={projectId}
+                    deleteDataMart={deleteDataMart}
+                    publishDataMart={publishDataMart}
+                    onCompleted={refetchDataMarts}
+                    onClearDataMarts={() => {
+                      table.resetRowSelection();
                     }}
-                    disabled={isDeleting}
-                    title='Delete selected data marts'
-                  >
-                    <Trash2 className='h-4 w-4' />
-                    <span className='hidden md:block'>Delete</span>
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      setShowPublishConfirmation(true);
-                    }}
-                    disabled={!hasSelectedDrafts || isPublishing}
-                    title='Publish selected data marts'
-                  >
-                    <CircleCheckBig className='h-4 w-4' />
-                    <span className='hidden md:block'>Publish</span>
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      setQualityBatchDataMarts(
-                        selectedRows.map(row => row.original as DataMartListItem)
-                      );
-                      setShowRunQuality(true);
-                    }}
-                    title='Check Data Quality for selected data marts'
-                    data-testid='run-selected-data-quality'
-                  >
-                    <ShieldCheck className='h-4 w-4' />
-                    <span className='hidden md:block'>Check Quality</span>
-                  </Button>
+                  />
                 </div>
               )}
               {/* Filters */}
@@ -376,85 +267,6 @@ export function DataMartTable<TData, TValue>({
             void refetchDataMarts();
           }}
         />
-
-        <RunDataQualityBatchDialog
-          open={showRunQuality}
-          onOpenChange={next => {
-            setShowRunQuality(next);
-            if (!next) setQualityBatchDataMarts([]);
-          }}
-          dataMarts={qualityBatchDataMarts}
-          projectId={projectId}
-          onCompleted={refetchDataMarts}
-        />
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                <span className='mt-2 block space-y-2'>
-                  <span className='block'>
-                    You're about to delete{' '}
-                    <strong>
-                      {Object.keys(table.getState().rowSelection).length} selected data mart
-                      {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}
-                    </strong>
-                    . This action cannot be undone.
-                  </span>
-                  {selectedRows.some(
-                    row =>
-                      (row.original as DataMartListItem).storageType ===
-                      DataStorageType.LEGACY_GOOGLE_BIGQUERY
-                  ) && (
-                    <span className='text-destructive block'>
-                      Some of the selected data marts will also become unavailable in the Google
-                      Sheets extension because they use legacy BigQuery storage.
-                    </span>
-                  )}
-                </span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  void handleBatchDelete();
-                }}
-                disabled={isDeleting}
-                className='bg-destructive hover:bg-destructive/90'
-              >
-                {isDeleting ? 'Deleting...' : 'Delete'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Publish Confirmation Dialog */}
-        <AlertDialog open={showPublishConfirmation} onOpenChange={setShowPublishConfirmation}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Publish Draft Data Marts?</AlertDialogTitle>
-              <AlertDialogDescription>
-                You're about to publish {selectedDraftRows.length} draft data mart
-                {selectedDraftRows.length !== 1 ? 's' : ''}.<br />
-                Their schemas will be updated and they will become Published.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  void handleBatchPublish();
-                }}
-                disabled={isPublishing}
-              >
-                {isPublishing ? 'Publishing...' : 'Publish'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
 
       {/* Promo block for importing data marts from BigQuery */}

@@ -192,6 +192,31 @@ describe('ModelCanvas', () => {
     expect(onOpenQuality).toHaveBeenCalledWith('orders');
     expect(onRunQuality).toHaveBeenCalledWith('orders');
   });
+
+  it('renders supplied controls in the top-left canvas overlay', () => {
+    render(
+      <ModelCanvas
+        nodes={[
+          {
+            id: 'orders',
+            title: 'Orders',
+            status: DataMartStatus.PUBLISHED,
+            description: null,
+            fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+        topLeftControls={<button type='button'>Actions 1</button>}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Actions 1' })).toBeVisible();
+  });
 });
 
 function buildQualitySummary() {

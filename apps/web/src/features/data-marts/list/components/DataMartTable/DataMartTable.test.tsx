@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { DataMartTable } from './DataMartTable';
 import type { DataMartListItem } from '../../model/types';
+import { DataMartStatus } from '../../../shared';
 
 vi.mock('../../../../../shared/hooks', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../../../shared/hooks')>();
@@ -26,33 +27,96 @@ vi.mock('../../model/hooks/useDataMartHealthStatusPrefetch', () => ({
 }));
 
 describe('DataMartTable', () => {
-  it('opens the Check Quality confirmation from the selected-items toolbar', () => {
-    const columns: ColumnDef<DataMartListItem>[] = [
-      { accessorKey: 'title', header: 'Title', cell: ({ row }) => row.original.title },
-    ];
+  it('shows selected-item actions in the requested order and preserves availability', () => {
+    renderTable(buildDataMart());
+    const trigger = selectRowAndOpenActions();
 
-    render(
-      <MemoryRouter>
-        <QueryClientProvider client={new QueryClient()}>
-          <DataMartTable
-            columns={columns}
-            data={[buildDataMart()]}
-            connectors={[]}
-            deleteDataMart={vi.fn()}
-            publishDataMart={vi.fn()}
-            refetchDataMarts={vi.fn().mockResolvedValue(undefined)}
-          />
-        </QueryClientProvider>
-      </MemoryRouter>
+    expect(trigger).toBeVisible();
+    expect(screen.getByText('1', { selector: '[data-slot="badge"]' })).toHaveClass(
+      'bg-muted',
+      'text-muted-foreground',
+      'rounded-full'
     );
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      'Publish',
+      'Check Quality',
+      'Delete',
+    ]);
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).not.toHaveAttribute('data-disabled');
+    expect(screen.getByRole('menuitem', { name: 'Publish' })).toHaveAttribute('data-disabled');
+    expect(screen.getByRole('menuitem', { name: 'Check Quality' })).not.toHaveAttribute(
+      'data-disabled'
+    );
+  });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select row' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Check Quality' }));
+  it('opens the Check Quality confirmation from the selected-items Actions menu', () => {
+    renderTable(buildDataMart());
+    selectRowAndOpenActions();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Check Quality' }));
 
     expect(screen.getByRole('heading', { name: 'Check Data Quality' })).toBeVisible();
     expect(screen.getByText('Run Data Quality checks for 1 selected Data Mart?')).toBeVisible();
   });
+
+  it('opens the Delete confirmation from the selected-items Actions menu', () => {
+    renderTable(buildDataMart());
+    selectRowAndOpenActions();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+    expect(screen.getByRole('heading', { name: 'Are you sure?' })).toBeVisible();
+  });
+
+  it('opens the Publish confirmation for a selected draft Data Mart', () => {
+    renderTable({
+      ...buildDataMart(),
+      status: {
+        code: DataMartStatus.DRAFT,
+        displayName: 'Draft',
+        description: 'Draft Data Mart',
+      },
+    });
+    selectRowAndOpenActions();
+
+    const publishAction = screen.getByRole('menuitem', { name: 'Publish' });
+    expect(publishAction).not.toHaveAttribute('data-disabled');
+    fireEvent.click(publishAction);
+
+    expect(screen.getByRole('heading', { name: 'Publish Draft Data Marts?' })).toBeVisible();
+  });
 });
+
+function renderTable(dataMart: DataMartListItem) {
+  const columns: ColumnDef<DataMartListItem>[] = [
+    { accessorKey: 'title', header: 'Title', cell: ({ row }) => row.original.title },
+  ];
+
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <DataMartTable
+          columns={columns}
+          data={[dataMart]}
+          connectors={[]}
+          deleteDataMart={vi.fn()}
+          publishDataMart={vi.fn()}
+          refetchDataMarts={vi.fn().mockResolvedValue(undefined)}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>
+  );
+}
+
+function selectRowAndOpenActions() {
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select row' }));
+  const trigger = screen.getByRole('button', { name: 'Actions 1' });
+  fireEvent.pointerDown(trigger, {
+    button: 0,
+    ctrlKey: false,
+  });
+  return trigger;
+}
 
 function buildDataMart(): DataMartListItem {
   return {

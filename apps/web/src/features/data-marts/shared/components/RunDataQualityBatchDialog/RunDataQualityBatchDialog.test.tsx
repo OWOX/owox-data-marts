@@ -4,19 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { dataQualityService } from '../../../data-quality/api/data-quality.service';
-import type { DataQualityConfigResponse } from '../../../data-quality/model/types';
-import type { DataMartListItem } from '../../model/types';
 import { dataQualityBatchApi } from './data-quality-batch.api';
 import { RunDataQualityBatchDialog } from './RunDataQualityBatchDialog';
 
-vi.mock('../../../data-quality/api/data-quality.service', () => ({
-  dataQualityService: {
-    getConfig: vi.fn(),
-  },
-}));
-
 vi.mock('./data-quality-batch.api', () => ({
+  DATA_QUALITY_BATCH_LIMIT: 200,
   dataQualityBatchApi: {
     run: vi.fn(),
   },
@@ -32,7 +24,6 @@ vi.mock('react-hot-toast', () => ({
 describe('RunDataQualityBatchDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(dataQualityService.getConfig).mockResolvedValue(buildConfigResponse());
   });
 
   it('confirms the selected count and submits every selected Data Mart without preflight', async () => {
@@ -74,8 +65,6 @@ describe('RunDataQualityBatchDialog', () => {
     expect(screen.getByText('Run Data Quality checks for 3 selected Data Marts?')).toBeVisible();
     expect(screen.queryByText('Orders')).not.toBeInTheDocument();
     expect(screen.queryByText('Eligible')).not.toBeInTheDocument();
-    expect(dataQualityService.getConfig).not.toHaveBeenCalled();
-
     fireEvent.click(screen.getByRole('button', { name: 'Check Quality' }));
 
     await waitFor(() => {
@@ -182,9 +171,44 @@ describe('RunDataQualityBatchDialog', () => {
       'Data Quality check could not be queued for the selected Data Mart'
     );
   });
+
+  it('splits more than 200 Data Marts into supported batch requests', async () => {
+    const dataMarts = Array.from({ length: 201 }, (_, index) =>
+      buildDataMart(`mart-${String(index + 1)}`, `Data Mart ${String(index + 1)}`)
+    );
+    vi.mocked(dataQualityBatchApi.run).mockImplementation(async dataMartIds => ({
+      items: dataMartIds.map((dataMartId, index) => ({
+        dataMartId,
+        status: 'SUCCESS' as const,
+        runId: `run-${String(index + 1)}`,
+      })),
+    }));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RunDataQualityBatchDialog
+          open
+          onOpenChange={vi.fn()}
+          dataMarts={dataMarts}
+          projectId='project-1'
+          onCompleted={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check Quality' }));
+
+    await waitFor(() => {
+      expect(dataQualityBatchApi.run).toHaveBeenCalledTimes(2);
+    });
+    expect(vi.mocked(dataQualityBatchApi.run).mock.calls[0]?.[0]).toHaveLength(200);
+    expect(vi.mocked(dataQualityBatchApi.run).mock.calls[1]?.[0]).toEqual(['mart-201']);
+    expect(toast.success).toHaveBeenCalledWith('Data Quality checks queued for 201 Data Marts');
+  });
 });
 
-function buildDataMart(id: string, title: string): DataMartListItem {
+function buildDataMart(id: string, title: string) {
   return {
     id,
     title,
@@ -220,17 +244,5 @@ function buildDataMart(id: string, title: string): DataMartListItem {
       dataMartRunId: null,
       lastRunAt: null,
     },
-  } as DataMartListItem;
-}
-
-function buildConfigResponse(): DataQualityConfigResponse {
-  return {
-    savedConfig: null,
-    effectiveConfig: { timezone: 'UTC', rules: [] },
-    source: 'DEFAULT',
-    permissions: { canEdit: true, canRun: true },
-    runEligibility: { eligible: true, code: null, activeRunId: null },
-    availableChecks: [],
-    relationships: [],
   };
 }

@@ -30,6 +30,16 @@ const viewState = vi.hoisted(() => ({
     refetch: vi.fn().mockResolvedValue(undefined),
   },
   navigate: vi.fn(),
+  filters: {
+    storageId: 'storage-1',
+    setStorageId: vi.fn(),
+    status: 'published' as const,
+    setStatus: vi.fn(),
+    rel: 'connected' as const,
+    setRel: vi.fn(),
+    searchQuery: '',
+    setSearchQuery: vi.fn(),
+  },
 }));
 
 const dataQualityServiceMock = vi.hoisted(() => ({
@@ -54,20 +64,15 @@ vi.mock('../model/use-model-canvas', () => ({
 }));
 
 vi.mock('../model/use-model-canvas-filters', () => ({
-  useModelCanvasFilters: () => ({
-    storageId: 'storage-1',
-    setStorageId: vi.fn(),
-    status: 'published',
-    setStatus: vi.fn(),
-    rel: 'connected',
-    setRel: vi.fn(),
-    searchQuery: '',
-    setSearchQuery: vi.fn(),
-  }),
+  useModelCanvasFilters: () => viewState.filters,
 }));
 
 vi.mock('../../../../shared/hooks', () => ({
-  useProjectRoute: () => ({ scope: (path: string) => path, navigate: viewState.navigate }),
+  useProjectRoute: () => ({
+    projectId: 'project-1',
+    scope: (path: string) => path,
+    navigate: viewState.navigate,
+  }),
 }));
 
 vi.mock('../../data-quality/api/data-quality.service', () => ({
@@ -83,12 +88,15 @@ vi.mock('./ModelCanvas', () => ({
     onOpenDataMart,
     onOpenQuality,
     onRunQuality,
+    topLeftControls,
   }: {
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
+    topLeftControls?: React.ReactNode;
   }) => (
     <>
+      {topLeftControls}
       <button
         type='button'
         onClick={() => {
@@ -141,6 +149,10 @@ describe('ModelCanvasView', () => {
     viewState.canvasHook.isLoading = false;
     viewState.canvasHook.error = null;
     viewState.canvasHook.refetch.mockResolvedValue(undefined);
+    viewState.filters.storageId = 'storage-1';
+    viewState.filters.status = 'published';
+    viewState.filters.rel = 'connected';
+    viewState.filters.searchQuery = '';
     dataQualityServiceMock.getConfig.mockResolvedValue({
       savedConfig: null,
       effectiveConfig: { timezone: 'UTC', rules: [] },
@@ -226,6 +238,28 @@ describe('ModelCanvasView', () => {
       expect(dataQualityServiceMock.startRun).toHaveBeenCalledWith('mart-1');
     });
     expect(viewState.canvasHook.refetch).toHaveBeenCalledOnce();
+  });
+
+  it('counts the Data Marts left by canvas filters without narrowing the count by search', async () => {
+    viewState.filters.searchQuery = 'Orders';
+    viewState.canvasHook.data = {
+      ...buildCanvasData(),
+      nodes: [
+        ...buildCanvasData().nodes,
+        {
+          id: 'mart-3',
+          title: 'Disconnected',
+          status: DataMartStatus.PUBLISHED,
+          description: null,
+          fieldCount: 1,
+          qualitySummary: buildQualitySummary(),
+        },
+      ],
+    };
+
+    render(<ModelCanvasView />);
+
+    expect(await screen.findByRole('button', { name: 'Actions 2' })).toBeVisible();
   });
 
   it('shows a stable fallback when the canvas request fails without an Axios response', async () => {

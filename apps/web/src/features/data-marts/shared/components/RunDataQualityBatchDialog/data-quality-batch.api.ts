@@ -1,5 +1,7 @@
 import { ApiService } from '../../../../../services';
 
+export const DATA_QUALITY_BATCH_LIMIT = 200;
+
 export type DataQualityBatchErrorCode =
   | 'NOT_FOUND_OR_FORBIDDEN'
   | 'NOT_ELIGIBLE'
