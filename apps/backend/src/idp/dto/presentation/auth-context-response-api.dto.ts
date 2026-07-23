@@ -1,4 +1,4 @@
-import type { Role } from '@owox/idp-protocol';
+import { RoleEnum, type Role } from '@owox/idp-protocol';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AuthContextResponseApiDto {
@@ -17,7 +17,7 @@ export class AuthContextResponseApiDto {
   @ApiPropertyOptional({ nullable: true })
   avatar?: string;
 
-  @ApiPropertyOptional({ enum: ['admin', 'editor', 'viewer'], isArray: true })
+  @ApiPropertyOptional({ enum: RoleEnum.options, isArray: true })
   roles?: Role[];
 
   @ApiPropertyOptional({ nullable: true })
