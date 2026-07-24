@@ -37,6 +37,7 @@ import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
+import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBalanceService } from '../project-balance.service';
@@ -233,12 +234,22 @@ export class ConnectorExecutorService {
         await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
       } catch (error) {
         const schemaError = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Error schema actualization: ${schemaError}`, (error as Error)?.stack, {
+        const logMeta = {
           dataMartId: dataMart.id,
           projectId: dataMart.projectId,
           runId,
           error: schemaError,
-        });
+        };
+        if (error instanceof CredentialsExpiredException) {
+          // Customer must reconnect their storage — not ops-actionable, don't page
+          this.logger.warn(`Error schema actualization: ${schemaError}`, logMeta);
+        } else {
+          this.logger.error(
+            `Error schema actualization: ${schemaError}`,
+            (error as Error)?.stack,
+            logMeta
+          );
+        }
       }
 
       this.gracefulShutdownService.unregisterActiveProcess(processId);
@@ -260,7 +271,7 @@ export class ConnectorExecutorService {
       const configId = (config as Record<string, unknown>)._id as string;
 
       if (!configId) {
-        this.logger.error(
+        this.logger.warn(
           `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`,
           { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, configIndex }
         );
@@ -280,6 +291,18 @@ export class ConnectorExecutorService {
             case ConnectorMessageType.ERROR:
               addMessageToArray(configErrors, message);
               this.logger.error(`${message.toFormattedString()}`, {
+                dataMartId: dataMart.id,
+                projectId: dataMart.projectId,
+                runId,
+                configId,
+              });
+              break;
+            case ConnectorMessageType.WARNING:
+              // Still counts as a run failure (goes into configErrors, same as ERROR) so the
+              // "finished without terminal success status" fallback below doesn't also fire —
+              // it's just not paged as an ERROR-severity log.
+              addMessageToArray(configErrors, message);
+              this.logger.warn(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
                 runId,
@@ -314,7 +337,11 @@ export class ConnectorExecutorService {
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
                 success = false;
                 addMessageToArray(configErrors, message);
-                this.logger.error(`${message.toFormattedString()}`, {
+                // This status flag carries no error detail (just a numeric code) — the
+                // actual cause arrives as its own ERROR/WARNING message on the same run,
+                // already logged with the right severity there. Logging this at .error()
+                // too would page on every single failure regardless of cause.
+                this.logger.warn(`${message.toFormattedString()}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
                   runId,
@@ -430,18 +457,31 @@ export class ConnectorExecutorService {
           toFormattedString: () =>
             `[ERROR] Configuration ${configIndex + 1} failed: ${errorMessage}`,
         });
-        this.logger.error(
-          `Configuration ${configIndex + 1} failed: ${errorMessage}`,
-          (error as Error)?.stack,
-          {
+        if (signal?.aborted === true || error instanceof CredentialsExpiredException) {
+          // User cancelled the run, or the customer must reconnect their
+          // storage — neither is ops-actionable, don't page
+          this.logger.warn(`Configuration ${configIndex + 1} failed: ${errorMessage}`, {
             dataMartId: dataMart.id,
             projectId: dataMart.projectId,
             runId,
             configId,
             configIndex,
             error: errorMessage,
-          }
-        );
+          });
+        } else {
+          this.logger.error(
+            `Configuration ${configIndex + 1} failed: ${errorMessage}`,
+            (error as Error)?.stack,
+            {
+              dataMartId: dataMart.id,
+              projectId: dataMart.projectId,
+              runId,
+              configId,
+              configIndex,
+              error: errorMessage,
+            }
+          );
+        }
       } finally {
         if (credentialUpdates) {
           try {

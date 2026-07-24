@@ -333,6 +333,9 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
 
           // If it is not a recoverable token/scope error or we're on the last scope, throw the error
           if (!canTryNextScope || scope === scopes[scopes.length - 1]) {
+            // Dead refresh token = the user must reconnect the account — a warning,
+            // not an ops-actionable error
+            error.isWarning = isInvalidGrant;
             throw error;
           }
           this.config.logMessage(`Scope ${scope} failed, trying next scope...`);

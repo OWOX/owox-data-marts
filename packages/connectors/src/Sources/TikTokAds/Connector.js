@@ -91,7 +91,6 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       this._checkAndReportErrors(advertiserIds);
     } catch (error) {
       this.config.logMessage(`Error during import process: ${error.message}`);
-      console.error(error.stack);
       throw error;
     }
   }
@@ -134,7 +133,6 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             await storage.saveData(preparedData);
           } catch (storageError) {
             this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
-            console.error(`Error details: ${storageError.stack}`);
             this._trackAdvertiserError(advertiserId, storageError);
           }
         }
@@ -143,7 +141,6 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         this.advertiserSuccesses.set(advertiserId, true);
       } catch (error) {
         this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
-        console.error(`Error details: ${error.stack}`);
         this._trackAdvertiserError(advertiserId, error);
         // Continue with other advertisers rather than stopping the whole process
       }
@@ -187,7 +184,6 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
                 await storage.saveData(preparedData);
               } catch (storageError) {
                 this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
-                console.error(`Error details: ${storageError.stack}`);
                 this._trackAdvertiserError(advertiserId, storageError);
               }
             }
@@ -196,7 +192,6 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             this.advertiserSuccesses.set(advertiserId, true);
           } catch (error) {
             this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}: ${error.message}`);
-            console.error(`Error details: ${error.stack}`);
             this._trackAdvertiserError(advertiserId, error);
             // Continue with other nodes rather than stopping the whole process
           }
@@ -332,7 +327,12 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           errorMessages.push(`Advertiser ${advertiserId}: ${firstError.message}`);
         }
       }
-      throw new Error(`All advertisers failed to import data. Errors: ${errorMessages.join('; ')}`);
+      const error = new Error(`All advertisers failed to import data. Errors: ${errorMessages.join('; ')}`);
+      // The whole run failed for customer-actionable reasons only if every advertiser did
+      error.isWarning = failedAdvertisers.every(
+        advertiserId => (this.advertiserErrors.get(advertiserId) || [])[0]?.isWarning === true
+      );
+      throw error;
     }
 
     if (failedAdvertisers.length > 0 && successfulAdvertisers.length > 0) {

@@ -286,6 +286,20 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       || FB_RETRYABLE_ERROR_CODES.includes(subcode);
   }
 
+  //---- _isAuthError ----------------------------------------------
+  /**
+   * Facebook returns OAuth/session/permission errors as HTTP 400 with
+   * error.type 'OAuthException' (session expired, password changed, app
+   * deleted, missing permissions), not as HTTP 401/403, so the default
+   * statusCode check from AbstractSource doesn't catch them.
+   *
+   * @param {HttpRequestException} error - The error to check
+   * @return {boolean} True if this is an authentication/authorization failure
+   */
+  _isAuthError(error) {
+    return error.payload?.error?.type === 'OAuthException' || super._isAuthError(error);
+  }
+
   //---- fetchData -------------------------------------------------
   /*
   @param nodeName string

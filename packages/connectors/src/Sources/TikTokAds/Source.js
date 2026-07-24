@@ -599,7 +599,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         }
       }
 
-      console.error(`Error fetching data from TikTok Ads API: ${error.message}`);
+      // No console.error here: the caller logs the message via config.logMessage,
+      // and raw stderr writes get captured as separate ERROR entries in run logs
       throw error;
     }
   }

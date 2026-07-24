@@ -10,6 +10,17 @@ import type { DataMartDefinitionConfig } from '../../model/types/data-mart-defin
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
 
+// Mirrors ConnectorMessageType.WARNING ('addWarningToCurrentStatus') from the backend enum —
+// the web app has no shared reference to it, since logs/errors arrive as raw JSON strings.
+const WARNING_MESSAGE_TYPE = 'addWarningToCurrentStatus';
+
+const resolveLogLevel = (isError: boolean, messageType?: string | null): LogLevel => {
+  if (messageType === WARNING_MESSAGE_TYPE) {
+    return LogLevel.WARNING;
+  }
+  return isError ? LogLevel.ERROR : LogLevel.INFO;
+};
+
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
   const lines = log.split('\n').filter(line => line.trim() !== '');
@@ -28,7 +39,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
       return {
         id: `log-${index.toString()}`,
         timestamp: formatTimestamp(timestamp),
-        level: isError ? LogLevel.ERROR : LogLevel.INFO,
+        level: resolveLogLevel(isError, processedMessage.metadata?.type as string | undefined),
         message: processedMessage.message,
         metadata: {
           at: processedMessage.metadata?.at
@@ -47,7 +58,12 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
     return {
       id: `log-${index.toString()}`,
       timestamp: formatTimestamp(structuredMatch[1]),
-      level: isError ? LogLevel.ERROR : (structuredMatch[2] as LogLevel),
+      level:
+        processedMessage.metadata?.type === WARNING_MESSAGE_TYPE
+          ? LogLevel.WARNING
+          : isError
+            ? LogLevel.ERROR
+            : (structuredMatch[2] as LogLevel),
       message: processedMessage.message,
       metadata: processedMessage.metadata?.at
         ? {
@@ -63,7 +79,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   return {
     id: `log-${index.toString()}`,
     timestamp: 'N/A',
-    level: isError ? LogLevel.ERROR : LogLevel.INFO,
+    level: resolveLogLevel(isError, processedMessage.metadata?.type as string | undefined),
     message: processedMessage.message,
     metadata: processedMessage.metadata?.at
       ? {

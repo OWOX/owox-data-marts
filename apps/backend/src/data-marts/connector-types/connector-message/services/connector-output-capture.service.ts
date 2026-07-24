@@ -33,6 +33,12 @@ export class ConnectorOutputCaptureService {
   private captureError(message: string): ConnectorMessage[] {
     return this.cleanMessage(message).map(line => {
       const parsedMessage = this.connectorMessageParserService.parse(line);
+      // A structured JSON envelope on stderr (e.g. a classified error/warning from the
+      // connector runner's crash handler) carries its own real type — only unparsed raw
+      // text (stack traces, leftover console.error calls) gets wrapped as a plain ERROR.
+      if (parsedMessage.type !== ConnectorMessageType.UNKNOWN) {
+        return parsedMessage;
+      }
       return {
         type: ConnectorMessageType.ERROR,
         at: parsedMessage.at,

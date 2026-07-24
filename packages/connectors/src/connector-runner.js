@@ -146,4 +146,10 @@ async function main() {
 }
 
 // Execute main and handle errors
-main().catch(console.error);
+main().catch(error => {
+  console.error(JSON.stringify({
+    type: error?.isWarning ? 'addWarningToCurrentStatus' : 'error',
+    at: new Date().toISOString(),
+    [error?.isWarning ? 'warning' : 'error']: error?.stack ?? String(error),
+  }));
+});
