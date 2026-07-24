@@ -58,13 +58,36 @@ describe('ConnectorStorageConfigService', () => {
       type: 'bigquery_oauth',
       oauth2Client: {
         getAccessToken: jest.fn().mockResolvedValue({ token: 'access-token' }),
-        credentials: { refresh_token: 'refresh-token' },
+        credentials: { refresh_token: 'refresh-token', expiry_date: 1234567890 },
       },
     };
     (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue(credentials);
 
     const result = await service.buildStorageConfig(baseDataMart);
     expect(result).toBeDefined();
+    // The connector's own OAuth2Client rebuilds credentials from these values on
+    // every query for the lifetime of a run (which can span hours during a
+    // backfill); without expiry_date it can never tell the access token has
+    // gone stale and silently keeps resending it until BigQuery rejects it.
+    expect(result.config.OAuthAccessTokenExpiry.value).toBe(1234567890);
+  });
+
+  it('passes null OAuthAccessTokenExpiry when the OAuth token has no known expiry', async () => {
+    const { service, storageCredentialsResolver } = createService();
+    const credentials = {
+      type: 'bigquery_oauth',
+      oauth2Client: {
+        getAccessToken: jest.fn().mockResolvedValue({ token: 'access-token' }),
+        credentials: { refresh_token: 'refresh-token' },
+      },
+    };
+    (storageCredentialsResolver.resolve as jest.Mock).mockResolvedValue(credentials);
+
+    const result = await service.buildStorageConfig(baseDataMart);
+
+    // StorageConfigDto only wraps non-object values as { value }; since
+    // typeof null === 'object' in JS, a null expiry stays unwrapped here.
+    expect(result.config.OAuthAccessTokenExpiry).toBeNull();
   });
 
   it('builds Athena storage config', async () => {

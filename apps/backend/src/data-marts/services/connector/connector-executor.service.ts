@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
@@ -8,6 +8,20 @@ import { Core } from '@owox/connectors';
 const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
 const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
+
+/**
+ * Bounds on logs/errors carried across resumed attempts of the same run.
+ *
+ * The entry cap comfortably holds a full long-backfill attempt (a ~315k-record
+ * run produced roughly 7.4k entries). The byte budget is the binding limit for
+ * verbose entries: logs and errors travel in ONE UPDATE statement, so the worst
+ * case on the wire is 2 x MAX_MERGED_RUN_OUTPUT_BYTES plus JSON overhead —
+ * kept safely under the smallest common MySQL max_allowed_packet (16MB).
+ * Entry sizes are measured on the JSON-serialized form so quote escaping and
+ * multibyte characters count toward the real packet size.
+ */
+const MAX_MERGED_RUN_OUTPUT_ENTRIES = 10000;
+const MAX_MERGED_RUN_OUTPUT_BYTES = 6 * 1024 * 1024;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -32,6 +46,7 @@ import { ConnectorSourceConfigService } from './connector-source-config.service'
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
+import { NON_TERMINAL_DATA_MART_RUN_STATUSES } from '../../utils/data-mart-run-cancellation';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -70,7 +85,6 @@ export class ConnectorExecutorService {
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
-    const mergeWithExisting = run.status === DataMartRunStatus.INTERRUPTED;
 
     this.gracefulShutdownService.registerActiveProcess(processId);
 
@@ -91,11 +105,32 @@ export class ConnectorExecutorService {
 
       await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
-      await this.dataMartRunRepository.update(runId, {
-        status: DataMartRunStatus.RUNNING,
-        ...(mergeWithExisting ? {} : { startedAt: this.systemTimeService.now() }),
-        finishedAt: null,
-      });
+      // Guarded like the terminal write below: a cancel can land in the window
+      // between claimRunSlotAtomically and here (e.g. during the awaited balance
+      // check), and an unconditional write would flip the row back to RUNNING —
+      // resurrecting a cancelled run. `startedAt` is set once, on the first
+      // attempt, and preserved across resumes so Run History keeps the original
+      // start time.
+      const claimed = await this.dataMartRunRepository.update(
+        { id: runId, status: In(NON_TERMINAL_DATA_MART_RUN_STATUSES) },
+        {
+          status: DataMartRunStatus.RUNNING,
+          ...(run.startedAt != null ? {} : { startedAt: this.systemTimeService.now() }),
+          finishedAt: null,
+        }
+      );
+
+      if (!claimed.affected) {
+        // The run reached a terminal status (a concurrent cancel) before
+        // execution started — do not spawn the connector and do not publish
+        // run-outcome events for it.
+        wasCancelled = true;
+        this.logger.log(
+          `Skipping connector execution for run ${runId}: run reached a terminal status before execution started`,
+          { dataMartId: dataMart.id, projectId: dataMart.projectId, runId }
+        );
+        return;
+      }
 
       const configurationResults = await this.runConnectorConfigurations(
         runId,
@@ -146,17 +181,20 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
-      await this.updateRunStatus(
+      // When the terminal status write is skipped (the run was cancelled
+      // concurrently and CANCELLED must win), billing and outcome events must
+      // be skipped too: the persisted status is CANCELLED, and charging the
+      // project or publishing a success/failure webhook would contradict it.
+      const statusPersisted = await this.updateRunStatus(
         runId,
         hasSuccessfulRun,
         capturedLogs,
         capturedErrors,
-        mergeWithExisting,
         operationBlockedException,
         wasCancelled
       );
 
-      if (hasSuccessfulRun) {
+      if (hasSuccessfulRun && statusPersisted) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
@@ -168,7 +206,11 @@ export class ConnectorExecutorService {
             'successfully'
           )
         );
-      } else if (!wasCancelled && !this.gracefulShutdownService.isInShutdownMode()) {
+      } else if (
+        statusPersisted &&
+        !wasCancelled &&
+        !this.gracefulShutdownService.isInShutdownMode()
+      ) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -604,17 +646,22 @@ export class ConnectorExecutorService {
     return status === Core.EXECUTION_STATUS.IMPORT_DONE;
   }
 
+  /**
+   * Writes the run's terminal status, guarded so a concurrently committed
+   * terminal status (a cancel) always wins.
+   *
+   * @returns true when the status write landed; false when it was skipped
+   * because the run had already reached a terminal status — callers must not
+   * bill consumption or publish run-outcome events in that case.
+   */
   private async updateRunStatus(
     runId: string,
     hasSuccessfulRun: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
-    mergeWithExisting: boolean = false,
     operationBlockedException?: ProjectOperationBlockedException,
     wasCancelled: boolean = false
-  ): Promise<void> {
-    const hasLogs = capturedLogs.length > 0;
-    const hasErrors = capturedErrors.length > 0;
+  ): Promise<boolean> {
     let status = wasCancelled
       ? DataMartRunStatus.CANCELLED
       : hasSuccessfulRun
@@ -626,29 +673,119 @@ export class ConnectorExecutorService {
       status = DataMartRunStatus.INTERRUPTED;
     }
 
-    const newLogStrings = hasLogs ? capturedLogs.map(log => JSON.stringify(log)) : [];
-    const newErrorStrings = hasErrors ? capturedErrors.map(error => JSON.stringify(error)) : [];
+    const newLogStrings = capturedLogs.map(log => JSON.stringify(log));
+    const newErrorStrings = capturedErrors.map(error => JSON.stringify(error));
 
-    let logsToSave: string[] | null = newLogStrings.length > 0 ? newLogStrings : null;
-    let errorsToSave: string[] | null = newErrorStrings.length > 0 ? newErrorStrings : null;
+    // Always merge onto what is already persisted rather than trying to detect
+    // "is this a resume": for a first attempt the persisted arrays are empty so
+    // merging is identity, and every resumed/interrupted attempt keeps its full
+    // history — including runs interrupted before their first RUNNING write,
+    // which no per-run flag can reliably identify.
+    const { logs: logsToSave, errors: errorsToSave } = await this.mergeWithPersistedOutput(
+      runId,
+      newLogStrings,
+      newErrorStrings
+    );
 
-    if (mergeWithExisting) {
-      const existing = await this.dataMartRunRepository.findOne({ where: { id: runId } });
-      const existingLogs = (existing?.logs as string[] | null) ?? [];
-      const existingErrors = (existing?.errors as string[] | null) ?? [];
+    // Only claim the run if it has not already reached a terminal status: a
+    // concurrent cancel must win over an orphaned execution that is still
+    // finishing up, otherwise the cancelled run silently reverts to
+    // SUCCESS/FAILED and the retry sweep can resurrect it.
+    const result = await this.dataMartRunRepository.update(
+      { id: runId, status: In(NON_TERMINAL_DATA_MART_RUN_STATUSES) },
+      {
+        status,
+        finishedAt: this.systemTimeService.now(),
+        logs: logsToSave,
+        errors: errorsToSave,
+      }
+    );
 
-      const mergedLogs = [...existingLogs, ...newLogStrings];
-      const mergedErrors = [...existingErrors, ...newErrorStrings];
-
-      logsToSave = mergedLogs.length > 0 ? mergedLogs : null;
-      errorsToSave = mergedErrors.length > 0 ? mergedErrors : null;
+    if (result.affected) {
+      return true;
     }
 
-    await this.dataMartRunRepository.update(runId, {
-      status,
-      finishedAt: this.systemTimeService.now(),
-      logs: logsToSave,
-      errors: errorsToSave,
+    // Routine on every user cancellation (the cancel endpoint commits CANCELLED
+    // before the abort reaches this execution), so log-level, not a warning.
+    this.logger.log(
+      `Skipped final status update for run ${runId}: run already reached a terminal status`
+    );
+
+    // The status write is correctly skipped, but the logs and errors this
+    // execution captured are still the only record of what it did — persist
+    // the already-merged output rather than discarding it.
+    if (newLogStrings.length > 0 || newErrorStrings.length > 0) {
+      await this.dataMartRunRepository.update(
+        { id: runId },
+        { logs: logsToSave, errors: errorsToSave }
+      );
+    }
+
+    return false;
+  }
+
+  /**
+   * Concatenates this execution's captured output onto whatever is already
+   * persisted for the run, so a resumed or superseded attempt extends the log
+   * trail instead of replacing it.
+   */
+  private async mergeWithPersistedOutput(
+    runId: string,
+    newLogStrings: string[],
+    newErrorStrings: string[]
+  ): Promise<{ logs: string[] | null; errors: string[] | null }> {
+    const existing = await this.dataMartRunRepository.findOne({ where: { id: runId } });
+    const existingLogs = (existing?.logs as string[] | null) ?? [];
+    const existingErrors = (existing?.errors as string[] | null) ?? [];
+
+    const mergedLogs = this.capMergedEntries([...existingLogs, ...newLogStrings]);
+    const mergedErrors = this.capMergedEntries([...existingErrors, ...newErrorStrings]);
+
+    return {
+      logs: mergedLogs.length > 0 ? mergedLogs : null,
+      errors: mergedErrors.length > 0 ? mergedErrors : null,
+    };
+  }
+
+  /**
+   * Bounds a merged log/error array by entry count AND serialized bytes so
+   * repeatedly interrupted runs cannot grow their `json` column past MySQL's
+   * max_allowed_packet — count alone is not enough, since entries can approach
+   * 5000 characters each before escaping.
+   *
+   * Keeps the most recent entries: the tail describes where the run actually got
+   * to, which is what someone debugging a resumed run needs. The truncation
+   * notice counts toward the entry cap, so the result never exceeds
+   * MAX_MERGED_RUN_OUTPUT_ENTRIES entries.
+   */
+  private capMergedEntries(entries: string[]): string[] {
+    // Walk from the tail (newest first), measuring each entry as it will
+    // actually be serialized — JSON.stringify accounts for quote escaping and
+    // multibyte characters that raw .length would undercount.
+    let keptBytes = 0;
+    let keep = 0;
+    while (keep < entries.length && keep < MAX_MERGED_RUN_OUTPUT_ENTRIES) {
+      const entryBytes = Buffer.byteLength(JSON.stringify(entries[entries.length - 1 - keep])) + 1;
+      if (keptBytes + entryBytes > MAX_MERGED_RUN_OUTPUT_BYTES) {
+        break;
+      }
+      keptBytes += entryBytes;
+      keep++;
+    }
+
+    if (keep === entries.length) {
+      return entries;
+    }
+
+    // Leave room for the notice itself within the entry cap.
+    keep = Math.min(keep, MAX_MERGED_RUN_OUTPUT_ENTRIES - 1);
+    const dropped = entries.length - keep;
+    const truncationNotice = JSON.stringify({
+      type: ConnectorMessageType.LOG,
+      at: this.systemTimeService.now().toISOString(),
+      message: `... ${dropped} earlier entries from previous attempts were truncated`,
     });
+
+    return [truncationNotice, ...entries.slice(entries.length - keep)];
   }
 }

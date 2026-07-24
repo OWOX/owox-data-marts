@@ -37,7 +37,7 @@ import { Repository } from 'typeorm';
 describe('ConnectorExecutorService', () => {
   const createService = () => {
     const dataMartRunRepository = {
-      update: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       findOne: jest.fn().mockResolvedValue(null),
     } as unknown as Repository<DataMartRun>;
 
@@ -219,7 +219,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null);
 
     expect(dataMartRunRepository.update).toHaveBeenCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.RUNNING })
     );
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
@@ -243,7 +243,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null);
 
     expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.FAILED })
     );
     expect(consumptionTracker.registerConnectorRunConsumption).not.toHaveBeenCalled();
@@ -254,7 +254,31 @@ describe('ConnectorExecutorService', () => {
     );
   });
 
-  it('lets normal completion replace a committed cancellation when abort is not delivered', async () => {
+  // Mimics a real conditional UPDATE ... WHERE status IN (:...statuses): the write
+  // only applies if the row's current status is still in the expected set.
+  const stubConditionalUpdate = (
+    dataMartRunRepository: Repository<DataMartRun>,
+    state: { current: DataMartRunStatus; statusHistory: DataMartRunStatus[] }
+  ) => {
+    (dataMartRunRepository.update as jest.Mock).mockImplementation(
+      async (
+        criteria: { id: string; status?: { _value?: DataMartRunStatus[] } },
+        update: { status?: DataMartRunStatus }
+      ) => {
+        const expected = criteria.status?._value;
+        if (expected && !expected.includes(state.current)) {
+          return { affected: 0 };
+        }
+        if (update.status) {
+          state.statusHistory.push(update.status);
+          state.current = update.status;
+        }
+        return { affected: 1 };
+      }
+    );
+  };
+
+  it('does not let a stray completion overwrite a committed cancellation when abort is not delivered', async () => {
     const {
       service,
       dataMartRunRepository,
@@ -263,34 +287,68 @@ describe('ConnectorExecutorService', () => {
       eventDispatcher,
       emitSuccessMessage,
     } = createService();
-    const statusHistory: DataMartRunStatus[] = [];
-    (dataMartRunRepository.update as jest.Mock).mockImplementation(async (_runId, update) => {
-      if (update.status) {
-        statusHistory.push(update.status);
-      }
-    });
+    const state = { current: DataMartRunStatus.RUNNING, statusHistory: [] as DataMartRunStatus[] };
+    stubConditionalUpdate(dataMartRunRepository, state);
     (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
-      // Simulate the cancel endpoint committing CANCELLED while this worker keeps running.
-      statusHistory.push(DataMartRunStatus.CANCELLED);
+      // Simulate the cancel endpoint committing CANCELLED while this worker keeps running,
+      // unaware the abort signal never reached it.
+      state.current = DataMartRunStatus.CANCELLED;
+      state.statusHistory.push(DataMartRunStatus.CANCELLED);
       emitSuccessMessage();
     });
 
     await service.executeInBackground(createDataMart(), createRun(), null);
 
-    expect(statusHistory).toEqual([
-      DataMartRunStatus.RUNNING,
-      DataMartRunStatus.CANCELLED,
-      DataMartRunStatus.SUCCESS,
-    ]);
-    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
-      'run-1',
-      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    // The stray SUCCESS write must never land: the guarded update only fires while
+    // the run is non-terminal, and the row was already CANCELLED underneath it.
+    expect(state.statusHistory).toEqual([DataMartRunStatus.RUNNING, DataMartRunStatus.CANCELLED]);
+    // And since the persisted status is CANCELLED, the project must not be billed
+    // and no success/failure webhook may fire for this run.
+    expect(consumptionTracker.registerConnectorRunConsumption).not.toHaveBeenCalled();
+    expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+  });
+
+  it('does not start the connector when the run reached a terminal status before execution', async () => {
+    const { service, dataMartRunRepository, processSpawner, eventDispatcher } = createService();
+    // Cancel landed between claimRunSlotAtomically and executeInBackground:
+    // the row is already CANCELLED when the initial guarded RUNNING write runs.
+    const state = {
+      current: DataMartRunStatus.CANCELLED,
+      statusHistory: [] as DataMartRunStatus[],
+    };
+    stubConditionalUpdate(dataMartRunRepository, state);
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    // The run must not be resurrected to RUNNING, the connector must not spawn,
+    // and no outcome events may fire for a run the user already cancelled.
+    expect(state.statusHistory).toEqual([]);
+    expect(processSpawner.spawnConnector).not.toHaveBeenCalled();
+    expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+  });
+
+  it('still persists captured logs when the terminal status write is skipped', async () => {
+    const { service, dataMartRunRepository, processSpawner, emitSuccessMessage } = createService();
+    const state = { current: DataMartRunStatus.RUNNING, statusHistory: [] as DataMartRunStatus[] };
+    stubConditionalUpdate(dataMartRunRepository, state);
+    (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
+      logs: [JSON.stringify({ type: 'log', message: 'earlier log' })],
+      errors: [],
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      state.current = DataMartRunStatus.CANCELLED;
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    // The status write is correctly skipped, but the log trail must survive:
+    // it is the only record of what ran before the cancellation landed.
+    const logsOnlyUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1].logs !== undefined && call[1].status === undefined
     );
-    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'dm-1' }),
-      'run-1'
-    );
-    expect(eventDispatcher.publishExternal).toHaveBeenCalled();
+    expect(logsOnlyUpdate).toBeDefined();
+    expect(logsOnlyUpdate![1].logs.join()).toContain('earlier log');
   });
 
   it('skips execution in shutdown mode', async () => {
@@ -313,7 +371,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null);
 
     expect(dataMartRunRepository.update).toHaveBeenCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.RESTRICTED })
     );
   });
@@ -357,12 +415,14 @@ describe('ConnectorExecutorService', () => {
     expect(gracefulShutdownService.unregisterActiveProcess).toHaveBeenCalled();
   });
 
-  it('does not set startedAt when run has INTERRUPTED status (mergeWithExisting=true)', async () => {
+  it('does not reset startedAt when resuming a run that already has one', async () => {
     const { service, dataMartRunRepository } = createService();
-
+    // startedAt is set once, on the first attempt, and survives the
+    // INTERRUPTED -> PENDING -> RUNNING churn so Run History keeps the
+    // original start time.
     await service.executeInBackground(
       createDataMart(),
-      createRun({ status: DataMartRunStatus.INTERRUPTED }),
+      createRun({ startedAt: new Date('2025-01-01') }),
       null
     );
 
@@ -372,6 +432,98 @@ describe('ConnectorExecutorService', () => {
 
     expect(updateCall).toBeDefined();
     expect(updateCall![1]).not.toHaveProperty('startedAt');
+  });
+
+  it('merges pre-interruption logs even for a run interrupted before startedAt was ever set', async () => {
+    const { service, dataMartRunRepository, emitInProgressMessage, processSpawner } =
+      createService();
+    (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
+      logs: [JSON.stringify({ type: 'log', message: 'pre-interruption log' })],
+      errors: [JSON.stringify({ type: 'error', error: 'pre-interruption error' })],
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitInProgressMessage();
+    });
+
+    // No startedAt override: a run interrupted before its first RUNNING write
+    // (e.g. shutdown hit during the balance check) resumes with startedAt null.
+    // Merging must not depend on any per-run resume flag — it always happens.
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    expect(finalUpdate).toBeDefined();
+    expect(finalUpdate![1].logs.join()).toContain('pre-interruption log');
+    expect(finalUpdate![1].errors.join()).toContain('pre-interruption error');
+  });
+
+  it('caps merged logs so repeatedly resumed runs cannot grow the column without bound', async () => {
+    const { service, dataMartRunRepository, emitInProgressMessage, processSpawner } =
+      createService();
+    // A run resumed many times would otherwise concatenate its whole history
+    // on every attempt until the json column outgrows max_allowed_packet.
+    const existingLogs = Array.from({ length: 12000 }, (_, i) =>
+      JSON.stringify({ type: 'log', message: `old entry ${i}` })
+    );
+    (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
+      logs: existingLogs,
+      errors: [],
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitInProgressMessage();
+    });
+
+    await service.executeInBackground(
+      createDataMart(),
+      createRun({ startedAt: new Date('2025-01-01') }),
+      null
+    );
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    // Capped to the limit, with the truncation notice counted inside it.
+    expect(finalUpdate![1].logs).toHaveLength(10000);
+    expect(finalUpdate![1].logs[0]).toContain('earlier entries from previous attempts');
+    // The tail is what survives — it shows where the run actually got to.
+    expect(finalUpdate![1].logs.at(-1)).toContain(ConnectorMessageType.STATUS);
+    // The oldest entries are the ones dropped.
+    expect(finalUpdate![1].logs.join()).not.toContain('old entry 0"');
+  });
+
+  it('caps merged logs by serialized bytes so oversized entries cannot exceed the packet limit', async () => {
+    const { service, dataMartRunRepository, emitInProgressMessage, processSpawner } =
+      createService();
+    // Far fewer entries than the count cap, but each ~3MB: count alone would
+    // pass all of them through and the single UPDATE would blow past MySQL's
+    // max_allowed_packet. The 6MB byte budget must bite instead.
+    const hugeEntries = Array.from({ length: 4 }, (_, i) =>
+      JSON.stringify({ type: 'log', message: `huge entry ${i} ${'x'.repeat(3_000_000)}` })
+    );
+    (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
+      logs: hugeEntries,
+      errors: [],
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitInProgressMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    const logs = finalUpdate![1].logs as string[];
+    expect(logs[0]).toContain('earlier entries from previous attempts');
+    // Only what fits in the byte budget survives, newest first from the tail.
+    const serializedBytes = Buffer.byteLength(JSON.stringify(logs));
+    expect(serializedBytes).toBeLessThan(7 * 1024 * 1024);
+    expect(logs.join()).toContain('huge entry 3');
+    expect(logs.join()).not.toContain('huge entry 0');
   });
 
   it('marks an aborted connector run as CANCELLED', async () => {
@@ -385,7 +537,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
 
     expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.CANCELLED })
     );
     expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
@@ -400,7 +552,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
 
     expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.CANCELLED })
     );
   });
@@ -423,7 +575,7 @@ describe('ConnectorExecutorService', () => {
     await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
 
     expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
-      'run-1',
+      { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(

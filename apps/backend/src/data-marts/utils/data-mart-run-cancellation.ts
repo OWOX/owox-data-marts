@@ -6,6 +6,14 @@ export const CANCELLABLE_DATA_MART_RUN_STATUSES = [
   DataMartRunStatus.RUNNING,
 ];
 
+/**
+ * Statuses a run has not yet moved out of; every other status is terminal.
+ *
+ * Deliberately an alias rather than a second literal: a run is cancellable
+ * exactly while it is still non-terminal, so the two sets must not drift apart.
+ */
+export const NON_TERMINAL_DATA_MART_RUN_STATUSES = CANCELLABLE_DATA_MART_RUN_STATUSES;
+
 export const STANDARD_REPORT_RUN_TYPES = [
   DataMartRunType.GOOGLE_SHEETS_EXPORT,
   DataMartRunType.EMAIL,
