@@ -1,5 +1,89 @@
 # owox
 
+## 0.31.0
+
+### Minor Changes
+
+- 122ce35: # More reliable connector runs during cancellation and long backfills
+
+  Previously, cancelling a connector run could fail to stick: the run reappeared
+  as running minutes later, and its logs were lost. Long BigQuery backfills on
+  OAuth also stopped after about an hour with an "Invalid Credentials" error.
+  Now cancelled runs stay cancelled and keep their logs, and BigQuery refreshes
+  its access token mid-run so long backfills continue.
+
+  A run can still fail with "Invalid Credentials" if its saved token expired
+  before the run started. Reconnect the BigQuery destination, or use a service
+  account, until token saving arrives.
+
+- 8724c41: # Fix dropped characters and lost focus in connector settings
+
+  Previously, typing into a field on the "Configure Settings" step dropped
+  characters, so text seemed to appear only on the second try. Pasted values
+  could revert as well. Credential fields also lost focus after the first
+  character, forcing users to click back into the field.
+
+  Both problems are fixed. Fields now keep focus and accept every character,
+  whether typed quickly or pasted.
+
+  Nested credential fields now also show their readable labels everywhere. Some
+  tabs previously showed the raw field name, such as "ServiceAccountKey" instead
+  of "Service Account Key (JSON)".
+
+- a54bf5d: # API surface maintenance
+
+  ## Add project search API contract and client support
+
+  `GET /api/search` now publishes the integer range and comma-separated serialization of its
+  optional filters in OpenAPI. `@owox/api-client` adds `search.query(query, options)` and exports
+  `OWOXSearchResult`, `OWOXSearchEntityType`, and `OWOXSearchOptions` for discovering visible Data
+  Marts, data storages, and data destinations with validated response data. Existing viewer access
+  and search behavior are unchanged, and consumers can adopt the client method without a migration.
+
+  ## Reconcile the project run history contract
+
+  `GET /api/data-marts/runs` now publishes the complete project-wide run-history contract, including
+  viewer visibility, pagination normalization, enums, field presence and nullability, and the
+  backend's RFC3339 timestamp profile. `createdByUser` is the nullable run-author field; when present
+  it includes `userId` and may include nullable `fullName`, `email`, and `avatar` values.
+  `definitionRun` remains present but can be `null` when a historical definition snapshot is
+  unavailable.
+
+  `@owox/api-client` validates this contract and exposes it as `runs.list({ limit, offset })`.
+  Consumers using the previously released `runs.getHistory(...)` method must rename those calls to
+  `runs.list(...)`; the response and option type exports remain available.
+
+  ## Strengthen HTTP Data streaming contracts
+
+  `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column
+  projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier,
+  and failure contract in OpenAPI. `@owox/api-client` now provides typed filter, sort, aggregation,
+  and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media
+  type before traversal. Consumers passing controls through `unknown[]` or widened variables must
+  adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline
+  calls remain unchanged.
+
+  ## Actualize the Data Mart list contract
+
+  `GET /api/data-marts` now publishes viewer visibility, non-negative integer offset validation,
+  owner-presence filtering, 1,000-item pages, and the complete nested list-item response contract,
+  including nullable draft definition types and optional nullable user metadata strings.
+  `@owox/api-client` validates every returned page and exposes the full `OWOXDataMart` shape;
+  `dataMarts.list({ offset, ownerFilter })` can start from an offset, filter by
+  `has_owners` or `no_owners`, and follows subsequent pages automatically. The package exports
+  `OWOXDataMartListOptions`, `OWOXDataMartOwnerFilter`, and the nested Data Mart enum and object
+  types, and rejects invalid list options before sending a request. Existing `dataMarts.list()`
+  calls remain compatible and require no migration.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.31.0
+- @owox/idp-protocol@0.31.0
+- @owox/idp-better-auth@0.31.0
+- @owox/idp-owox-better-auth@0.31.0
+- @owox/backend@0.31.0
+- @owox/web@0.31.0
+
 ## 0.30.1
 
 ### Patch Changes 0.30.1
@@ -2103,7 +2187,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2111,7 +2194,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month

@@ -1,5 +1,13 @@
 # @owox/backend
 
+## 0.31.0
+
+### Patch Changes
+
+- @owox/internal-helpers@0.31.0
+- @owox/idp-protocol@0.31.0
+- @owox/connectors@0.31.0
+
 ## 0.30.1
 
 ## 0.30.0
