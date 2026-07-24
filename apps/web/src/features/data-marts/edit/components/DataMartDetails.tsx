@@ -32,7 +32,7 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
-import { useSchemaUnsavedGuard } from '../model';
+import { useRefreshDataMartAfterConnectorRun, useSchemaUnsavedGuard } from '../model';
 import { SchemaUnsavedChangesDialog } from './SchemaUnsavedChangesDialog';
 import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
@@ -41,6 +41,7 @@ import { AiHelperButton } from './AiHelperButton';
 import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../connectors/shared/utils/google-sheets-fields.utils';
 
 interface DataMartDetailsProps {
   id: string;
@@ -74,6 +75,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     getErrorMessage,
     runs,
     getDataMart,
+    refreshDataMart,
     isManualRunTriggered,
     resetManualRunTriggered,
   } = useDataMart(id);
@@ -96,8 +98,22 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const storageId = dataMart?.storage.id;
 
   const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
+  const isGoogleSheetsConnector = Boolean(
+    isConnector &&
+    dataMartDefinition &&
+    'connector' in dataMartDefinition &&
+    dataMartDefinition.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME
+  );
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
+
+  useRefreshDataMartAfterConnectorRun({
+    dataMartId,
+    isGoogleSheetsConnector,
+    isManualRunTriggered,
+    runs,
+    refreshDataMart,
+  });
 
   const onActualizeSuccess = useCallback(() => {
     if (!dataMartId) return;

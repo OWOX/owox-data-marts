@@ -9,6 +9,118 @@ function stripQuotes(value) {
   return value ? value.replace(/^"|"$/g, '') : value;
 }
 
+function quoteIdentifier(value) {
+  return `"${stripQuotes(value).replace(/"/g, '""')}"`;
+}
+
+function escapeSqlLiteral(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function createSnapshotTableNames(tableName) {
+  const token = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  const stagingSuffix = `__owox_stage_${token}`;
+  const backupSuffix = `__owox_backup_${token}`;
+  const baseLength = Math.max(1, 127 - Math.max(stagingSuffix.length, backupSuffix.length));
+  const baseName = truncateUtf8(stripQuotes(tableName), baseLength);
+
+  return {
+    stagingTableName: `${baseName}${stagingSuffix}`,
+    backupTableName: `${baseName}${backupSuffix}`
+  };
+}
+
+function truncateUtf8(value, maxBytes) {
+  let result = '';
+  let bytes = 0;
+
+  for (const character of value) {
+    const characterBytes = utf8ByteLength(character);
+    if (bytes + characterBytes > maxBytes) {
+      break;
+    }
+    result += character;
+    bytes += characterBytes;
+  }
+
+  return result;
+}
+
+const REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES = 90 * 1024;
+
+function utf8ByteLength(value) {
+  let bytes = 0;
+
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else if (
+      code >= 0xd800 &&
+      code <= 0xdbff &&
+      index + 1 < value.length &&
+      value.charCodeAt(index + 1) >= 0xdc00 &&
+      value.charCodeAt(index + 1) <= 0xdfff
+    ) {
+      bytes += 4;
+      index += 1;
+    } else {
+      bytes += 3;
+    }
+  }
+
+  return bytes;
+}
+
+function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQuery) {
+  const batches = [];
+  let batch = [];
+  let batchBytes = 0;
+
+  for (const row of rows) {
+    const rowBytes = utf8ByteLength(buildSingleRowQuery(row));
+    if (rowBytes > maxBytes) {
+      throw new Error(
+        `A single snapshot row exceeds the Redshift statement size limit (${maxBytes} bytes)`
+      );
+    }
+
+    if (batch.length && (batch.length >= maxRows || batchBytes + rowBytes > maxBytes)) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+
+    batch.push(row);
+    batchBytes += rowBytes;
+  }
+
+  if (batch.length) {
+    batches.push(batch);
+  }
+
+  return batches;
+}
+
+function normalizeRedshiftType(type) {
+  const normalized = String(type || '').toUpperCase().replace(/\(.+\)$/, '');
+  if (['CHARACTER VARYING', 'CHAR', 'TEXT', 'VARCHAR'].includes(normalized)) {
+    return 'VARCHAR';
+  }
+  if (['DOUBLE PRECISION', 'FLOAT8'].includes(normalized)) {
+    return 'DOUBLE PRECISION';
+  }
+  if (['INT8', 'BIGINT'].includes(normalized)) {
+    return 'BIGINT';
+  }
+  if (['TIMESTAMP', 'TIMESTAMP WITHOUT TIME ZONE'].includes(normalized)) {
+    return 'TIMESTAMP';
+  }
+  return normalized;
+}
+
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
   /**
@@ -99,7 +211,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //----------------------------------------------------------------
 
   //---- getAListOfExistingColumns ----------------------------------
-  async getAListOfExistingColumns() {
+  async getAListOfExistingColumns(useConfiguredTypes = true) {
     // Strip surrounding double-quotes that may be present in config values.
     // Prefer exact matching first because quoted Redshift identifiers can be
     // case-sensitive; fall back to LOWER() for clusters that fold identifiers.
@@ -148,7 +260,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       const schemaKey = (this.schema && columnName in this.schema)
         ? columnName
         : (schemaKeyByLower[columnName.toLowerCase()] || columnName);
-      columns[schemaKey] = (this.schema && schemaKey in this.schema)
+      columns[schemaKey] = (useConfiguredTypes && this.schema && schemaKey in this.schema)
         ? this.getColumnType(schemaKey)
         : row.data_type;
     }
@@ -284,6 +396,24 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       this.config.logMessage(`Query execution failed: ${error.message}`, 'error');
       throw error;
     }
+  }
+  //----------------------------------------------------------------
+
+  //---- executeTransaction ------------------------------------------
+  async executeTransaction(sqlStatements) {
+    const params = {
+      Sqls: sqlStatements,
+      Database: this.config.Database.value,
+    };
+
+    if (this.config.WorkgroupName.value) {
+      params.WorkgroupName = this.config.WorkgroupName.value;
+    } else if (this.config.ClusterIdentifier.value) {
+      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    }
+
+    const response = await this.redshiftDataClient.send(new BatchExecuteStatementCommand(params));
+    await this.waitForQueryCompletion(response.Id);
   }
   //----------------------------------------------------------------
 
@@ -427,6 +557,173 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     this.existingColumns = existingColumns;
 
     return existingColumns;
+  }
+  //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+  /**
+   * Replace destination table with the current source snapshot.
+   * @param {Array} data - Array of records to save
+   * @returns {Promise<void>}
+   */
+  async replaceData(data) {
+    await this.checkConnection();
+    await this.createSchemaIfNotExist();
+
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const configuredTableName = this.config.DestinationTableName.value;
+    const liveTableName = stripQuotes(configuredTableName);
+    const { stagingTableName, backupTableName } = createSnapshotTableNames(liveTableName);
+    const originalExistingColumns = this.existingColumns;
+    const liveColumns = await this.getAListOfExistingColumns(false);
+    const liveTableExists = Object.keys(liveColumns).length > 0;
+    let published = false;
+
+    try {
+      this.config.DestinationTableName.value = stagingTableName;
+      this.existingColumns = {};
+      const stagedColumns = await this.createTable();
+
+      if (data.length) {
+        const batchSize = Math.max(1, Number(this.config.MaxBufferSize?.value) || 250);
+        const batches = this.createSnapshotBatches(data, batchSize);
+        for (const batch of batches) {
+          await this.saveData(batch);
+        }
+      }
+
+      await this.validateSnapshotRowCount(stagingTableName, data.length);
+
+      this.config.DestinationTableName.value = configuredTableName;
+
+      let publicationStatements;
+      if (this.hasSameSchema(liveColumns, stagedColumns, normalizeRedshiftType)) {
+        const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+        publicationStatements = [
+          `DELETE FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)}`,
+          `INSERT INTO ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} (${columns}) SELECT ${columns} FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)}`
+        ];
+      } else {
+        const grantStatements = liveTableExists
+          ? await this.getTableGrantStatements(liveTableName, stagingTableName)
+          : [];
+        for (const grantSql of grantStatements) {
+          await this.executeQuery(grantSql, 'ddl');
+        }
+        publicationStatements = liveTableExists
+          ? [
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} RENAME TO ${quoteIdentifier(backupTableName)}`,
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`,
+              `DROP TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(backupTableName)}`
+            ]
+          : [
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`
+            ];
+      }
+
+      await this.executeTransaction(publicationStatements);
+      this.existingColumns = stagedColumns;
+      published = true;
+
+      this.config.logMessage(
+        `Snapshot import completed for ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)}: ${data.length} rows`
+      );
+    } finally {
+      this.config.DestinationTableName.value = configuredTableName;
+      if (!published) {
+        this.existingColumns = originalExistingColumns;
+      }
+
+      try {
+        await this.executeQuery(
+          `DROP TABLE IF EXISTS ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)}`,
+          'ddl'
+        );
+      } catch (cleanupError) {
+        this.config.logMessage(
+          `Warning: Failed to clean up snapshot staging table ${quoteIdentifier(stagingTableName)}: ${cleanupError.message}`
+        );
+      }
+    }
+  }
+  //----------------------------------------------------------------
+
+  //---- createSnapshotBatches --------------------------------------
+  createSnapshotBatches(data, maxRows, maxBytes = REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES) {
+    const selectedFields = this.getSelectedFields();
+    const dataKeys = Object.keys(data[0] || {});
+    const columns = dataKeys.filter(key => selectedFields.includes(key));
+    const estimateTableName = `temp_${stripQuotes(this.config.DestinationTableName.value)}_${Date.now()}`;
+
+    return splitSnapshotRowsByQuerySize(
+      data,
+      Math.max(1, maxRows),
+      maxBytes,
+      row => this.buildInsertBatchQuery(estimateTableName, columns, [row])
+    );
+  }
+  //----------------------------------------------------------------
+
+  //---- validateSnapshotRowCount ------------------------------------
+  async validateSnapshotRowCount(tableName, expectedRowCount) {
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const rows = await this.executeQueryWithResults(
+      `SELECT COUNT(*) AS row_count FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}`
+    );
+    const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
+    const actualRowCount = Number(value);
+
+    if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
+      const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
+      throw new Error(
+        `Snapshot staging row count mismatch for ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}: expected ${expectedRowCount}, got ${actual}`
+      );
+    }
+
+    return actualRowCount;
+  }
+  //----------------------------------------------------------------
+
+  //---- getTableGrantStatements -------------------------------------
+  async getTableGrantStatements(sourceTableName, targetTableName) {
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const rows = await this.executeQueryWithResults(`
+      SELECT identity_name, identity_type, privilege_type, admin_option
+      FROM svv_relation_privileges
+      WHERE namespace_name = '${escapeSqlLiteral(schemaName)}'
+        AND relation_name = '${escapeSqlLiteral(sourceTableName)}'
+      ORDER BY identity_type, identity_name, privilege_type
+    `);
+    const targetTable = `${quoteIdentifier(schemaName)}.${quoteIdentifier(targetTableName)}`;
+
+    return rows.map(row => {
+      const identityName = row.identity_name ?? row.IDENTITY_NAME;
+      const identityType = String(row.identity_type ?? row.IDENTITY_TYPE).toUpperCase();
+      const privilege = String(row.privilege_type ?? row.PRIVILEGE_TYPE).toUpperCase();
+      const adminOption = row.admin_option ?? row.ADMIN_OPTION;
+
+      if (!/^[A-Z ]+$/.test(privilege)) {
+        throw new Error(`Unsupported Redshift table privilege: ${privilege}`);
+      }
+
+      let grantee;
+      if (identityType === 'PUBLIC') {
+        grantee = 'PUBLIC';
+      } else if (identityType === 'ROLE') {
+        grantee = `ROLE ${quoteIdentifier(identityName)}`;
+      } else if (identityType === 'GROUP') {
+        grantee = `GROUP ${quoteIdentifier(identityName)}`;
+      } else if (identityType === 'USER') {
+        grantee = quoteIdentifier(identityName);
+      } else {
+        throw new Error(`Unsupported Redshift grant identity type: ${identityType}`);
+      }
+
+      const withGrantOption = adminOption === true || String(adminOption).toLowerCase() === 'true'
+        ? ' WITH GRANT OPTION'
+        : '';
+      return `GRANT ${privilege} ON TABLE ${targetTable} TO ${grantee}${withGrantOption}`;
+    });
   }
   //----------------------------------------------------------------
 
@@ -590,6 +887,12 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async insertBatch(tableName, columns, records) {
+    await this.executeQuery(this.buildInsertBatchQuery(tableName, columns, records), 'dml');
+  }
+  //----------------------------------------------------------------
+
+  //---- buildInsertBatchQuery --------------------------------------
+  buildInsertBatchQuery(tableName, columns, records) {
     const values = records.map(record => {
       const vals = columns.map(col => {
         const value = record[col];
@@ -635,12 +938,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
     const columnList = columns.map(col => `"${col}"`).join(', ');
 
-    const query = `
+    return `
       INSERT INTO "${stripQuotes(this.config.Schema.value)}"."${tableName}" (${columnList})
       VALUES ${values}
     `;
-
-    await this.executeQuery(query, 'dml');
   }
   //----------------------------------------------------------------
 

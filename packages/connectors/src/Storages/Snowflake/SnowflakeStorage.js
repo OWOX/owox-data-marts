@@ -24,6 +24,29 @@ function quoteIdentifier(identifier) {
   return `"${identifier}"`;
 }
 
+function createSnapshotStagingTableName(tableName) {
+  const bareTableName = stripQuotes(tableName);
+  const token = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  const suffix = `__owox_stage_${token}`;
+  const baseName = bareTableName.slice(0, Math.max(1, 240 - suffix.length));
+
+  return `${baseName}${suffix}`;
+}
+
+function normalizeSnowflakeType(type) {
+  const normalized = String(type || '').toUpperCase().replace(/\(.+\)$/, '');
+  if (['BIGINT', 'DECIMAL', 'INTEGER', 'INT', 'NUMBER', 'NUMERIC'].includes(normalized)) {
+    return 'NUMBER';
+  }
+  if (['DOUBLE', 'DOUBLE PRECISION', 'FLOAT', 'FLOAT4', 'FLOAT8', 'REAL'].includes(normalized)) {
+    return 'FLOAT';
+  }
+  if (['CHAR', 'CHARACTER', 'STRING', 'TEXT', 'VARCHAR'].includes(normalized)) {
+    return 'VARCHAR';
+  }
+  return normalized;
+}
+
 var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -324,6 +347,98 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} was created`);
 
       return existingColumns;
+
+    }
+  //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+    async replaceData(data) {
+
+      this.checkIfSnowflakeIsConnected();
+
+      if (!this.connection) {
+        await this.createConnection();
+        await this.testConnection();
+      }
+
+      await this.createDatabaseAndSchemaIfNotExist();
+
+      const configuredTableName = this.config.DestinationTableName.value;
+      const stagingTableName = createSnapshotStagingTableName(configuredTableName);
+      const database = this.config.SnowflakeDatabase.value;
+      const schema = quoteIdentifier(this.config.SnowflakeSchema.value);
+      const liveTable = `${database}.${schema}.${quoteIdentifier(configuredTableName)}`;
+      const stagingTable = `${database}.${schema}.${quoteIdentifier(stagingTableName)}`;
+      const originalExistingColumns = this.existingColumns;
+      const liveColumns = await this.getAListOfExistingColumns();
+      let published = false;
+
+      try {
+        this.config.DestinationTableName.value = stagingTableName;
+        this.existingColumns = {};
+        this.updatedRecordsBuffer = {};
+        const stagedColumns = await this.createTableIfItDoesntExist();
+
+        if (data.length) {
+          await this.saveData(data);
+        }
+
+        await this.validateSnapshotRowCount(stagingTable, data.length);
+
+        this.config.DestinationTableName.value = configuredTableName;
+
+        if (this.hasSameSchema(liveColumns, stagedColumns, normalizeSnowflakeType)) {
+          const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+          await this.executeQuery(
+            `INSERT OVERWRITE INTO ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
+          );
+        } else {
+          await this.executeQuery(
+            `CREATE OR REPLACE TABLE ${liveTable} CLONE ${stagingTable} COPY GRANTS COPY TAGS`
+          );
+        }
+        this.existingColumns = stagedColumns;
+        published = true;
+
+        this.config.logMessage(
+          `Snapshot import completed for ${liveTable}: ${data.length} rows`
+        );
+      } finally {
+        this.config.DestinationTableName.value = configuredTableName;
+        this.updatedRecordsBuffer = {};
+        if (!published) {
+          this.existingColumns = originalExistingColumns;
+        }
+
+        try {
+          await this.executeQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
+        } catch (cleanupError) {
+          this.config.logMessage(
+            `Warning: Failed to clean up snapshot staging table ${stagingTable}: ${cleanupError.message}`
+          );
+        }
+      }
+
+    }
+  //----------------------------------------------------------------
+
+  //---- validateSnapshotRowCount ------------------------------------
+    async validateSnapshotRowCount(fullTableName, expectedRowCount) {
+
+      const rows = await this.executeQuery(
+        `SELECT COUNT(*) AS row_count FROM ${fullTableName}`
+      );
+      const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
+      const actualRowCount = Number(value);
+
+      if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
+        const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
+        throw new Error(
+          `Snapshot staging row count mismatch for ${fullTableName}: expected ${expectedRowCount}, got ${actual}`
+        );
+      }
+
+      return actualRowCount;
 
     }
   //----------------------------------------------------------------

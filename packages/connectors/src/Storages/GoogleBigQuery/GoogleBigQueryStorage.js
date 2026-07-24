@@ -5,6 +5,20 @@
  * file that was distributed with this source code.
  */
 
+function quoteBigQueryIdentifier(identifier) {
+  return `\`${String(identifier).replace(/`/g, '``')}\``;
+}
+
+function normalizeBigQueryType(type) {
+  const normalized = String(type || '').toUpperCase();
+  const aliases = {
+    BOOLEAN: 'BOOL',
+    FLOAT: 'FLOAT64',
+    INTEGER: 'INT64',
+  };
+  return aliases[normalized] || normalized;
+}
+
 var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -139,7 +153,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         IF dataset_exists THEN 
           SELECT column_name, data_type
           FROM \`${this.config.DestinationDatasetID.value}.INFORMATION_SCHEMA.COLUMNS\`
-          WHERE table_name = '${this.config.DestinationTableName.value}';
+          WHERE table_name = '${this.config.DestinationTableName.value}'
+          ORDER BY ordinal_position;
         END IF`;
 
         /*let query = `SELECT column_name, data_type
@@ -179,7 +194,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     }
 
   //---- createTableIfItDoesntExist ----------------------------------
-    async createTableIfItDoesntExist() {
+    async createTableIfItDoesntExist(quoteColumnNames = false) {
 
       let columns = [];
       let columnPartitioned = null;
@@ -207,13 +222,17 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           columnPartitioned = columnName;
         }
 
-        columns.push(`${columnName} ${columnType}${columnDescription}`);
+        const sqlColumnName = quoteColumnNames ? quoteBigQueryIdentifier(columnName) : columnName;
+        columns.push(`${sqlColumnName} ${columnType}${columnDescription}`);
         
         existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
       }
 
-      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
+      const primaryKeyColumns = quoteColumnNames
+        ? this.uniqueKeyColumns.map(quoteBigQueryIdentifier)
+        : this.uniqueKeyColumns;
+      columns.push(`PRIMARY KEY (${primaryKeyColumns.join(",")}) NOT ENFORCED`);
 
       columns = columns.join(",\n");
 
@@ -221,7 +240,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       query += `CREATE TABLE IF NOT EXISTS \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` (\n${columns})`
 
       if( columnPartitioned ) {
-        query += `\nPARTITION BY ${columnPartitioned}`;
+        query += `\nPARTITION BY ${quoteColumnNames ? quoteBigQueryIdentifier(columnPartitioned) : columnPartitioned}`;
       }
 
       if( this.description ) {
@@ -232,6 +251,116 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
 
       return existingColumns;
+
+    }
+
+  //---- replaceData -------------------------------------------------
+    async replaceData(data) {
+
+      this.checkIfGoogleBigQueryIsConnected();
+      await this.createDatasetIfItDoesntExist();
+      const liveTableName = this.config.DestinationTableName.value;
+      const stagingTableName = this.createSnapshotTableName("staging");
+      const originalExistingColumns = this.existingColumns;
+      const originalTotalRecordsProcessed = this.totalRecordsProcessed;
+      const originalQuoteFieldIdentifiers = this.quoteFieldIdentifiers;
+      const liveColumns = await this.getAListOfExistingColumns();
+      let stagingTableCreated = false;
+      let published = false;
+
+      try {
+        this.config.DestinationTableName.value = stagingTableName;
+        this.existingColumns = {};
+        this.updatedRecordsBuffer = {};
+        this.totalRecordsProcessed = 0;
+        this.quoteFieldIdentifiers = true;
+        stagingTableCreated = true;
+        const stagedColumns = await this.createTableIfItDoesntExist(true);
+
+        if (data.length) {
+          await this.saveData(data);
+        }
+
+        await this.validateSnapshotTable(stagingTableName, data);
+        this.config.DestinationTableName.value = liveTableName;
+        await this.publishSnapshotTable(
+          stagingTableName,
+          liveTableName,
+          stagedColumns,
+          this.hasSameSchema(liveColumns, stagedColumns, normalizeBigQueryType)
+        );
+        this.existingColumns = stagedColumns;
+        this.updatedRecordsBuffer = {};
+        published = true;
+
+        this.config.logMessage(
+          `Snapshot import completed for ${this.config.DestinationDatasetID.value}.${liveTableName}: ${data.length} rows`
+        );
+      } finally {
+        this.config.DestinationTableName.value = liveTableName;
+        this.updatedRecordsBuffer = {};
+        this.totalRecordsProcessed = originalTotalRecordsProcessed;
+        this.quoteFieldIdentifiers = originalQuoteFieldIdentifiers;
+        if (!published) {
+          this.existingColumns = originalExistingColumns;
+        }
+
+        if (stagingTableCreated) {
+          try {
+            await this.dropSnapshotTable(stagingTableName);
+          } catch (error) {
+            this.config.logMessage(`Could not clean up BigQuery snapshot staging table ${stagingTableName}: ${error.message}`);
+          }
+        }
+      }
+    }
+
+  //---- snapshot helpers -------------------------------------------
+    createSnapshotTableName(kind) {
+
+      const runId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+      const suffix = `__owox_${kind}_${runId}`;
+      return `${this.config.DestinationTableName.value.slice(0, 1024 - suffix.length)}${suffix}`;
+
+    }
+
+    async validateSnapshotTable(tableName, data) {
+
+      const expectedRowCount = new Set(data.map(row => String(this.getUniqueKeyByRecordFields(row)))).size;
+      const query = `SELECT COUNT(*) AS row_count FROM \`${this.config.DestinationDatasetID.value}.${tableName}\``;
+      const results = await this.executeQuery(query);
+      const rows = Array.isArray(results) ? results : (results && results.rows) || [];
+      const actualRowCount = rows.length ? Number(rows[0].row_count ?? rows[0].f?.[0]?.v) : NaN;
+
+      if (!Number.isFinite(actualRowCount) || actualRowCount !== expectedRowCount) {
+        throw new Error(
+          `BigQuery snapshot validation failed for ${tableName}: expected ${expectedRowCount} rows, got ${Number.isFinite(actualRowCount) ? actualRowCount : "an unreadable count"}`
+        );
+      }
+
+    }
+
+    publishSnapshotTable(stagingTableName, liveTableName, stagedColumns = {}, preserveTable = false) {
+
+      const liveTable = quoteBigQueryIdentifier(
+        `${this.config.DestinationDatasetID.value}.${liveTableName}`
+      );
+      const stagingTable = quoteBigQueryIdentifier(
+        `${this.config.DestinationDatasetID.value}.${stagingTableName}`
+      );
+      const query = preserveTable
+        ? (() => {
+            const columns = Object.keys(stagedColumns).map(quoteBigQueryIdentifier).join(', ');
+            return `BEGIN TRANSACTION;\nTRUNCATE TABLE ${liveTable};\nINSERT INTO ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable};\nCOMMIT TRANSACTION;`;
+          })()
+        : `CREATE OR REPLACE TABLE ${liveTable} COPY ${stagingTable}`;
+      return this.executeQuery(query);
+
+    }
+
+    dropSnapshotTable(tableName) {
+
+      return this.executeQuery(`DROP TABLE IF EXISTS \`${this.config.DestinationDatasetID.value}.${tableName}\``);
 
     }
 
@@ -477,9 +606,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           
           
           if (columnValue === null) {
-            fields.push(`SAFE_CAST(NULL AS ${columnType}) ${columnName}`);
+            fields.push(`SAFE_CAST(NULL AS ${columnType}) ${this.formatFieldIdentifier(columnName)}`);
           } else {
-            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${columnName}`);
+            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${this.formatFieldIdentifier(columnName)}`);
           }
 
         }
@@ -493,20 +622,24 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         ${rows.join("\n\nUNION ALL\n\n")}
       ) AS source
       
-      ON ${this.uniqueKeyColumns.map(item => ("target." + item + " = source." + item)).join("\n AND ")}
+      ON ${this.uniqueKeyColumns.map(item => (`target.${this.formatFieldIdentifier(item)} = source.${this.formatFieldIdentifier(item)}`)).join("\n AND ")}
 
         WHEN MATCHED THEN
         UPDATE SET
-          ${existingColumnsNames.map(item => "target." + item + " = source." + item).join(",\n")}
+          ${existingColumnsNames.map(item => `target.${this.formatFieldIdentifier(item)} = source.${this.formatFieldIdentifier(item)}`).join(",\n")}
         WHEN NOT MATCHED THEN
         INSERT (
-          ${existingColumnsNames.join(", ")}
+          ${existingColumnsNames.map(item => this.formatFieldIdentifier(item)).join(", ")}
         )
         VALUES (
-          ${existingColumnsNames.map(item => "source."+item).join(", ")}
+          ${existingColumnsNames.map(item => `source.${this.formatFieldIdentifier(item)}`).join(", ")}
         )`;
 
       return query;
+    }
+
+    formatFieldIdentifier(fieldName) {
+      return this.quoteFieldIdentifiers ? quoteBigQueryIdentifier(fieldName) : fieldName;
     }
  
 

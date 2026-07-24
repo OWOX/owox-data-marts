@@ -76,6 +76,7 @@ export class ConnectorMapper {
       required: item.required,
       options: item.options,
       placeholder: item.placeholder,
+      minimum: item.minimum,
       attributes: item.attributes,
     };
   }
@@ -92,6 +93,7 @@ export class ConnectorMapper {
       required: item.required,
       options: item.options,
       placeholder: item.placeholder,
+      minimum: item.minimum,
       attributes: item.attributes,
       oneOf: item.oneOf?.map(
         (oneOf): ConnectorSpecificationOneOfOptionResponseApiDto => ({

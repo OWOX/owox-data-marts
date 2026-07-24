@@ -20,6 +20,73 @@ function quoteIdentifier(identifier) {
   return `\`${identifier}\``;
 }
 
+function createSnapshotStagingTableName(tableName) {
+  const bareTableName = String(tableName).replace(/^`|`$/g, '');
+  const token = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  const suffix = `__owox_stage_${token}`;
+  const baseName = bareTableName.slice(0, Math.max(1, 240 - suffix.length));
+
+  return `${baseName}${suffix}`;
+}
+
+const DATABRICKS_SNAPSHOT_MAX_QUERY_BYTES = 14 * 1024 * 1024;
+
+function utf8ByteLength(value) {
+  let bytes = 0;
+
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else if (
+      code >= 0xd800 &&
+      code <= 0xdbff &&
+      index + 1 < value.length &&
+      value.charCodeAt(index + 1) >= 0xdc00 &&
+      value.charCodeAt(index + 1) <= 0xdfff
+    ) {
+      bytes += 4;
+      index += 1;
+    } else {
+      bytes += 3;
+    }
+  }
+
+  return bytes;
+}
+
+function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQuery) {
+  const batches = [];
+  let batch = [];
+  let batchBytes = 0;
+
+  for (const row of rows) {
+    const rowBytes = utf8ByteLength(buildSingleRowQuery(row));
+    if (rowBytes > maxBytes) {
+      throw new Error(
+        `A single snapshot row exceeds the Databricks statement size limit (${maxBytes} bytes)`
+      );
+    }
+
+    if (batch.length && (batch.length >= maxRows || batchBytes + rowBytes > maxBytes)) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+
+    batch.push(row);
+    batchBytes += rowBytes;
+  }
+
+  if (batch.length) {
+    batches.push(batch);
+  }
+
+  return batches;
+}
+
 var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -291,6 +358,124 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
 
       // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
       await this.addPrimaryKeyConstraint(fullTableName);
+
+    }
+  //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+    async replaceData(data) {
+
+      this.checkIfDatabricksIsConnected();
+
+      if (!this.session) {
+        await this.createConnection();
+        await this.testConnection();
+      }
+
+      await this.createCatalogAndSchemaIfNotExist();
+
+      const configuredTableName = this.config.DestinationTableName.value;
+      const stagingTableName = createSnapshotStagingTableName(configuredTableName);
+      const catalog = quoteIdentifier(this.config.DatabricksCatalog.value);
+      const schema = quoteIdentifier(this.config.DatabricksSchema.value);
+      const liveTable = `${catalog}.${schema}.${quoteIdentifier(configuredTableName)}`;
+      const stagingTable = `${catalog}.${schema}.${quoteIdentifier(stagingTableName)}`;
+      const originalExistingColumns = this.existingColumns;
+      const liveColumns = await this.getAListOfExistingColumns();
+      let published = false;
+
+      try {
+        this.config.DestinationTableName.value = stagingTableName;
+        this.existingColumns = {};
+        this.updatedRecordsBuffer = {};
+        await this.createTableIfItDoesntExist();
+        const stagedColumns = this.existingColumns;
+
+        if (data.length) {
+          const batchSize = Math.max(1, Number(this.config.MaxBufferSize?.value) || 250);
+          const batches = this.createSnapshotBatches(data, batchSize);
+          for (const batch of batches) {
+            await this.saveData(batch);
+          }
+        }
+
+        await this.validateSnapshotRowCount(stagingTable, data.length);
+
+        this.config.DestinationTableName.value = configuredTableName;
+
+        if (this.hasSameSchema(liveColumns, stagedColumns)) {
+          const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+          await this.executeQuery(
+            `INSERT OVERWRITE TABLE ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
+          );
+        } else {
+          await this.executeQuery(`CREATE OR REPLACE TABLE ${liveTable} DEEP CLONE ${stagingTable}`);
+        }
+        this.existingColumns = stagedColumns;
+        published = true;
+
+        this.config.logMessage(
+          `Snapshot import completed for ${liveTable}: ${data.length} rows`
+        );
+      } finally {
+        this.config.DestinationTableName.value = configuredTableName;
+        this.updatedRecordsBuffer = {};
+        if (!published) {
+          this.existingColumns = originalExistingColumns;
+        }
+
+        try {
+          await this.executeQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
+        } catch (cleanupError) {
+          this.config.logMessage(
+            `Warning: Failed to clean up snapshot staging table ${stagingTable}: ${cleanupError.message}`
+          );
+        }
+      }
+
+    }
+  //----------------------------------------------------------------
+
+  //---- createSnapshotBatches ---------------------------------------
+    createSnapshotBatches(
+      data,
+      maxRows,
+      maxBytes = DATABRICKS_SNAPSHOT_MAX_QUERY_BYTES
+    ) {
+
+      const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
+      const buildSingleRowQuery = row => this.buildMergeQueryWithInlineSource(
+        fullTableName,
+        this.buildSelectStatementsForRecords([row])
+      );
+
+      return splitSnapshotRowsByQuerySize(
+        data,
+        Math.max(1, maxRows),
+        maxBytes,
+        buildSingleRowQuery
+      );
+
+    }
+  //----------------------------------------------------------------
+
+  //---- validateSnapshotRowCount ------------------------------------
+    async validateSnapshotRowCount(fullTableName, expectedRowCount) {
+
+      const rows = await this.executeQuery(
+        `SELECT COUNT(*) AS row_count FROM ${fullTableName}`
+      );
+      const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
+      const actualRowCount = Number(value);
+
+      if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
+        const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
+        throw new Error(
+          `Snapshot staging row count mismatch for ${fullTableName}: expected ${expectedRowCount}, got ${actual}`
+        );
+      }
+
+      return actualRowCount;
 
     }
   //----------------------------------------------------------------

@@ -5,6 +5,7 @@ import {
   GetAvailableConnectorsSpec,
   GetConnectorSpecificationSpec,
   GetConnectorFieldsSpec,
+  PreviewGoogleSheetsFieldsSpec,
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
   GetConnectorOAuthSettingsSpec,
@@ -22,6 +23,8 @@ import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/con
 import { ConnectorOauthService } from '../services/connector/connector-oauth.service';
 import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
+import { GoogleSheetsFieldsPreviewService } from '../use-cases/connector/google-sheets-fields-preview.service';
+import { GoogleSheetsFieldsPreviewRequestApiDto } from '../dto/presentation/google-sheets-fields-preview-request-api.dto';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -30,6 +33,7 @@ export class ConnectorController {
     private readonly availableConnectorService: AvailableConnectorService,
     private readonly specificationConnectorService: SpecificationConnectorService,
     private readonly fieldsConnectorService: FieldsConnectorService,
+    private readonly googleSheetsFieldsPreviewService: GoogleSheetsFieldsPreviewService,
     private readonly mapper: ConnectorMapper,
     private readonly connectorOauthService: ConnectorOauthService
   ) {}
@@ -59,6 +63,20 @@ export class ConnectorController {
     @Param('connectorName') connectorName: string
   ): Promise<ConnectorFieldsResponseApiDto[]> {
     const fields = await this.fieldsConnectorService.run(connectorName);
+    return this.mapper.toFieldsResponse(fields);
+  }
+
+  @Auth(Role.editor())
+  @Post('GoogleSheets/fields/preview')
+  @PreviewGoogleSheetsFieldsSpec()
+  async previewGoogleSheetsFields(
+    @AuthContext() context: AuthorizationContext,
+    @Body() body: GoogleSheetsFieldsPreviewRequestApiDto
+  ): Promise<ConnectorFieldsResponseApiDto[]> {
+    const fields = await this.googleSheetsFieldsPreviewService.run(
+      context,
+      body.configuration ?? {}
+    );
     return this.mapper.toFieldsResponse(fields);
   }
 

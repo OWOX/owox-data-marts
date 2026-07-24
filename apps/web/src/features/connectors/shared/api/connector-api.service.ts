@@ -1,4 +1,5 @@
 import { ApiService } from '../../../../services/api-service';
+import type { AxiosRequestConfig } from '../../../../app/api';
 import type {
   ConnectorDefinitionDto,
   ConnectorSpecificationResponseApiDto,
@@ -25,6 +26,19 @@ export class ConnectorApiService extends ApiService {
 
   async getConnectorFields(connectorName: string): Promise<ConnectorFieldsResponseApiDto[]> {
     return this.get<ConnectorFieldsResponseApiDto[]>(`/${connectorName}/fields`);
+  }
+
+  async previewGoogleSheetsFields(
+    configuration: Record<string, unknown>,
+    config?: AxiosRequestConfig
+  ): Promise<ConnectorFieldsResponseApiDto[]> {
+    return this.post<ConnectorFieldsResponseApiDto[]>(
+      '/GoogleSheets/fields/preview',
+      {
+        configuration,
+      },
+      config
+    );
   }
 
   async exchangeCredentials(

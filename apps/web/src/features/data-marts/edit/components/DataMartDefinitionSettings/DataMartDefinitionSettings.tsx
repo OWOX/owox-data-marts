@@ -111,10 +111,10 @@ export function DataMartDefinitionSettings({
   const sqlCode = getSqlQueryFromDefinition(definitionType, currentDefinition);
 
   useEffect(() => {
-    if (definitionType) {
+    if (definitionType && !isDirty) {
       reset(getInitialFormValues());
     }
-  }, [definitionType, reset, getInitialFormValues]);
+  }, [definitionType, isDirty, reset, getInitialFormValues]);
 
   useEffect(() => {
     if (!definitionType && !initialDefinitionType && preset?.definitionType) {

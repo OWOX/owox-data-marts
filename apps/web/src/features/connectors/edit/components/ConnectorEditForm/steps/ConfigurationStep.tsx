@@ -16,6 +16,10 @@ import { CopyConfigurationButton } from '../../../../../data-marts/edit/componen
 import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 import { trackEvent } from '../../../../../../utils';
 import { ConnectorSpecificationAttribute } from '../../../../shared/enums/connector-specification-attribute.enum';
+import {
+  GOOGLE_SHEETS_CONNECTOR_NAME,
+  hasValidGoogleSheetsServiceAccountConfiguration,
+} from '../../../../shared/utils/google-sheets-fields.utils';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -25,6 +29,7 @@ interface ConfigurationStepProps {
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
   isEditingExisting?: boolean;
+  disabled?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +83,7 @@ export function ConfigurationStep({
   initialConfiguration,
   loading = false,
   isEditingExisting = false,
+  disabled = false,
 }: ConfigurationStepProps) {
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
@@ -169,18 +175,24 @@ export function ConfigurationStep({
     }));
   };
 
-  const validateValue = useCallback((value: unknown): boolean => {
-    if (value === null || value === undefined) return false;
-    if (typeof value === 'string' && value.trim() === '') return false;
-    if (typeof value === 'number' && isNaN(value)) return false;
-    if (Array.isArray(value) && value.length === 0) return false;
+  const validateValue = useCallback(
+    (value: unknown, spec?: ConnectorSpecificationResponseApiDto): boolean => {
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string' && value.trim() === '') return false;
+      if (typeof value === 'number') {
+        if (isNaN(value)) return false;
+        if (spec?.minimum !== undefined && value < spec.minimum) return false;
+      }
+      if (Array.isArray(value) && value.length === 0) return false;
 
-    return true;
-  }, []);
+      return true;
+    },
+    []
+  );
 
   const validateOneOfRecursive = useCallback(
     (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
-      if (typeof value !== 'object' || value === null) return validateValue(value);
+      if (typeof value !== 'object' || value === null) return validateValue(value, spec);
 
       if (spec.attributes?.includes('OAUTH_FLOW') && '_source_credential_id' in value) {
         return true;
@@ -201,7 +213,7 @@ export function ConfigurationStep({
               if (requiredItems.length > 0) {
                 return requiredItems.every(([itemName]) => {
                   const itemValue = (oneOfValue as Record<string, unknown>)[itemName];
-                  return validateValue(itemValue);
+                  return validateValue(itemValue, oneOf.items[itemName]);
                 });
               }
             }
@@ -217,7 +229,7 @@ export function ConfigurationStep({
         });
       }
 
-      return validateValue((value as Record<string, unknown>)[spec.name]);
+      return validateValue((value as Record<string, unknown>)[spec.name], spec);
     },
     [validateValue]
   );
@@ -232,11 +244,15 @@ export function ConfigurationStep({
           : requiredOneOfSpecs.some(spec => validateOneOfRecursive(config[spec.name], spec));
 
       const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
-      const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name]));
+      const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name], spec));
 
-      return isValidOneOf && isValidRequired;
+      const hasValidServiceAccount =
+        connector.name !== GOOGLE_SHEETS_CONNECTOR_NAME ||
+        hasValidGoogleSheetsServiceAccountConfiguration(config);
+
+      return isValidOneOf && isValidRequired && hasValidServiceAccount;
     },
-    [validateValue, validateOneOfRecursive]
+    [connector.name, validateValue, validateOneOfRecursive]
   );
 
   const handleSecretEditToggle = (name: string, enable: boolean) => {
@@ -325,41 +341,43 @@ export function ConfigurationStep({
     <>
       <AppWizardStep>
         <StepperHeroBlock connector={connector} />
-        <AppWizardStepSection>
-          <div className='flex items-center justify-between'>
-            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
-              Configure Settings
-            </h3>
-            <CopyConfigurationButton
-              currentConnectorName={connector.name}
-              onCopyConfiguration={handleCopyConfiguration}
-              connectorSpecification={connectorSpecification}
-            />
-          </div>
-          {requiredFields.length > 0 && (
-            <ConfigurationListRender
-              items={requiredFields}
-              configuration={configuration}
-              onValueChange={handleValueChange}
-              onSecretEditToggle={handleSecretEditToggle}
-              secretEditing={secretEditing}
-              isEditingExisting={isEditingExisting}
-              connectorName={connector.name}
-            />
-          )}
-          {advancedFields.length > 0 && (
-            <ConfigurationListRender
-              collapsibleTitle='Advanced Settings'
-              items={advancedFields}
-              configuration={configuration}
-              onValueChange={handleValueChange}
-              onSecretEditToggle={handleSecretEditToggle}
-              secretEditing={secretEditing}
-              isEditingExisting={isEditingExisting}
-              connectorName={connector.name}
-            />
-          )}
-        </AppWizardStepSection>
+        <fieldset disabled={disabled} className='min-w-0'>
+          <AppWizardStepSection>
+            <div className='flex items-center justify-between'>
+              <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+                Configure Settings
+              </h3>
+              <CopyConfigurationButton
+                currentConnectorName={connector.name}
+                onCopyConfiguration={handleCopyConfiguration}
+                connectorSpecification={connectorSpecification}
+              />
+            </div>
+            {requiredFields.length > 0 && (
+              <ConfigurationListRender
+                items={requiredFields}
+                configuration={configuration}
+                onValueChange={handleValueChange}
+                onSecretEditToggle={handleSecretEditToggle}
+                secretEditing={secretEditing}
+                isEditingExisting={isEditingExisting}
+                connectorName={connector.name}
+              />
+            )}
+            {advancedFields.length > 0 && (
+              <ConfigurationListRender
+                collapsibleTitle='Advanced Settings'
+                items={advancedFields}
+                configuration={configuration}
+                onValueChange={handleValueChange}
+                onSecretEditToggle={handleSecretEditToggle}
+                secretEditing={secretEditing}
+                isEditingExisting={isEditingExisting}
+                connectorName={connector.name}
+              />
+            )}
+          </AppWizardStepSection>
+        </fieldset>
       </AppWizardStep>
     </>
   );

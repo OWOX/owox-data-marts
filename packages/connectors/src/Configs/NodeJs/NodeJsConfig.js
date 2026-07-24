@@ -145,6 +145,22 @@ class NodeJsConfig extends AbstractConfig {
         })
       );
     }
+
+    /**
+     * Emit source field updates through the Node.js structured transport.
+     *
+     * @param {string[]} fields - Field names actually imported by the connector
+     */
+    updateFields(fields) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'updateFields',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          fields,
+        })
+      );
+    }
   
     /**
      * Check if the connector is currently in progress

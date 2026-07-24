@@ -38,6 +38,9 @@ interface ConfigurationExecutionResult {
   success: boolean;
   logs: ConnectorMessage[];
   errors: ConnectorMessage[];
+  fieldsUpdate?: {
+    fields: string[];
+  };
 }
 
 @Injectable()
@@ -76,6 +79,7 @@ export class ConnectorExecutorService {
 
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
+    let configurationResults: ConfigurationExecutionResult[] = [];
     let hasSuccessfulRun = false;
     let wasCancelled = false;
     let operationBlockedException: ProjectOperationBlockedException | undefined;
@@ -97,7 +101,7 @@ export class ConnectorExecutorService {
         finishedAt: null,
       });
 
-      const configurationResults = await this.runConnectorConfigurations(
+      configurationResults = await this.runConnectorConfigurations(
         runId,
         processId,
         dataMart,
@@ -146,6 +150,38 @@ export class ConnectorExecutorService {
         );
       }
     } finally {
+      const hasSuccessfulFieldsUpdate = configurationResults.some(
+        result => result.success && result.fieldsUpdate
+      );
+
+      try {
+        await this.persistSuccessfulFieldsUpdate(dataMart, configurationResults, runId);
+      } catch (error) {
+        const fieldsUpdateError = error instanceof Error ? error.message : String(error);
+        const warning =
+          'Connector data was imported, but the source field list could not be synchronized. It will be retried on the next run.';
+        addMessageToArray(capturedLogs, {
+          type: ConnectorMessageType.WARNING,
+          at: this.systemTimeService.now().toISOString(),
+          warning,
+          toFormattedString: () => `[WARNING] ${warning}`,
+        });
+        this.logger.error(
+          `Error saving connector source fields update: ${fieldsUpdateError}`,
+          (error as Error)?.stack,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            error: fieldsUpdateError,
+          }
+        );
+      }
+
+      if (hasSuccessfulFieldsUpdate) {
+        await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
+      }
+
       await this.updateRunStatus(
         runId,
         hasSuccessfulRun,
@@ -181,25 +217,34 @@ export class ConnectorExecutorService {
         );
       }
 
-      this.logger.debug(`Actualizing schema after connector execution`, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-        runId,
-      });
-
-      try {
-        await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
-      } catch (error) {
-        const schemaError = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Error schema actualization: ${schemaError}`, (error as Error)?.stack, {
-          dataMartId: dataMart.id,
-          projectId: dataMart.projectId,
-          runId,
-          error: schemaError,
-        });
+      if (!hasSuccessfulFieldsUpdate) {
+        await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
       this.gracefulShutdownService.unregisterActiveProcess(processId);
+    }
+  }
+
+  private async actualizeSchemaAfterConnectorExecution(
+    dataMart: DataMart,
+    runId: string
+  ): Promise<void> {
+    this.logger.debug(`Actualizing schema after connector execution`, {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      runId,
+    });
+
+    try {
+      await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
+    } catch (error) {
+      const schemaError = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error schema actualization: ${schemaError}`, (error as Error)?.stack, {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+        runId,
+        error: schemaError,
+      });
     }
   }
 
@@ -229,6 +274,7 @@ export class ConnectorExecutorService {
       const configErrors: ConnectorMessage[] = [];
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
+      let fieldsUpdate: ConfigurationExecutionResult['fieldsUpdate'];
       let configForCredentialUpdates = config as Record<string, unknown>;
       let expectedCredentialValues: Record<string, unknown> | undefined;
 
@@ -267,6 +313,11 @@ export class ConnectorExecutorService {
               break;
             case ConnectorMessageType.CREDENTIALS_UPDATE:
               credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
+              break;
+            case ConnectorMessageType.FIELDS_UPDATE:
+              fieldsUpdate = {
+                fields: message.fields,
+              };
               break;
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
@@ -423,11 +474,54 @@ export class ConnectorExecutorService {
             });
           }
         }
-        configurationResults.push({ configIndex, success, logs: configLogs, errors: configErrors });
+        configurationResults.push({
+          configIndex,
+          success,
+          logs: configLogs,
+          errors: configErrors,
+          fieldsUpdate,
+        });
       }
     }
 
     return configurationResults;
+  }
+
+  private async persistSuccessfulFieldsUpdate(
+    dataMart: DataMart,
+    configurationResults: ConfigurationExecutionResult[],
+    runId: string
+  ): Promise<void> {
+    const successfulFieldUpdates = configurationResults.flatMap(result =>
+      result.success && result.fieldsUpdate ? [result.fieldsUpdate.fields] : []
+    );
+    if (successfulFieldUpdates.length === 0) {
+      return;
+    }
+
+    const nextFields = this.normalizeFieldsUpdate(successfulFieldUpdates.flat());
+    if (nextFields.length === 0) {
+      return;
+    }
+
+    const wasSynchronized = await this.dataMartService.updateConnectorSourceFields(
+      dataMart,
+      nextFields
+    );
+    if (!wasSynchronized) {
+      throw new Error('Data Mart definition changed while connector source fields were updating');
+    }
+
+    this.logger.log(`Updated connector source fields after successful connector run`, {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      runId,
+      fieldsCount: nextFields.length,
+    });
+  }
+
+  private normalizeFieldsUpdate(fields: string[]): string[] {
+    return Array.from(new Set(fields.map(field => field.trim()).filter(field => field.length > 0)));
   }
 
   private async saveConnectorCredentials(

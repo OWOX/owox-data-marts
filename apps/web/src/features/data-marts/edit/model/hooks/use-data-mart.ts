@@ -8,6 +8,7 @@ import { useDataMartContext } from '../context';
 export function useDataMart(id?: string) {
   const {
     getDataMart,
+    refreshDataMart,
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
@@ -67,6 +68,7 @@ export function useDataMart(id?: string) {
     loadMoreDataMartRuns,
     runs,
     getDataMart,
+    refreshDataMart,
     isManualRunTriggered,
     resetManualRunTriggered,
   };

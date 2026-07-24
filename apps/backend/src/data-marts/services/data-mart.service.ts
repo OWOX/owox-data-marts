@@ -1,9 +1,10 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { FindOperator, Raw, Repository, SelectQueryBuilder } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
+import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -344,5 +345,75 @@ export class DataMartService {
         `Failed to schedule search index invalidation for data mart ${dataMart.id}: ${message}`
       );
     }
+  }
+
+  async updateConnectorSourceFields(dataMart: DataMart, fields: string[]): Promise<boolean> {
+    const definitionAtRunStart = dataMart.definition;
+
+    if (!definitionAtRunStart || !isConnectorDefinition(definitionAtRunStart)) {
+      return false;
+    }
+
+    const latestDataMart = await this.dataMartRepository.findOne({
+      where: { id: dataMart.id, projectId: dataMart.projectId },
+    });
+    const latestDefinition = latestDataMart?.definition;
+    if (!latestDataMart || !latestDefinition || !isConnectorDefinition(latestDefinition)) {
+      return false;
+    }
+
+    const sourceAtRunStart = definitionAtRunStart.connector.source;
+    const latestSource = latestDefinition.connector.source;
+    if (this.areStringArraysEqual(latestSource.fields, fields)) {
+      return true;
+    }
+    if (
+      sourceAtRunStart.name !== latestSource.name ||
+      sourceAtRunStart.node !== latestSource.node ||
+      JSON.stringify(sourceAtRunStart.configuration) !==
+        JSON.stringify(latestSource.configuration) ||
+      !this.areStringArraysEqual(sourceAtRunStart.fields, latestSource.fields)
+    ) {
+      return false;
+    }
+
+    const nextDefinition = {
+      ...latestDefinition,
+      connector: {
+        ...latestDefinition.connector,
+        source: {
+          ...latestSource,
+          fields,
+        },
+      },
+    };
+
+    const updateResult = await this.dataMartRepository.update(
+      {
+        id: dataMart.id,
+        projectId: dataMart.projectId,
+        modifiedAt: this.createModifiedAtUpdateCriterion(latestDataMart.modifiedAt),
+      },
+      { definition: nextDefinition }
+    );
+    return (updateResult.affected ?? 0) > 0;
+  }
+
+  private createModifiedAtUpdateCriterion(modifiedAt: Date): Date | FindOperator<Date> {
+    if (this.dataMartRepository.manager.connection.options.type !== 'better-sqlite3') {
+      return modifiedAt;
+    }
+
+    return Raw(
+      alias =>
+        `strftime('%Y-%m-%d %H:%M:%f', ${alias}) = strftime('%Y-%m-%d %H:%M:%f', :expectedModifiedAt)`,
+      {
+        expectedModifiedAt: modifiedAt.toISOString(),
+      }
+    );
+  }
+
+  private areStringArraysEqual(left: string[], right: string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
   }
 }

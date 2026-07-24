@@ -815,6 +815,9 @@ export class ConnectorSecretService {
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
+      if (incoming.connector.source.name === 'GoogleSheets') {
+        delete mergedItem._secrets_id;
+      }
       mergedItem._id = randomUUID();
       delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
       if (

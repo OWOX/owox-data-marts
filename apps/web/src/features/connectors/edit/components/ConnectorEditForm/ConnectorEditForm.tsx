@@ -1,6 +1,6 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
@@ -12,9 +12,26 @@ import {
 import { StepNavigation } from './components';
 import type { ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
-import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
+import {
+  AppWizard,
+  AppWizardLayout,
+  AppWizardActions,
+  AppWizardStepLoading,
+} from '@owox/ui/components/common/wizard';
 import { trackEvent } from '../../../../../utils';
 import { resolveEffectiveDataLevel } from '../../../shared/constants/connector-config';
+import { toast } from 'react-hot-toast';
+import { Button } from '@owox/ui/components/button';
+import { RefreshCw } from 'lucide-react';
+import { extractApiError } from '../../../../../app/api/extract-api-error.util';
+import {
+  GOOGLE_SHEETS_CONNECTOR_NAME,
+  getAvailableGoogleSheetsSelectedFields,
+  isGoogleSheetsSystemField,
+  resolveGoogleSheetsPreviewSelection,
+  withoutGoogleSheetsSystemFields,
+  withGoogleSheetsImportAllColumns,
+} from '../../../shared/utils/google-sheets-fields.utils';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -25,6 +42,7 @@ interface ConnectorEditFormProps {
   initialStep?: number;
   preselectedConnector?: string | null;
   onDirtyChange?: (dirty: boolean) => void;
+  isOpen?: boolean;
 }
 
 export function ConnectorEditForm({
@@ -36,6 +54,7 @@ export function ConnectorEditForm({
   initialStep,
   preselectedConnector,
   onDirtyChange,
+  isOpen = true,
 }: ConnectorEditFormProps) {
   const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
@@ -46,6 +65,10 @@ export function ConnectorEditForm({
   const [configurationIsValid, setConfigurationIsValid] = useState<boolean>(false);
   const [loadedSpecifications, setLoadedSpecifications] = useState<Set<string>>(new Set());
   const [loadedFields, setLoadedFields] = useState<Set<string>>(new Set());
+  const [previewConfigurationKey, setPreviewConfigurationKey] = useState<string | null>(null);
+  const [autoSelectPreviewDefaults, setAutoSelectPreviewDefaults] = useState(true);
+  const [fieldsOnlyPreviewError, setFieldsOnlyPreviewError] = useState<string | null>(null);
+  const fieldsOnlyPreviewStartedForOpenRef = useRef(false);
   const {
     connectors,
     connectorSpecification,
@@ -57,6 +80,7 @@ export function ConnectorEditForm({
     fetchAvailableConnectors,
     fetchConnectorSpecification,
     fetchConnectorFields,
+    previewGoogleSheetsFields,
   } = useConnector();
 
   useEffect(() => {
@@ -66,22 +90,44 @@ export function ConnectorEditForm({
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
   );
-
-  const steps = useMemo(
-    () =>
-      configurationOnly
-        ? [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }]
-        : mode === 'fields-only'
-          ? [{ id: 1, title: 'Select Fields', description: 'Pick specific fields' }]
-          : [
-              { id: 1, title: 'Select Connector', description: 'Choose a data source' },
-              { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
-              { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
-              { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
-              { id: 5, title: 'Target Setup', description: 'Configure destination' },
-            ],
-    [configurationOnly, mode]
+  const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
+  const currentConfigurationKey = useMemo(
+    () => JSON.stringify(connectorConfiguration),
+    [connectorConfiguration]
   );
+
+  const steps = useMemo(() => {
+    if (configurationOnly) {
+      if (isGoogleSheetsConnector) {
+        return [
+          { id: 1, title: 'Configuration', description: 'Set up connector parameters' },
+          { id: 2, title: 'Select Columns', description: 'Pick sheet columns' },
+        ];
+      }
+      return [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }];
+    }
+
+    if (mode === 'fields-only') {
+      return [{ id: 1, title: 'Select Fields', description: 'Pick specific fields' }];
+    }
+
+    if (isGoogleSheetsConnector) {
+      return [
+        { id: 1, title: 'Select Connector', description: 'Choose a data source' },
+        { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
+        { id: 3, title: 'Select Columns', description: 'Pick sheet columns' },
+        { id: 4, title: 'Target Setup', description: 'Configure destination' },
+      ];
+    }
+
+    return [
+      { id: 1, title: 'Select Connector', description: 'Choose a data source' },
+      { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
+      { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
+      { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
+      { id: 5, title: 'Target Setup', description: 'Configure destination' },
+    ];
+  }, [configurationOnly, isGoogleSheetsConnector, mode]);
 
   const totalSteps = steps.length;
 
@@ -113,13 +159,13 @@ export function ConnectorEditForm({
     const found = connectors.find(c => c.name === preselectedConnector);
     if (found) {
       setSelectedConnector(found);
-      // set default configuration if existing connector wasn't provided
-      // ssetConnectorConfiguration(found ? {} : {});
-      // set step to requested initialStep (or 2 by default)
       setCurrentStep(initialStep ?? 2);
-      // if in full flow ensure fields/spec are loaded:
       void loadSpecificationSafely(found.name);
-      if (!configurationOnly && mode !== 'fields-only') {
+      if (
+        !configurationOnly &&
+        mode !== 'fields-only' &&
+        found.name !== GOOGLE_SHEETS_CONNECTOR_NAME
+      ) {
         void loadFieldsSafely(found.name);
       }
     }
@@ -155,8 +201,10 @@ export function ConnectorEditForm({
         setSelectedConnector(existingConnectorDef);
 
         void loadSpecificationSafely(existingConnectorDef.name);
-        // Fields power both the Fields step and the data-level reconciliation at save.
-        void loadFieldsSafely(existingConnectorDef.name);
+        if (existingConnectorDef.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
+          // Fields power both the Fields step and the data-level reconciliation at save.
+          void loadFieldsSafely(existingConnectorDef.name);
+        }
       }
     }
 
@@ -204,6 +252,13 @@ export function ConnectorEditForm({
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
+    if (
+      connector.name === GOOGLE_SHEETS_CONNECTOR_NAME ||
+      selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME
+    ) {
+      setSelectedNode('');
+      setSelectedFields([]);
+    }
     setIsDirty(true);
     setLoadedSpecifications(prev => {
       const newSet = new Set(prev);
@@ -211,7 +266,9 @@ export function ConnectorEditForm({
       return newSet;
     });
     void loadSpecificationSafely(connector.name);
-    void loadFieldsSafely(connector.name);
+    if (connector.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
+      void loadFieldsSafely(connector.name);
+    }
   };
 
   const handleFieldSelect = (fieldName: string) => {
@@ -255,10 +312,16 @@ export function ConnectorEditForm({
   // Do not clone or normalise here (`{ ...configuration }`, structuredClone, etc.):
   // every echo would become a new reference, the step would re-seed on each keystroke,
   // and typed characters would be dropped again.
-  const handleConfigurationChange = useCallback((configuration: Record<string, unknown>) => {
-    setConnectorConfiguration(configuration);
-    setIsDirty(true);
-  }, []);
+  const handleConfigurationChange = useCallback(
+    (configuration: Record<string, unknown>) => {
+      setConnectorConfiguration(configuration);
+      if (isGoogleSheetsConnector) {
+        setPreviewConfigurationKey(null);
+      }
+      setIsDirty(true);
+    },
+    [isGoogleSheetsConnector]
+  );
 
   const handleConfigurationValidationChange = useCallback((isValid: boolean) => {
     setConfigurationIsValid(isValid);
@@ -287,7 +350,119 @@ export function ConnectorEditForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
-  const handleNext = () => {
+  const loadGoogleSheetsPreviewFields = useCallback(
+    async (options?: {
+      connectorName?: string;
+      configuration?: Record<string, unknown>;
+      selectedFields?: string[];
+    }) => {
+      const connectorName = options?.connectorName ?? selectedConnector?.name;
+      if (connectorName !== GOOGLE_SHEETS_CONNECTOR_NAME) {
+        return false;
+      }
+
+      const configuration = options?.configuration ?? connectorConfiguration;
+      const configurationKey = JSON.stringify(configuration);
+      setPreviewConfigurationKey(null);
+      setFieldsOnlyPreviewError(null);
+
+      try {
+        const previewFields = await previewGoogleSheetsFields(configuration);
+        if (!previewFields) {
+          if (mode === 'fields-only') {
+            setFieldsOnlyPreviewError('Failed to load Google Sheets columns');
+          }
+          return false;
+        }
+        if (previewFields.length === 0) {
+          throw new Error('No columns were found in the selected Google Sheets tab');
+        }
+
+        const sheetNode = previewFields[0];
+        const availableFieldNames = sheetNode.fields?.map(field => field.name) ?? [];
+        const availableUserFieldNames = withoutGoogleSheetsSystemFields(availableFieldNames);
+        const defaultFields = (
+          sheetNode.defaultFields?.length ? sheetNode.defaultFields : availableFieldNames
+        ).filter(fieldName => availableFieldNames.includes(fieldName));
+
+        if (availableUserFieldNames.length === 0) {
+          throw new Error('No columns were found in the selected Google Sheets tab');
+        }
+
+        const selectedFieldsToPreserve = options?.selectedFields ?? selectedFields;
+        const hasPreviousSelection = selectedFieldsToPreserve.length > 0;
+        const nextSelectedFields = resolveGoogleSheetsPreviewSelection(
+          configuration,
+          options?.selectedFields ?? selectedFields,
+          availableFieldNames,
+          defaultFields
+        );
+
+        setSelectedNode(sheetNode.name);
+        setSelectedFields(nextSelectedFields);
+        setAutoSelectPreviewDefaults(!hasPreviousSelection);
+        setPreviewConfigurationKey(configurationKey);
+
+        return true;
+      } catch (error) {
+        const apiError = extractApiError(error) as { message?: string } | undefined;
+        const message =
+          apiError?.message ??
+          (error instanceof Error ? error.message : 'Failed to load Google Sheets columns');
+        if (mode === 'fields-only') {
+          setFieldsOnlyPreviewError(message);
+        }
+        if (!apiError) {
+          toast.error(message);
+        }
+        return false;
+      }
+    },
+    [
+      connectorConfiguration,
+      mode,
+      previewGoogleSheetsFields,
+      selectedConnector?.name,
+      selectedFields,
+    ]
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      fieldsOnlyPreviewStartedForOpenRef.current = false;
+      setFieldsOnlyPreviewError(null);
+      return;
+    }
+
+    if (mode !== 'fields-only') {
+      return;
+    }
+
+    if (!existingConnector || selectedConnector?.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
+      return;
+    }
+
+    if (fieldsOnlyPreviewStartedForOpenRef.current) return;
+    fieldsOnlyPreviewStartedForOpenRef.current = true;
+
+    void loadGoogleSheetsPreviewFields({
+      connectorName: existingConnector.source.name,
+      configuration: existingConnector.source.configuration[0] || {},
+      selectedFields: existingConnector.source.fields,
+    });
+  }, [existingConnector, isOpen, loadGoogleSheetsPreviewFields, mode, selectedConnector?.name]);
+
+  const handleNext = async () => {
+    const shouldPreviewGoogleSheetsFields =
+      isGoogleSheetsConnector &&
+      ((!configurationOnly && currentStep === 2) || (configurationOnly && currentStep === 1));
+    if (shouldPreviewGoogleSheetsFields) {
+      const loadedPreview = await loadGoogleSheetsPreviewFields();
+      if (!loadedPreview) {
+        return;
+      }
+    }
+
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     }
@@ -301,12 +476,35 @@ export function ConnectorEditForm({
 
   const canGoNext = () => {
     if (configurationOnly) {
-      return selectedConnector !== null && configurationIsValid;
+      if (currentStep === 1) {
+        return selectedConnector !== null && configurationIsValid;
+      }
+      return (
+        isGoogleSheetsConnector &&
+        previewConfigurationKey === currentConfigurationKey &&
+        selectedNode !== '' &&
+        selectedFields.some(fieldName => !isGoogleSheetsSystemField(fieldName))
+      );
     }
 
     if (mode === 'fields-only') {
       switch (currentStep) {
         case 1:
+          if (isGoogleSheetsConnector) {
+            const hasPreviewedSheetColumns = connectorFields?.some(field => {
+              return (
+                field.name === selectedNode &&
+                field.fields?.some(sheetField => !isGoogleSheetsSystemField(sheetField.name))
+              );
+            });
+
+            return (
+              previewConfigurationKey === currentConfigurationKey &&
+              Boolean(hasPreviewedSheetColumns) &&
+              selectedFields.some(fieldName => !isGoogleSheetsSystemField(fieldName))
+            );
+          }
+
           return selectedFields.length > 0;
         default:
           return false;
@@ -319,8 +517,18 @@ export function ConnectorEditForm({
       case 2:
         return configurationIsValid;
       case 3:
+        if (isGoogleSheetsConnector) {
+          return (
+            previewConfigurationKey === currentConfigurationKey &&
+            selectedNode !== '' &&
+            selectedFields.some(fieldName => !isGoogleSheetsSystemField(fieldName))
+          );
+        }
         return selectedNode !== '';
       case 4:
+        if (isGoogleSheetsConnector) {
+          return target !== null && target.fullyQualifiedName !== '' && target.isValid;
+        }
         return selectedFields.length > 0;
       case 5:
         return target !== null && target.fullyQualifiedName !== '' && target.isValid;
@@ -354,6 +562,23 @@ export function ConnectorEditForm({
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
           isEditingExisting={Boolean(existingConnector?.source.configuration.length)}
+          disabled={isGoogleSheetsConnector && loadingFields}
+        />
+      ) : null;
+    }
+
+    if (configurationOnly && currentStep === 2 && isGoogleSheetsConnector) {
+      return selectedNode && connectorFields ? (
+        <FieldsSelectionStep
+          connector={selectedConnector}
+          connectorFields={connectorFields}
+          selectedField={selectedNode}
+          selectedFields={selectedFields}
+          onFieldToggle={handleFieldToggle}
+          onSelectAllFields={handleSelectAllFields}
+          itemLabel='columns'
+          searchPlaceholder='Search column'
+          autoSelectDefaultFields={autoSelectPreviewDefaults}
         />
       ) : null;
     }
@@ -361,7 +586,10 @@ export function ConnectorEditForm({
     if (mode === 'fields-only') {
       switch (currentStep) {
         case 1:
-          return selectedConnector && selectedNode && connectorFields ? (
+          return selectedConnector &&
+            selectedNode &&
+            connectorFields &&
+            (!isGoogleSheetsConnector || previewConfigurationKey === currentConfigurationKey) ? (
             <FieldsSelectionStep
               connector={selectedConnector}
               connectorFields={connectorFields}
@@ -370,7 +598,46 @@ export function ConnectorEditForm({
               configuration={connectorConfiguration}
               onFieldToggle={handleFieldToggle}
               onSelectAllFields={handleSelectAllFields}
+              itemLabel={
+                selectedConnector.name === GOOGLE_SHEETS_CONNECTOR_NAME ? 'columns' : 'fields'
+              }
+              searchPlaceholder={
+                selectedConnector.name === GOOGLE_SHEETS_CONNECTOR_NAME
+                  ? 'Search column'
+                  : 'Search field'
+              }
+              autoSelectDefaultFields={
+                selectedConnector.name === GOOGLE_SHEETS_CONNECTOR_NAME
+                  ? autoSelectPreviewDefaults
+                  : undefined
+              }
             />
+          ) : isGoogleSheetsConnector && loadingFields ? (
+            <AppWizardStepLoading variant='list' />
+          ) : isGoogleSheetsConnector && fieldsOnlyPreviewError ? (
+            <div
+              role='alert'
+              className='flex min-h-48 flex-col items-center justify-center gap-3 text-center'
+            >
+              <p className='text-destructive text-sm'>{fieldsOnlyPreviewError}</p>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                aria-label='Retry loading Google Sheets columns'
+                onClick={() => {
+                  fieldsOnlyPreviewStartedForOpenRef.current = true;
+                  void loadGoogleSheetsPreviewFields({
+                    connectorName: existingConnector?.source.name,
+                    configuration: existingConnector?.source.configuration[0] ?? {},
+                    selectedFields: existingConnector?.source.fields,
+                  });
+                }}
+              >
+                <RefreshCw className='h-4 w-4' />
+                Retry
+              </Button>
+            </div>
           ) : null;
         default:
           return null;
@@ -401,9 +668,26 @@ export function ConnectorEditForm({
             initialConfiguration={connectorConfiguration}
             loading={loadingSpecification}
             isEditingExisting={false}
+            disabled={isGoogleSheetsConnector && loadingFields}
           />
         ) : null;
       case 3:
+        if (isGoogleSheetsConnector) {
+          return selectedNode && connectorFields ? (
+            <FieldsSelectionStep
+              connector={selectedConnector}
+              connectorFields={connectorFields}
+              selectedField={selectedNode}
+              selectedFields={selectedFields}
+              onFieldToggle={handleFieldToggle}
+              onSelectAllFields={handleSelectAllFields}
+              itemLabel='columns'
+              searchPlaceholder='Search column'
+              autoSelectDefaultFields={autoSelectPreviewDefaults}
+            />
+          ) : null;
+        }
+
         return selectedConnector && connectorFields ? (
           <NodesSelectionStep
             connectorFields={connectorFields}
@@ -415,6 +699,18 @@ export function ConnectorEditForm({
           />
         ) : null;
       case 4:
+        if (isGoogleSheetsConnector) {
+          return selectedNode && connectorFields ? (
+            <TargetSetupStep
+              dataStorageType={dataStorageType}
+              destinationName={getDestinationName(connectorFields, selectedNode)}
+              connectorName={selectedConnector.displayName}
+              target={target}
+              onTargetChange={handleTargetChange}
+            />
+          ) : null;
+        }
+
         return selectedConnector && selectedNode && connectorFields ? (
           <FieldsSelectionStep
             connector={selectedConnector}
@@ -452,16 +748,35 @@ export function ConnectorEditForm({
           canGoNext={canGoNext()}
           canGoBack={canGoBack()}
           isLoading={loadingSpecification || loadingFields}
-          onNext={handleNext}
+          onNext={() => {
+            void handleNext();
+          }}
           onBack={handleBack}
           onFinish={() => {
+            const availableFields =
+              connectorFields
+                ?.find(field => field.name === selectedNode)
+                ?.fields?.map(field => field.name) ?? [];
+            const activeSelectedFields =
+              selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME
+                ? getAvailableGoogleSheetsSelectedFields(selectedFields, availableFields)
+                : selectedFields;
+
             if (configurationOnly && selectedConnector) {
+              const configuration = isGoogleSheetsConnector
+                ? withGoogleSheetsImportAllColumns(
+                    connectorConfiguration,
+                    selectedFields,
+                    availableFields,
+                    existingConnector?.source.fields
+                  )
+                : connectorConfiguration;
               onSubmit({
                 source: {
                   name: selectedConnector.name,
-                  configuration: [connectorConfiguration],
+                  configuration: [configuration],
                   node: existingConnector?.source.node ?? selectedNode,
-                  fields: fieldsForSave,
+                  fields: isGoogleSheetsConnector ? activeSelectedFields : fieldsForSave,
                 },
                 storage: existingConnector?.storage ?? {
                   fullyQualifiedName: existingConnector?.storage.fullyQualifiedName ?? '',
@@ -477,7 +792,18 @@ export function ConnectorEditForm({
               onSubmit({
                 source: {
                   ...existingConnector.source,
-                  fields: selectedFields,
+                  configuration:
+                    existingConnector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME
+                      ? [
+                          withGoogleSheetsImportAllColumns(
+                            existingConnector.source.configuration[0] ?? {},
+                            selectedFields,
+                            availableFields,
+                            existingConnector.source.fields
+                          ),
+                        ]
+                      : existingConnector.source.configuration,
+                  fields: activeSelectedFields,
                 },
                 storage: existingConnector.storage,
               });
@@ -491,9 +817,18 @@ export function ConnectorEditForm({
               onSubmit({
                 source: {
                   name: selectedConnector.name,
-                  configuration: [connectorConfiguration],
+                  configuration: [
+                    selectedConnector.name === GOOGLE_SHEETS_CONNECTOR_NAME
+                      ? withGoogleSheetsImportAllColumns(
+                          connectorConfiguration,
+                          selectedFields,
+                          availableFields,
+                          existingConnector?.source.fields
+                        )
+                      : connectorConfiguration,
+                  ],
                   node: selectedNode,
-                  fields: selectedFields,
+                  fields: activeSelectedFields,
                 },
                 storage: {
                   fullyQualifiedName: target.fullyQualifiedName,

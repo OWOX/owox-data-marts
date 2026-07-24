@@ -25,6 +25,7 @@ import {
 } from '../../../../../connectors/edit/components/ConnectorDefinitionField';
 import { ConnectorEditSheet } from '../../../../../connectors/edit/components/ConnectorEditSheet/ConnectorEditSheet';
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../connectors/shared/utils/google-sheets-fields.utils';
 import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
 import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog/ConfirmationDialog';
@@ -98,16 +99,24 @@ export function ConnectorDefinitionField({
       const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
       if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
-        const updatedConfigurations = [...currentDefinition.connector.source.configuration];
-        updatedConfigurations[configIndex] = connector.source.configuration[0] || {};
+        const isGoogleSheets =
+          currentDefinition.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME;
+        const updatedConfigurations = isGoogleSheets
+          ? [connector.source.configuration[0] || {}]
+          : [...currentDefinition.connector.source.configuration];
+        if (!isGoogleSheets) {
+          updatedConfigurations[configIndex] = connector.source.configuration[0] || {};
+        }
 
         // connector.source.fields may add fields required by a changed config parameter
         // (e.g. TikTok Ads Data Level). Union rather than overwrite so editing
         // configuration can never drop previously selected fields, regardless of what
         // triggered the update.
-        const updatedFields = Array.from(
-          new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
-        );
+        const updatedFields = isGoogleSheets
+          ? connector.source.fields
+          : Array.from(
+              new Set([...currentDefinition.connector.source.fields, ...connector.source.fields])
+            );
 
         const updatedDefinition: ConnectorDefinitionConfig = {
           connector: {
@@ -128,12 +137,15 @@ export function ConnectorDefinitionField({
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
     if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
+      const isGoogleSheets =
+        currentDefinition.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME;
       const updatedDefinition: ConnectorDefinitionConfig = {
         connector: {
           ...currentDefinition.connector,
           source: {
             ...currentDefinition.connector.source,
             fields: connector.source.fields,
+            ...(isGoogleSheets ? { configuration: connector.source.configuration } : {}),
           },
         },
       };
@@ -282,20 +294,23 @@ export function ConnectorDefinitionField({
                   <div className='space-y-3'>
                     <div className='flex items-center justify-between'>
                       <div className='flex items-center gap-2'>
-                        <AddConfigurationButton
-                          storageType={storageType}
-                          onAddConfiguration={connector => void addConfiguration(connector)}
-                          existingConnector={
-                            isConnectorConfigured(field.value as ConnectorDefinitionConfig)
-                              ? {
-                                  source: (field.value as ConnectorDefinitionConfig).connector
-                                    .source,
-                                  storage: (field.value as ConnectorDefinitionConfig).connector
-                                    .storage,
-                                }
-                              : undefined
-                          }
-                        />
+                        {(field.value as ConnectorDefinitionConfig).connector.source.name !==
+                          GOOGLE_SHEETS_CONNECTOR_NAME && (
+                          <AddConfigurationButton
+                            storageType={storageType}
+                            onAddConfiguration={newConfig => void addConfiguration(newConfig)}
+                            existingConnector={
+                              isConnectorConfigured(field.value as ConnectorDefinitionConfig)
+                                ? {
+                                    source: (field.value as ConnectorDefinitionConfig).connector
+                                      .source,
+                                    storage: (field.value as ConnectorDefinitionConfig).connector
+                                      .storage,
+                                  }
+                                : undefined
+                            }
+                          />
+                        )}
                         {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
                           renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
                       </div>
@@ -329,33 +344,39 @@ export function ConnectorDefinitionField({
                     <div className='space-y-3'>
                       {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
                       dataMart?.storage
-                        ? (
-                            field.value as ConnectorDefinitionConfig
-                          ).connector.source.configuration.map(
-                            (_: Record<string, unknown>, configIndex: number) => {
-                              const connectorDef = field.value as ConnectorDefinitionConfig;
-                              return (
-                                <ConnectorContextProvider key={configIndex}>
-                                  <ConnectorConfigurationItem
-                                    key={configIndex}
-                                    configIndex={configIndex}
-                                    connectorDef={connectorDef}
-                                    dataStorage={dataMart.storage}
-                                    onRemoveConfiguration={configIndex => {
-                                      confirmDeleteConfiguration(configIndex);
-                                    }}
-                                    onUpdateConfiguration={configIndex =>
-                                      updateConnectorConfiguration(configIndex)
-                                    }
-                                    dataMartStatus={normalizedDataMartStatus}
-                                    totalConfigurations={
-                                      connectorDef.connector.source.configuration.length
-                                    }
-                                  />
-                                </ConnectorContextProvider>
-                              );
-                            }
-                          )
+                        ? ((field.value as ConnectorDefinitionConfig).connector.source.name ===
+                          GOOGLE_SHEETS_CONNECTOR_NAME
+                            ? (
+                                field.value as ConnectorDefinitionConfig
+                              ).connector.source.configuration.slice(0, 1)
+                            : (field.value as ConnectorDefinitionConfig).connector.source
+                                .configuration
+                          ).map((_: Record<string, unknown>, configIndex: number) => {
+                            const connectorDef = field.value as ConnectorDefinitionConfig;
+                            return (
+                              <ConnectorContextProvider key={configIndex}>
+                                <ConnectorConfigurationItem
+                                  key={configIndex}
+                                  configIndex={configIndex}
+                                  connectorDef={connectorDef}
+                                  dataStorage={dataMart.storage}
+                                  onRemoveConfiguration={configIndex => {
+                                    confirmDeleteConfiguration(configIndex);
+                                  }}
+                                  onUpdateConfiguration={configIndex =>
+                                    updateConnectorConfiguration(configIndex)
+                                  }
+                                  dataMartStatus={normalizedDataMartStatus}
+                                  totalConfigurations={
+                                    connectorDef.connector.source.name ===
+                                    GOOGLE_SHEETS_CONNECTOR_NAME
+                                      ? 1
+                                      : connectorDef.connector.source.configuration.length
+                                  }
+                                />
+                              </ConnectorContextProvider>
+                            );
+                          })
                         : null}
                     </div>
                   </div>

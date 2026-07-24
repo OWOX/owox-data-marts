@@ -29,6 +29,9 @@ interface FieldsSelectionStepProps {
   configuration?: Record<string, unknown>;
   onFieldToggle: (fieldName: string, isChecked: boolean) => void;
   onSelectAllFields: (fieldNames: string[], isSelected: boolean) => void;
+  itemLabel?: string;
+  searchPlaceholder?: string;
+  autoSelectDefaultFields?: boolean;
 }
 
 export function FieldsSelectionStep({
@@ -39,6 +42,9 @@ export function FieldsSelectionStep({
   configuration,
   onFieldToggle,
   onSelectAllFields,
+  itemLabel = 'fields',
+  searchPlaceholder = 'Search field',
+  autoSelectDefaultFields = true,
 }: FieldsSelectionStepProps) {
   const filterInputRef = useRef<HTMLInputElement>(null);
   const prevSelectedFieldRef = useRef<string | null>(null);
@@ -116,7 +122,7 @@ export function FieldsSelectionStep({
       const hasFieldsBeyondUniqueKeys = selectedFields.some(
         f => !uniqueKeysSet.has(f) && availableFieldNamesSet.has(f)
       );
-      if (!hasFieldsBeyondUniqueKeys) {
+      if (autoSelectDefaultFields && !hasFieldsBeyondUniqueKeys) {
         const defaultFields = selectedFieldData?.defaultFields ?? [];
         defaultFields.forEach(fieldName => {
           if (availableFieldNamesSet.has(fieldName) && !selectedFieldsSet.has(fieldName)) {
@@ -137,6 +143,7 @@ export function FieldsSelectionStep({
     selectedFieldData,
     onSelectAllFields,
     selectedField,
+    autoSelectDefaultFields,
   ]);
 
   // HotKey for Selecting/Unselecting all fields
@@ -211,7 +218,7 @@ export function FieldsSelectionStep({
             <input
               ref={filterInputRef}
               type='text'
-              placeholder='Search field'
+              placeholder={searchPlaceholder}
               value={filterText}
               onChange={e => {
                 setFilterText(e.target.value);
@@ -275,7 +282,7 @@ export function FieldsSelectionStep({
         {/* end: Search & Sorting */}
 
         <AppWizardStepSection
-          title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for "${selectedField}" data`}
+          title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} ${itemLabel} for "${selectedField}" data`}
         >
           {showDataLevelFieldsTip && (
             <div className='border-border bg-muted/30 text-muted-foreground flex gap-3 rounded-md border px-3 py-2 text-sm'>
@@ -345,7 +352,7 @@ export function FieldsSelectionStep({
             )}
           </AppWizardStepCards>
 
-          <OpenIssueLink label='Need another field?' />
+          <OpenIssueLink label={`Need another ${itemLabel === 'columns' ? 'column' : 'field'}?`} />
         </AppWizardStepSection>
       </>
     </AppWizardStep>

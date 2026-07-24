@@ -129,6 +129,7 @@ describe('ConnectorExecutorService', () => {
 
     const dataMartService = {
       actualizeSchema: jest.fn().mockResolvedValue(undefined),
+      updateConnectorSourceFields: jest.fn().mockResolvedValue(true),
     } as unknown as DataMartService;
 
     const connectorSourceCredentialsService = {
@@ -225,6 +226,153 @@ describe('ConnectorExecutorService', () => {
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+    const successUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.findIndex(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    );
+    expect(successUpdate).toBeGreaterThanOrEqual(0);
+    expect(
+      (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdate]
+    ).toBeLessThan((dataMartService.actualizeSchema as jest.Mock).mock.invocationCallOrder[0]);
+  });
+
+  it('persists sanitized fields emitted by a successful connector run', async () => {
+    const {
+      service,
+      processSpawner,
+      emitMessage,
+      emitSuccessMessage,
+      dataMartService,
+      dataMartRunRepository,
+    } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'TestConnector',
+            node: 'sheet',
+            fields: ['custom_product_type', 'deleted_column'],
+            configuration: [{ _id: 'cfg-1', param: 'val' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.FIELDS_UPDATE,
+        at: new Date().toISOString(),
+        fields: [
+          '_owox_row_number',
+          '_owox_imported_at',
+          'custom_product_type',
+          'custom_product_type',
+          'matched_with',
+          ' ',
+        ],
+        toFormattedString: () => '[FIELDS] 6',
+      });
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(dataMartService.updateConnectorSourceFields).toHaveBeenCalledWith(dataMart, [
+      '_owox_row_number',
+      '_owox_imported_at',
+      'custom_product_type',
+      'matched_with',
+    ]);
+    const successUpdateIndex = (dataMartRunRepository.update as jest.Mock).mock.calls.findIndex(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    );
+    expect(successUpdateIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      (dataMartService.updateConnectorSourceFields as jest.Mock).mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdateIndex]
+    );
+    expect((dataMartService.actualizeSchema as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (dataMartRunRepository.update as jest.Mock).mock.invocationCallOrder[successUpdateIndex]
+    );
+  });
+
+  it('does not persist emitted fields when the connector run fails', async () => {
+    const { service, processSpawner, emitMessage, dataMartService } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'TestConnector',
+            node: 'sheet',
+            fields: ['custom_product_type', 'deleted_column'],
+            configuration: [{ _id: 'cfg-1', param: 'val' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.FIELDS_UPDATE,
+        at: new Date().toISOString(),
+        fields: ['_owox_row_number', '_owox_imported_at', 'custom_product_type'],
+        toFormattedString: () => '[FIELDS] 3',
+      });
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(dataMartService.updateConnectorSourceFields).not.toHaveBeenCalled();
+  });
+
+  it('keeps the imported run successful and records a warning when field synchronization fails', async () => {
+    const {
+      service,
+      processSpawner,
+      emitMessage,
+      emitSuccessMessage,
+      dataMartService,
+      dataMartRunRepository,
+    } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'TestConnector',
+            node: 'sheet',
+            fields: ['existing', 'deleted_column'],
+            configuration: [{ _id: 'cfg-1' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    (dataMartService.updateConnectorSourceFields as jest.Mock).mockRejectedValueOnce(
+      new Error('database unavailable')
+    );
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.FIELDS_UPDATE,
+        at: new Date().toISOString(),
+        fields: ['_owox_row_number', 'existing'],
+        toFormattedString: () => '[FIELDS] 2',
+      });
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      ([, update]) => update.status === DataMartRunStatus.SUCCESS
+    )?.[1];
+    expect(finalUpdate).toBeDefined();
+    expect(finalUpdate.logs).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('source field list could not be synchronized'),
+      ])
+    );
   });
 
   it('does not mark a run successful when only import in-progress status is emitted', async () => {

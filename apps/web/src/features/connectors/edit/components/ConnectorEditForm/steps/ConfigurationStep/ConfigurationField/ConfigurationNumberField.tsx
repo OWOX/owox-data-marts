@@ -12,14 +12,18 @@ export function ConfigurationNumberField({
   configuration,
   onValueChange,
 }: ConfigurationNumberFieldProps) {
-  const { name, placeholder } = specification;
+  const { name, placeholder, minimum } = specification;
   const displayName = specification.title ?? specification.name;
+  const value = configuration[name];
+  const inputValue = typeof value === 'number' || typeof value === 'string' ? String(value) : '';
+
   return (
     <Input
       id={name}
       name={name}
       type='number'
-      value={(configuration[name] as string) || ''}
+      min={minimum}
+      value={inputValue}
       placeholder={placeholder ?? `Enter ${displayName.toLowerCase()}`}
       onChange={e => {
         const value = e.target.value;

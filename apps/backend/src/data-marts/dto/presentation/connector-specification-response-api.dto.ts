@@ -34,6 +34,9 @@ export class ConnectorSpecificationItemResponseApiDto {
   @ApiProperty({ example: 'Enter your access token...', required: false })
   placeholder?: string;
 
+  @ApiProperty({ example: 1, required: false })
+  minimum?: number;
+
   @ApiProperty({
     type: [String],
     example: ['MANUAL_BACKFILL', 'HIDE_IN_UI'],
