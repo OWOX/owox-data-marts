@@ -696,7 +696,7 @@ describeIfCredentials('Output controls — operator matrix & dates (real Athena)
     //   6  (empty)  x       0  true   mid last year (anchored: Jul 1 of last year)
     //   7  future   f      70  true   ~13 months from now (next calendar year)
     //   8  NULL     NULL  NULL NULL   NULL / NULL  (all-NULL row — proves negative
-    //                    operators keep NULLs: neq/not_contains/not_regex include it,
+    //                    operators keep NULLs: neq/not_in/not_contains/not_regex include it,
     //                    is_null returns it, comparison/affix/regex/date filters drop it)
     //
     // Date expressions are anchored to the calendar year (not sliding day offsets
@@ -718,7 +718,7 @@ AS SELECT * FROM (VALUES
   (5, 'ALPHA',    'a_b',  50,  false, current_date,                          date_add('hour', 13, cast(current_date AS timestamp))),
   (6, '',         'x',     0,  true,  date_add('month', -6, date_trunc('year', current_date)),  cast(date_add('month', -6, date_trunc('year', current_date)) AS timestamp)),
   (7, 'future',   'f',    70,  true,  date_add('month', 13, current_date),   cast(date_add('month', 13, current_date) AS timestamp)),
-  -- Row 8: all-NULL (except id) — proves negative operators (neq/not_contains/not_regex/is_empty) keep NULL rows.
+  -- Row 8: all-NULL (except id) — proves negative operators (neq/not_in/not_contains/not_regex/is_empty) keep NULL rows.
   (8, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), CAST(NULL AS INTEGER), CAST(NULL AS BOOLEAN), CAST(NULL AS DATE), CAST(NULL AS TIMESTAMP))
 ) AS t (id, name, tag, score, active, created_at, created_ts)`;
 
@@ -757,6 +757,13 @@ AS SELECT * FROM (VALUES
       filters: [{ column: 'score', operator: 'neq', value: 20 }],
     });
     expect(ids(rows)).toEqual(['1', '3', '4', '5', '6', '7', '8']);
+  }, 60000);
+
+  it('not_in: score not in (20, 30) → rows 1,4,5,6,7,8 (null-inclusive: NULL row 8 kept)', async () => {
+    const rows = await runMatrix({
+      filters: [{ column: 'score', operator: 'not_in', value: [20, 30] }],
+    });
+    expect(ids(rows)).toEqual(['1', '4', '5', '6', '7', '8']);
   }, 60000);
 
   it('gt: score > 30 → rows 4,5,7', async () => {

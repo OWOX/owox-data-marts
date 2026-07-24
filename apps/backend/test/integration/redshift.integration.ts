@@ -238,7 +238,7 @@ describeIfCredentials(
             DATEADD(minute, 825, CAST(CURRENT_DATE AS TIMESTAMP)),
             CAST(DATEADD(minute, 825, CAST(CURRENT_DATE AS TIMESTAMP)) AS TIMESTAMPTZ),
             '13:45:00', '13:45:00+00'),
-          -- Row 7 is the all-NULL row: it proves negative operators (neq, not_contains,
+          -- Row 7 is the all-NULL row: it proves negative operators (neq, not_in, not_contains,
           -- not_regex, is_empty, is_null) keep NULL rows on the real engine.
           (7, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
       `);
@@ -464,6 +464,13 @@ describeIfCredentials(
         filters: [{ column: 'status', operator: 'neq', value: 'active' }],
       });
       expect(ids(rows)).toEqual(['2', '4', '7']);
+    });
+
+    it('not_in on name: not in (alpha, beta) → rows 3,4,5,6,7 (null-inclusive: NULL row 7 kept)', async () => {
+      const rows = await runFilter({
+        filters: [{ column: 'name', operator: 'not_in', value: ['alpha', 'beta'] }],
+      });
+      expect(ids(rows)).toEqual(['3', '4', '5', '6', '7']);
     });
 
     it('gt: amount > 20 → rows 3,4,5 (30,40,50)', async () => {

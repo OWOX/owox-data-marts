@@ -67,7 +67,7 @@ Use it so rolling reports stay current without touching filter values manually. 
 
 Multiple filters use `AND` logic — every condition must match for a row to appear. OR logic between filters is not supported.
 
-**NULL values and negative operators.** Negative operators **include** rows where the column is `NULL` — a missing value is treated as "not equal to X" rather than being dropped. This covers the "not equal" operator under every type label (`is not`, `≠` / `not equals`, `not on`, `not at`) as well as `does not contain` and `does not match regex`. The same applies to slices. To also remove missing values, add a separate **filter** on the same column (`is not null` or `is not empty`) — for a joined column this must be a filter, not a slice, because a slice runs before the join and cannot drop rows that arrive with `NULL` from an unmatched join.
+**NULL values and negative operators.** Negative operators **include** rows where the column is `NULL` — a missing value is treated as "not equal to X" rather than being dropped. This covers the "not equal" operator under every type label (`is not`, `≠` / `not equals`, `not on`, `not at`), `is none of`, `does not contain`, and `does not match regex`. The same applies to slices. To also remove missing values, add a separate **filter** on the same column (`is not null` or `is not empty`) — for a joined column this must be a filter, not a slice, because a slice runs before the join and cannot drop rows that arrive with `NULL` from an unmatched join.
 
 To edit an existing filter, click the pencil icon on its row. To remove one, click the **×**.
 

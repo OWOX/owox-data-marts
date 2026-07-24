@@ -19,7 +19,7 @@ describe('SnowflakeClauseRenderer', () => {
     expect(out.sql).toBe(`\nWHERE "channel" IN ('fb', 'O''Brien', 5)`);
     expect(out.params).toEqual([]);
     expect(where(r, { column: 'channel', operator: 'not_in', value: ['fb', 'google'] })).toBe(
-      `\nWHERE "channel" NOT IN ('fb', 'google')`
+      `\nWHERE ("channel" IS NULL OR "channel" NOT IN ('fb', 'google'))`
     );
   });
 

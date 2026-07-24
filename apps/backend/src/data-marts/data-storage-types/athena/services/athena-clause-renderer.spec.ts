@@ -92,7 +92,9 @@ describe('AthenaClauseRenderer', () => {
         { column: 'channel', operator: 'not_in', value: ['fb', 'google'] },
         { column: 'name', operator: 'eq', value: 'X' },
       ]);
-      expect(out.sql).toBe('\nWHERE "channel" NOT IN (?, ?)\n  AND "name" = ?');
+      expect(out.sql).toBe(
+        '\nWHERE ("channel" IS NULL OR "channel" NOT IN (?, ?))\n  AND "name" = ?'
+      );
       expect(out.params).toEqual([
         { name: 'p0', value: 'fb' },
         { name: 'p1', value: 'google' },

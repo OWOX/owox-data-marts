@@ -401,7 +401,7 @@ export abstract class SqlClauseRenderer {
       name = this.nextParamName(name);
     }
     return {
-      sql: `${col} ${rule.operator === 'in' ? 'IN' : 'NOT IN'} (${placeholders.join(', ')})`,
+      sql: this.inListSql(rule.operator, col, placeholders.join(', ')),
       params,
     };
   }
@@ -413,9 +413,20 @@ export abstract class SqlClauseRenderer {
     lit: (value: string | number | boolean | null) => string
   ): RenderedClause {
     return {
-      sql: `${col} ${rule.operator === 'in' ? 'IN' : 'NOT IN'} (${rule.value.map(v => lit(v)).join(', ')})`,
+      sql: this.inListSql(rule.operator, col, rule.value.map(v => lit(v)).join(', ')),
       params: [],
     };
+  }
+
+  /**
+   * Null-inclusive `NOT IN`: SQL `NOT IN` drops NULLs (UNKNOWN), but "is none of"
+   * should keep rows where the column is missing — treat NULL as "not any of the
+   * listed values". Matches the null-inclusive `neq` / `not_contains` operators.
+   */
+  private inListSql(operator: 'in' | 'not_in', col: string, list: string): string {
+    return operator === 'in'
+      ? `${col} IN (${list})`
+      : `(${col} IS NULL OR ${col} NOT IN (${list}))`;
   }
 
   protected nextParamName(paramName: string): string {

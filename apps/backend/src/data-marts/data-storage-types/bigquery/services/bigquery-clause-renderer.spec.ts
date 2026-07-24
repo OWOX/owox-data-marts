@@ -121,7 +121,9 @@ describe('BigQueryClauseRenderer', () => {
         { column: 'channel', operator: 'not_in', value: ['fb', 'google', 'tiktok'] },
         { column: 'name', operator: 'eq', value: 'X' },
       ]);
-      expect(out.sql).toBe('\nWHERE `channel` NOT IN (@p0, @p1, @p2)\n  AND `name` = @p3');
+      expect(out.sql).toBe(
+        '\nWHERE (`channel` IS NULL OR `channel` NOT IN (@p0, @p1, @p2))\n  AND `name` = @p3'
+      );
       expect(out.params).toEqual([
         { name: 'p0', value: 'fb' },
         { name: 'p1', value: 'google' },

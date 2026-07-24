@@ -189,7 +189,7 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
           cast(current_date as timestamp) + interval 825 minute,
           cast(cast(current_date as timestamp) + interval 825 minute as timestamp_ntz)),
         -- Row 7: the all-NULL row (bare NULLs coerce to each typed column). Proves negative
-        -- operators keep NULLs — neq / not_contains / not_regex include it, while
+        -- operators keep NULLs — neq / not_in / not_contains / not_regex include it, while
         -- comparison / affix / regex / date filters drop it.
         (7, NULL, NULL, NULL, NULL, NULL, NULL)
     `);
@@ -308,6 +308,16 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
     expect(
       ids(await runFilter({ filters: [{ column: 'status', operator: 'neq', value: 'active' }] }))
     ).toEqual(['2', '4', '7']);
+  }, 60000);
+
+  it('not_in on name: not in (alpha, beta) → rows 3,4,5,6,7 (null-inclusive: NULL row 7 kept)', async () => {
+    expect(
+      ids(
+        await runFilter({
+          filters: [{ column: 'name', operator: 'not_in', value: ['alpha', 'beta'] }],
+        })
+      )
+    ).toEqual(['3', '4', '5', '6', '7']);
   }, 60000);
 
   it('gt: amount > 20 → rows 3,4,5', async () => {

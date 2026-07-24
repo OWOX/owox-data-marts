@@ -282,6 +282,13 @@ describeIfSnowflakeCredentials(
       expect(ids(rows)).toEqual(['2', '4', '7']);
     }, 30000);
 
+    it('not_in on name: not in (alpha, beta) → rows 3,4,5,6,7 (null-inclusive: NULL row 7 kept)', async () => {
+      const rows = await runFilter({
+        filters: [{ column: 'name', operator: 'not_in', value: ['alpha', 'beta'] }],
+      });
+      expect(ids(rows)).toEqual(['3', '4', '5', '6', '7']);
+    }, 30000);
+
     it('gt: amount > 20 → rows 3,4,5 (30,40,50)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'amount', operator: 'gt', value: 20 }],

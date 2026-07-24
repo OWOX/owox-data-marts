@@ -18,7 +18,7 @@ describe('RedshiftClauseRenderer', () => {
       expect(out.params).toEqual([]);
       expect(
         r.renderWhere([{ column: 'channel', operator: 'not_in', value: ['fb', 'google'] }]).sql
-      ).toBe(`\nWHERE "channel" NOT IN ('fb', 'google')`);
+      ).toBe(`\nWHERE ("channel" IS NULL OR "channel" NOT IN ('fb', 'google'))`);
     });
     it('neq/gt/lt/gte/lte', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toBe(
