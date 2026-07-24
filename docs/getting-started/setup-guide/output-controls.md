@@ -4,12 +4,12 @@ Narrow, sort, and cap the rows a report delivers to its destination. No SQL. No 
 
 Output controls work for both Data Mart reports in the web app and reports created from the OWOX Extension.
 
-| Control | What it does |
-|---------|-------------|
-| **Filters** | Drop rows from the final result after all JOINs |
-| **Slices** | Narrow a joined Data Mart before the JOIN (blended reports only) |
-| **Sort** | Order the result by one or more columns |
-| **Limit** | Cap the total number of rows |
+| Control     | What it does                                                     |
+| ----------- | ---------------------------------------------------------------- |
+| **Filters** | Drop rows from the final result after all JOINs                  |
+| **Slices**  | Narrow a joined Data Mart before the JOIN (blended reports only) |
+| **Sort**    | Order the result by one or more columns                          |
+| **Limit**   | Cap the total number of rows                                     |
 
 ---
 
@@ -34,13 +34,13 @@ A filter runs against the final `SELECT`, after all joins complete. Use filters 
 
 ### Supported operators by column type
 
-| Column type | Available operators |
-|---|---|
-| String | is, is not, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
-| Number | =, ≠, >, <, ≥, ≤, between, is null, is not null |
-| Date / DateTime / Timestamp | on, not on, after, before, on or after, on or before, between, relative, is null, is not null |
-| Time | at, not at, after, before, at or after, at or before, between, is null, is not null |
-| Boolean | is true, is false, is null, is not null |
+| Column type                 | Available operators                                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| String                      | is, is not, contains, does not contain, starts with, ends with, is empty, is not empty, is null, is not null, matches regex, does not match regex |
+| Number                      | =, ≠, >, <, ≥, ≤, between, is null, is not null                                                                                                   |
+| Date / DateTime / Timestamp | on, not on, after, before, on or after, on or before, between, relative, is null, is not null                                                     |
+| Time                        | at, not at, after, before, at or after, at or before, between, is null, is not null                                                               |
+| Boolean                     | is true, is false, is null, is not null                                                                                                           |
 
 ### Relative date presets
 
@@ -63,6 +63,8 @@ Use it so rolling reports stay current without touching filter values manually.
 5. Click **Apply**.
 
 Multiple filters use `AND` logic — every condition must match for a row to appear. OR logic between filters is not supported.
+
+**NULL values and negative operators.** Negative operators **include** rows where the column is `NULL` — a missing value is treated as "not equal to X" rather than being dropped. This covers the "not equal" operator under every type label (`is not`, `≠` / `not equals`, `not on`, `not at`) as well as `does not contain` and `does not match regex`. The same applies to slices. To also remove missing values, add a separate **filter** on the same column (`is not null` or `is not empty`) — for a joined column this must be a filter, not a slice, because a slice runs before the join and cannot drop rows that arrive with `NULL` from an unmatched join.
 
 To edit an existing filter, click the pencil icon on its row. To remove one, click the **×**.
 
@@ -134,11 +136,11 @@ Sort runs before the row limit.
 
 Limit caps the row count. It runs last — after filters, slices, and sort.
 
-| Setting | Value |
-|---|---|
+| Setting | Value                      |
+| ------- | -------------------------- |
 | Default | No limit (all rows return) |
-| Minimum | 1 |
-| Maximum | 10,000,000 |
+| Minimum | 1                          |
+| Maximum | 10,000,000                 |
 
 Enter a number in the **Limit** field to set a cap. Clear the field to return all rows.
 
@@ -168,7 +170,7 @@ Output controls reference columns by name. Rename or remove a column in the Data
 
 Open **Edit report**. The column picker groups the missing columns under a red **Disconnected columns** label with a ⚠ icon. Hover the icon to see:
 
-> *They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema.*
+> _They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema._
 
 You have two options:
 

@@ -12,7 +12,9 @@ describe('AthenaClauseRenderer', () => {
       expect(out.params).toEqual([{ name: 'p0', value: 'X' }]);
     });
     it('neq/gt/lt/gte/lte', () => {
-      expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toContain('!=');
+      expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toBe(
+        '\nWHERE ("a" IS NULL OR "a" <> ?)'
+      );
       expect(r.renderWhere([{ column: 'a', operator: 'gt', value: 1 }]).sql).toContain('>');
       expect(r.renderWhere([{ column: 'a', operator: 'lt', value: 1 }]).sql).toContain('<');
       expect(r.renderWhere([{ column: 'a', operator: 'gte', value: 1 }]).sql).toContain('>=');
@@ -23,7 +25,7 @@ describe('AthenaClauseRenderer', () => {
         '\nWHERE strpos("a", ?) > 0'
       );
       expect(r.renderWhere([{ column: 'a', operator: 'not_contains', value: 'X' }]).sql).toBe(
-        '\nWHERE strpos("a", ?) = 0'
+        '\nWHERE ("a" IS NULL OR strpos("a", ?) = 0)'
       );
     });
     it('starts_with uses strpos = 1', () => {
@@ -48,7 +50,7 @@ describe('AthenaClauseRenderer', () => {
         '\nWHERE regexp_like("a", ?)'
       );
       expect(r.renderWhere([{ column: 'a', operator: 'not_regex', value: '^x' }]).sql).toBe(
-        '\nWHERE NOT regexp_like("a", ?)'
+        '\nWHERE ("a" IS NULL OR NOT regexp_like("a", ?))'
       );
     });
   });

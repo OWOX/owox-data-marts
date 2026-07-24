@@ -34,13 +34,13 @@ describe('SnowflakeClauseRenderer', () => {
       `\nWHERE ENDSWITH("name", 'z')`
     );
     expect(where(r, { column: 'name', operator: 'not_contains', value: 'x' })).toBe(
-      `\nWHERE NOT CONTAINS("name", 'x')`
+      `\nWHERE ("name" IS NULL OR NOT CONTAINS("name", 'x'))`
     );
     expect(where(r, { column: 'name', operator: 'regex', value: '^a.*' })).toBe(
       `\nWHERE REGEXP_INSTR("name", '^a.*') > 0`
     );
     expect(where(r, { column: 'name', operator: 'not_regex', value: '^a.*' })).toBe(
-      `\nWHERE REGEXP_INSTR("name", '^a.*') = 0`
+      `\nWHERE ("name" IS NULL OR REGEXP_INSTR("name", '^a.*') = 0)`
     );
     // `^alp` is the semantically meaningful case: Snowflake RLIKE/REGEXP_LIKE would
     // full-anchor it and NOT match `alpha`; REGEXP_INSTR>0 is partial (live-verified).
@@ -90,7 +90,9 @@ describe('SnowflakeClauseRenderer', () => {
     expect(where(r, { column: 's', operator: 'is_not_empty' })).toBe(
       `\nWHERE ("s" IS NOT NULL AND "s" <> '')`
     );
-    expect(where(r, { column: 'n', operator: 'neq', value: 1 })).toBe(`\nWHERE "n" <> 1`);
+    expect(where(r, { column: 'n', operator: 'neq', value: 1 })).toBe(
+      `\nWHERE ("n" IS NULL OR "n" <> 1)`
+    );
   });
 
   it('renders relative_date presets as half-open ranges with upper bounds', () => {
