@@ -15,7 +15,7 @@ export class DataMartRunDto {
     public readonly type: DataMartRunType,
     public readonly runType: RunType,
     public readonly dataMartId: string,
-    public readonly definitionRun: DataMartDefinition,
+    public readonly definitionRun: DataMartDefinition | null,
     public readonly reportId: string | null,
     public readonly reportDefinition: DataMartRunReportDefinition | null,
     public readonly insightId: string | null,

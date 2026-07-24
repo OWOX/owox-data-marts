@@ -1,4 +1,5 @@
 import type { McpScheduledTriggersFacade } from '../../../data-marts/facades/mcp-scheduled-triggers.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { CreateReportRunScheduleTool } from './create-report-run-schedule.tool';
 
@@ -12,6 +13,9 @@ describe('CreateReportRunScheduleTool', () => {
     scopes: ['mcp:read', 'mcp:write'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   const facadeResult = {
     triggerId: 'trigger-1',
@@ -26,11 +30,12 @@ describe('CreateReportRunScheduleTool', () => {
     const facade = {
       createReportRunSchedule: jest.fn().mockResolvedValue(facadeResult),
     } as unknown as jest.Mocked<McpScheduledTriggersFacade>;
-    const tool = new CreateReportRunScheduleTool(facade);
+    const tool = new CreateReportRunScheduleTool(facade, publicOrigin);
 
     const expected = {
       trigger_id: 'trigger-1',
       report_id: 'report-1',
+      schedules_url: 'https://app.owox.com/ui/project-1/data-marts/schedules',
       cron_expression: '0 9 * * 1',
       time_zone: 'UTC',
       is_active: true,
@@ -54,7 +59,7 @@ describe('CreateReportRunScheduleTool', () => {
     const facade = {
       createReportRunSchedule: jest.fn().mockResolvedValue(facadeResult),
     } as unknown as jest.Mocked<McpScheduledTriggersFacade>;
-    const tool = new CreateReportRunScheduleTool(facade);
+    const tool = new CreateReportRunScheduleTool(facade, publicOrigin);
 
     await tool.handler(
       {
@@ -73,7 +78,7 @@ describe('CreateReportRunScheduleTool', () => {
   });
 
   it('rejects missing required fields and unknown fields', () => {
-    const tool = new CreateReportRunScheduleTool({} as McpScheduledTriggersFacade);
+    const tool = new CreateReportRunScheduleTool({} as McpScheduledTriggersFacade, publicOrigin);
 
     expect(() => tool.parseInput({})).toThrow();
     expect(() => tool.parseInput({ report_id: 'r1' })).toThrow();
@@ -84,7 +89,7 @@ describe('CreateReportRunScheduleTool', () => {
   });
 
   it('has create-only metadata', () => {
-    const tool = new CreateReportRunScheduleTool({} as McpScheduledTriggersFacade);
+    const tool = new CreateReportRunScheduleTool({} as McpScheduledTriggersFacade, publicOrigin);
 
     expect(tool).toMatchObject({
       name: 'create_report_run_schedule',

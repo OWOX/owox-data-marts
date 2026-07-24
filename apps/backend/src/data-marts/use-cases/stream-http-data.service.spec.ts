@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -28,12 +29,14 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { ReportService } from '../services/report.service';
 import { ReportTotalsService } from '../services/report-totals.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import { HttpDataRequestValidator } from '../services/http-data/http-data-request-validator.service';
 import { HttpDataStreamWriter } from '../services/http-data/http-data-stream-writer.service';
 import { HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS } from '../services/http-data/http-data.constants';
+import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { StreamHttpDataService } from './stream-http-data.service';
 
 function fakeCommand(overrides: Partial<StreamHttpDataCommand> = {}): StreamHttpDataCommand {
@@ -186,6 +189,7 @@ describe('StreamHttpDataService', () => {
   let errorMapper: jest.Mocked<DataStorageErrorMapper>;
   let errorMapperResolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageErrorMapper>>;
   let reportTotals: jest.Mocked<ReportTotalsService>;
+  let reportService: jest.Mocked<ReportService>;
   let service: StreamHttpDataService;
 
   beforeEach(() => {
@@ -200,6 +204,10 @@ describe('StreamHttpDataService', () => {
         limit: undefined,
       })),
     } as unknown as jest.Mocked<HttpDataRequestValidator>;
+
+    requestValidator.validateReportQuery = jest.fn((rawQuery: Record<string, unknown>) => ({
+      limit: rawQuery.limit === undefined ? undefined : Number(rawQuery.limit),
+    })) as never;
 
     columnResolver = {
       resolve: jest.fn((selector, columns) =>
@@ -251,6 +259,10 @@ describe('StreamHttpDataService', () => {
       compose: jest.fn(async () => ({ sql: 'SELECT * FROM t LIMIT 3' })),
     } as unknown as jest.Mocked<ReportSqlComposerService>;
 
+    sqlComposer.inlineStaticSql = jest.fn(
+      () => "SELECT * FROM t WHERE date >= DATE '2026-01-01'"
+    ) as never;
+
     balance = {
       verifyCanPerformOperations: jest.fn(async () => undefined),
     } as unknown as jest.Mocked<ProjectBalanceService>;
@@ -300,6 +312,20 @@ describe('StreamHttpDataService', () => {
       computeTotals: jest.fn(async () => null),
     } as unknown as jest.Mocked<ReportTotalsService>;
 
+    reportService = {
+      getByIdAndProjectId: jest.fn(async () => ({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      })),
+    } as unknown as jest.Mocked<ReportService>;
+
     service = new StreamHttpDataService(
       requestValidator,
       columnResolver,
@@ -317,7 +343,8 @@ describe('StreamHttpDataService', () => {
       systemTime,
       readerResolver,
       errorMapperResolver,
-      reportTotals
+      reportTotals,
+      reportService
     );
   });
 
@@ -978,7 +1005,10 @@ describe('StreamHttpDataService', () => {
     );
   });
 
-  it('throws and records no run when blending is required but no blended SQL is produced', async () => {
+  it('throws and records a FAILED run when blending is required but no blended SQL is produced', async () => {
+    // baseMetadata is seeded right after verifyCanPerformOperations (before resolveBlendingDecision),
+    // so this guard now throws AFTER the seed and records a FAILED run — consistent with every other
+    // execution-phase failure recording a run.
     blended.resolveBlendingDecision.mockResolvedValueOnce({
       needsBlending: true,
       blendedSql: undefined,
@@ -987,6 +1017,263 @@ describe('StreamHttpDataService', () => {
     await expect(service.stream(fakeCommand(), mockResponse())).rejects.toBeInstanceOf(
       InternalServerErrorException
     );
-    expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.FAILED,
+        metadata: expect.objectContaining({ completed: false }),
+        errors: expect.arrayContaining([
+          expect.stringContaining('Blended SQL was not produced for this Data Mart'),
+        ]),
+      })
+    );
+  });
+
+  function fakeReportCommand(
+    overrides: Partial<StreamHttpReportDataCommand> = {}
+  ): StreamHttpReportDataCommand {
+    return {
+      reportId: 'report-1',
+      userId: 'user-1',
+      projectId: 'proj-1',
+      roles: ['viewer'],
+      rawQuery: {},
+      ...overrides,
+    };
+  }
+
+  describe('streamReport', () => {
+    it('streams a report and records a SUCCESS run tagged with reportId + executionSqlQuery', async () => {
+      const res = mockResponse();
+      await service.streamReport(fakeReportCommand(), res);
+
+      expect(reportService.getByIdAndProjectId).toHaveBeenCalledWith('report-1', 'proj-1');
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.SUCCESS,
+          reportId: 'report-1',
+          metadata: expect.objectContaining({
+            completed: true,
+            executionSqlQuery: "SELECT * FROM t WHERE date >= DATE '2026-01-01'",
+          }),
+        })
+      );
+    });
+
+    it('rejects with NotFoundException for a report belonging to another project, and does no work', async () => {
+      // reportService.getByIdAndProjectId inner-joins on dataMart.projectId, so a report from
+      // another project (or an unknown id) resolves to nothing and throws 404 — identical to the
+      // unknown-report-id case. No run is recorded and the Data Mart is never even loaded.
+      reportService.getByIdAndProjectId.mockRejectedValueOnce(
+        new NotFoundException('Report with id report-1 not found')
+      );
+
+      await expect(
+        service.streamReport(fakeReportCommand(), mockResponse())
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+      expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
+      expect(readerResolver.resolve).not.toHaveBeenCalled();
+    });
+
+    it('records no run when the project balance gate rejects', async () => {
+      // baseMetadata is seeded right after verifyCanPerformOperations (see executeStream), so a
+      // rejection here happens BEFORE the seed — unlike every execution-phase failure (config
+      // drift, missing blended SQL, storage errors), this records no run at all.
+      balance.verifyCanPerformOperations.mockRejectedValueOnce(
+        new BusinessViolationException('Project balance is insufficient to run this operation')
+      );
+
+      await expect(service.streamReport(fakeReportCommand(), mockResponse())).rejects.toThrow(
+        'Project balance is insufficient to run this operation'
+      );
+
+      expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+    });
+
+    it('records a FAILED run tagged with reportId when prepareReportData fails', async () => {
+      reader.prepareReportData.mockRejectedValueOnce(new Error('schema mismatch'));
+      const res = mockResponse();
+
+      await expect(service.streamReport(fakeReportCommand(), res)).rejects.toMatchObject({
+        status: HttpStatus.FAILED_DEPENDENCY,
+      });
+      expect(res._writes).toHaveLength(0);
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.FAILED,
+          reportId: 'report-1',
+          metadata: expect.objectContaining({ completed: false }),
+          errors: expect.arrayContaining([
+            expect.stringContaining('Storage dependency failed while reading this Data Mart data'),
+          ]),
+        })
+      );
+    });
+
+    it('records a FAILED run tagged with reportId when resolveBlendingDecision rejects (config drift)', async () => {
+      // A saved columnConfig referencing a since-deleted column makes validateForReport throw inside
+      // resolveBlendingDecision. baseMetadata is seeded before this call, so the failure still records
+      // a FAILED run (and the x-owox-run-id) instead of silently recording nothing.
+      blended.resolveBlendingDecision.mockRejectedValueOnce(
+        new Error('Report references a column that no longer exists on the Data Mart')
+      );
+      const res = mockResponse();
+
+      await expect(service.streamReport(fakeReportCommand(), res)).rejects.toThrow(
+        'Report references a column that no longer exists on the Data Mart'
+      );
+
+      expect(res._writes).toHaveLength(0);
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.FAILED,
+          reportId: 'report-1',
+          metadata: expect.objectContaining({ completed: false }),
+          errors: expect.arrayContaining([
+            expect.stringContaining('Report references a column that no longer exists'),
+          ]),
+        })
+      );
+    });
+
+    it('streams and records a SUCCESS run without executionSqlQuery when SQL inlining throws', async () => {
+      sqlComposer.inlineStaticSql.mockImplementationOnce(() => {
+        throw new Error('inliner boom');
+      });
+      const res = mockResponse();
+
+      await expect(service.streamReport(fakeReportCommand(), res)).resolves.toBeUndefined();
+
+      expect(res._writes.length).toBeGreaterThan(0);
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.SUCCESS,
+          metadata: expect.not.objectContaining({ executionSqlQuery: expect.anything() }),
+        })
+      );
+    });
+
+    it('overrides the saved report limitConfig with ?limit= when a limit is provided', async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: 50,
+      } as never);
+
+      await service.streamReport(fakeReportCommand({ rawQuery: { limit: '7' } }), mockResponse());
+
+      expect(sqlComposer.compose).toHaveBeenCalledWith(
+        expect.objectContaining({ limitConfig: 7 }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('falls back to the saved report limitConfig when no ?limit= is provided', async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: 50,
+      } as never);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      expect(sqlComposer.compose).toHaveBeenCalledWith(
+        expect.objectContaining({ limitConfig: 50 }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('resolves limitConfig to null when neither ?limit= nor a saved limit is present', async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      expect(sqlComposer.compose).toHaveBeenCalledWith(
+        expect.objectContaining({ limitConfig: null }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('returns 403 (no USE on the report Data Mart) and records no run', async () => {
+      access.canAccess.mockResolvedValueOnce(false);
+      await expect(
+        service.streamReport(fakeReportCommand(), mockResponse())
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+    });
+
+    it('records the resolved header names, not [], for an all-columns report (no columnConfig)', async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: null,
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+      const res = mockResponse();
+
+      await service.streamReport(fakeReportCommand(), res);
+
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.SUCCESS,
+          metadata: expect.objectContaining({ columns: ['date', 'revenue'] }),
+        })
+      );
+    });
+
+    it('threads uniqueCount into prepareReportData when the report has uniqueCountConfig: true', async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: true,
+        limitConfig: null,
+      } as never);
+      const res = mockResponse();
+
+      await service.streamReport(fakeReportCommand(), res);
+
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        expect.objectContaining({ uniqueCountConfig: true }),
+        expect.objectContaining({ uniqueCount: true })
+      );
+    });
   });
 });

@@ -106,7 +106,7 @@ export class DataMartMapper {
       this.dataStorageMapper.toDomainDto(entity.storage),
       entity.createdAt,
       entity.modifiedAt,
-      entity.definitionType,
+      entity.definitionType ?? undefined,
       entity.definition,
       entity.description,
       entity.schema,
@@ -681,7 +681,7 @@ export class DataMartMapper {
   }
 
   private async maskDefinitionRun(
-    definitionRun?: DataMartDefinition
+    definitionRun?: DataMartDefinition | null
   ): Promise<DataMartDefinition | undefined> {
     if (definitionRun && isConnectorDefinition(definitionRun)) {
       return this.connectorSecretService.mask(definitionRun);

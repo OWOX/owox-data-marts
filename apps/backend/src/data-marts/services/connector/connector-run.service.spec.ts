@@ -22,7 +22,7 @@ describe('ConnectorRunService', () => {
       find: jest.fn(),
       create: jest.fn().mockImplementation(data => data),
       save: jest.fn().mockImplementation(data => Promise.resolve({ ...data, id: 'run-1' })),
-      update: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     } as unknown as Repository<DataMartRun>;
 
     const connectorRunTriggerService = {
@@ -144,10 +144,31 @@ describe('ConnectorRunService', () => {
 
       await service.executeInterruptedRuns();
 
-      expect(dataMartRunRepository.update).toHaveBeenCalledWith('run-1', {
-        status: DataMartRunStatus.PENDING,
-      });
+      expect(dataMartRunRepository.update).toHaveBeenCalledWith(
+        { id: 'run-1', status: DataMartRunStatus.INTERRUPTED },
+        { status: DataMartRunStatus.PENDING }
+      );
       expect(connectorRunTriggerService.createTrigger).toHaveBeenCalled();
+    });
+
+    it('skips resumption when run is no longer INTERRUPTED (e.g. already cancelled)', async () => {
+      const { service, dataMartRunRepository, connectorRunTriggerService } = createService();
+      (dataMartRunRepository.find as jest.Mock).mockResolvedValue([
+        {
+          id: 'run-1',
+          dataMartId: 'dm-1',
+          type: DataMartRunType.CONNECTOR,
+          dataMart: { projectId: 'proj-1' },
+          createdById: 'user-1',
+          runType: RunType.manual,
+          additionalParams: null,
+        },
+      ]);
+      (dataMartRunRepository.update as jest.Mock).mockResolvedValue({ affected: 0 });
+
+      await service.executeInterruptedRuns();
+
+      expect(connectorRunTriggerService.createTrigger).not.toHaveBeenCalled();
     });
   });
 });

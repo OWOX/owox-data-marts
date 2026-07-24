@@ -18,6 +18,11 @@ describe('ListDataMartsTool', () => {
   const publicOrigin = {
     getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
   } as unknown as jest.Mocked<PublicOriginService>;
+  const projectContext = {
+    getProjectContext: jest.fn().mockResolvedValue({
+      project: { id: 'project-1', title: 'Analytics' },
+    }),
+  };
 
   it('lists data marts using token project-member context', async () => {
     const facade = {
@@ -33,10 +38,11 @@ describe('ListDataMartsTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade, publicOrigin);
+    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never);
 
     await expect(tool.handler({}, context)).resolves.toEqual({
       structuredContent: {
+        project: { id: 'project-1', title: 'Analytics' },
         data_marts: [
           {
             id: 'dm_1',
@@ -53,6 +59,7 @@ describe('ListDataMartsTool', () => {
           type: 'text',
           text: JSON.stringify(
             {
+              project: { id: 'project-1', title: 'Analytics' },
               data_marts: [
                 {
                   id: 'dm_1',
@@ -74,13 +81,32 @@ describe('ListDataMartsTool', () => {
       projectId: 'project-1',
       userId: 'user-1',
       roles: ['viewer'],
+      status: 'published',
     });
   });
 
   it('rejects explicit project_id input', async () => {
-    const tool = new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin);
+    const tool = new ListDataMartsTool(
+      {} as McpDataMartsFacade,
+      publicOrigin,
+      projectContext as never
+    );
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
+  });
+
+  it('returns the catalog when optional project metadata is unavailable', async () => {
+    const facade = {
+      listDataMarts: jest.fn().mockResolvedValue({ dataMarts: [] }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const unavailableProjectContext = {
+      getProjectContext: jest.fn().mockRejectedValue(new Error('Project context unavailable')),
+    };
+    const tool = new ListDataMartsTool(facade, publicOrigin, unavailableProjectContext as never);
+
+    const result = await tool.handler({}, context);
+
+    expect(result.structuredContent).toEqual({ data_marts: [] });
   });
 
   // Note: MCP_TOOL_PROVIDER_CLASSES assertion checks the LOCAL test registry snapshot, not
@@ -88,13 +114,16 @@ describe('ListDataMartsTool', () => {
   // registers ListDataMartsTool so query_data_mart is absent from that local registry.
   it('registers list_data_marts and verifies provider class list', () => {
     const registry = new McpToolRegistry([
-      new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin),
+      new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin, projectContext as never),
     ]);
 
-    expect(new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin)).toMatchObject({
+    expect(
+      new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin, projectContext as never)
+    ).toMatchObject({
       name: 'list_data_marts',
       requiredScopes: ['mcp:read'],
       outputSchema: expect.objectContaining({
+        project: expect.any(Object),
         data_marts: expect.any(Object),
       }),
       annotations: {

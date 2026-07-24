@@ -28,7 +28,7 @@ import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginat
 import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-request-api.dto';
 import { UpdateDataMartAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { UpdateEntityContextsRequestApiDto } from '../../dto/presentation/context-api.dto';
-import { OwnerFilter } from '../../enums/owner-filter.enum';
+import { DATA_MARTS_PAGE_SIZE } from '../../use-cases/list-data-marts.service';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -40,22 +40,16 @@ export function CreateDataMartSpec() {
 
 export function ListDataMartsSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'List all DataMarts' }),
-    ApiQuery({
-      name: 'offset',
-      required: false,
-      type: Number,
-      example: 0,
-      description: 'Number of DataMarts to skip before returning results',
+    ApiOperation({
+      summary: 'List visible Data Marts',
+      description:
+        'Returns Data Marts visible to the current project member. Viewer access is required. ' +
+        `Each response page contains at most ${DATA_MARTS_PAGE_SIZE} items.`,
     }),
-    ApiQuery({
-      name: 'ownerFilter',
-      required: false,
-      enum: OwnerFilter,
-      example: OwnerFilter.HAS_OWNERS,
-      description: 'Filter DataMarts by whether they have technical or business owners',
-    }),
-    ApiResponse({ status: 200, type: PaginatedDataMartsResponseApiDto })
+    ApiOkResponse({
+      description: 'A page of visible Data Marts with the next offset when more items exist.',
+      type: PaginatedDataMartsResponseApiDto,
+    })
   );
 }
 

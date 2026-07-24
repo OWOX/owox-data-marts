@@ -5,11 +5,13 @@ export class PaginatedDataMartsResponseApiDto {
   @ApiProperty({ type: [DataMartListItemResponseApiDto] })
   items: DataMartListItemResponseApiDto[];
 
-  @ApiProperty({ example: 120 })
+  @ApiProperty({ type: 'integer', example: 120, minimum: 0 })
   total: number;
 
   @ApiProperty({
+    type: 'integer',
     example: 50,
+    minimum: 0,
     nullable: true,
     description: 'Next offset to fetch, null if no more data',
   })

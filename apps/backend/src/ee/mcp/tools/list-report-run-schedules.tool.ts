@@ -1,12 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
   MCP_SCHEDULED_TRIGGERS_FACADE,
   type McpScheduledTriggersFacade,
 } from '../../../data-marts/facades/mcp-scheduled-triggers.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import {
+  buildDataMartUiPath,
+  buildReportSchedulesUiPath,
+  buildReportsUiPath,
+} from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
 
 const inputSchema = z.object({}).strict();
 
@@ -22,8 +29,9 @@ export class ListReportRunSchedulesTool implements McpToolDefinition<ListReportR
     schedules: z.array(
       z.object({
         trigger_id: z.string(),
-        report: z.object({ id: z.string(), title: z.string() }),
-        data_mart: z.object({ id: z.string(), title: z.string() }),
+        report: z.object({ id: z.string(), title: z.string(), url: z.string() }),
+        data_mart: z.object({ id: z.string(), title: z.string(), url: z.string() }),
+        schedules_url: z.string().describe('Open report schedules in OWOX.'),
         cron_expression: z.string(),
         time_zone: z.string(),
         is_active: z.boolean(),
@@ -44,7 +52,8 @@ export class ListReportRunSchedulesTool implements McpToolDefinition<ListReportR
 
   constructor(
     @Inject(MCP_SCHEDULED_TRIGGERS_FACADE)
-    private readonly facade: McpScheduledTriggersFacade
+    private readonly facade: McpScheduledTriggersFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): ListReportRunSchedulesInput {
@@ -60,11 +69,29 @@ export class ListReportRunSchedulesTool implements McpToolDefinition<ListReportR
 
     const items = await this.facade.listReportRunSchedules(ctx);
 
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const schedulesUrl = joinPublicOrigin(
+      publicOrigin,
+      buildReportSchedulesUiPath(context.projectId)
+    );
     const structuredContent = {
       schedules: items.map(item => ({
         trigger_id: item.triggerId,
-        report: item.report,
-        data_mart: item.dataMart,
+        report: {
+          ...item.report,
+          url: joinPublicOrigin(
+            publicOrigin,
+            buildReportsUiPath(context.projectId, item.dataMart.id)
+          ),
+        },
+        data_mart: {
+          ...item.dataMart,
+          url: joinPublicOrigin(
+            publicOrigin,
+            buildDataMartUiPath(context.projectId, item.dataMart.id)
+          ),
+        },
+        schedules_url: schedulesUrl,
         cron_expression: item.cronExpression,
         time_zone: item.timeZone,
         is_active: item.isActive,

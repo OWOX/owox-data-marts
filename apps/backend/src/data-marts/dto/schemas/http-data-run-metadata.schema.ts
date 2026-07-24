@@ -25,9 +25,14 @@ export const HttpDataRunMetadataSchema = z.object({
   rowCount: z.number().int().nonnegative().optional(),
   bytesWritten: z.number().int().nonnegative().optional(),
   completed: z.boolean().optional(),
-  // Grand-total row (one scalar per aggregated metric + Row Count), keyed by output-column
-  // name. Present only for aggregated reports; computed as a separate query at run time.
+  // Grand-total row keyed by output-column name: one scalar per selected metric aggregated over the
+  // full result (every selected numeric field, plus non-numeric fields eligible for Count/Count Unique).
+  // Computed as a SEPARATE best-effort query at run time whenever the result has an eligible metric —
+  // NOT limited to explicitly aggregated reports. Omitted when nothing is eligible or the query fails.
   totals: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
+  // Fully-composed executed SQL (output controls inlined as literals). Present only for the
+  // report-level HTTP Data endpoint, and only when output controls / blending produced an override.
+  executionSqlQuery: z.string().optional(),
 });
 
 export type HttpDataRunMetadata = z.infer<typeof HttpDataRunMetadataSchema>;

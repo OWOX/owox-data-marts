@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext } from '../decorators';
+import { AuthContextResponseApiDto } from '../dto/presentation/auth-context-response-api.dto';
 import { AuthorizationContext, Role, Strategy } from '../types';
 
 @Controller('auth/context')
@@ -9,27 +10,11 @@ export class AuthContextController {
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Get()
   @ApiOperation({ summary: 'Get the current auth context' })
-  @ApiHeader({ name: 'X-OWOX-Authorization', required: true })
-  @ApiHeader({ name: 'X-OWOX-Api-Key-Id', required: false })
   @ApiOkResponse({
     description: 'Auth context resolved by the backend auth guard.',
-    schema: {
-      type: 'object',
-      required: ['userId', 'projectId'],
-      properties: {
-        userId: { type: 'string' },
-        projectId: { type: 'string' },
-        email: { type: 'string', nullable: true },
-        fullName: { type: 'string', nullable: true },
-        avatar: { type: 'string', nullable: true },
-        roles: { type: 'array', items: { type: 'string', enum: ['admin', 'editor', 'viewer'] } },
-        projectTitle: { type: 'string', nullable: true },
-        authFlow: { type: 'string', nullable: true },
-        apiKeyId: { type: 'string', nullable: true },
-      },
-    },
+    type: AuthContextResponseApiDto,
   })
-  getContext(@AuthContext() context: AuthorizationContext): AuthorizationContext {
+  getContext(@AuthContext() context: AuthorizationContext): AuthContextResponseApiDto {
     return {
       userId: context.userId,
       projectId: context.projectId,

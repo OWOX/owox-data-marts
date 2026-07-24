@@ -2,14 +2,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
-import { parseCoverageMatrix, validateCoverageMatrix } from './api-coverage-matrix.mjs';
+import * as matrixModule from './api-coverage-matrix.mjs';
+
+const { parseCoverageMatrix, validateCoverageMatrix } = matrixModule;
 
 const checkedInMatrix = fs.readFileSync(
   new URL('../../../docs/api/coverage.md', import.meta.url),
   'utf8'
 );
+const checkedInApiClientGuide = fs.readFileSync(
+  new URL('../../../docs/api/api-client.md', import.meta.url),
+  'utf8'
+);
 
-const validMatrix = `# API Support Matrix
+const validMatrix = `# Support Matrix
 
 ## Summary
 
@@ -21,8 +27,8 @@ const validMatrix = `# API Support Matrix
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| \`GET /api/data-marts\` | Covered · 2026-07-01 | Covered · 2026-07-02 |
-| \`POST /api/data-marts\` | Covered · 2026-07-03 | Gap |
+| \`GET /api/data-marts/insight-templates\` | [Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-01 | [Covered](./api-client/#list-project-insight-templates) · 2026-07-02 |
+| \`GET /api/model-canvas/data-marts\` | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts) · 2026-07-03 | Gap |
 
 ## Project settings
 
@@ -44,6 +50,138 @@ test('calculates totals from endpoint rows', () => {
   });
 });
 
+test('parses a linked covered cell into semantic status, date, and target', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-01',
+      'OpenAPI',
+      'GET /api/data-marts/insight-templates'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-01',
+      target:
+        'https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list',
+    }
+  );
+});
+
+test('accepts the exact Markdown parser coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml) · 2026-07-22',
+      'OpenAPI',
+      'POST /api/markdown/parse-to-html'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-22',
+      target: 'https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#convert-markdown-to-html) · 2026-07-22',
+      'API client',
+      'POST /api/markdown/parse-to-html'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-22',
+      target: './api-client/#convert-markdown-to-html',
+    }
+  );
+});
+
+test('accepts the exact Search coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Search/SearchController_search) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/search'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/Search/SearchController_search',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#search-project-entities) · 2026-07-23',
+      'API client',
+      'GET /api/search'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#search-project-entities',
+    }
+  );
+});
+
+test('accepts the exact Data Mart list coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/data-marts'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#list-data-marts) · 2026-07-23',
+      'API client',
+      'GET /api/data-marts'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#list-data-marts',
+    }
+  );
+});
+
+test('resolves the Data Mart list API client coverage target to the checked-in guide', () => {
+  assert.match(checkedInApiClientGuide, /^## List data marts$/m);
+});
+
+test('accepts the exact HTTP Data coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/external/http-data/data-marts/{dataMartId}.ndjson'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#stream-data-mart-rows) · 2026-07-23',
+      'API client',
+      'GET /api/external/http-data/data-marts/{dataMartId}.ndjson'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#stream-data-mart-rows',
+    }
+  );
+});
+
+test('resolves the HTTP Data API client coverage target to the checked-in guide', () => {
+  assert.match(checkedInApiClientGuide, /^## Stream Data Mart rows$/m);
+});
+
 test('accepts a summary that matches calculated totals', () => {
   assert.deepEqual(validateCoverageMatrix(validMatrix), {
     endpoints: 3,
@@ -61,9 +199,10 @@ test('rejects summary drift', () => {
 });
 
 test('rejects duplicate endpoint rows', () => {
-  const duplicateRow = '| `GET /api/data-marts` | Covered · 2026-07-01 | Covered · 2026-07-02 |';
+  const duplicateRow =
+    '| `GET /api/data-marts/insight-templates` | [Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-01 | [Covered](./api-client/#list-project-insight-templates) · 2026-07-02 |';
   const markdown = validMatrix.replace(
-    '| `POST /api/data-marts` | Covered · 2026-07-03 | Gap |',
+    '| `GET /api/model-canvas/data-marts` | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts) · 2026-07-03 | Gap |',
     duplicateRow
   );
 
@@ -71,15 +210,128 @@ test('rejects duplicate endpoint rows', () => {
 });
 
 test('rejects unsupported statuses', () => {
-  const markdown = validMatrix.replace('Covered · 2026-07-03 | Gap', 'Partial | Gap');
+  const markdown = validMatrix.replace(
+    '[Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts) · 2026-07-03 | Gap',
+    'Partial | Gap'
+  );
 
   assert.throws(() => validateCoverageMatrix(markdown), /Unsupported OpenAPI status/);
 });
 
 test('rejects malformed covered dates', () => {
-  const markdown = validMatrix.replace('Covered · 2026-07-03', 'Covered · 2026-02-30');
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts) · 2026-02-30',
+        'OpenAPI',
+        'GET /api/model-canvas/data-marts'
+      ),
+    /Invalid OpenAPI covered date/
+  );
+});
 
-  assert.throws(() => validateCoverageMatrix(markdown), /Invalid OpenAPI covered date/);
+test('rejects an unlinked covered status', () => {
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        'Covered · 2026-07-03',
+        'OpenAPI',
+        'GET /api/model-canvas/data-marts'
+      ),
+    /Unsupported OpenAPI status/
+  );
+});
+
+test('rejects generic Swagger targets', () => {
+  for (const target of [
+    'https://app.owox.com/api/swagger-ui',
+    'https://app.owox.com/api/swagger-ui#/Model%20Canvas',
+  ]) {
+    assert.throws(
+      () =>
+        matrixModule.parseCoverageCell(
+          `[Covered](${target}) · 2026-07-03`,
+          'OpenAPI',
+          'GET /api/model-canvas/data-marts'
+        ),
+      /Invalid OpenAPI target/
+    );
+  }
+});
+
+test('rejects an API client target without a heading', () => {
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](./api-client/) · 2026-07-02',
+        'API client',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Invalid API client target/
+  );
+});
+
+test('rejects targets from the wrong coverage dimension', () => {
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](./api-client/#read-the-models-canvas) · 2026-07-03',
+        'OpenAPI',
+        'GET /api/model-canvas/data-marts'
+      ),
+    /Invalid OpenAPI target/
+  );
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-02',
+        'API client',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Invalid API client target/
+  );
+});
+
+test('rejects stale endpoint-to-operation and endpoint-to-heading targets', () => {
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-01',
+        'OpenAPI',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Incorrect OpenAPI target/
+  );
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Covered](./api-client/#read-project-run-history) · 2026-07-02',
+        'API client',
+        'GET /api/data-marts/insight-templates'
+      ),
+    /Incorrect API client target/
+  );
+});
+
+test('rejects linked Gap and Unassessed values', () => {
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Gap](./api-client/#read-the-models-canvas)',
+        'API client',
+        'GET /api/model-canvas/data-marts'
+      ),
+    /Unsupported API client status/
+  );
+  assert.throws(
+    () =>
+      matrixModule.parseCoverageCell(
+        '[Unassessed](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings)',
+        'OpenAPI',
+        'GET /api/projects/settings'
+      ),
+    /Unsupported OpenAPI status/
+  );
 });
 
 test('rejects an empty endpoint inventory', () => {
@@ -89,7 +341,44 @@ test('rejects an empty endpoint inventory', () => {
 });
 
 test('includes the API-key-compatible markdown parser endpoint', () => {
-  const matrix = parseCoverageMatrix(checkedInMatrix);
+  const matrix = parseCoverageMatrix(
+    checkedInMatrix.replace(/\[Covered\]\([^)]+\) · \d{4}-\d{2}-\d{2}/g, 'Unassessed')
+  );
 
   assert.ok(matrix.rows.some(row => row.endpoint === 'POST /api/markdown/parse-to-html'));
+});
+
+test('checked-in matrix uses the public Support Matrix title', () => {
+  assert.equal(checkedInMatrix.split('\n', 1)[0], '# Support Matrix');
+});
+
+test('checked-in matrix excludes OAuth-flow-only business routes', () => {
+  // Keep this scope inventory semantically aligned with the independently maintained
+  // controller behavior inventory in oauth-flow-only.controller.spec.ts.
+  const oauthFlowOnlyEndpoints = [
+    'GET /api/connectors/{connectorName}/oauth/settings',
+    'POST /api/connectors/{connectorName}/oauth/exchange',
+    'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
+    'POST /api/data-destinations/connect/google-sheets',
+    'GET /api/data-destinations/oauth/settings',
+    'GET /api/data-destinations/oauth/credential-status/{credentialId}',
+    'POST /api/data-destinations/oauth/authorize',
+    'POST /api/data-destinations/oauth/exchange',
+    'POST /api/data-destinations/{id}/oauth/authorize',
+    'GET /api/data-destinations/{id}/oauth/status',
+    'DELETE /api/data-destinations/{id}/oauth',
+    'GET /api/data-storages/oauth/settings',
+    'POST /api/data-storages/oauth/exchange',
+    'POST /api/data-storages/{id}/oauth/authorize',
+    'GET /api/data-storages/{id}/oauth/status',
+    'DELETE /api/data-storages/{id}/oauth',
+  ];
+  const checkedInEndpoints = new Set(
+    parseCoverageMatrix(checkedInMatrix).rows.map(row => row.endpoint)
+  );
+
+  assert.deepEqual(
+    oauthFlowOnlyEndpoints.filter(endpoint => checkedInEndpoints.has(endpoint)),
+    []
+  );
 });

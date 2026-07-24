@@ -9,6 +9,7 @@ import {
 import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
+import { buildDataDestinationsUiPath } from './data-mart-ui-path';
 import { buildConnectGoogleSheetsUiPath } from './mcp-flow-ui-path';
 import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
 import { joinPublicOrigin } from './mcp-public-url.util';
@@ -99,6 +100,12 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
           '(returned immediately, before any external action is needed). For google_sheets, ' +
           'this is absent — use list_destinations after the user confirms setup instead.'
       ),
+    destination_url: z
+      .string()
+      .optional()
+      .describe(
+        'Open the created destination in OWOX. Absent until Google Sheets OAuth creates it.'
+      ),
   };
   readonly annotations = {
     title: 'Add Destination',
@@ -148,6 +155,10 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
 
       return jsonToolResult({
         destination_id: created.id,
+        destination_url: joinPublicOrigin(
+          this.publicOriginService.getPublicOrigin(),
+          buildDataDestinationsUiPath(context.projectId, created.id)
+        ),
         instructions: `Successfully connected ${humanType} destination "${created.name}" for report delivery.`,
       });
     }
@@ -171,6 +182,10 @@ Share the setup guide with the user — it walks through every step: ${LOOKER_ST
 
       return jsonToolResult({
         destination_id: created.id,
+        destination_url: joinPublicOrigin(
+          this.publicOriginService.getPublicOrigin(),
+          buildDataDestinationsUiPath(context.projectId, created.id)
+        ),
         instructions,
       });
     }

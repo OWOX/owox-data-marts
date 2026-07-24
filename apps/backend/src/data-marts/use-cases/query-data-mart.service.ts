@@ -219,6 +219,12 @@ export class QueryDataMartService {
             signal: workController.signal,
           });
           const columns = description.dataHeaders.map(header => header.name);
+          const columnMetadata = description.dataHeaders.map(header => ({
+            name: header.name,
+            displayName: header.alias ?? header.name,
+            ...(header.description ? { description: header.description } : {}),
+            ...(header.storageFieldType ? { type: header.storageFieldType } : {}),
+          }));
 
           const rows: unknown[][] = [];
           let batchId: string | undefined;
@@ -238,7 +244,7 @@ export class QueryDataMartService {
           const truncated = rows.length > r.limit;
           const trimmed = truncated ? rows.slice(0, r.limit) : rows;
           const totals = await totalsPromise;
-          return { columns, trimmed, truncated, totals };
+          return { columns, columnMetadata, trimmed, truncated, totals };
         } finally {
           workController.abort();
           try {
@@ -251,7 +257,7 @@ export class QueryDataMartService {
         }
       })();
 
-      const { columns, trimmed, truncated, totals } = await Promise.race([
+      const { columns, columnMetadata, trimmed, truncated, totals } = await Promise.race([
         produce,
         deadline,
         aborted,
@@ -301,39 +307,16 @@ export class QueryDataMartService {
 
       return {
         columns,
+        columnMetadata,
         rows: trimmed,
         truncated,
         totals,
+        dataMart: {
+          id: dataMart.id,
+          title: dataMart.title,
+        },
         executedSql: executionSqlQuery,
       };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      const status =
-        err instanceof QueryAbortedError ? DataMartRunStatus.CANCELLED : DataMartRunStatus.FAILED;
-      try {
-        await this.dataMartRunService.recordMcpQueryRun({
-          runId,
-          dataMart,
-          createdById: r.userId,
-          startedAt,
-          status,
-          metadata: {
-            columns: [],
-            rowCount: 0,
-            truncated: false,
-            executionSqlQuery,
-            filterCount: r.filterConfig?.length,
-            aggregationCount: r.aggregationConfig?.length,
-            query: queryMetadata,
-          },
-          errors: [errorMessage],
-        });
-      } catch (auditErr) {
-        this.logger.warn(
-          `recordMcpQueryRun (FAILED) failed; swallowing: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`
-        );
-      }
-      throw err;
     } finally {
       if (deadlineTimer) clearTimeout(deadlineTimer);
       // The SDK reuses one signal across the request — detach so nothing outlives this run.

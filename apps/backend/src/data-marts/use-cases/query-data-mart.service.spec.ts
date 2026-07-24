@@ -483,7 +483,7 @@ describe('QueryDataMartService', () => {
       expect(call.metadata.rowCount).toBe(2);
     });
 
-    it('records a FAILED run and rethrows when reading throws', async () => {
+    it('rethrows without recording a run when reading throws', async () => {
       const { service, reader, dataMartRunService } = createService();
       reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));
 
@@ -500,16 +500,10 @@ describe('QueryDataMartService', () => {
         )
       ).rejects.toThrow('read boom');
 
-      expect(dataMartRunService.recordMcpQueryRun).toHaveBeenCalledTimes(1);
-      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
-      expect(call.status).toBe(DataMartRunStatus.FAILED);
-      expect(call.errors).toContain('read boom');
-      expect(call.metadata.columns).toEqual([]);
-      expect(call.metadata.rowCount).toBe(0);
-      expect(call.metadata.truncated).toBe(false);
+      expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
     });
 
-    it('records a FAILED run and rethrows when compose throws (compose-time reject, e.g. unknown field)', async () => {
+    it('rethrows without recording a run when compose throws (compose-time reject, e.g. unknown field)', async () => {
       const { service, composer, reader, dataMartRunService, readerResolver } = createService();
       composer.compose.mockRejectedValue(new Error('unknown column: nope_field'));
 
@@ -526,10 +520,7 @@ describe('QueryDataMartService', () => {
         )
       ).rejects.toThrow('unknown column: nope_field');
 
-      expect(dataMartRunService.recordMcpQueryRun).toHaveBeenCalledTimes(1);
-      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
-      expect(call.status).toBe(DataMartRunStatus.FAILED);
-      expect(call.errors).toContain('unknown column: nope_field');
+      expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
       expect(readerResolver.resolve).not.toHaveBeenCalled();
       expect(reader.finalize).not.toHaveBeenCalled();
     });
@@ -582,33 +573,6 @@ describe('QueryDataMartService', () => {
       expect(call.metadata.query).not.toHaveProperty('filters');
       expect(call.metadata.query).not.toHaveProperty('aggregations');
       expect(call.metadata.query).not.toHaveProperty('dateBuckets');
-    });
-
-    it('includes query payload in FAILED run metadata', async () => {
-      const { service, reader, dataMartRunService } = createService();
-      reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));
-
-      await expect(
-        service.run(
-          new QueryDataMartCommand({
-            projectId: 'p1',
-            userId: 'u1',
-            roles: ['admin'],
-            dataMartId: 'dm1',
-            fields: ['channel'],
-            limit: 100,
-            filterConfig: [{ column: 'channel', operator: 'eq', value: 'paid' }] as never,
-          })
-        )
-      ).rejects.toThrow('read boom');
-
-      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
-      expect(call.status).toBe(DataMartRunStatus.FAILED);
-      expect(call.metadata.query).toEqual({
-        fields: ['channel'],
-        filters: [{ column: 'channel', operator: 'eq', value: 'paid' }],
-        limit: 100,
-      });
     });
 
     it('does not include row values in run metadata', async () => {
@@ -806,7 +770,7 @@ describe('QueryDataMartService', () => {
       expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
     });
 
-    it('throws QueryTimeoutError past the deadline, records FAILED, and does NOT bill', async () => {
+    it('rethrows QueryTimeoutError past the deadline without recording a run, and does NOT bill', async () => {
       const { service, reader, dataMartRunService, consumptionTrackingService } = createService({
         deadlineMs: 20,
       });
@@ -831,10 +795,8 @@ describe('QueryDataMartService', () => {
         )
       ).rejects.toBeInstanceOf(QueryTimeoutError);
 
-      // Recorded FAILED (audit trail), but billing is skipped — a timed-out query is never charged.
-      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
-      expect(call.status).toBe(DataMartRunStatus.FAILED);
-      expect(call.errors[0]).toContain('timed out');
+      // No run recorded, and billing is skipped — a timed-out query is never charged.
+      expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
       expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
 
       // Settle the abandoned read so it does not linger past the test (Phase 2 adds real cancel).
@@ -863,31 +825,10 @@ describe('QueryDataMartService', () => {
       // A successful read is still billed even though totals degraded.
       expect(consumptionTrackingService.registerMcpQueryRunConsumption).toHaveBeenCalledTimes(1);
     });
-
-    it('rethrows the ORIGINAL read error, not the audit error, when the FAILED run write also rejects', async () => {
-      const { service, reader, dataMartRunService } = createService();
-      reader.readReportDataBatch.mockRejectedValue(new Error('read boom'));
-      dataMartRunService.recordMcpQueryRun.mockRejectedValue(new Error('audit write boom'));
-
-      await expect(
-        service.run(
-          new QueryDataMartCommand({
-            projectId: 'p1',
-            userId: 'u1',
-            roles: ['admin'],
-            dataMartId: 'dm1',
-            fields: ['channel'],
-            limit: 100,
-          })
-        )
-      ).rejects.toThrow('read boom');
-
-      expect(reader.finalize).toHaveBeenCalledTimes(1);
-    });
   });
 
   describe('client abort (Phase 2)', () => {
-    it('rejects with QueryAbortedError before any read or billing when already aborted, records CANCELLED', async () => {
+    it('rejects with QueryAbortedError before any read or billing when already aborted, without recording a run', async () => {
       const { service, reader, dataMartRunService, consumptionTrackingService } = createService();
       const controller = new AbortController();
       controller.abort();
@@ -910,12 +851,11 @@ describe('QueryDataMartService', () => {
       expect(reader.prepareReportData).not.toHaveBeenCalled();
       expect(reader.readReportDataBatch).not.toHaveBeenCalled();
       expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
-      // …but the run is still recorded CANCELLED (not FAILED) for the audit trail.
-      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
-      expect(call.status).toBe(DataMartRunStatus.CANCELLED);
+      // …and no run is recorded at all.
+      expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
     });
 
-    it('rejects with QueryAbortedError, records CANCELLED, and does NOT bill when aborted during the read', async () => {
+    it('rejects with QueryAbortedError without recording a run, and does NOT bill when aborted during the read', async () => {
       const { service, reader, dataMartRunService, consumptionTrackingService } = createService();
       const controller = new AbortController();
 
@@ -943,8 +883,7 @@ describe('QueryDataMartService', () => {
         )
       ).rejects.toBeInstanceOf(QueryAbortedError);
 
-      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
-      expect(call.status).toBe(DataMartRunStatus.CANCELLED);
+      expect(dataMartRunService.recordMcpQueryRun).not.toHaveBeenCalled();
       expect(consumptionTrackingService.registerMcpQueryRunConsumption).not.toHaveBeenCalled();
 
       // Settle the abandoned read so it does not linger past the test (no real cancel in Phase 2).

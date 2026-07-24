@@ -5,6 +5,6 @@ export class DataMartListItemStorageApiDto {
   @ApiProperty({ enum: DataStorageType, example: DataStorageType.GOOGLE_BIGQUERY })
   type: DataStorageType;
 
-  @ApiProperty({ example: 'My Storage', nullable: true })
+  @ApiProperty({ example: 'My Storage' })
   title: string;
 }

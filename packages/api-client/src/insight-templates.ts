@@ -1,4 +1,5 @@
 import { OWOXApiError } from './errors.js';
+import { isRecord, isUserProjection } from './validation.js';
 
 export type OWOXProjectInsightTemplateDataMartRef = {
   id: string;
@@ -38,24 +39,8 @@ type InsightTemplatesRequester = {
   getJson<T>(path: string, query?: Record<string, string>): Promise<T>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isOptionalNullableString(value: unknown): boolean {
-  return value === undefined || value === null || typeof value === 'string';
-}
-
 function isOptionalNullableUser(value: unknown): boolean {
-  return (
-    value === undefined ||
-    value === null ||
-    (isRecord(value) &&
-      typeof value.userId === 'string' &&
-      isOptionalNullableString(value.fullName) &&
-      isOptionalNullableString(value.email) &&
-      isOptionalNullableString(value.avatar))
-  );
+  return value === undefined || value === null || isUserProjection(value);
 }
 
 function isProjectInsightTemplate(value: unknown): value is OWOXProjectInsightTemplate {

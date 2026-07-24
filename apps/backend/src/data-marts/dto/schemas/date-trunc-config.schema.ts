@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+// Keep these units in sync with the public traversal rule literals in
+// `packages/api-client/src/data-marts.ts`.
 /**
  * Calendar bucket a date/timestamp dimension is truncated to. Week-start day and
  * timezone normalization are out of scope for this slice — WEEK semantics (which

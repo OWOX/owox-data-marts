@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  ParseEnumPipe,
-  Post,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
@@ -21,6 +10,7 @@ import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-a
 import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { ListDataMartsQueryApiDto } from '../dto/presentation/list-data-marts-query-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
@@ -29,7 +19,6 @@ import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
-import { OwnerFilter } from '../enums/owner-filter.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { BatchDataMartHealthStatusService } from '../use-cases/batch-data-mart-health-status.service';
 import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
@@ -130,11 +119,9 @@ export class DataMartController {
   @ListDataMartsSpec()
   async list(
     @AuthContext() context: AuthorizationContext,
-    @Query('offset') offset?: number,
-    @Query('ownerFilter', new ParseEnumPipe(OwnerFilter, { optional: true }))
-    ownerFilter?: OwnerFilter
+    @Query() query: ListDataMartsQueryApiDto
   ): Promise<PaginatedDataMartsResponseApiDto> {
-    const command = this.mapper.toListCommand(context, offset, ownerFilter);
+    const command = this.mapper.toListCommand(context, query.offset, query.ownerFilter);
     const result = await this.listDataMartsService.run(command);
     return this.mapper.toPaginatedResponse(result);
   }

@@ -3,10 +3,23 @@ export { type OWOXAuthContext } from './auth.js';
 export { OWOXApiClient, type OWOXApiClientOptions } from './client.js';
 export { OWOXApiError, OWOXAuthError, OWOXConfigError } from './errors.js';
 export {
-  DataMartDataTraversal,
   type OWOXDataMart,
+  type OWOXDataMartContext,
+  type OWOXDataMartDefinitionType,
+  type OWOXDataMartListOptions,
+  type OWOXDataMartOwnerFilter,
   type OWOXDataMartRow,
+  type OWOXDataMartStatus,
+  type OWOXDataMartStorage,
+  type OWOXDataMartStorageType,
+  type OWOXDataMartUser,
+  type TraverseDataAggregateFunction,
+  type TraverseDataAggregationRule,
+  type TraverseDataDateTruncRule,
+  type TraverseDataFilterRule,
   type TraverseDataOptions,
+  type TraverseDataRelativeDatePreset,
+  type TraverseDataSortRule,
 } from './data-marts.js';
 export { type OWOXStorage } from './storages.js';
 export { type OWOXDestination } from './destinations.js';
@@ -23,6 +36,7 @@ export {
   type OWOXModelCanvasJoinCondition,
   type OWOXModelCanvasNode,
 } from './model-canvas.js';
+export { type OWOXMarkdownParseRequest, type OWOXMarkdownParseResponse } from './markdown.js';
 export {
   type OWOXProjectDataMartRun,
   type OWOXProjectDataMartRunRef,
@@ -39,3 +53,13 @@ export {
   type OWOXProjectSetupProgressSteps,
   type OWOXProjectSetupStepState,
 } from './project.js';
+export {
+  type OWOXSearchEntityType,
+  type OWOXSearchOptions,
+  type OWOXSearchResult,
+} from './search.js';
+export {
+  HttpNdjsonTraversal,
+  /** @deprecated Use {@link HttpNdjsonTraversal} instead. Kept for backward compatibility. */
+  HttpNdjsonTraversal as DataMartDataTraversal,
+} from './traversal.js';

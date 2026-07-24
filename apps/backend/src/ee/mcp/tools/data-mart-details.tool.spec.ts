@@ -1,4 +1,5 @@
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { GetDataMartDetailsTool } from './data-mart-details.tool';
 
@@ -12,8 +13,11 @@ describe('GetDataMartDetailsTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
-  it('returns data mart details enriched with category/allowedAggregations and the operator matrix', async () => {
+  it('returns enriched details with url and the operator matrix (with_joined_fields)', async () => {
     const detailsResult = {
       id: 'dm_1',
       name: 'Orders',
@@ -43,17 +47,24 @@ describe('GetDataMartDetailsTool', () => {
     const facade = {
       getDataMartDetails: jest.fn().mockResolvedValue(detailsResult),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new GetDataMartDetailsTool(facade);
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
 
-    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+    const result = await tool.handler(
+      { data_mart_id: 'dm_1', detail_level: 'with_joined_fields' },
+      context
+    );
     const sc = result.structuredContent as {
       id: string;
+      url: string;
+      joined_fields_included: boolean;
       fields: Array<Record<string, unknown>>;
       joined_fields: Array<Record<string, unknown>>;
       operators_by_category: Record<string, string[]>;
     };
 
     expect(sc.id).toBe('dm_1');
+    expect(sc.url).toBe('https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup');
+    expect(sc.joined_fields_included).toBe(true);
     // Governance defaults, not the full type menu: DATE → MIN/MAX, STRING → COUNT/COUNT_DISTINCT.
     expect(sc.fields[0]).toMatchObject({
       name: 'order_date',
@@ -88,7 +99,31 @@ describe('GetDataMartDetailsTool', () => {
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
+      includeJoinedFields: true,
     });
+  });
+
+  it('defaults to native fields and marks joined fields as omitted', async () => {
+    const facade = {
+      getDataMartDetails: jest.fn().mockResolvedValue({
+        id: 'dm_1',
+        name: 'Orders',
+        description: 'Orders data mart',
+        fields: [],
+        joinedFields: [],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+
+    expect(result.structuredContent).toMatchObject({
+      joined_fields_included: false,
+      joined_fields: [],
+    });
+    expect(facade.getDataMartDetails).toHaveBeenCalledWith(
+      expect.objectContaining({ includeJoinedFields: false })
+    );
   });
 
   it('narrows a field with an explicit allowedAggregations override and enriches nested fields', async () => {
@@ -135,9 +170,12 @@ describe('GetDataMartDetailsTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new GetDataMartDetailsTool(facade);
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
 
-    const result = await tool.handler({ data_mart_id: 'dm_2' }, context);
+    const result = await tool.handler(
+      { data_mart_id: 'dm_2', detail_level: 'with_joined_fields' },
+      context
+    );
     const sc = result.structuredContent as {
       fields: Array<Record<string, unknown>>;
       joined_fields: Array<Record<string, unknown>>;
@@ -171,14 +209,14 @@ describe('GetDataMartDetailsTool', () => {
   });
 
   it('rejects explicit project_id and legacy camelCase dataMartId input', () => {
-    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade);
+    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ data_mart_id: 'dm_1', project_id: 'project-2' })).toThrow();
     expect(() => tool.parseInput({ dataMartId: 'dm_1' })).toThrow();
   });
 
   it('describes details lookup as read-only metadata access', () => {
-    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade);
+    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
 
     expect(tool).toMatchObject({
       name: 'get_data_mart_details_by_id',
@@ -186,8 +224,10 @@ describe('GetDataMartDetailsTool', () => {
       outputSchema: expect.objectContaining({
         id: expect.any(Object),
         name: expect.any(Object),
+        url: expect.any(Object),
         description: expect.any(Object),
         fields: expect.any(Object),
+        joined_fields_included: expect.any(Object),
         joined_fields: expect.any(Object),
         operators_by_category: expect.any(Object),
       }),
@@ -200,6 +240,7 @@ describe('GetDataMartDetailsTool', () => {
     });
     expect(tool.description).toContain('Get available details');
     expect(tool.description).toContain('joined_fields');
+    expect(tool.description).toContain('detail_level=native');
     expect(tool.description).toContain('get_relevant_data_marts_by_prompt');
     expect(tool.description).toContain('field-level metadata');
     expect(tool.description).toContain('allowedAggregations');

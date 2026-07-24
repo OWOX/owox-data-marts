@@ -1,4 +1,5 @@
 import type { McpScheduledTriggersFacade } from '../../../data-marts/facades/mcp-scheduled-triggers.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { ListReportRunSchedulesTool } from './list-report-run-schedules.tool';
 
@@ -12,6 +13,9 @@ describe('ListReportRunSchedulesTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   const scheduleItem = {
     triggerId: 'trigger-1',
@@ -30,14 +34,23 @@ describe('ListReportRunSchedulesTool', () => {
     const facade = {
       listReportRunSchedules: jest.fn().mockResolvedValue([scheduleItem]),
     } as unknown as jest.Mocked<McpScheduledTriggersFacade>;
-    const tool = new ListReportRunSchedulesTool(facade);
+    const tool = new ListReportRunSchedulesTool(facade, publicOrigin);
 
     const expected = {
       schedules: [
         {
           trigger_id: 'trigger-1',
-          report: { id: 'report-1', title: 'Weekly Sales' },
-          data_mart: { id: 'dm-1', title: 'Sales DM' },
+          report: {
+            id: 'report-1',
+            title: 'Weekly Sales',
+            url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
+          },
+          data_mart: {
+            id: 'dm-1',
+            title: 'Sales DM',
+            url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/data-setup',
+          },
+          schedules_url: 'https://app.owox.com/ui/project-1/data-marts/schedules',
           cron_expression: '0 9 * * 1',
           time_zone: 'Europe/Kyiv',
           is_active: true,
@@ -62,7 +75,7 @@ describe('ListReportRunSchedulesTool', () => {
   });
 
   it('accepts empty input and rejects any fields', () => {
-    const tool = new ListReportRunSchedulesTool({} as McpScheduledTriggersFacade);
+    const tool = new ListReportRunSchedulesTool({} as McpScheduledTriggersFacade, publicOrigin);
 
     expect(() => tool.parseInput({})).not.toThrow();
     expect(() => tool.parseInput({ project_id: 'x' })).toThrow();
@@ -71,7 +84,7 @@ describe('ListReportRunSchedulesTool', () => {
   });
 
   it('has correct metadata', () => {
-    const tool = new ListReportRunSchedulesTool({} as McpScheduledTriggersFacade);
+    const tool = new ListReportRunSchedulesTool({} as McpScheduledTriggersFacade, publicOrigin);
 
     expect(tool).toMatchObject({
       name: 'list_report_run_schedules',

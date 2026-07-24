@@ -96,4 +96,27 @@ describe('ListProjectDataMartRunsService', () => {
       offset: 0,
     });
   });
+
+  it('maps a run without a creator ID to a null author', async () => {
+    const { service, dataMartRunService, mapper, userProjections } = createService();
+    dataMartRunService.listVisibleByProject.mockResolvedValue([{ ...run, createdById: undefined }]);
+
+    await service.run(new ListProjectDataMartRunsCommand('project-1', 10, 0, 'user-1', ['editor']));
+
+    expect(userProjections.getByUserId).not.toHaveBeenCalled();
+    expect(mapper.toDataMartRunDto).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'run-1' }),
+      null
+    );
+  });
+
+  it('maps an unavailable creator projection to a null author', async () => {
+    const { service, mapper, userProjections } = createService();
+    userProjections.getByUserId.mockReturnValue(undefined);
+
+    await service.run(new ListProjectDataMartRunsCommand('project-1', 10, 0, 'user-1', ['editor']));
+
+    expect(userProjections.getByUserId).toHaveBeenCalledWith('creator-1');
+    expect(mapper.toDataMartRunDto).toHaveBeenCalledWith(run, null);
+  });
 });

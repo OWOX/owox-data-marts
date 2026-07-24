@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
+import { formatBlendedFieldDisplayName } from './blended-field-display-name';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
@@ -250,7 +251,7 @@ export class BlendedReportDataService {
         headers.push(
           new ReportDataHeader(
             blendedField.name,
-            `${blendedField.outputPrefix} ${blendedField.alias || blendedField.originalFieldName}`,
+            formatBlendedFieldDisplayName(blendedField),
             blendedField.description || undefined,
             effectiveType,
             blendedField.aggregateFunction

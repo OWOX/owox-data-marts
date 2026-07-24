@@ -88,6 +88,65 @@ describe('DataMartService schema actualization', () => {
   });
 });
 
+describe('DataMartService list filtering', () => {
+  it('applies a status filter before the page limit', async () => {
+    const countQueryBuilder = {
+      take: jest.fn(),
+      skip: jest.fn(),
+      getCount: jest.fn().mockResolvedValue(0),
+    };
+    countQueryBuilder.take.mockReturnValue(countQueryBuilder);
+    countQueryBuilder.skip.mockReturnValue(countQueryBuilder);
+
+    const queryBuilder = {
+      leftJoin: jest.fn(),
+      leftJoinAndSelect: jest.fn(),
+      select: jest.fn(),
+      addSelect: jest.fn(),
+      setParameter: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      addOrderBy: jest.fn(),
+      take: jest.fn(),
+      skip: jest.fn(),
+      clone: jest.fn(),
+      getRawAndEntities: jest.fn().mockResolvedValue({ raw: [], entities: [] }),
+    };
+    queryBuilder.leftJoin.mockReturnValue(queryBuilder);
+    queryBuilder.leftJoinAndSelect.mockReturnValue(queryBuilder);
+    queryBuilder.select.mockReturnValue(queryBuilder);
+    queryBuilder.addSelect.mockReturnValue(queryBuilder);
+    queryBuilder.setParameter.mockReturnValue(queryBuilder);
+    queryBuilder.where.mockReturnValue(queryBuilder);
+    queryBuilder.andWhere.mockReturnValue(queryBuilder);
+    queryBuilder.orderBy.mockReturnValue(queryBuilder);
+    queryBuilder.addOrderBy.mockReturnValue(queryBuilder);
+    queryBuilder.take.mockReturnValue(queryBuilder);
+    queryBuilder.skip.mockReturnValue(queryBuilder);
+    queryBuilder.clone.mockReturnValue(countQueryBuilder);
+
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    };
+    const service = new DataMartService(repository as never, null as never, null as never);
+
+    await service.findByProjectIdForList('project-1', {
+      limit: 1_000,
+      roles: ['admin'],
+      status: DataMartStatus.PUBLISHED,
+    });
+
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith('dm.status = :status', {
+      status: DataMartStatus.PUBLISHED,
+    });
+    expect(queryBuilder.take).toHaveBeenCalledWith(1_000);
+    expect(queryBuilder.andWhere.mock.invocationCallOrder[1]).toBeLessThan(
+      queryBuilder.take.mock.invocationCallOrder[0]
+    );
+  });
+});
+
 const canvasDataMartSchema = new EntitySchema<DataMart>({
   name: 'CanvasDataMart',
   tableName: 'data_mart',

@@ -1,4 +1,5 @@
 import type { McpReportsFacade } from '../../../data-marts/facades/mcp-reports.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpToolRegistry } from './mcp-tool.registry';
 import { GetDataMartReportsTool } from './get-data-mart-reports.tool';
@@ -14,6 +15,9 @@ describe('GetDataMartReportsTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   it('lists a data mart reports using token project-member context', async () => {
     const reports = [
@@ -41,9 +45,15 @@ describe('GetDataMartReportsTool', () => {
     const facade = {
       getDataMartReports: jest.fn().mockResolvedValue({ reports }),
     } as unknown as jest.Mocked<McpReportsFacade>;
-    const tool = new GetDataMartReportsTool(facade);
+    const tool = new GetDataMartReportsTool(facade, publicOrigin);
 
-    const structuredContent = { reports };
+    const structuredContent = {
+      reports: reports.map(report => ({
+        ...report,
+        report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
+        destination_url: 'https://app.owox.com/ui/project-1/data-destinations?id=dest-1',
+      })),
+    };
 
     await expect(tool.handler({ data_mart_id: 'dm-1' }, context)).resolves.toEqual({
       structuredContent,
@@ -63,16 +73,18 @@ describe('GetDataMartReportsTool', () => {
   });
 
   it('requires data_mart_id and rejects unexpected input', () => {
-    const tool = new GetDataMartReportsTool({} as McpReportsFacade);
+    const tool = new GetDataMartReportsTool({} as McpReportsFacade, publicOrigin);
 
     expect(() => tool.parseInput({})).toThrow();
     expect(() => tool.parseInput({ data_mart_id: 'dm-1', extra: true })).toThrow();
   });
 
   it('is registered with read-only metadata and the right scope', () => {
-    const registry = new McpToolRegistry([new GetDataMartReportsTool({} as McpReportsFacade)]);
+    const registry = new McpToolRegistry([
+      new GetDataMartReportsTool({} as McpReportsFacade, publicOrigin),
+    ]);
 
-    expect(new GetDataMartReportsTool({} as McpReportsFacade)).toMatchObject({
+    expect(new GetDataMartReportsTool({} as McpReportsFacade, publicOrigin)).toMatchObject({
       name: 'get_data_mart_reports',
       requiredScopes: ['mcp:read'],
       outputSchema: expect.objectContaining({
