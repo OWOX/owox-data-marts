@@ -495,6 +495,7 @@ describe('McpDataMartsFacadeImpl', () => {
       },
       {
         name: 'blended_users__lockedMetric',
+        displayName: 'blended_users__lockedMetric',
         type: 'FLOAT',
         description: '',
         sourceDataMart: 'blended_users',
