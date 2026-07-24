@@ -840,7 +840,37 @@ describe('OutputControlsValidatorService', () => {
       expect(response.details.errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
     });
 
-    it('throws BadRequestException with SORT_COLUMN_NOT_SELECTED for sort on non-selected column', async () => {
+    it('accepts sort on a known native column that is NOT in the explicit columnConfig', async () => {
+      // A non-aggregated report with an explicit projection resolves ORDER BY against the
+      // source row (src.<col>), so sorting by a known-but-unselected column is valid SQL —
+      // symmetric with filters. (Regression guard for #6768.)
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'date', type: BigQueryFieldType.DATE },
+        { name: 'amount', type: BigQueryFieldType.INTEGER },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: null,
+          sortConfig: [{ column: 'amount', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a sort on a non-projected column in an AGGREGATED report', async () => {
+      // GROUP BY: ORDER BY references the alias resolver, which can only see a projected
+      // dimension or an aggregated metric — a sort on a column that is neither is invalid SQL.
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
         { name: 'date', type: BigQueryFieldType.DATE },
@@ -861,6 +891,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: null,
           sortConfig: [{ column: 'amount', direction: 'asc' }],
           limitConfig: null,
+          aggregationConfig: [{ column: 'date', function: 'COUNT' }],
           accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
@@ -946,6 +977,44 @@ describe('OutputControlsValidatorService', () => {
         code: 'SORT_COLUMN_NOT_SELECTED',
         column: 'partner_revenue',
       });
+    });
+
+    // Counterpart to the null-columnConfig rejection above: with an EXPLICIT projection the
+    // blended builder materializes any referenced column into its CTE and qualifies ORDER BY
+    // to it, so a non-aggregated report may sort by a known blended column even when it isn't
+    // among the selected output columns. (#6768)
+    it('accepts sort on a BLENDED column not in the explicit columnConfig', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'amount', type: BigQueryFieldType.INTEGER }],
+        {
+          blendedFields: [
+            {
+              name: 'partner_revenue',
+              aliasPath: 'partner',
+              originalFieldName: 'revenue',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['amount'],
+          filterConfig: null,
+          sortConfig: [{ column: 'partner_revenue', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
     });
 
     it('rejects payload with mismatched filter shape via Zod (defence-in-depth)', async () => {
