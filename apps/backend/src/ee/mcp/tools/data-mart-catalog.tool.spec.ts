@@ -85,6 +85,45 @@ describe('ListDataMartsTool', () => {
     });
   });
 
+  it('lists draft data marts only when explicitly requested', async () => {
+    const facade = {
+      listDataMarts: jest.fn().mockResolvedValue({
+        dataMarts: [
+          {
+            id: 'dm_draft',
+            title: 'Draft Orders',
+            description: 'Unpublished changes',
+            status: 'DRAFT',
+            updatedAt: '2026-06-11T10:00:00.000Z',
+          },
+        ],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never);
+
+    const result = await tool.handler({ status: 'draft' }, context);
+
+    expect(facade.listDataMarts).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      status: 'draft',
+    });
+    expect(result.structuredContent).toEqual({
+      project: { id: 'project-1', title: 'Analytics' },
+      data_marts: [
+        {
+          id: 'dm_draft',
+          title: 'Draft Orders',
+          description: 'Unpublished changes',
+          url: 'https://app.owox.com/ui/project-1/data-marts/dm_draft/data-setup',
+          status: 'DRAFT',
+          updated_at: '2026-06-11T10:00:00.000Z',
+        },
+      ],
+    });
+  });
+
   it('rejects explicit project_id input', async () => {
     const tool = new ListDataMartsTool(
       {} as McpDataMartsFacade,
@@ -93,6 +132,16 @@ describe('ListDataMartsTool', () => {
     );
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
+  });
+
+  it('rejects an unsupported catalog state', () => {
+    const tool = new ListDataMartsTool(
+      {} as McpDataMartsFacade,
+      publicOrigin,
+      projectContext as never
+    );
+
+    expect(() => tool.parseInput({ status: 'archived' })).toThrow();
   });
 
   it('returns the catalog when optional project metadata is unavailable', async () => {

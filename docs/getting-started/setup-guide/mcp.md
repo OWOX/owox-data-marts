@@ -164,7 +164,13 @@ Use this tool when you need to confirm which project is active, or when the assi
 
 ### `list_data_marts`
 
-Lists published data marts visible to you in the current project. Draft data marts are never exposed through MCP.
+Lists data marts visible to you in the current project. By default, it returns published data marts. You can explicitly request draft data mart metadata, but drafts cannot be inspected or queried through other MCP data mart tools.
+
+**Input:**
+
+| Field    | Description                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `status` | Optional: `published` (default) returns queryable data marts; `draft` returns draft metadata for catalog browsing only. |
 
 **Returns** an array of data mart objects:
 
