@@ -5,6 +5,9 @@ import { ConnectorSecretService } from '../services/connector/connector-secret.s
 import { DataMartRun as DataMartRunEntity } from '../entities/data-mart-run.entity';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMart } from '../entities/data-mart.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('DataMartMapper', () => {
   let mapper: DataMartMapper;
@@ -15,7 +18,9 @@ describe('DataMartMapper', () => {
         DataMartMapper,
         {
           provide: DataStorageMapper,
-          useValue: {},
+          useValue: {
+            toDomainDto: jest.fn().mockReturnValue({}),
+          },
         },
         {
           provide: ConnectorSecretService,
@@ -25,6 +30,60 @@ describe('DataMartMapper', () => {
     }).compile();
 
     mapper = module.get<DataMartMapper>(DataMartMapper);
+  });
+
+  describe('Data Mart list items', () => {
+    it('preserves a persisted null definition type for a draft', () => {
+      const definitionState = {
+        definitionType: null,
+      } satisfies Pick<DataMart, 'definitionType'>;
+      const entity = {
+        id: 'data-mart-1',
+        title: 'New draft',
+        status: DataMartStatus.DRAFT,
+        storage: {
+          type: DataStorageType.GOOGLE_BIGQUERY,
+          title: 'Warehouse',
+        },
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        description: undefined,
+        availableForReporting: true,
+        availableForMaintenance: false,
+        contexts: [],
+        ...definitionState,
+      } as unknown as DataMart;
+
+      const response = mapper.toListItemResponse(
+        mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0 })
+      );
+
+      expect(response.definitionType).toBeNull();
+    });
+
+    it('normalizes a persisted null definition type outside the list contract', () => {
+      const definitionState = {
+        definitionType: null,
+      } satisfies Pick<DataMart, 'definitionType'>;
+      const entity = {
+        id: 'data-mart-1',
+        title: 'New draft',
+        status: DataMartStatus.DRAFT,
+        storage: {
+          type: DataStorageType.GOOGLE_BIGQUERY,
+          title: 'Warehouse',
+        },
+        createdAt: new Date('2026-07-23T12:00:00.000Z'),
+        modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+        description: undefined,
+        availableForReporting: true,
+        availableForMaintenance: false,
+        contexts: [],
+        ...definitionState,
+      } as unknown as DataMart;
+
+      expect(mapper.toDomainDto(entity).definitionType).toBeUndefined();
+    });
   });
 
   describe('toBatchHealthStatusDomainResponse', () => {

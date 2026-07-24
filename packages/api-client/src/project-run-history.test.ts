@@ -92,6 +92,30 @@ describe('Runs API', () => {
     await expect(client.runs.list({ limit: 25, offset: 50 })).resolves.toEqual(runHistory);
   });
 
+  it('accepts opaque run-author email and avatar strings', async () => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          createdByUser: {
+            ...runHistory.runs[0].createdByUser!,
+            email: '',
+            avatar: '/avatars/user-1',
+          },
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).resolves.toEqual(response);
+  });
+
   it('omits pagination query parameters when options are not provided', async () => {
     const fetchImpl = createFetchMock(request => {
       if (request.method === 'POST') {

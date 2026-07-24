@@ -196,9 +196,50 @@ the same trust and embedding rules as Markdown rendered in the application.
 
 ## List data marts
 
+Use `dataMarts.list()` to read every Data Mart visible to the current project member. Viewer
+access is required. The client follows each server `nextOffset` until it is `null` and returns one
+flattened `OWOXDataMart[]`; individual HTTP pages contain at most 1,000 items.
+
 ```ts
 const dataMarts = await client.dataMarts.list();
+
+for (const dataMart of dataMarts) {
+  console.log(dataMart.id, dataMart.title, dataMart.status, dataMart.storage.title);
+}
 ```
+
+Start from a non-negative integer offset or keep only Data Marts with or without business or
+technical owners:
+
+```ts
+const unownedDataMarts = await client.dataMarts.list({
+  offset: 0,
+  ownerFilter: 'no_owners',
+});
+```
+
+Use the exported `OWOXDataMartListOptions` and `OWOXDataMartOwnerFilter` types when options are
+assembled outside the call.
+
+Each `OWOXDataMart` contains:
+
+- `id`, `title`, and `status` (`DRAFT` or `PUBLISHED`);
+- `storage.type` and `storage.title`;
+- required nullable `description`, optional nullable `definitionType`, and optional
+  `connectorSourceName`;
+- non-negative `triggersCount` and `reportsCount`;
+- nullable `createdByUser`, owner-user arrays, and `contexts` with `id` and `name`;
+- RFC 3339 `createdAt` and `modifiedAt` strings; and
+- `availableForReporting` and `availableForMaintenance` flags.
+
+The package also exports the nested `OWOXDataMartStatus`, `OWOXDataMartDefinitionType`,
+`OWOXDataMartStorage`, `OWOXDataMartStorageType`, `OWOXDataMartUser`, and `OWOXDataMartContext`
+types.
+
+The client validates the complete page and nested item shapes before returning data. It rejects an
+unknown enum value, malformed user, storage, or context, invalid timestamp, missing required
+field, or invalid pagination value with `OWOXApiError`. Invalid list options are rejected before
+authentication or any network request.
 
 ## Read the Models canvas
 

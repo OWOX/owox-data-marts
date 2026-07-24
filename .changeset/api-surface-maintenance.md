@@ -34,3 +34,15 @@ and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJ
 type before traversal. Consumers passing controls through `unknown[]` or widened variables must
 adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline
 calls remain unchanged.
+
+## Actualize the Data Mart list contract
+
+`GET /api/data-marts` now publishes viewer visibility, non-negative integer offset validation,
+owner-presence filtering, 1,000-item pages, and the complete nested list-item response contract,
+including nullable draft definition types and optional nullable user metadata strings.
+`@owox/api-client` validates every returned page and exposes the full `OWOXDataMart` shape;
+`dataMarts.list({ offset, ownerFilter })` can start from an offset, filter by
+`has_owners` or `no_owners`, and follows subsequent pages automatically. The package exports
+`OWOXDataMartListOptions`, `OWOXDataMartOwnerFilter`, and the nested Data Mart enum and object
+types, and rejects invalid list options before sending a request. Existing `dataMarts.list()`
+calls remain compatible and require no migration.
