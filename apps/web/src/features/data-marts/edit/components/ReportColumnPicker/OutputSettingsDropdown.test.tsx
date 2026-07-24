@@ -40,6 +40,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         onChange={() => {}}
         allColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
         selectedColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
+        hasExplicitColumns={true}
         joinedSources={[]}
       />
     );
@@ -74,6 +75,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         onChange={() => {}}
         allColumns={[]}
         selectedColumns={[]}
+        hasExplicitColumns={true}
         joinedSources={[]}
       />
     );
@@ -103,6 +105,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         onChange={onChange}
         allColumns={[]}
         selectedColumns={[]}
+        hasExplicitColumns={true}
         joinedSources={[
           {
             aliasPath: 'users',
@@ -140,6 +143,7 @@ describe('OutputSettingsDropdown readable labels', () => {
         onChange={() => {}}
         allColumns={[productId]}
         selectedColumns={[productId]}
+        hasExplicitColumns={true}
         joinedSources={[]}
       />
     );
@@ -165,6 +169,7 @@ describe('OutputSettingsDropdown readable labels', () => {
         onChange={() => {}}
         allColumns={[productId]}
         selectedColumns={[productId]}
+        hasExplicitColumns={true}
         joinedSources={[]}
       />
     );
@@ -194,6 +199,7 @@ describe('OutputSettingsDropdown no longer hosts aggregation controls', () => {
         onChange={() => {}}
         allColumns={[revenue]}
         selectedColumns={[revenue]}
+        hasExplicitColumns={true}
         joinedSources={[]}
       />
     );

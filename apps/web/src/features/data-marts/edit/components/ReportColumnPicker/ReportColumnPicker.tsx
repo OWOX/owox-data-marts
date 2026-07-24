@@ -1149,6 +1149,7 @@ export function ReportColumnPicker({
             onChange={onOutputConfigChange}
             selectedColumns={selectedDropdownColumns}
             allColumns={dropdownColumns}
+            hasExplicitColumns={value !== null}
             joinedSources={joinedSources}
           />
         </div>

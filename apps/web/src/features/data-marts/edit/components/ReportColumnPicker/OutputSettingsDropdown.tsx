@@ -86,6 +86,12 @@ interface OutputSettingsDropdownProps {
   onChange: (next: OutputConfig) => void;
   selectedColumns: readonly OutputSettingsDropdownColumn[];
   allColumns: readonly OutputSettingsDropdownColumn[];
+  /**
+   * Whether the report has an EXPLICIT column projection (columnConfig !== null). Without it
+   * the projection is `SELECT *` over native fields only, so a non-aggregated report can sort
+   * only by native columns; with it the builder can sort by any known column (native/blended).
+   */
+  hasExplicitColumns: boolean;
   joinedSources?: readonly JoinedSource[];
 }
 
@@ -94,6 +100,7 @@ export function OutputSettingsDropdown({
   onChange,
   selectedColumns,
   allColumns,
+  hasExplicitColumns,
   joinedSources,
 }: OutputSettingsDropdownProps) {
   const indexed = value.filterConfig.map((rule, index) => ({ rule, index }));
@@ -138,6 +145,13 @@ export function OutputSettingsDropdown({
       <SortSection
         sort={value.sortConfig}
         selectedColumns={selectedColumns}
+        allColumns={allColumns}
+        isAggregated={
+          value.aggregationConfig.length > 0 ||
+          value.dateTruncConfig.length > 0 ||
+          value.uniqueCountConfig
+        }
+        hasExplicitColumns={hasExplicitColumns}
         onChange={s => {
           onChange({ ...value, sortConfig: s });
         }}
@@ -411,15 +425,32 @@ function AddFilterPicker({
 interface SortSectionProps {
   sort: SortRule[];
   selectedColumns: readonly OutputSettingsDropdownColumn[];
+  allColumns: readonly OutputSettingsDropdownColumn[];
+  /** GROUP BY report: ORDER BY can only reference a projected dimension / aggregated metric. */
+  isAggregated: boolean;
+  /** Explicit columnConfig — required before a non-aggregated report can sort by a non-native column. */
+  hasExplicitColumns: boolean;
   onChange: (next: SortRule[]) => void;
 }
 
-function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
+function SortSection({
+  sort,
+  selectedColumns,
+  allColumns,
+  isAggregated,
+  hasExplicitColumns,
+  onChange,
+}: SortSectionProps) {
+  // A non-aggregated report with an explicit projection resolves ORDER BY against the source
+  // row, so it can sort by any known column (like a filter). An aggregated (GROUP BY) report —
+  // or a `SELECT *` report with no explicit projection (native-only output) — can sort only by
+  // its selected output columns.
+  const sortableColumns = isAggregated || !hasExplicitColumns ? selectedColumns : allColumns;
   const sortColumns = new Set(sort.map(s => s.column));
-  const selectedColumnSet = new Set(selectedColumns.map(c => c.name));
-  const labelByName = new Map(selectedColumns.map(c => [c.name, c.label]));
-  const dataMartByName = new Map(selectedColumns.map(c => [c.name, c.dataMartName]));
-  const available = selectedColumns.filter(c => !sortColumns.has(c.name));
+  const sortableColumnSet = new Set(sortableColumns.map(c => c.name));
+  const labelByName = new Map(sortableColumns.map(c => [c.name, c.label]));
+  const dataMartByName = new Map(sortableColumns.map(c => [c.name, c.dataMartName]));
+  const available = sortableColumns.filter(c => !sortColumns.has(c.name));
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -479,7 +510,7 @@ function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
             <SortRow
               rule={rule}
               index={index}
-              isOrphaned={!selectedColumnSet.has(rule.column)}
+              isOrphaned={!sortableColumnSet.has(rule.column)}
               displayLabel={labelByName.get(rule.column)}
               dataMartName={dataMartByName.get(rule.column)}
               onChange={next => {
@@ -497,7 +528,7 @@ function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
       <div className='mt-2'>
         {available.length === 0 ? (
           <span className='text-muted-foreground text-xs'>
-            All selected columns are already sorted.
+            All available columns are already sorted.
           </span>
         ) : (
           <FieldSearchPicker

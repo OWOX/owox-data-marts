@@ -631,13 +631,29 @@ export class OutputControlsValidatorService {
           );
         }
         if (parsedSort.length > 0) {
-          // With no explicit columnConfig the projection is `SELECT *` over the home
-          // mart's NATIVE fields only — blended output aliases are NOT projected, and
-          // the blended run path rejects output controls without an explicit column
-          // selection. Validate sort against that same native-only set so a sort on a
-          // blended column is caught here at save time instead of failing at run time.
-          const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
-          errors.push(...this.validateSort(parsedSort, selectedSet));
+          // An AGGREGATED report (GROUP BY) constrains ORDER BY: the alias resolver can
+          // reference only a projected dimension or an aggregated metric, so a sort on a
+          // column that is neither grouped nor aggregated emits invalid SQL. Enforce the
+          // "must be projected" rule against the selected columns for that case.
+          const isAggregated =
+            parsedAggregations.length > 0 ||
+            parsedDateTruncs.length > 0 ||
+            args.uniqueCountConfig === true;
+          if (isAggregated) {
+            const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
+            errors.push(...this.validateSort(parsedSort, selectedSet));
+          } else if (!hasColumnConfig) {
+            // Non-aggregated with NO explicit projection → `SELECT *` over the home mart's
+            // NATIVE fields only (blended aliases aren't projected, and the blended run path
+            // rejects output controls without an explicit column selection). Sorting is valid
+            // only on a native column, so validate against that native-only set.
+            errors.push(...this.validateSort(parsedSort, new Set(connectedNativeNames)));
+          }
+          // Non-aggregated WITH an explicit columnConfig: the builder materializes any
+          // referenced column (native → `main`, blended → its joined CTE) and resolves
+          // ORDER BY against the source row, so a sort on an unselected-but-known column is
+          // valid SQL, exactly like a filter. No projection constraint here; a sort on a
+          // genuinely unknown column is still surfaced below as a disconnected ref.
         }
         if (parsedAggregations.length > 0) {
           // Post-join aggregation over the (flat) blended result is an outer GROUP BY
