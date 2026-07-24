@@ -188,9 +188,10 @@ export class ApiHelpers {
 
   /**
    * Returns the credential payload required by the backend for the given
-   * destination type. EMAIL, MS_TEAMS and GOOGLE_CHAT all use the
-   * email-credentials schema; LOOKER_STUDIO has its own; GOOGLE_SHEETS
-   * requires OAuth/service-account and is left undefined here.
+   * destination type. EMAIL and MS_TEAMS use email credentials;
+   * GOOGLE_CHAT uses a syntactically valid test webhook (creation does not
+   * call it); LOOKER_STUDIO has its own; GOOGLE_SHEETS requires
+   * OAuth/service-account and is left undefined here.
    */
   private getCredentialsForType(type: string): Record<string, unknown> | undefined {
     switch (type) {
@@ -201,18 +202,26 @@ export class ApiHelpers {
       case 'MS_TEAMS':
         return { type: 'email-credentials', to: ['test-teams@example.com'] };
       case 'GOOGLE_CHAT':
-        return { type: 'email-credentials', to: ['test-chat@example.com'] };
+        return {
+          type: 'google-chat-credentials',
+          webhookUrl:
+            'https://chat.googleapis.com/v1/spaces/e2e-space/messages?key=e2e-key&token=e2e-token',
+        };
       default:
         return undefined;
     }
   }
 
-  async createDestination(type = 'LOOKER_STUDIO', title?: string): Promise<{ id: string }> {
+  async createDestination(
+    type = 'LOOKER_STUDIO',
+    title?: string,
+    credentials?: Record<string, unknown>
+  ): Promise<{ id: string }> {
     const res = await this.page.request.post('/api/data-destinations', {
       data: {
         title: title ?? `E2E Destination ${Date.now()}`,
         type,
-        credentials: this.getCredentialsForType(type),
+        credentials: credentials ?? this.getCredentialsForType(type),
       },
     });
     expect(res.ok()).toBeTruthy();

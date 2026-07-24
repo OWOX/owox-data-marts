@@ -13,7 +13,7 @@ import { InsightTemplateSourceUsageService } from '../../../../services/insight-
 import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
-import { EmailReportWriter } from './email-report-writer';
+import { EmailReportWriter, MsTeamsReportWriter, SlackReportWriter } from './email-report-writer';
 
 jest.mock('../../../../../common/markdown/markdown-parser.service', () => ({
   COLOR_THEME: { LIGHT: 'LIGHT' },
@@ -21,7 +21,12 @@ jest.mock('../../../../../common/markdown/markdown-parser.service', () => ({
 }));
 
 describe('EmailReportWriter', () => {
-  const createWriter = () => {
+  const createWriter = (
+    destinationType:
+      | DataDestinationType.EMAIL
+      | DataDestinationType.SLACK
+      | DataDestinationType.MS_TEAMS = DataDestinationType.EMAIL
+  ) => {
     const emailProvider = {
       sendEmail: jest.fn().mockResolvedValue(undefined),
     };
@@ -62,9 +67,15 @@ describe('EmailReportWriter', () => {
     const sourceUsageService = {
       getUsedSourceKeys: jest.fn().mockReturnValue(['main']),
     };
+    const Writer =
+      destinationType === DataDestinationType.SLACK
+        ? SlackReportWriter
+        : destinationType === DataDestinationType.MS_TEAMS
+          ? MsTeamsReportWriter
+          : EmailReportWriter;
 
     return {
-      writer: new EmailReportWriter(
+      writer: new Writer(
         emailProvider as never,
         markdownParser as never as MarkdownParser,
         publicOriginService as never,
@@ -86,7 +97,7 @@ describe('EmailReportWriter', () => {
     };
   };
 
-  const createReport = (): Report =>
+  const createReport = (destinationType: DataDestinationType = DataDestinationType.EMAIL): Report =>
     ({
       id: 'report-1',
       title: 'Report',
@@ -104,7 +115,7 @@ describe('EmailReportWriter', () => {
       },
       dataDestination: {
         id: 'destination-1',
-        type: DataDestinationType.EMAIL,
+        type: destinationType,
       },
       dataMart: {
         id: 'data-mart-1',
@@ -129,9 +140,13 @@ describe('EmailReportWriter', () => {
       },
     }) as Report;
 
-  it('finalizes delivery without returning consumption metadata', async () => {
-    const { writer, emailProvider, eventDispatcher } = createWriter();
-    const report = createReport();
+  it.each([
+    { type: DataDestinationType.EMAIL, eventName: 'email.report.run.successfully' },
+    { type: DataDestinationType.SLACK, eventName: 'slack.report.run.successfully' },
+    { type: DataDestinationType.MS_TEAMS, eventName: 'ms-teams.report.run.successfully' },
+  ])('$type finalizes email delivery and emits its success event', async ({ type, eventName }) => {
+    const { writer, emailProvider, eventDispatcher } = createWriter(type);
+    const report = createReport(type);
 
     await writer.prepareToWriteReport(report, new ReportDataDescription([]));
     const result = await writer.finalize();
@@ -143,7 +158,7 @@ describe('EmailReportWriter', () => {
       name: string;
       payload: unknown;
     };
-    expect(event.name).toBe('email.report.run.successfully');
+    expect(event.name).toBe(eventName);
     expect(event.payload).toEqual({
       dataMartId: 'data-mart-1',
       runId: 'report-1',

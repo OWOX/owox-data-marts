@@ -7,15 +7,14 @@ export default function GoogleChatDescription() {
       <AccordionTrigger>How do I start sending to Google Chat?</AccordionTrigger>
       <AccordionContent>
         <p className='mb-2'>
-          To send reports to Google Chat, first configure the <strong>Google Chat</strong>{' '}
-          destination in this form (add a title and specify recipient addresses). Then, go to your
-          Data Mart page, open the <strong>Destinations</strong> tab, and create a report in the
-          Google Chat block.
+          Choose <strong>Google Chat API</strong> to send complete, formatted messages through an
+          incoming webhook, or <strong>Channel Email</strong> to keep the previous email-based
+          delivery. For API delivery, open <strong>Apps &amp; integrations</strong> in the target
+          Chat space, add an incoming webhook, and paste its URL here. Treat the URL as a secret.
         </p>
         <p className='mb-2'>
-          In the report settings, add a subject and message, and set the delivery conditions. The
-          generated report will be delivered by OWOX Data Marts to the connected space as chat
-          messages.
+          Then create a report from your Data Mart's <strong>Destinations</strong> tab and configure
+          its subject, message, and delivery conditions.
         </p>
         <p className='mb-2'>
           For more details, read the{' '}

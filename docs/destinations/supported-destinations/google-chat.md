@@ -1,6 +1,6 @@
 # Google Chat
 
-Configure **Google Chat** as a Destination in OWOX Data Marts to allow business users to receive messages with Insights based on the results of each Data Mart run.  
+Configure **Google Chat** as a Destination in OWOX Data Marts to deliver Insights to a Chat space after each Data Mart run. New destinations default to direct, formatted delivery through an incoming webhook, while channel-email delivery remains available for backward compatibility.
 
 For example, you may want to notify a stakeholder in a Google Chat room every time a scheduled run produces updated data (such as new results from the Facebook Ads connector). You can also choose to receive a message only when the run result is empty.
 
@@ -22,9 +22,26 @@ Choose **Google Chat** from the **Destination Type** dropdown.
 
 #### 1.3. Configure Destination details
 
-- **Title**: Enter a unique name for the Destination (for example, “Marketing Team”).  
-- **Google Chat channel emails list**: Add recipient emails or Google Chat room email addresses separated by commas, semicolons, or new lines  
-  (for example: `your-space-name-####@your-domain.gserviceaccount.com`).
+- **Title**: Enter a unique name for the Destination (for example, “Marketing Team”).
+- **Delivery Method**:
+  - **Google Chat API** (default): posts the complete Insight as a formatted Google Chat card.
+  - **Channel Email**: uses the previous email-based delivery and Google Chat's email rendering.
+- For **Google Chat API**, provide a **Google Chat incoming webhook URL**:
+  1. Open the target space in Google Chat.
+  2. Next to the space title, open **Apps & integrations**.
+  3. Click **Add webhooks**, enter a name, and save the webhook.
+  4. Copy its URL and paste it into OWOX.
+- For **Channel Email**, enter one or more Google Chat channel email addresses.
+
+Existing Google Chat destinations with saved email addresses continue to open with **Channel Email**
+selected. If an existing destination has no email address, the form defaults to **Google Chat API**.
+
+> The webhook URL contains a secret token. Store it as a credential and do not share it in chat,
+> documentation, or source control. If **Add webhooks** is unavailable, ask your Google Workspace
+> administrator to allow incoming webhooks.
+
+Incoming webhooks authenticate through the key and token in the URL, so this delivery method does
+not require a separate OAuth connection or service-account JSON.
 
 #### 1.4. Save the Destination
 
@@ -46,20 +63,22 @@ In the block labeled with the name of your Destination, click **+ Add report**.
 
 #### 2.3. Configure general settings
 
-Enter a report title and make sure the report is assigned to the correct Destination.  
-You can also view and copy the list of report recipients.
+Enter a report title and make sure the report is assigned to the correct Destination.
 
 #### 2.4. Configure the template
 
-Write your **Message** using Markdown.  
-Switch to **Preview** to check how the message will appear in Google Chat.
+Write your **Message** using Markdown. Switch to **Preview** to check the content. With **Google Chat
+API**, OWOX posts the rendered Insight as a card with the subject, Data Mart name, complete message
+body, and a link back to the report. Messages that exceed Google Chat's per-message size limit are
+split into as many as 20 numbered parts. Insights requiring more parts are rejected before sending.
+With **Channel Email**, Google Chat controls how the emailed content is rendered.
 
 #### 2.5. Set sending conditions
 
 Decide when the report should be sent based on the Data Mart run result:
 
-- **Send always** – the report is sent after every run.  
-- **Send only when result is empty** – the report is sent only if the Data Mart returns no data.  
+- **Send always** – the report is sent after every run.
+- **Send only when result is empty** – the report is sent only if the Data Mart returns no data.
 - **Send only when result is not empty** – the report is sent only if the Data Mart returns data.
 
 OWOX automatically runs the Data Mart before sending the report and checks the result. Your selected condition determines whether the message is sent.
