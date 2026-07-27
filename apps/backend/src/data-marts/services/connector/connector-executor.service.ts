@@ -336,11 +336,13 @@ export class ConnectorExecutorService {
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
                 success = false;
-                addMessageToArray(configErrors, message);
-                // This status flag carries no error detail (just a numeric code) — the
-                // actual cause arrives as its own ERROR/WARNING message on the same run,
-                // already logged with the right severity there. Logging this at .error()
-                // too would page on every single failure regardless of cause.
+                // Goes to logs, not errors: this flag carries no detail (just a numeric
+                // code), and the actual cause arrives as its own ERROR/WARNING message on
+                // the same run. Recording it as an error would render a second, generic
+                // ERROR row next to a run whose only real failure is a warning — and the
+                // "finished without terminal success status" fallback below already
+                // covers the case where no detail message arrives at all.
+                addMessageToArray(configLogs, message);
                 this.logger.warn(`${message.toFormattedString()}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,

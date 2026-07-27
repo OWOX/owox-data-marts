@@ -23,13 +23,17 @@ const fbError = (code, extra = {}) => ({
   payload: { error: { code, type: 'OAuthException', ...extra } },
 });
 
+// _isAuthError now defers to the retry logic, so `this` must resolve the real
+// prototype methods rather than being a bare object.
+const stub = Object.assign(Object.create(proto), { config: { logMessage: () => {} } });
+
 describe('_isAuthError', () => {
   // Codes below are taken from real production error payloads.
   it.each([
     ['session expired / app deleted', 190],
     ['missing ads_management or business_management permission', 200],
   ])('flags credential failure: %s (code %i)', (_label, code) => {
-    expect(proto._isAuthError.call(null, fbError(code))).toBe(true);
+    expect(proto._isAuthError.call(stub, fbError(code))).toBe(true);
   });
 
   // Facebook reuses OAuthException for throttling and outages. Those are listed in
@@ -38,15 +42,31 @@ describe('_isAuthError', () => {
     ['ad-account rate limit', 80004],
     ['temporary service unavailability', 2],
   ])('does not flag retryable condition: %s (code %i)', (_label, code) => {
-    expect(proto._isAuthError.call(null, fbError(code))).toBe(false);
+    expect(proto._isAuthError.call(stub, fbError(code))).toBe(false);
   });
 
   it('does not flag an OAuthException whose retryable marker is the subcode', () => {
-    expect(proto._isAuthError.call(null, fbError(1, { error_subcode: 1504018 }))).toBe(false);
+    expect(proto._isAuthError.call(stub, fbError(1, { error_subcode: 1504018 }))).toBe(false);
+  });
+
+  // isValidToRetry treats these as retryable, so exhausting the attempts on them is a
+  // real failure. Classifying them as warnings would silence the alert instead.
+  it('does not flag an OAuthException Facebook marked is_transient', () => {
+    expect(proto._isAuthError.call(stub, fbError(1, { is_transient: true }))).toBe(false);
+  });
+
+  it('does not flag a 5xx carrying an OAuthException payload', () => {
+    const error = { statusCode: 500, payload: { error: { code: 1, type: 'OAuthException' } } };
+    expect(proto._isAuthError.call(stub, error)).toBe(false);
+  });
+
+  it('does not flag a network-level error with no statusCode', () => {
+    const error = { payload: { error: { code: 1, type: 'OAuthException' } } };
+    expect(proto._isAuthError.call(stub, error)).toBe(false);
   });
 
   it('still falls back to the default 401/403 check for non-Facebook-shaped errors', () => {
-    expect(proto._isAuthError.call(null, { statusCode: 401 })).toBe(true);
+    expect(proto._isAuthError.call(stub, { statusCode: 401 })).toBe(true);
   });
 
   it('does not flag a non-OAuth Facebook error (reduce-data, code 1 without type)', () => {
@@ -56,10 +76,10 @@ describe('_isAuthError', () => {
         error: { code: 1, message: "Please reduce the amount of data you're asking for" },
       },
     };
-    expect(proto._isAuthError.call(null, error)).toBe(false);
+    expect(proto._isAuthError.call(stub, error)).toBe(false);
   });
 
   it('does not flag a plain server error', () => {
-    expect(proto._isAuthError.call(null, { statusCode: 500 })).toBe(false);
+    expect(proto._isAuthError.call(stub, { statusCode: 500 })).toBe(false);
   });
 });

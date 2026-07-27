@@ -95,6 +95,28 @@ describe('_checkAndReportErrors aggregate classification', () => {
     expect(error.isWarning).toBe(true);
   });
 
+  // A single advertiser can record several errors: a permission warning from the fetch
+  // and a genuine storage failure afterwards. Order must not decide the classification.
+  it.each([
+    ['warning first', true],
+    ['warning second', false],
+  ])(
+    'keeps the aggregate an error on mixed errors for one advertiser (%s)',
+    (_label, warnFirst) => {
+      const warning = Object.assign(new Error('No permission'), { isWarning: true });
+      const real = new Error('remote or network error');
+      const self = failAll({ a: warnFirst ? [warning, real] : [real, warning] });
+      const error = (() => {
+        try {
+          connectorProto._checkAndReportErrors.call(self, ['a']);
+        } catch (e) {
+          return e;
+        }
+      })();
+      expect(error.isWarning).toBe(false);
+    }
+  );
+
   it('keeps the aggregate an error when any advertiser failed for another reason', () => {
     const self = failAll({
       a: [Object.assign(new Error('TikTok API error: No permission'), { isWarning: true })],

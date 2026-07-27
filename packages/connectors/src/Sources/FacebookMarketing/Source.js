@@ -255,39 +255,44 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @return {boolean} True if the error should trigger a retry, false otherwise
    */
   isValidToRetry(error) {
+    const { retry, reason } = this._evaluateRetry(error);
+    this._logRetryDecision(error, reason, retry);
+    return retry;
+  }
+
+  //---- _evaluateRetry --------------------------------------------
+  /**
+   * The retry decision itself, without logging, so _isAuthError can consult it
+   * without emitting a second entry for the same error.
+   *
+   * @param {HttpRequestException} error - The error to judge
+   * @return {{retry: boolean, reason: string}} Decision and the inputs behind it
+   */
+  _evaluateRetry(error) {
     // Network-level errors (ETIMEDOUT, ECONNRESET, etc.) have no statusCode — always retry
     if (!error.statusCode) {
-      this._logRetryDecision(error, 'no statusCode (network-level error)', true);
-      return true;
+      return { retry: true, reason: 'no statusCode (network-level error)' };
     }
 
     if (error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
-      this._logRetryDecision(error, 'server error', true);
-      return true;
+      return { retry: true, reason: 'server error' };
     }
 
     if (!error.payload || !error.payload.error) {
-      this._logRetryDecision(error, 'no Facebook error payload', false);
-      return false;
+      return { retry: false, reason: 'no Facebook error payload' };
     }
 
     const fbErr = error.payload.error;
     const code = Number(fbErr.code);
     const subcode = Number(fbErr.error_subcode);
+    const codeRetryable = FB_RETRYABLE_ERROR_CODES.includes(code);
+    const subcodeRetryable = FB_RETRYABLE_ERROR_CODES.includes(subcode);
 
-    const retry = fbErr.is_transient === true
-      || FB_RETRYABLE_ERROR_CODES.includes(code)
-      || FB_RETRYABLE_ERROR_CODES.includes(subcode);
-
-    this._logRetryDecision(
-      error,
-      `code=${code} subcode=${subcode} is_transient=${fbErr.is_transient} `
-        + `codeRetryable=${FB_RETRYABLE_ERROR_CODES.includes(code)} `
-        + `subcodeRetryable=${FB_RETRYABLE_ERROR_CODES.includes(subcode)}`,
-      retry
-    );
-
-    return retry;
+    return {
+      retry: fbErr.is_transient === true || codeRetryable || subcodeRetryable,
+      reason: `code=${code} subcode=${subcode} is_transient=${fbErr.is_transient} `
+        + `codeRetryable=${codeRetryable} subcodeRetryable=${subcodeRetryable}`,
+    };
   }
 
   //---- _logRetryDecision -----------------------------------------
@@ -313,21 +318,19 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * deleted, missing permissions), not as HTTP 401/403, so the default
    * statusCode check from AbstractSource doesn't catch them.
    *
-   * Facebook also reuses that same type for throttling (code 80004) and
-   * temporary outages (code 2), which are not credential problems — those
-   * codes are already listed in FB_RETRYABLE_ERROR_CODES, so exhausting the
-   * retries on them is a real failure worth alerting on, not a warning.
+   * Facebook also reuses that same type for throttling, outages and anything it
+   * marks is_transient, which are not credential problems. Rather than restate
+   * which of those are transient, defer to the retry logic: if it would have
+   * retried, exhausting the attempts is a real failure worth alerting on.
    *
    * @param {HttpRequestException} error - The error to check
    * @return {boolean} True if this is an authentication/authorization failure
    */
   _isAuthError(error) {
-    const fbErr = error.payload?.error;
-    if (fbErr?.type === 'OAuthException') {
-      return !FB_RETRYABLE_ERROR_CODES.includes(Number(fbErr.code))
-        && !FB_RETRYABLE_ERROR_CODES.includes(Number(fbErr.error_subcode));
+    if (this._evaluateRetry(error).retry) {
+      return false;
     }
-    return super._isAuthError(error);
+    return error.payload?.error?.type === 'OAuthException' || super._isAuthError(error);
   }
 
   //---- fetchData -------------------------------------------------

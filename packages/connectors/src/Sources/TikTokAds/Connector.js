@@ -342,10 +342,13 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         }
       }
       const error = new Error(`All advertisers failed to import data. Errors: ${errorMessages.join('; ')}`);
-      // The whole run failed for customer-actionable reasons only if every advertiser did
-      error.isWarning = failedAdvertisers.every(
-        advertiserId => (this.advertiserErrors.get(advertiserId) || [])[0]?.isWarning === true
-      );
+      // Warning only if every recorded error is one. An advertiser can fail more than
+      // once — a permission warning on the fetch, then a genuine storage failure — and
+      // any single real error means the run still needs attention.
+      error.isWarning = failedAdvertisers.every(advertiserId => {
+        const errors = this.advertiserErrors.get(advertiserId) || [];
+        return errors.length > 0 && errors.every(recorded => recorded.isWarning === true);
+      });
       throw error;
     }
 
