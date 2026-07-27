@@ -136,6 +136,9 @@ export const processJSONMessage = (
 };
 
 export const getDisplayType = (logEntry: LogEntry): string => {
+  if (logEntry.metadata?.type === WARNING_MESSAGE_TYPE) {
+    return 'Warning';
+  }
   if (logEntry.metadata?.type) {
     return logEntry.metadata.type as string;
   }

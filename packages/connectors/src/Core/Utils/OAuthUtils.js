@@ -102,7 +102,9 @@ var OAuthUtils = {
 
     } catch (error) {
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
-      throw new Error(`Service Account authentication failed: ${error.message}`);
+      const wrapped = new Error(`Service Account authentication failed: ${error.message}`);
+      wrapped.isWarning = error.isWarning;
+      throw wrapped;
     }
   },
 

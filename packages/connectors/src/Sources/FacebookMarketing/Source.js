@@ -293,11 +293,21 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * deleted, missing permissions), not as HTTP 401/403, so the default
    * statusCode check from AbstractSource doesn't catch them.
    *
+   * Facebook also reuses that same type for throttling (code 80004) and
+   * temporary outages (code 2), which are not credential problems — those
+   * codes are already listed in FB_RETRYABLE_ERROR_CODES, so exhausting the
+   * retries on them is a real failure worth alerting on, not a warning.
+   *
    * @param {HttpRequestException} error - The error to check
    * @return {boolean} True if this is an authentication/authorization failure
    */
   _isAuthError(error) {
-    return error.payload?.error?.type === 'OAuthException' || super._isAuthError(error);
+    const fbErr = error.payload?.error;
+    if (fbErr?.type === 'OAuthException') {
+      return !FB_RETRYABLE_ERROR_CODES.includes(Number(fbErr.code))
+        && !FB_RETRYABLE_ERROR_CODES.includes(Number(fbErr.error_subcode));
+    }
+    return super._isAuthError(error);
   }
 
   //---- fetchData -------------------------------------------------
@@ -518,7 +528,6 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @private
    */
   _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, level, url }) {
-    console.log('Insights request fields for', nodeName, ':', fields);
     let insightsUrl = `${url}act_${accountId}/insights?level=${level}&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
     if (breakdowns.length > 0) {
       insightsUrl += `&breakdowns=${breakdowns.join(",")}`;

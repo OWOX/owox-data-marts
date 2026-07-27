@@ -18,13 +18,31 @@ loadGasClass(coreSourcePath);
 loadGasClass(sourcePath);
 const proto = globalThis.FacebookMarketingSource.prototype;
 
+const fbError = (code, extra = {}) => ({
+  statusCode: 400,
+  payload: { error: { code, type: 'OAuthException', ...extra } },
+});
+
 describe('_isAuthError', () => {
-  it('flags Facebook OAuthException errors even though they come back as HTTP 400', () => {
-    const error = {
-      statusCode: 400,
-      payload: { error: { code: 190, type: 'OAuthException', message: 'Session has expired' } },
-    };
-    expect(proto._isAuthError.call(null, error)).toBe(true);
+  // Codes below are taken from real production error payloads.
+  it.each([
+    ['session expired / app deleted', 190],
+    ['missing ads_management or business_management permission', 200],
+  ])('flags credential failure: %s (code %i)', (_label, code) => {
+    expect(proto._isAuthError.call(null, fbError(code))).toBe(true);
+  });
+
+  // Facebook reuses OAuthException for throttling and outages. Those are listed in
+  // FB_RETRYABLE_ERROR_CODES, so exhausting retries on them is a real failure to alert on.
+  it.each([
+    ['ad-account rate limit', 80004],
+    ['temporary service unavailability', 2],
+  ])('does not flag retryable condition: %s (code %i)', (_label, code) => {
+    expect(proto._isAuthError.call(null, fbError(code))).toBe(false);
+  });
+
+  it('does not flag an OAuthException whose retryable marker is the subcode', () => {
+    expect(proto._isAuthError.call(null, fbError(1, { error_subcode: 1504018 }))).toBe(false);
   });
 
   it('still falls back to the default 401/403 check for non-Facebook-shaped errors', () => {
