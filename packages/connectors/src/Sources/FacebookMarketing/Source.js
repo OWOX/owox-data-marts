@@ -255,19 +255,19 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @return {boolean} True if the error should trigger a retry, false otherwise
    */
   isValidToRetry(error) {
-    console.log(`isValidToRetry() called`);
-    console.log(`error.statusCode =`, error.statusCode);
-
     // Network-level errors (ETIMEDOUT, ECONNRESET, etc.) have no statusCode — always retry
     if (!error.statusCode) {
+      this._logRetryDecision(error, 'no statusCode (network-level error)', true);
       return true;
     }
 
     if (error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
+      this._logRetryDecision(error, 'server error', true);
       return true;
     }
 
     if (!error.payload || !error.payload.error) {
+      this._logRetryDecision(error, 'no Facebook error payload', false);
       return false;
     }
 
@@ -275,15 +275,35 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     const code = Number(fbErr.code);
     const subcode = Number(fbErr.error_subcode);
 
-    console.log(`FB error.code = ${code}`);
-    console.log(`FB error.error_subcode = ${subcode}`);
-    console.log(`is_transient = ${fbErr.is_transient}`);
-    console.log(`code in retry list = ${FB_RETRYABLE_ERROR_CODES.includes(code)}`);
-    console.log(`subcode in retry list = ${FB_RETRYABLE_ERROR_CODES.includes(subcode)}`);
-
-    return fbErr.is_transient === true
+    const retry = fbErr.is_transient === true
       || FB_RETRYABLE_ERROR_CODES.includes(code)
       || FB_RETRYABLE_ERROR_CODES.includes(subcode);
+
+    this._logRetryDecision(
+      error,
+      `code=${code} subcode=${subcode} is_transient=${fbErr.is_transient} `
+        + `codeRetryable=${FB_RETRYABLE_ERROR_CODES.includes(code)} `
+        + `subcodeRetryable=${FB_RETRYABLE_ERROR_CODES.includes(subcode)}`,
+      retry
+    );
+
+    return retry;
+  }
+
+  //---- _logRetryDecision -----------------------------------------
+  /**
+   * Records why a retry decision was made, as a single structured log entry.
+   * Goes through config.logMessage rather than console.log so it stays one entry
+   * in the run log JSON — raw console writes are split per line by the backend.
+   *
+   * @param {HttpRequestException} error - The error being judged
+   * @param {string} reason - The inputs behind the decision
+   * @param {boolean} retry - The decision itself
+   */
+  _logRetryDecision(error, reason, retry) {
+    this.config.logMessage(
+      `Facebook retry check: statusCode=${error.statusCode} ${reason} -> retry=${retry}`
+    );
   }
 
   //---- _isAuthError ----------------------------------------------

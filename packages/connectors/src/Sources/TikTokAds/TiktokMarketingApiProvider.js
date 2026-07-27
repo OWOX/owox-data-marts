@@ -61,7 +61,9 @@ class TiktokMarketingApiProvider {
 
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
-            console.error("TikTok Marketing API rate limit exceeded. Retrying...");
+            // stdout, not stderr: a retry notice is not a run error. This class has no
+            // config reference, so it cannot use logMessage.
+            console.log("TikTok Marketing API rate limit exceeded. Retrying...");
             await AsyncUtils.delay(backoff);
             backoff *= 2;
             continue;

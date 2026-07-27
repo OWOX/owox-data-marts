@@ -75,8 +75,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
           await this.startImportProcessOfTimeSeriesData(advertiserIds, timeSeriesNodes, startDate, daysToFetch);
         } catch (error) {
-          this.config.logMessage(`Error determining date range: ${error.message}`);
-          console.error(error.stack);
+          this._logFailure('Error determining date range', error);
         }
       }
 
@@ -84,8 +83,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       try {
         this.cleanUpExpiredData();
       } catch (error) {
-        this.config.logMessage(`Error during data cleanup: ${error.message}`);
-        console.error(error.stack);
+        this._logFailure('Error during data cleanup', error);
       }
 
       this._checkAndReportErrors(advertiserIds);
@@ -132,7 +130,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             const storage = await this.getStorageByNode(nodeName);
             await storage.saveData(preparedData);
           } catch (storageError) {
-            this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
+            this._logFailure('Error saving data to storage', storageError);
             this._trackAdvertiserError(advertiserId, storageError);
           }
         }
@@ -140,7 +138,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         // Mark this advertiser as having at least one successful operation
         this.advertiserSuccesses.set(advertiserId, true);
       } catch (error) {
-        this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
+        this._logFailure(`Error fetching ${nodeName} for advertiser ${advertiserId}`, error);
         this._trackAdvertiserError(advertiserId, error);
         // Continue with other advertisers rather than stopping the whole process
       }
@@ -183,7 +181,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
                 const storage = await this.getStorageByNode(nodeName);
                 await storage.saveData(preparedData);
               } catch (storageError) {
-                this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
+                this._logFailure('Error saving data to storage', storageError);
                 this._trackAdvertiserError(advertiserId, storageError);
               }
             }
@@ -191,7 +189,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             // Mark this advertiser as having at least one successful operation
             this.advertiserSuccesses.set(advertiserId, true);
           } catch (error) {
-            this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}: ${error.message}`);
+            this._logFailure(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}`, error);
             this._trackAdvertiserError(advertiserId, error);
             // Continue with other nodes rather than stopping the whole process
           }
@@ -283,6 +281,22 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
   /**
    * Track an error for a specific advertiser
+   * @param {string} advertiserId - The advertiser ID
+   * @param {Error} error - The error that occurred
+   * @private
+   */
+  _logFailure(context, error) {
+    // These failures are swallowed so the remaining advertisers still import, which
+    // makes the run log the only place they can be diagnosed from — so keep the stack.
+    // Customer-actionable ones (missing permission, deleted advertiser) are fully
+    // described by their message, and a stack there is just noise.
+    const detail = error.isWarning ? error.message : `${error.message}\n${error.stack ?? ''}`.trim();
+    this.config.logMessage(`${context}: ${detail}`);
+  }
+
+  /**
+   * Track an error for a specific advertiser
+   *
    * @param {string} advertiserId - The advertiser ID
    * @param {Error} error - The error that occurred
    * @private

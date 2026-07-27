@@ -50,6 +50,29 @@ describe('makeRequest error classification', () => {
   });
 });
 
+describe('_logFailure', () => {
+  const capture = () => {
+    const lines = [];
+    return { lines, self: { config: { logMessage: m => lines.push(m) } } };
+  };
+
+  it('keeps the stack for real errors, since these are swallowed and never rethrown', () => {
+    const { lines, self } = capture();
+    const error = new Error('remote or network error');
+    connectorProto._logFailure.call(self, 'Error fetching ad_insights', error);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('remote or network error');
+    expect(lines[0]).toContain('at ');
+  });
+
+  it('omits the stack for customer-actionable warnings', () => {
+    const { lines, self } = capture();
+    const error = Object.assign(new Error('TikTok API error: No permission'), { isWarning: true });
+    connectorProto._logFailure.call(self, 'Error fetching ad_insights', error);
+    expect(lines[0]).toBe('Error fetching ad_insights: TikTok API error: No permission');
+  });
+});
+
 describe('_checkAndReportErrors aggregate classification', () => {
   const failAll = errorsById => ({
     advertiserErrors: new Map(Object.entries(errorsById)),

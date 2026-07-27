@@ -149,8 +149,9 @@ var GitHubSource = class GitHubSource extends AbstractSource {
 
       return result;
     } catch (error) {
+      // No console.error: the error is rethrown, and AbstractConnector.run already
+      // logs the stack as a single structured entry
       this.config.logMessage(`Error: ${error.message}`);
-      console.error(error.stack);
       throw error;
     }
   }

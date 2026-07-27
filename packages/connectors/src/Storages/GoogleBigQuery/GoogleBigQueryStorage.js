@@ -317,7 +317,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let newFields = Object.keys(row).filter( column => !Object.keys(this.existingColumns).includes(column) );
       
         if( newFields.length > 0 ) {
-          console.log(newFields);
+          // No console.log(newFields) here: an array pretty-prints across lines and the
+          // backend records each as its own entry, and addNewColumns already logs them
           await this.addNewColumns(newFields);
         }
       
