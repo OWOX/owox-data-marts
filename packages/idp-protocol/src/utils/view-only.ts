@@ -7,13 +7,17 @@ import type { Payload } from '../types/models.js';
  * flags (for example API-key `readOnly`) must be normalized into `viewOnly` by
  * the identity provider / token issuer — they are not interpreted here.
  *
- * Single source of truth for claim detection; `isViewOnlyPayload` delegates here
- * so issuer mapping and guard enforcement cannot drift.
+ * Accepts any object (including Zod passthrough issuer payloads) so callers do
+ * not need casts when `viewOnly` is not in the declared schema shape.
+ * `isViewOnlyPayload` delegates here so issuer mapping and guard enforcement
+ * cannot drift.
  */
-export function resolveViewOnlyFromClaims(
-  claims: { viewOnly?: unknown } | null | undefined
-): boolean {
-  return claims?.viewOnly === true;
+export function resolveViewOnlyFromClaims(claims: object | null | undefined): boolean {
+  if (claims == null) {
+    return false;
+  }
+
+  return (claims as { viewOnly?: unknown }).viewOnly === true;
 }
 
 /**
