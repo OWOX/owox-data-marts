@@ -1,11 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import type { Payload } from '../types/models.js';
-import {
-  isSafeHttpMethodForViewOnly,
-  isViewOnlyPayload,
-  resolveViewOnlyFromClaims,
-  VIEW_ONLY_SAFE_HTTP_METHODS,
-} from './view-only.js';
+import { isViewOnlyPayload, resolveViewOnlyFromClaims } from './view-only.js';
 
 describe('resolveViewOnlyFromClaims', () => {
   it('returns false for nullish claims', () => {
@@ -70,25 +65,5 @@ describe('isViewOnlyPayload', () => {
     } as Payload;
 
     expect(isViewOnlyPayload(payload)).toBe(false);
-  });
-});
-
-describe('isSafeHttpMethodForViewOnly', () => {
-  it.each([...VIEW_ONLY_SAFE_HTTP_METHODS])('allows safe method %s', method => {
-    expect(isSafeHttpMethodForViewOnly(method)).toBe(true);
-    expect(isSafeHttpMethodForViewOnly(method.toLowerCase())).toBe(true);
-  });
-
-  it.each(['POST', 'PUT', 'PATCH', 'DELETE', 'post', 'Put'])(
-    'rejects state-changing method %s',
-    method => {
-      expect(isSafeHttpMethodForViewOnly(method)).toBe(false);
-    }
-  );
-
-  it('rejects empty method values', () => {
-    expect(isSafeHttpMethodForViewOnly(undefined)).toBe(false);
-    expect(isSafeHttpMethodForViewOnly(null)).toBe(false);
-    expect(isSafeHttpMethodForViewOnly('')).toBe(false);
   });
 });

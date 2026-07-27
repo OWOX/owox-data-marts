@@ -73,13 +73,19 @@ function extractContainerId(flags: Record<string, unknown>): string {
  * Loads GTM when configured via app flags.
  * Skipped entirely in view-only sessions so PostHog / GA4 tags and
  * session recordings never start for these read-only sessions.
+ *
+ * Limitation: if the session flips normal → view-only mid-SPA after GTM was
+ * already bootstrapped, we only stop new dataLayer pushes (see
+ * suppressClientAnalytics). Tags already running inside the container are not
+ * torn down without a full page reload.
  */
 export function GoogleTagManager(): null {
   const { flags, callState } = useFlags();
   const { user } = useAuth();
 
   useEffect(() => {
-    if (callState !== RequestStatus.LOADED || !flags) return;
+    // Fail closed until auth resolves: do not load GTM without a known user.
+    if (callState !== RequestStatus.LOADED || !flags || !user) return;
     if (isViewOnlySession(user)) return;
 
     const containerId = extractContainerId(flags);

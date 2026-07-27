@@ -111,7 +111,12 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 403 && !skipErrorToast) {
-      showApiErrorToast(error, 'Access forbidden - insufficient permissions', { persistent: true });
+      const errorCode = (error.response.data as { code?: string } | undefined)?.code;
+      const message =
+        errorCode === 'ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE'
+          ? 'This action is not available in view-only mode'
+          : 'Access forbidden - insufficient permissions';
+      showApiErrorToast(error, message, { persistent: true });
     }
 
     if (error.response?.status === 400 && !skipErrorToast) {

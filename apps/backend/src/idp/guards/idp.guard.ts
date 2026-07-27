@@ -3,7 +3,6 @@ import { Request } from 'express';
 import {
   AuthenticationError,
   AuthorizationError,
-  isSafeHttpMethodForViewOnly,
   isViewOnlyPayload,
   Payload,
   Role as RoleType,
@@ -104,6 +103,9 @@ export class IdpGuard implements CanActivate {
         viewOnly,
       });
 
+      // Strategy.PARSE reads viewOnly only from the locally verified JWT. If
+      // Identity flips a session to view-only without revoking/re-issuing access
+      // tokens, write access remains until the token expires.
       if (request && STATE_CHANGING_METHODS.includes(request.method)) {
         // Update IDP projections in the background
         void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
@@ -143,8 +145,9 @@ export class IdpGuard implements CanActivate {
   }
 
   /**
-   * Blocks state-changing requests when the session is in view-only mode.
-   * Safe methods (GET/HEAD/OPTIONS) remain allowed.
+   * Blocks POST/PUT/PATCH/DELETE when the session is in view-only mode.
+   * GET/HEAD/OPTIONS remain allowed. Some POSTs are read-semantics in practice;
+   * that trade-off is accepted for a simple method-based policy.
    *
    * Scope: only routes that go through authenticateUser (required @Auth roles).
    * Intentionally NOT applied to Role.none() / optional routes (service or
@@ -152,17 +155,16 @@ export class IdpGuard implements CanActivate {
    *
    * MCP is a separate auth path; view-only sessions are blocked from minting
    * MCP tokens in OAuthAuthorizationController so write tools cannot bypass
-   * this guard.
-   *
-   * View-only detection is delegated to idp-protocol so claim resolution can
-   * evolve independently of this guard.
+   * this guard. Tokens already issued (and refresh grants for those tokens)
+   * are not re-checked against live session viewOnly here — that is Identity /
+   * MCP token lifecycle responsibility.
    */
   private checkViewOnlyRestrictions(request: AuthenticatedRequest, tokenPayload: Payload): void {
     if (!isViewOnlyPayload(tokenPayload)) {
       return;
     }
 
-    if (isSafeHttpMethodForViewOnly(request.method)) {
+    if (!STATE_CHANGING_METHODS.includes(request.method)) {
       return;
     }
 

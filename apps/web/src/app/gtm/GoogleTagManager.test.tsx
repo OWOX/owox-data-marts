@@ -53,6 +53,18 @@ describe('GoogleTagManager', () => {
     expect(document.getElementById('gtm-noscript')).toBeNull();
   });
 
+  it('does not install GTM when user is still null', () => {
+    vi.mocked(useFlags).mockReturnValue({
+      flags: { GOOGLE_TAG_MANAGER_CONTAINER_ID: 'GTM-TEST123' },
+      callState: RequestStatus.LOADED,
+    } as never);
+    vi.mocked(useAuth).mockReturnValue({ user: null } as never);
+
+    render(<GoogleTagManager />);
+
+    expect(document.getElementById('gtm-script')).toBeNull();
+  });
+
   it('installs GTM when container id is set and session is not view-only', () => {
     vi.mocked(useFlags).mockReturnValue({
       flags: { GOOGLE_TAG_MANAGER_CONTAINER_ID: 'GTM-TEST123' },

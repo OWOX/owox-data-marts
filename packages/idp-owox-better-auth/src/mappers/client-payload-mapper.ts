@@ -3,7 +3,7 @@ import { Payload, PayloadSchema, resolveViewOnlyFromClaims } from '@owox/idp-pro
 
 const IdpOwoxToPayloadSchema = IdpOwoxPayloadSchema.transform((src: IdpOwoxPayload) => {
   // Only the protocol contract field viewOnly is mapped — no readOnly/roles mixing.
-  const viewOnly = resolveViewOnlyFromClaims(src as Record<string, unknown>);
+  const viewOnly = resolveViewOnlyFromClaims(src);
 
   return {
     userId: src.userId,

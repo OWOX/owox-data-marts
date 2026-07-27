@@ -32,7 +32,7 @@ export class AuthContextResponseApiDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'True when the session is in view-only mode. Clients should disable analytics and mutating UI actions.',
+      'True when the session is in view-only mode. Mutating API requests are rejected server-side; clients may also suppress analytics.',
   })
   viewOnly?: boolean;
 }
