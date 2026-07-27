@@ -1,7 +1,4 @@
-import {
-  ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE,
-  isViewOnlyPayload,
-} from '@owox/idp-protocol';
+import { ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE, isViewOnlyPayload } from '@owox/idp-protocol';
 import { sendSecureHtml } from '@owox/internal-helpers';
 import type { Express, Request, Response } from 'express';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
