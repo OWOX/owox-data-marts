@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-# Keep NULL rows for "is not" / "does not contain" report filters
+# Keep NULL rows for "is not" / "is none of" / "does not contain" report filters
 
 Negative filter operators (`is not`, `is none of`, `does not contain`, `does not match regex`) no longer drop rows where the filtered column is NULL. SQL three-valued logic previously excluded those rows; filters and slices now keep them so missing values behave like "not equal to X". Add `is not null` or `is not empty` when you want to exclude NULLs. Applies to BigQuery, Athena, Redshift, Snowflake, and Databricks.
 
