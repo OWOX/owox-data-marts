@@ -7,22 +7,33 @@ import type { DataMartRunItem } from '../../model';
 // Verbatim entries from a persisted connector run. The backend stores logs/errors as
 // raw JSON strings, so the message type is a cross-package string contract with no
 // shared type to enforce it — these pin the parsing end of it.
+// A warning carries only its message: it is customer-facing, and the connector logs the
+// stack separately. An error carries the stack, which is why it is the one that exercises
+// multi-line content surviving as a single entry.
 const PERSISTED_WARNING =
-  '{"type":"addWarningToCurrentStatus","at":"2026-07-27T14:16:21.365Z","warning":"HttpRequestException: Error validating access token: Session has expired.\\n    at FacebookMarketingSource._validateResponse (/app/index.cjs:436:11)"}';
+  '{"type":"addWarningToCurrentStatus","at":"2026-07-27T14:16:21.365Z","warning":"HttpRequestException: Error validating access token: Session has expired."}';
 const PERSISTED_ERROR =
-  '{"type":"error","at":"2026-07-27T14:16:21.365Z","error":"ApiError: Syntax error: Unexpected end of script"}';
+  '{"type":"error","at":"2026-07-27T14:16:21.365Z","error":"ApiError: Syntax error: Unexpected end of script\\n    at FacebookMarketingSource._validateResponse (/app/index.cjs:436:11)"}';
 
 describe('parseLogEntry', () => {
   it('renders a persisted warning envelope as WARNING, not ERROR', () => {
-    // isError is true because it comes from the run\'s errors array
+    // isError is true because it comes from the run's errors array
     const entry = parseLogEntry(PERSISTED_WARNING, 0, true);
 
     expect(entry.level).toBe(LogLevel.WARNING);
     expect(entry.message).toContain('Session has expired');
   });
 
-  it('keeps the whole stack trace inside one entry', () => {
+  it('leads a warning with the readable message, not a stack frame', () => {
+    // Failure emails render only the first 300 characters of this text
     const entry = parseLogEntry(PERSISTED_WARNING, 0, true);
+
+    expect(entry.message.startsWith('HttpRequestException:')).toBe(true);
+    expect(entry.message).not.toContain('    at ');
+  });
+
+  it('keeps the whole stack trace inside one entry', () => {
+    const entry = parseLogEntry(PERSISTED_ERROR, 0, true);
 
     expect(entry.message).toContain('at FacebookMarketingSource._validateResponse');
   });

@@ -271,10 +271,31 @@ export class ConnectorExecutorService {
       const configId = (config as Record<string, unknown>)._id as string;
 
       if (!configId) {
-        this.logger.warn(
-          `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`,
-          { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, configIndex }
-        );
+        // A stored configuration with no _id is a data-integrity defect in the data mart
+        // definition — nothing the customer can act on, so it stays an error. It also has
+        // to be recorded as a run error: skipping straight to `continue` left a run with
+        // no configuration results, which persists as FAILED with errors = null and so
+        // explains itself neither in run history nor in the failure email.
+        const errorMessage = `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`;
+        this.logger.error(errorMessage, {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configIndex,
+        });
+        configurationResults.push({
+          configIndex,
+          success: false,
+          logs: [],
+          errors: [
+            {
+              type: ConnectorMessageType.ERROR,
+              at: this.systemTimeService.now().toISOString(),
+              error: errorMessage,
+              toFormattedString: () => `[ERROR] ${errorMessage}`,
+            },
+          ],
+        });
         continue;
       }
 

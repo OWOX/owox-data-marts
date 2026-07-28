@@ -87,7 +87,11 @@ var AbstractSource = class AbstractSource {
         }
         catch (error) {
           if (!this._shouldRetry(error, attempt)) {
-            error.isWarning = this._isAuthError(error);
+            // Never downgrade a flag a deeper layer already set: it classified with more
+            // context than the status code available here, so its `true` wins. A `false`
+            // from below only means "not one of the cases I recognise", so a genuine
+            // 401/403 can still promote it.
+            error.isWarning = error.isWarning || this._isAuthError(error);
             throw error;
           }
 

@@ -69,8 +69,8 @@ class TiktokMarketingApiProvider {
             continue;
           }
           const error = new Error(`TikTok API error: ${jsonData.message}`);
-          // ponytail: message match — TikTok's Business API docs don't publish
-          // reliable numeric codes for these; switch to jsonData.code if they do
+          // Matched on message text because TikTok's Business API docs don't publish
+          // reliable numeric codes for these; switch to jsonData.code if they ever do
           error.isWarning = /No permission to operate advertiser|doesn't exist or has been deleted/.test(jsonData.message);
           throw error;
         }

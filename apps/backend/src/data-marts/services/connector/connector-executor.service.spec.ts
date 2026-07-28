@@ -618,6 +618,34 @@ describe('ConnectorExecutorService', () => {
     expect(errors.join()).toContain('Reconnect this Storage');
   });
 
+  it('records a configuration missing its _id as a run error', async () => {
+    // Skipping it silently left no configuration result at all, so the run persisted as
+    // FAILED with errors = null — invisible in run history and in the failure email.
+    const { service, dataMartRunRepository } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'TestConnector',
+            node: 'test_node',
+            fields: ['field1'],
+            configuration: [{ param: 'val' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    expect(finalUpdate![1].errors).not.toBeNull();
+    expect((finalUpdate![1].errors as string[]).join()).toContain('missing _id');
+  });
+
   it('marks an aborted connector run as CANCELLED', async () => {
     const { service, dataMartRunRepository, processSpawner, eventDispatcher } = createService();
     const controller = new AbortController();

@@ -289,9 +289,13 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
   }
 
   /**
-   * Track an error for a specific advertiser
-   * @param {string} advertiserId - The advertiser ID
-   * @param {Error} error - The error that occurred
+   * Record a failure that did not stop the import
+   *
+   * Routes by classification: customer-actionable failures become warnings, everything
+   * else stays an error so it is still alerted on.
+   *
+   * @param {string} context - What was being attempted, e.g. "Error saving data to storage"
+   * @param {Error} error - The failure, carrying isWarning when it has been classified
    * @private
    */
   _logFailure(context, error) {

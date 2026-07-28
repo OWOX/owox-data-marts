@@ -147,9 +147,18 @@ async function main() {
 
 // Execute main and handle errors
 main().catch(error => {
+  const isWarning = error?.isWarning === true;
+  // Same rule as _logFailure: a warning is customer-facing and fully described by its
+  // message. AbstractConnector already logs the stack as its own entry before rethrowing,
+  // so repeating it here only crowds out the readable part — failure emails show the
+  // first 300 characters of this field.
+  const detail = isWarning
+    ? (error?.message ?? String(error))
+    : (error?.stack ?? String(error));
+
   console.error(JSON.stringify({
-    type: error?.isWarning ? 'addWarningToCurrentStatus' : 'error',
+    type: isWarning ? 'addWarningToCurrentStatus' : 'error',
     at: new Date().toISOString(),
-    [error?.isWarning ? 'warning' : 'error']: error?.stack ?? String(error),
+    [isWarning ? 'warning' : 'error']: detail,
   }));
 });
