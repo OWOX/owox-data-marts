@@ -25,6 +25,10 @@ import {
   BlendedFieldsConfig,
   BlendedFieldsConfigSchema,
 } from '../dto/schemas/blended-fields-config.schema';
+import {
+  DataQualityConfig,
+  DataQualityConfigSchema,
+} from '../dto/schemas/data-quality/data-quality-config.schema';
 
 @Entity()
 export class DataMart implements CreatorAwareEntity {
@@ -84,6 +88,13 @@ export class DataMart implements CreatorAwareEntity {
     nullable: true,
   })
   blendedFieldsConfig?: BlendedFieldsConfig;
+
+  @Column({
+    type: 'json',
+    transformer: createZodTransformer<DataQualityConfig>(DataQualityConfigSchema, false),
+    nullable: true,
+  })
+  dataQualityConfig?: DataQualityConfig | null;
 
   @OneToMany(() => DataMartContext, ctx => ctx.dataMart)
   contexts: DataMartContext[];
