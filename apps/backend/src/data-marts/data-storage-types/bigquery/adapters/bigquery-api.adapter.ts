@@ -5,6 +5,27 @@ import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquer
 import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 
+/** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
+export interface BigQueryTableReference {
+  projectId: string;
+  datasetId: string;
+  tableId: string;
+}
+
+// Project ids allow dashes; dataset ids do not. Both are interpolated into `__TABLES__` queries,
+// where BigQuery offers no parameter form for identifiers — validate rather than trust.
+const BIGQUERY_PROJECT_ID_RE = /^[a-zA-Z0-9-_.:]+$/;
+const BIGQUERY_DATASET_ID_RE = /^[a-zA-Z0-9_]+$/;
+
+/** BigQuery reports epoch-millis timestamps as strings; absent/garbage values become `null`. */
+function toDateOrNull(value: unknown): Date | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const parsed = new Date(Number(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 /**
  * Adapter for BigQuery API operations.
  * Accepts either Service Account credentials or pre-resolved OAuth credentials.
@@ -168,22 +189,114 @@ export class BigQueryApiAdapter {
   }
 
   /**
-   * Executes a dry run query to estimate the number of bytes processed
+   * Executes a dry run query to estimate the number of bytes processed.
+   *
+   * `params` must be supplied whenever the query carries `@name` placeholders — a dry run
+   * validates the query, so unbound parameters fail it just like a real execution would.
+   *
+   * `referencedTables` lists every table the query reads. BigQuery expands views (including
+   * nested ones) down to their base tables here, so callers get the full source set without
+   * parsing SQL themselves. BigQuery populates it for queries referencing up to ~50 tables
+   * and omits it beyond that, so an empty array on a non-trivial query means "unknown",
+   * not "reads nothing".
    */
   public async executeDryRunQuery(
-    query: string
-  ): Promise<{ totalBytesProcessed: number; schema?: TableSchema; location?: string }> {
-    const [job] = await this.bigQuery.createQueryJob({
+    query: string,
+    params?: SqlParameter[]
+  ): Promise<{
+    totalBytesProcessed: number;
+    schema?: TableSchema;
+    location?: string;
+    referencedTables: BigQueryTableReference[];
+  }> {
+    const queryConfig: Query = {
       query,
       dryRun: true,
       ...this.getLocationOption(),
-    });
+    };
+    if (params && params.length > 0) {
+      queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
+      queryConfig.parameterMode = 'NAMED';
+    }
+
+    const [job] = await this.bigQuery.createQueryJob(queryConfig);
     this.setLocationFromJob(job);
     return {
       totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),
       schema: job.metadata.statistics.query.schema ?? undefined,
       location: this.location,
+      referencedTables: this.parseReferencedTables(job.metadata.statistics.query.referencedTables),
     };
+  }
+
+  private parseReferencedTables(raw: unknown): BigQueryTableReference[] {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    const tables: BigQueryTableReference[] = [];
+    for (const entry of raw) {
+      const { projectId, datasetId, tableId } = (entry ?? {}) as Partial<BigQueryTableReference>;
+      if (projectId && datasetId && tableId) {
+        tables.push({ projectId, datasetId, tableId });
+      }
+    }
+    return tables;
+  }
+
+  /**
+   * Reads a table's storage-level modification time and its kind, in one free metadata call.
+   *
+   * `lastModifiedTime` is when the table's DATA last changed at the warehouse — not evidence
+   * that the rows themselves cover a recent period, and not populated meaningfully for
+   * EXTERNAL tables (their bytes live outside BigQuery). Returns `null` for the time when the
+   * field is absent, so callers can report "unknown" instead of guessing.
+   */
+  public async getTableLastModified(
+    reference: BigQueryTableReference
+  ): Promise<{ type: string | null; lastModifiedTime: Date | null }> {
+    const table = this.createTableReference(
+      reference.projectId,
+      reference.datasetId,
+      reference.tableId
+    );
+    const [metadata] = await table.getMetadata();
+    return {
+      type: metadata?.type ?? null,
+      lastModifiedTime: toDateOrNull(metadata?.lastModifiedTime),
+    };
+  }
+
+  /**
+   * Newest modification time across a sharded table set (`prefix_YYYYMMDD` and friends), read
+   * from the dataset's `__TABLES__` meta-table in one query instead of one metadata call per
+   * shard. The scan covers dataset metadata only, so it stays inside BigQuery's minimum
+   * billing increment however many shards the set holds.
+   *
+   * Uses `bigQuery.query()` deliberately: the result is a single row, so the buffering that
+   * makes `query()` unsafe for report reads is irrelevant here.
+   */
+  public async getMaxShardLastModified(
+    projectId: string,
+    datasetId: string,
+    tablePrefix: string
+  ): Promise<Date | null> {
+    if (!BIGQUERY_PROJECT_ID_RE.test(projectId) || !BIGQUERY_DATASET_ID_RE.test(datasetId)) {
+      throw new Error(`Unsafe BigQuery identifier in ${projectId}.${datasetId}`);
+    }
+
+    // `_` and `%` are LIKE wildcards and shard prefixes routinely end in `_`; escape them so
+    // `events_` cannot also match `eventsXlog_20240101`.
+    const likePattern = `${tablePrefix.replace(/([\\%_])/g, '\\$1')}%`;
+    const [rows] = await this.bigQuery.query({
+      query: `SELECT MAX(last_modified_time) AS last_modified_time
+              FROM \`${projectId}.${datasetId}.__TABLES__\`
+              WHERE table_id LIKE @tablePrefix`,
+      params: { tablePrefix: likePattern },
+      parameterMode: 'NAMED',
+      ...this.getLocationOption(),
+    });
+
+    return toDateOrNull(rows?.[0]?.last_modified_time);
   }
 
   /**

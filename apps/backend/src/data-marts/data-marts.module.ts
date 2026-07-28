@@ -359,6 +359,7 @@ import { BigQueryClauseRenderer } from './data-storage-types/bigquery/services/b
 import { BlendedReportDataService } from './services/blended-report-data.service';
 import { ReportSqlComposerService } from './services/report-sql-composer.service';
 import { ReportTotalsService } from './services/report-totals.service';
+import { SourceDataLastUpdatedService } from './services/source-data-last-updated.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
@@ -795,6 +796,7 @@ import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.s
     BlendedReportDataService,
     ReportSqlComposerService,
     ReportTotalsService,
+    SourceDataLastUpdatedService,
     RelationshipMapper,
     ModelCanvasMapper,
     McpDataCatalogSummaryMapper,

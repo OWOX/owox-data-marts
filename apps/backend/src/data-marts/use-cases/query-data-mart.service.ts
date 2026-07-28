@@ -19,6 +19,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { BlendableSchemaAccessor } from '../services/blendable-schema.service';
 import { ReportTotalsService } from '../services/report-totals.service';
+import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
@@ -56,6 +57,7 @@ export class QueryDataMartService {
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     private readonly reportTotalsService: ReportTotalsService,
+    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService,
     private readonly dataMartRunService: DataMartRunService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly projectBalanceService: ProjectBalanceService,
@@ -201,6 +203,18 @@ export class QueryDataMartService {
                 return null;
               });
 
+          // Third parallel track alongside rows and totals. Reads the COMPOSED sql, so a blended
+          // result reports every joined Data Mart's tables, not just the primary one. The service
+          // never rejects and caps itself with its own soft deadline, so it cannot delay or fail
+          // the read; it costs no consumption because billing is tied to the run, not to this.
+          const dataLastUpdatedPromise: Promise<McpQueryDataMartResponse['dataLastUpdated']> =
+            this.sourceDataLastUpdatedService.resolveForSql({
+              storage: dataMart.storage,
+              sql: composed.sql,
+              params: composed.params,
+              signal: workController.signal,
+            });
+
           reader = await this.readerResolver.resolve(dataMart.storage.type);
           // Make the silent gap observable: a cap was requested but this storage drops it, so the
           // query has no warehouse-side cost cap — only the app-side deadline. Adding a new storage
@@ -243,8 +257,11 @@ export class QueryDataMartService {
 
           const truncated = rows.length > r.limit;
           const trimmed = truncated ? rows.slice(0, r.limit) : rows;
-          const totals = await totalsPromise;
-          return { columns, columnMetadata, trimmed, truncated, totals };
+          const [totals, dataLastUpdated] = await Promise.all([
+            totalsPromise,
+            dataLastUpdatedPromise,
+          ]);
+          return { columns, columnMetadata, trimmed, truncated, totals, dataLastUpdated };
         } finally {
           workController.abort();
           try {
@@ -257,11 +274,8 @@ export class QueryDataMartService {
         }
       })();
 
-      const { columns, columnMetadata, trimmed, truncated, totals } = await Promise.race([
-        produce,
-        deadline,
-        aborted,
-      ]);
+      const { columns, columnMetadata, trimmed, truncated, totals, dataLastUpdated } =
+        await Promise.race([produce, deadline, aborted]);
 
       // Audit save is best-effort — a successful read must not become FAILED.
       let runRecorded = false;
@@ -281,6 +295,9 @@ export class QueryDataMartService {
             filterCount: r.filterConfig?.length,
             aggregationCount: r.aggregationConfig?.length,
             query: queryMetadata,
+            // Journalled so Run History can later show what the sources looked like at run time.
+            // This is a record of a past run, never a cache to answer a future request from.
+            dataLastUpdated,
           },
         });
         runRecorded = true;
@@ -311,6 +328,7 @@ export class QueryDataMartService {
         rows: trimmed,
         truncated,
         totals,
+        dataLastUpdated,
         dataMart: {
           id: dataMart.id,
           title: dataMart.title,
