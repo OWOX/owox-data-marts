@@ -1,5 +1,6 @@
 import type { DataMartStatus } from '../../shared/enums';
 import type { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
+import type { DataQualityCompactSummary } from '../../shared/types';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -33,6 +34,7 @@ export interface ModelCanvasNode {
    */
   definitionType?: DataMartDefinitionType | null;
   fields?: CanvasNodeField[];
+  qualitySummary: DataQualityCompactSummary;
 }
 
 export interface ModelCanvasEdge {

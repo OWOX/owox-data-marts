@@ -28,7 +28,13 @@ const DEFAULT_FIELDS: CanvasNodeField[] = [
   { name: 'status', alias: 'Status', type: 'STRING', isPrimaryKey: false, isHidden: false },
 ];
 
-function renderNode(onOpenExternal = vi.fn(), fields: CanvasNodeField[] = DEFAULT_FIELDS) {
+function renderNode(
+  onOpenExternal = vi.fn(),
+  fields: CanvasNodeField[] = DEFAULT_FIELDS,
+  onOpenQuality = vi.fn(),
+  onRunQuality = vi.fn().mockResolvedValue(undefined),
+  onParentClick = vi.fn()
+) {
   const props = {
     id: 'orders',
     type: 'modelCanvasNode',
@@ -46,6 +52,24 @@ function renderNode(onOpenExternal = vi.fn(), fields: CanvasNodeField[] = DEFAUL
       dimmed: false,
       direction: 'horizontal',
       onOpenExternal,
+      onOpenQuality,
+      onRunQuality,
+      qualitySummary: {
+        state: 'ISSUES',
+        enabledChecks: 3,
+        totalChecks: 3,
+        passedChecks: 2,
+        failedChecks: 1,
+        notApplicableChecks: 0,
+        errorChecks: 0,
+        noticeFindings: 0,
+        warningFindings: 1,
+        errorFindings: 0,
+        violationCount: 7,
+        highestSeverity: 'warning',
+        dataMartRunId: 'run-1',
+        lastRunAt: '2026-07-15T12:00:00.000Z',
+      },
     },
     dragging: false,
     zIndex: 0,
@@ -58,7 +82,11 @@ function renderNode(onOpenExternal = vi.fn(), fields: CanvasNodeField[] = DEFAUL
     positionAbsoluteY: 0,
   } as NodeProps<ModelCanvasFlowNodeType>;
 
-  return render(<ModelCanvasFlowNode {...props} />);
+  return render(
+    <div onClick={onParentClick}>
+      <ModelCanvasFlowNode {...props} />
+    </div>
+  );
 }
 
 describe('ModelCanvasFlowNode', () => {
@@ -146,5 +174,49 @@ describe('ModelCanvasFlowNode', () => {
       .map(el => el.getAttribute('title'))
       .filter(title => title === 'A' || title === 'B');
     expect(rowTexts).toEqual(['A', 'B']);
+  });
+
+  it('opens the Quality tab from the status details without bubbling to the node', async () => {
+    const onOpenQuality = vi.fn();
+    const parentClick = vi.fn();
+    renderNode(vi.fn(), DEFAULT_FIELDS, onOpenQuality, undefined, parentClick);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Open Data Quality for Orders: Issues found/ })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open Data Quality page for Orders' })
+    );
+
+    expect(onOpenQuality).toHaveBeenCalledOnce();
+    expect(parentClick).not.toHaveBeenCalled();
+  });
+
+  it('aligns the quality glyph with the start of the node title', () => {
+    renderNode();
+
+    expect(
+      screen.getByRole('button', { name: /^Open Data Quality for Orders: Issues found/ })
+    ).toHaveClass('-ml-0.5');
+  });
+
+  it('provides the non-bubbling run action inside the quality details', async () => {
+    const onRunQuality = vi.fn().mockResolvedValue(undefined);
+    const parentClick = vi.fn();
+    renderNode(vi.fn(), DEFAULT_FIELDS, vi.fn(), onRunQuality, parentClick);
+
+    expect(
+      screen.queryByRole('button', { name: 'Run Quality for Orders' })
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Open Data Quality for Orders: Issues found/ })
+    );
+    const runAction = await screen.findByRole('button', { name: 'Run Quality for Orders' });
+    fireEvent.click(runAction);
+
+    await waitFor(() => {
+      expect(onRunQuality).toHaveBeenCalledOnce();
+    });
+    expect(parentClick).not.toHaveBeenCalled();
   });
 });

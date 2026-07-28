@@ -60,7 +60,6 @@ export type DataMartAction =
   | { type: 'RUN_DATA_MART_START' }
   | { type: 'RUN_DATA_MART_SUCCESS'; payload: string }
   | { type: 'RUN_DATA_MART_ERROR'; payload: ApiError }
-  | { type: 'CANCEL_DATA_MART_RUN_ERROR'; payload: ApiError }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_START' }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS'; payload: DataMart }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_ERROR'; payload: ApiError }
@@ -76,7 +75,7 @@ export type DataMartAction =
   | { type: 'UPDATE_DATA_MART_OWNERS_START' }
   | { type: 'UPDATE_DATA_MART_OWNERS_SUCCESS'; payload: DataMart }
   | { type: 'UPDATE_DATA_MART_OWNERS_ERROR'; payload: ApiError }
-  | { type: 'RESET_MANUAL_RUN_TRIGGERED'; payload?: DataMartRunItem }
+  | { type: 'RESET_MANUAL_RUN_TRIGGERED' }
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
@@ -105,11 +104,6 @@ export interface DataMartContextType extends DataMartState {
     offset?: number,
     options?: { silent?: boolean }
   ) => Promise<DataMartRunItem[]>;
-  getDataMartRunById: (
-    dataMartId: string,
-    runId: string,
-    options?: { silent?: boolean }
-  ) => Promise<DataMartRunItem>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
   updateDataMartOwners: (
     id: string,
@@ -122,6 +116,6 @@ export interface DataMartContextType extends DataMartState {
   runGuarded?: (action: GuardedAction, opts: { intent: SchemaGuardIntent }) => void;
   error: ApiError | null;
   getErrorMessage: () => string | null;
-  resetManualRunTriggered: (completedRun?: DataMartRunItem) => void;
+  resetManualRunTriggered: () => void;
   reset: () => void;
 }

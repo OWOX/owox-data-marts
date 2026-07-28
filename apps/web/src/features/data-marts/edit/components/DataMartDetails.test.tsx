@@ -41,10 +41,6 @@ vi.mock('../../shared/hooks/useSchemaActualizeTrigger', () => ({
   useSchemaActualizeTrigger: () => ({ run: vi.fn(), isLoading: false }),
 }));
 
-vi.mock('../model/hooks/use-manual-connector-run-completion', () => ({
-  useManualConnectorRunCompletion: vi.fn(),
-}));
-
 vi.mock('../model', () => ({
   useAiHelper: () => ({ generateTitle: vi.fn(), pendingScope: null }),
   useAiHelperAvailability: () => ({ enabled: false }),
@@ -83,7 +79,6 @@ vi.mock('../model', () => ({
     runDataMart: vi.fn(),
     cancelDataMartRun: vi.fn(),
     getDataMartRuns: vi.fn(),
-    getDataMartRunById: vi.fn(),
     loadMoreDataMartRuns: vi.fn(),
     isLoading: false,
     isLoadingMoreRuns: false,
@@ -122,7 +117,6 @@ describe('DataMartDetails navigation', () => {
     renderDetails();
 
     expect(screen.getByRole('link', { name: 'Data Quality' })).toHaveAttribute('href', '/quality');
-    expect(screen.queryByRole('link', { name: 'Quality' })).not.toBeInTheDocument();
   });
 
   it.each(['QUEUED', 'RUNNING'])(
@@ -152,8 +146,6 @@ describe('DataMartDetails navigation', () => {
     renderDetails();
 
     expect(screen.getByRole('status')).toHaveTextContent('Runs in progress');
-    expect(screen.queryByText('Updating data')).not.toBeInTheDocument();
-    expect(screen.queryByText('Checking data quality')).not.toBeInTheDocument();
   });
 
   it('does not show run activity for a terminal Data Quality run', () => {

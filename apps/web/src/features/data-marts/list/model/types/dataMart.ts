@@ -1,6 +1,10 @@
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { DataStorageType } from '../../../../data-storage';
-import type { DataMartStatusInfo, DataMartDefinitionType } from '../../../shared';
+import type {
+  DataMartStatusInfo,
+  DataMartDefinitionType,
+  DataQualityCompactSummary,
+} from '../../../shared';
 
 export interface DataMartListItem {
   id: string;
@@ -20,4 +24,5 @@ export interface DataMartListItem {
   contexts: { id: string; name: string }[];
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
+  qualitySummary: DataQualityCompactSummary;
 }

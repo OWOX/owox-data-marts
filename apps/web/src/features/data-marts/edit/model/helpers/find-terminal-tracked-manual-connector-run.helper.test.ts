@@ -7,82 +7,41 @@ import {
 } from './find-terminal-tracked-manual-connector-run.helper';
 
 describe('findTerminalTrackedManualConnectorRun', () => {
-  it('waits for the tracked connector while a newer Data Quality run is terminal', () => {
-    const result = findTerminalTrackedManualConnectorRun(
-      [
-        createRun('quality-newer', DataMartRunType.DATA_QUALITY, DataMartRunStatus.SUCCESS),
-        createRun('connector-tracked', DataMartRunType.CONNECTOR, DataMartRunStatus.RUNNING),
-      ],
-      'connector-tracked'
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it('returns the exact terminal connector independent of list order and tied timestamps', () => {
-    const trackedRun = createRun(
-      'connector-tracked',
-      DataMartRunType.CONNECTOR,
+  it('tracks the exact connector run instead of a newer Data Quality row', () => {
+    const qualityRun = createRun(
+      'quality-newer',
+      DataMartRunType.DATA_QUALITY,
       DataMartRunStatus.SUCCESS
     );
-    const result = findTerminalTrackedManualConnectorRun(
-      [
-        createRun('old-connector', DataMartRunType.CONNECTOR, DataMartRunStatus.SUCCESS),
-        createRun('quality-newer', DataMartRunType.DATA_QUALITY, DataMartRunStatus.SUCCESS),
-        trackedRun,
-      ],
-      trackedRun.id
+    const activeRun = createRun(
+      'connector-tracked',
+      DataMartRunType.CONNECTOR,
+      DataMartRunStatus.RUNNING
     );
-
-    expect(result).toBe(trackedRun);
-  });
-
-  it('waits when the tracked run is not in the current history page', () => {
-    const result = findTerminalTrackedManualConnectorRun(
-      [createRun('old-connector', DataMartRunType.CONNECTOR, DataMartRunStatus.SUCCESS)],
-      'connector-tracked'
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it.each([
-    [DataMartRunType.DATA_QUALITY, DataMartRunTriggerType.MANUAL],
-    [DataMartRunType.CONNECTOR, DataMartRunTriggerType.SCHEDULED],
-  ])('ignores an exact terminal run with type %s and trigger %s', (type, triggerType) => {
-    const result = findTerminalTrackedManualConnectorRun(
-      [createRun('tracked', type, DataMartRunStatus.SUCCESS, triggerType)],
-      'tracked'
-    );
-
-    expect(result).toBeNull();
-  });
-});
-
-describe('countSuccessfulManualConnectorRuns', () => {
-  it('includes an exact completed run that is outside the current history page', () => {
-    const completedRun = createRun(
+    const trackedRun = createRun(
       'connector-tracked',
       DataMartRunType.CONNECTOR,
       DataMartRunStatus.SUCCESS
     );
 
     expect(
-      countSuccessfulManualConnectorRuns(
-        [createRun('older-failed', DataMartRunType.CONNECTOR, DataMartRunStatus.FAILED)],
-        completedRun
-      )
-    ).toBe(1);
+      findTerminalTrackedManualConnectorRun([qualityRun, activeRun], trackedRun.id)
+    ).toBeNull();
+    expect(findTerminalTrackedManualConnectorRun([qualityRun, trackedRun], trackedRun.id)).toBe(
+      trackedRun
+    );
   });
+});
 
-  it('counts the exact completed run only once when it is already in history', () => {
+describe('countSuccessfulManualConnectorRuns', () => {
+  it('counts successful manual connector runs in the polled history', () => {
     const completedRun = createRun(
       'connector-tracked',
       DataMartRunType.CONNECTOR,
       DataMartRunStatus.SUCCESS
     );
 
-    expect(countSuccessfulManualConnectorRuns([completedRun], completedRun)).toBe(1);
+    expect(countSuccessfulManualConnectorRuns([completedRun])).toBe(1);
   });
 });
 

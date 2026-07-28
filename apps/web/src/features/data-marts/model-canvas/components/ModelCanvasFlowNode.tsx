@@ -14,6 +14,8 @@ import {
 } from '../model/erd-node';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
+import type { DataQualityCompactSummary } from '../../shared/types';
+import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 
 export interface ModelCanvasFlowNodeData {
   title: string;
@@ -29,6 +31,9 @@ export interface ModelCanvasFlowNodeData {
   dimmed: boolean;
   direction: CanvasDirection;
   onOpenExternal: () => void;
+  qualitySummary: DataQualityCompactSummary;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 export type ModelCanvasFlowNodeType = Node<
@@ -182,11 +187,16 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
           <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
         </button>
       </div>
-
-      {/* Meta row: definition badge + field count */}
-      <div className='flex items-center gap-2 px-3.5 pt-1 pb-3'>
+      {/* Meta row: quality + definition badge + field count */}
+      <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 pb-3 text-[11px]'>
+        <DataQualityCanvasStatusIcon
+          dataMartTitle={data.title}
+          summary={data.qualitySummary}
+          onOpenQuality={data.onOpenQuality}
+          onRunQuality={data.onRunQuality}
+        />
         <DefinitionBadge type={data.definitionType} />
-        <span className='text-muted-foreground text-[11px]'>
+        <span className='ml-auto shrink-0'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>
       </div>

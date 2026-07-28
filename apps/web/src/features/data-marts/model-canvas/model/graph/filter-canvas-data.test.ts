@@ -9,6 +9,22 @@ const node = (id: string, status: DataMartStatus = DataMartStatus.PUBLISHED) => 
   status,
   description: null,
   fieldCount: 0,
+  qualitySummary: {
+    state: 'NEVER_RUN' as const,
+    enabledChecks: 1,
+    totalChecks: 0,
+    passedChecks: 0,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+    dataMartRunId: null,
+    lastRunAt: null,
+  },
 });
 
 const edge = (id: string, sourceDataMartId: string, targetDataMartId: string) => ({

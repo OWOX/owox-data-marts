@@ -33,8 +33,10 @@ import {
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
 import { useSchemaUnsavedGuard } from '../model';
-import { countSuccessfulManualConnectorRuns } from '../model/helpers/find-terminal-tracked-manual-connector-run.helper';
-import { useManualConnectorRunCompletion } from '../model/hooks/use-manual-connector-run-completion';
+import {
+  countSuccessfulManualConnectorRuns,
+  findTerminalTrackedManualConnectorRun,
+} from '../model/helpers/find-terminal-tracked-manual-connector-run.helper';
 import { SchemaUnsavedChangesDialog } from './SchemaUnsavedChangesDialog';
 import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
@@ -73,7 +75,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     runDataMart,
     cancelDataMartRun,
     getDataMartRuns,
-    getDataMartRunById,
     loadMoreDataMartRuns,
     isLoading,
     isLoadingMoreRuns,
@@ -238,44 +239,44 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   );
 
   // Show promo after the first successful manual connector run
-  const handleCompletedManualConnectorRun = useCallback(
-    (completedManualConnectorRun: (typeof runs)[number]) => {
-      // Show promo only if the completed run was a successful manual connector run
-      if (
-        completedManualConnectorRun.status === DataMartRunStatus.SUCCESS &&
-        completedManualConnectorRun.triggerType === DataMartRunTriggerType.MANUAL &&
-        completedManualConnectorRun.type === DataMartRunType.CONNECTOR
-      ) {
-        // Count the exact run once even when it is outside the current history page.
-        const successfulManualConnectorRuns = countSuccessfulManualConnectorRuns(
-          runs,
-          completedManualConnectorRun
-        );
+  useEffect(() => {
+    if (!isManualRunTriggered || !isConnector) return;
+    const completedManualConnectorRun = findTerminalTrackedManualConnectorRun(runs, manualRunId);
+    if (!completedManualConnectorRun) return;
 
-        // Show promo only after the very first successful manual connector run
-        if (successfulManualConnectorRuns === 1) {
-          showPromo({
-            step: PromoStep.USE_DATA,
-            projectId,
-            dataMartId,
-            isInsightsEnabled: shouldShowInsights,
-            showOnce: true,
-          });
-        }
+    resetManualRunTriggered();
+
+    // Show promo only if the completed run was a successful manual connector run
+    if (
+      completedManualConnectorRun.status === DataMartRunStatus.SUCCESS &&
+      completedManualConnectorRun.triggerType === DataMartRunTriggerType.MANUAL &&
+      completedManualConnectorRun.type === DataMartRunType.CONNECTOR
+    ) {
+      // Count the exact run once even when it is outside the current history page.
+      const successfulManualConnectorRuns = countSuccessfulManualConnectorRuns(runs);
+
+      // Show promo only after the very first successful manual connector run
+      if (successfulManualConnectorRuns === 1) {
+        showPromo({
+          step: PromoStep.USE_DATA,
+          projectId,
+          dataMartId,
+          isInsightsEnabled: shouldShowInsights,
+          showOnce: true,
+        });
       }
-    },
-    [runs, showPromo, projectId, dataMartId, shouldShowInsights]
-  );
-
-  useManualConnectorRunCompletion({
-    enabled: isManualRunTriggered && isConnector,
+    }
+  }, [
     dataMartId,
-    trackedRunId: manualRunId,
-    runs,
-    getDataMartRunById,
+    isConnector,
+    isManualRunTriggered,
+    manualRunId,
+    projectId,
     resetManualRunTriggered,
-    onCompleted: handleCompletedManualConnectorRun,
-  });
+    runs,
+    shouldShowInsights,
+    showPromo,
+  ]);
 
   if (isLoading) {
     // TODO:: Add skeleton loading indicator
@@ -606,6 +607,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         intent={schemaGuard.dialog.intent}
         changeLabel={schemaGuard.dialog.changeLabel}
         isSaving={schemaGuard.dialog.isSaving}
+        errorMessage={schemaGuard.dialog.errorMessage}
         onSaveAndContinue={schemaGuard.dialog.onSaveAndContinue}
         onDiscardAndContinue={schemaGuard.dialog.onDiscardAndContinue}
         onCancel={schemaGuard.dialog.onCancel}

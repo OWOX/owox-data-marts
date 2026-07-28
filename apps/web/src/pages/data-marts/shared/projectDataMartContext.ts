@@ -75,8 +75,6 @@ export function buildProjectDataMartContextValue(
     actualizeDataMartSchema: noopPromise,
     updateDataMartSchema: noopPromise,
     getDataMartRuns: () => Promise.resolve([]),
-    getDataMartRunById: () =>
-      Promise.reject(new Error('Data Mart run details are not available from project lists.')),
     loadMoreDataMartRuns: () => Promise.resolve([]),
     updateDataMartOwners: noopPromise,
     getErrorMessage: () => null,

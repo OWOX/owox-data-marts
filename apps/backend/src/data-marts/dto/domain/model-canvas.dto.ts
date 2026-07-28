@@ -1,5 +1,6 @@
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartRelationshipGraphEdgeDto } from './data-mart-relationship-graph-edge.dto';
+import { DataQualitySummaryDto } from './data-quality.dto';
 
 export interface ModelCanvasNodeDto {
   id: string;
@@ -7,6 +8,7 @@ export interface ModelCanvasNodeDto {
   status: DataMartStatus;
   description: string | null;
   fieldCount: number;
+  qualitySummary: DataQualitySummaryDto;
 }
 
 export interface ModelCanvasDataMartsDto {

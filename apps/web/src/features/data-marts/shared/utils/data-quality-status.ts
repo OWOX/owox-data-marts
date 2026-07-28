@@ -43,7 +43,7 @@ interface DataQualityVisualSummary {
   highestSeverity?: DataQualitySeverity | null;
 }
 
-export interface DataQualityStatusVisual {
+interface DataQualityStatusVisual {
   icon: LucideIcon;
   isActive: boolean;
   label: DataQualityStatusLabel;
@@ -57,15 +57,6 @@ export const DATA_QUALITY_STATUS_TEXT_CLASSES: Record<DataQualityStatusTone, str
   warning: 'text-warning',
   error: 'text-destructive',
   notice: 'text-notice',
-};
-
-export const DATA_QUALITY_STATUS_BACKGROUND_CLASSES: Record<DataQualityStatusTone, string> = {
-  neutral: 'bg-muted',
-  progress: 'bg-brand-blue-50 dark:bg-brand-blue-950/40',
-  success: 'bg-success-bg',
-  warning: 'bg-warning-bg',
-  error: 'bg-destructive-bg',
-  notice: 'bg-notice-bg',
 };
 
 function hasNoApplicableChecks(summary: DataQualityVisualSummary): boolean {

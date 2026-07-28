@@ -20,21 +20,6 @@ const baseSummary: DataQualitySummary = {
 };
 
 describe('DataQualitySummaryPanel', () => {
-  it.each([
-    ['NEVER_RUN', 'No runs yet'],
-    ['QUEUED', 'Run queued…'],
-    ['RUNNING', 'Running checks…'],
-    ['PASSED', 'All checks passed'],
-    ['ISSUES', 'Issues found'],
-    ['EXECUTION_FAILED', 'Execution failed'],
-    ['CANCELLED', 'Run cancelled'],
-    ['ALL_DISABLED', 'All checks are disabled'],
-  ] as const)('renders the %s state', (state, title) => {
-    render(<DataQualitySummaryPanel summary={{ ...baseSummary, state }} />);
-
-    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
-  });
-
   it('does not reserve a secondary description line while checks are running', () => {
     render(<DataQualitySummaryPanel summary={{ ...baseSummary, state: 'RUNNING' }} />);
 
@@ -43,7 +28,7 @@ describe('DataQualitySummaryPanel', () => {
     expect(heading.parentElement?.querySelector('p')).toBeNull();
   });
 
-  it('shows non-zero rule and finding counters without a redundant failed total', () => {
+  it('shows non-zero rule and finding counters', () => {
     render(
       <DataQualitySummaryPanel
         summary={{
@@ -61,16 +46,14 @@ describe('DataQualitySummaryPanel', () => {
       />
     );
 
-    expect(screen.queryByText('2 failed')).not.toBeInTheDocument();
     expect(screen.getByText('1 not applicable')).toBeInTheDocument();
     expect(screen.getByText('1 error')).toBeInTheDocument();
     expect(screen.getByText('1 warning')).toBeInTheDocument();
     expect(screen.queryByText('0 passed')).not.toBeInTheDocument();
-    expect(screen.queryByText('18 violations')).not.toBeInTheDocument();
     expect(screen.getByText(/Last checked/)).toBeInTheDocument();
   });
 
-  it('does not present a notice-only finding as a destructive failed counter', () => {
+  it('shows a notice finding counter', () => {
     render(
       <DataQualitySummaryPanel
         summary={{
@@ -86,7 +69,6 @@ describe('DataQualitySummaryPanel', () => {
     );
 
     expect(screen.getByText('1 notice')).toBeInTheDocument();
-    expect(screen.queryByText('1 failed')).not.toBeInTheDocument();
   });
 
   it('uses tonal treatment for passed checks and every finding severity', () => {

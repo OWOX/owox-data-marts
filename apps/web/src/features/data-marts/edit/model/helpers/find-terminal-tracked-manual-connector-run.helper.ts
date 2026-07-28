@@ -24,17 +24,8 @@ export function findTerminalTrackedManualConnectorRun(
   return trackedRun;
 }
 
-export function countSuccessfulManualConnectorRuns(
-  runs: readonly DataMartRunItem[],
-  exactRun: DataMartRunItem | null = null
-): number {
-  const uniqueRuns = new Map(runs.map(run => [run.id, run]));
-
-  if (exactRun) {
-    uniqueRuns.set(exactRun.id, exactRun);
-  }
-
-  return Array.from(uniqueRuns.values()).filter(
+export function countSuccessfulManualConnectorRuns(runs: readonly DataMartRunItem[]): number {
+  return runs.filter(
     run =>
       run.status === DataMartRunStatus.SUCCESS &&
       run.triggerType === DataMartRunTriggerType.MANUAL &&

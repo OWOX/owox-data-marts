@@ -21,10 +21,50 @@ const baseDto = (
   createdAt: new Date('2026-05-20T00:00:00.000Z'),
   modifiedAt: new Date('2026-05-20T00:00:00.000Z'),
   contexts: [],
+  qualitySummary: {
+    state: 'NEVER_RUN',
+    enabledChecks: 1,
+    totalChecks: 0,
+    passedChecks: 0,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+    dataMartRunId: null,
+    lastRunAt: null,
+  },
   ...overrides,
 });
 
 describe('mapDataMartListFromDto', () => {
+  it('preserves the compact data quality summary used by the list', () => {
+    const qualitySummary = {
+      state: 'ISSUES' as const,
+      enabledChecks: 3,
+      totalChecks: 3,
+      passedChecks: 2,
+      failedChecks: 1,
+      notApplicableChecks: 0,
+      errorChecks: 0,
+      noticeFindings: 0,
+      warningFindings: 1,
+      errorFindings: 0,
+      violationCount: 7,
+      highestSeverity: 'warning' as const,
+      dataMartRunId: 'run-1',
+      lastRunAt: '2026-07-15T12:00:00.000Z',
+    };
+    const dto = baseDto({ qualitySummary });
+
+    const [item] = mapDataMartListFromDto([dto]);
+
+    expect(item.qualitySummary).toEqual(qualitySummary);
+  });
+
   it('preserves owner arrays and contexts when the API returns them', () => {
     const dto = baseDto({
       businessOwnerUsers: [{ userId: 'u-1', fullName: 'Biz Owner', email: null, avatar: null }],

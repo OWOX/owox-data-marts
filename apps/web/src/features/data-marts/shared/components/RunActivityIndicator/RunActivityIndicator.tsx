@@ -17,13 +17,14 @@ export function RunActivityIndicator({
   separator = false,
   className,
 }: RunActivityIndicatorProps) {
-  if (!active) return null;
-
   return (
     <div
+      aria-hidden={!active}
+      inert={!active}
       className={cn(
-        'flex shrink-0 items-center gap-2',
-        separator && 'border-border border-r pr-4',
+        'flex shrink-0 items-center gap-2 overflow-hidden motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out',
+        active ? 'max-w-[320px] opacity-100' : 'max-w-0 opacity-0',
+        active && separator && 'border-border border-r pr-4',
         className
       )}
     >
@@ -36,7 +37,13 @@ export function RunActivityIndicator({
         <span>{label}</span>
       </div>
 
-      <Button variant='outline' size='sm' onClick={onViewRuns}>
+      <Button
+        variant='outline'
+        size='sm'
+        disabled={!active}
+        tabIndex={active ? undefined : -1}
+        onClick={onViewRuns}
+      >
         View runs
       </Button>
     </div>

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../../app/api';
 import { Button } from '../../../../shared/components/Button';
@@ -10,6 +11,11 @@ import { mergeBidirectionalEdges } from '../model/graph/merge-bidirectional-edge
 import { useModelCanvas } from '../model/use-model-canvas';
 import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
+import { dataQualityService } from '../../data-quality/api/data-quality.service';
+import { dataMartService } from '../../shared';
+import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
+import { trackEvent } from '../../../../utils/data-layer';
+import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
 
@@ -35,17 +41,25 @@ function extractErrorMessage(error: unknown): string | undefined {
   return apiError?.message;
 }
 
-function ModelCanvasViewContent() {
+interface ModelCanvasViewProps {
+  onActiveQualityRunChange?: (active: boolean) => void;
+}
+
+function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   const { dataStorages, loading: loadingStorages, fetchDataStorages } = useDataStorage();
   const [storageLoadError, setStorageLoadError] = useState<unknown>(null);
   const [storageLoadPending, setStorageLoadPending] = useState(true);
   const storageLoadGenerationRef = useRef(0);
   const mountedRef = useRef(false);
   const filters = useModelCanvasFilters();
-  const { scope } = useProjectRoute();
+  const { navigate, scope, projectId } = useProjectRoute();
   const storageKnown =
     Boolean(filters.storageId) && dataStorages.some(s => s.id === filters.storageId);
-  const { data, isLoading, error } = useModelCanvas(storageKnown ? filters.storageId : null);
+  const { data, isLoading, error, refetch, refetchQuality } = useModelCanvas(
+    storageKnown ? filters.storageId : null
+  );
+  const hasActiveQualityRun =
+    data?.nodes.some(node => isDataQualityActivityState(node.qualitySummary.state)) ?? false;
 
   const loadDataStorages = useCallback(async () => {
     const generation = ++storageLoadGenerationRef.current;
@@ -73,6 +87,10 @@ function ModelCanvasViewContent() {
     };
   }, [loadDataStorages]);
 
+  useEffect(() => {
+    onActiveQualityRunChange?.(hasActiveQualityRun);
+  }, [hasActiveQualityRun, onActiveQualityRunChange]);
+
   const filtered = useMemo(
     () => (data ? filterCanvasData(data, filters.status, filters.rel) : null),
     [data, filters.status, filters.rel]
@@ -81,8 +99,77 @@ function ModelCanvasViewContent() {
     () => (filtered ? mergeBidirectionalEdges(filtered.edges) : []),
     [filtered]
   );
+  const selectedStorageType = dataStorages.find(storage => storage.id === filters.storageId)?.type;
+  const bulkActionDataMarts = useMemo(
+    () =>
+      (filtered?.nodes ?? []).map(node => ({
+        id: node.id,
+        status: node.status,
+        storageType: selectedStorageType,
+      })),
+    [filtered, selectedStorageType]
+  );
 
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
+
+  const runQuality = useCallback(
+    async (dataMartId: string) => {
+      try {
+        await dataQualityService.startRun(dataMartId);
+        toast.success('Data Quality run queued');
+        await refetchQuality();
+      } catch (caught) {
+        toast.error(extractErrorMessage(caught) ?? 'Failed to start Data Quality run');
+      }
+    },
+    [refetchQuality]
+  );
+
+  const deleteDataMart = useCallback(async (dataMartId: string) => {
+    try {
+      await dataMartService.deleteDataMart(dataMartId);
+      trackEvent({
+        event: 'data_mart_deleted',
+        category: 'DataMart',
+        action: 'Delete',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'DeleteError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
+  const publishDataMart = useCallback(async (dataMartId: string) => {
+    try {
+      await dataMartService.publishDataMart(dataMartId);
+      await dataMartService.createSchemaActualizeTrigger(dataMartId);
+      trackEvent({
+        event: 'data_mart_published',
+        category: 'DataMart',
+        action: 'Publish',
+        context: dataMartId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to publish data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'PublishError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
+  const refreshCanvas = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   return (
     <div className='dm-card p-4'>
@@ -141,6 +228,19 @@ function ModelCanvasViewContent() {
                 'noopener,noreferrer'
               );
             }}
+            onOpenQuality={dataMartId => {
+              navigate(`/data-marts/${dataMartId}/quality`);
+            }}
+            onRunQuality={runQuality}
+            topLeftControls={
+              <DataMartBulkActions
+                dataMarts={bulkActionDataMarts}
+                projectId={projectId ?? ''}
+                deleteDataMart={deleteDataMart}
+                publishDataMart={publishDataMart}
+                onCompleted={refreshCanvas}
+              />
+            }
             style={canvasStyle}
           />
         </Suspense>
@@ -149,10 +249,10 @@ function ModelCanvasViewContent() {
   );
 }
 
-export function ModelCanvasView() {
+export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   return (
     <DataStorageProvider>
-      <ModelCanvasViewContent />
+      <ModelCanvasViewContent onActiveQualityRunChange={onActiveQualityRunChange} />
     </DataStorageProvider>
   );
 }

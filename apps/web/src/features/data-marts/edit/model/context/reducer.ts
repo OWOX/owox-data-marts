@@ -163,15 +163,6 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'CREATE_DATA_MART_ERROR':
       return { ...state, isLoading: false, error: action.payload };
 
-    case 'RUN_DATA_MART_ERROR':
-      return {
-        ...state,
-        isLoading: false,
-        isManualRunTriggered: false,
-        manualRunId: null,
-        hasActiveRuns: calculateHasActiveRuns(false, state.runs),
-      };
-
     // Mutation errors: keep existing dataMart visible, don't set error
     // (toast is shown by apiClient interceptor)
     case 'UPDATE_DATA_MART_ERROR':
@@ -180,7 +171,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_DEFINITION_ERROR':
     case 'DELETE_DATA_MART_ERROR':
     case 'PUBLISH_DATA_MART_ERROR':
-    case 'CANCEL_DATA_MART_RUN_ERROR':
+    case 'RUN_DATA_MART_ERROR':
     case 'UPDATE_DATA_MART_OWNERS_ERROR':
     case 'ACTUALIZE_DATA_MART_SCHEMA_ERROR':
     case 'UPDATE_DATA_MART_SCHEMA_ERROR':
@@ -216,11 +207,9 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
       return { ...state, isLoadingMoreRuns: false, error: action.payload };
 
     case 'RESET_MANUAL_RUN_TRIGGERED': {
-      const runs = reconcileCompletedRun(state.runs, action.payload);
-      const hasActiveRuns = calculateHasActiveRuns(false, runs);
+      const hasActiveRuns = calculateHasActiveRuns(false, state.runs);
       return {
         ...state,
-        runs,
         isManualRunTriggered: false,
         manualRunId: null,
         hasActiveRuns,
@@ -233,19 +222,6 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     default:
       return state;
   }
-}
-
-function reconcileCompletedRun(
-  runs: DataMartRunItem[],
-  completedRun?: DataMartRunItem
-): DataMartRunItem[] {
-  if (!completedRun) return runs;
-
-  const existingIndex = runs.findIndex(run => run.id === completedRun.id);
-  if (existingIndex === -1) return runs;
-
-  const otherRuns = runs.filter(run => run.id !== completedRun.id);
-  return [...otherRuns.slice(0, existingIndex), completedRun, ...otherRuns.slice(existingIndex)];
 }
 
 /**

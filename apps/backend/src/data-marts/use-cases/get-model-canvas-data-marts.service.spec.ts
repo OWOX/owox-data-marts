@@ -9,6 +9,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { GetModelCanvasDataMartsService } from './get-model-canvas-data-marts.service';
+import { DataQualitySummaryService } from '../services/data-quality-summary.service';
 
 describe('GetModelCanvasDataMartsService', () => {
   const dataMartService = { findByProjectIdAndStorageIdForCanvas: jest.fn() };
@@ -18,13 +19,15 @@ describe('GetModelCanvasDataMartsService', () => {
     canAccess: jest.fn(),
     canAccessMany: jest.fn(),
   };
+  const dataQualitySummaryService = { getCurrentByDataMarts: jest.fn() };
 
   const service = new GetModelCanvasDataMartsService(
     dataMartService as unknown as DataMartService,
     dataStorageService as unknown as DataStorageService,
     contextAccessService as unknown as ContextAccessService,
     new ModelCanvasMapper(),
-    accessDecisionService as unknown as AccessDecisionService
+    accessDecisionService as unknown as AccessDecisionService,
+    dataQualitySummaryService as unknown as DataQualitySummaryService
   );
 
   const command = new GetModelCanvasDataMartsCommand(
@@ -55,6 +58,7 @@ describe('GetModelCanvasDataMartsService', () => {
       items: [],
       total: 0,
     });
+    dataQualitySummaryService.getCurrentByDataMarts.mockResolvedValue(new Map());
   });
 
   it('throws when userId is missing', async () => {
@@ -114,8 +118,16 @@ describe('GetModelCanvasDataMartsService', () => {
         status: DataMartStatus.PUBLISHED,
         description: 'desc',
         fieldCount: 3,
+        qualitySummary: expect.objectContaining({ state: 'ALL_DISABLED' }),
       },
-      { id: 'b', title: 'DM b', status: DataMartStatus.DRAFT, description: null, fieldCount: 0 },
+      {
+        id: 'b',
+        title: 'DM b',
+        status: DataMartStatus.DRAFT,
+        description: null,
+        fieldCount: 0,
+        qualitySummary: expect.objectContaining({ state: 'ALL_DISABLED' }),
+      },
     ]);
   });
 

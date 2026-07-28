@@ -221,7 +221,15 @@ export class DataMartService {
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.buildCanvasVisibleDataMartsQuery(projectId, storageId, options)
-      .select(['dm.id', 'dm.title', 'dm.status', 'dm.description', 'dm.schema'])
+      .select([
+        'dm.id',
+        'dm.title',
+        'dm.status',
+        'dm.description',
+        'dm.schema',
+        'dm.definitionType',
+        'dm.dataQualityConfig',
+      ])
       .orderBy('dm.title', 'ASC')
       .addOrderBy('dm.id', 'ASC')
       .take(options?.limit)

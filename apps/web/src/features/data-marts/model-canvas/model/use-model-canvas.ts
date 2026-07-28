@@ -65,7 +65,7 @@ export function useModelCanvas(storageId: string | null) {
     queryKey: ['model-canvas', projectId, storageId],
     queryFn: async ({ signal }): Promise<ModelCanvasData> => {
       const id = storageId ?? '';
-      const config = { signal };
+      const config = { signal, skipLoadingIndicator: true, skipErrorToast: true };
       const [nodes, edges] = await Promise.all([
         modelCanvasService.getDataMarts(id, config),
         modelCanvasService.getEdges(id, config),

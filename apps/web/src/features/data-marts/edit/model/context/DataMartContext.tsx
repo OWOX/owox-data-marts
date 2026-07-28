@@ -4,7 +4,6 @@ import { initialState, reducer } from './reducer.ts';
 import {
   mapDataMartFromDto,
   mapDataMartRunListResponseDtoToEntity,
-  mapDataMartRunResponseDtoToEntity,
   mapLimitedDataMartFromDto,
   mapConnectorDefinitionToDto,
   mapSqlDefinitionToDto,
@@ -13,7 +12,7 @@ import {
   mapViewDefinitionToDto,
 } from '../mappers';
 import { useAutoRefresh } from '../../../../../hooks/useAutoRefresh';
-import { DataMartDefinitionType, dataMartService, isDataMartRunFinalStatus } from '../../../shared';
+import { DataMartDefinitionType, dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
   RunDataMartRequestDto,
@@ -30,7 +29,6 @@ import type { DataStorage } from '../../../../data-storage/shared/model/types/da
 import type {
   ConnectorDefinitionConfig,
   DataMartDefinitionConfig,
-  DataMartRunItem,
   SqlDefinitionConfig,
   TableDefinitionConfig,
   TablePatternDefinitionConfig,
@@ -553,7 +551,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       } catch (error) {
         const apiError = extractApiError(error);
         dispatch({
-          type: 'CANCEL_DATA_MART_RUN_ERROR',
+          type: 'RUN_DATA_MART_ERROR',
           payload: apiError,
         });
         trackEvent({
@@ -586,30 +584,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       }
     },
     [getDataMartRuns]
-  );
-
-  // Get a data mart run by ID
-  const getDataMartRunById = useCallback(
-    async (dataMartId: string, runId: string, options?: { silent?: boolean }) => {
-      try {
-        const response = await dataMartService.getDataMartRunById(
-          dataMartId,
-          runId,
-          options?.silent ? { skipLoadingIndicator: true, skipErrorToast: true } : undefined
-        );
-        return mapDataMartRunResponseDtoToEntity(response);
-      } catch (error) {
-        const apiError = extractApiError(error);
-        trackEvent({
-          event: 'data_mart_error',
-          category: 'DataMart',
-          action: 'FetchRunDetailsError',
-          error: apiError.message,
-        });
-        throw error;
-      }
-    },
-    []
   );
 
   // Actualize data mart schema
@@ -672,22 +646,18 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Reset state
-  const resetManualRunTriggered = useCallback((completedRun?: DataMartRunItem) => {
-    dispatch({ type: 'RESET_MANUAL_RUN_TRIGGERED', payload: completedRun });
+  const resetManualRunTriggered = useCallback(() => {
+    dispatch({ type: 'RESET_MANUAL_RUN_TRIGGERED' });
   }, []);
 
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
   }, []);
 
-  const hasActiveRunsForPolling =
-    state.isManualRunTriggered || state.runs.some(run => !isDataMartRunFinalStatus(run.status));
-
-  // Poll every active run frequently, including Data Quality. `state.hasActiveRuns` remains the
-  // separate data-update signal used by connector Manual Run and the page header.
+  // Unified polling for runs: dynamic interval based on run status - 5 sec if active runs, 30 sec otherwise
   useAutoRefresh({
     enabled: !!state.dataMart?.id,
-    intervalMs: hasActiveRunsForPolling ? 5000 : 30000,
+    intervalMs: state.hasActiveRuns ? 5000 : 30000,
     onTick: () => {
       // Skip polling if Load More is in progress to avoid race conditions
       if (!state.dataMart?.id || state.isLoadingMoreRuns) return;
@@ -722,7 +692,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     actualizeDataMartSchema,
     updateDataMartSchema,
     getDataMartRuns,
-    getDataMartRunById,
     loadMoreDataMartRuns,
     getErrorMessage,
     resetManualRunTriggered,
