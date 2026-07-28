@@ -310,6 +310,23 @@ describe('DataMartSchedulesPage', () => {
     expect(await screen.findByText('Facebook Marketing')).toBeInTheDocument();
   });
 
+  it('renders and searches project-wide Data Quality schedules', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectDataQualityTrigger()],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Data Quality Run')).toBeInTheDocument();
+    expect(await screen.findByText('Data Quality checks')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Search'), {
+      target: { value: 'Data Quality' },
+    });
+
+    expect(screen.getByText('Data Quality checks')).toBeInTheDocument();
+  });
+
   it('uses the connector type icon for project-wide connector trigger run targets', async () => {
     vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
       triggers: [buildProjectConnectorTrigger()],
@@ -517,6 +534,15 @@ function buildProjectConnectorTrigger(): ProjectScheduledTriggerResponseApiDto {
         },
       },
     } as unknown as ProjectScheduledTriggerResponseApiDto['triggerConfig'],
+  };
+}
+
+function buildProjectDataQualityTrigger(): ProjectScheduledTriggerResponseApiDto {
+  return {
+    ...buildProjectReportTrigger(),
+    id: 'trigger-data-quality',
+    type: ScheduledTriggerType.DATA_QUALITY_RUN,
+    triggerConfig: null,
   };
 }
 

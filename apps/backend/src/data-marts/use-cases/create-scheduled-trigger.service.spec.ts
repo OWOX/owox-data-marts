@@ -159,6 +159,33 @@ describe('CreateScheduledTriggerService', () => {
     );
   });
 
+  it('uses Data Mart trigger management access for DATA_QUALITY_RUN triggers', async () => {
+    const { service, accessDecisionService } = createService();
+
+    const command = new CreateScheduledTriggerCommand(
+      'proj-1',
+      'user-1',
+      'dm-1',
+      ScheduledTriggerType.DATA_QUALITY_RUN,
+      '0 9 * * *',
+      'UTC',
+      true,
+      undefined,
+      ['editor']
+    );
+
+    await expect(service.run(command)).resolves.toBeDefined();
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      EntityType.DATA_MART,
+      'dm-1',
+      Action.MANAGE_TRIGGERS,
+      'proj-1'
+    );
+    expect(accessDecisionService.canAccess).toHaveBeenCalledTimes(1);
+  });
+
   it('should reject editor creating CONNECTOR_RUN trigger without Data Mart trigger management access', async () => {
     const { service, accessDecisionService } = createService();
     accessDecisionService.canAccess.mockResolvedValueOnce(false);

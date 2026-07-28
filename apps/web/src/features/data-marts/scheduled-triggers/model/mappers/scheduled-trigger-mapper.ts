@@ -8,10 +8,9 @@ import type {
 } from '../api';
 import type { ProjectScheduledTrigger, ScheduledTrigger } from '../scheduled-trigger.model';
 import { TriggerMapperFactory } from './trigger-mapper.factory';
-import { ScheduledTriggerType } from '../../enums';
+import { ScheduledTriggerType, TRIGGER_CONFIG_TYPES } from '../../enums';
 import { ReportRunTriggerMapper } from './report-run-trigger.mapper';
 import type { ConnectorDefinitionConfig, DataMart } from '../../../edit';
-import type { ScheduledConnectorRunConfig } from '../trigger-config.types.ts';
 
 /**
  * General mapper for scheduled triggers
@@ -75,9 +74,9 @@ export const ScheduledTriggerMapper = {
         return {
           ...trigger,
           triggerConfig: {
-            ...trigger.triggerConfig,
+            type: TRIGGER_CONFIG_TYPES.SCHEDULED_CONNECTOR_RUN,
             connector: connectorConfig,
-          } as ScheduledConnectorRunConfig,
+          },
         };
       }
       default:
@@ -118,7 +117,7 @@ export const ScheduledTriggerMapper = {
           return {
             ...trigger,
             triggerConfig: {
-              ...trigger.triggerConfig,
+              type: TRIGGER_CONFIG_TYPES.SCHEDULED_CONNECTOR_RUN,
               connector: connectorConfig,
             },
           };

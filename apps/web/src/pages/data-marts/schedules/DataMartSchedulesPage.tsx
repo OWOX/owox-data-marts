@@ -44,6 +44,7 @@ import { buildProjectDataMartContextValue } from '../shared/projectDataMartConte
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { ProjectScheduledTriggerEditSheet } from './ProjectScheduledTriggerEditSheet';
+import { getScheduledTriggerTypeLabel } from '../../../features/data-marts/scheduled-triggers/utils/scheduled-trigger-labels';
 
 const DATA_MART_SCHEDULES_PAGE_SIZE = 15;
 const PROJECT_SCHEDULED_TRIGGERS_TABLE_ID = 'project-scheduled-triggers-table';
@@ -67,17 +68,6 @@ function buildProjectScheduledTriggerFilterAccessors(
   };
 }
 
-function getScheduledTriggerTypeLabel(value: string) {
-  switch (value) {
-    case 'REPORT_RUN':
-      return 'Report Run';
-    case 'CONNECTOR_RUN':
-      return 'Connector Run';
-    default:
-      return value;
-  }
-}
-
 function getScheduledTriggerRunTargetTitle(
   trigger: ProjectScheduledTrigger,
   connectors: ConnectorListItem[] = []
@@ -85,6 +75,9 @@ function getScheduledTriggerRunTargetTitle(
   if (trigger.type === ScheduledTriggerType.REPORT_RUN) {
     const config = trigger.triggerConfig as ScheduledReportRunConfig | undefined;
     return config?.report?.title ?? config?.reportId ?? 'Report';
+  }
+  if (trigger.type === ScheduledTriggerType.DATA_QUALITY_RUN) {
+    return 'Data Quality checks';
   }
 
   const config = trigger.triggerConfig as ScheduledConnectorRunConfig | undefined;
@@ -268,8 +261,7 @@ function DataMartSchedulesPageContent() {
           </SortableHeader>
         ),
         cell: ({ row }) => {
-          const label =
-            row.original.type === ScheduledTriggerType.REPORT_RUN ? 'Report Run' : 'Connector Run';
+          const label = getScheduledTriggerTypeLabel(row.original.type);
           return <Badge variant='outline'>{label}</Badge>;
         },
       },
