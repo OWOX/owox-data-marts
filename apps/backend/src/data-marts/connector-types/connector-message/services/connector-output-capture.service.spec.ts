@@ -65,4 +65,40 @@ describe('ConnectorOutputCaptureService', () => {
 
     expect(messages).toHaveLength(2);
   });
+
+  it('keeps an envelope intact when its message contains a brace sequence', () => {
+    // A provider error or a stack trace can legitimately contain '}{'. Splitting on it
+    // produced two unparseable fragments instead of one classified entry.
+    const messages = capture(
+      'onStderr',
+      JSON.stringify({ type: 'error', at: 'now', error: 'malformed payload: }{ near token' })
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].type).toBe(ConnectorMessageType.ERROR);
+    expect(messages[0].toFormattedString()).toContain('}{ near token');
+  });
+
+  it('keeps raw text containing a brace sequence as one entry', () => {
+    const messages = capture('onStderr', 'SyntaxError: unexpected }{ in input');
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].toFormattedString()).toContain('unexpected }{ in input');
+  });
+
+  it('parses the warning envelope NodeJsConfig actually emits', () => {
+    // Built the same way the connector builds it, so a field rename on either side
+    // fails here instead of silently degrading the message to unknown.
+    const at = new Date().toISOString();
+    const emitted = JSON.stringify({
+      type: 'addWarningToCurrentStatus',
+      at: `${at.split('T')[0]} ${at.split('T')[1].split('.')[0]}`,
+      warning: '2 out of 3 advertisers had errors',
+    });
+
+    const [message] = capture('onStdout', emitted);
+
+    expect(message.type).toBe(ConnectorMessageType.WARNING);
+    expect(message.toFormattedString()).toContain('2 out of 3 advertisers had errors');
+  });
 });

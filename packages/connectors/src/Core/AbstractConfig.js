@@ -262,7 +262,11 @@ class AbstractConfig {
     //----------------------------------------------------------------
 
   //---- addWarningToCurrentStatus -----------------------------------
-    addWarningToCurrentStatus() {
+    /**
+     * @param {string} [message] - What the warning is about. Surfaced to the user in
+     *   run history, so pass the detail rather than relying on the default.
+     */
+    addWarningToCurrentStatus(message) {
       throw new Error("addWarningToCurrentStatus must be implemented in subclass of AbstractConfig");
     }
     //----------------------------------------------------------------

@@ -15,6 +15,7 @@ jest.mock('@owox/connectors', () => ({
   },
 }));
 
+import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { ConnectorExecutorService } from './connector-executor.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
@@ -579,6 +580,42 @@ describe('ConnectorExecutorService', () => {
     expect((finalUpdate![1].errors as string[]).join()).toContain(
       'finished without terminal success status'
     );
+  });
+
+  it('persists a cancelled configuration as a warning, not an error', async () => {
+    const { service, dataMartRunRepository, processSpawner } = createService();
+    const controller = new AbortController();
+    controller.abort();
+    (processSpawner.spawnConnector as jest.Mock).mockRejectedValue(
+      new Error('Connector process was aborted')
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    const persisted = (dataMartRunRepository.update as jest.Mock).mock.calls
+      .map(call => call[1]?.errors as string[] | undefined)
+      .filter((errors): errors is string[] => Array.isArray(errors) && errors.length > 0)
+      .pop();
+
+    expect(persisted![0]).toContain(ConnectorMessageType.WARNING);
+    expect(persisted![0]).not.toContain(`"type":"${ConnectorMessageType.ERROR}"`);
+  });
+
+  it('persists expired storage credentials as a warning, not an error', async () => {
+    const { service, dataMartRunRepository, storageConfigService } = createService();
+    (storageConfigService.buildStorageConfig as jest.Mock).mockRejectedValue(
+      new CredentialsExpiredException('storage-1', 'storage')
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    const errors = finalUpdate![1].errors as string[];
+    expect(errors[0]).toContain(ConnectorMessageType.WARNING);
+    expect(errors.join()).toContain('Reconnect this Storage');
   });
 
   it('marks an aborted connector run as CANCELLED', async () => {

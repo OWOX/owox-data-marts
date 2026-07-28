@@ -452,37 +452,43 @@ export class ConnectorExecutorService {
       } catch (error) {
         success = false;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        addMessageToArray(configErrors, {
-          type: ConnectorMessageType.ERROR,
-          at: this.systemTimeService.now().toISOString(),
+        // The user cancelled the run, or the customer must reconnect their storage.
+        // Neither is ops-actionable, so it is a warning in run history as well as in
+        // monitoring — deciding here keeps the persisted type and the log severity
+        // from drifting apart.
+        const isWarning = signal?.aborted === true || error instanceof CredentialsExpiredException;
+        const summary = `Configuration ${configIndex + 1} failed: ${errorMessage}`;
+        const at = this.systemTimeService.now().toISOString();
+        const logMeta = {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          configIndex,
           error: errorMessage,
-          toFormattedString: () =>
-            `[ERROR] Configuration ${configIndex + 1} failed: ${errorMessage}`,
-        });
-        if (signal?.aborted === true || error instanceof CredentialsExpiredException) {
-          // User cancelled the run, or the customer must reconnect their
-          // storage — neither is ops-actionable, don't page
-          this.logger.warn(`Configuration ${configIndex + 1} failed: ${errorMessage}`, {
-            dataMartId: dataMart.id,
-            projectId: dataMart.projectId,
-            runId,
-            configId,
-            configIndex,
-            error: errorMessage,
-          });
+        };
+
+        addMessageToArray(
+          configErrors,
+          isWarning
+            ? {
+                type: ConnectorMessageType.WARNING,
+                at,
+                warning: errorMessage,
+                toFormattedString: () => `[WARNING] ${summary}`,
+              }
+            : {
+                type: ConnectorMessageType.ERROR,
+                at,
+                error: errorMessage,
+                toFormattedString: () => `[ERROR] ${summary}`,
+              }
+        );
+
+        if (isWarning) {
+          this.logger.warn(summary, logMeta);
         } else {
-          this.logger.error(
-            `Configuration ${configIndex + 1} failed: ${errorMessage}`,
-            (error as Error)?.stack,
-            {
-              dataMartId: dataMart.id,
-              projectId: dataMart.projectId,
-              runId,
-              configId,
-              configIndex,
-              error: errorMessage,
-            }
-          );
+          this.logger.error(summary, (error as Error)?.stack, logMeta);
         }
       } finally {
         if (credentialUpdates) {

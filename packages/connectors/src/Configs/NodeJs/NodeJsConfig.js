@@ -173,13 +173,16 @@ class NodeJsConfig extends AbstractConfig {
      * Logs warning status for non-fatal issues that occurred during execution.
      * Warnings indicate problems that didn't stop execution but may require attention.
      */
-    addWarningToCurrentStatus() {
+    addWarningToCurrentStatus(message = 'Completed with warnings') {
       const at = new Date();
       console.log(
         JSON.stringify({
           type: 'addWarningToCurrentStatus',
           at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
-          status: 'warning',
+          // The field must be `warning`: the backend schema for this message type requires
+          // it, and an envelope without it is discarded as unknown instead of surfacing
+          // as a warning.
+          warning: message,
         })
       );
     }

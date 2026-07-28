@@ -353,9 +353,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     }
 
     if (failedAdvertisers.length > 0 && successfulAdvertisers.length > 0) {
-      this.config.addWarningToCurrentStatus();
-      this.config.logMessage(
-        `Warning: ${failedAdvertisers.length} out of ${totalAdvertisers} advertisers had errors. ` +
+      this.config.addWarningToCurrentStatus(
+        `${failedAdvertisers.length} out of ${totalAdvertisers} advertisers had errors. ` +
         `Failed advertisers: ${failedAdvertisers.join(', ')}. ` +
         `Successful advertisers: ${successfulAdvertisers.join(', ')}`
       );
