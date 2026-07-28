@@ -14,6 +14,19 @@ import { LogLevel } from './types';
 // the web app has no shared reference to it, since logs/errors arrive as raw JSON strings.
 const WARNING_MESSAGE_TYPE = 'addWarningToCurrentStatus';
 
+/**
+ * Whether a persisted entry from the run's `errors` array is a classified warning
+ * rather than a genuine failure. Both share that array, so any view rendering it has
+ * to partition them or it will present warnings as errors.
+ */
+export const isPersistedWarning = (raw: string): boolean => {
+  try {
+    return (JSON.parse(raw) as { type?: unknown }).type === WARNING_MESSAGE_TYPE;
+  } catch {
+    return false;
+  }
+};
+
 const resolveLogLevel = (isError: boolean, messageType?: string | null): LogLevel => {
   if (messageType === WARNING_MESSAGE_TYPE) {
     return LogLevel.WARNING;

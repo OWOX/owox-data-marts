@@ -52,24 +52,88 @@ describe('makeRequest error classification', () => {
 
 describe('_logFailure', () => {
   const capture = () => {
-    const lines = [];
-    return { lines, self: { config: { logMessage: m => lines.push(m) } } };
+    const errors = [];
+    const warnings = [];
+    const logs = [];
+    return {
+      errors,
+      warnings,
+      logs,
+      self: {
+        config: {
+          logError: m => errors.push(m),
+          addWarningToCurrentStatus: m => warnings.push(m),
+          logMessage: m => logs.push(m),
+        },
+      },
+    };
   };
 
-  it('keeps the stack for real errors, since these are swallowed and never rethrown', () => {
-    const { lines, self } = capture();
-    const error = new Error('remote or network error');
-    connectorProto._logFailure.call(self, 'Error fetching ad_insights', error);
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain('remote or network error');
-    expect(lines[0]).toContain('at ');
+  it('reports a genuine failure on the error channel so it is still alerted on', () => {
+    // These paths swallow the error to keep other advertisers importing, so an
+    // informational log would leave a real failure with no alert and no trace.
+    const { errors, warnings, logs, self } = capture();
+    connectorProto._logFailure.call(
+      self,
+      'Error fetching ad_insights',
+      new Error('remote or network error')
+    );
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('remote or network error');
+    expect(errors[0]).toContain('at ');
+    expect(warnings).toHaveLength(0);
+    expect(logs).toHaveLength(0);
   });
 
-  it('omits the stack for customer-actionable warnings', () => {
-    const { lines, self } = capture();
+  it('reports a customer-actionable failure as a warning, without a stack', () => {
+    const { errors, warnings, self } = capture();
     const error = Object.assign(new Error('TikTok API error: No permission'), { isWarning: true });
     connectorProto._logFailure.call(self, 'Error fetching ad_insights', error);
-    expect(lines[0]).toBe('Error fetching ad_insights: TikTok API error: No permission');
+
+    expect(warnings).toEqual(['Error fetching ad_insights: TikTok API error: No permission']);
+    expect(errors).toHaveLength(0);
+  });
+});
+
+describe('storage failures and advertiser success', () => {
+  const buildConnector = saveData => {
+    const self = Object.create(connectorProto);
+    self.advertiserErrors = new Map();
+    self.advertiserSuccesses = new Map();
+    self.config = {
+      logMessage: () => {},
+      logError: () => {},
+      addWarningToCurrentStatus: () => {},
+      CreateEmptyTables: { value: true },
+    };
+    self.source = { fetchData: async () => [{ id: 1 }] };
+    self.addMissingFieldsToData = data => data;
+    self.getStorageByNode = async () => ({ saveData });
+    return self;
+  };
+
+  it('does not mark an advertiser successful when its storage write failed', async () => {
+    const self = buildConnector(async () => {
+      throw new Error('BigQuery write failed');
+    });
+
+    await connectorProto.startImportProcessOfCatalogData.call(self, 'campaign', ['a'], ['id']);
+
+    expect(self.advertiserSuccesses.get('a')).toBeUndefined();
+    // Every advertiser failed, so the run must not report success
+    expect(() => connectorProto._checkAndReportErrors.call(self, ['a'])).toThrow(
+      /All advertisers failed/
+    );
+  });
+
+  it('marks an advertiser successful when the write completes', async () => {
+    const self = buildConnector(async () => undefined);
+
+    await connectorProto.startImportProcessOfCatalogData.call(self, 'campaign', ['a'], ['id']);
+
+    expect(self.advertiserSuccesses.get('a')).toBe(true);
+    expect(() => connectorProto._checkAndReportErrors.call(self, ['a'])).not.toThrow();
   });
 });
 

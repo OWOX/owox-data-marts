@@ -271,6 +271,21 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
+  //---- logError ----------------------------------------------------
+    /**
+     * Report a failure that did not stop execution.
+     *
+     * Unlike logMessage, which is informational, this is recorded in the run's errors
+     * and alerted on. Use it for failures that are swallowed so the run can continue —
+     * otherwise they leave no trace beyond an INFO line.
+     *
+     * @param {string} message - What failed, including a stack where one is available
+     */
+    logError(message) {
+      throw new Error("logError must be implemented in subclass of AbstractConfig");
+    }
+    //----------------------------------------------------------------
+
   //---- logMessage --------------------------------------------------
     logMessage() {
       throw new Error("logMessage must be implemented in subclass of AbstractConfig");
