@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   CreateViewExecutor,
+  CreateViewOptions,
   CreateViewResult,
 } from '../../interfaces/create-view-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
@@ -21,7 +22,8 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
     credentials: DataStorageCredentials,
     config: DataStorageConfig,
     viewName: string,
-    sql: string
+    sql: string,
+    options?: CreateViewOptions
   ): Promise<CreateViewResult> {
     if (!isRedshiftConfig(config)) {
       throw new Error('Incompatible data storage config');
@@ -33,13 +35,17 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
 
     const adapter = this.adapterFactory.create(credentials, config);
 
-    const fullyQualifiedName = escapeRedshiftIdentifier(viewName);
+    const referenceName =
+      options?.requireFullyQualifiedName && !viewName.includes('.')
+        ? `owox_internal.${viewName}`
+        : viewName;
+    const fullyQualifiedName = escapeRedshiftIdentifier(referenceName);
 
-    const parts = viewName.split('.').filter(p => p.trim().length > 0);
+    const parts = referenceName.split('.').filter(p => p.trim().length > 0);
     if (parts.length >= 2) {
       const schemaName = parts.length === 3 ? parts[1] : parts[0];
       if (!schemaName || !schemaName.trim()) {
-        throw new Error(`Invalid view name format: ${viewName}. Schema name cannot be empty.`);
+        throw new Error(`Invalid view name format: ${referenceName}. Schema name cannot be empty.`);
       }
       const createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${escapeRedshiftIdentifier(schemaName)}`;
 
@@ -51,6 +57,8 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
     const { statementId } = await adapter.executeQuery(createViewQuery);
 
     await adapter.waitForQueryToComplete(statementId);
-    return { fullyQualifiedName };
+    return {
+      fullyQualifiedName: options?.requireFullyQualifiedName ? referenceName : fullyQualifiedName,
+    };
   }
 }
