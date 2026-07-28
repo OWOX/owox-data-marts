@@ -45,6 +45,9 @@ export function buildProjectDataMartContextValue(
   } as unknown as DataMart;
 
   const noopPromise = () => Promise.resolve();
+  const noopRunDataMart: DataMartContextType['runDataMart'] = () => Promise.resolve(null);
+  const noopResetManualRunTriggered: DataMartContextType['resetManualRunTriggered'] = () =>
+    undefined;
 
   return {
     dataMart,
@@ -53,6 +56,7 @@ export function buildProjectDataMartContextValue(
     error: null,
     runs: [],
     isManualRunTriggered: false,
+    manualRunId: null,
     hasMoreRunsToLoad: false,
     hasActiveRuns: false,
     getDataMart: noopPromise,
@@ -66,7 +70,7 @@ export function buildProjectDataMartContextValue(
     updateDataMartStorage: () => undefined,
     updateDataMartDefinition: noopPromise,
     publishDataMart: noopPromise,
-    runDataMart: noopPromise,
+    runDataMart: noopRunDataMart,
     cancelDataMartRun: noopPromise,
     actualizeDataMartSchema: noopPromise,
     updateDataMartSchema: noopPromise,
@@ -76,7 +80,7 @@ export function buildProjectDataMartContextValue(
     loadMoreDataMartRuns: () => Promise.resolve([]),
     updateDataMartOwners: noopPromise,
     getErrorMessage: () => null,
-    resetManualRunTriggered: () => undefined,
+    resetManualRunTriggered: noopResetManualRunTriggered,
     reset: () => undefined,
   } as DataMartContextType;
 }

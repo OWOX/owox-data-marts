@@ -146,10 +146,10 @@ export class DataMartService extends ApiService {
    * @param payload Payload for the manual run. If not provided, the data mart will be run with the default payload.
    * The payload is specific to the data mart definition type.
    * For example, for a connector data mart, the payload is the connector configuration fields with unknown structure.
-   * @returns Promise with updated data mart
+   * @returns Promise with the created run id
    */
-  async runDataMart(id: string, payload: Record<string, unknown>): Promise<DataMartResponseDto> {
-    return this.post<DataMartResponseDto>(`/${id}/manual-run`, { payload: payload });
+  async runDataMart(id: string, payload: Record<string, unknown>): Promise<{ runId: string }> {
+    return this.post<{ runId: string }>(`/${id}/manual-run`, { payload });
   }
 
   /**

@@ -208,7 +208,12 @@ export function DataQualityResultCard({
               </Button>
               {isSqlExpanded && (
                 <>
-                  <pre className='bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap'>
+                  <pre
+                    role='region'
+                    aria-label={`SQL for ${title}`}
+                    tabIndex={0}
+                    className='bg-muted focus-visible:ring-ring max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap outline-none focus-visible:ring-2'
+                  >
                     {result.sql}
                   </pre>
                   <div className='flex justify-end'>

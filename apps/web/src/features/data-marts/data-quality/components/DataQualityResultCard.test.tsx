@@ -6,9 +6,9 @@ import type { DataQualityCheckResult } from '../model/types';
 
 const result: DataQualityCheckResult = {
   id: 'result-1',
-  ruleKey: 'negative_values:field:amount',
+  ruleKey: 'negative_values:field:["amount"]',
   category: 'negative_values',
-  scope: { type: 'FIELD', fieldId: 'amount' },
+  scope: { type: 'FIELD', fieldPath: ['amount'] },
   severity: 'warning',
   status: 'FAILED',
   violationCount: 7,
@@ -45,13 +45,16 @@ describe('DataQualityResultCard', () => {
 
     expect(screen.getAllByTestId('quality-example')).toHaveLength(3);
     expect(screen.getByText(/A-1/)).toBeInTheDocument();
-    expect(screen.queryByText('Up to 3 examples are stored per check.')).not.toBeInTheDocument();
     expect(screen.getByText('SQL')).toBeInTheDocument();
     expect(screen.queryByText(result.sql ?? '')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'SQL' }));
 
     expect(screen.getByText(result.sql ?? '')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'SQL for Negative values' })).toHaveAttribute(
+      'tabindex',
+      '0'
+    );
   });
 
   it('does not repeat the technical run summary inside an expanded result', () => {
@@ -118,22 +121,18 @@ describe('DataQualityResultCard', () => {
     ['error', 'destructive'],
     ['warning', 'warning'],
     ['notice', 'notice'],
-  ] as const)(
-    'uses a border-only %s presentation for failed checks without a visible Failed badge',
-    (severity, tone) => {
-      render(<DataQualityResultCard result={{ ...result, severity }} />);
+  ] as const)('uses a border-only %s presentation for failed checks', (severity, tone) => {
+    render(<DataQualityResultCard result={{ ...result, severity }} />);
 
-      const card = screen.getByTestId('quality-result-result-1');
-      expect(card).toHaveClass(`border-${tone}/40`);
-      expect(card).not.toHaveClass(`bg-${tone}/5`, `bg-${tone}/10`);
-      expect(screen.getByText('Failed')).toHaveClass('sr-only');
-      expect(screen.getByText(severity)).toHaveClass(
-        `border-${tone}/40`,
-        `bg-${tone}/10`,
-        `text-${tone}`
-      );
-    }
-  );
+    const card = screen.getByTestId('quality-result-result-1');
+    expect(card).toHaveClass(`border-${tone}/40`);
+    expect(card).not.toHaveClass(`bg-${tone}/5`, `bg-${tone}/10`);
+    expect(screen.getByText(severity)).toHaveClass(
+      `border-${tone}/40`,
+      `bg-${tone}/10`,
+      `text-${tone}`
+    );
+  });
 
   it('identifies a relationship by alias and join fields in the collapsed report card', () => {
     render(

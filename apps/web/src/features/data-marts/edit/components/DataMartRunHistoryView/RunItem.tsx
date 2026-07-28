@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { Box, ChevronDown } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { Box, ChevronDown, Download } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
 import { UserReference } from '../../../../../shared/components/UserReference';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
@@ -16,12 +17,17 @@ import {
   parseLogEntry,
   getStartedAtDisplay,
   getTooltipContent,
+  downloadLogs,
 } from './utils';
 import { getTriggerTypeIcon } from './icons';
 import { useClipboard } from '../../../../../hooks/useClipboard';
 import { TypeIcon } from './TypeIcon';
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { DataMartRunType } from '../../../shared';
+import { DataQualityRunHistoryDetails } from './DataQualityRunHistoryDetails';
+import { canCancelDataMartRun } from './cancellable-runs';
+import { CancelRunButton } from './CancelRunButton';
 
 interface RunItemProps {
   run: DataMartRunItem;
@@ -55,6 +61,8 @@ export function RunItem({
   dataMartRef,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
+  const { projectId = '' } = useParams<{ projectId: string }>();
+  const isDataQualityRun = run.type === DataMartRunType.DATA_QUALITY;
 
   const filteredLogs = useMemo(() => {
     if (run.logs.length === 0 && run.errors.length === 0) return [];
@@ -65,6 +73,7 @@ export function RunItem({
     );
 
     const allParsedLogs = [...parsedLogs, ...parsedErrors];
+    if (isDataQualityRun) return allParsedLogs;
 
     return allParsedLogs.filter(log => {
       const displayType = getDisplayType(log);
@@ -75,7 +84,7 @@ export function RunItem({
 
       return matchesSearch;
     });
-  }, [run.logs, run.errors, searchTerm]);
+  }, [isDataQualityRun, run.logs, run.errors, searchTerm]);
 
   const renderLogsContent = useCallback(() => {
     if (logViewType === LogViewType.STRUCTURED) {
@@ -190,7 +199,7 @@ export function RunItem({
         </div>
 
         <div className='flex shrink-0 items-center gap-2'>
-          <StatusBadge status={run.status} />
+          <StatusBadge status={run.status} qualitySummary={run.qualitySummary} />
           <ChevronDown
             className={`text-muted-foreground h-4 w-4 transition-transform ${
               isExpanded ? 'rotate-180' : ''
@@ -215,17 +224,66 @@ export function RunItem({
             />
           </div>
 
-          <LogControls
-            logViewType={logViewType}
-            setLogViewType={setLogViewType}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            run={run}
-            cancelDataMartRun={cancelDataMartRun}
-            dataMartId={dataMartId}
-          />
+          {isDataQualityRun && dataMartId ? (
+            <>
+              {canCancelDataMartRun(run.type, run.status) && (
+                <div className='flex justify-end'>
+                  <CancelRunButton
+                    runId={run.id}
+                    dataMartId={dataMartId}
+                    cancelDataMartRun={cancelDataMartRun}
+                    variant='destructive'
+                    className='flex items-center gap-2'
+                    iconClassName='h-4 w-4'
+                    labelClassName='inline'
+                    isDataQuality
+                  />
+                </div>
+              )}
+              <DataQualityRunHistoryDetails
+                projectId={projectId}
+                dataMartId={dataMartId}
+                runId={run.id}
+              />
+              {filteredLogs.length > 0 && (
+                <section className='space-y-3' aria-labelledby={`run-diagnostics-${run.id}`}>
+                  <div className='flex items-center justify-between gap-3'>
+                    <h3 id={`run-diagnostics-${run.id}`} className='font-medium'>
+                      Run diagnostics
+                    </h3>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      aria-label='Download diagnostics JSON'
+                      onClick={event => {
+                        event.stopPropagation();
+                        downloadLogs(run);
+                      }}
+                    >
+                      <Download className='size-4' aria-hidden='true' />
+                      JSON
+                    </Button>
+                  </div>
+                  <StructuredLogsView logs={filteredLogs} />
+                </section>
+              )}
+            </>
+          ) : (
+            <>
+              <LogControls
+                logViewType={logViewType}
+                setLogViewType={setLogViewType}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                run={run}
+                cancelDataMartRun={cancelDataMartRun}
+                dataMartId={dataMartId}
+              />
 
-          {renderLogsContent()}
+              {renderLogsContent()}
+            </>
+          )}
         </div>
       )}
     </div>
