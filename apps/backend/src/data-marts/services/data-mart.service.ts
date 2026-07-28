@@ -1,9 +1,10 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
+import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -89,6 +90,7 @@ export class DataMartService {
         'dm.modifiedAt',
         'dm.availableForReporting',
         'dm.availableForMaintenance',
+        'dm.dataLastUpdated',
         'storage.type',
         'storage.title',
         'businessOwners.userId',
@@ -210,7 +212,14 @@ export class DataMartService {
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.buildCanvasVisibleDataMartsQuery(projectId, storageId, options)
-      .select(['dm.id', 'dm.title', 'dm.status', 'dm.description', 'dm.schema'])
+      .select([
+        'dm.id',
+        'dm.title',
+        'dm.status',
+        'dm.description',
+        'dm.schema',
+        'dm.dataLastUpdated',
+      ])
       .orderBy('dm.title', 'ASC')
       .addOrderBy('dm.id', 'ASC')
       .take(options?.limit)
@@ -243,6 +252,37 @@ export class DataMartService {
 
   async findByStorage(storage: DataStorage): Promise<DataMart[]> {
     return this.dataMartRepository.find({ where: { storage: { id: storage.id } } });
+  }
+
+  /**
+   * Loads several Data Marts with only what a source-metadata lookup needs: the definition and
+   * the storage (plus its credential). Deliberately narrower than {@link getByIdAndProjectId},
+   * which also drags in connector state, schema, owners and contexts — a sweep over a whole
+   * canvas would hydrate all of that per Data Mart for fields it never reads.
+   */
+  async findByIdsAndProjectId(ids: string[], projectId: string): Promise<DataMart[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    return this.dataMartRepository.find({
+      where: { id: In(ids), projectId },
+      relations: ['storage', 'storage.credential'],
+      select: {
+        id: true,
+        definitionType: true,
+        definition: true,
+        dataLastUpdated: true,
+      },
+    });
+  }
+
+  /**
+   * Persists the last-known `Data Last Updated` snapshot. A targeted column update, not a full
+   * entity save: the refresh may race with someone editing the Data Mart, and this write must
+   * never clobber their definition or schema.
+   */
+  async updateDataLastUpdated(id: string, block: SourceDataLastUpdated): Promise<void> {
+    await this.dataMartRepository.update({ id }, { dataLastUpdated: block });
   }
 
   async findIdsByStorage(storage: DataStorage, withDeleted = false): Promise<string[]> {

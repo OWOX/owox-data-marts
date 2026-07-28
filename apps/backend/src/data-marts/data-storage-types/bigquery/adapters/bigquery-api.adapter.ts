@@ -4,6 +4,14 @@ import { JWT, OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
+import {
+  isValidBigQueryDatasetId,
+  isValidBigQueryProjectId,
+} from '../utils/bigquery-validation.utils';
+import {
+  GBQ_SHARD_SUFFIX_MAX_DIGITS,
+  GBQ_SHARD_SUFFIX_MIN_DIGITS,
+} from '../services/bigquery-sharded-tables.util';
 
 /** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
 export interface BigQueryTableReference {
@@ -11,11 +19,6 @@ export interface BigQueryTableReference {
   datasetId: string;
   tableId: string;
 }
-
-// Project ids allow dashes; dataset ids do not. Both are interpolated into `__TABLES__` queries,
-// where BigQuery offers no parameter form for identifiers — validate rather than trust.
-const BIGQUERY_PROJECT_ID_RE = /^[a-zA-Z0-9-_.:]+$/;
-const BIGQUERY_DATASET_ID_RE = /^[a-zA-Z0-9_]+$/;
 
 /** BigQuery reports epoch-millis timestamps as strings; absent/garbage values become `null`. */
 function toDateOrNull(value: unknown): Date | null {
@@ -272,6 +275,13 @@ export class BigQueryApiAdapter {
    * shard. The scan covers dataset metadata only, so it stays inside BigQuery's minimum
    * billing increment however many shards the set holds.
    *
+   * Only genuine shards count. Matching the prefix alone would let neighbours that merely share
+   * it — `events_backup`, `events_staging` — set the maximum and overstate how recent the shard
+   * set is, which is exactly the misleading answer this metadata exists to avoid. The suffix
+   * test therefore mirrors {@link GBQ_SHARDED_TABLE_SUFFIX_RE}: the remainder after the prefix
+   * must be nothing but a shard-length digit run. It is applied to `SUBSTR` of the remainder so
+   * the prefix stays a bound parameter and never has to be escaped into a regex.
+   *
    * Uses `bigQuery.query()` deliberately: the result is a single row, so the buffering that
    * makes `query()` unsafe for report reads is irrelevant here.
    */
@@ -280,18 +290,25 @@ export class BigQueryApiAdapter {
     datasetId: string,
     tablePrefix: string
   ): Promise<Date | null> {
-    if (!BIGQUERY_PROJECT_ID_RE.test(projectId) || !BIGQUERY_DATASET_ID_RE.test(datasetId)) {
+    if (!isValidBigQueryProjectId(projectId) || !isValidBigQueryDatasetId(datasetId)) {
       throw new Error(`Unsafe BigQuery identifier in ${projectId}.${datasetId}`);
     }
 
     // `_` and `%` are LIKE wildcards and shard prefixes routinely end in `_`; escape them so
     // `events_` cannot also match `eventsXlog_20240101`.
     const likePattern = `${tablePrefix.replace(/([\\%_])/g, '\\$1')}%`;
+    const shardSuffixPattern = `^[0-9]{${GBQ_SHARD_SUFFIX_MIN_DIGITS},${GBQ_SHARD_SUFFIX_MAX_DIGITS}}$`;
     const [rows] = await this.bigQuery.query({
       query: `SELECT MAX(last_modified_time) AS last_modified_time
               FROM \`${projectId}.${datasetId}.__TABLES__\`
-              WHERE table_id LIKE @tablePrefix`,
-      params: { tablePrefix: likePattern },
+              WHERE table_id LIKE @tablePrefix
+                AND REGEXP_CONTAINS(SUBSTR(table_id, @shardSuffixStart), @shardSuffixPattern)`,
+      params: {
+        tablePrefix: likePattern,
+        // SUBSTR is 1-indexed, so the character after the prefix is at prefixLength + 1.
+        shardSuffixStart: tablePrefix.length + 1,
+        shardSuffixPattern,
+      },
       parameterMode: 'NAMED',
       ...this.getLocationOption(),
     });

@@ -6,6 +6,7 @@ import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 import type { DataMartSchema } from '../../data-mart-schema.types';
 import type { ConnectorStateResponseDto } from './connector-state.response.dto';
 import type { BlendedFieldsConfig } from '../../relationship.types';
+import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
 
 /**
  * Data mart response data transfer object
@@ -31,4 +32,5 @@ export interface DataMartResponseDto {
   availableForMaintenance?: boolean;
   blendedFieldsConfig?: BlendedFieldsConfig | null;
   contexts?: { id: string; name: string }[];
+  dataLastUpdated?: DataLastUpdatedDto | null;
 }

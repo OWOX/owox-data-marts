@@ -74,6 +74,7 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 3,
+            dataLastUpdated: null,
           },
           {
             id: 'customers',
@@ -81,6 +82,7 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 2,
+            dataLastUpdated: null,
           },
         ]}
         edges={[]}
@@ -117,6 +119,7 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 3,
+            dataLastUpdated: null,
           },
           {
             id: 'customers',
@@ -124,6 +127,7 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 2,
+            dataLastUpdated: null,
           },
         ]}
         edges={[]}

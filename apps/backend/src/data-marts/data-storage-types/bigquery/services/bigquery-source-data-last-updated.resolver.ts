@@ -2,16 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   SourceDataLastUpdated,
   SourceDataLastUpdatedEntry,
+  unavailableSourceDataLastUpdated,
 } from '../../../dto/schemas/source-data-last-updated.schema';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
-  ResolveSourceDataLastUpdatedInput,
+  ResolveSourceDataLastUpdatedBatchInput,
+  ResolveSourceDataLastUpdatedItem,
   SourceDataLastUpdatedResolver,
 } from '../../interfaces/source-data-last-updated-resolver.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryApiAdapter, BigQueryTableReference } from '../adapters/bigquery-api.adapter';
-import { GBQ_SHARDED_TABLE_SUFFIX_RE } from './bigquery-sharded-tables.util';
+import {
+  GBQ_MIN_SHARDS_FOR_WILDCARD,
+  GBQ_SHARDED_TABLE_SUFFIX_RE,
+} from './bigquery-sharded-tables.util';
 
 /**
  * BigQuery is the only warehouse that answers this question for free and completely: a dry run
@@ -39,26 +44,60 @@ export class BigQuerySourceDataLastUpdatedResolver implements SourceDataLastUpda
    */
   private static readonly REFERENCED_TABLES_CAP = 50;
 
+  /**
+   * How many metadata lookups may be in flight at once. Small enough that several concurrent
+   * resolutions stay well under BigQuery's per-user API rate limit; large enough that a 50-table
+   * query still finishes in a few round trips, hidden behind the query it accompanies.
+   */
+  private static readonly METADATA_CONCURRENCY = 10;
+
   /** Table kinds whose `lastModifiedTime` reflects a change to the DATA rather than the schema. */
   private static readonly DATA_BEARING_TYPES = new Set(['TABLE', 'MATERIALIZED_VIEW', 'SNAPSHOT']);
 
   constructor(private readonly adapterFactory: BigQueryApiAdapterFactory) {}
 
-  async resolveForSql(input: ResolveSourceDataLastUpdatedInput): Promise<SourceDataLastUpdated> {
-    const computedAt = new Date().toISOString();
-    const { storage, sql, params } = input;
+  async resolveForSqlBatch(
+    input: ResolveSourceDataLastUpdatedBatchInput
+  ): Promise<Map<string, SourceDataLastUpdated>> {
+    const { storage, items, signal } = input;
+    const results = new Map<string, SourceDataLastUpdated>();
 
-    if (!isBigQueryConfig(storage.config)) {
-      return unavailable(computedAt);
+    if (!isBigQueryConfig(storage.config) || items.length === 0 || signal?.aborted) {
+      return results;
     }
 
+    // Built once for the whole batch: credential resolution and client setup are per-storage
+    // costs, and a canvas-wide sweep over one storage should pay them once, not per Data Mart.
     const adapter = await this.adapterFactory.createFromStorage(storage, storage.config);
+
+    for (const item of items) {
+      if (signal?.aborted) {
+        // Whatever resolved so far is still useful; the caller treats missing keys as
+        // "no new information" rather than as a reset.
+        break;
+      }
+      results.set(item.key, await this.resolveOne(adapter, item, signal));
+    }
+
+    return results;
+  }
+
+  private async resolveOne(
+    adapter: BigQueryApiAdapter,
+    item: ResolveSourceDataLastUpdatedItem,
+    signal?: AbortSignal
+  ): Promise<SourceDataLastUpdated> {
+    const computedAt = new Date().toISOString();
+    const { sql, params } = item;
+
     const { referencedTables } = await adapter.executeDryRunQuery(sql, params);
 
-    if (referencedTables.length === 0) {
+    // The caller gave up while the dry run was in flight (soft deadline, cancelled run). Stop
+    // before the metadata fan-out rather than paying ~50 more calls for an answer nobody reads.
+    if (referencedTables.length === 0 || signal?.aborted) {
       // Either the query reads no table at all (a constant SELECT) or BigQuery withheld the
       // list. Both are "we cannot say", which is what unavailable means.
-      return unavailable(computedAt);
+      return unavailableSourceDataLastUpdated(computedAt);
     }
 
     const truncatedByCap =
@@ -66,26 +105,14 @@ export class BigQuerySourceDataLastUpdatedResolver implements SourceDataLastUpda
 
     const { singles, shardGroups } = this.groupShardedTables(referencedTables);
 
-    const settled = await Promise.allSettled([
-      ...singles.map(table => this.resolveSingleTable(adapter, table)),
-      ...shardGroups.map(group => this.resolveShardGroup(adapter, group)),
-    ]);
+    const lookups: (() => Promise<SourceDataLastUpdatedEntry | null>)[] = [
+      ...singles.map(table => () => this.resolveSingleTable(adapter, table)),
+      ...shardGroups.map(group => () => this.resolveShardGroup(adapter, group)),
+    ];
 
-    const sources: SourceDataLastUpdatedEntry[] = [];
-    let anyFailed = false;
-    for (const outcome of settled) {
-      if (outcome.status === 'fulfilled') {
-        // A dropped VIEW yields no entry at all.
-        if (outcome.value) {
-          sources.push(outcome.value);
-        }
-      } else {
-        // One unreadable table must not sink the whole answer — the rest still narrows it down.
-        anyFailed = true;
-        this.logger.warn(
-          `Failed to read BigQuery table metadata for data last updated: ${errorText(outcome.reason)}`
-        );
-      }
+    const { sources, anyFailed, abandoned } = await this.runLookups(lookups, signal);
+    if (abandoned) {
+      return unavailableSourceDataLastUpdated(computedAt);
     }
 
     if (sources.length === 0) {
@@ -96,7 +123,7 @@ export class BigQuerySourceDataLastUpdatedResolver implements SourceDataLastUpda
       this.logger.debug(
         `All ${referencedTables.length} referenced table(s) resolved to views; reporting data last updated as unavailable.`
       );
-      return unavailable(computedAt);
+      return unavailableSourceDataLastUpdated(computedAt);
     }
 
     const resolvedTimes = sources
@@ -117,6 +144,54 @@ export class BigQuerySourceDataLastUpdatedResolver implements SourceDataLastUpda
       coverage: isPartial ? 'partial' : 'complete',
       sources,
     };
+  }
+
+  /**
+   * Runs the per-source metadata lookups in bounded batches.
+   *
+   * A single query can reference the 50-table cap, and several of these resolutions can be in
+   * flight at once (a canvas sweep, concurrent MCP queries), so an unbounded fan-out stacks into
+   * hundreds of simultaneous calls against one project. Past BigQuery's per-user API rate limit
+   * the surplus comes back as errors that this resolver counts as failures — the uncapped burst
+   * would therefore also degrade the answer it was trying to produce.
+   */
+  private async runLookups(
+    lookups: (() => Promise<SourceDataLastUpdatedEntry | null>)[],
+    signal?: AbortSignal
+  ): Promise<{ sources: SourceDataLastUpdatedEntry[]; anyFailed: boolean; abandoned: boolean }> {
+    const sources: SourceDataLastUpdatedEntry[] = [];
+    let anyFailed = false;
+
+    for (
+      let start = 0;
+      start < lookups.length;
+      start += BigQuerySourceDataLastUpdatedResolver.METADATA_CONCURRENCY
+    ) {
+      if (signal?.aborted) {
+        return { sources, anyFailed, abandoned: true };
+      }
+      const batch = lookups.slice(
+        start,
+        start + BigQuerySourceDataLastUpdatedResolver.METADATA_CONCURRENCY
+      );
+      const settled = await Promise.allSettled(batch.map(run => run()));
+      for (const outcome of settled) {
+        if (outcome.status === 'fulfilled') {
+          // A dropped VIEW yields no entry at all.
+          if (outcome.value) {
+            sources.push(outcome.value);
+          }
+        } else {
+          // One unreadable table must not sink the whole answer — the rest still narrows it down.
+          anyFailed = true;
+          this.logger.warn(
+            `Failed to read BigQuery table metadata for data last updated: ${errorText(outcome.reason)}`
+          );
+        }
+      }
+    }
+
+    return { sources, anyFailed, abandoned: false };
   }
 
   /**
@@ -155,7 +230,9 @@ export class BigQuerySourceDataLastUpdatedResolver implements SourceDataLastUpda
     const singles: BigQueryTableReference[] = [];
     for (const [key, grouped] of candidates) {
       const first = grouped[0];
-      const isShardSet = grouped.length >= 2 && GBQ_SHARDED_TABLE_SUFFIX_RE.test(first.tableId);
+      const isShardSet =
+        grouped.length >= GBQ_MIN_SHARDS_FOR_WILDCARD &&
+        GBQ_SHARDED_TABLE_SUFFIX_RE.test(first.tableId);
       if (!isShardSet) {
         singles.push(...grouped);
         continue;
@@ -247,10 +324,6 @@ function addTo<T>(map: Map<string, T[]>, key: string, value: T): void {
   } else {
     map.set(key, [value]);
   }
-}
-
-function unavailable(computedAt: string): SourceDataLastUpdated {
-  return { dataLastUpdatedAt: null, computedAt, coverage: 'unavailable', sources: [] };
 }
 
 function errorText(error: unknown): string {

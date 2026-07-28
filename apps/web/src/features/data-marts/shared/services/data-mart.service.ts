@@ -14,6 +14,7 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
   BatchDataMartHealthStatusResponseDto,
+  BatchDataLastUpdatedResponseDto,
   DataMartAiHelperAvailabilityResponseDto,
   CreateAiHelperTriggerRequestDto,
   AiHelperTriggerResponseDto,
@@ -161,6 +162,28 @@ export class DataMartService extends ApiService {
   async cancelDataMartRun(id: string, runId: string): Promise<void> {
     await this.post(`/${id}/runs/${runId}/cancel`, undefined, {
       skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  /**
+   * Refresh the Data Last Updated snapshot for one or more data marts.
+   *
+   * One call measures the whole set, so ids sharing a storage pay for that storage's warehouse
+   * client once. Ids absent from the response could not be measured — keep their previous value
+   * rather than clearing it.
+   * @param ids Data mart IDs to measure
+   * @returns Promise with the freshly measured blocks
+   */
+  async refreshDataLastUpdated(
+    ids: string[],
+    config?: AxiosRequestConfig
+  ): Promise<BatchDataLastUpdatedResponseDto> {
+    return this.post<BatchDataLastUpdatedResponseDto>('/data-last-updated/refresh', { ids }, {
+      // The backend measures a whole sweep in one call and soft-caps it at two minutes;
+      // leave transport headroom above that.
+      timeout: 150000,
+      skipLoadingIndicator: true,
+      ...config,
     } as AxiosRequestConfig);
   }
 

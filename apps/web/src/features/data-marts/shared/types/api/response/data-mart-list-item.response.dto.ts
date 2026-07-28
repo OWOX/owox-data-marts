@@ -1,6 +1,7 @@
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { DataMartDefinitionType, DataMartStatus } from '../../../enums';
 import type { DataMartListItemStorageDto } from './data-mart-list-item-storage.dto';
+import type { DataLastUpdatedDto } from './data-mart-data-last-updated.dto';
 
 /**
  * Lightweight data mart response DTO for list endpoint
@@ -22,4 +23,5 @@ export interface DataMartListItemResponseDto {
   contexts?: { id: string; name: string }[];
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
+  dataLastUpdated?: DataLastUpdatedDto | null;
 }

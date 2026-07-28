@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
+import { DataMartDataLastUpdatedSummaryApiDto } from './data-mart-data-last-updated-response-api.dto';
 
 export class ModelCanvasNodeApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -16,6 +17,14 @@ export class ModelCanvasNodeApiDto {
 
   @ApiProperty({ example: 12, description: 'Number of fields in the output schema' })
   fieldCount: number;
+
+  @ApiProperty({
+    type: DataMartDataLastUpdatedSummaryApiDto,
+    nullable: true,
+    description:
+      'Last-known Data Last Updated snapshot, without per-table detail. Null when never computed.',
+  })
+  dataLastUpdated: DataMartDataLastUpdatedSummaryApiDto | null;
 }
 
 export class ModelCanvasJoinConditionApiDto {

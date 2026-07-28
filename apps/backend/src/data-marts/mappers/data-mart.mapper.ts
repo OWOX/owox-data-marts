@@ -10,6 +10,7 @@ import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mar
 import { BatchDataMartHealthStatusItemDto } from '../dto/domain/batch-data-mart-health-status-item.dto';
 import { BatchDataMartHealthStatusResponseDto } from '../dto/domain/batch-data-mart-health-status-response.dto';
 import { BatchDataMartHealthStatusCommand } from '../dto/domain/batch-data-mart-health-status.command';
+import { RefreshDataMartDataLastUpdatedCommand } from '../dto/domain/refresh-data-mart-data-last-updated.command';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
 import { DataMartListItemDto } from '../dto/domain/data-mart-list-item.dto';
@@ -66,6 +67,12 @@ import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
+import {
+  SourceDataLastUpdated,
+  toSourceDataLastUpdatedSummary,
+} from '../dto/schemas/source-data-last-updated.schema';
+import { BatchDataMartDataLastUpdatedResponseApiDto } from '../dto/presentation/data-mart-data-last-updated-response-api.dto';
+import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
 
@@ -119,7 +126,8 @@ export class DataMartMapper {
       entity.availableForReporting ?? true,
       entity.availableForMaintenance ?? true,
       entity.blendedFieldsConfig,
-      extractContextSummaries(entity.contexts)
+      extractContextSummaries(entity.contexts),
+      entity.dataLastUpdated ?? null
     );
   }
 
@@ -160,6 +168,7 @@ export class DataMartMapper {
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
       contexts: dto.contexts,
+      dataLastUpdated: dto.dataLastUpdated,
     };
   }
 
@@ -168,6 +177,29 @@ export class DataMartMapper {
     dto: BatchDataMartHealthStatusRequestApiDto
   ): BatchDataMartHealthStatusCommand {
     return new BatchDataMartHealthStatusCommand(context.projectId, dto.ids);
+  }
+
+  toRefreshDataLastUpdatedCommand(
+    dto: RefreshDataMartDataLastUpdatedRequestApiDto,
+    context: AuthorizationContext
+  ): RefreshDataMartDataLastUpdatedCommand {
+    return new RefreshDataMartDataLastUpdatedCommand(
+      dto.ids,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toBatchDataLastUpdatedResponse(
+    results: Map<string, SourceDataLastUpdated>
+  ): BatchDataMartDataLastUpdatedResponseApiDto {
+    return {
+      items: Array.from(results, ([dataMartId, dataLastUpdated]) => ({
+        dataMartId,
+        dataLastUpdated,
+      })),
+    };
   }
 
   toBatchHealthStatusDomainResponse(
@@ -300,7 +332,8 @@ export class DataMartMapper {
       technicalOwnerUsers,
       extractContextSummaries(entity.contexts),
       entity.availableForReporting,
-      entity.availableForMaintenance
+      entity.availableForMaintenance,
+      toSourceDataLastUpdatedSummary(entity.dataLastUpdated)
     );
   }
 
@@ -326,6 +359,7 @@ export class DataMartMapper {
       contexts: dto.contexts,
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
+      dataLastUpdated: dto.dataLastUpdated,
     };
   }
 

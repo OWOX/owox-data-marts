@@ -16,6 +16,7 @@ import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
 import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
 import { Check } from 'lucide-react';
+import { DataLastUpdatedValue } from '../../../../shared/components/DataLastUpdatedValue';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -155,6 +156,26 @@ export const getDataMartColumns = ({
 
       return <div className='text-muted-foreground'>{formatted}</div>;
     },
+  },
+  {
+    id: DataMartColumnKey.DATA_LAST_UPDATED,
+    // ISO-8601 strings sort lexicographically in chronological order; never-computed rows
+    // yield '' so they group together at one end instead of interleaving.
+    accessorFn: row => row.dataLastUpdated?.dataLastUpdatedAt ?? '',
+    size: 160,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.DATA_LAST_UPDATED],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.DATA_LAST_UPDATED]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => (
+      <div className='text-muted-foreground'>
+        <DataLastUpdatedValue block={row.original.dataLastUpdated} compact />
+      </div>
+    ),
   },
   {
     id: DataMartColumnKey.CREATED_BY_USER,

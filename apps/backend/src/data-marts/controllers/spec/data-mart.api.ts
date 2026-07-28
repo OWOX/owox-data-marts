@@ -29,6 +29,8 @@ import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-r
 import { UpdateDataMartAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { UpdateEntityContextsRequestApiDto } from '../../dto/presentation/context-api.dto';
 import { DATA_MARTS_PAGE_SIZE } from '../../use-cases/list-data-marts.service';
+import { BatchDataMartDataLastUpdatedResponseApiDto } from '../../dto/presentation/data-mart-data-last-updated-response-api.dto';
+import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -58,6 +60,18 @@ export function GetDataMartSpec() {
     ApiOperation({ summary: 'Get a DataMart by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiResponse({ status: 200, type: DataMartResponseApiDto })
+  );
+}
+
+export function RefreshDataMartDataLastUpdatedSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Refresh the Data Last Updated snapshot for one or more DataMarts',
+      description:
+        'Measures live, against the warehouse, when the source tables behind each DataMart last changed, and persists what resolves as the last-known value. Ids sharing a storage are measured together, so that storage’s client is built once. Free of consumption; best effort — ids that could not be measured are simply absent from the response and keep their previous value.',
+    }),
+    ApiBody({ type: RefreshDataMartDataLastUpdatedRequestApiDto }),
+    ApiOkResponse({ type: BatchDataMartDataLastUpdatedResponseApiDto })
   );
 }
 

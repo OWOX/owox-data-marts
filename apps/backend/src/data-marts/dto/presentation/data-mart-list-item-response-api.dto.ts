@@ -4,6 +4,7 @@ import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { DataMartListItemStorageApiDto } from './data-mart-list-item-storage-api.dto';
 import { DataMartListItemContextApiDto } from './data-mart-list-item-context-api.dto';
+import { DataMartDataLastUpdatedSummaryApiDto } from './data-mart-data-last-updated-response-api.dto';
 
 export class DataMartListItemResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -61,4 +62,12 @@ export class DataMartListItemResponseApiDto {
 
   @ApiProperty({ example: true })
   availableForMaintenance: boolean;
+
+  @ApiProperty({
+    type: DataMartDataLastUpdatedSummaryApiDto,
+    nullable: true,
+    description:
+      'Last-known Data Last Updated snapshot, without per-table detail. Null when never computed.',
+  })
+  dataLastUpdated: DataMartDataLastUpdatedSummaryApiDto | null;
 }

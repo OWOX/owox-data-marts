@@ -9,6 +9,7 @@ const node = (id: string, status: DataMartStatus = DataMartStatus.PUBLISHED) => 
   status,
   description: null,
   fieldCount: 0,
+  dataLastUpdated: null,
 });
 
 const edge = (id: string, sourceDataMartId: string, targetDataMartId: string) => ({

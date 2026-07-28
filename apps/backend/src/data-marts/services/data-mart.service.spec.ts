@@ -145,6 +145,59 @@ describe('DataMartService list filtering', () => {
       queryBuilder.take.mock.invocationCallOrder[0]
     );
   });
+
+  it('selects dataLastUpdated so the list column has a value to render', async () => {
+    const countQueryBuilder = {
+      take: jest.fn(),
+      skip: jest.fn(),
+      getCount: jest.fn().mockResolvedValue(0),
+    };
+    countQueryBuilder.take.mockReturnValue(countQueryBuilder);
+    countQueryBuilder.skip.mockReturnValue(countQueryBuilder);
+
+    const queryBuilder = {
+      leftJoin: jest.fn(),
+      leftJoinAndSelect: jest.fn(),
+      select: jest.fn(),
+      addSelect: jest.fn(),
+      setParameter: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      addOrderBy: jest.fn(),
+      take: jest.fn(),
+      skip: jest.fn(),
+      clone: jest.fn(),
+      getRawAndEntities: jest.fn().mockResolvedValue({ raw: [], entities: [] }),
+    };
+    for (const method of [
+      'leftJoin',
+      'leftJoinAndSelect',
+      'select',
+      'addSelect',
+      'setParameter',
+      'where',
+      'andWhere',
+      'orderBy',
+      'addOrderBy',
+      'take',
+      'skip',
+    ] as const) {
+      queryBuilder[method].mockReturnValue(queryBuilder);
+    }
+    queryBuilder.clone.mockReturnValue(countQueryBuilder);
+
+    const repository = { createQueryBuilder: jest.fn().mockReturnValue(queryBuilder) };
+    const service = new DataMartService(repository as never, null as never, null as never);
+
+    await service.findByProjectIdForList('project-1', { roles: ['admin'] });
+
+    // The projection is explicit, so an unlisted column loads as undefined and the whole list
+    // column silently renders "Unknown" however many snapshots are persisted.
+    expect(queryBuilder.select).toHaveBeenCalledWith(
+      expect.arrayContaining(['dm.dataLastUpdated'])
+    );
+  });
 });
 
 const canvasDataMartSchema = new EntitySchema<DataMart>({
@@ -160,6 +213,7 @@ const canvasDataMartSchema = new EntitySchema<DataMart>({
     description: { type: String, nullable: true },
     availableForReporting: { type: Boolean, default: false },
     availableForMaintenance: { type: Boolean, default: false },
+    dataLastUpdated: { type: 'simple-json', nullable: true },
     deletedAt: { type: Date, nullable: true, deleteDate: true },
   },
 });
@@ -200,6 +254,20 @@ describe('DataMartService canvas visibility queries', () => {
 
     expect(result.total).toBe(2);
     expect(result.items.map(item => item.id)).toEqual(['shared-context']);
+  });
+
+  it('loads the persisted dataLastUpdated so canvas badges are not blank on open', async () => {
+    const result = await service.findByProjectIdAndStorageIdForCanvas('project-1', 'storage-1', {
+      roles: ['admin'],
+    });
+
+    // The canvas projection is explicit; an unlisted column loads as undefined and every badge
+    // silently reads "Unknown" no matter how many snapshots are persisted.
+    const beta = result.items.find(item => item.id === 'shared-context');
+    expect(beta?.dataLastUpdated).toMatchObject({
+      dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+      coverage: 'complete',
+    });
   });
 
   it('gives editors maintenance visibility while admins bypass the ownership/share gate', async () => {
@@ -260,7 +328,15 @@ async function seedCanvasDataMarts(
 ): Promise<void> {
   const rows = [
     canvasRow('owned', 'Alpha'),
-    canvasRow('shared-context', 'Beta', { availableForReporting: true }),
+    canvasRow('shared-context', 'Beta', {
+      availableForReporting: true,
+      dataLastUpdated: {
+        dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+        computedAt: '2026-07-28T00:00:00.000Z',
+        coverage: 'complete',
+        sources: [],
+      } as unknown as DataMart['dataLastUpdated'],
+    }),
     canvasRow('maintenance-context', 'Delta', { availableForMaintenance: true }),
     canvasRow('shared-other-context', 'Gamma', { availableForReporting: true }),
     canvasRow('deleted', 'Deleted', { availableForReporting: true, deletedAt: new Date() }),

@@ -151,6 +151,7 @@ describe('DataMartController list OpenAPI', () => {
       'contexts',
       'availableForReporting',
       'availableForMaintenance',
+      'dataLastUpdated',
     ]);
     expect(itemSchema.required).not.toContain('definitionType');
     expect(itemSchema.required).not.toContain('connectorSourceName');

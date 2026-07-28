@@ -110,6 +110,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       isDraft: node.status === DataMartStatus.DRAFT,
       fieldCount: node.fieldCount,
       description: node.description,
+      dataLastUpdated: node.dataLastUpdated,
       hasIncoming: params.hasIncoming,
       hasOutgoing: params.hasOutgoing,
       highlighted: highlight.highlighted,

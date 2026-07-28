@@ -15,6 +15,7 @@ function renderNode(onOpenExternal = vi.fn()) {
     data: {
       title: 'Orders',
       isDraft: false,
+      dataLastUpdated: null,
       fieldCount: 3,
       description: 'Customer order facts',
       hasIncoming: true,

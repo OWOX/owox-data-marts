@@ -9,6 +9,8 @@ import {
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
+import { DataLastUpdatedValue } from '../../shared/components/DataLastUpdatedValue';
+import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
 
 export const NODE_WIDTH = 240;
 export const NODE_HEIGHT = 74;
@@ -18,6 +20,7 @@ export interface ModelCanvasFlowNodeData {
   isDraft: boolean;
   fieldCount: number;
   description: string | null;
+  dataLastUpdated: DataLastUpdatedDto | null;
   hasIncoming: boolean;
   hasOutgoing: boolean;
   highlighted: boolean;
@@ -137,9 +140,12 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         </div>
       </div>
       <div
-        className='text-muted-foreground flex items-center'
+        className='text-muted-foreground flex items-center gap-2'
         style={{ padding: '6px 14px 8px', fontSize: 11, minWidth: 0 }}
       >
+        <span className='min-w-0 truncate' title='Data Last Updated'>
+          <DataLastUpdatedValue block={data.dataLastUpdated} compact />
+        </span>
         <span className='ml-auto shrink-0'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>

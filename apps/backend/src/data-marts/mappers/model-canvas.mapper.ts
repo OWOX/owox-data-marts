@@ -6,6 +6,7 @@ import { ModelCanvasDataMartsDto, ModelCanvasNodeDto } from '../dto/domain/model
 import { GetModelCanvasDataMartsQueryApiDto } from '../dto/presentation/get-model-canvas-data-marts-query-api.dto';
 import { ModelCanvasDataMartsResponseApiDto } from '../dto/presentation/model-canvas-response-api.dto';
 import { DataMart } from '../entities/data-mart.entity';
+import { toSourceDataLastUpdatedSummary } from '../dto/schemas/source-data-last-updated.schema';
 
 @Injectable()
 export class ModelCanvasMapper {
@@ -38,6 +39,7 @@ export class ModelCanvasMapper {
       status: dataMart.status,
       description: dataMart.description ?? null,
       fieldCount: dataMart.schema?.fields?.length ?? 0,
+      dataLastUpdated: toSourceDataLastUpdatedSummary(dataMart.dataLastUpdated),
     };
   }
 

@@ -25,8 +25,16 @@ describe('BigQuerySourceDataLastUpdatedResolver', () => {
     };
   };
 
-  const run = (adapter: Record<string, jest.Mock>, sql = 'SELECT 1') =>
-    createResolver(adapter).resolver.resolveForSql({ storage, sql });
+  const SINGLE = 'dm-1';
+
+  /** Batch-of-one: the shape every single-lookup caller goes through. */
+  const run = async (adapter: Record<string, jest.Mock>, sql = 'SELECT 1') => {
+    const results = await createResolver(adapter).resolver.resolveForSqlBatch({
+      storage,
+      items: [{ key: SINGLE, sql }],
+    });
+    return results.get(SINGLE)!;
+  };
 
   it('reports the newest modification time across all referenced tables', async () => {
     const result = await run({
@@ -55,7 +63,10 @@ describe('BigQuerySourceDataLastUpdatedResolver', () => {
     });
 
     const params = [{ name: 'p0', value: 'fb' }];
-    await resolver.resolveForSql({ storage, sql: 'SELECT 1 WHERE c = @p0', params });
+    await resolver.resolveForSqlBatch({
+      storage,
+      items: [{ key: SINGLE, sql: 'SELECT 1 WHERE c = @p0', params }],
+    });
 
     expect(executeDryRunQuery).toHaveBeenCalledWith('SELECT 1 WHERE c = @p0', params);
   });

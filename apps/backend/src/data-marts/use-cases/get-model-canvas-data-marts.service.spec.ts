@@ -114,8 +114,16 @@ describe('GetModelCanvasDataMartsService', () => {
         status: DataMartStatus.PUBLISHED,
         description: 'desc',
         fieldCount: 3,
+        dataLastUpdated: null,
       },
-      { id: 'b', title: 'DM b', status: DataMartStatus.DRAFT, description: null, fieldCount: 0 },
+      {
+        id: 'b',
+        title: 'DM b',
+        status: DataMartStatus.DRAFT,
+        description: null,
+        fieldCount: 0,
+        dataLastUpdated: null,
+      },
     ]);
   });
 

@@ -35,3 +35,35 @@ export const SourceDataLastUpdatedSchema = z.object({
 
 export type SourceDataLastUpdatedEntry = z.infer<typeof SourceDataLastUpdatedEntrySchema>;
 export type SourceDataLastUpdated = z.infer<typeof SourceDataLastUpdatedSchema>;
+
+/**
+ * The "we could not determine it" answer, in one place.
+ *
+ * Every producer of this block needs it, and hand-building the literal per call site lets the
+ * shape drift away from the schema it claims to satisfy — which matters because the value is
+ * persisted through a zod transformer that will reject a stale shape.
+ */
+export function unavailableSourceDataLastUpdated(
+  computedAt: string = new Date().toISOString()
+): SourceDataLastUpdated {
+  return { dataLastUpdatedAt: null, computedAt, coverage: 'unavailable', sources: [] };
+}
+
+/**
+ * List-shaped view of the block: everything a row or canvas badge renders, without the
+ * per-table `sources` detail.
+ *
+ * Lists page up to a thousand Data Marts and each block can carry ~50 source entries, so
+ * shipping the full block per row would add megabytes to a single list response for detail no
+ * list surface displays. The full block stays on the single-Data-Mart GET and the refresh
+ * endpoints, where the tooltip actually shows it.
+ */
+export type SourceDataLastUpdatedSummary = Omit<SourceDataLastUpdated, 'sources'>;
+
+export function toSourceDataLastUpdatedSummary(
+  block: SourceDataLastUpdated | null | undefined
+): SourceDataLastUpdatedSummary | null {
+  if (!block) return null;
+  const { dataLastUpdatedAt, computedAt, coverage } = block;
+  return { dataLastUpdatedAt, computedAt, coverage };
+}

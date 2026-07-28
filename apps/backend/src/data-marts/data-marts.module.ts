@@ -318,6 +318,7 @@ import { ListStorageResourcesService } from './use-cases/list-storage-resources.
 import { StorageResourceBrowserFacade } from './data-storage-types/facades/storage-resource-browser.facade';
 import { ListDataDestinationsByTypeService } from './use-cases/list-data-destinations-by-type.service';
 import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
+import { RefreshDataMartDataLastUpdatedService } from './use-cases/refresh-data-mart-data-last-updated.service';
 import { GetStorageOAuthStatusService } from './use-cases/google-oauth/get-storage-oauth-status.service';
 import { GenerateStorageOAuthUrlService } from './use-cases/google-oauth/generate-storage-oauth-url.service';
 import { RevokeStorageOAuthService } from './use-cases/google-oauth/revoke-storage-oauth.service';
@@ -745,6 +746,7 @@ import { GetModelCanvasEdgesService } from './use-cases/get-model-canvas-edges.s
     StorageResourceBrowserFacade,
     ListDataDestinationsByTypeService,
     BatchDataMartHealthStatusService,
+    RefreshDataMartDataLastUpdatedService,
     AgentFlowService,
     AgentFlowAgent,
     AgentFlowPolicySanitizerService,

@@ -15,4 +15,5 @@ export const dataMartColumnLabels: Record<DataMartColumnKey, string> = {
   [DataMartColumnKey.CONTEXTS]: 'Contexts',
   [DataMartColumnKey.AVAILABLE_FOR_REPORTING]: 'Shared for reporting',
   [DataMartColumnKey.AVAILABLE_FOR_MAINTENANCE]: 'Shared for maintenance',
+  [DataMartColumnKey.DATA_LAST_UPDATED]: 'Data Last Updated',
 };

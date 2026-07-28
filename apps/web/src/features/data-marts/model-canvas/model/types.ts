@@ -1,4 +1,5 @@
 import type { DataMartStatus } from '../../shared/enums';
+import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -11,6 +12,7 @@ export interface ModelCanvasNode {
   status: DataMartStatus;
   description: string | null;
   fieldCount: number;
+  dataLastUpdated: DataLastUpdatedDto | null;
 }
 
 export interface ModelCanvasEdge {

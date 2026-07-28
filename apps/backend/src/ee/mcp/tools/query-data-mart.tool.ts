@@ -39,6 +39,7 @@ import { toStructuredToolError } from '../mappers/mcp-error.mapper';
 import { buildDataMartUiPath } from './data-mart-ui-path';
 import { joinPublicOrigin } from './mcp-public-url.util';
 import { buildFieldTypeMatrixSection } from './field-type-matrix';
+import { unavailableSourceDataLastUpdated } from '../../../data-marts/dto/schemas/source-data-last-updated.schema';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -219,12 +220,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         : '';
       // This block is auxiliary metadata: a query that produced rows must still answer even if it
       // is missing, so an absent block degrades to "unavailable" rather than failing the call.
-      const dataLastUpdated = res.dataLastUpdated ?? {
-        dataLastUpdatedAt: null,
-        computedAt: new Date().toISOString(),
-        coverage: 'unavailable' as const,
-        sources: [],
-      };
+      const dataLastUpdated = res.dataLastUpdated ?? unavailableSourceDataLastUpdated();
       // Repeated per response because the failure mode is specific and costly: relaying a source
       // modification time as if it were the recency of the data itself.
       const dataLastUpdatedInstruction = dataLastUpdated.dataLastUpdatedAt

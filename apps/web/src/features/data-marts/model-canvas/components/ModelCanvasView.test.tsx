@@ -46,6 +46,10 @@ vi.mock('../model/use-model-canvas', () => ({
   useModelCanvas: () => viewState.canvasHook,
 }));
 
+vi.mock('../model/use-refresh-data-last-updated', () => ({
+  useRefreshDataLastUpdated: () => ({ refresh: vi.fn(), isRefreshing: false }),
+}));
+
 vi.mock('../model/use-model-canvas-filters', () => ({
   useModelCanvasFilters: () => ({
     storageId: 'storage-1',
@@ -129,6 +133,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 3,
+          dataLastUpdated: null,
         },
         {
           id: 'mart-2',
@@ -136,6 +141,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 2,
+          dataLastUpdated: null,
         },
       ],
       edges: [

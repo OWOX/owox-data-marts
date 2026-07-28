@@ -2,10 +2,16 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { SOURCE_DATA_LAST_UPDATED_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { SourceDataLastUpdatedResolver } from '../data-storage-types/interfaces/source-data-last-updated-resolver.interface';
+import {
+  ResolveSourceDataLastUpdatedItem,
+  SourceDataLastUpdatedResolver,
+} from '../data-storage-types/interfaces/source-data-last-updated-resolver.interface';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { DataStorage } from '../entities/data-storage.entity';
-import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
+import {
+  SourceDataLastUpdated,
+  unavailableSourceDataLastUpdated,
+} from '../dto/schemas/source-data-last-updated.schema';
 
 /**
  * Computes `Data Last Updated` for a run as a SEPARATE, free, best-effort lookup, mirroring how
@@ -47,8 +53,36 @@ export class SourceDataLastUpdatedService {
     signal?: AbortSignal;
     softTimeoutMs?: number;
   }): Promise<SourceDataLastUpdated> {
+    const key = 'single';
+    const results = await this.resolveForSqlBatch({
+      storage: input.storage,
+      items: [{ key, sql: input.sql, params: input.params }],
+      signal: input.signal,
+      softTimeoutMs: input.softTimeoutMs,
+    });
+    return results.get(key) ?? unavailableSourceDataLastUpdated();
+  }
+
+  /**
+   * Resolves many queries that share one storage in a single pass, so the resolver stands up its
+   * warehouse client once for the whole batch.
+   *
+   * Keys absent from the returned map were not resolved (timeout, cancellation, unsupported
+   * storage). Callers must treat a missing key as "no new information" and keep whatever value
+   * they already had — never as an instruction to clear it.
+   */
+  async resolveForSqlBatch(input: {
+    storage: DataStorage;
+    items: ResolveSourceDataLastUpdatedItem[];
+    signal?: AbortSignal;
+    softTimeoutMs?: number;
+  }): Promise<Map<string, SourceDataLastUpdated>> {
     const softTimeoutMs =
       input.softTimeoutMs ?? SourceDataLastUpdatedService.DEFAULT_SOFT_TIMEOUT_MS;
+
+    if (input.items.length === 0) {
+      return new Map();
+    }
 
     const resolver = await this.resolverRegistry
       .tryResolve(input.storage.type)
@@ -58,7 +92,7 @@ export class SourceDataLastUpdatedService {
       this.logger.debug(
         `No Data Last Updated resolver for storage ${input.storage.type}; reporting unavailable.`
       );
-      return this.unavailable();
+      return new Map();
     }
 
     // Own controller so the soft deadline can stop the work, while still following the caller's
@@ -72,21 +106,29 @@ export class SourceDataLastUpdatedService {
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const timedOut = Symbol('timedOut');
-      const deadline = new Promise<typeof timedOut>(resolve => {
+      // On the deadline the timer aborts the controller and resolves to an EMPTY map, which the
+      // caller reads as "nothing new" and so keeps every previous value. The resolver observes
+      // the same abort and stops between items, so a timed-out batch does not keep burning
+      // warehouse calls for a response that has already gone out.
+      const deadline = new Promise<Map<string, SourceDataLastUpdated>>(resolve => {
         timer = setTimeout(() => {
           controller.abort();
-          resolve(timedOut);
+          this.logger.warn(
+            `Data Last Updated lookup exceeded ${softTimeoutMs}ms for storage ${input.storage.type}; reporting unavailable.`
+          );
+          resolve(new Map());
         }, softTimeoutMs);
       });
 
-      const work = resolver
-        .resolveForSql({
+      // The call is inside the async wrapper, not just its rejection: a resolver that throws
+      // SYNCHRONOUSLY would otherwise escape past `.catch` and break the never-rejects contract
+      // that callers rely on to keep this off their critical path.
+      const work = (async () =>
+        resolver.resolveForSqlBatch({
           storage: input.storage,
-          sql: input.sql,
-          params: input.params,
+          items: input.items,
           signal: controller.signal,
-        })
+        }))()
         // Attached here so a rejection that loses the race cannot surface as an unhandled one.
         .catch(error => {
           this.logger.warn(
@@ -94,29 +136,13 @@ export class SourceDataLastUpdatedService {
               error instanceof Error ? error.message : String(error)
             }`
           );
-          return this.unavailable();
+          return new Map<string, SourceDataLastUpdated>();
         });
 
-      const result = await Promise.race([work, deadline]);
-      if (result === timedOut) {
-        this.logger.warn(
-          `Data Last Updated lookup exceeded ${softTimeoutMs}ms for storage ${input.storage.type}; reporting unavailable.`
-        );
-        return this.unavailable();
-      }
-      return result;
+      return await Promise.race([work, deadline]);
     } finally {
       if (timer) clearTimeout(timer);
       input.signal?.removeEventListener('abort', abortFromCaller);
     }
-  }
-
-  private unavailable(): SourceDataLastUpdated {
-    return {
-      dataLastUpdatedAt: null,
-      computedAt: new Date().toISOString(),
-      coverage: 'unavailable',
-      sources: [],
-    };
   }
 }

@@ -6,6 +6,7 @@ import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import type { ConnectorStateResponseDto } from '../../../shared/types/api/response/connector-state.response.dto';
 import type { BlendedFieldsConfig } from '../../../shared/types/relationship.types';
+import type { DataLastUpdatedDto } from '../../../shared/types/api/response/data-mart-data-last-updated.dto';
 
 /**
  * Data mart domain model
@@ -110,4 +111,9 @@ export interface DataMart {
    * behaves predictably.
    */
   contexts: { id: string; name: string }[];
+
+  /**
+   * Last-known Data Last Updated snapshot; null when never computed.
+   */
+  dataLastUpdated: DataLastUpdatedDto | null;
 }
