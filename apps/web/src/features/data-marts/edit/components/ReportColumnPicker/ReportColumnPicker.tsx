@@ -38,7 +38,7 @@ import { OutputSettingsDropdown } from './OutputSettingsDropdown';
 import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { AggregationSettingsButton } from './AggregationSettingsButton';
 import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
-import { fieldDisplayLabel } from './output-controls-display';
+import { fieldDisplayLabel, UNIQUE_COUNT_LABEL } from './output-controls-display';
 import { RowFilterIcon } from './RowFilterIcon';
 import { RowAggregationIcon } from './RowAggregationIcon';
 import { isFilterableType } from './output-controls-operators';
@@ -785,11 +785,26 @@ export function ReportColumnPicker({
         postJoinAggregations: f.postJoinAggregations,
       });
     }
+    // Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a schema field — expose it
+    // as a sortable pseudo-column only while the toggle (below) is on.
+    if (hasPrimaryKey && outputControlsAvailable && effectiveOutputConfig.uniqueCountConfig) {
+      cols.push({ name: UNIQUE_COUNT_LABEL, type: 'INTEGER', label: UNIQUE_COUNT_LABEL });
+    }
     return cols;
-  }, [nativeFields, includedBlendedFields, availableSourceByPath]);
+  }, [
+    nativeFields,
+    includedBlendedFields,
+    availableSourceByPath,
+    hasPrimaryKey,
+    outputControlsAvailable,
+    effectiveOutputConfig.uniqueCountConfig,
+  ]);
 
+  // dropdownColumns only ever contains the Unique Count pseudo-column while it's enabled,
+  // so the plain membership check already keeps it selected without a redundant gate here.
   const selectedDropdownColumns = useMemo(
-    () => dropdownColumns.filter(c => effectiveValueSet.has(c.name)),
+    () =>
+      dropdownColumns.filter(c => effectiveValueSet.has(c.name) || c.name === UNIQUE_COUNT_LABEL),
     [dropdownColumns, effectiveValueSet]
   );
 
@@ -891,12 +906,16 @@ export function ReportColumnPicker({
       }
     }
 
-    return effectiveOutputConfig.sortConfig.some(
-      rule => !effectiveValueSet.has(rule.column) || !knownFieldNames.has(rule.column)
-    );
+    return effectiveOutputConfig.sortConfig.some(rule => {
+      // Unique Count is a synthetic metric, never a member of effectiveValueSet /
+      // knownFieldNames — its "selected" status is the uniqueCountConfig toggle instead.
+      if (rule.column === UNIQUE_COUNT_LABEL) return !effectiveOutputConfig.uniqueCountConfig;
+      return !effectiveValueSet.has(rule.column) || !knownFieldNames.has(rule.column);
+    });
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
+    effectiveOutputConfig.uniqueCountConfig,
     knownFieldNames,
     knownSliceKeys,
     effectiveValueSet,

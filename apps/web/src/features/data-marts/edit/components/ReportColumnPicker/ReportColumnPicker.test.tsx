@@ -1037,6 +1037,44 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     // uniqueCountConfig must remain unchanged
     expect(onOutputConfigChange).not.toHaveBeenCalled();
   });
+
+  it('keeps a sort by "Unique Count" connected (not disconnected) while the toggle is on', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+
+    expect(screen.getByText('Unique Count')).not.toHaveClass('line-through');
+    expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+  });
+
+  it('flags a sort by "Unique Count" as disconnected once the toggle is off', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+
+    expect(screen.getByText('Unique Count')).toHaveClass('line-through');
+    expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
+  });
 });
 
 describe('ReportColumnPicker search', () => {

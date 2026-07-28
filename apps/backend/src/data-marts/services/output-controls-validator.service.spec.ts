@@ -3433,6 +3433,65 @@ describe('OutputControlsValidatorService', () => {
         })
       ).resolves.toBeUndefined();
     });
+
+    it('accepts sorting by "Unique Count" when uniqueCountConfig is true', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'name', type: 'STRING' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+          limitConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects sorting by "Unique Count" when uniqueCountConfig is not enabled → SORT_COLUMN_NOT_SELECTED', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'name', type: 'STRING' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+          limitConfig: null,
+          uniqueCountConfig: false,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors.some(e => e.code === 'SORT_COLUMN_NOT_SELECTED')).toBe(true);
+    });
   });
 
   describe('validateHavingFilters (post-aggregation)', () => {

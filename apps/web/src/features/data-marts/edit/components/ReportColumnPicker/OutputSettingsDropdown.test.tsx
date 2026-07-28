@@ -174,6 +174,54 @@ describe('OutputSettingsDropdown readable labels', () => {
   });
 });
 
+describe('OutputSettingsDropdown sort by Unique Count', () => {
+  const uniqueCount: OutputSettingsDropdownColumn = {
+    name: 'Unique Count',
+    type: 'INTEGER',
+    label: 'Unique Count',
+  };
+
+  it('does not mark a sort on "Unique Count" as disconnected when it is a selected column', () => {
+    const value: OutputConfig = {
+      ...EMPTY_CONFIG,
+      sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[]}
+        selectedColumns={[uniqueCount]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Unique Count')).not.toHaveClass('line-through');
+    expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+  });
+
+  it('marks a sort on "Unique Count" as disconnected once it is no longer a selected column (toggle turned off)', () => {
+    const value: OutputConfig = {
+      ...EMPTY_CONFIG,
+      sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[]}
+        selectedColumns={[]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Unique Count')).toHaveClass('line-through');
+    expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
+  });
+});
+
 describe('OutputSettingsDropdown no longer hosts aggregation controls', () => {
   const revenue: OutputSettingsDropdownColumn = {
     name: 'orders.revenue',
