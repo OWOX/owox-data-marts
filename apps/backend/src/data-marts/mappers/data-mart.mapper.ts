@@ -40,7 +40,10 @@ import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mar
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartListItemResponseApiDto } from '../dto/presentation/data-mart-list-item-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
-import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import {
+  DataMartRunDetailResponseApiDto,
+  DataMartRunResponseApiDto,
+} from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { ProjectDataMartRunDto } from '../dto/domain/project-data-mart-run.dto';
 import { ProjectDataMartRunsResponseApiDto } from '../dto/presentation/project-data-mart-runs-response-api.dto';
@@ -68,6 +71,8 @@ import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
+import { DataQualityRunDetailsDto, DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
+import { createNoRunDataQualitySummary } from '../services/data-quality-summary.service';
 
 @Injectable()
 export class DataMartMapper {
@@ -97,7 +102,8 @@ export class DataMartMapper {
     },
     createdByUser?: UserProjectionDto,
     businessOwnerUsers: UserProjectionDto[] = [],
-    technicalOwnerUsers: UserProjectionDto[] = []
+    technicalOwnerUsers: UserProjectionDto[] = [],
+    qualitySummary?: DataQualitySummaryDto
   ): DataMartDto {
     return new DataMartDto(
       entity.id,
@@ -119,7 +125,8 @@ export class DataMartMapper {
       entity.availableForReporting ?? true,
       entity.availableForMaintenance ?? true,
       entity.blendedFieldsConfig,
-      extractContextSummaries(entity.contexts)
+      extractContextSummaries(entity.contexts),
+      qualitySummary ?? null
     );
   }
 
@@ -160,6 +167,7 @@ export class DataMartMapper {
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
       contexts: dto.contexts,
+      qualitySummary: dto.qualitySummary ?? createNoRunDataQualitySummary(0),
     };
   }
 
@@ -190,8 +198,7 @@ export class DataMartMapper {
           item.connector = runDto;
         } else if (runDto.type === DataMartRunType.INSIGHT) {
           item.insight = runDto;
-        } else {
-          // Different kinds of reports
+        } else if (runDto.type !== DataMartRunType.DATA_QUALITY) {
           if (!item.report || runDto.createdAt > item.report.createdAt) {
             item.report = runDto;
           }
@@ -280,7 +287,8 @@ export class DataMartMapper {
     counters: { triggersCount: number; reportsCount: number },
     createdByUser?: UserProjectionDto,
     businessOwnerUsers: UserProjectionDto[] = [],
-    technicalOwnerUsers: UserProjectionDto[] = []
+    technicalOwnerUsers: UserProjectionDto[] = [],
+    qualitySummary?: DataQualitySummaryDto
   ): DataMartListItemDto {
     return new DataMartListItemDto(
       entity.id,
@@ -300,7 +308,8 @@ export class DataMartMapper {
       technicalOwnerUsers,
       extractContextSummaries(entity.contexts),
       entity.availableForReporting,
-      entity.availableForMaintenance
+      entity.availableForMaintenance,
+      qualitySummary ?? null
     );
   }
 
@@ -326,6 +335,7 @@ export class DataMartMapper {
       contexts: dto.contexts,
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
+      qualitySummary: dto.qualitySummary ?? createNoRunDataQualitySummary(0),
     };
   }
 
@@ -514,7 +524,8 @@ export class DataMartMapper {
 
   toDataMartRunDto(
     entity: DataMartRun,
-    userProjection: UserProjectionDto | null = null
+    userProjection: UserProjectionDto | null = null,
+    dataQuality: DataQualityRunDetailsDto | null = null
   ): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
@@ -536,7 +547,15 @@ export class DataMartMapper {
       entity.startedAt || null,
       entity.finishedAt || null,
       userProjection,
-      entity.additionalParams ?? null
+      entity.additionalParams ?? null,
+      entity.dataQualitySummary
+        ? {
+            ...entity.dataQualitySummary,
+            dataMartRunId: entity.id,
+            lastRunAt: entity.finishedAt ?? entity.startedAt ?? entity.createdAt,
+          }
+        : null,
+      dataQuality
     );
   }
 
@@ -577,6 +596,8 @@ export class DataMartMapper {
           finishedAt: run.finishedAt,
           createdByUser: run.createdByUser,
           additionalParams: this.maskAdditionalParams(run),
+          totals: this.extractTotals(run),
+          qualitySummary: run.qualitySummary,
         };
       })
     );
@@ -612,6 +633,7 @@ export class DataMartMapper {
           createdByUser: item.run.createdByUser,
           additionalParams: this.maskAdditionalParams(item.run),
           totals: this.extractTotals(item.run),
+          qualitySummary: item.run.qualitySummary,
         };
       })
     );
@@ -660,8 +682,17 @@ export class DataMartMapper {
       createdAt: run.createdAt,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
+      createdByUser: run.createdByUser,
       additionalParams: this.maskAdditionalParams(run),
       totals: this.extractTotals(run),
+      qualitySummary: run.qualitySummary,
+    };
+  }
+
+  async toRunDetailResponse(run: DataMartRunDto): Promise<DataMartRunDetailResponseApiDto> {
+    return {
+      ...(await this.toRunResponse(run)),
+      dataQuality: run.dataQuality,
     };
   }
 

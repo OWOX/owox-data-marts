@@ -8,6 +8,7 @@ import { UserProjectionsFetcherService } from '../services/user-projections-fetc
 import { SyncLegacyDataMartService } from './legacy-data-marts/sync-legacy-data-mart.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { DataQualitySummaryService } from '../services/data-quality-summary.service';
 
 @Injectable()
 export class GetDataMartService {
@@ -17,7 +18,8 @@ export class GetDataMartService {
     private readonly mapper: DataMartMapper,
     private readonly legacyDataMartService: LegacyDataMartsService,
     private readonly syncLegacyDataMartService: SyncLegacyDataMartService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly dataQualitySummaryService: DataQualitySummaryService
   ) {}
 
   async run(command: GetDataMartCommand): Promise<DataMartDto> {
@@ -41,15 +43,18 @@ export class GetDataMartService {
       }
     }
 
-    const userProjections =
-      await this.userProjectionsFetcherService.fetchAllRelevantUserProjections([dataMart]);
+    const [userProjections, qualitySummaries] = await Promise.all([
+      this.userProjectionsFetcherService.fetchAllRelevantUserProjections([dataMart]),
+      this.dataQualitySummaryService.getCurrentByDataMarts([dataMart], command.projectId),
+    ]);
 
     return this.mapper.toDomainDto(
       dataMart,
       undefined,
       userProjections.getByUserId(dataMart.createdById),
       resolveOwnerUsers(dataMart.businessOwnerIds, userProjections),
-      resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections)
+      resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections),
+      qualitySummaries.get(dataMart.id)
     );
   }
 }

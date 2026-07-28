@@ -6,6 +6,9 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { DataQualityApiMapper } from '../mappers/data-quality-api.mapper';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataQualityRunDetailsDto } from '../dto/domain/data-quality.dto';
 
 @Injectable()
 export class GetDataMartRunService {
@@ -14,7 +17,8 @@ export class GetDataMartRunService {
     private readonly dataMartRunService: DataMartRunService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly mapper: DataMartMapper,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly dataQualityApiMapper: DataQualityApiMapper
   ) {}
 
   async run(command: GetDataMartRunCommand): Promise<DataMartRunDto> {
@@ -34,16 +38,42 @@ export class GetDataMartRunService {
       }
     }
 
-    const run = await this.dataMartRunService.getByIdAndDataMartId(
-      command.runId,
-      command.dataMartId
-    );
+    let run = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.dataMartId);
     if (!run) {
       throw new NotFoundException('Run not found');
     }
 
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(run);
+    let dataQuality: DataQualityRunDetailsDto | null = null;
+    if (run.type === DataMartRunType.DATA_QUALITY) {
+      run = await this.dataMartRunService.getDataQualityDetailsByIdAndDataMartId(
+        command.runId,
+        command.dataMartId
+      );
+      if (!run) {
+        throw new NotFoundException('Run not found');
+      }
+      const targetIds = Array.from(
+        new Set(
+          (run.dataQualitySnapshot?.relationships ?? []).map(
+            relationship => relationship.targetDataMartId
+          )
+        )
+      );
+      const accessByTargetId =
+        command.userId && targetIds.length > 0
+          ? await this.accessDecisionService.canAccessMany(
+              command.userId,
+              command.roles,
+              EntityType.DATA_MART,
+              targetIds,
+              Action.SEE,
+              command.projectId
+            )
+          : new Map(targetIds.map(targetId => [targetId, true]));
+      dataQuality = this.dataQualityApiMapper.toRunDetails(run, accessByTargetId);
+    }
 
-    return this.mapper.toDataMartRunDto(run, createdByUser);
+    return this.mapper.toDataMartRunDto(run, createdByUser, dataQuality);
   }
 }

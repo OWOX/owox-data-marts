@@ -152,6 +152,7 @@ describe('DataMartController list OpenAPI', () => {
       'contexts',
       'availableForReporting',
       'availableForMaintenance',
+      'qualitySummary',
     ]);
     expect(itemSchema.required).not.toContain('definitionType');
     expect(itemSchema.required).not.toContain('connectorSourceName');
@@ -222,5 +223,69 @@ describe('DataMartController list OpenAPI', () => {
         name: { type: 'string' },
       },
     });
+  });
+
+  it('preserves the shared run-history item contract and keeps DQ detail separate', () => {
+    const listOperation = document.paths['/api/data-marts/{id}/runs']?.get;
+    expect(listOperation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/DataMartRunsResponseApiDto' },
+        },
+      },
+    });
+
+    const listSchema = resolveRef('#/components/schemas/DataMartRunsResponseApiDto');
+    expect(listSchema.properties.runs).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/DataMartRunResponseApiDto' },
+    });
+
+    const runSchema = resolveRef('#/components/schemas/DataMartRunResponseApiDto');
+    expect(runSchema.required).toContain('createdByUser');
+    expect(runSchema.properties).toMatchObject({
+      status: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/DataMartRunStatus' }],
+      },
+      type: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/DataMartRunType' }],
+      },
+      runType: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/RunType' }],
+      },
+      createdByUser: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/UserProjectionDto' }],
+      },
+      qualitySummary: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/CompactDataQualitySummaryApiDto' }],
+      },
+    });
+    expect(runSchema.properties).not.toHaveProperty('dataQuality');
+    expect(resolveRef('#/components/schemas/DataMartRunStatus').enum).toEqual(
+      expect.arrayContaining(['PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED'])
+    );
+    expect(resolveRef('#/components/schemas/DataMartRunType').enum).toEqual(
+      expect.arrayContaining(['CONNECTOR', 'DATA_QUALITY'])
+    );
+    expect(resolveRef('#/components/schemas/RunType').enum).toEqual(
+      expect.arrayContaining(['manual', 'scheduled'])
+    );
+
+    const detailOperation = document.paths['/api/data-marts/{id}/runs/{runId}']?.get;
+    expect(detailOperation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/DataMartRunDetailResponseApiDto' },
+        },
+      },
+    });
+    expect(
+      resolveRef('#/components/schemas/DataMartRunDetailResponseApiDto').properties
+    ).toHaveProperty('dataQuality');
   });
 });

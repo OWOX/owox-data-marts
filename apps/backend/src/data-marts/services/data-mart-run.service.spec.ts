@@ -77,6 +77,8 @@ function createService() {
 function createQueryBuilderMock() {
   const qb = {
     innerJoin: jest.fn(),
+    leftJoinAndSelect: jest.fn(),
+    addSelect: jest.fn(),
     where: jest.fn(),
     andWhere: jest.fn(),
     select: jest.fn(),
@@ -86,10 +88,13 @@ function createQueryBuilderMock() {
     offset: jest.fn(),
     getRawMany: jest.fn(),
     getMany: jest.fn(),
+    getOne: jest.fn(),
   };
 
   for (const method of [
     'innerJoin',
+    'leftJoinAndSelect',
+    'addSelect',
     'where',
     'andWhere',
     'select',
@@ -107,6 +112,21 @@ function createQueryBuilderMock() {
 const context: ReportRunContext = { createdById: 'user-1', runType: RunType.manual };
 
 describe('DataMartRunService', () => {
+  describe('listByDataMartId', () => {
+    it('loads the compact DQ summary without selecting heavy DQ columns', async () => {
+      const { service, dataMartRunRepository } = createService();
+
+      await service.listByDataMartId('dm-1', 25, 50);
+
+      expect(dataMartRunRepository.find).toHaveBeenCalledWith({
+        where: { dataMartId: 'dm-1' },
+        order: { createdAt: 'DESC' },
+        take: 25,
+        skip: 50,
+      });
+    });
+  });
+
   describe('listVisibleByProject', () => {
     it('sorts only run IDs, loads full rows without ORDER BY, and restores page order', async () => {
       const { service, dataMartRunRepository } = createService();
@@ -138,6 +158,7 @@ describe('DataMartRunService', () => {
       expect(pageQb.addOrderBy).toHaveBeenCalledWith('run.id', 'DESC');
       expect(pageQb.limit).toHaveBeenCalledWith(50);
       expect(pageQb.offset).toHaveBeenCalledWith(100);
+      expect(rowsQb.leftJoinAndSelect).not.toHaveBeenCalled();
       expect(rowsQb.select).toHaveBeenCalledWith(['run', 'dataMart.id', 'dataMart.title']);
       expect(rowsQb.where).toHaveBeenCalledWith('run.id IN (:...runIds)', {
         runIds: ['run-2', 'run-1'],
@@ -162,6 +183,40 @@ describe('DataMartRunService', () => {
       ).resolves.toEqual([]);
 
       expect(dataMartRunRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getByIdAndDataMartId', () => {
+    it('keeps the generic scoped lookup lightweight', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const run = { id: 'run-1', dataMartId: 'dm-1' } as DataMartRun;
+      dataMartRunRepository.findOne.mockResolvedValue(run);
+
+      await expect(service.getByIdAndDataMartId('run-1', 'dm-1')).resolves.toBe(run);
+
+      expect(dataMartRunRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'run-1', dataMartId: 'dm-1' },
+      });
+      expect(dataMartRunRepository.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('selects heavy DQ columns only for the DQ detail lookup', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const detailQb = createQueryBuilderMock();
+      const run = { id: 'run-1', dataMartId: 'dm-1' } as DataMartRun;
+      detailQb.getOne.mockResolvedValue(run);
+      (dataMartRunRepository.createQueryBuilder as jest.Mock).mockReturnValue(detailQb);
+
+      await expect(service.getDataQualityDetailsByIdAndDataMartId('run-1', 'dm-1')).resolves.toBe(
+        run
+      );
+
+      expect(detailQb.addSelect).toHaveBeenCalledWith('run.dataQualitySnapshot');
+      expect(detailQb.addSelect).toHaveBeenCalledWith('run.dataQualityResults');
+      expect(detailQb.where).toHaveBeenCalledWith('run.id = :runId', { runId: 'run-1' });
+      expect(detailQb.andWhere).toHaveBeenCalledWith('run.dataMartId = :dataMartId', {
+        dataMartId: 'dm-1',
+      });
     });
   });
 

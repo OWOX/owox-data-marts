@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import {
   DataMartRunResponseApiDto,
@@ -57,7 +57,9 @@ export class ProjectDataMartRunUserResponseApiDto extends UserProjectionDto {
   declare readonly avatar?: string | null;
 }
 
-export class ProjectDataMartRunResponseApiDto extends DataMartRunResponseApiDto {
+export class ProjectDataMartRunResponseApiDto extends OmitType(DataMartRunResponseApiDto, [
+  'createdByUser',
+] as const) {
   @DataMartRunTotalsApiProperty(true)
   declare totals: DataMartRunTotals;
 

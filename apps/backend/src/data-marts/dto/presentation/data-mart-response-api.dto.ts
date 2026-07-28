@@ -10,6 +10,7 @@ import { ConnectorState as ConnectorStateData } from '../../connector-types/inte
 import { ConnectorStateResponseApiDto } from './connector-state-response-api.dto';
 import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { CompactDataQualitySummaryApiDto } from './data-quality-api.dto';
 
 export class DataMartResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -71,4 +72,7 @@ export class DataMartResponseApiDto {
 
   @ApiProperty({ type: [Object] })
   contexts: ContextSummary[];
+
+  @ApiProperty({ type: CompactDataQualitySummaryApiDto })
+  qualitySummary: CompactDataQualitySummaryApiDto;
 }

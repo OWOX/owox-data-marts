@@ -22,7 +22,7 @@ import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-m
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
-import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunDetailResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-request-api.dto';
@@ -223,7 +223,7 @@ export function GetDataMartRunByIdSpec() {
     ApiOperation({ summary: 'Get DataMart run by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
-    ApiOkResponse({ type: DataMartRunResponseApiDto })
+    ApiOkResponse({ type: DataMartRunDetailResponseApiDto })
   );
 }
 
