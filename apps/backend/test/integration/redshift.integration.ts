@@ -625,12 +625,14 @@ describeIfCredentials(
     // Sort + limit
     // -------------------------------------------------------------------------
 
-    it('sort by amount DESC + limit 2 → rows 5,4 (amounts 50,40)', async () => {
+    it('sort by amount DESC + limit 2 → rows 7,5 (NULL amount first, then 50)', async () => {
+      // Seed row 7 has amount=NULL. Redshift follows PostgreSQL NULL ordering:
+      // DESC sorts NULLs first, so the all-NULL row leads before amount 50 (id 5).
       const rows = await runFilter({
         sort: [{ column: 'amount', direction: 'desc' }],
         limit: 2,
       });
-      expect(rows.map(r => r.id)).toEqual(['5', '4']);
+      expect(rows.map(r => r.id)).toEqual(['7', '5']);
     });
 
     // -------------------------------------------------------------------------
@@ -860,19 +862,26 @@ describeIfCredentials(
         expect(Number(row['row count'])).toBe(2);
       }, 60000);
 
-      it('ORDER BY aggregated alias (SUM desc) + limit 1 returns only the larger group', async () => {
+      it('ORDER BY aggregated alias (SUM desc): NULL-status group first, then active (90)', async () => {
+        // Three groups after the all-NULL seed row: active SUM=90, inactive SUM=60,
+        // NULL-status SUM=NULL. Redshift DESC puts NULLs first, so limit 1 alone would
+        // return the NULL-status bucket — pull all groups and assert full order.
         const rows = await runFilter({
           columns: ['status', 'amount'],
           aggregations: [{ column: 'amount', function: 'SUM' }],
           sort: [{ column: 'amount', direction: 'desc' }],
-          limit: 1,
         });
 
-        expect(rows).toHaveLength(1);
-        const row = rows[0];
-        // active SUM=90 > inactive SUM=60
-        expect(row.status).toBe('active');
-        expect(Number(row['amount | sum'])).toBeCloseTo(90, 5);
+        expect(rows).toHaveLength(3);
+        // 1) NULL-status bucket (SUM of NULL amount → NULL) leads under DESC NULLS FIRST
+        expect(rows[0].status).toBeNull();
+        expect(rows[0]['amount | sum']).toBeNull();
+        // 2) active SUM=90 is the highest non-NULL aggregate
+        expect(rows[1].status).toBe('active');
+        expect(Number(rows[1]['amount | sum'])).toBeCloseTo(90, 5);
+        // 3) inactive SUM=60
+        expect(rows[2].status).toBe('inactive');
+        expect(Number(rows[2]['amount | sum'])).toBeCloseTo(60, 5);
       }, 60000);
     });
   }
