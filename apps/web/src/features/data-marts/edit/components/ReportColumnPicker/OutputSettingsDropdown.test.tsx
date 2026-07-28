@@ -39,7 +39,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         value={value}
         onChange={() => {}}
         allColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
-        selectedColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
+        sortColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
         joinedSources={[]}
       />
     );
@@ -73,7 +73,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         value={value}
         onChange={() => {}}
         allColumns={[]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[]}
       />
     );
@@ -102,7 +102,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         value={value}
         onChange={onChange}
         allColumns={[]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[
           {
             aliasPath: 'users',
@@ -139,7 +139,7 @@ describe('OutputSettingsDropdown readable labels', () => {
         value={value}
         onChange={() => {}}
         allColumns={[productId]}
-        selectedColumns={[productId]}
+        sortColumns={[productId]}
         joinedSources={[]}
       />
     );
@@ -164,7 +164,7 @@ describe('OutputSettingsDropdown readable labels', () => {
         value={value}
         onChange={() => {}}
         allColumns={[productId]}
-        selectedColumns={[productId]}
+        sortColumns={[productId]}
         joinedSources={[]}
       />
     );
@@ -192,7 +192,7 @@ describe('OutputSettingsDropdown sort by Unique Count', () => {
         value={value}
         onChange={() => {}}
         allColumns={[]}
-        selectedColumns={[uniqueCount]}
+        sortColumns={[uniqueCount]}
         joinedSources={[]}
       />
     );
@@ -212,7 +212,7 @@ describe('OutputSettingsDropdown sort by Unique Count', () => {
         value={value}
         onChange={() => {}}
         allColumns={[]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[]}
       />
     );
@@ -241,7 +241,7 @@ describe('OutputSettingsDropdown no longer hosts aggregation controls', () => {
         value={value}
         onChange={() => {}}
         allColumns={[revenue]}
-        selectedColumns={[revenue]}
+        sortColumns={[revenue]}
         joinedSources={[]}
       />
     );

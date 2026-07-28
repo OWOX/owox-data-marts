@@ -1075,6 +1075,116 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     expect(screen.getByText('Unique Count')).toHaveClass('line-through');
     expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
   });
+
+  // Per-row icons reuse these accessible names, so scope to the FieldSearchPicker
+  // trigger — it is the only one that opens a listbox.
+  const openPicker = (name: RegExp) => {
+    const trigger = screen
+      .getAllByRole('button', { name })
+      .find(b => b.getAttribute('aria-haspopup') === 'listbox');
+    fireEvent.click(trigger!);
+  };
+
+  // Unique Count is sortable ONLY. It is not a real projected column, so a filter or an
+  // aggregation on it would be rejected by backend validation — it must never be offered
+  // in those pickers, even while the toggle is on.
+  it('offers "Unique Count" in the Add sort by picker while the toggle is on', async () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('Unique Count')).toBeInTheDocument();
+  });
+
+  it('does NOT offer "Unique Count" in the Add filter picker while the toggle is on', async () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add filter/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('id')).toBeInTheDocument();
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  it('does NOT offer "Unique Count" in the Add aggregation picker while the toggle is on', async () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    openPicker(/Add aggregation/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('id')).toBeInTheDocument();
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  // A real schema field can legitimately be named "Unique Count" (quoted identifiers on
+  // Snowflake/Redshift/Athena allow spaces) — the backend has a dedicated
+  // OUTPUT_COLUMN_NAME_COLLISION error for exactly this. The synthetic-metric special
+  // cases must not hijack the name from a real field that owns it.
+  const collisionSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'Unique Count', type: 'STRING' },
+      ] as unknown[],
+    });
+
+  it('does not flag a sort on a REAL field named "Unique Count" as disconnected when the toggle is off', () => {
+    renderPicker(collisionSchema(), ['id', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+  });
+
+  it('still flags a sort on an UNSELECTED real field named "Unique Count" when the toggle is off', () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+  });
+
+  it('does not offer a duplicate "Unique Count" entry when a real field already owns the name', async () => {
+    renderPicker(collisionSchema(), ['id', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getAllByText('Unique Count')).toHaveLength(1);
+  });
 });
 
 describe('ReportColumnPicker search', () => {

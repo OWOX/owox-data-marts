@@ -785,28 +785,36 @@ export function ReportColumnPicker({
         postJoinAggregations: f.postJoinAggregations,
       });
     }
-    // Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a schema field — expose it
-    // as a sortable pseudo-column only while the toggle (below) is on.
-    if (hasPrimaryKey && outputControlsAvailable && effectiveOutputConfig.uniqueCountConfig) {
-      cols.push({ name: UNIQUE_COUNT_LABEL, type: 'INTEGER', label: UNIQUE_COUNT_LABEL });
-    }
     return cols;
-  }, [
-    nativeFields,
-    includedBlendedFields,
-    availableSourceByPath,
-    hasPrimaryKey,
-    outputControlsAvailable,
-    effectiveOutputConfig.uniqueCountConfig,
-  ]);
+  }, [nativeFields, includedBlendedFields, availableSourceByPath]);
 
-  // dropdownColumns only ever contains the Unique Count pseudo-column while it's enabled,
-  // so the plain membership check already keeps it selected without a redundant gate here.
   const selectedDropdownColumns = useMemo(
-    () =>
-      dropdownColumns.filter(c => effectiveValueSet.has(c.name) || c.name === UNIQUE_COUNT_LABEL),
+    () => dropdownColumns.filter(c => effectiveValueSet.has(c.name)),
     [dropdownColumns, effectiveValueSet]
   );
+
+  // Whether the synthetic Unique Count metric is actually part of the output. Same gate as
+  // the toggle row below, so the two can never disagree.
+  const hasUniqueCountMetric =
+    hasPrimaryKey && outputControlsAvailable && effectiveOutputConfig.uniqueCountConfig;
+
+  // Sort-ONLY column list. Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a
+  // projected field: it can be ordered by (the ORDER BY resolves to the SELECT alias), but a
+  // filter or aggregation on it has no column to bind to and the backend rejects it. So it
+  // must stay out of dropdownColumns / selectedDropdownColumns, which feed those surfaces.
+  const sortColumns = useMemo(() => {
+    // A real schema field may legitimately be named "Unique Count" (the backend has a
+    // dedicated OUTPUT_COLUMN_NAME_COLLISION error for it). If one is already selected it
+    // owns the name here — appending the synthetic too would duplicate the picker entry
+    // and collide on FieldSearchPicker's `key={item.value}`.
+    if (!hasUniqueCountMetric || selectedDropdownColumns.some(c => c.name === UNIQUE_COUNT_LABEL)) {
+      return selectedDropdownColumns;
+    }
+    return [
+      ...selectedDropdownColumns,
+      { name: UNIQUE_COUNT_LABEL, type: 'INTEGER', label: UNIQUE_COUNT_LABEL },
+    ];
+  }, [selectedDropdownColumns, hasUniqueCountMetric]);
 
   const controlsCount = useMemo(() => {
     return (
@@ -907,15 +915,17 @@ export function ReportColumnPicker({
     }
 
     return effectiveOutputConfig.sortConfig.some(rule => {
-      // Unique Count is a synthetic metric, never a member of effectiveValueSet /
-      // knownFieldNames — its "selected" status is the uniqueCountConfig toggle instead.
-      if (rule.column === UNIQUE_COUNT_LABEL) return !effectiveOutputConfig.uniqueCountConfig;
-      return !effectiveValueSet.has(rule.column) || !knownFieldNames.has(rule.column);
+      // A real selected field resolves the sort regardless of its name — check that first so
+      // a schema field literally named "Unique Count" is never hijacked by the synthetic case.
+      if (effectiveValueSet.has(rule.column) && knownFieldNames.has(rule.column)) return false;
+      // Otherwise the synthetic metric can still supply the column, matching the backend's
+      // validateSort (which adds the label to the selected set when uniqueCountConfig is on).
+      return !(rule.column === UNIQUE_COUNT_LABEL && hasUniqueCountMetric);
     });
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
-    effectiveOutputConfig.uniqueCountConfig,
+    hasUniqueCountMetric,
     knownFieldNames,
     knownSliceKeys,
     effectiveValueSet,
@@ -1166,7 +1176,7 @@ export function ReportColumnPicker({
           <OutputSettingsDropdown
             value={effectiveOutputConfig}
             onChange={onOutputConfigChange}
-            selectedColumns={selectedDropdownColumns}
+            sortColumns={sortColumns}
             allColumns={dropdownColumns}
             joinedSources={joinedSources}
           />
