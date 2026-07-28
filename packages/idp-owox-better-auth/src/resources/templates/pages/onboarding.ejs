@@ -161,9 +161,9 @@ const storageIcons = {
         <div>
           <h2 class="text-xl font-semibold text-foreground mb-1">Which data warehouse is used in the organization?</h2>
           <p class="text-sm text-muted-foreground mb-5">Pick your Data Warehouse — or let OWOX host it for you</p>
-          <div class="flex flex-col gap-2 lg:flex-row lg:flex-wrap" id="q-primary-storage">
+          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap" id="q-primary-storage">
             <% primaryStorageOptions.forEach(function(opt) { %>
-            <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground lg:basis-[calc(50%-0.25rem)]">
+            <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground sm:basis-[calc(50%-0.25rem)]">
               <input type="radio" name="primary_storage" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="storage-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
               <% if (storageIcons[opt.value]) { %><%- storageIcons[opt.value] %><% } %>
               <span><%= opt.label %></span>
@@ -358,9 +358,13 @@ const storageIcons = {
         </div>
       </div>
 
-      <!-- Right Column: selected data warehouse preview -->
+      <!-- Right Column: DWH visualization -->
       <div class="hidden select-none lg:col-span-6 lg:flex">
-        <div id="storage-preview" style="display: none" class="w-full flex flex-col justify-center overflow-hidden rounded-md border-b border-[#E5E7EB] bg-[#F5F5F5]/50 px-8 py-12 dark:border-white/4 dark:bg-white/4">
+        <div id="storage-preview" class="w-full flex flex-col justify-center overflow-hidden rounded-md border-b border-[#E5E7EB] bg-[#F5F5F5]/50 px-8 py-12 dark:border-white/4 dark:bg-white/4">
+        <div id="storage-preview-placeholder" class="flex min-h-80 items-center justify-center text-center text-sm text-[#74747F]" aria-live="polite">
+          Select a Data Warehouse to see your Data Mart setup.
+        </div>
+        <div id="storage-preview-details" class="hidden">
         <h4 class="storage-preview-item mb-8 text-center text-lg font-semibold tracking-tight opacity-0">
           Data Mart setup with <span id="storage-preview-name" class="text-[#1E88E5] text-nowrap"></span>
         </h4>
@@ -399,6 +403,7 @@ const storageIcons = {
               <span class="flex items-center gap-1 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-3 py-1 text-sm"><span id="storage-preview-output-looker"></span>Looker Studio</span>
             </div>
           </div>
+        </div>
         </div>
       </div>
       </div>
@@ -656,12 +661,20 @@ const storageIcons = {
 
   function updateStoragePreview() {
     const preview = document.getElementById('storage-preview');
+    const placeholder = document.getElementById('storage-preview-placeholder');
+    const details = document.getElementById('storage-preview-details');
     const selected = document.querySelector('#q-primary-storage input[type="radio"]:checked');
-    if (!preview || !selected) return;
+    if (!preview || !placeholder || !details) return;
 
-    const shouldShow = selected.value !== 'other' && selected.value !== 'dont_know';
-    preview.style.display = shouldShow ? 'flex' : 'none';
-    if (!shouldShow) return;
+    const shouldShowDetails = selected && selected.value !== 'other' && selected.value !== 'dont_know';
+    placeholder.classList.toggle('hidden', shouldShowDetails);
+    details.classList.toggle('hidden', !shouldShowDetails);
+    if (!shouldShowDetails) {
+      placeholder.textContent = selected
+        ? 'Choose a supported Data Warehouse to preview the setup.'
+        : 'Select a Data Warehouse to see your Data Mart setup.';
+      return;
+    }
 
     const card = selected.closest('.option-card');
     const label = card.querySelector('span:last-child').textContent.trim();
