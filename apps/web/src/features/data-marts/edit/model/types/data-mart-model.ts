@@ -6,6 +6,7 @@ import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import type { ConnectorStateResponseDto } from '../../../shared/types/api/response/connector-state.response.dto';
 import type { BlendedFieldsConfig } from '../../../shared/types/relationship.types';
+import type { DataQualityCompactSummary } from '../../../shared/types/data-quality-summary.types';
 
 /**
  * Data mart domain model
@@ -110,4 +111,7 @@ export interface DataMart {
    * behaves predictably.
    */
   contexts: { id: string; name: string }[];
+
+  /** Compact status used by detail surfaces without loading the full quality report. */
+  qualitySummary?: DataQualityCompactSummary;
 }

@@ -24,6 +24,38 @@ describe('SchemaUnsavedChangesDialog', () => {
     expect(screen.getByRole('button', { name: /discard & leave/i })).toBeInTheDocument();
   });
 
+  it('renders the registered change label for Data Quality navigation', () => {
+    render(
+      <SchemaUnsavedChangesDialog
+        {...baseProps}
+        intent='navigation'
+        changeLabel='Data Quality configuration'
+      />
+    );
+
+    expect(screen.getByText('Unsaved Data Quality configuration changes')).toBeInTheDocument();
+    expect(
+      screen.getByText(/You have unsaved Data Quality configuration changes/)
+    ).toBeInTheDocument();
+  });
+
+  it('does not show schema-specific copy for non-schema guarded actions', () => {
+    render(
+      <SchemaUnsavedChangesDialog
+        {...baseProps}
+        intent='publish'
+        changeLabel='Data Quality configuration'
+      />
+    );
+
+    expect(
+      screen.getByText(
+        'You have unsaved Data Quality configuration changes. Save to keep them, or discard them to continue.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/refreshes the schema/)).not.toBeInTheDocument();
+  });
+
   it('disables action buttons while saving', () => {
     render(<SchemaUnsavedChangesDialog {...baseProps} intent='refresh' isSaving={true} />);
     expect(screen.getByRole('button', { name: /save & continue/i })).toBeDisabled();
@@ -67,5 +99,20 @@ describe('SchemaUnsavedChangesDialog', () => {
     );
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
     expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('shows a visible save failure without changing the available recovery actions', () => {
+    render(
+      <SchemaUnsavedChangesDialog
+        {...baseProps}
+        intent='refresh'
+        errorMessage='Configuration could not be saved'
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Configuration could not be saved');
+    expect(screen.getByRole('button', { name: /save & continue/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /discard & continue/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeEnabled();
   });
 });

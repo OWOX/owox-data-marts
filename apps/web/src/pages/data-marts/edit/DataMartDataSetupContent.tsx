@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   DataMartDataStorageView,
   DataMartDefinitionSettings,
@@ -15,9 +16,11 @@ import {
 import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
 import { DataMartRelationshipsContent } from '../../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent';
 import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
+import { DataQualityCompactStatusLink } from '../../../features/data-marts/data-quality';
 
 export default function DataMartDataSetupContent() {
   const { dataMart, updateDataMartStorage } = useDataMartContext();
+  const { projectId = '' } = useParams<{ projectId: string }>();
   const initialDefinitionType = dataMart?.definitionType ?? null;
   const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
     initialDefinitionType
@@ -85,6 +88,13 @@ export default function DataMartDataSetupContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
+          {dataMart && projectId && (
+            <DataQualityCompactStatusLink
+              projectId={projectId}
+              dataMartId={dataMart.id}
+              summary={dataMart.qualitySummary}
+            />
+          )}
           {dataMart && <DataMartSchemaSettings definitionType={definitionType} />}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>

@@ -7,6 +7,7 @@ import type {
   DataMartListItemResponseDto,
   DataMartListResponseDto,
   DataMartResponseDto,
+  DataMartRunResponseDto,
   DataMartRunListResponseDto,
   ProjectDataMartRunListResponseDto,
   SqlValidationResponseDto,
@@ -20,7 +21,6 @@ import type {
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
-import type { DataMartRunItem } from '../../edit';
 
 /**
  * Data Mart Service
@@ -340,8 +340,8 @@ export class DataMartService extends ApiService {
     dataMartId: string,
     runId: string,
     config?: AxiosRequestConfig
-  ): Promise<DataMartRunItem> {
-    return this.get<DataMartRunItem>(`/${dataMartId}/runs/${runId}`, undefined, config);
+  ): Promise<DataMartRunResponseDto> {
+    return this.get<DataMartRunResponseDto>(`/${dataMartId}/runs/${runId}`, undefined, config);
   }
 
   /**

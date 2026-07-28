@@ -113,6 +113,22 @@ describe('useSchemaUnsavedGuard', () => {
     expect(h.get().dialog.intent).toBe('ai');
   });
 
+  it('exposes the registered change label to the shared dialog', () => {
+    const h = makeWrapper();
+    render(h);
+    act(() => {
+      h.get().registerSchemaGuard({
+        ...dirtyRegistration(),
+        changeLabel: 'Data Quality configuration',
+      });
+    });
+    act(() => {
+      h.get().runGuarded(vi.fn(), { intent: 'navigation' });
+    });
+
+    expect(h.get().dialog.changeLabel).toBe('Data Quality configuration');
+  });
+
   it('Save & continue saves then runs the action with the saved schema', async () => {
     const h = makeWrapper();
     render(h);
@@ -195,12 +211,13 @@ describe('useSchemaUnsavedGuard', () => {
     expect(h.get().dialog.open).toBe(false);
   });
 
-  it('keeps the dialog open and does not run the action when save rejects', async () => {
+  it('keeps the dialog open, exposes the save failure, and clears it on retry', async () => {
     const h = makeWrapper();
     render(h);
-    const save = vi.fn(async () => {
-      throw new Error('boom');
-    });
+    const save = vi
+      .fn<SchemaGuardRegistration['save']>()
+      .mockRejectedValueOnce(new Error('Configuration could not be saved'))
+      .mockResolvedValueOnce(schemaB);
     const action = vi.fn();
     act(() => {
       h.get().registerSchemaGuard(dirtyRegistration({ save }));
@@ -216,6 +233,41 @@ describe('useSchemaUnsavedGuard', () => {
     });
     expect(action).not.toHaveBeenCalled();
     expect(h.get().dialog.open).toBe(true);
+    expect(h.get().dialog.errorMessage).toBe('Configuration could not be saved');
+
+    await act(async () => {
+      h.get().dialog.onSaveAndContinue();
+    });
+    await waitFor(() => {
+      expect(action).toHaveBeenCalledWith(schemaB);
+    });
+    expect(h.get().dialog.errorMessage).toBeNull();
+    expect(h.get().dialog.open).toBe(false);
+  });
+
+  it('clears a save failure when the dialog is cancelled', async () => {
+    const h = makeWrapper();
+    render(h);
+    act(() => {
+      h.get().registerSchemaGuard(
+        dirtyRegistration({
+          save: vi.fn(async () => {
+            throw new Error('Configuration could not be saved');
+          }),
+        })
+      );
+      h.get().runGuarded(vi.fn(), { intent: 'refresh' });
+      h.get().dialog.onSaveAndContinue();
+    });
+    await waitFor(() => {
+      expect(h.get().dialog.errorMessage).toBe('Configuration could not be saved');
+    });
+
+    act(() => {
+      h.get().dialog.onCancel();
+    });
+
+    expect(h.get().dialog.errorMessage).toBeNull();
   });
 
   describe('navigation blocking (useBlocker)', () => {
