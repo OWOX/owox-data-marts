@@ -15,6 +15,7 @@ import { Reflector } from '@nestjs/core';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { ClsService } from 'nestjs-cls';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
+import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 
 export interface AuthenticatedRequest extends Request {
   idpContext: {
@@ -57,6 +58,9 @@ export class IdpGuard implements CanActivate {
       REJECT_API_KEY_AUTH_METADATA,
       [context.getHandler(), context.getClass()]
     );
+    const viewOnlySafe = this.reflector.getAllAndOverride<boolean>(VIEW_ONLY_SAFE_METADATA, [
+      context.getHandler(),
+    ]);
 
     if (!roleConfig) {
       throw new AuthenticationError('No role configuration found');
@@ -76,7 +80,7 @@ export class IdpGuard implements CanActivate {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
       this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
       this.checkApiKeyHeaderBinding(request, tokenPayload);
-      this.checkViewOnlyRestrictions(request, tokenPayload);
+      this.checkViewOnlyRestrictions(request, tokenPayload, Boolean(viewOnlySafe));
 
       // Propagate only when true so normal sessions stay free of the flag.
       const viewOnly = isViewOnlyPayload(tokenPayload) || undefined;
@@ -146,8 +150,9 @@ export class IdpGuard implements CanActivate {
 
   /**
    * Blocks POST/PUT/PATCH/DELETE when the session is in view-only mode.
-   * GET/HEAD/OPTIONS remain allowed. Some POSTs are read-semantics in practice;
-   * that trade-off is accepted for a simple method-based policy.
+   * GET/HEAD/OPTIONS remain allowed. A POST endpoint may opt in with
+   * @ViewOnlySafe only when it has read semantics and does not mutate project
+   * or external data. The escape hatch never applies to PUT/PATCH/DELETE.
    *
    * Scope: only routes that go through authenticateUser (required @Auth roles).
    * Intentionally NOT applied to Role.none() / optional routes (service or
@@ -159,12 +164,20 @@ export class IdpGuard implements CanActivate {
    * are not re-checked against live session viewOnly here — that is Identity /
    * MCP token lifecycle responsibility.
    */
-  private checkViewOnlyRestrictions(request: AuthenticatedRequest, tokenPayload: Payload): void {
+  private checkViewOnlyRestrictions(
+    request: AuthenticatedRequest,
+    tokenPayload: Payload,
+    viewOnlySafe: boolean
+  ): void {
     if (!isViewOnlyPayload(tokenPayload)) {
       return;
     }
 
     if (!STATE_CHANGING_METHODS.includes(request.method)) {
+      return;
+    }
+
+    if (request.method === 'POST' && viewOnlySafe) {
       return;
     }
 

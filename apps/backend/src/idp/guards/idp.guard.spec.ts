@@ -12,11 +12,13 @@ import { IdpProviderService } from '../services/idp-provider.service';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Role, Strategy, type RoleConfig } from '../types';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
+import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
 
 describe('IdpGuard', () => {
   let roleConfig: RoleConfig;
   let rejectApiKeyAuth: boolean;
+  let viewOnlySafe: boolean;
   let request: AuthenticatedRequest;
   let idpProvider: {
     parseToken: jest.Mock<Promise<Payload | null>, [string]>;
@@ -31,6 +33,7 @@ describe('IdpGuard', () => {
   beforeEach(() => {
     roleConfig = Role.authenticated(Strategy.PARSE);
     rejectApiKeyAuth = false;
+    viewOnlySafe = false;
     request = {
       headers: {
         'x-owox-authorization': 'Bearer access-token',
@@ -59,6 +62,9 @@ describe('IdpGuard', () => {
           }
           if (metadataKey === REJECT_API_KEY_AUTH_METADATA) {
             return rejectApiKeyAuth;
+          }
+          if (metadataKey === VIEW_ONLY_SAFE_METADATA) {
+            return viewOnlySafe;
           }
           return undefined;
         }),
@@ -299,6 +305,29 @@ describe('IdpGuard', () => {
 
       await expect(guard.canActivate(context())).resolves.toBe(true);
     });
+
+    it('allows a read-semantics POST explicitly marked as view-only safe', async () => {
+      roleConfig = Role.viewer(Strategy.PARSE);
+      viewOnlySafe = true;
+      request.method = 'POST';
+      idpProvider.parseToken.mockResolvedValue(payload(['viewer'], { viewOnly: true }));
+
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+
+      expect(request.idpContext.viewOnly).toBe(true);
+    });
+
+    it.each(['PUT', 'PATCH', 'DELETE'] as const)(
+      'does not apply the view-only safe escape hatch to %s',
+      async method => {
+        roleConfig = Role.viewer(Strategy.PARSE);
+        viewOnlySafe = true;
+        request.method = method;
+        idpProvider.parseToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+
+        await expect(guard.canActivate(context())).rejects.toBeInstanceOf(ViewOnlyModeError);
+      }
+    );
 
     it('enforces view-only before updating IDP projections on mutations', async () => {
       roleConfig = Role.viewer(Strategy.PARSE);

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy, ViewOnlySafe } from '../../idp';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
@@ -348,6 +348,7 @@ export class DataMartController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @ViewOnlySafe()
   @Post('health-status')
   @HttpCode(200)
   @BatchDataMartHealthStatusSpec()
