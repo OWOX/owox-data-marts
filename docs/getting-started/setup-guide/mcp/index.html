@@ -283,7 +283,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">current_project.id</code></td><td>Project identifier</td></tr><tr><td><code dir="auto">current_project.title</code></td><td>Project display name</td></tr><tr><td><code dir="auto">current_project.status</code></td><td>Project status</td></tr><tr><td><code dir="auto">current_project.roles</code></td><td>Your roles in this project</td></tr><tr><td><code dir="auto">current_project.created_at</code></td><td>Project creation date</td></tr><tr><td><code dir="auto">project_switching</code></td><td>Instructions for switching to a different project</td></tr></tbody></table>
 <p>Use this tool when you need to confirm which project is active, or when the assistant asks which project is selected.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="list_data_marts"><code dir="auto">list_data_marts</code></h3><a class="sl-anchor-link" href="#list_data_marts"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “list_data_marts”</span></a></div>
-<p>Lists published data marts visible to you in the current project. Draft data marts are never exposed through MCP.</p>
+<p>Lists data marts visible to you in the current project. By default, it returns published data marts. You can explicitly request draft data mart metadata, but drafts cannot be inspected or queried through other MCP data mart tools.</p>
+<p><strong>Input:</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">status</code></td><td>Optional: <code dir="auto">published</code> (default) returns queryable data marts; <code dir="auto">draft</code> returns draft metadata for catalog browsing only.</td></tr></tbody></table>
 <p><strong>Returns</strong> an array of data mart objects:</p>
 
 
@@ -318,7 +333,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">id</code></td><td>Data mart identifier</td></tr><tr><td><code dir="auto">title</code></td><td>Data mart name</td></tr><tr><td><code dir="auto">description</code></td><td>Data mart description</td></tr><tr><td><code dir="auto">url</code></td><td>Link to open the data mart in OWOX Data Marts</td></tr><tr><td><code dir="auto">status</code></td><td>Current status</td></tr><tr><td><code dir="auto">updated_at</code></td><td>Last update timestamp</td></tr></tbody></table>
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">id</code></td><td>Data mart identifier</td></tr><tr><td><code dir="auto">title</code></td><td>Data mart name</td></tr><tr><td><code dir="auto">description</code></td><td>Data mart description</td></tr><tr><td><code dir="auto">url</code></td><td>Link to open the data mart in OWOX Data Marts</td></tr><tr><td><code dir="auto">status</code></td><td>Current status: <code dir="auto">PUBLISHED</code> or <code dir="auto">DRAFT</code>. Response values are uppercase and differ from the lowercase input filter values.</td></tr><tr><td><code dir="auto">updated_at</code></td><td>Last update timestamp</td></tr></tbody></table>
 <p>Use this tool to discover available data marts before running queries or building reports.</p>
 <p>The response also includes <code dir="auto">project.id</code> and <code dir="auto">project.title</code>, so the assistant can state which project its discovery results belong to.</p>
 <p>The list reflects your access: it includes only the data marts your <a href="/docs/project/roles-and-permissions/">project role</a> permits you to see. If a data mart you expect is missing, check your role in that project.</p>
