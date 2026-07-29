@@ -76,7 +76,16 @@ export class BigQuerySourceDataLastUpdatedResolver implements SourceDataLastUpda
         // "no new information" rather than as a reset.
         break;
       }
-      results.set(item.key, await this.resolveOne(adapter, item, signal));
+      try {
+        results.set(item.key, await this.resolveOne(adapter, item, signal));
+      } catch (error) {
+        // One broken item (an invalid definition failing its dry run) must not sink the sweep
+        // for every healthy Data Mart on the same storage: skip its key — absent already means
+        // "no new information" — and keep measuring the rest.
+        this.logger.warn(
+          `Data last updated lookup failed for item ${item.key}; skipping: ${errorText(error)}`
+        );
+      }
     }
 
     return results;

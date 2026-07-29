@@ -38,6 +38,7 @@ describe('QueryDataMartService', () => {
       accessAllowed?: boolean;
       balanceAllowed?: boolean;
       deadlineMs?: number;
+      dataLastUpdatedGraceMs?: number;
     } = {}
   ) => {
     const dataHeaders = overrides.dataHeaders ?? [
@@ -114,7 +115,8 @@ describe('QueryDataMartService', () => {
       consumptionTrackingService as never,
       // Default deadline is large (constructor default) so normal tests never time out; pass a tiny
       // value to exercise the timeout path.
-      overrides.deadlineMs ?? 3_600_000
+      overrides.deadlineMs ?? 3_600_000,
+      overrides.dataLastUpdatedGraceMs ?? 3_600_000
     );
 
     return {
@@ -781,6 +783,34 @@ describe('QueryDataMartService', () => {
       expect(result.dataLastUpdated).toEqual(measured);
       const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
       expect(call.metadata.dataLastUpdated).toEqual(measured);
+    });
+
+    it('degrades to unavailable after the grace instead of waiting out a stalled lookup', async () => {
+      const { service, sourceDataLastUpdatedService } = createService({
+        dataLastUpdatedGraceMs: 30,
+      });
+      // A lookup that never settles — the pathological dry-run stall from the review.
+      sourceDataLastUpdatedService.resolveForSql.mockReturnValue(new Promise(() => undefined));
+
+      const started = Date.now();
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+        })
+      );
+
+      // The finished query answers within the grace, not the lookup's own 15s soft timeout.
+      expect(Date.now() - started).toBeLessThan(5_000);
+      expect(result.rows).toHaveLength(2);
+      expect(result.dataLastUpdated).toMatchObject({
+        dataLastUpdatedAt: null,
+        coverage: 'unavailable',
+      });
     });
 
     it('runs in parallel with the rows read rather than after it', async () => {

@@ -274,7 +274,7 @@ When presenting results, the assistant must name the source Data Mart. It must d
 
 #### Data last updated
 
-`data_last_updated` answers "how current is what I am looking at?". It is measured live, alongside the data itself, every time the query runs — never cached and never billed separately (the call's own credits already cover it).
+`data_last_updated` answers "how current is what I am looking at?". Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call's own credits cover it.
 
 | Field                  | Description                                                                                                                                                          |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -283,13 +283,13 @@ When presenting results, the assistant must name the source Data Mart. It must d
 | `coverage`             | `complete`, `partial` (some sources unreadable — the real time can only be more recent), or `unavailable` (nothing could be determined)                               |
 | `sources`              | Per-table detail, each with its own time and an optional `note` explaining a gap                                                                                       |
 
-Read the value precisely — it is a **storage** timestamp, not a statement about the data's content:
+Read the value precisely. It is a **storage** timestamp, not a statement about the data's content:
 
-- It says when the source tables were last **written to**. A table rewritten today may have backfilled only figures for 2021, so "updated today" does not mean "covers today". This is why the field is called *data last updated* rather than *freshness*.
-- `null` means **unknown** — neither fresh nor stale. The assistant should say OWOX could not determine it rather than implying either.
+- It says when something last **wrote to** the source tables. A backfill can rewrite a table today with figures from 2021, so "updated today" does not mean "covers today". For this reason the field is *data last updated*, not *freshness*.
+- `null` means **unknown** — neither fresh nor stale. The assistant should say OWOX could not determine it, without implying either.
 - With `coverage: "partial"`, treat the timestamp as "at least as recent as" and say the picture is incomplete.
 
-Coverage today is best effort per storage: Google BigQuery is supported, including views and SQL data marts (resolved through to their underlying base tables) and sharded/wildcard table sets. Other storages currently report `unavailable`. Views are deliberately excluded from `sources`, because a view's own modification time reflects a change to its definition, not to any data.
+Coverage is best effort per storage. Google BigQuery works first, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data.
 
 ### `list_destinations`
 

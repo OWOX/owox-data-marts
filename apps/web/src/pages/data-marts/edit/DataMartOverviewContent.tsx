@@ -93,6 +93,12 @@ export default function DataMartOverviewContent() {
     setContextIds((dataMart.contexts ?? []).map(c => c.id));
   }, [dataMart.contexts]);
 
+  // A measurement belongs to ONE Data Mart. On a route-param-only navigation this component can
+  // stay mounted, and without the reset mart A's fresh result would render on mart B.
+  useEffect(() => {
+    setRefreshedDataLastUpdated(null);
+  }, [dataMart.id]);
+
   const handleRefreshDataLastUpdated = useCallback(async () => {
     setIsRefreshingDataLastUpdated(true);
     try {

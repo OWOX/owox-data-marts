@@ -201,6 +201,30 @@ describe('BigQuerySourceDataLastUpdatedResolver', () => {
     });
   });
 
+  it('keeps measuring the batch when one item fails its dry run', async () => {
+    const { resolver } = createResolver({
+      executeDryRunQuery: jest.fn(async (sql: string) => {
+        if (sql.includes('broken')) throw new Error('dry run failed: table not found');
+        return { referencedTables: [ref('orders')] };
+      }),
+      getTableLastModified: jest
+        .fn()
+        .mockResolvedValue({ type: 'TABLE', lastModifiedTime: asDate('2026-07-25T08:30:00Z') }),
+    });
+
+    const results = await resolver.resolveForSqlBatch({
+      storage,
+      items: [
+        { key: 'dm-broken', sql: 'SELECT * FROM broken' },
+        { key: 'dm-ok', sql: 'SELECT * FROM orders' },
+      ],
+    });
+
+    // The broken item's key is simply absent ("no new information"); the healthy one resolves.
+    expect(results.has('dm-broken')).toBe(false);
+    expect(results.get('dm-ok')?.dataLastUpdatedAt).toBe('2026-07-25T08:30:00.000Z');
+  });
+
   it('reports unavailable rather than a view definition time when only views are referenced', async () => {
     // If BigQuery ever stops expanding a view to its base tables, staying silent is the
     // intended outcome: a view's modification time describes its definition, not its data.

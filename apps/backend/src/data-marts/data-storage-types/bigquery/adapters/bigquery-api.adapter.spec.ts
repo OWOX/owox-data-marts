@@ -1,6 +1,9 @@
 import { BigQuery } from '@google-cloud/bigquery';
 import { BigQueryApiAdapter } from './bigquery-api.adapter';
 
+import { BIGQUERY_AUTODETECT_LOCATION } from '../schemas/bigquery-config.schema';
+import { BIGQUERY_OAUTH_TYPE } from '../schemas/bigquery-credentials.schema';
+
 describe('BigQueryApiAdapter.getMaxShardLastModified', () => {
   const createAdapter = (query: jest.Mock) => {
     const adapter = Object.create(BigQueryApiAdapter.prototype) as BigQueryApiAdapter;
@@ -33,8 +36,6 @@ describe('BigQueryApiAdapter.getMaxShardLastModified', () => {
     expect(query).not.toHaveBeenCalled();
   });
 });
-import { BIGQUERY_AUTODETECT_LOCATION } from '../schemas/bigquery-config.schema';
-import { BIGQUERY_OAUTH_TYPE } from '../schemas/bigquery-credentials.schema';
 
 // Mock only the BigQuery constructor — the adapter uses it as the single value import;
 // everything else it imports from the SDK is type-only and erased at compile time.

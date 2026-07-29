@@ -20,6 +20,7 @@ import { ReportSqlComposerService } from '../services/report-sql-composer.servic
 import { BlendableSchemaAccessor } from '../services/blendable-schema.service';
 import { ReportTotalsService } from '../services/report-totals.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
+import { unavailableSourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
@@ -43,6 +44,12 @@ const MAX_QUERY_LIMIT = 1000;
 // timer would blunt-reset a computing request first. Overridable via constructor for tests.
 export const DEFAULT_QUERY_DEADLINE_MS = 3 * 60_000;
 
+// How long a FINISHED query may wait for the auxiliary data-last-updated lookup. The lookup runs
+// in parallel with the rows and normally settles first; this grace only matters when the dry run
+// or a metadata call stalls. Without it, a 2-second query could sit behind the lookup's own 15s
+// soft timeout — auxiliary metadata holding a ready answer hostage. Overridable for tests.
+export const DEFAULT_DATA_LAST_UPDATED_GRACE_MS = 2_000;
+
 /**
  * Reads rows for a single Data Mart on behalf of the `query_data_mart` MCP tool. The composed SQL is
  * passed to the reader as `sqlOverride` + `columnFilter`; without them it falls back to `SELECT *`.
@@ -62,8 +69,24 @@ export class QueryDataMartService {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    @Optional() private readonly queryDeadlineMs: number = DEFAULT_QUERY_DEADLINE_MS
+    @Optional() private readonly queryDeadlineMs: number = DEFAULT_QUERY_DEADLINE_MS,
+    @Optional()
+    private readonly dataLastUpdatedGraceMs: number = DEFAULT_DATA_LAST_UPDATED_GRACE_MS
   ) {}
+
+  private withGrace(
+    lookup: Promise<McpQueryDataMartResponse['dataLastUpdated']>
+  ): Promise<McpQueryDataMartResponse['dataLastUpdated']> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const grace = new Promise<McpQueryDataMartResponse['dataLastUpdated']>(resolve => {
+      timer = setTimeout(() => {
+        resolve(unavailableSourceDataLastUpdated());
+      }, this.dataLastUpdatedGraceMs);
+    });
+    return Promise.race([lookup, grace]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
 
   async run(
     command: QueryDataMartCommand,
@@ -257,10 +280,12 @@ export class QueryDataMartService {
 
           const truncated = rows.length > r.limit;
           const trimmed = truncated ? rows.slice(0, r.limit) : rows;
-          const [totals, dataLastUpdated] = await Promise.all([
-            totalsPromise,
-            dataLastUpdatedPromise,
-          ]);
+          const totals = await totalsPromise;
+          // Rows and totals are done; the auxiliary block gets a short grace, then degrades to
+          // unavailable rather than delaying a finished answer by its own 15s soft timeout. The
+          // abandoned lookup does not keep running: the finally below aborts workController and
+          // the resolver stops on that signal.
+          const dataLastUpdated = await this.withGrace(dataLastUpdatedPromise);
           return { columns, columnMetadata, trimmed, truncated, totals, dataLastUpdated };
         } finally {
           workController.abort();
