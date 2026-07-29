@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
 import { getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
 import {
   DIMMED_OPACITY,
-  EDGE_COLOR,
   EDGE_STROKE_WIDTH,
   EDGE_WARNING_DASH,
+  OWOX_BLUE,
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
-import { PARALLEL_EDGE_SPACING } from '../model/graph/parallel-edge-offsets';
-import { buildRoundedPath, type PathPoint } from '../model/graph/rounded-path';
-
-const EDGE_CORNER_RADIUS = 10;
+import type { PathPoint } from '../model/graph/rounded-path';
 
 export interface ModelCanvasFlowEdgeData {
   route: PathPoint[];
@@ -41,52 +37,25 @@ export default function ModelCanvasFlowEdge({
   markerEnd,
   data,
 }: EdgeProps<ModelCanvasFlowEdgeType>) {
-  const pathRef = useRef<SVGPathElement>(null);
-  const [midpoint, setMidpoint] = useState<{ x: number; y: number } | null>(null);
+  const { warning, joinLabel, dimmed } = data;
 
-  const { route, bowOffset, warning, joinLabel, dimmed, labelPosition, direction } = data;
+  // Pure React Flow bezier — smooth curves, no elbow angles.
+  const [path, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
 
-  let path: string;
-  if (route.length > 0) {
-    path = buildRoundedPath(
-      [{ x: sourceX, y: sourceY }, ...route, { x: targetX, y: targetY }],
-      EDGE_CORNER_RADIUS
-    );
-  } else if (bowOffset !== 0) {
-    if (direction === 'vertical') {
-      const c = Math.max(40, Math.abs(targetY - sourceY) * 0.3);
-      path = `M ${sourceX} ${sourceY} C ${sourceX + bowOffset} ${sourceY + c}, ${targetX + bowOffset} ${targetY - c}, ${targetX} ${targetY}`;
-    } else {
-      const c = Math.max(40, Math.abs(targetX - sourceX) * 0.3);
-      path = `M ${sourceX} ${sourceY} C ${sourceX + c} ${sourceY + bowOffset}, ${targetX - c} ${targetY + bowOffset}, ${targetX} ${targetY}`;
-    }
-  } else {
-    [path] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
-  }
-
-  const t = 0.5 + Math.max(-0.18, Math.min(0.18, (bowOffset / PARALLEL_EDGE_SPACING) * 0.24));
-  const color = warning ? WARNING_COLOR : EDGE_COLOR;
+  const color = warning ? WARNING_COLOR : OWOX_BLUE;
   // A merged bidirectional edge is a 1:1 link; every other join is child→parent (N:1).
   const cardinality = markerStart ? '1:1' : 'N:1';
-
-  useEffect(() => {
-    if (labelPosition || joinLabel.length === 0) return;
-    const el = pathRef.current;
-    if (!el) {
-      setMidpoint(null);
-      return;
-    }
-    const len = el.getTotalLength();
-    const pt = el.getPointAtLength(len * t);
-    setMidpoint({ x: pt.x, y: pt.y });
-  }, [path, t, labelPosition, joinLabel]);
-
-  const labelPoint = labelPosition ?? midpoint;
 
   return (
     <>
       <path
-        ref={pathRef}
         d={path}
         fill='none'
         strokeWidth={EDGE_STROKE_WIDTH}
@@ -97,14 +66,8 @@ export default function ModelCanvasFlowEdge({
         markerStart={markerStart}
         style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
       />
-      {joinLabel.length > 0 && labelPoint && (
-        <foreignObject
-          x={labelPoint.x}
-          y={labelPoint.y}
-          width={1}
-          height={1}
-          style={{ overflow: 'visible' }}
-        >
+      {joinLabel.length > 0 && (
+        <foreignObject x={labelX} y={labelY} width={1} height={1} style={{ overflow: 'visible' }}>
           <div
             style={{
               transform: 'translate(-50%, -50%)',

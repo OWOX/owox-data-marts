@@ -4,6 +4,8 @@ export const NODE_BORDER_COLOR = '#9ca3af';
 export const HIGHLIGHT_COLOR = '#3b82f6';
 export const WARNING_COLOR = '#f97316';
 export const EDGE_COLOR = 'steelblue';
+/** OWOX brand blue (--primary / brand-blue-500), resolved to sRGB for SVG strokes + markers. */
+export const OWOX_BLUE = '#0084ff';
 export const EDGE_STROKE_WIDTH = 1.5;
 export const EDGE_WARNING_DASH = '8 4';
 export const DIMMED_OPACITY = 0.15;

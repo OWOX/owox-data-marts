@@ -17,8 +17,8 @@ import { Switch } from '@owox/ui/components/switch';
 import { Button } from '../../../../shared/components/Button';
 import { storageService } from '../../../../services/localstorage.service';
 import {
-  EDGE_COLOR,
   NODE_PULSE_KEYFRAMES,
+  OWOX_BLUE,
   STATIC_NODE_STYLE,
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
@@ -143,7 +143,7 @@ interface FlowEdgeParams {
 
 function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
   const { edge, warning } = params;
-  const color = warning ? WARNING_COLOR : EDGE_COLOR;
+  const color = warning ? WARNING_COLOR : OWOX_BLUE;
   const marker = { type: MarkerType.ArrowClosed, color, width: MARKER_SIZE, height: MARKER_SIZE };
 
   return {
@@ -483,6 +483,7 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
           onMove={handleMove}
           fitView
           fitViewOptions={{ padding: FIT_VIEW_PADDING }}
+          proOptions={{ hideAttribution: true }}
           style={{ width: '100%', height: '100%' }}
         >
           <MiniMap pannable zoomable style={{ width: 140, height: 100 }} />
