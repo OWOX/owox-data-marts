@@ -180,7 +180,7 @@ Lists data marts visible to you in the current project. By default, it returns p
 | `title`       | Data mart name                                |
 | `description` | Data mart description                         |
 | `url`         | Link to open the data mart in OWOX Data Marts |
-| `status`      | Current status                                |
+| `status`      | Current status: `PUBLISHED` or `DRAFT`. Response values are uppercase and differ from the lowercase input filter values. |
 | `updated_at`  | Last update timestamp                         |
 
 Use this tool to discover available data marts before running queries or building reports.

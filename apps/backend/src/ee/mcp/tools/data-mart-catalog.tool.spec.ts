@@ -1,4 +1,5 @@
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
+import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpToolRegistry } from './mcp-tool.registry';
@@ -32,7 +33,7 @@ describe('ListDataMartsTool', () => {
             id: 'dm_1',
             title: 'Orders',
             description: null,
-            status: 'published',
+            status: DataMartStatus.PUBLISHED,
             updatedAt: '2026-06-10T10:00:00.000Z',
           },
         ],
@@ -49,7 +50,7 @@ describe('ListDataMartsTool', () => {
             title: 'Orders',
             description: '',
             url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
-            status: 'published',
+            status: DataMartStatus.PUBLISHED,
             updated_at: '2026-06-10T10:00:00.000Z',
           },
         ],
@@ -66,7 +67,7 @@ describe('ListDataMartsTool', () => {
                   title: 'Orders',
                   description: '',
                   url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
-                  status: 'published',
+                  status: DataMartStatus.PUBLISHED,
                   updated_at: '2026-06-10T10:00:00.000Z',
                 },
               ],
