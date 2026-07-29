@@ -1,5 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { FieldWithActions } from '@owox/ui/components/common/field-with-actions';
 import {
   FormControl,
   FormDescription,
@@ -13,7 +13,6 @@ import { Input } from '@owox/ui/components/input';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
 import { toast } from 'react-hot-toast';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { useState, useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
@@ -266,16 +265,17 @@ export const LegacyGoogleBigQueryFields = ({ form }: LegacyGoogleBigQueryFieldsP
                     </div>
                     <FormControl>
                       {!isEditing && serviceAccountLink ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <ExternalAnchor href={serviceAccountLink.url} variant='field'>
-                              {serviceAccountLink.email}
-                            </ExternalAnchor>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>View in Google Cloud Console</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <FieldWithActions
+                          value={serviceAccountLink.email}
+                          actions={[
+                            { type: 'copy', tooltip: 'Copy email' },
+                            {
+                              type: 'external-link',
+                              href: serviceAccountLink.url,
+                              tooltip: 'Open details',
+                            },
+                          ]}
+                        />
                       ) : (
                         <FileDropTextarea
                           {...field}
