@@ -43,9 +43,9 @@ import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges'
 import { computeParallelEdgeOffsets } from '../model/graph/parallel-edge-offsets';
 import type { PathPoint } from '../model/graph/rounded-path';
 import type { ModelCanvasNode } from '../model/types';
+import { computeNodeHeight } from '../model/erd-node';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, {
-  NODE_HEIGHT,
   NODE_WIDTH,
   type ModelCanvasFlowNodeType,
 } from './ModelCanvasFlowNode';
@@ -100,7 +100,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
     type: 'modelCanvasNode',
     position: params.position,
     width: NODE_WIDTH,
-    height: NODE_HEIGHT,
+    height: computeNodeHeight(node),
     draggable: false,
     selectable: false,
     focusable: false,
@@ -110,6 +110,8 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       isDraft: node.status === DataMartStatus.DRAFT,
       fieldCount: node.fieldCount,
       description: node.description,
+      definitionType: node.definitionType ?? null,
+      fields: node.fields ?? [],
       hasIncoming: params.hasIncoming,
       hasOutgoing: params.hasOutgoing,
       highlighted: highlight.highlighted,
@@ -205,7 +207,7 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
     const dagreNodes: DagreLayoutNode[] = nodes.map(n => ({
       id: n.id,
       width: NODE_WIDTH,
-      height: NODE_HEIGHT,
+      height: computeNodeHeight(n),
     }));
     const joinLabels = showJoinLabels
       ? new Map(edges.map(e => [e.id, buildJoinLabel(e)]))

@@ -66,6 +66,8 @@ export default function ModelCanvasFlowEdge({
 
   const t = 0.5 + Math.max(-0.18, Math.min(0.18, (bowOffset / PARALLEL_EDGE_SPACING) * 0.24));
   const color = warning ? WARNING_COLOR : EDGE_COLOR;
+  // A merged bidirectional edge is a 1:1 link; every other join is child→parent (N:1).
+  const cardinality = markerStart ? '1:1' : 'N:1';
 
   useEffect(() => {
     if (labelPosition || joinLabel.length === 0) return;
@@ -107,6 +109,9 @@ export default function ModelCanvasFlowEdge({
             style={{
               transform: 'translate(-50%, -50%)',
               width: 'max-content',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
               background: 'var(--background)',
               border: '1px solid var(--border)',
               borderRadius: 8,
@@ -121,9 +126,24 @@ export default function ModelCanvasFlowEdge({
               boxShadow: '0 1px 3px 0 rgba(0,0,0,0.08)',
             }}
           >
-            {joinLabel.map(line => (
-              <div key={line}>{line}</div>
-            ))}
+            <div>
+              {joinLabel.map(line => (
+                <div key={line}>{line}</div>
+              ))}
+            </div>
+            <span
+              style={{
+                flexShrink: 0,
+                borderRadius: 4,
+                padding: '0 5px',
+                fontSize: 10,
+                fontWeight: 700,
+                background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
+                color: 'var(--primary)',
+              }}
+            >
+              {cardinality}
+            </span>
           </div>
         </foreignObject>
       )}

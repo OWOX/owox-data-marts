@@ -1,6 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
 vi.mock('@xyflow/react', () => ({
@@ -17,6 +18,24 @@ function renderNode(onOpenExternal = vi.fn()) {
       isDraft: false,
       fieldCount: 3,
       description: 'Customer order facts',
+      definitionType: DataMartDefinitionType.VIEW,
+      fields: [
+        {
+          name: 'order_id',
+          alias: 'Order ID',
+          type: 'STRING',
+          isPrimaryKey: true,
+          isHidden: false,
+        },
+        {
+          name: 'customer_id',
+          alias: 'Customer ID',
+          type: 'INTEGER',
+          isPrimaryKey: false,
+          isHidden: false,
+        },
+        { name: 'status', alias: 'Status', type: 'STRING', isPrimaryKey: false, isHidden: false },
+      ],
       hasIncoming: true,
       hasOutgoing: true,
       highlighted: false,
