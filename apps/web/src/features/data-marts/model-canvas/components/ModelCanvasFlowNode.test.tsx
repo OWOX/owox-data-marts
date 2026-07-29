@@ -36,6 +36,7 @@ function renderNode(onOpenExternal = vi.fn()) {
         },
         { name: 'status', alias: 'Status', type: 'STRING', isPrimaryKey: false, isHidden: false },
       ],
+      viewMode: 'erd',
       hasIncoming: true,
       hasOutgoing: true,
       highlighted: false,

@@ -1,6 +1,9 @@
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import type { CanvasNodeField, ModelCanvasNode } from './types';
 
+/** Canvas node display density. Compact = header only; ERD = header + field rows. */
+export type CanvasViewMode = 'compact' | 'erd';
+
 /**
  * Accent / badge color per definition type, mirroring the OWOX Model Canvas
  * palette (owox/models). Kept in one place so the header stripe, the badge and
@@ -23,36 +26,48 @@ export function definitionTypeAccent(type: DataMartDefinitionType | null | undef
 }
 
 // ---- Layout geometry -------------------------------------------------------
-// Node height must be a pure function of its data so the dagre layout (which is
-// computed before render) and the rendered node agree exactly — otherwise edge
-// anchors drift. The "+N more" affordance therefore opens the Data Mart instead
-// of expanding in place, keeping every node height deterministic.
+// The dagre layout runs before render, so it needs a size estimate per node.
+// It always sizes to the COLLAPSED height: the default picture stays tidy, and
+// an expanded ERD node may overlap below until the user drags it (nodes are
+// draggable) — same behaviour as owox/models.
 
-export const ERD_NODE_WIDTH = 264;
-export const ERD_HEADER_HEIGHT = 58; // title row + meta row (badge + field count)
+export const COMPACT_NODE_WIDTH = 212;
+export const COMPACT_NODE_HEIGHT = 92;
+
+export const ERD_NODE_WIDTH = 256;
+export const ERD_HEADER_HEIGHT = 64; // title row + meta row (badge + field count)
 export const ERD_ROW_HEIGHT = 26;
-export const ERD_MORE_ROW_HEIGHT = 26;
-export const ERD_MAX_VISIBLE_ROWS = 8;
-/** Height of a node when its fields have not been loaded yet (compact fallback). */
-export const ERD_COMPACT_HEIGHT = 74;
+export const ERD_EXPAND_ROW_HEIGHT = 26;
+/** ERD nodes show at most this many rows before collapsing behind a toggle. */
+export const ERD_COLLAPSED_ROWS = 4;
 
-/** Primary keys first, then the rest — stable order, collapsed or not. */
+export function nodeWidth(viewMode: CanvasViewMode): number {
+  return viewMode === 'erd' ? ERD_NODE_WIDTH : COMPACT_NODE_WIDTH;
+}
+
+/** Primary keys first, then the rest — stable order, collapsed or expanded. */
 export function orderFields(fields: CanvasNodeField[]): CanvasNodeField[] {
   return [...fields.filter(f => f.isPrimaryKey), ...fields.filter(f => !f.isPrimaryKey)];
 }
 
-export function visibleFieldCount(total: number): number {
-  return Math.min(total, ERD_MAX_VISIBLE_ROWS);
+/**
+ * How many rows an ERD node shows when collapsed. Keys are always kept visible
+ * (their edge anchors must exist), so a key-heavy mart can exceed the base cap.
+ */
+export function collapsedRowCount(fields: CanvasNodeField[]): number {
+  const keyCount = fields.filter(f => f.isPrimaryKey).length;
+  return Math.min(fields.length, Math.max(ERD_COLLAPSED_ROWS, keyCount));
 }
 
-/** Deterministic rendered height for a node, used both for layout and render. */
-export function computeNodeHeight(node: Pick<ModelCanvasNode, 'fields' | 'fieldCount'>): number {
-  const fields = node.fields;
-  if (!fields || fields.length === 0) {
-    // No schema loaded (or a genuinely field-less mart) → compact card.
-    return ERD_COMPACT_HEIGHT;
-  }
-  const visible = visibleFieldCount(fields.length);
-  const hasMore = fields.length > visible;
-  return ERD_HEADER_HEIGHT + visible * ERD_ROW_HEIGHT + (hasMore ? ERD_MORE_ROW_HEIGHT : 0);
+/** Collapsed layout height for a node, used by dagre and as the initial render size. */
+export function computeNodeHeight(
+  node: Pick<ModelCanvasNode, 'fields'>,
+  viewMode: CanvasViewMode
+): number {
+  if (viewMode !== 'erd') return COMPACT_NODE_HEIGHT;
+  const fields = node.fields ?? [];
+  if (fields.length === 0) return COMPACT_NODE_HEIGHT;
+  const rows = collapsedRowCount(fields);
+  const hasMore = fields.length > rows;
+  return ERD_HEADER_HEIGHT + rows * ERD_ROW_HEIGHT + (hasMore ? ERD_EXPAND_ROW_HEIGHT : 0);
 }

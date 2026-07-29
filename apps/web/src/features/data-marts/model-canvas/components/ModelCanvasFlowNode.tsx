@@ -1,21 +1,19 @@
-import { ExternalLink, Info, KeyRound } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronRight, ExternalLink, Info, KeyRound } from 'lucide-react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
 import { DIMMED_OPACITY, HIGHLIGHT_COLOR, SOCKET_STYLE } from '../../shared/canvas/constants';
 import {
-  ERD_MAX_VISIBLE_ROWS,
-  ERD_NODE_WIDTH,
-  computeNodeHeight,
+  type CanvasViewMode,
+  collapsedRowCount,
   definitionTypeAccent,
+  nodeWidth,
   orderFields,
 } from '../model/erd-node';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
-
-// Re-exported for the layout module; width is fixed, height is per-node.
-export const NODE_WIDTH = ERD_NODE_WIDTH;
 
 export interface ModelCanvasFlowNodeData {
   title: string;
@@ -24,6 +22,7 @@ export interface ModelCanvasFlowNodeData {
   description: string | null;
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
+  viewMode: CanvasViewMode;
   hasIncoming: boolean;
   hasOutgoing: boolean;
   highlighted: boolean;
@@ -37,13 +36,23 @@ export type ModelCanvasFlowNodeType = Node<
   'modelCanvasNode'
 >;
 
+function StatusDot({ isDraft }: { isDraft: boolean }) {
+  return (
+    <span
+      className={`h-2 w-2 shrink-0 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
+      title={isDraft ? 'Draft' : 'Published'}
+      aria-hidden='true'
+    />
+  );
+}
+
 function DefinitionBadge({ type }: { type: DataMartDefinitionType | null }) {
   const info = DataMartDefinitionTypeModel.getInfo(type);
   const color = definitionTypeAccent(type);
   const Icon = info.icon;
   return (
     <span
-      className='inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase'
+      className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase'
       style={{ background: color }}
     >
       <Icon className='h-2.5 w-2.5' />
@@ -55,8 +64,8 @@ function DefinitionBadge({ type }: { type: DataMartDefinitionType | null }) {
 function FieldRow({ field }: { field: CanvasNodeField }) {
   return (
     <div
-      className='border-border/60 flex items-center gap-2 border-b px-3 text-[11.5px] last:border-b-0'
-      style={{ height: 26, opacity: field.isHidden ? 0.55 : 1 }}
+      className='border-border/50 flex items-center gap-2 border-b px-3.5 py-1.5 text-[11.5px] last:border-b-0'
+      style={{ opacity: field.isHidden ? 0.5 : 1 }}
       title={field.isHidden ? `${field.alias} (hidden from reporting)` : field.alias}
     >
       {field.isPrimaryKey ? (
@@ -73,14 +82,16 @@ function FieldRow({ field }: { field: CanvasNodeField }) {
 }
 
 export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowNodeType>) {
-  const fields = data.fields;
+  const [expanded, setExpanded] = useState(false);
   const accent = definitionTypeAccent(data.definitionType);
-  const height = computeNodeHeight({ fields, fieldCount: data.fieldCount });
-  const hasFields = fields.length > 0;
+  const isErd = data.viewMode === 'erd';
+  const fields = data.fields;
+  const showBody = isErd && fields.length > 0;
 
   const ordered = orderFields(fields);
-  const visible = ordered.slice(0, ERD_MAX_VISIBLE_ROWS);
-  const hiddenCount = ordered.length - visible.length;
+  const collapsed = collapsedRowCount(fields);
+  const visible = expanded ? ordered : ordered.slice(0, collapsed);
+  const hiddenCount = ordered.length - collapsed;
 
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
@@ -92,12 +103,17 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
     data.onOpenExternal();
   }
 
+  function toggleExpanded(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    setExpanded(v => !v);
+  }
+
   return (
     <div
-      className='bg-background relative flex flex-col overflow-hidden rounded-xl border shadow-sm'
+      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
       style={{
-        width: NODE_WIDTH,
-        height,
+        width: nodeWidth(data.viewMode),
         borderColor: data.highlighted ? HIGHLIGHT_COLOR : undefined,
         boxShadow: data.highlighted
           ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
@@ -108,13 +124,6 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
-      {/* Left accent stripe encodes the definition type. */}
-      <span
-        className='absolute top-0 bottom-0 left-0 w-1'
-        style={{ background: accent }}
-        aria-hidden='true'
-      />
-
       {data.hasIncoming && (
         <Handle
           type='target'
@@ -124,25 +133,26 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         />
       )}
 
-      {/* Header: title + actions */}
-      <div className='flex items-center gap-1 py-2 pr-2 pl-3.5'>
+      {/* Header: accent stripe + title + status + actions */}
+      <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
+        <span
+          className='h-4 w-1 shrink-0 rounded-sm'
+          style={{ background: accent }}
+          aria-hidden='true'
+        />
         <span
           className='text-foreground flex-1 truncate text-[13px] font-semibold'
           title={data.title}
         >
           {data.title}
         </span>
-        {data.isDraft && (
-          <span className='rounded bg-orange-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-orange-500 uppercase'>
-            Draft
-          </span>
-        )}
+        <StatusDot isDraft={data.isDraft} />
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type='button'
-                className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
+                className='text-muted-foreground hover:text-foreground nodrag inline-flex cursor-default rounded p-0.5 transition-colors'
                 aria-label={`Description for ${data.title}`}
                 onPointerDown={e => {
                   e.stopPropagation();
@@ -158,7 +168,7 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         )}
         <button
           type='button'
-          className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
+          className='text-muted-foreground hover:text-foreground nodrag shrink-0 cursor-pointer rounded p-0.5 transition-colors'
           onPointerDown={e => {
             e.stopPropagation();
           }}
@@ -171,15 +181,15 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
       </div>
 
       {/* Meta row: definition badge + field count */}
-      <div className='flex items-center gap-2 pr-2 pb-2 pl-3.5'>
+      <div className='flex items-center gap-2 px-3.5 pt-1 pb-3'>
         <DefinitionBadge type={data.definitionType} />
         <span className='text-muted-foreground text-[11px]'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>
       </div>
 
-      {/* ERD body: field rows */}
-      {hasFields && (
+      {/* ERD body: field rows (only in ERD view) */}
+      {showBody && (
         <div className='border-t'>
           {visible.map(field => (
             <FieldRow key={field.name} field={field} />
@@ -187,15 +197,22 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
           {hiddenCount > 0 && (
             <button
               type='button'
-              className='text-muted-foreground hover:text-foreground hover:bg-muted flex w-full items-center justify-center border-t text-[11px] font-medium transition-colors'
-              style={{ height: 26 }}
+              className='text-muted-foreground hover:text-foreground hover:bg-muted nodrag flex w-full items-center justify-center gap-1 border-t py-1.5 text-[11px] font-medium transition-colors'
               onPointerDown={e => {
                 e.stopPropagation();
               }}
-              onClick={handleExtClick}
-              title={openExternalLabel}
+              onClick={toggleExpanded}
             >
-              +{hiddenCount} more field{hiddenCount !== 1 ? 's' : ''}
+              {expanded ? (
+                <>
+                  <ChevronDown className='h-3 w-3' /> Show less
+                </>
+              ) : (
+                <>
+                  <ChevronRight className='h-3 w-3' /> +{hiddenCount} more field
+                  {hiddenCount !== 1 ? 's' : ''}
+                </>
+              )}
             </button>
           )}
         </div>
