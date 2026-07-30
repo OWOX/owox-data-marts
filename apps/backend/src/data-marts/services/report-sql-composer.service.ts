@@ -28,6 +28,7 @@ import {
   NON_SUMMARIZABLE_AGGREGATIONS,
   type AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
+import { UNIQUE_COUNT_LABEL } from '../dto/schemas/aggregation-labels';
 import { categorizeFieldType } from '../dto/schemas/field-type-category';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
 import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
@@ -128,13 +129,25 @@ export class ReportSqlComposerService {
     const pkFields = getPrimaryKeyFields(schemaFields);
     const uniqueCount = report.uniqueCountConfig === true;
 
+    // `primaryKeyColumns` comes from the CURRENT schema while `uniqueCountConfig` comes from the
+    // STORED report, so removing the mart's PK after saving leaves them disagreeing. The renderer
+    // then silently omits the Unique Count metric (no PK to COUNT DISTINCT), but a stored sort on
+    // that label would still render `ORDER BY "Unique Count"` against a SELECT that no longer has
+    // it — a hard warehouse error on every run, scheduled run, and Generated SQL preview. Drop
+    // those sort rules alongside the metric so the report degrades the same way the SELECT does.
+    // The editor prunes this on open, but scheduled runs never load the editor.
+    const sortConfig =
+      uniqueCount && pkFields.length === 0
+        ? (report.sortConfig ?? []).filter(rule => rule.column !== UNIQUE_COUNT_LABEL)
+        : report.sortConfig;
+
     const queryResult = await this.queryBuilderFacade.buildQuery(
       dataMart.storage.type,
       dataMart.definition,
       {
         columns: decision.columnFilter,
         filters: report.filterConfig ?? undefined,
-        sort: report.sortConfig ?? undefined,
+        sort: sortConfig ?? undefined,
         aggregations: report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
         rowCount: shouldIncludeRowCount(report),

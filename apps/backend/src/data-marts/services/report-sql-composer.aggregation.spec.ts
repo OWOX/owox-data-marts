@@ -159,6 +159,66 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     );
   });
 
+  // Regression: the renderer omits the Unique Count metric when there is no PK, so a stored sort
+  // on that label must be dropped too — otherwise ORDER BY references a column the SELECT lacks.
+  it('drops a "Unique Count" sort rule when uniqueCountConfig is true but the PK was removed', async () => {
+    const { service, queryBuilderFacade } = createService();
+    const report = buildReport({
+      uniqueCountConfig: true,
+      sortConfig: [
+        { column: 'channel', direction: 'asc' },
+        { column: 'Unique Count', direction: 'desc' },
+      ],
+      dataMart: {
+        id: 'dm-1',
+        projectId: 'proj-1',
+        definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        // PK removed from the schema after the report was saved.
+        schema: { fields: [{ name: 'channel', type: 'STRING', isPrimaryKey: false }] },
+      },
+    } as Partial<Report>);
+
+    await service.compose(report, {} as never);
+
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+      'GOOGLE_BIGQUERY',
+      expect.anything(),
+      expect.objectContaining({
+        primaryKeyColumns: [],
+        sort: [{ column: 'channel', direction: 'asc' }],
+      })
+    );
+  });
+
+  it('keeps a "Unique Count" sort rule while the PK still exists', async () => {
+    const { service, queryBuilderFacade } = createService();
+    const report = buildReport({
+      uniqueCountConfig: true,
+      sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      dataMart: {
+        id: 'dm-1',
+        projectId: 'proj-1',
+        definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+        storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+        schema: {
+          fields: [
+            { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+            { name: 'channel', type: 'STRING', isPrimaryKey: false },
+          ],
+        },
+      },
+    } as Partial<Report>);
+
+    await service.compose(report, {} as never);
+
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+      'GOOGLE_BIGQUERY',
+      expect.anything(),
+      expect.objectContaining({ sort: [{ column: 'Unique Count', direction: 'desc' }] })
+    );
+  });
+
   it('passes uniqueCount: false and primaryKeyColumns: [] when uniqueCountConfig is null/false', async () => {
     const { service, queryBuilderFacade } = createService();
     const report = buildReport({
