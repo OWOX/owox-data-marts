@@ -3489,6 +3489,10 @@ describe('OutputControlsValidatorService', () => {
       }
 
       expect(caught).toBeDefined();
+      // Assert the class before getResponse(): if a regression routes this to the
+      // BusinessViolationException (disconnected-columns) path instead, that surfaces as a
+      // readable assertion diff rather than `TypeError: caught.getResponse is not a function`.
+      expect(caught).toBeInstanceOf(BadRequestException);
       const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
       expect(response.details.errors.some(e => e.code === 'SORT_COLUMN_NOT_SELECTED')).toBe(true);
     });
