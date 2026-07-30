@@ -55,6 +55,7 @@ describe('DataQualityApiService', () => {
   };
   const dataQualitySummaryService = {
     getCurrentByDataMarts: jest.fn(),
+    getCurrentByDataMartIds: jest.fn(),
   };
   const service = new DataQualityApiService(
     dataMartService as unknown as DataMartService,
@@ -118,6 +119,7 @@ describe('DataQualityApiService', () => {
     runRequestService.enqueue.mockResolvedValue({ dataMartRunId: 'run-1' });
     runService.getActiveRunId.mockResolvedValue(null);
     dataQualitySummaryService.getCurrentByDataMarts.mockResolvedValue(new Map());
+    dataQualitySummaryService.getCurrentByDataMartIds.mockResolvedValue(new Map());
   });
 
   it('resolves the project-scoped root before SEE and returns permissions', async () => {
@@ -327,8 +329,8 @@ describe('DataQualityApiService', () => {
   });
 
   it('returns summaries only for project-scoped Data Marts the caller can see', async () => {
-    const dmA = { ...dataMart, id: 'dm-a' } as DataMart;
-    const dmC = { ...dataMart, id: 'dm-c' } as DataMart;
+    const dmA = { id: 'dm-a' } as DataMart;
+    const dmC = { id: 'dm-c' } as DataMart;
     const summaryA = createNoRunDataQualitySummary(2);
     dataMartService.findByIdsAndProjectId.mockResolvedValue([dmA, dmC]);
     accessDecisionService.canAccessMany.mockResolvedValueOnce(
@@ -337,7 +339,7 @@ describe('DataQualityApiService', () => {
         ['dm-c', false],
       ])
     );
-    dataQualitySummaryService.getCurrentByDataMarts.mockResolvedValueOnce(
+    dataQualitySummaryService.getCurrentByDataMartIds.mockResolvedValueOnce(
       new Map([['dm-a', summaryA]])
     );
 
@@ -359,9 +361,10 @@ describe('DataQualityApiService', () => {
       Action.SEE,
       'project-1'
     );
-    expect(dataQualitySummaryService.getCurrentByDataMarts).toHaveBeenCalledWith(
-      [dmA],
+    expect(dataQualitySummaryService.getCurrentByDataMartIds).toHaveBeenCalledWith(
+      ['dm-a'],
       'project-1'
     );
+    expect(dataQualitySummaryService.getCurrentByDataMarts).not.toHaveBeenCalled();
   });
 });

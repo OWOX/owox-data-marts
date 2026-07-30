@@ -42,6 +42,11 @@ describe('collapsedRowCount', () => {
 });
 
 describe('computeNodeHeight', () => {
+  it('reserves space for the third Data Quality header row', () => {
+    expect(COMPACT_NODE_HEIGHT).toBe(116);
+    expect(ERD_HEADER_HEIGHT).toBe(88);
+  });
+
   it('returns the compact height outside ERD mode', () => {
     expect(computeNodeHeight({ fields: [field('a')] }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
   });

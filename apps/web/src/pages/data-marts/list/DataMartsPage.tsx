@@ -22,7 +22,7 @@ const DataMartsPageContent = () => {
   const [visibleDataMartIds, setVisibleDataMartIds] = useState<string[]>([]);
   const qualitySummariesQuery = useDataQualitySummaries(projectId ?? '', visibleDataMartIds);
   const hasActiveQualityRun = Object.values(qualitySummariesQuery.data ?? {}).some(summary =>
-    isDataQualityActivityState(summary.state)
+    isDataQualityActivityState(summary?.state)
   );
 
   useEffect(() => {

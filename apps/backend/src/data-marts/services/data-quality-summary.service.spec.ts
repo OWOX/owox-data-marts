@@ -135,6 +135,7 @@ describe('DataQualitySummaryService', () => {
         id: expect.anything(),
         projectId: 'project-1',
       },
+      select: ['id', 'schema', 'dataQualityConfig'],
     });
     expect(currentSpy).toHaveBeenCalledWith(dataMarts, 'project-1');
     currentSpy.mockRestore();

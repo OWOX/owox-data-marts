@@ -187,18 +187,21 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
           <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
         </button>
       </div>
-      {/* Meta row: quality + definition badge + field count */}
-      <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 pb-3 text-[11px]'>
+      {/* Meta row: definition badge + field count */}
+      <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
+        <DefinitionBadge type={data.definitionType} />
+        <span className='ml-auto shrink-0'>
+          {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {/* Data Quality row */}
+      <div className='text-muted-foreground flex items-center px-3.5 pt-1 pb-3 text-[11px]'>
         <DataQualityCanvasStatusIcon
           dataMartTitle={data.title}
           summary={data.qualitySummary}
           onOpenQuality={data.onOpenQuality}
           onRunQuality={data.onRunQuality}
         />
-        <DefinitionBadge type={data.definitionType} />
-        <span className='ml-auto shrink-0'>
-          {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
-        </span>
       </div>
 
       {/* ERD body: field rows (only in ERD view) */}

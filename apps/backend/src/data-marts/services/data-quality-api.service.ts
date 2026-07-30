@@ -158,22 +158,19 @@ export class DataQualityApiService {
   ): Promise<GetDataQualitySummariesResponseApiDto> {
     const ids = Array.from(new Set(requestedIds));
     const existing = await this.dataMartService.findByIdsAndProjectId(ids, context.projectId);
-    const existingById = new Map(existing.map(dataMart => [dataMart.id, dataMart]));
-    const projectScopedIds = ids.filter(id => existingById.has(id));
+    const existingIds = new Set(existing.map(dataMart => dataMart.id));
+    const projectScopedIds = ids.filter(id => existingIds.has(id));
     const seeAccess = await this.getAccessMany(context, projectScopedIds, Action.SEE);
-    const visibleDataMarts = projectScopedIds.flatMap(id => {
-      const dataMart = existingById.get(id);
-      return dataMart && seeAccess.get(id) === true ? [dataMart] : [];
-    });
-    const summaries = await this.summaryService.getCurrentByDataMarts(
-      visibleDataMarts,
+    const visibleIds = projectScopedIds.filter(id => seeAccess.get(id) === true);
+    const summaries = await this.summaryService.getCurrentByDataMartIds(
+      visibleIds,
       context.projectId
     );
 
     return {
-      items: visibleDataMarts.flatMap(dataMart => {
-        const summary = summaries.get(dataMart.id);
-        return summary ? [{ dataMartId: dataMart.id, summary }] : [];
+      items: visibleIds.flatMap(dataMartId => {
+        const summary = summaries.get(dataMartId);
+        return summary ? [{ dataMartId, summary }] : [];
       }),
     };
   }

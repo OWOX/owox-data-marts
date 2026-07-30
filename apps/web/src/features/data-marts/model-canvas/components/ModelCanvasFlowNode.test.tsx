@@ -200,6 +200,18 @@ describe('ModelCanvasFlowNode', () => {
     ).toHaveClass('-ml-0.5');
   });
 
+  it('renders Data Quality indicators on a row below the definition metadata', () => {
+    renderNode();
+
+    const qualityRow = screen.getByRole('button', {
+      name: /^Open Data Quality for Orders: Issues found/,
+    }).parentElement;
+    const metadataRow = screen.getByText('View').parentElement;
+
+    expect(qualityRow).not.toBe(metadataRow);
+    expect(screen.getByText('3 fields').parentElement).toBe(metadataRow);
+  });
+
   it('provides the non-bubbling run action inside the quality details', async () => {
     const onRunQuality = vi.fn().mockResolvedValue(undefined);
     const parentClick = vi.fn();

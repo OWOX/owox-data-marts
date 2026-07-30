@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { dataQualityService } from '../api/data-quality.service';
 import { dataQualityPollingInterval } from './data-quality.model';
-import type { DataQualityCompactSummary, DataQualityConfig, DataQualityRun } from './types';
+import type { DataQualityConfig, DataQualityRun } from './types';
 
 const ROOT_QUERY_KEY = 'data-quality';
 const SILENT_QUERY_OPTIONS = {
@@ -30,18 +30,15 @@ export function useDataQualitySummaries(projectId: string, dataMartIds: readonly
 
   return useQuery({
     queryKey: dataQualityQueryKeys.summaries(projectId, normalizedDataMartIds),
-    queryFn: async ({ signal }) => {
-      const summaries = await dataQualityService.getSummaries(normalizedDataMartIds, {
+    queryFn: ({ signal }) =>
+      dataQualityService.getSummaries(normalizedDataMartIds, {
         signal,
         ...SILENT_QUERY_OPTIONS,
-      });
-      assertAllSummariesReturned(normalizedDataMartIds, summaries);
-      return summaries;
-    },
+      }),
     enabled: Boolean(projectId && normalizedDataMartIds.length > 0),
     refetchInterval: query =>
       Object.values(query.state.data ?? {}).some(
-        summary => dataQualityPollingInterval(summary.state) !== false
+        summary => dataQualityPollingInterval(summary?.state) !== false
       )
         ? 2_000
         : false,
@@ -213,15 +210,4 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
 
 function isActiveState(state: DataQualityRun['summary']['state']): boolean {
   return state === 'QUEUED' || state === 'RUNNING';
-}
-
-function assertAllSummariesReturned(
-  dataMartIds: readonly string[],
-  summaries: Partial<Record<string, DataQualityCompactSummary>>
-): asserts summaries is Record<string, DataQualityCompactSummary> {
-  for (const dataMartId of dataMartIds) {
-    if (!summaries[dataMartId]) {
-      throw new Error(`Data Quality summary was not returned for Data Mart ${dataMartId}`);
-    }
-  }
 }

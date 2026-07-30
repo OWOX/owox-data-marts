@@ -32,10 +32,10 @@ export function definitionTypeAccent(type: DataMartDefinitionType | null | undef
 // draggable) — same behaviour as owox/models.
 
 export const COMPACT_NODE_WIDTH = 212;
-export const COMPACT_NODE_HEIGHT = 92;
+export const COMPACT_NODE_HEIGHT = 116;
 
 export const ERD_NODE_WIDTH = 256;
-export const ERD_HEADER_HEIGHT = 64; // title row + meta row (badge + field count)
+export const ERD_HEADER_HEIGHT = 88; // title + meta + Data Quality rows
 export const ERD_ROW_HEIGHT = 26;
 export const ERD_EXPAND_ROW_HEIGHT = 26;
 /** ERD nodes show at most this many rows before collapsing behind a toggle. */

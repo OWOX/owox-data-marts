@@ -114,6 +114,7 @@ export class DataQualitySummaryService {
 
     const dataMarts = await this.dataMartRepository.find({
       where: { id: In(ids), projectId },
+      select: ['id', 'schema', 'dataQualityConfig'],
     });
     return this.getCurrentByDataMarts(dataMarts, projectId);
   }

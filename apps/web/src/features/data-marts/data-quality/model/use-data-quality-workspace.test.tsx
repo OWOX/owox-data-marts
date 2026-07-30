@@ -155,6 +155,25 @@ describe('useDataQualityWorkspace', () => {
     expect(dataQualityService.getSummaries).toHaveBeenCalledTimes(1);
   });
 
+  it('accepts a partial batch response when one requested Data Mart is no longer visible', async () => {
+    const summary = {
+      ...buildRun('PASSED').summary,
+      dataMartRunId: 'run-1',
+      lastRunAt: '2026-07-15T12:00:02.000Z',
+    };
+    vi.mocked(dataQualityService.getSummaries).mockResolvedValueOnce({ 'mart-1': summary });
+
+    const { result } = renderHook(
+      () => useDataQualitySummaries('project-1', ['mart-1', 'mart-2']),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual({ 'mart-1': summary });
+    });
+    expect(result.current.error).toBeNull();
+  });
+
   it('cancels an obsolete summary request when the visible Data Mart set changes', async () => {
     let obsoleteSignal: { readonly aborted: boolean } | undefined;
     vi.mocked(dataQualityService.getSummaries)

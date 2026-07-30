@@ -98,11 +98,15 @@ vi.mock('./ModelCanvasToolbar', () => ({
 
 vi.mock('./ModelCanvas', () => ({
   default: ({
+    nodes,
+    edges,
     onOpenDataMart,
     onOpenQuality,
     onRunQuality,
     topLeftControls,
   }: {
+    nodes: { id: string }[];
+    edges: { id: string }[];
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
@@ -110,6 +114,8 @@ vi.mock('./ModelCanvas', () => ({
   }) => (
     <>
       {topLeftControls}
+      <span data-testid='canvas-node-ids'>{nodes.map(node => node.id).join(',')}</span>
+      <span data-testid='canvas-edge-ids'>{edges.map(edge => edge.id).join(',')}</span>
       <button
         type='button'
         onClick={() => {
@@ -284,6 +290,21 @@ describe('ModelCanvasView', () => {
         'mart-2',
       ]);
     });
+  });
+
+  it('renders only summarized nodes and removes their incident edges from a partial response', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+    viewState.useDataQualitySummaries.mockReturnValue({
+      ...viewState.qualitySummariesHook,
+      data: { 'mart-1': buildQualitySummary() },
+    });
+
+    render(<ModelCanvasView />);
+
+    expect(await screen.findByTestId('canvas-node-ids')).toHaveTextContent('mart-1');
+    expect(screen.getByTestId('canvas-node-ids')).not.toHaveTextContent('mart-2');
+    expect(screen.getByTestId('canvas-edge-ids')).toBeEmptyDOMElement();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('counts the Data Marts left by canvas filters without narrowing the count by search', async () => {

@@ -106,21 +106,23 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
     refetch: refetchQuality,
   } = qualitySummariesQuery;
   const hasActiveQualityRun = Object.values(qualitySummaries ?? {}).some(summary =>
-    isDataQualityActivityState(summary.state)
+    isDataQualityActivityState(summary?.state)
   );
   const filtered = useMemo<ModelCanvasData | null>(() => {
     if (!filteredTopology) return null;
     if (filteredTopology.nodes.length > 0 && !qualitySummaries) return null;
 
+    const nodes = filteredTopology.nodes.flatMap(node => {
+      const qualitySummary = qualitySummaries?.[node.id];
+      return qualitySummary ? [{ ...node, qualitySummary }] : [];
+    });
+    const nodeIds = new Set(nodes.map(node => node.id));
+
     return {
-      nodes: filteredTopology.nodes.map(node => {
-        const qualitySummary = qualitySummaries?.[node.id];
-        if (!qualitySummary) {
-          throw new Error(`Data Quality summary was not returned for Data Mart ${node.id}`);
-        }
-        return { ...node, qualitySummary };
-      }),
-      edges: filteredTopology.edges,
+      nodes,
+      edges: filteredTopology.edges.filter(
+        edge => nodeIds.has(edge.sourceDataMartId) && nodeIds.has(edge.targetDataMartId)
+      ),
     };
   }, [filteredTopology, qualitySummaries]);
 
