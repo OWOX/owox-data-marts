@@ -557,8 +557,12 @@ export class OutputControlsValidatorService {
         }
         // Unique Count is always a KNOWN sort target (like a schema field) — whether it's
         // currently SELECTED (projected) depends on uniqueCountConfig, checked below by
-        // validateSort. Keeps a stale sort-by-Unique-Count after disabling the toggle a
-        // SORT_COLUMN_NOT_SELECTED error, not a misleading "disconnected from schema" one.
+        // validateSort. So a stale sort-by-Unique-Count left after disabling the toggle is
+        // classified SORT_COLUMN_NOT_SELECTED (a 400) rather than routed to the harsher
+        // DISCONNECTED_REPORT_COLUMNS path, which is reserved for names absent from the
+        // schema entirely. NOTE: this is a code-level classification only — the web renders
+        // just `message`, not `details.errors[].code`, so the two read the same to the user.
+        // The web prunes this rule when the PK disappears, keeping the 400 largely unreachable.
         knownOutputColumns.add(UNIQUE_COUNT_LABEL);
 
         if (parsedFilters.length > 0) {

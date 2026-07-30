@@ -1,6 +1,3 @@
-/** Must match `UNIQUE_COUNT_LABEL` in the backend's aggregation-labels.ts. */
-export const UNIQUE_COUNT_LABEL = 'Unique Count';
-
 /** Last dotted segment of a flattened field name: `a.b.c` → `c`. */
 export function fieldLeafName(name: string): string {
   const i = name.lastIndexOf('.');

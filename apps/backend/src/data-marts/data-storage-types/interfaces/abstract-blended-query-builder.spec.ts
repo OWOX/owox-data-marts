@@ -2155,6 +2155,40 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
     expect(sql).toContain('GROUP BY');
   });
+
+  // Regression: `Unique Count` is an OUTER-SELECT alias, not a column of any CTE. The
+  // sort-derived refs feed the main raw CTE projection, so an unfiltered sort column would
+  // emit `SELECT \`Unique Count\` FROM main_table` — a column that does not exist.
+  it('does NOT project the synthetic Unique Count label into the main raw CTE when sorted by it', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: ['user_id'],
+      sort: [{ column: 'Unique Count', direction: 'desc' }],
+    });
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).not.toContain('Unique Count');
+    // The PK is still projected (Unique Count aggregates it) and the outer ORDER BY still works.
+    expect(mainCte![1]).toContain('user_id');
+    expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
+    expect(sql).toContain('ORDER BY\n  `Unique Count` DESC');
+  });
+
+  // A real main-mart column legitimately named `Unique Count` must still reach the CTE —
+  // it arrives via `columns`, so the synthetic exclusion must not strip it.
+  it('still projects a REAL main column named "Unique Count" into the main raw CTE', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['Unique Count', 'spend__cost']),
+      sort: [{ column: 'Unique Count', direction: 'desc' }],
+    });
+
+    const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+    expect(mainCte).not.toBeNull();
+    expect(mainCte![1]).toContain('Unique Count');
+  });
 });
 
 describe('AbstractBlendedQueryBuilder — regression: ambiguous column in WHERE/ORDER BY', () => {

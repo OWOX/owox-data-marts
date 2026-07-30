@@ -1185,6 +1185,74 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     const listbox = await screen.findByRole('listbox');
     expect(within(listbox).getAllByText('Unique Count')).toHaveLength(1);
   });
+
+  // An UNSELECTED real field owning the name would make `ORDER BY "Unique Count"` ambiguous
+  // between the outer alias and the base column, so the synthetic is suppressed there too.
+  it('does not offer the synthetic when an UNSELECTED real field owns the name', async () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  // The PK-loss auto-heal must prune the stranded sort rule in the SAME update that clears
+  // the flag — otherwise validateSort rejects the leftover rule on every save and run.
+  it('prunes a stranded "Unique Count" sort rule when the schema loses its primary key', () => {
+    const onOutputConfigChange = vi.fn();
+    renderPicker(noPkSchema(), ['col_a'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [
+          { column: 'col_a', direction: 'asc' },
+          { column: 'Unique Count', direction: 'desc' },
+        ],
+      },
+      onOutputConfigChange,
+    });
+
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'col_a', direction: 'asc' }],
+      })
+    );
+  });
+
+  it('leaves a "Unique Count" sort rule alone on PK loss when a real field owns the name', () => {
+    const onOutputConfigChange = vi.fn();
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'col_a', type: 'STRING' },
+        { name: 'Unique Count', type: 'STRING' },
+      ] as unknown[],
+    });
+    renderPicker(schema, ['col_a', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange,
+    });
+
+    // The flag is still cleared (no PK), but the real field's sort rule survives.
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      })
+    );
+  });
 });
 
 describe('ReportColumnPicker search', () => {
