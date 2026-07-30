@@ -1,11 +1,15 @@
-import { getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
 import {
   DIMMED_OPACITY,
+  EDGE_NEUTRAL_COLOR,
+  EDGE_SELECTED_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
   EDGE_WARNING_DASH,
   OWOX_BLUE,
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
+import { EdgeArrowMarkers } from '../../shared/canvas/edge-arrow';
+import { edgeMarkerId } from '../../shared/canvas/edge-marker-id';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
 
 export interface ModelCanvasFlowEdgeData {
@@ -14,6 +18,7 @@ export interface ModelCanvasFlowEdgeData {
   joinLabel: string[];
   dimmed: boolean;
   direction: CanvasDirection;
+  bidirectional: boolean;
 }
 
 export type ModelCanvasFlowEdgeType = Edge<
@@ -66,17 +71,17 @@ function getBowedBezier(
 }
 
 export default function ModelCanvasFlowEdge({
+  id,
   sourceX,
   sourceY,
   targetX,
   targetY,
   sourcePosition,
   targetPosition,
-  markerStart,
-  markerEnd,
+  selected,
   data,
 }: EdgeProps<ModelCanvasFlowEdgeType>) {
-  const { bowOffset, warning, joinLabel, dimmed, direction } = data;
+  const { bowOffset, warning, joinLabel, dimmed, direction, bidirectional } = data;
 
   let geometry: BezierGeometry;
   if (bowOffset !== 0) {
@@ -93,20 +98,24 @@ export default function ModelCanvasFlowEdge({
     geometry = { path, labelX, labelY };
   }
 
-  const color = warning ? WARNING_COLOR : OWOX_BLUE;
+  const color = warning ? WARNING_COLOR : selected ? OWOX_BLUE : EDGE_NEUTRAL_COLOR;
+  const markerId = edgeMarkerId('mc-arrow', id);
 
   return (
     <>
-      <path
-        d={geometry.path}
-        fill='none'
-        strokeWidth={EDGE_STROKE_WIDTH}
-        stroke={color}
-        strokeDasharray={warning ? EDGE_WARNING_DASH : undefined}
-        opacity={dimmed ? DIMMED_OPACITY : 1}
-        markerEnd={markerEnd}
-        markerStart={markerStart}
-        style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
+      <EdgeArrowMarkers markerId={markerId} color={color} withStart={bidirectional} />
+      <BaseEdge
+        id={id}
+        path={geometry.path}
+        markerEnd={`url(#${markerId}-end)`}
+        markerStart={bidirectional ? `url(#${markerId}-start)` : undefined}
+        style={{
+          stroke: color,
+          strokeWidth: selected ? EDGE_SELECTED_STROKE_WIDTH : EDGE_STROKE_WIDTH,
+          strokeDasharray: warning ? EDGE_WARNING_DASH : undefined,
+          opacity: dimmed ? DIMMED_OPACITY : 1,
+          transition: 'opacity 0.2s, stroke 0.2s',
+        }}
       />
       {joinLabel.length > 0 && (
         <foreignObject
@@ -121,7 +130,7 @@ export default function ModelCanvasFlowEdge({
               transform: 'translate(-50%, -50%)',
               width: 'max-content',
               background: 'var(--background)',
-              border: '1px solid var(--border)',
+              border: `1px solid ${selected ? 'var(--primary)' : 'var(--border)'}`,
               borderRadius: 8,
               padding: '3px 8px',
               fontSize: 11,

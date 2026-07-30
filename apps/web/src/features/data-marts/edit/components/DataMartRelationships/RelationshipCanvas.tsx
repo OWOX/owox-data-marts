@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BaseEdge,
   Handle,
-  MarkerType,
   MiniMap,
   Position,
   ReactFlow,
@@ -36,6 +36,8 @@ import { useProjectRoute } from '../../../../../shared/hooks';
 import { storageService } from '../../../../../services/localstorage.service';
 import {
   DIMMED_OPACITY,
+  EDGE_NEUTRAL_COLOR,
+  EDGE_SELECTED_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
   EDGE_WARNING_DASH,
   HIGHLIGHT_COLOR,
@@ -45,6 +47,8 @@ import {
   STATIC_NODE_STYLE,
   WARNING_COLOR,
 } from '../../../shared/canvas/constants';
+import { EdgeArrowMarkers } from '../../../shared/canvas/edge-arrow';
+import { edgeMarkerId } from '../../../shared/canvas/edge-marker-id';
 import { definitionTypeAccent } from '../../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../../shared/canvas/erd-card';
 import { computeCanvasHighlight, NO_HIGHLIGHT } from '../../../shared/canvas/highlight';
@@ -91,7 +95,6 @@ interface RelationshipCanvasProps {
 const NODE_W = 240;
 const SRC_H = 48;
 const TGT_H = 92;
-const MARKER_SIZE = 12;
 
 const SHOW_LOOPED_LS_KEY = 'relationship-canvas-show-looped';
 const STATUS_FILTER_LS_KEY = 'relationship-canvas-status-filter';
@@ -330,13 +333,14 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
 }
 
 function RelationshipFlowEdge({
+  id,
   sourceX,
   sourceY,
   targetX,
   targetY,
   sourcePosition,
   targetPosition,
-  markerEnd,
+  selected,
   data,
 }: EdgeProps<RelationshipFlowEdgeType>) {
   const [path] = getBezierPath({
@@ -347,19 +351,26 @@ function RelationshipFlowEdge({
     targetY,
     targetPosition,
   });
-  const color = data.warning ? WARNING_COLOR : OWOX_BLUE;
+  // Gray at rest, brand-blue only when this edge is selected (as in owox/models).
+  const color = data.warning ? WARNING_COLOR : selected ? OWOX_BLUE : EDGE_NEUTRAL_COLOR;
+  const markerId = edgeMarkerId('rel-arrow', id);
 
   return (
-    <path
-      d={path}
-      fill='none'
-      strokeWidth={EDGE_STROKE_WIDTH}
-      stroke={color}
-      strokeDasharray={data.warning ? EDGE_WARNING_DASH : undefined}
-      opacity={data.dimmed ? DIMMED_OPACITY : 1}
-      markerEnd={markerEnd}
-      style={{ transition: 'opacity 0.2s' }}
-    />
+    <>
+      <EdgeArrowMarkers markerId={markerId} color={color} withStart={false} />
+      <BaseEdge
+        id={id}
+        path={path}
+        markerEnd={`url(#${markerId}-end)`}
+        style={{
+          stroke: color,
+          strokeWidth: selected ? EDGE_SELECTED_STROKE_WIDTH : EDGE_STROKE_WIDTH,
+          strokeDasharray: data.warning ? EDGE_WARNING_DASH : undefined,
+          opacity: data.dimmed ? DIMMED_OPACITY : 1,
+          transition: 'opacity 0.2s, stroke 0.2s',
+        }}
+      />
+    </>
   );
 }
 
@@ -627,12 +638,6 @@ function buildRelationshipFlow({
       target: edge.targetId,
       focusable: false,
       selectable: false,
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: warning ? WARNING_COLOR : OWOX_BLUE,
-        width: MARKER_SIZE,
-        height: MARKER_SIZE,
-      },
       data: { warning, dimmed: false },
     });
   }
@@ -759,16 +764,31 @@ function RelationshipCanvasInner({
     [graphResult.nodes, highlightState]
   );
 
+  // Edge selection is tracked manually (the edge list is memo-derived, not
+  // React Flow state): clicking an edge turns it brand-blue, pane click clears.
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
   const flowEdges = useMemo(
     () =>
       graphResult.edges.map(edge => {
         const dimmed =
           (highlightState.get(edge.source)?.dimmed ?? false) &&
           (highlightState.get(edge.target)?.dimmed ?? false);
-        return edge.data.dimmed === dimmed ? edge : { ...edge, data: { ...edge.data, dimmed } };
+        const selected = edge.id === selectedEdgeId;
+        return edge.data.dimmed === dimmed && (edge.selected ?? false) === selected
+          ? edge
+          : { ...edge, selected, data: { ...edge.data, dimmed } };
       }),
-    [graphResult.edges, highlightState]
+    [graphResult.edges, highlightState, selectedEdgeId]
   );
+
+  const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string }) => {
+    setSelectedEdgeId(current => (current === edge.id ? null : edge.id));
+  }, []);
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedEdgeId(null);
+  }, []);
 
   const highlightStateRef = useRef(highlightState);
   highlightStateRef.current = highlightState;
@@ -954,6 +974,8 @@ function RelationshipCanvasInner({
           zoomOnDoubleClick={false}
           minZoom={zoomRange.min}
           maxZoom={zoomRange.max}
+          onEdgeClick={handleEdgeClick}
+          onPaneClick={handlePaneClick}
           onMove={handleMove}
           onMoveStart={(event: unknown) => {
             if (event) markUserInteracted();

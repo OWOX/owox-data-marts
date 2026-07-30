@@ -1,13 +1,14 @@
 import { Check, Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  applyEdgeChanges,
   applyNodeChanges,
-  MarkerType,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
   useStore,
+  type EdgeChange,
   type NodeChange,
   type Viewport,
 } from '@xyflow/react';
@@ -16,12 +17,7 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/
 import { Switch } from '@owox/ui/components/switch';
 import { Button } from '../../../../shared/components/Button';
 import { storageService } from '../../../../services/localstorage.service';
-import {
-  NODE_PULSE_KEYFRAMES,
-  OWOX_BLUE,
-  STATIC_NODE_STYLE,
-  WARNING_COLOR,
-} from '../../shared/canvas/constants';
+import { NODE_PULSE_KEYFRAMES, STATIC_NODE_STYLE } from '../../shared/canvas/constants';
 import {
   computeCanvasHighlight,
   NO_HIGHLIGHT,
@@ -120,7 +116,6 @@ const VIEW_MODE_OPTIONS: { value: CanvasViewMode; label: string }[] = [
   { value: 'erd', label: 'Detailed' },
 ];
 const FIT_VIEW_PADDING = 0.2;
-const MARKER_SIZE = 12;
 const LABEL_CHAR_WIDTH = 6.6;
 const LABEL_HORIZONTAL_PADDING = 18;
 const LABEL_LINE_HEIGHT = 16.5;
@@ -200,8 +195,6 @@ interface FlowEdgeParams {
 
 function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
   const { edge, warning } = params;
-  const color = warning ? WARNING_COLOR : OWOX_BLUE;
-  const marker = { type: MarkerType.ArrowClosed, color, width: MARKER_SIZE, height: MARKER_SIZE };
 
   return {
     id: edge.id,
@@ -209,15 +202,15 @@ function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
     source: edge.sourceId,
     target: edge.targetId,
     focusable: false,
-    selectable: false,
-    markerEnd: marker,
-    markerStart: edge.bidirectional ? marker : undefined,
+    // Clicking an edge selects it; selection is what turns it brand-blue.
+    selectable: true,
     data: {
       bowOffset: params.bowOffset,
       warning,
       joinLabel: params.joinLabel,
       dimmed: params.dimmed,
       direction: params.direction,
+      bidirectional: edge.bidirectional,
     },
   };
 }
@@ -365,6 +358,10 @@ function ModelCanvasInner({
 
   const onNodesChange = useCallback((changes: NodeChange<ModelCanvasFlowNodeType>[]) => {
     setFlowNodes(prev => applyNodeChanges(changes, prev));
+  }, []);
+
+  const onEdgesChange = useCallback((changes: EdgeChange<ModelCanvasFlowEdgeType>[]) => {
+    setFlowEdges(prev => applyEdgeChanges(changes, prev));
   }, []);
 
   const onNodeDragStop = useCallback(
@@ -652,10 +649,11 @@ function ModelCanvasInner({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           onNodeDragStop={onNodeDragStop}
           nodesDraggable
           nodesConnectable={false}
-          elementsSelectable={false}
+          elementsSelectable
           edgesFocusable={false}
           minZoom={0.05}
           maxZoom={2}
