@@ -15,7 +15,7 @@
 
 ### **How Are Report Runs Calculated?**
 
-A **Report Run** means pushing or pulling data (stored in **Storage**) to a **Destination**, or accessing data through the HTTP Data API. Read more about [core concepts](../core-concepts.md).
+A **Report Run** means pushing or pulling data (stored in **Storage**) to a **Destination**. Reading data through the HTTP Data API or the [MCP Server](../setup-guide/mcp.md) also counts. Read more about [core concepts](../core-concepts.md).
 
 - Each **successful** execution of a Data Mart counts as **1 Report Run**, regardless of the volume of processed data.
 - The Data Mart is executed on behalf of the customer's [Storage](../core-concepts.md#storage) within the dedicated OWOX BI Project, and processing costs are charged to the customer's Storage billing account.
@@ -33,6 +33,7 @@ For better transparency and flexibility, Report Runs are broken down into follow
 | Report Run           | Data Studio Report Run | Represents Report Runs executed in the OWOX Data Marts Cloud edition on [app.owox.com](https://app.owox.com). Data was pulled from a Data Mart to the [Data Studio Destination](../../destinations/supported-destinations/data-studio.md).                                                                     |
 | Report Run           | Google Sheets Report Run | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). Data was pushed from a Data Mart to the [Google Sheets Destination](../../destinations/supported-destinations/google-sheets.md).                                                                                     |
 | Report Run           | HTTP Data Report Run   | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). Data was pulled from a Data Mart through the HTTP Data API endpoint.                                                                                                                                              |
+| Report Run           | MCP Query Run          | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). An AI assistant read data from a Data Mart through the [MCP Server](../setup-guide/mcp.md)'s `query_data_mart` tool.                                                                                              |
 | Report Run           | Email Report Run         | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). A message was pushed to the [Email Destination](../../destinations/supported-destinations/email.md).                                                                                                                 |
 | Report Run           | Google Chat Report Run   | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). A message was pushed to the [Google Chat Destination](../../destinations/supported-destinations/google-chat.md).                                                                                                     |
 | Report Run           | MS Teams Report Run      | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). A message was pushed to the [MS Teams Destination](../../destinations/supported-destinations/microsoft-teams.md).                                                                                                    |
@@ -62,6 +63,9 @@ For better transparency and flexibility, Process Runs are broken down into follo
 
 - **Q:** How can I monitor the number of Runs per month?
   - **A:** In the app.owox.com, open the **Credits consumption** page to see detailed usage.
+
+- **Q:** Does querying data through the MCP Server consume credits?
+  - **A:** Yes. Each successful `query_data_mart` call counts as one **MCP Query Run**, whatever number of rows it returns. Failed, cancelled, and timed-out queries cost nothing. Metadata tools stay free — listing data marts or inspecting fields never costs credits. See [What costs credits](../setup-guide/mcp.md#what-costs-credits) in the MCP Server guide.
 
 - **Q:** Will my reports be updated if I exceed the limit on my subscription?
   - **A:** Yes! Reports will continue to be updated on schedule, and manual runs will work as usual — even if you exceed the limit. No interruptions.

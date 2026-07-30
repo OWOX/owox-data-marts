@@ -551,9 +551,25 @@ Permanently deletes a report. The report stops running and disappears from the p
 | `report_id` | Report identifier  |
 | `status`    | `deleted`          |
 
+## What costs credits
+
+Most of what you ask costs nothing. Only two tools consume [credits](../billing/consumption-units.md):
+
+- **`query_data_mart`** — reads actual data rows. Each successful call counts as one Report Run, billed as an **MCP Query Run**.
+- **`run_report`** — starts a Report Run that delivers data to a destination.
+
+Everything else is free. Listing data marts, inspecting fields, browsing destinations, reading reports and schedules, and checking run status only read metadata. Creating a destination, report, or schedule is also free. You pay when the report runs, not when you set it up.
+
+Four things to expect:
+
+- **Cost does not depend on size.** One call costs the same whether it returns 20 rows or 1,000. Ask one broad question rather than several narrow ones.
+- **One question can cost several credits.** The assistant may run several queries to answer you — for example, one per month you asked about. Ask it to plan the queries first if you want to keep the count down.
+- **Failed queries are free.** If a query fails, times out, or you cancel it, you pay nothing. A wrong guess about a field name costs nothing either.
+- **Running out of credits blocks queries only.** The metadata tools keep working, so the assistant can still explore your catalog.
+
 ## How to use it: example prompts
 
-Once the OWOX server is connected, just ask your assistant in plain language. You do not need to name the tools — the assistant calls them for you. Try prompts like:
+Once the OWOX server is connected, just ask your assistant in plain language. You do not need to name the tools — the assistant calls them for you. Prompts marked **(costs credits)** read or deliver actual data — see [What costs credits](#what-costs-credits). Try prompts like:
 
 - "Which OWOX project am I connected to, and what is my role in it?"
 - "What data is available in this project, and what should I ask next?"
@@ -562,13 +578,13 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Do I have any data marts about Facebook Ads? Show their descriptions."
 - "What fields are available in the Facebook Ads data mart?"
 - "Give me a one-line summary of each data mart and what it is for."
-- "What's the total revenue by month in the Sales data mart?"
-- "Show the top campaigns by spend in the Ads data mart."
+- "What's the total revenue by month in the Sales data mart?" **(costs credits)**
+- "Show the top campaigns by spend in the Ads data mart." **(costs credits)**
 - "Which destinations can I send a report to?"
 - "Connect a Google Sheets destination for my account."
 - "Create an email destination for `analytics-alerts@example.com`."
 - "What reports and schedules already exist for the Sales data mart?"
-- "Run the Weekly Ads Report now and tell me when it finishes."
+- "Run the Weekly Ads Report now and tell me when it finishes." **(costs credits)**
 - "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report'."
 - "Create a Looker Studio report from the Sales data mart with all fields."
 - "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'."
@@ -605,6 +621,8 @@ The token does not include the write scope required for tools that create, chang
 Project selection is fixed at authorization time. See [Switch projects or disconnect](#switch-projects-or-disconnect) for how to reconnect and choose a different project or use another project-specific URL.
 
 ### A `query_data_mart` call fails
+
+A failed query costs nothing — OWOX bills a call only after it succeeds. This covers queries that time out, queries you cancel, and queries the credit limit blocks.
 
 If the assistant reports that the project is out of credits, `query_data_mart` has hit its credit limit — upgrade the plan to keep querying (the read-only tools keep working). If it says a field wasn't found, it likely guessed a field name; ask it to check the data mart's fields first with `get_data_mart_details_by_id`, then re-run the query.
 
