@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import type { AxiosRequestConfig } from '../../../../app/api';
@@ -60,7 +61,7 @@ async function enrichNodes(
 export function useModelCanvas(storageId: string | null) {
   const { projectId = '' } = useParams<{ projectId: string }>();
 
-  return useQuery({
+  const baseQuery = useQuery({
     queryKey: ['model-canvas', projectId, storageId],
     queryFn: async ({ signal }): Promise<ModelCanvasData> => {
       const id = storageId ?? '';
@@ -69,9 +70,51 @@ export function useModelCanvas(storageId: string | null) {
         modelCanvasService.getDataMarts(id, config),
         modelCanvasService.getEdges(id, config),
       ]);
-      const enrichedNodes = await enrichNodes(nodes, config);
-      return { nodes: enrichedNodes, edges };
+      return { nodes, edges };
     },
     enabled: Boolean(storageId),
   });
+
+  const baseNodes = baseQuery.data?.nodes;
+  const nodeIdsKey = useMemo(
+    () =>
+      baseNodes
+        ?.map(n => n.id)
+        .sort()
+        .join(',') ?? '',
+    [baseNodes]
+  );
+
+  // Detail enrichment runs as a follow-up query so the canvas renders immediately
+  // from the lightweight list data and upgrades in place once details arrive.
+  const detailsQuery = useQuery({
+    queryKey: ['model-canvas-details', projectId, storageId, nodeIdsKey],
+    queryFn: ({ signal }) => enrichNodes(baseNodes ?? [], { signal }),
+    enabled: Boolean(storageId) && Boolean(baseNodes?.length),
+  });
+
+  // Merge by id so a base refetch never resurrects stale titles/statuses from a
+  // previously enriched snapshot — details contribute only their extra fields.
+  const data = useMemo((): ModelCanvasData | undefined => {
+    if (!baseQuery.data) return undefined;
+    const details = detailsQuery.data;
+    if (!details) return baseQuery.data;
+    const detailById = new Map(details.map(node => [node.id, node]));
+    return {
+      nodes: baseQuery.data.nodes.map(node => {
+        const detail = detailById.get(node.id);
+        return detail
+          ? { ...node, definitionType: detail.definitionType, fields: detail.fields }
+          : node;
+      }),
+      edges: baseQuery.data.edges,
+    };
+  }, [baseQuery.data, detailsQuery.data]);
+
+  return {
+    data,
+    isLoading: baseQuery.isLoading,
+    isSuccess: baseQuery.isSuccess,
+    error: baseQuery.error,
+  };
 }

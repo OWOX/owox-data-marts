@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre';
 import type { EdgeLabel, GraphLabel, NodeLabel } from '@dagrejs/dagre';
 import type { CanvasDirection } from './canvas-direction';
-import type { PathPoint } from './rounded-path';
+import type { PathPoint } from './path-point';
 
 export interface DagreLayoutNode {
   id: string;

@@ -37,12 +37,15 @@ export type ModelCanvasFlowNodeType = Node<
 >;
 
 function StatusDot({ isDraft }: { isDraft: boolean }) {
+  const label = isDraft ? 'Draft' : 'Published';
   return (
-    <span
-      className={`h-2 w-2 shrink-0 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
-      title={isDraft ? 'Draft' : 'Published'}
-      aria-hidden='true'
-    />
+    <span className='inline-flex shrink-0 items-center' title={label}>
+      <span
+        className={`h-2 w-2 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
+        aria-hidden='true'
+      />
+      <span className='sr-only'>{label}</span>
+    </span>
   );
 }
 

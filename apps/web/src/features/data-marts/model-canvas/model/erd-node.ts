@@ -51,8 +51,9 @@ export function orderFields(fields: CanvasNodeField[]): CanvasNodeField[] {
 }
 
 /**
- * How many rows an ERD node shows when collapsed. Keys are always kept visible
- * (their edge anchors must exist), so a key-heavy mart can exceed the base cap.
+ * How many rows an ERD node shows when collapsed. Primary keys always stay
+ * visible — they identify the mart and anchor joins conceptually — so a
+ * key-heavy mart can exceed the base cap.
  */
 export function collapsedRowCount(fields: CanvasNodeField[]): number {
   const keyCount = fields.filter(f => f.isPrimaryKey).length;

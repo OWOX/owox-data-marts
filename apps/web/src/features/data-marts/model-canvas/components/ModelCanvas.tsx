@@ -39,11 +39,21 @@ import {
   type DagreLayoutEdge,
   type DagreLayoutNode,
 } from '../model/graph/dagre-layout';
+import {
+  buildPrimaryKeysByNode,
+  computeEdgeCardinality,
+  type EdgeCardinality,
+} from '../model/graph/edge-cardinality';
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
 import { computeParallelEdgeOffsets } from '../model/graph/parallel-edge-offsets';
-import type { PathPoint } from '../model/graph/rounded-path';
+import type { PathPoint } from '../model/graph/path-point';
 import type { ModelCanvasNode } from '../model/types';
-import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-node';
+import {
+  definitionTypeAccent,
+  type CanvasViewMode,
+  computeNodeHeight,
+  nodeWidth,
+} from '../model/erd-node';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -133,12 +143,11 @@ function buildJoinLabel(edge: CanvasRenderEdge): string[] {
 interface FlowEdgeParams {
   edge: CanvasRenderEdge;
   joinLabel: string[];
-  route: PathPoint[];
   bowOffset: number;
   warning: boolean;
   dimmed: boolean;
-  labelPosition: PathPoint | undefined;
   direction: CanvasDirection;
+  cardinality: EdgeCardinality | null;
 }
 
 function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
@@ -156,13 +165,12 @@ function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
     markerEnd: marker,
     markerStart: edge.bidirectional ? marker : undefined,
     data: {
-      route: params.route,
       bowOffset: params.bowOffset,
       warning,
       joinLabel: params.joinLabel,
       dimmed: params.dimmed,
-      labelPosition: params.labelPosition,
       direction: params.direction,
+      cardinality: params.cardinality,
     },
   };
 }
@@ -226,8 +234,9 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
       label: estimateEdgeLabelDimensions(joinLabels.get(e.id) ?? []),
     }));
 
-    const { positions, routes, labelPositions } = runDagreLayout(dagreNodes, dagreEdges, direction);
+    const { positions } = runDagreLayout(dagreNodes, dagreEdges, direction);
     const offsets = computeParallelEdgeOffsets(edges);
+    const primaryKeysByNode = buildPrimaryKeysByNode(nodes);
 
     setFlowNodes(
       nodes.map(node =>
@@ -248,22 +257,19 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
 
     setFlowEdges(
       edges.map(edge => {
-        const dagreRoute = routes.get(edge.id) ?? [];
-        const bowOffset = dagreRoute.length === 0 ? (offsets.get(edge.id) ?? 0) : 0;
         const sourceDimmed = highlightState.get(edge.sourceId)?.dimmed ?? false;
         const targetDimmed = highlightState.get(edge.targetId)?.dimmed ?? false;
         return buildFlowEdge({
           edge,
           joinLabel: joinLabels.get(edge.id) ?? [],
-          route: dagreRoute,
-          bowOffset,
+          bowOffset: offsets.get(edge.id) ?? 0,
           warning:
             edge.joinNotConfigured ||
             (isDraft.get(edge.sourceId) ?? false) ||
             (isDraft.get(edge.targetId) ?? false),
           dimmed: sourceDimmed && targetDimmed,
-          labelPosition: bowOffset === 0 ? labelPositions.get(edge.id) : undefined,
           direction,
+          cardinality: computeEdgeCardinality(edge, primaryKeysByNode),
         });
       })
     );
@@ -486,7 +492,12 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
           proOptions={{ hideAttribution: true }}
           style={{ width: '100%', height: '100%' }}
         >
-          <MiniMap pannable zoomable style={{ width: 140, height: 100 }} />
+          <MiniMap<ModelCanvasFlowNodeType>
+            pannable
+            zoomable
+            style={{ width: 140, height: 100 }}
+            nodeColor={node => definitionTypeAccent(node.data.definitionType)}
+          />
         </ReactFlow>
       )}
     </>
