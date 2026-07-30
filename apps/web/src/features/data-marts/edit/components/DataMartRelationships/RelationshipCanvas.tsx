@@ -1,10 +1,14 @@
 import { Badge } from '@owox/ui/components/badge';
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/components/popover';
+import { Switch } from '@owox/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
+  Check,
   ExternalLink,
   Info,
   Locate,
   Maximize2,
+  Settings,
   TriangleAlert,
   ZoomIn,
   ZoomOut,
@@ -29,6 +33,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Button } from '../../../../../shared/components/Button';
 import { useProjectRoute } from '../../../../../shared/hooks';
+import { storageService } from '../../../../../services/localstorage.service';
 import {
   DIMMED_OPACITY,
   EDGE_STROKE_WIDTH,
@@ -87,6 +92,22 @@ const NODE_W = 240;
 const SRC_H = 48;
 const TGT_H = 92;
 const MARKER_SIZE = 12;
+
+const SHOW_LOOPED_LS_KEY = 'relationship-canvas-show-looped';
+const STATUS_FILTER_LS_KEY = 'relationship-canvas-status-filter';
+
+/** Status filter for target data marts on the diagram. */
+export type RelationshipStatusFilter = 'all' | 'PUBLISHED' | 'DRAFT';
+
+const STATUS_FILTER_OPTIONS: { value: RelationshipStatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'PUBLISHED', label: 'Published' },
+  { value: 'DRAFT', label: 'Draft' },
+];
+
+function parseStatusFilter(value: string | null): RelationshipStatusFilter {
+  return value === 'PUBLISHED' || value === 'DRAFT' ? value : 'all';
+}
 const H_GAP = 280;
 const V_GAP = 24;
 const FIT_VIEW_SCALE = 0.85;
@@ -406,6 +427,9 @@ interface BuildRelationshipFlowParams {
   initialRelationships: DataMartRelationship[];
   graph: RelationshipGraph | null;
   fieldCounts: Map<string, number> | undefined;
+  /** Cycle stubs multiply quickly on well-connected marts, so they are hidden by default. */
+  showLooped: boolean;
+  statusFilter: RelationshipStatusFilter;
   onOpenExternal: (targetDmId: string) => void;
 }
 
@@ -419,8 +443,17 @@ function buildRelationshipFlow({
   initialRelationships,
   graph,
   fieldCounts,
+  showLooped,
+  statusFilter,
   onOpenExternal,
 }: BuildRelationshipFlowParams): RelationshipFlowGraph {
+  // Filtering a node out also drops its subtree: children can't resolve their
+  // parent key and are skipped below. The root data mart is always shown.
+  const passesFilters = (targetStatus: string, isCycleStub: boolean): boolean => {
+    if (isCycleStub && !showLooped) return false;
+    if (statusFilter !== 'all' && targetStatus !== statusFilter) return false;
+    return true;
+  };
   const nodeInfos = new Map<string, NodeInfo>();
   const edgeInfos: EdgeInfo[] = [];
   const hasOutgoing = new Set<string>();
@@ -460,6 +493,7 @@ function buildRelationshipFlow({
       const parentAliasPath = lastDot === -1 ? '' : node.aliasPath.slice(0, lastDot);
       const parentNodeKey = aliasPathToNodeKey.get(parentAliasPath);
       if (!parentNodeKey) continue;
+      if (!passesFilters(node.relationship.targetDataMart.status, node.isCycleStub)) continue;
       addEdgeAndNode(
         parentNodeKey,
         node.relationship.targetDataMart.id,
@@ -485,6 +519,7 @@ function buildRelationshipFlow({
     }
   } else {
     for (const rel of initialRelationships) {
+      if (!passesFilters(rel.targetDataMart.status, rel.targetDataMart.id === dataMartId)) continue;
       addEdgeAndNode(
         dataMartId,
         rel.targetDataMart.id,
@@ -643,6 +678,22 @@ function RelationshipCanvasInner({
     min: GRAPH_ZOOM_MIN,
     max: GRAPH_ZOOM_MAX,
   });
+  const [showLooped, setShowLooped] = useState(
+    () => storageService.get(SHOW_LOOPED_LS_KEY, 'boolean') ?? false
+  );
+  const [statusFilter, setStatusFilter] = useState<RelationshipStatusFilter>(() =>
+    parseStatusFilter(storageService.get(STATUS_FILTER_LS_KEY))
+  );
+
+  const handleShowLoopedChange = useCallback((checked: boolean) => {
+    setShowLooped(checked);
+    storageService.set(SHOW_LOOPED_LS_KEY, checked);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((next: RelationshipStatusFilter) => {
+    setStatusFilter(next);
+    storageService.set(STATUS_FILTER_LS_KEY, next);
+  }, []);
 
   const graphResult = useMemo(
     () =>
@@ -656,6 +707,8 @@ function RelationshipCanvasInner({
         initialRelationships: relationships,
         graph: relationshipGraph,
         fieldCounts: connectedFieldCounts,
+        showLooped,
+        statusFilter,
         onOpenExternal,
       }),
     [
@@ -668,6 +721,8 @@ function RelationshipCanvasInner({
       relationships,
       relationshipGraph,
       connectedFieldCounts,
+      showLooped,
+      statusFilter,
       onOpenExternal,
     ]
   );
@@ -837,6 +892,49 @@ function RelationshipCanvasInner({
               <Maximize2 className='h-6 w-6' />
             </Button>
           )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant='outline'
+                size='icon'
+                className='h-12 w-12'
+                aria-label='Diagram filters'
+              >
+                <Settings className='h-6 w-6' />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align='end' side='left' className='w-56'>
+              <PopoverTitle>Filters</PopoverTitle>
+              <div className='mt-2 flex items-center justify-between gap-2'>
+                <label htmlFor='relationship-canvas-show-looped' className='text-sm'>
+                  Show looped Data Marts
+                </label>
+                <Switch
+                  id='relationship-canvas-show-looped'
+                  checked={showLooped}
+                  onCheckedChange={handleShowLoopedChange}
+                />
+              </div>
+              <PopoverTitle className='mt-3 border-t pt-3'>Status</PopoverTitle>
+              <div role='radiogroup' aria-label='Status filter' className='mt-2 space-y-0.5'>
+                {STATUS_FILTER_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    type='button'
+                    role='radio'
+                    aria-checked={statusFilter === option.value}
+                    className='hover:bg-muted flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm'
+                    onClick={() => {
+                      handleStatusFilterChange(option.value);
+                    }}
+                  >
+                    <span>{option.label}</span>
+                    {statusFilter === option.value && <Check className='h-4 w-4' />}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       <div

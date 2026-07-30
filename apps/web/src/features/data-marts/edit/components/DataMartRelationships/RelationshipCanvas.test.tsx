@@ -67,6 +67,7 @@ vi.mock('../../../../../shared/hooks', () => ({
 
 describe('RelationshipCanvas viewport', () => {
   beforeEach(() => {
+    localStorage.clear();
     reactFlowHarness.fitView.mockReset().mockResolvedValue(true);
     reactFlowHarness.getZoom.mockReset().mockReturnValue(1.5);
     reactFlowHarness.setViewport.mockReset().mockResolvedValue(true);
@@ -277,6 +278,67 @@ describe('RelationshipCanvas viewport', () => {
       expect(reactFlowHarness.latestProps).not.toBeNull();
     });
     expect(reactFlowHarness.fitView).not.toHaveBeenCalled();
+  });
+});
+
+describe('RelationshipCanvas filters', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reactFlowHarness.fitView.mockReset().mockResolvedValue(true);
+    reactFlowHarness.getZoom.mockReset().mockReturnValue(1.5);
+    reactFlowHarness.setViewport.mockReset().mockResolvedValue(true);
+    reactFlowHarness.zoomTo.mockReset().mockResolvedValue(true);
+    reactFlowHarness.latestProps = null;
+    reactFlowHarness.store.width = 800;
+    reactFlowHarness.store.height = 600;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('hides looped relationships by default and shows them when toggled on', async () => {
+    const loop = buildRelationship('rel-loop', 'source-1');
+    render(
+      <RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1'), loop])} />
+    );
+
+    // Root + the ordinary target; the self-referencing loop is filtered out.
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Diagram filters' }));
+    fireEvent.click(await screen.findByRole('switch', { name: 'Show looped Data Marts' }));
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
+  });
+
+  it('filters targets by status', async () => {
+    const draft = buildRelationship('rel-draft', 'target-draft');
+    draft.targetDataMart.status = 'DRAFT';
+    render(
+      <RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1'), draft])} />
+    );
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Diagram filters' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'Draft' }));
+
+    // Root + the draft target only.
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
   });
 });
 

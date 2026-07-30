@@ -134,6 +134,7 @@ function ModelCanvasViewContent() {
             nodes={filtered.nodes}
             edges={renderEdges}
             searchQuery={filters.searchQuery}
+            storageId={filters.storageId}
             onOpenDataMart={dataMartId => {
               window.open(
                 scope(`/data-marts/${dataMartId}/data-setup`),

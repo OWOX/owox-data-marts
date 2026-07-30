@@ -7,6 +7,7 @@ import { DIMMED_OPACITY, HIGHLIGHT_COLOR, SOCKET_STYLE } from '../../shared/canv
 import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
 import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '../model/erd-node';
+import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../model/object-labels';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
 
@@ -18,6 +19,7 @@ export interface ModelCanvasFlowNodeData {
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;
+  objectLabels?: ObjectLabelsHidden;
   hasIncoming: boolean;
   hasOutgoing: boolean;
   highlighted: boolean;
@@ -57,6 +59,13 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
   const showBody = isErd && fields.length > 0;
+
+  // Object labels: the accent stripe and the source badge encode the same
+  // definition type, so they show and hide together (as in owox/models).
+  const labels = data.objectLabels ?? NOTHING_HIDDEN;
+  const withSource = !labels.source;
+  const withFieldCount = !labels.fields;
+  const withStatus = !labels.status;
 
   const ordered = orderFields(fields);
   const collapsed = collapsedRowCount(fields);
@@ -105,18 +114,20 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
 
       {/* Header: accent stripe + title + status + actions */}
       <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
-        <span
-          className='h-4 w-1 shrink-0 rounded-sm'
-          style={{ background: accent }}
-          aria-hidden='true'
-        />
+        {withSource && (
+          <span
+            className='h-4 w-1 shrink-0 rounded-sm'
+            style={{ background: accent }}
+            aria-hidden='true'
+          />
+        )}
         <span
           className='text-foreground flex-1 truncate text-[13px] font-semibold'
           title={data.title}
         >
           {data.title}
         </span>
-        <ErdStatusDot isDraft={data.isDraft} />
+        {withStatus && <ErdStatusDot isDraft={data.isDraft} />}
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -150,13 +161,17 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         </button>
       </div>
 
-      {/* Meta row: definition badge + field count */}
-      <div className='flex items-center gap-2 px-3.5 pt-1 pb-3'>
-        <ErdDefinitionBadge type={data.definitionType} />
-        <span className='text-muted-foreground text-[11px]'>
-          {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
-        </span>
-      </div>
+      {/* Meta row: definition badge + field count. Skipped entirely when both are hidden. */}
+      {(withSource || withFieldCount) && (
+        <div className='flex items-center gap-2 px-3.5 pt-1 pb-3'>
+          {withSource && <ErdDefinitionBadge type={data.definitionType} />}
+          {withFieldCount && (
+            <span className='text-muted-foreground text-[11px]'>
+              {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ERD body: field rows (only in ERD view) */}
       {showBody && (

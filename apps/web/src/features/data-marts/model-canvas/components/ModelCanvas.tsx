@@ -45,6 +45,18 @@ import type { PathPoint } from '../model/graph/path-point';
 import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import type { ModelCanvasNode } from '../model/types';
 import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-node';
+import {
+  ALL_HIDDEN,
+  isAllHidden,
+  isNothingHidden,
+  NOTHING_HIDDEN,
+  OBJECT_LABEL_PARTS,
+  parseObjectLabelsHidden,
+  serializeObjectLabelsHidden,
+  toggleObjectLabelPart,
+  type ObjectLabelPart,
+  type ObjectLabelsHidden,
+} from '../model/object-labels';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -53,6 +65,8 @@ interface ModelCanvasProps {
   edges: CanvasRenderEdge[];
   searchQuery: string;
   onOpenDataMart: (dataMartId: string) => void;
+  /** Scopes the persisted node positions — each storage keeps its own layout. */
+  storageId?: string;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -60,6 +74,47 @@ interface ModelCanvasProps {
 const LAYOUT_LS_KEY = 'model-canvas-layout';
 const JOIN_LABELS_LS_KEY = 'model-canvas-show-join-fields';
 const VIEW_MODE_LS_KEY = 'model-canvas-view-mode';
+const OBJECT_LABELS_LS_KEY = 'model-canvas-object-labels';
+const POSITIONS_LS_KEY_PREFIX = 'model-canvas-positions';
+
+function positionsStorageKey(storageId: string): string {
+  return `${POSITIONS_LS_KEY_PREFIX}:${storageId}`;
+}
+
+type SavedPositions = Partial<Record<string, PathPoint>>;
+
+function loadSavedPositions(storageId: string | undefined): SavedPositions {
+  if (!storageId) return {};
+  const raw = storageService.get(positionsStorageKey(storageId), 'json');
+  if (!raw) return {};
+  const positions: SavedPositions = {};
+  for (const [id, value] of Object.entries(raw)) {
+    const point = value as Partial<PathPoint> | null;
+    if (point && typeof point.x === 'number' && typeof point.y === 'number') {
+      positions[id] = { x: point.x, y: point.y };
+    }
+  }
+  return positions;
+}
+
+const OBJECT_LABEL_META: Record<ObjectLabelPart, { glyph: string; label: string; helper: string }> =
+  {
+    source: {
+      glyph: '⬚',
+      label: 'Input source',
+      helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
+    },
+    fields: {
+      glyph: '#',
+      label: 'Field count',
+      helper: 'The field-count line under each object',
+    },
+    status: {
+      glyph: '•',
+      label: 'Status dot',
+      helper: 'The published/draft status dot in the card header',
+    },
+  };
 const VIEW_MODE_OPTIONS: { value: CanvasViewMode; label: string }[] = [
   { value: 'compact', label: 'Compact' },
   { value: 'erd', label: 'Detailed' },
@@ -94,17 +149,19 @@ interface FlowNodeParams {
   highlight: CanvasHighlightState;
   direction: CanvasDirection;
   viewMode: CanvasViewMode;
+  objectLabels: ObjectLabelsHidden;
   onOpenExternal: () => void;
 }
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
-  const { node, highlight, viewMode } = params;
+  const { node, highlight, viewMode, objectLabels } = params;
+  const metaRowHidden = objectLabels.source && objectLabels.fields;
   return {
     id: node.id,
     type: 'modelCanvasNode',
     position: params.position,
     width: nodeWidth(viewMode),
-    height: computeNodeHeight(node, viewMode),
+    height: computeNodeHeight(node, viewMode, metaRowHidden),
     draggable: true,
     selectable: false,
     focusable: false,
@@ -117,6 +174,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       definitionType: node.definitionType ?? null,
       fields: node.fields ?? [],
       viewMode,
+      objectLabels,
       hasIncoming: params.hasIncoming,
       hasOutgoing: params.hasOutgoing,
       highlighted: highlight.highlighted,
@@ -169,9 +227,16 @@ interface ModelCanvasInnerProps {
   edges: CanvasRenderEdge[];
   searchQuery: string;
   onOpenDataMart: (dataMartId: string) => void;
+  storageId?: string;
 }
 
-function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCanvasInnerProps) {
+function ModelCanvasInner({
+  nodes,
+  edges,
+  searchQuery,
+  onOpenDataMart,
+  storageId,
+}: ModelCanvasInnerProps) {
   const reactFlow = useReactFlow<ModelCanvasFlowNodeType, ModelCanvasFlowEdgeType>();
   const paneWidth = useStore(state => state.width);
   const paneHeight = useStore(state => state.height);
@@ -192,6 +257,17 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
   const [showJoinLabels, setShowJoinLabels] = useState(
     () => storageService.get(JOIN_LABELS_LS_KEY, 'boolean') ?? false
   );
+  const [objectLabels, setObjectLabels] = useState<ObjectLabelsHidden>(() =>
+    parseObjectLabelsHidden(storageService.get(OBJECT_LABELS_LS_KEY))
+  );
+  // User-dragged positions, mirrored to localStorage per storage so a reload
+  // restores the arrangement. Cleared when the user re-runs the layout.
+  const savedPositionsRef = useRef<SavedPositions | null>(null);
+  const storageIdRef = useRef(storageId);
+  if (savedPositionsRef.current === null || storageIdRef.current !== storageId) {
+    storageIdRef.current = storageId;
+    savedPositionsRef.current = loadSavedPositions(storageId);
+  }
   const [ready, setReady] = useState(false);
   const [flowNodes, setFlowNodes] = useState<ModelCanvasFlowNodeType[]>([]);
   const [flowEdges, setFlowEdges] = useState<ModelCanvasFlowEdgeType[]>([]);
@@ -208,10 +284,11 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
       n => n.title
     );
 
+    const metaRowHidden = objectLabels.source && objectLabels.fields;
     const dagreNodes: DagreLayoutNode[] = nodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
-      height: computeNodeHeight(n, viewMode),
+      height: computeNodeHeight(n, viewMode, metaRowHidden),
     }));
     const joinLabels = showJoinLabels
       ? new Map(edges.map(e => [e.id, buildJoinLabel(e)]))
@@ -225,17 +302,20 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
 
     const { positions } = runDagreLayout(dagreNodes, dagreEdges, direction);
     const offsets = computeParallelEdgeOffsets(edges);
+    const savedPositions = savedPositionsRef.current ?? {};
 
     setFlowNodes(
       nodes.map(node =>
         buildFlowNode({
           node,
-          position: positions.get(node.id) ?? { x: 0, y: 0 },
+          // A user-dragged position wins over the computed layout.
+          position: savedPositions[node.id] ?? positions.get(node.id) ?? { x: 0, y: 0 },
           hasIncoming: hasIncoming.has(node.id),
           hasOutgoing: hasOutgoing.has(node.id),
           highlight: highlightState.get(node.id) ?? NO_HIGHLIGHT,
           direction,
           viewMode,
+          objectLabels,
           onOpenExternal: () => {
             onOpenDataMartRef.current(node.id);
           },
@@ -281,11 +361,23 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
     return () => {
       cancelAnimationFrame(rafId);
     };
-  }, [nodes, edges, direction, viewMode, showJoinLabels, reactFlow]);
+  }, [nodes, edges, direction, viewMode, showJoinLabels, objectLabels, reactFlow]);
 
   const onNodesChange = useCallback((changes: NodeChange<ModelCanvasFlowNodeType>[]) => {
     setFlowNodes(prev => applyNodeChanges(changes, prev));
   }, []);
+
+  const onNodeDragStop = useCallback(
+    (_event: MouseEvent | TouchEvent, node: ModelCanvasFlowNodeType) => {
+      const saved = savedPositionsRef.current ?? {};
+      saved[node.id] = { x: node.position.x, y: node.position.y };
+      savedPositionsRef.current = saved;
+      if (storageIdRef.current) {
+        storageService.set(positionsStorageKey(storageIdRef.current), saved);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const state = computeCanvasHighlight(
@@ -326,6 +418,16 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
   const handleDirectionChange = useCallback((next: CanvasDirection) => {
     setDirection(next);
     storageService.set(LAYOUT_LS_KEY, next);
+    // Picking a layout algorithm is an explicit re-layout — drop manual positions.
+    savedPositionsRef.current = {};
+    if (storageIdRef.current) {
+      storageService.remove(positionsStorageKey(storageIdRef.current));
+    }
+  }, []);
+
+  const handleObjectLabelsChange = useCallback((next: ObjectLabelsHidden) => {
+    setObjectLabels(next);
+    storageService.set(OBJECT_LABELS_LS_KEY, serializeObjectLabelsHidden(next));
   }, []);
 
   const handleViewModeChange = useCallback((next: CanvasViewMode) => {
@@ -457,6 +559,89 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
                 onCheckedChange={handleJoinLabelsChange}
               />
             </div>
+            <PopoverTitle className='mt-3 border-t pt-3'>Object labels</PopoverTitle>
+            <p className='text-muted-foreground mt-1 text-xs leading-snug'>
+              Tick what every object shows — untick to hide it.
+            </p>
+            <div className='mt-2 space-y-0.5'>
+              {/* A checked box means the part is VISIBLE — unchecking hides it.
+                  The stored state is the hidden set, hence the inversion here. */}
+              {OBJECT_LABEL_PARTS.map(part => {
+                const meta = OBJECT_LABEL_META[part];
+                const shown = !objectLabels[part];
+                return (
+                  <button
+                    key={part}
+                    type='button'
+                    role='checkbox'
+                    aria-checked={shown}
+                    className='hover:bg-muted flex w-full items-start gap-2 rounded px-2 py-1.5 text-left'
+                    onClick={() => {
+                      handleObjectLabelsChange(toggleObjectLabelPart(objectLabels, part));
+                    }}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+                        shown
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-input bg-background text-transparent'
+                      }`}
+                      aria-hidden='true'
+                    >
+                      <Check className='h-2.5 w-2.5' strokeWidth={3.5} />
+                    </span>
+                    <span className='flex min-w-0 flex-col'>
+                      <span
+                        className={`text-sm font-medium ${shown ? 'text-foreground' : 'text-muted-foreground'}`}
+                      >
+                        <span className='text-muted-foreground mr-1 font-bold'>{meta.glyph}</span>
+                        {meta.label}
+                      </span>
+                      <span className='text-muted-foreground text-xs leading-snug'>
+                        {meta.helper}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Both-ends shortcuts: tick everything back on, or clear it all. */}
+            <div className='mt-1 space-y-0.5 border-t pt-1'>
+              <button
+                type='button'
+                aria-pressed={isNothingHidden(objectLabels)}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
+                  isNothingHidden(objectLabels)
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground hover:bg-muted'
+                }`}
+                onClick={() => {
+                  handleObjectLabelsChange(NOTHING_HIDDEN);
+                }}
+              >
+                <span className='w-4 shrink-0 text-center font-bold' aria-hidden='true'>
+                  ≡
+                </span>
+                Check all — show everything
+              </button>
+              <button
+                type='button'
+                aria-pressed={isAllHidden(objectLabels)}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
+                  isAllHidden(objectLabels)
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground hover:bg-muted'
+                }`}
+                onClick={() => {
+                  handleObjectLabelsChange(ALL_HIDDEN);
+                }}
+              >
+                <span className='w-4 shrink-0 text-center font-bold' aria-hidden='true'>
+                  ⊘
+                </span>
+                Uncheck all — title only
+              </button>
+            </div>
           </PopoverContent>
         </Popover>
       </div>
@@ -467,6 +652,7 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           nodesDraggable
           nodesConnectable={false}
           elementsSelectable={false}
@@ -496,6 +682,7 @@ export default function ModelCanvas({
   edges,
   searchQuery,
   onOpenDataMart,
+  storageId,
   className,
   style,
 }: ModelCanvasProps) {
@@ -513,6 +700,7 @@ export default function ModelCanvas({
           edges={edges}
           searchQuery={searchQuery}
           onOpenDataMart={onOpenDataMart}
+          storageId={storageId}
         />
       </ReactFlowProvider>
     </div>
