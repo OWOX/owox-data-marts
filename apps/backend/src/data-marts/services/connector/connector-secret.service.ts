@@ -715,9 +715,19 @@ export class ConnectorSecretService {
       }
     }
 
-    // Delete orphaned secrets
+    if (orphanedSecretsIds.length === 0) {
+      return;
+    }
+
+    // A secrets row can end up referenced by another DataMart (e.g. a stale
+    // copy-from pointer). Only delete rows that actually belong to this
+    // DataMart, so one DataMart's save can never delete another's secrets.
+    const secretsMap =
+      await this.connectorSourceCredentialsService.getCredentialsByIds(orphanedSecretsIds);
     for (const secretsId of orphanedSecretsIds) {
-      await this.connectorSourceCredentialsService.deleteCredentials(secretsId);
+      if (secretsMap.get(secretsId)?.dataMartId === dataMartId) {
+        await this.connectorSourceCredentialsService.deleteCredentials(secretsId);
+      }
     }
   }
 
@@ -815,6 +825,10 @@ export class ConnectorSecretService {
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
+      // A copied config must never keep the source's _secrets_id: that id is
+      // scoped 1:1 to the source DataMart's own config item, and reusing it
+      // would alias both DataMarts' manual credentials to the same row.
+      delete mergedItem._secrets_id;
       mergedItem._id = randomUUID();
       delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
       if (

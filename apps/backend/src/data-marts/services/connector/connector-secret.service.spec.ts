@@ -735,6 +735,31 @@ describe('ConnectorSecretService', () => {
       expect((cfg[0]._id as string).length).toBeGreaterThan(0);
     });
 
+    it('strips a copied _secrets_id so the target DataMart gets its own secrets row', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-1', _secrets_id: 'source-secrets-id', AccessToken: 'access1' },
+      ]);
+
+      // The frontend "Copy from..." feature spreads every field of the source
+      // config except _id/_copiedFrom, so _secrets_id leaks into the incoming
+      // item pointing at the SOURCE DataMart's own secrets row.
+      const incoming = makeDefinition([
+        {
+          AccessToken: SECRET_MASK,
+          _secrets_id: 'source-secrets-id',
+          _copiedFrom: { configId: 'source-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0].AccessToken).toBe('access1');
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
+    });
+
     it('handles self-copy scenario with mixed configurations (existing + copied)', async () => {
       const { service } = createService(['AccessToken', 'RefreshToken']);
 
@@ -798,8 +823,23 @@ describe('ConnectorSecretService', () => {
   });
 
   describe('deleteOrphanedSecrets', () => {
+    // Helper to mock ownership: each secretsId belongs to the given dataMartId.
+    const mockOwnership = (
+      credentialsService: ConnectorSourceCredentialsService,
+      secretsIdToDataMartId: Record<string, string>
+    ) => {
+      const map = new Map(
+        Object.entries(secretsIdToDataMartId).map(([secretsId, dataMartId]) => [
+          secretsId,
+          { dataMartId },
+        ])
+      );
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(map);
+    };
+
     it('deletes secrets for configuration items that were removed', async () => {
       const { service, credentialsService } = createService(['AccessToken']);
+      mockOwnership(credentialsService, { 'secrets-2': 'datamart-1' });
 
       const previousDefinition = makeDefinition([
         { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
@@ -831,6 +871,7 @@ describe('ConnectorSecretService', () => {
       await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, previousDefinition);
 
       expect(credentialsService.deleteCredentials).not.toHaveBeenCalled();
+      expect(credentialsService.getCredentialsByIds).not.toHaveBeenCalled();
     });
 
     it('does nothing when previous definition is undefined', async () => {
@@ -845,6 +886,7 @@ describe('ConnectorSecretService', () => {
 
     it('ignores configuration items without _secrets_id', async () => {
       const { service, credentialsService } = createService(['AccessToken']);
+      mockOwnership(credentialsService, { 'secrets-1': 'datamart-1' });
 
       const previousDefinition = makeDefinition([
         { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
@@ -863,6 +905,11 @@ describe('ConnectorSecretService', () => {
 
     it('deletes multiple orphaned secrets when multiple configs removed', async () => {
       const { service, credentialsService } = createService(['AccessToken']);
+      mockOwnership(credentialsService, {
+        'secrets-1': 'datamart-1',
+        'secrets-3': 'datamart-1',
+        'secrets-4': 'datamart-1',
+      });
 
       const previousDefinition = makeDefinition([
         { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
@@ -881,6 +928,24 @@ describe('ConnectorSecretService', () => {
       expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-1');
       expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-3');
       expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-4');
+    });
+
+    it('does not delete a secrets row that belongs to a different DataMart', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      // secrets-2 is a stale copy-from pointer into another DataMart's row
+      mockOwnership(credentialsService, { 'secrets-2': 'other-datamart' });
+
+      const previousDefinition = makeDefinition([
+        { _id: 'config-1', _secrets_id: 'secrets-2', AccountIDs: '1' },
+      ]);
+
+      // config-1 was removed, so secrets-2 looks orphaned from this DataMart's
+      // perspective, but it never belonged to it in the first place.
+      const currentConfigIds = new Set<string>();
+
+      await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, previousDefinition);
+
+      expect(credentialsService.deleteCredentials).not.toHaveBeenCalled();
     });
   });
 });
