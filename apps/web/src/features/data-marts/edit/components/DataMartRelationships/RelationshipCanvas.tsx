@@ -11,9 +11,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Background,
-  BackgroundVariant,
   Handle,
+  MarkerType,
   MiniMap,
   Position,
   ReactFlow,
@@ -32,18 +31,20 @@ import { Button } from '../../../../../shared/components/Button';
 import { useProjectRoute } from '../../../../../shared/hooks';
 import {
   DIMMED_OPACITY,
-  EDGE_COLOR,
   EDGE_STROKE_WIDTH,
   EDGE_WARNING_DASH,
   HIGHLIGHT_COLOR,
-  NODE_BORDER_COLOR,
   NODE_PULSE_KEYFRAMES,
+  OWOX_BLUE,
   SOCKET_STYLE,
   STATIC_NODE_STYLE,
   WARNING_COLOR,
 } from '../../../shared/canvas/constants';
+import { definitionTypeAccent } from '../../../shared/canvas/definition-type-accent';
+import { ErdDefinitionBadge, ErdStatusDot } from '../../../shared/canvas/erd-card';
 import { computeCanvasHighlight, NO_HIGHLIGHT } from '../../../shared/canvas/highlight';
 import { clampCanvasViewport, getCanvasGraphBounds } from '../../../shared/canvas/viewport';
+import type { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
 import type {
   DataMartRelationship,
   RelationshipGraph,
@@ -69,6 +70,10 @@ interface RelationshipCanvasProps {
   dataMartTitle: string;
   dataMartDescription?: string | null;
   dataMartStatus: string;
+  /** Definition type of the root data mart (available from the edit-page context). */
+  dataMartDefinitionType?: DataMartDefinitionType | null;
+  /** Definition types of target data marts, enriched separately (see useRelationshipDefinitionTypes). */
+  definitionTypes?: Map<string, DataMartDefinitionType | null>;
   relationships: DataMartRelationship[];
   relationshipGraph: RelationshipGraph | null;
   connectedFieldCounts?: Map<string, number>;
@@ -80,7 +85,8 @@ interface RelationshipCanvasProps {
 
 const NODE_W = 240;
 const SRC_H = 48;
-const TGT_H = 74;
+const TGT_H = 92;
+const MARKER_SIZE = 12;
 const H_GAP = 280;
 const V_GAP = 24;
 const FIT_VIEW_SCALE = 0.85;
@@ -96,6 +102,7 @@ export interface RelationshipNodeData {
   targetAlias?: string;
   fieldCount?: number;
   description?: string | null;
+  definitionType: DataMartDefinitionType | null;
   isDraft: boolean;
   isBlocked: boolean;
   isJoinNotConfigured: boolean;
@@ -123,7 +130,59 @@ type RelationshipFlowEdgeType = Edge<
   'relationshipEdge'
 > & { data: RelationshipEdgeData };
 
+/**
+ * Floating indicator label above a card (warning or attention kind). Kept as a
+ * floating element (not inside the card) so both card variants share it and the
+ * accessible warning text stays independent of the card layout.
+ */
+function IndicatorLabel({ data }: { data: RelationshipNodeData }) {
+  const indicator = getRelationshipIndicator(data);
+  if (!indicator) return null;
+  const isAttention = indicator.kind === 'attention';
+  return (
+    <span
+      title={isAttention ? MISSING_PRIMARY_KEY_TOOLTIP : undefined}
+      style={{
+        position: 'absolute',
+        top: -18,
+        right: 4,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        fontSize: 10,
+        fontWeight: 600,
+        color: isAttention ? ATTENTION_COLOR : WARNING_COLOR,
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {isAttention && <TriangleAlert style={{ width: 12, height: 12 }} />}
+      {indicator.label}
+    </span>
+  );
+}
+
+function cardStateStyle(data: RelationshipNodeData): React.CSSProperties {
+  return {
+    width: NODE_W,
+    borderColor: data.highlighted
+      ? HIGHLIGHT_COLOR
+      : hasNodeWarning(data)
+        ? WARNING_COLOR
+        : undefined,
+    boxShadow: data.highlighted
+      ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
+      : undefined,
+    opacity: data.dimmed ? DIMMED_OPACITY : 1,
+    filter: data.dimmed ? 'grayscale(0.8)' : undefined,
+    animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
+    transition: 'opacity 0.2s, filter 0.2s',
+  };
+}
+
 export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeType>) {
+  const accent = definitionTypeAccent(data.definitionType);
+
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
@@ -133,43 +192,22 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
   if (data.isSource) {
     return (
       <div
-        className='text-primary flex items-center'
-        style={{
-          width: NODE_W,
-          height: SRC_H,
-          borderRadius: 8,
-          border: `2px solid ${data.highlighted ? HIGHLIGHT_COLOR : data.isDraft ? WARNING_COLOR : NODE_BORDER_COLOR}`,
-          boxShadow: data.highlighted
-            ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
-            : '0 1px 4px 0 rgba(0,0,0,0.12)',
-          background: '#eff6ff',
-          fontSize: 13,
-          fontWeight: 600,
-          position: 'relative',
-          opacity: data.dimmed ? DIMMED_OPACITY : 1,
-          filter: data.dimmed ? 'grayscale(0.8)' : undefined,
-          animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
-          transition: 'opacity 0.2s, filter 0.2s',
-        }}
+        className='bg-primary/5 relative flex items-center gap-2 rounded-xl border shadow-sm'
+        style={{ ...cardStateStyle(data), height: SRC_H, padding: '0 14px' }}
       >
-        {data.isDraft && (
-          <span
-            style={{
-              position: 'absolute',
-              top: -18,
-              right: 4,
-              fontSize: 10,
-              fontWeight: 600,
-              color: WARNING_COLOR,
-              lineHeight: 1,
-            }}
-          >
-            Draft
-          </span>
-        )}
-        <div className='truncate' style={{ flex: 1, padding: '0 14px' }} title={data.label}>
+        <IndicatorLabel data={data} />
+        <span
+          className='h-4 w-1 shrink-0 rounded-sm'
+          style={{ background: accent }}
+          aria-hidden='true'
+        />
+        <span
+          className='text-foreground flex-1 truncate text-[13px] font-semibold'
+          title={data.label}
+        >
           {data.label}
-        </div>
+        </span>
+        <ErdStatusDot isDraft={data.isDraft} decorative />
         {data.hasOutgoing && (
           <Handle
             type='source'
@@ -182,134 +220,82 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
     );
   }
 
-  const borderColor = hasNodeWarning(data) ? WARNING_COLOR : NODE_BORDER_COLOR;
-  const indicator = getRelationshipIndicator(data);
   const openExternalLabel = `Open ${data.label} in new tab`;
 
   return (
     <div
       title={data.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
-      style={{
-        width: NODE_W,
-        height: TGT_H,
-        borderRadius: 8,
-        border: `2px solid ${data.highlighted ? HIGHLIGHT_COLOR : borderColor}`,
-        background: 'var(--background)',
-        boxShadow: data.highlighted
-          ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
-          : '0 1px 4px 0 rgba(0,0,0,0.12)',
-        cursor: 'default',
-        position: 'relative',
-        opacity: data.dimmed ? DIMMED_OPACITY : 1,
-        filter: data.dimmed ? 'grayscale(0.8)' : undefined,
-        animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
-        transition: 'opacity 0.2s, filter 0.2s',
-      }}
+      className='bg-background relative flex flex-col rounded-xl border shadow-sm'
+      style={cardStateStyle(data)}
     >
-      {indicator?.kind === 'warning' && (
-        <span
-          style={{
-            position: 'absolute',
-            top: -18,
-            right: 4,
-            fontSize: 10,
-            fontWeight: 600,
-            color: WARNING_COLOR,
-            lineHeight: 1,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {indicator.label}
-        </span>
-      )}
-      {indicator?.kind === 'attention' && (
-        <span
-          title={MISSING_PRIMARY_KEY_TOOLTIP}
-          style={{
-            position: 'absolute',
-            top: -18,
-            right: 4,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 2,
-            fontSize: 10,
-            fontWeight: 600,
-            color: ATTENTION_COLOR,
-            lineHeight: 1,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <TriangleAlert style={{ width: 12, height: 12 }} />
-          {indicator.label}
-        </span>
-      )}
+      <IndicatorLabel data={data} />
       <Handle type='target' position={Position.Left} isConnectable={false} style={SOCKET_STYLE} />
-      <div
-        className='bg-muted flex items-center justify-between'
-        style={{
-          padding: '8px 10px 8px 14px',
-          fontSize: 13,
-          fontWeight: 600,
-          borderRadius: '6px 6px 0 0',
-        }}
-      >
-        <span className='flex min-w-0 items-center gap-1.5'>
-          <span className='truncate' title={data.label}>
-            {data.label}
-          </span>
-          {!data.userHasAccess && <NoAccessIndicatorNative />}
+
+      {/* Header: accent stripe + title + status + actions — mirrors the Models canvas ERD card */}
+      <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
+        <span
+          className='h-4 w-1 shrink-0 rounded-sm'
+          style={{ background: accent }}
+          aria-hidden='true'
+        />
+        <span
+          className='text-foreground flex-1 truncate text-[13px] font-semibold'
+          title={data.label}
+        >
+          {data.label}
         </span>
-        <div className='ml-2 flex shrink-0 items-center gap-0.5'>
-          {data.description && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type='button'
-                  className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
-                  aria-label={`Description for ${data.label}`}
-                  onPointerDown={event => {
-                    event.stopPropagation();
-                  }}
-                >
-                  <Info style={{ width: 14, height: 14 }} aria-hidden='true' />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side='top' align='center' role='tooltip'>
-                {data.description}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
-            onPointerDown={e => {
-              e.stopPropagation();
-            }}
-            onClick={handleExtClick}
-            title={openExternalLabel}
-            aria-label={openExternalLabel}
-          >
-            <ExternalLink style={{ width: 14, height: 14 }} aria-hidden='true' />
-          </button>
-        </div>
+        <ErdStatusDot isDraft={data.isDraft} decorative />
+        {!data.userHasAccess && <NoAccessIndicatorNative />}
+        {data.description && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type='button'
+                className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
+                aria-label={`Description for ${data.label}`}
+                onPointerDown={event => {
+                  event.stopPropagation();
+                }}
+              >
+                <Info className='h-3.5 w-3.5' aria-hidden='true' />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side='top' align='center' role='tooltip' className='max-w-xs'>
+              {data.description}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        <button
+          type='button'
+          className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
+          onPointerDown={e => {
+            e.stopPropagation();
+          }}
+          onClick={handleExtClick}
+          title={openExternalLabel}
+          aria-label={openExternalLabel}
+        >
+          <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
+        </button>
       </div>
-      <div
-        className='text-muted-foreground flex items-center gap-2'
-        style={{ padding: '6px 14px 8px', fontSize: 11, minWidth: 0 }}
-      >
+
+      {/* Meta row: definition badge + alias + connected field count */}
+      <div className='flex min-w-0 items-center gap-2 px-3.5 pt-1 pb-3'>
+        <ErdDefinitionBadge type={data.definitionType} />
         {data.targetAlias && (
           <Badge
             variant='secondary'
-            className='inline-block max-w-[120px] truncate px-1.5 py-0 text-[10px]'
+            className='inline-block max-w-[90px] truncate px-1.5 py-0 text-[10px]'
             title={data.targetAlias}
           >
             {data.targetAlias}
           </Badge>
         )}
-        <span className='ml-auto shrink-0'>
+        <span className='text-muted-foreground ml-auto shrink-0 text-[11px]'>
           {data.fieldCount ?? 0} field{data.fieldCount !== 1 ? 's' : ''}
         </span>
       </div>
+
       {data.hasOutgoing && (
         <Handle
           type='source'
@@ -329,6 +315,7 @@ function RelationshipFlowEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  markerEnd,
   data,
 }: EdgeProps<RelationshipFlowEdgeType>) {
   const [path] = getBezierPath({
@@ -339,7 +326,7 @@ function RelationshipFlowEdge({
     targetY,
     targetPosition,
   });
-  const color = data.warning ? WARNING_COLOR : EDGE_COLOR;
+  const color = data.warning ? WARNING_COLOR : OWOX_BLUE;
 
   return (
     <path
@@ -349,6 +336,7 @@ function RelationshipFlowEdge({
       stroke={color}
       strokeDasharray={data.warning ? EDGE_WARNING_DASH : undefined}
       opacity={data.dimmed ? DIMMED_OPACITY : 1}
+      markerEnd={markerEnd}
       style={{ transition: 'opacity 0.2s' }}
     />
   );
@@ -408,16 +396,31 @@ function getRelationshipFlowGraphIdentity(graph: RelationshipFlowGraph): string 
   ]);
 }
 
-function buildRelationshipFlow(
-  dataMartId: string,
-  dataMartTitle: string,
-  dataMartDescription: string | null | undefined,
-  dataMartStatus: string,
-  initialRelationships: DataMartRelationship[],
-  graph: RelationshipGraph | null,
-  fieldCounts: Map<string, number> | undefined,
-  onOpenExternal: (targetDmId: string) => void
-): RelationshipFlowGraph {
+interface BuildRelationshipFlowParams {
+  dataMartId: string;
+  dataMartTitle: string;
+  dataMartDescription: string | null | undefined;
+  dataMartStatus: string;
+  rootDefinitionType: DataMartDefinitionType | null;
+  definitionTypes: Map<string, DataMartDefinitionType | null> | undefined;
+  initialRelationships: DataMartRelationship[];
+  graph: RelationshipGraph | null;
+  fieldCounts: Map<string, number> | undefined;
+  onOpenExternal: (targetDmId: string) => void;
+}
+
+function buildRelationshipFlow({
+  dataMartId,
+  dataMartTitle,
+  dataMartDescription,
+  dataMartStatus,
+  rootDefinitionType,
+  definitionTypes,
+  initialRelationships,
+  graph,
+  fieldCounts,
+  onOpenExternal,
+}: BuildRelationshipFlowParams): RelationshipFlowGraph {
   const nodeInfos = new Map<string, NodeInfo>();
   const edgeInfos: EdgeInfo[] = [];
   const hasOutgoing = new Set<string>();
@@ -555,6 +558,9 @@ function buildRelationshipFlow(
         targetAlias: info.targetAlias,
         fieldCount: info.fieldCount,
         description: info.description,
+        definitionType: info.isSource
+          ? rootDefinitionType
+          : (definitionTypes?.get(info.dmId) ?? null),
         isDraft: info.isDraft ?? false,
         isBlocked: info.isBlocked ?? false,
         isJoinNotConfigured: info.isJoinNotConfigured ?? false,
@@ -586,6 +592,12 @@ function buildRelationshipFlow(
       target: edge.targetId,
       focusable: false,
       selectable: false,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: warning ? WARNING_COLOR : OWOX_BLUE,
+        width: MARKER_SIZE,
+        height: MARKER_SIZE,
+      },
       data: { warning, dimmed: false },
     });
   }
@@ -598,6 +610,8 @@ interface RelationshipCanvasInnerProps {
   dataMartTitle: string;
   dataMartDescription?: string | null;
   dataMartStatus: string;
+  dataMartDefinitionType?: DataMartDefinitionType | null;
+  definitionTypes?: Map<string, DataMartDefinitionType | null>;
   relationships: DataMartRelationship[];
   relationshipGraph: RelationshipGraph | null;
   connectedFieldCounts?: Map<string, number>;
@@ -611,6 +625,8 @@ function RelationshipCanvasInner({
   dataMartTitle,
   dataMartDescription,
   dataMartStatus,
+  dataMartDefinitionType,
+  definitionTypes,
   relationships,
   relationshipGraph,
   connectedFieldCounts,
@@ -630,21 +646,25 @@ function RelationshipCanvasInner({
 
   const graphResult = useMemo(
     () =>
-      buildRelationshipFlow(
+      buildRelationshipFlow({
         dataMartId,
         dataMartTitle,
         dataMartDescription,
         dataMartStatus,
-        relationships,
-        relationshipGraph,
-        connectedFieldCounts,
-        onOpenExternal
-      ),
+        rootDefinitionType: dataMartDefinitionType ?? null,
+        definitionTypes,
+        initialRelationships: relationships,
+        graph: relationshipGraph,
+        fieldCounts: connectedFieldCounts,
+        onOpenExternal,
+      }),
     [
       dataMartId,
       dataMartTitle,
       dataMartDescription,
       dataMartStatus,
+      dataMartDefinitionType,
+      definitionTypes,
       relationships,
       relationshipGraph,
       connectedFieldCounts,
@@ -840,10 +860,15 @@ function RelationshipCanvasInner({
           onMoveStart={(event: unknown) => {
             if (event) markUserInteracted();
           }}
+          proOptions={{ hideAttribution: true }}
           style={{ width: '100%', height: '100%' }}
         >
-          <Background variant={BackgroundVariant.Lines} gap={16} color='rgba(0,0,0,0.06)' />
-          <MiniMap pannable zoomable style={{ width: 140, height: 100 }} />
+          <MiniMap<RelationshipFlowNodeType>
+            pannable
+            zoomable
+            style={{ width: 140, height: 100 }}
+            nodeColor={node => definitionTypeAccent(node.data.definitionType)}
+          />
         </ReactFlow>
       </div>
     </>
@@ -855,6 +880,8 @@ export function RelationshipCanvas({
   dataMartTitle,
   dataMartDescription,
   dataMartStatus,
+  dataMartDefinitionType,
+  definitionTypes,
   relationships,
   relationshipGraph,
   connectedFieldCounts,
@@ -885,6 +912,8 @@ export function RelationshipCanvas({
           dataMartTitle={dataMartTitle}
           dataMartDescription={dataMartDescription}
           dataMartStatus={dataMartStatus}
+          dataMartDefinitionType={dataMartDefinitionType}
+          definitionTypes={definitionTypes}
           relationships={relationships}
           relationshipGraph={relationshipGraph}
           connectedFieldCounts={connectedFieldCounts}

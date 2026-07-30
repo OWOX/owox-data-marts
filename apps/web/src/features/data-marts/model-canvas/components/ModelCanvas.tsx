@@ -39,21 +39,12 @@ import {
   type DagreLayoutEdge,
   type DagreLayoutNode,
 } from '../model/graph/dagre-layout';
-import {
-  buildPrimaryKeysByNode,
-  computeEdgeCardinality,
-  type EdgeCardinality,
-} from '../model/graph/edge-cardinality';
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
 import { computeParallelEdgeOffsets } from '../model/graph/parallel-edge-offsets';
 import type { PathPoint } from '../model/graph/path-point';
+import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import type { ModelCanvasNode } from '../model/types';
-import {
-  definitionTypeAccent,
-  type CanvasViewMode,
-  computeNodeHeight,
-  nodeWidth,
-} from '../model/erd-node';
+import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-node';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -147,7 +138,6 @@ interface FlowEdgeParams {
   warning: boolean;
   dimmed: boolean;
   direction: CanvasDirection;
-  cardinality: EdgeCardinality | null;
 }
 
 function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
@@ -170,7 +160,6 @@ function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
       joinLabel: params.joinLabel,
       dimmed: params.dimmed,
       direction: params.direction,
-      cardinality: params.cardinality,
     },
   };
 }
@@ -236,7 +225,6 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
 
     const { positions } = runDagreLayout(dagreNodes, dagreEdges, direction);
     const offsets = computeParallelEdgeOffsets(edges);
-    const primaryKeysByNode = buildPrimaryKeysByNode(nodes);
 
     setFlowNodes(
       nodes.map(node =>
@@ -269,7 +257,6 @@ function ModelCanvasInner({ nodes, edges, searchQuery, onOpenDataMart }: ModelCa
             (isDraft.get(edge.targetId) ?? false),
           dimmed: sourceDimmed && targetDimmed,
           direction,
-          cardinality: computeEdgeCardinality(edge, primaryKeysByNode),
         });
       })
     );

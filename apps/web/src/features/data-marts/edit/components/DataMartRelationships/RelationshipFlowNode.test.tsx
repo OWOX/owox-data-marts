@@ -25,6 +25,7 @@ function renderNode(
       targetAlias: 'customers',
       fieldCount: 3,
       description: 'Customer dimension',
+      definitionType: null,
       isDraft: false,
       isBlocked: false,
       isJoinNotConfigured: false,

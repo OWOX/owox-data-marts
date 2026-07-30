@@ -7,7 +7,6 @@ import {
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
-import type { EdgeCardinality } from '../model/graph/edge-cardinality';
 
 export interface ModelCanvasFlowEdgeData {
   bowOffset: number;
@@ -15,7 +14,6 @@ export interface ModelCanvasFlowEdgeData {
   joinLabel: string[];
   dimmed: boolean;
   direction: CanvasDirection;
-  cardinality: EdgeCardinality | null;
 }
 
 export type ModelCanvasFlowEdgeType = Edge<
@@ -78,7 +76,7 @@ export default function ModelCanvasFlowEdge({
   markerEnd,
   data,
 }: EdgeProps<ModelCanvasFlowEdgeType>) {
-  const { bowOffset, warning, joinLabel, dimmed, direction, cardinality } = data;
+  const { bowOffset, warning, joinLabel, dimmed, direction } = data;
 
   let geometry: BezierGeometry;
   if (bowOffset !== 0) {
@@ -122,9 +120,6 @@ export default function ModelCanvasFlowEdge({
             style={{
               transform: 'translate(-50%, -50%)',
               width: 'max-content',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
               background: 'var(--background)',
               border: '1px solid var(--border)',
               borderRadius: 8,
@@ -139,26 +134,9 @@ export default function ModelCanvasFlowEdge({
               boxShadow: '0 1px 3px 0 rgba(0,0,0,0.08)',
             }}
           >
-            <div>
-              {joinLabel.map(line => (
-                <div key={line}>{line}</div>
-              ))}
-            </div>
-            {cardinality && (
-              <span
-                style={{
-                  flexShrink: 0,
-                  borderRadius: 4,
-                  padding: '0 5px',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
-                  color: 'var(--primary)',
-                }}
-              >
-                {cardinality}
-              </span>
-            )}
+            {joinLabel.map(line => (
+              <div key={line}>{line}</div>
+            ))}
           </div>
         </foreignObject>
       )}

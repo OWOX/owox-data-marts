@@ -3,15 +3,10 @@ import { ChevronDown, ChevronRight, ExternalLink, Info, KeyRound } from 'lucide-
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
-import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
 import { DIMMED_OPACITY, HIGHLIGHT_COLOR, SOCKET_STYLE } from '../../shared/canvas/constants';
-import {
-  type CanvasViewMode,
-  collapsedRowCount,
-  definitionTypeAccent,
-  nodeWidth,
-  orderFields,
-} from '../model/erd-node';
+import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
+import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
+import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '../model/erd-node';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
 
@@ -35,34 +30,6 @@ export type ModelCanvasFlowNodeType = Node<
   ModelCanvasFlowNodeData & Record<string, unknown>,
   'modelCanvasNode'
 >;
-
-function StatusDot({ isDraft }: { isDraft: boolean }) {
-  const label = isDraft ? 'Draft' : 'Published';
-  return (
-    <span className='inline-flex shrink-0 items-center' title={label}>
-      <span
-        className={`h-2 w-2 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
-        aria-hidden='true'
-      />
-      <span className='sr-only'>{label}</span>
-    </span>
-  );
-}
-
-function DefinitionBadge({ type }: { type: DataMartDefinitionType | null }) {
-  const info = DataMartDefinitionTypeModel.getInfo(type);
-  const color = definitionTypeAccent(type);
-  const Icon = info.icon;
-  return (
-    <span
-      className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase'
-      style={{ background: color }}
-    >
-      <Icon className='h-2.5 w-2.5' />
-      {info.displayName}
-    </span>
-  );
-}
 
 function FieldRow({ field }: { field: CanvasNodeField }) {
   return (
@@ -149,7 +116,7 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         >
           {data.title}
         </span>
-        <StatusDot isDraft={data.isDraft} />
+        <ErdStatusDot isDraft={data.isDraft} />
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -185,7 +152,7 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
 
       {/* Meta row: definition badge + field count */}
       <div className='flex items-center gap-2 px-3.5 pt-1 pb-3'>
-        <DefinitionBadge type={data.definitionType} />
+        <ErdDefinitionBadge type={data.definitionType} />
         <span className='text-muted-foreground text-[11px]'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>

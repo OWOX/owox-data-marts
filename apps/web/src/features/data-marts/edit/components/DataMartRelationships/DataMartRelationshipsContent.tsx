@@ -40,6 +40,7 @@ import { cleanBlendedFieldOverride } from './blended-field-override.utils';
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
+import { useRelationshipDefinitionTypes } from './useRelationshipDefinitionTypes';
 import { useTransientRelationships } from './useTransientRelationships';
 
 // Load React Flow and the graph renderer only when the user switches to graph
@@ -233,6 +234,8 @@ export function DataMartRelationshipsContent({
   const { rows: transientRows, isLoading: isLoadingTransient } =
     useTransientRelationships(relationshipGraph);
 
+  const definitionTypes = useRelationshipDefinitionTypes(relationshipGraph, relationships);
+
   const filteredRows = useMemo(() => {
     if (!searchQuery) return transientRows;
     const q = searchQuery.toLowerCase();
@@ -399,6 +402,7 @@ export function DataMartRelationshipsContent({
   const dmTitle = dataMart.title;
   const dmDescription = dataMart.description;
   const dmStatusCode = dataMart.status.code;
+  const dmDefinitionType = dataMart.definitionType;
 
   function renderToolbar() {
     return (
@@ -450,6 +454,8 @@ export function DataMartRelationshipsContent({
             dataMartTitle={dmTitle}
             dataMartDescription={dmDescription}
             dataMartStatus={dmStatusCode}
+            dataMartDefinitionType={dmDefinitionType}
+            definitionTypes={definitionTypes}
             relationships={relationships}
             relationshipGraph={relationshipGraph}
             connectedFieldCounts={connectedFieldCounts}
@@ -629,6 +635,8 @@ export function DataMartRelationshipsContent({
                 dataMartTitle={dataMart.title}
                 dataMartDescription={dataMart.description}
                 dataMartStatus={dataMart.status.code}
+                dataMartDefinitionType={dataMart.definitionType}
+                definitionTypes={definitionTypes}
                 relationships={relationships}
                 relationshipGraph={relationshipGraph}
                 connectedFieldCounts={connectedFieldCounts}

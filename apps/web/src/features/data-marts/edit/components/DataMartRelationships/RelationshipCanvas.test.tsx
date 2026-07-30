@@ -46,9 +46,8 @@ const reactFlowHarness = vi.hoisted(() => {
 });
 
 vi.mock('@xyflow/react', () => ({
-  Background: () => null,
-  BackgroundVariant: { Lines: 'lines' },
   Handle: () => null,
+  MarkerType: { ArrowClosed: 'arrowclosed' },
   MiniMap: () => null,
   Position: { Left: 'left', Right: 'right' },
   ReactFlow: (props: ReactFlowStubProps) => {
