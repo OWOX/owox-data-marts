@@ -89,11 +89,7 @@ export default function DataMartDataSetupContent() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           {dataMart && projectId && (
-            <DataQualityCompactStatusLink
-              projectId={projectId}
-              dataMartId={dataMart.id}
-              summary={dataMart.qualitySummary}
-            />
+            <DataQualityCompactStatusLink projectId={projectId} dataMartId={dataMart.id} />
           )}
           {dataMart && <DataMartSchemaSettings definitionType={definitionType} />}
         </CollapsibleCardContent>

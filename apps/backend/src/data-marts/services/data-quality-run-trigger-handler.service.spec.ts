@@ -1,9 +1,11 @@
 import { Repository } from 'typeorm';
 import { SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualityRunTrigger } from '../entities/data-quality-run-trigger.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { DataMartRunService } from './data-mart-run.service';
 import { RunDataQualityService } from '../use-cases/run-data-quality.service';
 import { DataQualityRunTriggerHandlerService } from './data-quality-run-trigger-handler.service';
@@ -24,7 +26,7 @@ describe('DataQualityRunTriggerHandlerService', () => {
     const dataMartRunRepository = {
       save: jest.fn(),
       createQueryBuilder: jest.fn(),
-    } as unknown as Repository<DataMartRun>;
+    } as unknown as jest.Mocked<Repository<DataMartRun>>;
     const scheduler = { registerTriggerHandler: jest.fn() } as unknown as SchedulerFacade;
     const execution = {
       executeExistingRun: jest.fn().mockResolvedValue(undefined),
@@ -39,21 +41,29 @@ describe('DataQualityRunTriggerHandlerService', () => {
       cancelActiveRun: jest.fn().mockResolvedValue(undefined),
       markRunAndSummaryAsExecutionFailed: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<DataQualityRunService>;
-    const service = new DataQualityRunTriggerHandlerService(
+    const systemClock = {
+      now: jest.fn().mockReturnValue(new Date('2026-07-29T12:05:00.000Z')),
+    } as unknown as jest.Mocked<SystemTimeService>;
+    const service = new (DataQualityRunTriggerHandlerService as unknown as new (
+      ...args: unknown[]
+    ) => DataQualityRunTriggerHandlerService)(
       triggerRepository,
       dataMartRunRepository,
       scheduler,
       execution,
       dataMartRunService,
-      qualityRunService
+      qualityRunService,
+      systemClock
     );
     return {
       service,
       trigger,
       triggerRepository,
+      dataMartRunRepository,
       execution,
       dataMartRunService,
       qualityRunService,
+      systemClock,
     };
   };
 
@@ -63,6 +73,34 @@ describe('DataQualityRunTriggerHandlerService', () => {
     await service.handleTrigger(trigger);
 
     expect(execution.executeExistingRun).toHaveBeenCalledWith('run-1', 'project-1', undefined);
+  });
+
+  it('refreshes a processing trigger heartbeat during a long Data Quality run', async () => {
+    jest.useFakeTimers();
+    try {
+      const { service, trigger, triggerRepository, execution, systemClock } = create();
+      let finishExecution: (() => void) | undefined;
+      execution.executeExistingRun.mockImplementation(
+        () =>
+          new Promise<void>(resolve => {
+            finishExecution = resolve;
+          })
+      );
+
+      const handling = service.handleTrigger(trigger);
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: 'trigger-1', status: TriggerStatus.PROCESSING },
+        { modifiedAt: systemClock.now() }
+      );
+
+      finishExecution?.();
+      await handling;
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('cancels the run and trigger when execution is aborted', async () => {
@@ -147,6 +185,45 @@ describe('DataQualityRunTriggerHandlerService', () => {
       error,
       expect.any(Date)
     );
+  });
+
+  it('terminalizes an orphaned pending Data Quality run with a matching summary state', async () => {
+    const { service, dataMartRunRepository, qualityRunService } = create();
+    const orphanedRun = {
+      id: 'run-1',
+      type: 'DATA_QUALITY',
+      status: DataMartRunStatus.PENDING,
+      errors: [],
+      finishedAt: null,
+      dataQualitySummary: {
+        state: DataQualitySummaryState.QUEUED,
+        enabledChecks: 1,
+      },
+    } as unknown as DataMartRun;
+    const queryBuilder = {
+      leftJoin: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      getMany: jest.fn(),
+    };
+    Object.values(queryBuilder).forEach(mock => mock.mockReturnValue(queryBuilder));
+    queryBuilder.getMany.mockResolvedValue([orphanedRun]);
+    dataMartRunRepository.createQueryBuilder.mockReturnValue(queryBuilder as never);
+    dataMartRunRepository.save.mockResolvedValue(orphanedRun);
+
+    await (service as unknown as { cleanupOrphanedRuns(): Promise<void> }).cleanupOrphanedRuns();
+
+    expect(dataMartRunRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.FAILED,
+        errors: ['Data Quality run failed during execution'],
+        finishedAt: expect.any(Date),
+        dataQualitySummary: expect.objectContaining({
+          state: DataQualitySummaryState.EXECUTION_FAILED,
+        }),
+      })
+    );
+    expect(qualityRunService.markRunAndSummaryAsExecutionFailed).not.toHaveBeenCalled();
   });
 
   it('propagates a terminalization failure', async () => {

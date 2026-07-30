@@ -3,11 +3,7 @@ import { TypeResolver } from '../../../common/resolver/type-resolver';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataStorageCredentials } from '../data-storage-credentials.type';
 import { DataStorageConfig } from '../data-storage-config.type';
-import {
-  CreateViewExecutor,
-  CreateViewOptions,
-  CreateViewResult,
-} from '../interfaces/create-view-executor.interface';
+import { CreateViewExecutor, CreateViewResult } from '../interfaces/create-view-executor.interface';
 import { CREATE_VIEW_EXECUTOR_RESOLVER } from '../data-storage-providers';
 
 @Injectable()
@@ -22,10 +18,9 @@ export class CreateViewExecutorFacade {
     credentials: DataStorageCredentials,
     config: DataStorageConfig,
     viewName: string,
-    sql: string,
-    options?: CreateViewOptions
+    sql: string
   ): Promise<CreateViewResult> {
     const executor = await this.resolver.resolve(type);
-    return executor.createView(credentials, config, viewName, sql, options);
+    return executor.createView(credentials, config, viewName, sql);
   }
 }

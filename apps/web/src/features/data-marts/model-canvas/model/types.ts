@@ -37,6 +37,8 @@ export interface ModelCanvasNode {
   qualitySummary: DataQualityCompactSummary;
 }
 
+export type ModelCanvasTopologyNode = Omit<ModelCanvasNode, 'qualitySummary'>;
+
 export interface ModelCanvasEdge {
   id: string;
   sourceDataMartId: string;
@@ -46,5 +48,10 @@ export interface ModelCanvasEdge {
 
 export interface ModelCanvasData {
   nodes: ModelCanvasNode[];
+  edges: ModelCanvasEdge[];
+}
+
+export interface ModelCanvasTopologyData {
+  nodes: ModelCanvasTopologyNode[];
   edges: ModelCanvasEdge[];
 }

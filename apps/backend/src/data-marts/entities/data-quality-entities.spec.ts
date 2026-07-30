@@ -77,10 +77,6 @@ describe('data quality entity metadata', () => {
         type: DataStorageType.GOOGLE_BIGQUERY,
       },
       relationshipTargets: [],
-      technicalViews: {
-        source: null,
-        relationships: {},
-      },
     };
     const summary = {
       state: DataQualitySummaryState.NEVER_RUN,

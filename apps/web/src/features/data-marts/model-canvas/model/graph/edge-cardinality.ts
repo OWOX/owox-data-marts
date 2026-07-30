@@ -1,4 +1,4 @@
-import type { ModelCanvasNode } from '../types';
+import type { ModelCanvasTopologyNode } from '../types';
 import type { CanvasRenderEdge } from './merge-bidirectional-edges';
 
 export type EdgeCardinality = '1:1' | 'N:1' | '1:N';
@@ -7,7 +7,7 @@ export type EdgeCardinality = '1:1' | 'N:1' | '1:N';
  * Primary-key field names per node, for nodes whose fields have been enriched.
  * Nodes without field data are absent so cardinality stays unknown for them.
  */
-export function buildPrimaryKeysByNode(nodes: ModelCanvasNode[]): Map<string, Set<string>> {
+export function buildPrimaryKeysByNode(nodes: ModelCanvasTopologyNode[]): Map<string, Set<string>> {
   const byNode = new Map<string, Set<string>>();
   for (const node of nodes) {
     if (!node.fields) continue;

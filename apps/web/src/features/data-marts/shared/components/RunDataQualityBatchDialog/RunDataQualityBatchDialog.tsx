@@ -11,6 +11,7 @@ interface RunDataQualityBatchDialogProps {
   dataMarts: { id: string }[];
   projectId: string;
   onCompleted: () => void | Promise<void>;
+  targetScope?: 'selection' | 'canvas';
 }
 
 export function RunDataQualityBatchDialog({
@@ -19,6 +20,7 @@ export function RunDataQualityBatchDialog({
   dataMarts,
   projectId,
   onCompleted,
+  targetScope = 'selection',
 }: RunDataQualityBatchDialogProps) {
   const queryClient = useQueryClient();
   const [isRunning, setIsRunning] = useState(false);
@@ -56,6 +58,13 @@ export function RunDataQualityBatchDialog({
         })
       )
     );
+    refreshes.push(
+      Promise.resolve().then(() =>
+        queryClient.invalidateQueries({
+          queryKey: dataQualityQueryKeys.summariesRoot(projectId),
+        })
+      )
+    );
 
     const refreshResults = await Promise.allSettled(refreshes);
     let completionFailed = false;
@@ -85,7 +94,11 @@ export function RunDataQualityBatchDialog({
         if (!isRunning) onOpenChange(next);
       }}
       title='Check Data Quality'
-      description={`Run Data Quality checks for ${String(selectedCount)} selected Data Mart${selectedCount === 1 ? '' : 's'}?`}
+      description={
+        targetScope === 'canvas'
+          ? `Run Data Quality checks for all ${String(selectedCount)} Data Mart${selectedCount === 1 ? '' : 's'} shown by the current canvas filters?`
+          : `Run Data Quality checks for ${String(selectedCount)} selected Data Mart${selectedCount === 1 ? '' : 's'}?`
+      }
       confirmLabel={isRunning ? 'Starting…' : 'Check Quality'}
       cancelLabel='Cancel'
       confirmDisabled={selectedCount === 0 || isRunning}

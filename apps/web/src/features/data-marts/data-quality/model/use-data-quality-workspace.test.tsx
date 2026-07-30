@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dataQualityService } from '../api/data-quality.service';
 import {
   dataQualityQueryKeys,
+  useDataQualitySummaries,
+  useDataQualitySummary,
   useDataQualityRun,
   useDataQualityWorkspace,
 } from './use-data-quality-workspace';
@@ -15,6 +17,7 @@ vi.mock('../api/data-quality.service', () => ({
   dataQualityService: {
     getConfig: vi.fn(),
     getLatestRun: vi.fn(),
+    getSummaries: vi.fn(),
     getRun: vi.fn(),
     replaceConfig: vi.fn(),
     startRun: vi.fn(),
@@ -40,6 +43,7 @@ describe('useDataQualityWorkspace', () => {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.mocked(dataQualityService.getConfig).mockResolvedValue(configResponse);
     vi.mocked(dataQualityService.getLatestRun).mockResolvedValue(null);
+    vi.mocked(dataQualityService.getSummaries).mockResolvedValue({});
     vi.mocked(dataQualityService.getRun).mockResolvedValue(buildRun('RUNNING'));
     vi.mocked(dataQualityService.replaceConfig).mockResolvedValue(configResponse);
     vi.mocked(dataQualityService.startRun).mockResolvedValue(buildRun('RUNNING'));
@@ -81,6 +85,155 @@ describe('useDataQualityWorkspace', () => {
         skipErrorToast: true,
       })
     );
+  });
+
+  it('loads a compact summary independently from the Data Mart response', async () => {
+    const summary = {
+      ...buildRun('PASSED').summary,
+      dataMartRunId: 'run-1',
+      lastRunAt: '2026-07-15T12:00:02.000Z',
+    };
+    vi.mocked(dataQualityService.getSummaries).mockResolvedValueOnce({ 'mart-1': summary });
+
+    const { result } = renderHook(() => useDataQualitySummary('project-1', 'mart-1'), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual(summary);
+    });
+    expect(dataQualityService.getSummaries).toHaveBeenCalledWith(
+      ['mart-1'],
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        skipLoadingIndicator: true,
+        skipErrorToast: true,
+      })
+    );
+  });
+
+  it('loads summaries only for the supplied Data Marts using a stable unique id set', async () => {
+    const mart1Summary = {
+      ...buildRun('PASSED').summary,
+      dataMartRunId: 'run-1',
+      lastRunAt: '2026-07-15T12:00:02.000Z',
+    };
+    const mart2Summary = {
+      ...buildRun('PASSED', 'run-2').summary,
+      dataMartRunId: 'run-2',
+      lastRunAt: '2026-07-15T12:00:03.000Z',
+    };
+    vi.mocked(dataQualityService.getSummaries).mockResolvedValueOnce({
+      'mart-1': mart1Summary,
+      'mart-2': mart2Summary,
+    });
+
+    const { result, rerender } = renderHook(
+      ({ dataMartIds }) => useDataQualitySummaries('project-1', dataMartIds),
+      {
+        initialProps: { dataMartIds: ['mart-2', 'mart-1', 'mart-2'] },
+        wrapper,
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual({
+        'mart-1': mart1Summary,
+        'mart-2': mart2Summary,
+      });
+    });
+    expect(dataQualityService.getSummaries).toHaveBeenCalledWith(
+      ['mart-1', 'mart-2'],
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        skipLoadingIndicator: true,
+        skipErrorToast: true,
+      })
+    );
+
+    rerender({ dataMartIds: ['mart-1', 'mart-2'] });
+    expect(dataQualityService.getSummaries).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels an obsolete summary request when the visible Data Mart set changes', async () => {
+    let obsoleteSignal: { readonly aborted: boolean } | undefined;
+    vi.mocked(dataQualityService.getSummaries)
+      .mockImplementationOnce((_dataMartIds, config) => {
+        obsoleteSignal = config?.signal;
+        return new Promise(() => undefined);
+      })
+      .mockResolvedValueOnce({
+        'mart-2': {
+          ...buildRun('PASSED', 'run-2').summary,
+          dataMartRunId: 'run-2',
+          lastRunAt: '2026-07-15T12:00:03.000Z',
+        },
+      });
+
+    const { result, rerender } = renderHook(
+      ({ dataMartIds }) => useDataQualitySummaries('project-1', dataMartIds),
+      {
+        initialProps: { dataMartIds: ['mart-1'] },
+        wrapper,
+      }
+    );
+    await waitFor(() => {
+      expect(dataQualityService.getSummaries).toHaveBeenCalledTimes(1);
+    });
+
+    rerender({ dataMartIds: ['mart-2'] });
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual(
+        expect.objectContaining({
+          'mart-2': expect.objectContaining({ state: 'PASSED' }),
+        })
+      );
+    });
+    expect(obsoleteSignal?.aborted).toBe(true);
+  });
+
+  it('polls the supplied summaries while one is active and stops at terminal state', async () => {
+    vi.useFakeTimers();
+    vi.mocked(dataQualityService.getSummaries)
+      .mockResolvedValueOnce({
+        'mart-1': {
+          ...buildRun('RUNNING').summary,
+          dataMartRunId: 'run-1',
+          lastRunAt: '2026-07-15T12:00:02.000Z',
+        },
+      })
+      .mockResolvedValue({
+        'mart-1': {
+          ...buildRun('PASSED').summary,
+          dataMartRunId: 'run-1',
+          lastRunAt: '2026-07-15T12:00:04.000Z',
+        },
+      });
+
+    const { result } = renderHook(() => useDataQualitySummaries('project-1', ['mart-1']), {
+      wrapper,
+    });
+    await vi.waitFor(() => {
+      expect(result.current.data?.['mart-1']?.state).toBe('RUNNING');
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    await vi.waitFor(() => {
+      expect(result.current.data?.['mart-1']?.state).toBe('PASSED');
+    });
+    expect(dataQualityService.getSummaries).toHaveBeenCalledTimes(2);
+    expect(dataQualityService.getSummaries).toHaveBeenLastCalledWith(
+      ['mart-1'],
+      expect.any(Object)
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(dataQualityService.getSummaries).toHaveBeenCalledTimes(2);
   });
 
   it('invalidates config and latest run after a config-free Run', async () => {
@@ -255,6 +408,92 @@ describe('useDataQualityWorkspace', () => {
     });
   });
 
+  it('keeps the previous report visible while a newer terminal run detail is loading', async () => {
+    const previousRun = {
+      ...buildRun('PASSED', 'run-previous'),
+      results: [buildResult('previous-result')],
+    };
+    const nextRunDetails = deferred<DataQualityRun>();
+    vi.mocked(dataQualityService.getLatestRun).mockResolvedValue(
+      buildRun('PASSED', 'run-previous')
+    );
+    vi.mocked(dataQualityService.getRun).mockImplementation((_dataMartId, runId) =>
+      runId === 'run-previous' ? Promise.resolve(previousRun) : nextRunDetails.promise
+    );
+
+    const { result } = renderHook(() => useDataQualityWorkspace('project-1', 'mart-1'), {
+      wrapper,
+    });
+    await waitFor(() => {
+      expect(result.current.latestRun?.runId).toBe('run-previous');
+    });
+
+    act(() => {
+      client.setQueryData(
+        dataQualityQueryKeys.latest('project-1', 'mart-1'),
+        buildRun('PASSED', 'run-next')
+      );
+    });
+
+    await waitFor(() => {
+      expect(dataQualityService.getRun).toHaveBeenCalledWith(
+        'mart-1',
+        'run-next',
+        expect.any(Object)
+      );
+      expect(result.current.isResultsLoading).toBe(true);
+    });
+    expect(result.current.latestRun?.runId).toBe('run-previous');
+    expect(result.current.latestRunOverview?.runId).toBe('run-next');
+
+    await act(async () => {
+      nextRunDetails.resolve({
+        ...buildRun('PASSED', 'run-next'),
+        results: [buildResult('next-result')],
+      });
+      await nextRunDetails.promise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.latestRun?.runId).toBe('run-next');
+    });
+  });
+
+  it('keeps the previous report visible when newer terminal details fail to load', async () => {
+    const previousRun = {
+      ...buildRun('PASSED', 'run-previous'),
+      results: [buildResult('previous-result')],
+    };
+    vi.mocked(dataQualityService.getLatestRun).mockResolvedValue(
+      buildRun('PASSED', 'run-previous')
+    );
+    vi.mocked(dataQualityService.getRun).mockImplementation((_dataMartId, runId) =>
+      runId === 'run-previous'
+        ? Promise.resolve(previousRun)
+        : Promise.reject(new Error('detail unavailable'))
+    );
+
+    const { result } = renderHook(() => useDataQualityWorkspace('project-1', 'mart-1'), {
+      wrapper,
+    });
+    await waitFor(() => {
+      expect(result.current.latestRun?.runId).toBe('run-previous');
+    });
+
+    act(() => {
+      client.setQueryData(
+        dataQualityQueryKeys.latest('project-1', 'mart-1'),
+        buildRun('PASSED', 'run-next')
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.resultsError).toEqual(new Error('detail unavailable'));
+    });
+    expect(result.current.latestRun?.runId).toBe('run-previous');
+    expect(result.current.latestRunOverview?.runId).toBe('run-next');
+  });
+
   it('refreshes run eligibility when the latest run becomes terminal', async () => {
     vi.useFakeTimers();
     const activeRunConfig: DataQualityConfigResponse = {
@@ -410,6 +649,23 @@ function buildRun(state: 'RUNNING' | 'PASSED', runId = 'run-1'): DataQualityRun 
     createdAt: '2026-07-15T12:00:00.000Z',
     startedAt: '2026-07-15T12:00:00.000Z',
     finishedAt: null,
+  };
+}
+
+function buildResult(id: string): DataQualityRun['results'][number] {
+  return {
+    id,
+    ruleKey: 'empty_table:data_mart',
+    category: 'empty_table',
+    scope: { type: 'DATA_MART' },
+    severity: 'error',
+    status: 'PASSED',
+    violationCount: 0,
+    description: 'Table is not empty',
+    examples: [],
+    sql: 'SELECT 1',
+    error: null,
+    redacted: false,
   };
 }
 

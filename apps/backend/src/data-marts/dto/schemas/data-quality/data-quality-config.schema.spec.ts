@@ -354,10 +354,6 @@ describe('DataQualityConfigSchema', () => {
         type: DataStorageType.GOOGLE_BIGQUERY,
       },
       relationshipTargets: [],
-      technicalViews: {
-        source: null,
-        relationships: {},
-      },
     };
 
     expect(DataQualityRunSnapshotSchema.parse(snapshot)).toEqual(snapshot);
@@ -440,12 +436,6 @@ describe('data quality run schemas', () => {
           },
         },
       ],
-      technicalViews: {
-        source: 'project.internal.dq_source',
-        relationships: {
-          'rel-1': 'project.internal.dq_target',
-        },
-      },
     };
     expect(DataQualityRunSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });

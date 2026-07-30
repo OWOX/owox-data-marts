@@ -16,6 +16,8 @@ import { dataMartService } from '../../shared';
 import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
 import { trackEvent } from '../../../../utils/data-layer';
 import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
+import { useDataQualitySummaries } from '../../data-quality/model/use-data-quality-workspace';
+import type { ModelCanvasData } from '../model/types';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
 
@@ -55,11 +57,12 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
   const { navigate, scope, projectId } = useProjectRoute();
   const storageKnown =
     Boolean(filters.storageId) && dataStorages.some(s => s.id === filters.storageId);
-  const { data, isLoading, error, refetch, refetchQuality } = useModelCanvas(
-    storageKnown ? filters.storageId : null
-  );
-  const hasActiveQualityRun =
-    data?.nodes.some(node => isDataQualityActivityState(node.qualitySummary.state)) ?? false;
+  const {
+    data: topology,
+    isLoading: isTopologyLoading,
+    error: topologyError,
+    refetch,
+  } = useModelCanvas(storageKnown ? filters.storageId : null);
 
   const loadDataStorages = useCallback(async () => {
     const generation = ++storageLoadGenerationRef.current;
@@ -87,14 +90,44 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
     };
   }, [loadDataStorages]);
 
+  const filteredTopology = useMemo(
+    () => (topology ? filterCanvasData(topology, filters.status, filters.rel) : null),
+    [filters.rel, filters.status, topology]
+  );
+  const visibleDataMartIds = useMemo(
+    () => filteredTopology?.nodes.map(node => node.id) ?? [],
+    [filteredTopology]
+  );
+  const qualitySummariesQuery = useDataQualitySummaries(projectId ?? '', visibleDataMartIds);
+  const {
+    data: qualitySummaries,
+    isLoading: areQualitySummariesLoading,
+    error: qualitySummariesError,
+    refetch: refetchQuality,
+  } = qualitySummariesQuery;
+  const hasActiveQualityRun = Object.values(qualitySummaries ?? {}).some(summary =>
+    isDataQualityActivityState(summary.state)
+  );
+  const filtered = useMemo<ModelCanvasData | null>(() => {
+    if (!filteredTopology) return null;
+    if (filteredTopology.nodes.length > 0 && !qualitySummaries) return null;
+
+    return {
+      nodes: filteredTopology.nodes.map(node => {
+        const qualitySummary = qualitySummaries?.[node.id];
+        if (!qualitySummary) {
+          throw new Error(`Data Quality summary was not returned for Data Mart ${node.id}`);
+        }
+        return { ...node, qualitySummary };
+      }),
+      edges: filteredTopology.edges,
+    };
+  }, [filteredTopology, qualitySummaries]);
+
   useEffect(() => {
     onActiveQualityRunChange?.(hasActiveQualityRun);
   }, [hasActiveQualityRun, onActiveQualityRunChange]);
 
-  const filtered = useMemo(
-    () => (data ? filterCanvasData(data, filters.status, filters.rel) : null),
-    [data, filters.status, filters.rel]
-  );
   const renderEdges = useMemo(
     () => (filtered ? mergeBidirectionalEdges(filtered.edges) : []),
     [filtered]
@@ -168,8 +201,12 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
   }, []);
 
   const refreshCanvas = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await Promise.allSettled([refetch(), refetchQuality()]);
+  }, [refetch, refetchQuality]);
+
+  const isLoading =
+    isTopologyLoading || (visibleDataMartIds.length > 0 && areQualitySummariesLoading);
+  const error = topologyError ?? qualitySummariesError;
 
   return (
     <div className='dm-card p-4'>
@@ -211,10 +248,12 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
         <CanvasMessage role='alert'>
           {extractErrorMessage(error) ?? 'Failed to load the data model'}
         </CanvasMessage>
-      ) : !data || data.nodes.length === 0 ? (
+      ) : !topology || topology.nodes.length === 0 ? (
         <CanvasMessage>No data marts in this storage</CanvasMessage>
-      ) : !filtered || filtered.nodes.length === 0 ? (
+      ) : !filteredTopology || filteredTopology.nodes.length === 0 ? (
         <CanvasMessage>No data marts match the current filters</CanvasMessage>
+      ) : !filtered ? (
+        <SkeletonList />
       ) : (
         <Suspense fallback={<SkeletonList />}>
           <ModelCanvas
@@ -239,6 +278,7 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
                 deleteDataMart={deleteDataMart}
                 publishDataMart={publishDataMart}
                 onCompleted={refreshCanvas}
+                targetScope='canvas'
               />
             }
             style={canvasStyle}

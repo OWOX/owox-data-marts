@@ -654,6 +654,43 @@ describe('resolveEffectiveDataQualityConfig', () => {
     expect(staleRules.every(rule => Boolean(rule.notApplicableReason))).toBe(true);
   });
 
+  it('explains when a saved freshness field still exists but is no longer eligible', () => {
+    const initial = resolveForDefinition(
+      null,
+      schema(field('updated_at', { type: BigQueryFieldType.TIMESTAMP })),
+      []
+    );
+    const saved = storedConfig(initial);
+    const freshnessRule = saved.rules.find(
+      rule =>
+        rule.category === DataQualityCategory.DATA_FRESHNESS &&
+        rule.scope.type === DataQualityScope.FIELD
+    );
+    expect(freshnessRule).toBeDefined();
+    if (freshnessRule) freshnessRule.enabled = true;
+
+    const result = resolveForDefinition(saved, schema(field('updated_at')), []);
+
+    expect(
+      findRule(result, DataQualityCategory.DATA_FRESHNESS, DataQualityScope.FIELD, 'updated_at')
+    ).toMatchObject({
+      enabled: true,
+      isApplicable: false,
+      notApplicableReason: expect.stringContaining('no longer eligible'),
+    });
+  });
+
+  it('fails loudly for an unknown Output Schema provider', () => {
+    const unsupportedSchema = {
+      type: 'new-provider-data-mart-schema',
+      fields: [],
+    } as unknown as DataMartSchema;
+
+    expect(() => resolveForDefinition(null, unsupportedSchema, [])).toThrow(
+      'Unsupported Data Mart schema type'
+    );
+  });
+
   it('keeps inaccessible relationship rules enabled but marks them not applicable', () => {
     const inaccessible = { ...relationship('rel-1'), targetAccessible: false };
 

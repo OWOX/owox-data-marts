@@ -94,4 +94,78 @@ describe('DataQualityRuleEditor', () => {
     expect(within(thresholdGroup!).getByText('Threshold, %')).toBeInTheDocument();
     expect(threshold).toHaveClass('w-36');
   });
+
+  it('allows a percentage threshold to be cleared and replaced with a decimal value', () => {
+    const onChange = vi.fn();
+    render(
+      <DataQualityRuleEditor
+        rule={{
+          key: 'null_rate:field:["email"]',
+          category: 'null_rate',
+          scope: { type: 'FIELD', fieldPath: ['email'] },
+          severity: 'warning',
+          enabled: true,
+          parameters: { thresholdPercent: 10 },
+          isApplicable: true,
+        }}
+        value={{
+          key: 'null_rate:field:["email"]',
+          category: 'null_rate',
+          scope: { type: 'FIELD', fieldPath: ['email'] },
+          severity: 'warning',
+          enabled: true,
+          parameters: { thresholdPercent: 10 },
+        }}
+        disabled={false}
+        onChange={onChange}
+      />
+    );
+
+    const input = screen.getByLabelText('Null rate threshold percent');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveValue(null);
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: '3.5' } });
+    expect(input).toHaveValue(3.5);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        parameters: { thresholdPercent: 3.5 },
+      })
+    );
+  });
+
+  it('restores the last valid hours threshold when an empty input loses focus', () => {
+    render(
+      <DataQualityRuleEditor
+        rule={{
+          key: 'data_freshness:field:["updated_at"]',
+          category: 'data_freshness',
+          scope: { type: 'FIELD', fieldPath: ['updated_at'] },
+          severity: 'warning',
+          enabled: true,
+          parameters: { thresholdHours: 24 },
+          isApplicable: true,
+        }}
+        value={{
+          key: 'data_freshness:field:["updated_at"]',
+          category: 'data_freshness',
+          scope: { type: 'FIELD', fieldPath: ['updated_at'] },
+          severity: 'warning',
+          enabled: true,
+          parameters: { thresholdHours: 24 },
+        }}
+        disabled={false}
+        onChange={vi.fn()}
+      />
+    );
+
+    const input = screen.getByLabelText('Data freshness threshold hours for updated_at');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveValue(null);
+    fireEvent.blur(input);
+    expect(input).toHaveValue(24);
+  });
 });

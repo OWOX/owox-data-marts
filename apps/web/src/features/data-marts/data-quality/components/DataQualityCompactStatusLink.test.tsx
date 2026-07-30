@@ -12,7 +12,6 @@ import { DataQualityCompactStatusLink } from './DataQualityCompactStatusLink';
 describe('DataQualityCompactStatusLink', () => {
   it('links Output Schema to Data Quality with a concise visible action', () => {
     const client = createClient();
-    client.setQueryData(dataQualityQueryKeys.latest('project-1', 'mart-1'), null);
     renderStatus(client);
 
     const status = screen.getByText('Data Quality issues found');
@@ -28,7 +27,6 @@ describe('DataQualityCompactStatusLink', () => {
 
   it('shows the last checked time when the summary has one', () => {
     const client = createClient();
-    client.setQueryData(dataQualityQueryKeys.latest('project-1', 'mart-1'), null);
     const summary = buildSummary();
     renderStatus(client, summary);
 
@@ -39,7 +37,6 @@ describe('DataQualityCompactStatusLink', () => {
 
   it('does not render a timestamp before the first run', () => {
     const client = createClient();
-    client.setQueryData(dataQualityQueryKeys.latest('project-1', 'mart-1'), null);
     renderStatus(
       client,
       buildSummary({ state: 'NEVER_RUN', dataMartRunId: null, lastRunAt: null })
@@ -48,35 +45,28 @@ describe('DataQualityCompactStatusLink', () => {
     expect(screen.queryByText(/Last checked|Started|Queued/)).not.toBeInTheDocument();
   });
 
-  it('reacts to the shared latest-run cache without reloading Data Mart context', async () => {
+  it('reacts to the dedicated summary cache without reloading Data Mart context', async () => {
     const client = createClient();
-    client.setQueryData(dataQualityQueryKeys.latest('project-1', 'mart-1'), null);
     renderStatus(client);
 
     expect(screen.getByText('Data Quality issues found')).toBeInTheDocument();
 
     act(() => {
-      client.setQueryData(dataQualityQueryKeys.latest('project-1', 'mart-1'), {
-        id: 'run-2',
+      client.setQueryData(dataQualityQueryKeys.summary('project-1', 'mart-1'), {
         dataMartRunId: 'run-2',
-        summary: {
-          state: 'PASSED',
-          enabledChecks: 2,
-          totalChecks: 2,
-          passedChecks: 2,
-          failedChecks: 0,
-          notApplicableChecks: 0,
-          errorChecks: 0,
-          noticeFindings: 0,
-          warningFindings: 0,
-          errorFindings: 0,
-          violationCount: 0,
-          highestSeverity: null,
-        },
-        results: [],
-        createdAt: '2026-07-16T12:00:00.000Z',
-        startedAt: '2026-07-16T12:00:01.000Z',
-        finishedAt: '2026-07-16T12:00:02.000Z',
+        lastRunAt: '2026-07-16T12:00:02.000Z',
+        state: 'PASSED',
+        enabledChecks: 2,
+        totalChecks: 2,
+        passedChecks: 2,
+        failedChecks: 0,
+        notApplicableChecks: 0,
+        errorChecks: 0,
+        noticeFindings: 0,
+        warningFindings: 0,
+        errorFindings: 0,
+        violationCount: 0,
+        highestSeverity: null,
       });
     });
 
@@ -117,14 +107,14 @@ function buildSummary(
 }
 
 function renderStatus(client: QueryClient, summary = buildSummary()) {
+  client.setQueryData(dataQualityQueryKeys.summary('project-1', 'mart-1'), summary);
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
       <MemoryRouter>{children}</MemoryRouter>
     </QueryClientProvider>
   );
 
-  return render(
-    <DataQualityCompactStatusLink projectId='project-1' dataMartId='mart-1' summary={summary} />,
-    { wrapper: Wrapper }
-  );
+  return render(<DataQualityCompactStatusLink projectId='project-1' dataMartId='mart-1' />, {
+    wrapper: Wrapper,
+  });
 }

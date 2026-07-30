@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, renderHook } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartListProvider } from '../context';
 import { useDataMartList } from './useDataMartList';
 
@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   deleteDataMart: vi.fn(),
   publishDataMart: vi.fn(),
   createSchemaActualizeTrigger: vi.fn(),
-  mapDataMartListFromDto: vi.fn((items: unknown) => items),
+  getSummaries: vi.fn(),
+  mapDataMartListFromDto: vi.fn((items: ReturnType<typeof apiListItem>[]) => items),
 }));
 
 vi.mock('../../../shared', () => ({
@@ -26,53 +27,40 @@ vi.mock('../mappers/data-mart-list.mapper.ts', () => ({
   mapDataMartListFromDto: mocks.mapDataMartListFromDto,
 }));
 
+vi.mock('../../../data-quality/api/data-quality.service', () => ({
+  dataQualityService: {
+    getSummaries: mocks.getSummaries,
+  },
+}));
+
 vi.mock('../../../../../utils/data-layer', () => ({ trackEvent: vi.fn() }));
 
 const wrapper = ({ children }: PropsWithChildren) => (
   <DataMartListProvider>{children}</DataMartListProvider>
 );
 
-describe('useDataMartList quality polling', () => {
+describe('useDataMartList', () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.useRealTimers());
 
-  it('silently polls active quality summaries and stops when the refreshed list is terminal', async () => {
-    vi.useFakeTimers();
-    mocks.getDataMarts
-      .mockResolvedValueOnce([listItem('RUNNING')])
-      .mockResolvedValue([listItem('PASSED')]);
+  it('loads the generic list without requesting Data Quality summaries', async () => {
+    mocks.getDataMarts.mockResolvedValue([apiListItem()]);
     const { result } = renderHook(() => useDataMartList(), { wrapper });
 
     await act(async () => {
       await result.current.loadDataMarts();
     });
-    expect(result.current.items[0]?.qualitySummary.state).toBe('RUNNING');
+
     expect(mocks.getDataMarts).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
-    });
-    await vi.waitFor(() => {
-      expect(result.current.items[0]?.qualitySummary.state).toBe('PASSED');
-    });
-    expect(result.current.loading).toBe(false);
-    expect(mocks.getDataMarts).toHaveBeenCalledTimes(2);
-    expect(mocks.getDataMarts).toHaveBeenNthCalledWith(2, {
-      skipLoadingIndicator: true,
-      skipErrorToast: true,
-    });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(4_000);
-    });
-    expect(mocks.getDataMarts).toHaveBeenCalledTimes(2);
+    expect(mocks.mapDataMartListFromDto).toHaveBeenCalledWith([apiListItem()]);
+    expect(mocks.getSummaries).not.toHaveBeenCalled();
+    expect(result.current.items).toEqual([apiListItem()]);
   });
 });
 
-function listItem(state: 'RUNNING' | 'PASSED') {
+function apiListItem(title = 'Orders') {
   return {
     id: 'mart-1',
-    title: 'Orders',
+    title,
     status: { code: 'PUBLISHED', title: 'Published' },
     storageType: 'GOOGLE_BIGQUERY',
     triggersCount: 0,
@@ -85,21 +73,5 @@ function listItem(state: 'RUNNING' | 'PASSED') {
     businessOwnerUsers: [],
     technicalOwnerUsers: [],
     contexts: [],
-    qualitySummary: {
-      state,
-      enabledChecks: 1,
-      totalChecks: 1,
-      passedChecks: state === 'PASSED' ? 1 : 0,
-      failedChecks: 0,
-      notApplicableChecks: 0,
-      errorChecks: 0,
-      noticeFindings: 0,
-      warningFindings: 0,
-      errorFindings: 0,
-      violationCount: 0,
-      highestSeverity: null,
-      dataMartRunId: 'run-1',
-      lastRunAt: '2026-07-16T10:00:00.000Z',
-    },
   };
 }

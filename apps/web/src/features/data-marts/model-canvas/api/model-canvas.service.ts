@@ -1,9 +1,9 @@
 import type { AxiosRequestConfig } from '../../../../app/api/apiClient';
 import { ApiService } from '../../../../services';
-import type { ModelCanvasEdge, ModelCanvasNode } from '../model/types';
+import type { ModelCanvasEdge, ModelCanvasTopologyNode } from '../model/types';
 
 interface ModelCanvasDataMartsResponseDto {
-  items: ModelCanvasNode[];
+  items: ModelCanvasTopologyNode[];
   total: number;
   nextOffset: number | null;
 }
@@ -17,8 +17,11 @@ class ModelCanvasService extends ApiService {
     super('/model-canvas');
   }
 
-  async getDataMarts(storageId: string, config?: AxiosRequestConfig): Promise<ModelCanvasNode[]> {
-    const allItems: ModelCanvasNode[] = [];
+  async getDataMarts(
+    storageId: string,
+    config?: AxiosRequestConfig
+  ): Promise<ModelCanvasTopologyNode[]> {
+    const allItems: ModelCanvasTopologyNode[] = [];
     let nextOffset: number | null = 0;
 
     while (nextOffset !== null) {

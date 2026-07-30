@@ -71,8 +71,7 @@ import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
 import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 import { MCP_QUERY_PARAMS_KEY } from '../services/data-mart-run.service';
-import { DataQualityRunDetailsDto, DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
-import { createNoRunDataQualitySummary } from '../services/data-quality-summary.service';
+import { DataQualityRunDetailsDto } from '../dto/domain/data-quality.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -102,8 +101,7 @@ export class DataMartMapper {
     },
     createdByUser?: UserProjectionDto,
     businessOwnerUsers: UserProjectionDto[] = [],
-    technicalOwnerUsers: UserProjectionDto[] = [],
-    qualitySummary?: DataQualitySummaryDto
+    technicalOwnerUsers: UserProjectionDto[] = []
   ): DataMartDto {
     return new DataMartDto(
       entity.id,
@@ -125,8 +123,7 @@ export class DataMartMapper {
       entity.availableForReporting ?? true,
       entity.availableForMaintenance ?? true,
       entity.blendedFieldsConfig,
-      extractContextSummaries(entity.contexts),
-      qualitySummary ?? null
+      extractContextSummaries(entity.contexts)
     );
   }
 
@@ -167,7 +164,6 @@ export class DataMartMapper {
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
       contexts: dto.contexts,
-      qualitySummary: dto.qualitySummary ?? createNoRunDataQualitySummary(0),
     };
   }
 
@@ -287,8 +283,7 @@ export class DataMartMapper {
     counters: { triggersCount: number; reportsCount: number },
     createdByUser?: UserProjectionDto,
     businessOwnerUsers: UserProjectionDto[] = [],
-    technicalOwnerUsers: UserProjectionDto[] = [],
-    qualitySummary?: DataQualitySummaryDto
+    technicalOwnerUsers: UserProjectionDto[] = []
   ): DataMartListItemDto {
     return new DataMartListItemDto(
       entity.id,
@@ -308,8 +303,7 @@ export class DataMartMapper {
       technicalOwnerUsers,
       extractContextSummaries(entity.contexts),
       entity.availableForReporting,
-      entity.availableForMaintenance,
-      qualitySummary ?? null
+      entity.availableForMaintenance
     );
   }
 
@@ -335,7 +329,6 @@ export class DataMartMapper {
       contexts: dto.contexts,
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
-      qualitySummary: dto.qualitySummary ?? createNoRunDataQualitySummary(0),
     };
   }
 

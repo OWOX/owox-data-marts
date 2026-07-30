@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -27,6 +27,31 @@ vi.mock('../../model/hooks/useDataMartHealthStatusPrefetch', () => ({
 }));
 
 describe('DataMartTable', () => {
+  it('reports only the Data Marts visible on the current page', async () => {
+    const onVisibleDataMartIdsChange = vi.fn();
+    const dataMarts = Array.from({ length: 20 }, (_, index) =>
+      buildDataMart(`mart-${index + 1}`, `Data Mart ${String(index + 1).padStart(2, '0')}`)
+    );
+
+    renderTableData(dataMarts, { onVisibleDataMartIdsChange });
+
+    await waitFor(() => {
+      expect(onVisibleDataMartIdsChange).toHaveBeenLastCalledWith(
+        expect.arrayContaining(dataMarts.slice(0, 15).map(item => item.id))
+      );
+    });
+    const firstPageIds = onVisibleDataMartIdsChange.mock.lastCall?.[0] as string[];
+    expect(firstPageIds).toHaveLength(15);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+
+    await waitFor(() => {
+      const secondPageIds = onVisibleDataMartIdsChange.mock.lastCall?.[0] as string[];
+      expect(secondPageIds).toHaveLength(5);
+      expect(secondPageIds.some(id => firstPageIds.includes(id))).toBe(false);
+    });
+  });
+
   it('keeps selection attached to the same Data Mart when polling reorders rows', async () => {
     const deleteDataMart = vi.fn().mockResolvedValue(undefined);
     const first = buildDataMart('mart-1', 'Orders');
@@ -89,6 +114,8 @@ describe('DataMartTable', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
 
     expect(screen.getByRole('heading', { name: 'Are you sure?' })).toBeVisible();
+    expect(screen.getByText("You're about to delete 1 selected data mart.")).toBeVisible();
+    expect(screen.queryByText(/cannot be undone/i)).not.toBeInTheDocument();
   });
 
   it('opens the Publish confirmation for a selected draft Data Mart', () => {
@@ -116,14 +143,26 @@ function renderTable(dataMart: DataMartListItem) {
 
 function renderTableData(
   data: DataMartListItem[],
-  { deleteDataMart = vi.fn() }: { deleteDataMart?: (id: string) => Promise<void> } = {}
+  {
+    deleteDataMart = vi.fn(),
+    onVisibleDataMartIdsChange,
+  }: {
+    deleteDataMart?: (id: string) => Promise<void>;
+    onVisibleDataMartIdsChange?: (ids: string[]) => void;
+  } = {}
 ) {
-  return render(renderTableElement(data, { deleteDataMart }));
+  return render(renderTableElement(data, { deleteDataMart, onVisibleDataMartIdsChange }));
 }
 
 function renderTableElement(
   data: DataMartListItem[],
-  { deleteDataMart }: { deleteDataMart: (id: string) => Promise<void> }
+  {
+    deleteDataMart,
+    onVisibleDataMartIdsChange,
+  }: {
+    deleteDataMart: (id: string) => Promise<void>;
+    onVisibleDataMartIdsChange?: (ids: string[]) => void;
+  }
 ) {
   const columns: ColumnDef<DataMartListItem>[] = [
     { accessorKey: 'title', header: 'Title', cell: ({ row }) => row.original.title },
@@ -139,6 +178,7 @@ function renderTableElement(
           deleteDataMart={deleteDataMart}
           publishDataMart={vi.fn()}
           refetchDataMarts={vi.fn().mockResolvedValue(undefined)}
+          onVisibleDataMartIdsChange={onVisibleDataMartIdsChange}
         />
       </QueryClientProvider>
     </MemoryRouter>
@@ -175,21 +215,5 @@ function buildDataMart(id = 'mart-1', title = 'Orders'): DataMartListItem {
     businessOwnerUsers: [],
     technicalOwnerUsers: [],
     contexts: [],
-    qualitySummary: {
-      state: 'NEVER_RUN',
-      enabledChecks: 1,
-      totalChecks: 0,
-      passedChecks: 0,
-      failedChecks: 0,
-      notApplicableChecks: 0,
-      errorChecks: 0,
-      noticeFindings: 0,
-      warningFindings: 0,
-      errorFindings: 0,
-      violationCount: 0,
-      highestSeverity: null,
-      dataMartRunId: null,
-      lastRunAt: null,
-    },
   } as DataMartListItem;
 }

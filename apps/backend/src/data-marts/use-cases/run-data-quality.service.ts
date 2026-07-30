@@ -25,7 +25,6 @@ import {
 } from '../dto/schemas/data-quality/data-quality-run.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
-import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum';
@@ -50,16 +49,16 @@ interface ProviderErrorIdentity {
   reason?: unknown;
 }
 
-const DATA_QUALITY_TECHNICAL_VIEW_ERROR_MESSAGE = 'Failed to refresh Data Quality technical view';
+const DATA_QUALITY_SOURCE_QUERY_ERROR_MESSAGE = 'Failed to resolve Data Quality source query';
 
-class DataQualityTechnicalViewRefreshError extends Error implements ProviderErrorIdentity {
+class DataQualitySourceQueryError extends Error implements ProviderErrorIdentity {
   code?: unknown;
   errorCode?: unknown;
   reason?: unknown;
 
   constructor(cause: unknown) {
-    super(DATA_QUALITY_TECHNICAL_VIEW_ERROR_MESSAGE, { cause });
-    this.name = 'DataQualityTechnicalViewRefreshError';
+    super(DATA_QUALITY_SOURCE_QUERY_ERROR_MESSAGE, { cause });
+    this.name = 'DataQualitySourceQueryError';
     if (typeof cause !== 'object' || cause === null) return;
     const identity = cause as ProviderErrorIdentity;
     this.code = identity.code;
@@ -114,20 +113,13 @@ export class RunDataQualityService {
           definition: definitionRun,
           schema: snapshot.schema ?? undefined,
         } as DataMart;
-        const sourceReference = await this.resolveSnapshotTableReference({
-          runId: dataMartRun.id,
+        const sourceQuery = await this.resolveSnapshotTableReference({
+          dataMartId: dataMart.id,
           projectId: expectedProjectId,
-          identity: { type: 'SOURCE', dataMartId: dataMart.id },
           definition: definitionRun,
           storage: snapshot.sourceStorage,
           liveStorage: toStorageSnapshot(dataMart),
         });
-        await this.persistTechnicalViewReference(
-          dataMartRun,
-          null,
-          sourceReference.technicalViewReference
-        );
-        const sourceQuery = sourceReference.query;
         const targets = await this.loadRelationshipTargets(snapshot, expectedProjectId);
         const targetSourceQueries = new Map<string, Promise<string | QueryBuildResult>>();
         const compiled: DataQualityCompiledCheck[] = [];
@@ -172,7 +164,7 @@ export class RunDataQualityService {
             );
           } catch (error) {
             const parsed =
-              error instanceof DataQualityTechnicalViewRefreshError ||
+              error instanceof DataQualitySourceQueryError ||
               error instanceof DataQualitySnapshotStorageMismatchError
                 ? executionError(rule, error)
                 : compilationError(rule, error);
@@ -360,86 +352,26 @@ export class RunDataQualityService {
     target: DataMart | undefined,
     projectId: string
   ): Promise<string | QueryBuildResult> {
-    const reference = await this.resolveSnapshotTableReference({
-      runId: dataMartRun.id,
+    return this.resolveSnapshotTableReference({
+      dataMartId: relationship.targetDataMartId,
       projectId,
-      identity: {
-        type: 'RELATIONSHIP_TARGET',
-        relationshipId: relationship.id,
-        targetDataMartId: relationship.targetDataMartId,
-      },
       definition: targetSnapshot.definition,
       storage: targetSnapshot.storage,
       liveStorage: toStorageSnapshot(target),
     });
-    await this.persistTechnicalViewReference(
-      dataMartRun,
-      relationship.id,
-      reference.technicalViewReference
-    );
-    return reference.query;
   }
 
   private async resolveSnapshotTableReference(
     input: DataQualitySnapshotTableReferenceInput
-  ): Promise<Awaited<ReturnType<DataQualitySnapshotTableReferenceService['resolve']>>> {
+  ): Promise<string | QueryBuildResult> {
     try {
-      return await this.snapshotTableReference.resolve(input);
+      return (await this.snapshotTableReference.resolve(input)).query;
     } catch (error) {
-      if (
-        error instanceof DataQualitySnapshotStorageMismatchError ||
-        !input.definition ||
-        !isSqlDefinition(input.definition)
-      ) {
+      if (error instanceof DataQualitySnapshotStorageMismatchError) {
         throw error;
       }
-      throw new DataQualityTechnicalViewRefreshError(error);
+      throw new DataQualitySourceQueryError(error);
     }
-  }
-
-  private async persistTechnicalViewReference(
-    dataMartRun: DataMartRun,
-    relationshipId: string | null,
-    reference: string | null
-  ): Promise<void> {
-    if (!reference || !dataMartRun.dataQualitySnapshot) {
-      return;
-    }
-    const currentReferences = dataMartRun.dataQualitySnapshot.technicalViews;
-    const alreadyPersisted =
-      relationshipId === null
-        ? currentReferences.source === reference
-        : currentReferences.relationships[relationshipId] === reference;
-    if (alreadyPersisted) {
-      return;
-    }
-    const technicalViews =
-      relationshipId === null
-        ? { ...currentReferences, source: reference }
-        : {
-            ...currentReferences,
-            relationships: {
-              ...currentReferences.relationships,
-              [relationshipId]: reference,
-            },
-          };
-    const snapshot = {
-      ...dataMartRun.dataQualitySnapshot,
-      technicalViews,
-    };
-    const updated = await this.dataSource.transaction(manager =>
-      manager.getRepository(DataMartRun).update(
-        {
-          id: dataMartRun.id,
-          status: In([DataMartRunStatus.RUNNING, DataMartRunStatus.CANCELLED]),
-        },
-        { dataQualitySnapshot: snapshot }
-      )
-    );
-    if (!updated.affected) {
-      throw new Error(`Data Quality run ${dataMartRun.id} is no longer active`);
-    }
-    dataMartRun.dataQualitySnapshot = snapshot;
   }
 
   private async appendDataQualityResult(
@@ -447,7 +379,7 @@ export class RunDataQualityService {
     result: DataQualityStoredCheckResult
   ): Promise<boolean> {
     return this.dataSource.transaction(async manager => {
-      const current = await this.findRunWithDataQualityDetails(manager, dataMartRunId, true);
+      const current = await this.findRunForResultMutation(manager, dataMartRunId, true);
       if (!current) throw new Error(`Data Quality run ${dataMartRunId} was not found`);
       if (
         current.status !== DataMartRunStatus.RUNNING &&
@@ -489,7 +421,7 @@ export class RunDataQualityService {
   private async finishRun(dataMartRun: DataMartRun, cancelled: boolean): Promise<void> {
     await this.dataSource.transaction(async manager => {
       const runRepository = manager.getRepository(DataMartRun);
-      const currentRun = await this.findRunWithDataQualityDetails(manager, dataMartRun.id, true);
+      const currentRun = await this.findRunForResultMutation(manager, dataMartRun.id, true);
       if (!currentRun?.dataQualitySummary) {
         throw new Error(`Data Quality run ${dataMartRun.id} was not found`);
       }
@@ -546,6 +478,23 @@ export class RunDataQualityService {
       .addSelect('run.dataQualityResults')
       .innerJoinAndSelect('run.dataMart', 'dataMart')
       .innerJoinAndSelect('dataMart.storage', 'storage')
+      .where('run.id = :runId', { runId })
+      .andWhere('run.type = :type', { type: DataMartRunType.DATA_QUALITY });
+    const canLock = ['mysql', 'mariadb'].includes(String(this.dataSource.options?.type));
+    if (lock && canLock) query.setLock('pessimistic_write');
+    return query.getOne();
+  }
+
+  private async findRunForResultMutation(
+    manager: EntityManager,
+    runId: string,
+    lock = false
+  ): Promise<DataMartRun | null> {
+    const query = manager
+      .getRepository(DataMartRun)
+      .createQueryBuilder('run')
+      .select(['run.id', 'run.status', 'run.dataQualitySummary', 'run.finishedAt'])
+      .addSelect('run.dataQualityResults')
       .where('run.id = :runId', { runId })
       .andWhere('run.type = :type', { type: DataMartRunType.DATA_QUALITY });
     const canLock = ['mysql', 'mariadb'].includes(String(this.dataSource.options?.type));

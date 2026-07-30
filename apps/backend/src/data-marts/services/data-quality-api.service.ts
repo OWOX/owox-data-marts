@@ -7,6 +7,7 @@ import {
   DataQualityBatchRunErrorApiDto,
   DataQualityConfigResponseApiDto,
   DataQualityConfigSource,
+  GetDataQualitySummariesResponseApiDto,
   DataQualityRunEligibilityApiDto,
   DataQualityRunEligibilityCode,
   LatestDataQualityRunResponseApiDto,
@@ -26,6 +27,7 @@ import { DataQualityRunRequestService } from './data-quality-run-request.service
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataQualityRelationshipSnapshot } from '../dto/schemas/data-quality/data-quality-run.schema';
+import { DataQualitySummaryService } from './data-quality-summary.service';
 
 const BATCH_CONCURRENCY = 8;
 const NOT_FOUND_OR_FORBIDDEN_MESSAGE = 'Data Mart was not found or is not accessible';
@@ -37,7 +39,8 @@ export class DataQualityApiService {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly runService: DataQualityRunService,
     private readonly runRequestService: DataQualityRunRequestService,
-    private readonly mapper: DataQualityApiMapper
+    private readonly mapper: DataQualityApiMapper,
+    private readonly summaryService: DataQualitySummaryService
   ) {}
 
   async getConfig(
@@ -147,6 +150,32 @@ export class DataQualityApiService {
     });
 
     return { items };
+  }
+
+  async getSummaries(
+    context: AuthorizationContext,
+    requestedIds: readonly string[]
+  ): Promise<GetDataQualitySummariesResponseApiDto> {
+    const ids = Array.from(new Set(requestedIds));
+    const existing = await this.dataMartService.findByIdsAndProjectId(ids, context.projectId);
+    const existingById = new Map(existing.map(dataMart => [dataMart.id, dataMart]));
+    const projectScopedIds = ids.filter(id => existingById.has(id));
+    const seeAccess = await this.getAccessMany(context, projectScopedIds, Action.SEE);
+    const visibleDataMarts = projectScopedIds.flatMap(id => {
+      const dataMart = existingById.get(id);
+      return dataMart && seeAccess.get(id) === true ? [dataMart] : [];
+    });
+    const summaries = await this.summaryService.getCurrentByDataMarts(
+      visibleDataMarts,
+      context.projectId
+    );
+
+    return {
+      items: visibleDataMarts.flatMap(dataMart => {
+        const summary = summaries.get(dataMart.id);
+        return summary ? [{ dataMartId: dataMart.id, summary }] : [];
+      }),
+    };
   }
 
   async getLatest(

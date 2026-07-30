@@ -141,10 +141,6 @@ describe('RunDataQualityService', () => {
           type: DataStorageType.GOOGLE_BIGQUERY,
         },
         relationshipTargets: [],
-        technicalViews: {
-          source: null,
-          relationships: {},
-        },
       },
       dataQualitySummary: {
         state: DataQualitySummaryState.QUEUED,
@@ -169,6 +165,7 @@ describe('RunDataQualityService', () => {
     repositories.get(DataMart)!.find.mockResolvedValue([]);
     const selectedHiddenColumns = new Set<string>();
     runQueryBuilder = {
+      select: jest.fn(),
       addSelect: jest.fn(),
       innerJoinAndSelect: jest.fn(),
       where: jest.fn(),
@@ -218,7 +215,6 @@ describe('RunDataQualityService', () => {
     snapshotTableReference = {
       resolve: jest.fn().mockResolvedValue({
         query: 'SELECT * FROM source',
-        technicalViewReference: null,
       }),
     } as unknown as jest.Mocked<DataQualitySnapshotTableReferenceService>;
     const clock = {
@@ -236,21 +232,19 @@ describe('RunDataQualityService', () => {
     );
   });
 
-  it('resolves a SQL main source through its escaped technical view without compiling raw SQL', async () => {
+  it('resolves a SQL main source through its escaped stable view without compiling raw SQL', async () => {
     dataMart.definition = { sqlQuery: 'SELECT current_value FROM changed_source' } as never;
     dataMartRun.definitionRun = { sqlQuery: 'SELECT saved_value FROM saved_source' };
     dataMartRun.dataQualitySnapshot!.definitionType = DataMartDefinitionType.SQL;
     snapshotTableReference.resolve.mockResolvedValue({
       query: 'SELECT * FROM `project`.`internal`.`dq_run_source`',
-      technicalViewReference: 'project.internal.dq_run_source',
     });
 
     await service.executeExistingRun('run-1', 'project-1');
 
     expect(snapshotTableReference.resolve).toHaveBeenCalledWith({
-      runId: 'run-1',
+      dataMartId: 'dm-1',
       projectId: 'project-1',
-      identity: { type: 'SOURCE', dataMartId: 'dm-1' },
       definition: { sqlQuery: 'SELECT saved_value FROM saved_source' },
       storage: {
         id: 'storage-1',
@@ -263,9 +257,6 @@ describe('RunDataQualityService', () => {
     });
     expect(compiler.compile).toHaveBeenCalledWith(
       expect.objectContaining({ sourceQuery: 'SELECT * FROM `project`.`internal`.`dq_run_source`' })
-    );
-    expect(dataMartRun.dataQualitySnapshot?.technicalViews.source).toBe(
-      'project.internal.dq_run_source'
     );
     expect(JSON.stringify(compiler.compile.mock.calls)).not.toContain('changed_source');
     expect(JSON.stringify(compiler.compile.mock.calls)).not.toContain('saved_source');
@@ -285,7 +276,7 @@ describe('RunDataQualityService', () => {
     );
   });
 
-  it('executes and stores real compiler SQL backed by main and relationship technical views', async () => {
+  it('executes and stores real compiler SQL backed by main and relationship stable views', async () => {
     const mainRule = rule('empty_table:data_mart');
     const sourceSchema = {
       type: 'bigquery-data-mart-schema',
@@ -366,14 +357,12 @@ describe('RunDataQualityService', () => {
     dataMartRun.dataQualitySummary!.enabledChecks = 2;
     repositories.get(DataMart)!.find.mockResolvedValue([target] as never);
     snapshotTableReference.resolve.mockImplementation(async input =>
-      input.identity.type === 'SOURCE'
+      input.dataMartId === 'dm-1'
         ? {
             query: 'SELECT * FROM `project`.`internal`.`dq_run_source`',
-            technicalViewReference: 'project.internal.dq_run_source',
           }
         : {
             query: 'SELECT * FROM `project`.`internal`.`dq_run_target`',
-            technicalViewReference: 'project.internal.dq_run_target',
           }
     );
     const realCompiler = createDataQualityCheckCompiler();
@@ -433,11 +422,7 @@ describe('RunDataQualityService', () => {
     expect(allSql).not.toContain('changed_target');
     expect(snapshotTableReference.resolve).toHaveBeenCalledWith(
       expect.objectContaining({
-        identity: {
-          type: 'RELATIONSHIP_TARGET',
-          relationshipId: 'rel-1',
-          targetDataMartId: 'dm-2',
-        },
+        dataMartId: 'dm-2',
         definition: { sqlQuery: 'SELECT saved_target_value FROM saved_target' },
         storage: {
           id: 'storage-1',
@@ -445,15 +430,9 @@ describe('RunDataQualityService', () => {
         },
       })
     );
-    expect(dataMartRun.dataQualitySnapshot?.technicalViews).toEqual({
-      source: 'project.internal.dq_run_source',
-      relationships: {
-        'rel-1': 'project.internal.dq_run_target',
-      },
-    });
   });
 
-  it('resumes from the saved source and target snapshots and resolves one target view per relationship', async () => {
+  it('resumes with saved schemas and resolves one stable target view per relationship', async () => {
     const target = {
       id: 'dm-2',
       projectId: 'project-1',
@@ -506,23 +485,15 @@ describe('RunDataQualityService', () => {
         },
       },
     ];
-    dataMartRun.dataQualitySnapshot!.technicalViews = {
-      source: 'project.internal.dq_run_source',
-      relationships: {
-        'rel-1': 'project.internal.dq_run_target',
-      },
-    };
     dataMartRun.dataQualitySummary!.enabledChecks = 2;
     repositories.get(DataMart)!.find.mockResolvedValue([target] as never);
     snapshotTableReference.resolve.mockImplementation(async input =>
-      input.identity.type === 'SOURCE'
+      input.dataMartId === 'dm-1'
         ? {
             query: 'SELECT * FROM `project`.`internal`.`dq_run_source`',
-            technicalViewReference: 'project.internal.dq_run_source',
           }
         : {
             query: 'SELECT * FROM `project`.`internal`.`dq_run_target`',
-            technicalViewReference: 'project.internal.dq_run_target',
           }
     );
     compiler.compile.mockImplementation(async input => {
@@ -545,20 +516,10 @@ describe('RunDataQualityService', () => {
     expect(snapshotTableReference.resolve).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        identity: {
-          type: 'RELATIONSHIP_TARGET',
-          relationshipId: 'rel-1',
-          targetDataMartId: 'dm-2',
-        },
+        dataMartId: 'dm-2',
         definition: { sqlQuery: 'SELECT saved_target FROM queued_target' },
       })
     );
-    expect(dataMartRun.dataQualitySnapshot?.technicalViews).toEqual({
-      source: 'project.internal.dq_run_source',
-      relationships: {
-        'rel-1': 'project.internal.dq_run_target',
-      },
-    });
   });
 
   it('does not refresh an incompatible relationship target and still completes an independent rule', async () => {
@@ -727,12 +688,11 @@ describe('RunDataQualityService', () => {
       reason: 'invalidQuery',
     });
     snapshotTableReference.resolve.mockImplementation(async input => {
-      if (input.identity.type === 'RELATIONSHIP_TARGET') {
+      if (input.dataMartId === 'dm-2') {
         throw providerError;
       }
       return {
         query: 'SELECT * FROM source',
-        technicalViewReference: null,
       };
     });
     const realCompiler = createDataQualityCheckCompiler();
@@ -759,10 +719,10 @@ describe('RunDataQualityService', () => {
       expect.objectContaining({
         ruleKey: relationshipRule.key,
         status: DataQualityCheckStatus.ERROR,
-        description: 'Failed to refresh Data Quality technical view',
+        description: 'Failed to resolve Data Quality source query',
         error: {
           code: 'BQ_VIEW_REFRESH_FAILED',
-          message: 'Failed to refresh Data Quality technical view',
+          message: 'Failed to resolve Data Quality source query',
           details: {
             dataQualityCode: 'DATA_QUALITY_EXECUTION_ERROR',
             providerCode: 'BQ_VIEW_REFRESH_FAILED',
@@ -784,14 +744,14 @@ describe('RunDataQualityService', () => {
     expect(dataMartRun.errors).toEqual(['Data Quality run failed during execution']);
     expect(JSON.stringify(dataMartRun.dataQualityResults)).not.toContain(sensitiveMarker);
     expect(capturedBoundaryError).toMatchObject({
-      message: 'Failed to refresh Data Quality technical view',
+      message: 'Failed to resolve Data Quality source query',
       code: 'BQ_VIEW_REFRESH_FAILED',
       reason: 'invalidQuery',
       cause: providerError,
     });
   });
 
-  it('stores ERROR results and terminalizes when the main SQL view cannot be refreshed', async () => {
+  it('stores ERROR results and terminalizes when the main SQL view cannot be resolved', async () => {
     dataMart.definition = { sqlQuery: 'SELECT secret FROM raw_source' } as never;
     dataMartRun.definitionRun = dataMart.definition;
     dataMartRun.dataQualitySnapshot!.definitionType = DataMartDefinitionType.SQL;
@@ -810,7 +770,7 @@ describe('RunDataQualityService', () => {
         status: DataQualityCheckStatus.ERROR,
         error: expect.objectContaining({
           code: 'VIEW_REFRESH_FAILED',
-          message: 'Failed to refresh Data Quality technical view',
+          message: 'Failed to resolve Data Quality source query',
           details: expect.objectContaining({
             dataQualityCode: 'DATA_QUALITY_EXECUTION_ERROR',
             providerErrorCode: 'VIEW_REFRESH_FAILED',
@@ -933,10 +893,9 @@ describe('RunDataQualityService', () => {
           : []
       );
       snapshotTableReference.resolve.mockImplementation(async input => {
-        if (input.identity.type === 'SOURCE') {
+        if (input.dataMartId === 'dm-1') {
           return {
             query: 'SELECT * FROM source',
-            technicalViewReference: null,
           };
         }
         expect(input.definition).toEqual({ sqlQuery: 'SELECT id FROM saved_target' });
@@ -1016,6 +975,12 @@ describe('RunDataQualityService', () => {
       enabledChecks: 1,
       failedChecks: 1,
     });
+    expect(runQueryBuilder.select).toHaveBeenCalledWith([
+      'run.id',
+      'run.status',
+      'run.dataQualitySummary',
+      'run.finishedAt',
+    ]);
   });
 
   it('explicitly loads the hidden snapshot and existing results when resuming a run', async () => {

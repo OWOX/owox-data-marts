@@ -4,6 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { DataQualityRunTrigger } from '../entities/data-quality-run-trigger.entity';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { RunType } from '../../common/scheduler/shared/types';
+import { stopRunTriggersForRun } from '../utils/run-trigger-cancellation';
 
 interface CreateDataQualityRunTriggerParams {
   createdById: string;
@@ -51,15 +52,12 @@ export class DataQualityRunTriggerService {
     if (!trigger) return;
     if (trigger.status === TriggerStatus.CANCELLED) return;
 
-    const nextStatus =
-      trigger.status === TriggerStatus.PROCESSING
-        ? TriggerStatus.CANCELLING
-        : TriggerStatus.CANCELLED;
-    const isActive = false;
-    await manager
-      .getRepository(DataQualityRunTrigger)
-      .update({ id: trigger.id, status: trigger.status }, { status: nextStatus, isActive });
+    const repository = manager.getRepository(DataQualityRunTrigger);
+    await stopRunTriggersForRun(repository, trigger.dataMartRunId);
+    const nextStatus = [TriggerStatus.PROCESSING, TriggerStatus.CANCELLING].includes(trigger.status)
+      ? TriggerStatus.CANCELLING
+      : TriggerStatus.CANCELLED;
     trigger.status = nextStatus;
-    trigger.isActive = isActive;
+    trigger.isActive = false;
   }
 }

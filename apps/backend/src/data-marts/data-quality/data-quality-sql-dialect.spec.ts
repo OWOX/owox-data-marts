@@ -29,10 +29,10 @@ describe('DataQualitySqlDialect registry', () => {
 
     expect(
       (await registry.resolve(DataStorageType.GOOGLE_BIGQUERY)).quoteIdentifierPath(['a`b'])
-    ).toBe('`a``b`');
+    ).toBe('`a\\`b`');
     expect(
       (await registry.resolve(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).quoteIdentifierPath(['a`b'])
-    ).toBe('`a``b`');
+    ).toBe('`a\\`b`');
     expect((await registry.resolve(DataStorageType.DATABRICKS)).quoteIdentifierPath(['a`b'])).toBe(
       '`a``b`'
     );
@@ -46,6 +46,18 @@ describe('DataQualitySqlDialect registry', () => {
       (await registry.resolve(DataStorageType.AWS_REDSHIFT)).quoteIdentifierPath(['a"b'])
     ).toBe('"a""b"');
   });
+
+  it.each([DataStorageType.GOOGLE_BIGQUERY, DataStorageType.LEGACY_GOOGLE_BIGQUERY])(
+    'backslash-escapes BigQuery identifier backslashes for %s',
+    async storageType => {
+      const dialect = await createDataQualitySqlDialectRegistry().resolve(storageType);
+
+      expect(dialect.quoteIdentifierPath(['amount\\'])).toBe('`amount\\\\`');
+      expect(dialect.quoteIdentifierPath(['path\\segment`value'])).toBe(
+        '`path\\\\segment\\`value`'
+      );
+    }
+  );
 
   it.each(allStorageTypes)(
     'keeps literal dotted and segmented field paths distinct for %s',
@@ -139,6 +151,15 @@ describe('DataQualitySqlDialect registry', () => {
       (await createDataQualitySqlDialectRegistry().resolve(storageType)).normalizeType(nativeType)
     ).toBe(expected);
   });
+
+  it.each([DataStorageType.AWS_ATHENA, DataStorageType.AWS_REDSHIFT, DataStorageType.DATABRICKS])(
+    'does not match two unknown storage types for %s',
+    async storageType => {
+      const dialect = await createDataQualitySqlDialectRegistry().resolve(storageType);
+
+      expect(dialect.matchesExpectedType('UNKNOWN_ACTUAL', 'UNKNOWN_EXPECTED')).toBe(false);
+    }
+  );
 
   it.each(allStorageTypes)('classifies scalar and complex values for %s', async storageType => {
     const dialect = await createDataQualitySqlDialectRegistry().resolve(storageType);

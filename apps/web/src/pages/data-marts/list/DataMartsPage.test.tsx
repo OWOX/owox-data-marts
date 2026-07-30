@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DataMartsPage from './DataMartsPage';
 
 const mocks = vi.hoisted(() => ({
-  items: [] as { qualitySummary: { state: string } }[],
+  items: [] as { id: string }[],
+  summaries: {} as Partial<Record<string, { state: string }>>,
+  useDataQualitySummaries: vi.fn(),
   navigate: vi.fn(),
   loadDataMarts: vi.fn().mockResolvedValue(undefined),
   refreshList: vi.fn().mockResolvedValue(undefined),
@@ -14,7 +16,20 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../features/data-marts/list', () => ({
   DataMartListProvider: ({ children }: { children: React.ReactNode }) => children,
-  DataMartTable: () => <div>Data Mart table</div>,
+  DataMartTable: ({
+    onVisibleDataMartIdsChange,
+  }: {
+    onVisibleDataMartIdsChange: (ids: string[]) => void;
+  }) => (
+    <button
+      type='button'
+      onClick={() => {
+        onVisibleDataMartIdsChange(['visible-mart']);
+      }}
+    >
+      Report visible rows
+    </button>
+  ),
   useDataMartList: () => ({
     items: mocks.items,
     loadDataMarts: mocks.loadDataMarts,
@@ -23,6 +38,11 @@ vi.mock('../../../features/data-marts/list', () => ({
     refreshList: mocks.refreshList,
     loading: false,
   }),
+}));
+
+vi.mock('../../../features/data-marts/data-quality', () => ({
+  useDataQualitySummaries: (projectId: string, dataMartIds: string[]) =>
+    mocks.useDataQualitySummaries(projectId, dataMartIds),
 }));
 
 vi.mock('../../../features/data-marts/list/components/DataMartTable/columns/columns.tsx', () => ({
@@ -41,32 +61,51 @@ vi.mock('../../../features/connectors/shared/model/hooks/useConnector.ts', () =>
 }));
 
 vi.mock('../../../shared/hooks', () => ({
-  useProjectRoute: () => ({ navigate: mocks.navigate }),
+  useProjectRoute: () => ({ navigate: mocks.navigate, projectId: 'project-1' }),
 }));
 
 describe('DataMartsPage Data Quality activity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.items = [];
+    mocks.summaries = {};
+    mocks.useDataQualitySummaries.mockImplementation(
+      (_projectId: string, dataMartIds: string[]) => ({
+        data: Object.fromEntries(
+          dataMartIds.flatMap(dataMartId => {
+            const summary = mocks.summaries[dataMartId];
+            return summary ? [[dataMartId, summary]] : [];
+          })
+        ),
+      })
+    );
   });
 
   it.each(['QUEUED', 'RUNNING'])(
-    'shows project Run History while a Data Quality run is %s',
+    'shows project Run History while a visible Data Quality run is %s',
     state => {
-      mocks.items = [{ qualitySummary: { state } }];
+      mocks.items = [{ id: 'visible-mart' }, { id: 'hidden-mart' }];
+      mocks.summaries = { 'visible-mart': { state } };
 
       render(<DataMartsPage />);
+      fireEvent.click(screen.getByRole('button', { name: 'Report visible rows' }));
 
       expect(screen.getByRole('status')).toHaveTextContent('Checking data quality');
+      expect(mocks.useDataQualitySummaries).toHaveBeenLastCalledWith('project-1', ['visible-mart']);
       fireEvent.click(screen.getByRole('button', { name: 'View runs' }));
       expect(mocks.navigate).toHaveBeenCalledWith('/data-marts/runs');
     }
   );
 
-  it('does not show activity after all Data Quality runs finish', () => {
-    mocks.items = [{ qualitySummary: { state: 'PASSED' } }];
+  it('does not show activity for a running Data Mart outside the current page', () => {
+    mocks.items = [{ id: 'visible-mart' }, { id: 'hidden-mart' }];
+    mocks.summaries = {
+      'visible-mart': { state: 'PASSED' },
+      'hidden-mart': { state: 'RUNNING' },
+    };
 
     render(<DataMartsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Report visible rows' }));
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'View runs' })).not.toBeInTheDocument();

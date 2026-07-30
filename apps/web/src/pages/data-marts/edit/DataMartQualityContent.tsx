@@ -13,7 +13,6 @@ export default function DataMartQualityContent() {
     <DataQualityWorkspace
       projectId={projectId}
       dataMartId={dataMart.id}
-      qualitySummary={dataMart.qualitySummary}
       schemaFields={dataMart.schema?.fields}
       registerUnsavedGuard={registerSchemaGuard}
     />

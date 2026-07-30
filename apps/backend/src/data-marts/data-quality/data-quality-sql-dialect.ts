@@ -50,7 +50,11 @@ abstract class BaseDataQualitySqlDialect implements DataQualitySqlDialect {
     if (path.length === 0) {
       throw new Error('Data Quality identifier path must not be empty');
     }
-    return path.map(segment => quoteIdentifierSegment(segment, this.identifierQuote)).join('.');
+    return path.map(segment => this.quoteIdentifierSegment(segment)).join('.');
+  }
+
+  protected quoteIdentifierSegment(segment: string): string {
+    return quoteIdentifierSegment(segment, this.identifierQuote);
   }
 
   abstract subtractHours(expression: string, hours: number): string;
@@ -105,6 +109,14 @@ abstract class BaseDataQualitySqlDialect implements DataQualitySqlDialect {
 export class BigQueryDataQualitySqlDialect extends BaseDataQualitySqlDialect {
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
   protected readonly identifierQuote = '`';
+
+  protected override quoteIdentifierSegment(segment: string): string {
+    const unquoted =
+      segment.length >= 2 && segment.startsWith('`') && segment.endsWith('`')
+        ? segment.slice(1, -1).replace(/\\([\\`])/g, '$1')
+        : segment;
+    return `\`${unquoted.replaceAll('\\', '\\\\').replaceAll('`', '\\`')}\``;
+  }
 
   subtractHours(expression: string, hours: number): string {
     return renderSqlFunctionCall('TIMESTAMP_SUB', [
@@ -403,23 +415,30 @@ function matchesProviderStorageType(
     case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
       return matchesBigQueryStorageType(actualNativeType, expectedNativeType, expectedMode);
     case DataStorageType.AWS_ATHENA:
-      return (
-        normalizeAthenaStorageType(actualNativeType) ===
+      return matchesNormalizedStorageType(
+        normalizeAthenaStorageType(actualNativeType),
         normalizeAthenaStorageType(expectedNativeType)
       );
     case DataStorageType.SNOWFLAKE:
       return matchesSnowflakeStorageType(actualNativeType, expectedNativeType);
     case DataStorageType.AWS_REDSHIFT:
-      return (
-        normalizeRedshiftStorageType(actualNativeType) ===
+      return matchesNormalizedStorageType(
+        normalizeRedshiftStorageType(actualNativeType),
         normalizeRedshiftStorageType(expectedNativeType)
       );
     case DataStorageType.DATABRICKS:
-      return (
-        normalizeDatabricksStorageType(actualNativeType) ===
+      return matchesNormalizedStorageType(
+        normalizeDatabricksStorageType(actualNativeType),
         normalizeDatabricksStorageType(expectedNativeType)
       );
   }
+}
+
+function matchesNormalizedStorageType(
+  actualType: string | null,
+  expectedType: string | null
+): boolean {
+  return actualType !== null && expectedType !== null && actualType === expectedType;
 }
 
 interface BigQueryStorageType {

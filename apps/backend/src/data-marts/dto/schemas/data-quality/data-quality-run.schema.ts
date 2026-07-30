@@ -51,13 +51,6 @@ export type DataQualityRelationshipTargetSnapshot = z.infer<
   typeof DataQualityRelationshipTargetSnapshotSchema
 >;
 
-export const DataQualityTechnicalViewReferencesSchema = z
-  .object({
-    source: z.string().min(1).nullable(),
-    relationships: z.record(DataQualityIdentifierSchema, z.string().min(1)),
-  })
-  .strict();
-
 export const DataQualityResultExampleSchema = z
   .object({ values: z.record(z.string(), z.unknown()) })
   .strict();
@@ -93,7 +86,6 @@ export const DataQualityRunSnapshotSchema = z
     definitionType: z.nativeEnum(DataMartDefinitionType),
     sourceStorage: DataQualityStorageSnapshotSchema,
     relationshipTargets: z.array(DataQualityRelationshipTargetSnapshotSchema),
-    technicalViews: DataQualityTechnicalViewReferencesSchema,
   })
   .strict();
 

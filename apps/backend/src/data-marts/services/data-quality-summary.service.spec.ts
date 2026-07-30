@@ -1,4 +1,5 @@
 import { Repository } from 'typeorm';
+import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
@@ -10,6 +11,7 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 
 describe('DataQualitySummaryService', () => {
   const qb = {
+    select: jest.fn(),
     innerJoin: jest.fn(),
     leftJoin: jest.fn(),
     where: jest.fn(),
@@ -24,10 +26,17 @@ describe('DataQualitySummaryService', () => {
   const repository = {
     createQueryBuilder: jest.fn(() => qb),
   } as unknown as Repository<DataMartRun>;
+  const dataMartRepository = {
+    find: jest.fn(),
+  } as unknown as Repository<DataMart>;
   const relationshipService = {
     findGraphEdgesByProjectIdAndSourceDataMartIds: jest.fn(),
   } as unknown as DataMartRelationshipService;
-  const service = new DataQualitySummaryService(repository, relationshipService);
+  const service = new DataQualitySummaryService(
+    repository,
+    dataMartRepository,
+    relationshipService
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -69,6 +78,14 @@ describe('DataQualitySummaryService', () => {
       state: DataQualitySummaryState.ISSUES,
     });
     expect(repository.createQueryBuilder).toHaveBeenCalledWith('run');
+    expect(qb.select).toHaveBeenCalledWith([
+      'run.id',
+      'run.dataMartId',
+      'run.createdAt',
+      'run.startedAt',
+      'run.finishedAt',
+      'run.dataQualitySummary',
+    ]);
     expect(qb.getMany).toHaveBeenCalledTimes(1);
     expect(qb.leftJoin).toHaveBeenCalledWith(
       expect.any(Function),
@@ -87,6 +104,40 @@ describe('DataQualitySummaryService', () => {
   it('skips the query for an empty page', async () => {
     await expect(service.getLatestByDataMartIds([], 'project-1')).resolves.toEqual(new Map());
     expect(repository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('returns the current summary for one Data Mart', async () => {
+    const summary = createNoRunDataQualitySummary(1);
+    const currentSpy = jest
+      .spyOn(service, 'getCurrentByDataMarts')
+      .mockResolvedValueOnce(new Map([['dm-1', summary]]));
+
+    await expect(service.getCurrentByDataMart({ id: 'dm-1' } as never, 'project-1')).resolves.toBe(
+      summary
+    );
+    currentSpy.mockRestore();
+  });
+
+  it('loads current summaries for requested Data Mart ids within the project boundary', async () => {
+    const dataMarts = [{ id: 'dm-1', projectId: 'project-1' }] as DataMart[];
+    const summary = createNoRunDataQualitySummary(1);
+    (dataMartRepository.find as jest.Mock).mockResolvedValueOnce(dataMarts);
+    const currentSpy = jest
+      .spyOn(service, 'getCurrentByDataMarts')
+      .mockResolvedValueOnce(new Map([['dm-1', summary]]));
+
+    await expect(service.getCurrentByDataMartIds(['dm-1', 'dm-1'], 'project-1')).resolves.toEqual(
+      new Map([['dm-1', summary]])
+    );
+
+    expect(dataMartRepository.find).toHaveBeenCalledWith({
+      where: {
+        id: expect.anything(),
+        projectId: 'project-1',
+      },
+    });
+    expect(currentSpy).toHaveBeenCalledWith(dataMarts, 'project-1');
+    currentSpy.mockRestore();
   });
 
   it('derives current no-run counts in bulk and distinguishes preset from saved all-disabled', async () => {

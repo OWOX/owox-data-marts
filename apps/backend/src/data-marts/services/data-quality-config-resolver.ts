@@ -80,6 +80,9 @@ export function resolveEffectiveDataQualityConfig(
   const parsedSavedConfig = DataQualityConfigSchema.parse(savedConfig);
   const discoveredByKey = new Map(systemPreset.rules.map(rule => [rule.key, rule]));
   const savedByKey = new Map(parsedSavedConfig.rules.map(rule => [rule.key, rule]));
+  const currentFieldPaths = new Set(
+    collectCurrentFields(schema?.fields ?? []).map(field => fieldPathKey(field.path))
+  );
   const effectiveRules = systemPreset.rules.map(discoveredRule => {
     const savedRule = savedByKey.get(discoveredRule.key);
     if (!savedRule) {
@@ -97,7 +100,12 @@ export function resolveEffectiveDataQualityConfig(
     effectiveRules.push({
       ...savedRule,
       isApplicable: false,
-      notApplicableReason: staleScopeReason(savedRule.scope),
+      notApplicableReason:
+        savedRule.category === DataQualityCategory.DATA_FRESHNESS &&
+        savedRule.scope.type === DataQualityScope.FIELD &&
+        currentFieldPaths.has(fieldPathKey(savedRule.scope.fieldPath))
+          ? 'Field is no longer eligible for Data Freshness'
+          : staleScopeReason(savedRule.scope),
     });
   }
 
@@ -387,7 +395,9 @@ function displayFieldPath(path: readonly string[]): string {
 }
 
 function storageTypeForSchema(schema: DataMartSchema | null | undefined): DataStorageType | null {
-  switch (schema?.type) {
+  if (!schema) return null;
+
+  switch (schema.type) {
     case 'bigquery-data-mart-schema':
       return DataStorageType.GOOGLE_BIGQUERY;
     case 'athena-data-mart-schema':
@@ -398,9 +408,14 @@ function storageTypeForSchema(schema: DataMartSchema | null | undefined): DataSt
       return DataStorageType.AWS_REDSHIFT;
     case 'databricks-data-mart-schema':
       return DataStorageType.DATABRICKS;
-    default:
-      return null;
   }
+
+  return assertUnreachableSchema(schema);
+}
+
+function assertUnreachableSchema(schema: never): never {
+  const type = (schema as { type?: unknown }).type;
+  throw new Error(`Unsupported Data Mart schema type: ${String(type)}`);
 }
 
 function staleScopeReason(scope: DataQualityCheckScope): string {

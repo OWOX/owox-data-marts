@@ -1,4 +1,4 @@
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { RunType } from '../../common/scheduler/shared/types';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { DataQualityRunTrigger } from '../entities/data-quality-run-trigger.entity';
@@ -65,5 +65,52 @@ describe('DataQualityRunTriggerService', () => {
 
     expect(manager.getRepository).toHaveBeenCalledWith(DataQualityRunTrigger);
     expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('uses the shared versioned transition when cancellation is requested', async () => {
+    const trigger = {
+      id: 'trigger-1',
+      dataMartRunId: 'run-1',
+      status: TriggerStatus.PROCESSING,
+      isActive: true,
+    } as DataQualityRunTrigger;
+    const transactionalRepository = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    } as unknown as jest.Mocked<Repository<DataQualityRunTrigger>>;
+    const manager = {
+      getRepository: jest.fn().mockReturnValue(transactionalRepository),
+    } as unknown as EntityManager;
+    const service = new DataQualityRunTriggerService(repository);
+
+    await service.requestCancellation(trigger, manager);
+
+    expect(transactionalRepository.update).toHaveBeenNthCalledWith(
+      1,
+      {
+        dataMartRunId: 'run-1',
+        status: In([TriggerStatus.IDLE, TriggerStatus.READY]),
+      },
+      {
+        status: TriggerStatus.CANCELLED,
+        isActive: false,
+        version: expect.any(Function),
+      }
+    );
+    expect(transactionalRepository.update).toHaveBeenNthCalledWith(
+      2,
+      {
+        dataMartRunId: 'run-1',
+        status: TriggerStatus.PROCESSING,
+      },
+      {
+        status: TriggerStatus.CANCELLING,
+        isActive: false,
+        version: expect.any(Function),
+      }
+    );
+    expect(trigger).toMatchObject({
+      status: TriggerStatus.CANCELLING,
+      isActive: false,
+    });
   });
 });

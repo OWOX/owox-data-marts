@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartStatus } from '../../shared/enums';
-import type { ModelCanvasData } from '../model/types';
+import type { DataQualityCompactSummary } from '../../shared/types';
+import type { ModelCanvasTopologyData } from '../model/types';
 import { ModelCanvasView } from './ModelCanvasView';
 
 const viewState = vi.hoisted(() => ({
@@ -24,12 +25,18 @@ const viewState = vi.hoisted(() => ({
     error: null,
   },
   canvasHook: {
-    data: undefined as ModelCanvasData | undefined,
+    data: undefined as ModelCanvasTopologyData | undefined,
     isLoading: false,
     error: null as unknown,
     refetch: vi.fn().mockResolvedValue(undefined),
-    refetchQuality: vi.fn().mockResolvedValue(undefined),
   },
+  qualitySummariesHook: {
+    data: {} as Record<string, ReturnType<typeof buildQualitySummary>>,
+    isLoading: false,
+    error: null as unknown,
+    refetch: vi.fn().mockResolvedValue(undefined),
+  },
+  useDataQualitySummaries: vi.fn(),
   navigate: vi.fn(),
   filters: {
     storageId: 'storage-1',
@@ -66,6 +73,11 @@ vi.mock('../model/use-model-canvas', () => ({
 
 vi.mock('../model/use-model-canvas-filters', () => ({
   useModelCanvasFilters: () => viewState.filters,
+}));
+
+vi.mock('../../data-quality/model/use-data-quality-workspace', () => ({
+  useDataQualitySummaries: (projectId: string, dataMartIds: string[]) =>
+    viewState.useDataQualitySummaries(projectId, dataMartIds),
 }));
 
 vi.mock('../../../../shared/hooks', () => ({
@@ -150,6 +162,21 @@ describe('ModelCanvasView', () => {
     viewState.canvasHook.isLoading = false;
     viewState.canvasHook.error = null;
     viewState.canvasHook.refetch.mockResolvedValue(undefined);
+    viewState.qualitySummariesHook.data = {};
+    viewState.qualitySummariesHook.isLoading = false;
+    viewState.qualitySummariesHook.error = null;
+    viewState.qualitySummariesHook.refetch.mockResolvedValue(undefined);
+    viewState.useDataQualitySummaries.mockImplementation(
+      (_projectId: string, dataMartIds: string[]) => ({
+        ...viewState.qualitySummariesHook,
+        data: Object.fromEntries(
+          dataMartIds.map(dataMartId => [
+            dataMartId,
+            viewState.qualitySummariesHook.data[dataMartId] ?? buildQualitySummary(),
+          ])
+        ),
+      })
+    );
     viewState.filters.storageId = 'storage-1';
     viewState.filters.status = 'published';
     viewState.filters.rel = 'connected';
@@ -182,7 +209,6 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 3,
-          qualitySummary: buildQualitySummary(),
         },
         {
           id: 'mart-2',
@@ -190,7 +216,6 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 2,
-          qualitySummary: buildQualitySummary(),
         },
       ],
       edges: [
@@ -232,8 +257,33 @@ describe('ModelCanvasView', () => {
       expect(dataQualityServiceMock.startRun).toHaveBeenCalledWith('mart-1');
     });
     expect(dataQualityServiceMock.getConfig).not.toHaveBeenCalled();
-    expect(viewState.canvasHook.refetchQuality).toHaveBeenCalledOnce();
+    expect(viewState.qualitySummariesHook.refetch).toHaveBeenCalledOnce();
     expect(viewState.canvasHook.refetch).not.toHaveBeenCalled();
+  });
+
+  it('requests summaries only for nodes left by the canvas filters', async () => {
+    viewState.canvasHook.data = {
+      ...buildCanvasData(),
+      nodes: [
+        ...buildCanvasData().nodes,
+        {
+          id: 'mart-3',
+          title: 'Draft hidden by status',
+          status: DataMartStatus.DRAFT,
+          description: null,
+          fieldCount: 1,
+        },
+      ],
+    };
+
+    render(<ModelCanvasView />);
+
+    await waitFor(() => {
+      expect(viewState.useDataQualitySummaries).toHaveBeenLastCalledWith('project-1', [
+        'mart-1',
+        'mart-2',
+      ]);
+    });
   });
 
   it('counts the Data Marts left by canvas filters without narrowing the count by search', async () => {
@@ -248,7 +298,6 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 1,
-          qualitySummary: buildQualitySummary(),
         },
       ],
     };
@@ -258,7 +307,24 @@ describe('ModelCanvasView', () => {
     expect(await screen.findByRole('button', { name: 'Actions 2' })).toBeVisible();
   });
 
-  it('reports active Data Quality runs from storage nodes excluded by canvas filters', async () => {
+  it('describes canvas actions as applying to every Data Mart shown by the filters', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+
+    render(<ModelCanvasView />);
+
+    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+    expect(
+      screen.getByText(
+        "You're about to delete all 2 data marts shown by the current canvas filters."
+      )
+    ).toBeVisible();
+    expect(screen.queryByText(/cannot be undone/i)).not.toBeInTheDocument();
+  });
+
+  it('does not report active Data Quality runs from nodes excluded by canvas filters', async () => {
     const onActiveQualityRunChange = vi.fn();
     viewState.canvasHook.data = {
       ...buildCanvasData(),
@@ -270,19 +336,27 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.DRAFT,
           description: null,
           fieldCount: 1,
-          qualitySummary: {
-            ...buildQualitySummary(),
-            state: 'RUNNING',
-            dataMartRunId: 'quality-run-1',
-          },
         },
       ],
+    };
+    viewState.qualitySummariesHook.data = {
+      'mart-1': buildQualitySummary(),
+      'mart-2': buildQualitySummary(),
+      'mart-3': {
+        ...buildQualitySummary(),
+        state: 'RUNNING',
+        dataMartRunId: 'quality-run-1',
+      },
     };
 
     render(<ModelCanvasView onActiveQualityRunChange={onActiveQualityRunChange} />);
 
     await waitFor(() => {
-      expect(onActiveQualityRunChange).toHaveBeenCalledWith(true);
+      expect(viewState.useDataQualitySummaries).toHaveBeenLastCalledWith('project-1', [
+        'mart-1',
+        'mart-2',
+      ]);
+      expect(onActiveQualityRunChange).toHaveBeenLastCalledWith(false);
     });
   });
 
@@ -387,7 +461,7 @@ describe('ModelCanvasView', () => {
   });
 });
 
-function buildCanvasData(): ModelCanvasData {
+function buildCanvasData(): ModelCanvasTopologyData {
   return {
     nodes: [
       {
@@ -396,7 +470,6 @@ function buildCanvasData(): ModelCanvasData {
         status: DataMartStatus.PUBLISHED,
         description: null,
         fieldCount: 3,
-        qualitySummary: buildQualitySummary(),
       },
       {
         id: 'mart-2',
@@ -404,7 +477,6 @@ function buildCanvasData(): ModelCanvasData {
         status: DataMartStatus.PUBLISHED,
         description: null,
         fieldCount: 2,
-        qualitySummary: buildQualitySummary(),
       },
     ],
     edges: [
@@ -418,7 +490,7 @@ function buildCanvasData(): ModelCanvasData {
   };
 }
 
-function buildQualitySummary() {
+function buildQualitySummary(): DataQualityCompactSummary {
   return {
     state: 'NEVER_RUN' as const,
     enabledChecks: 1,

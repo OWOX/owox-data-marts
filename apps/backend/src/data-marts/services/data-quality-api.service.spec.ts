@@ -17,6 +17,8 @@ import {
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataQualityApiMapper } from '../mappers/data-quality-api.mapper';
+import { DataQualitySummaryService } from './data-quality-summary.service';
+import { createNoRunDataQualitySummary } from './data-quality-summary.service';
 
 describe('DataQualityApiService', () => {
   const configRevision = 'a'.repeat(64);
@@ -51,12 +53,16 @@ describe('DataQualityApiService', () => {
   const runRequestService = {
     enqueue: jest.fn(),
   };
+  const dataQualitySummaryService = {
+    getCurrentByDataMarts: jest.fn(),
+  };
   const service = new DataQualityApiService(
     dataMartService as unknown as DataMartService,
     accessDecisionService as unknown as AccessDecisionService,
     runService as unknown as DataQualityRunService,
     runRequestService as unknown as DataQualityRunRequestService,
-    new DataQualityApiMapper()
+    new DataQualityApiMapper(),
+    dataQualitySummaryService as unknown as DataQualitySummaryService
   );
 
   const effectiveConfig = {
@@ -111,6 +117,7 @@ describe('DataQualityApiService', () => {
     runService.enqueue.mockResolvedValue({ dataMartRunId: 'run-1' });
     runRequestService.enqueue.mockResolvedValue({ dataMartRunId: 'run-1' });
     runService.getActiveRunId.mockResolvedValue(null);
+    dataQualitySummaryService.getCurrentByDataMarts.mockResolvedValue(new Map());
   });
 
   it('resolves the project-scoped root before SEE and returns permissions', async () => {
@@ -317,5 +324,44 @@ describe('DataQualityApiService', () => {
         activeRunId: 'active-c',
       },
     ]);
+  });
+
+  it('returns summaries only for project-scoped Data Marts the caller can see', async () => {
+    const dmA = { ...dataMart, id: 'dm-a' } as DataMart;
+    const dmC = { ...dataMart, id: 'dm-c' } as DataMart;
+    const summaryA = createNoRunDataQualitySummary(2);
+    dataMartService.findByIdsAndProjectId.mockResolvedValue([dmA, dmC]);
+    accessDecisionService.canAccessMany.mockResolvedValueOnce(
+      new Map([
+        ['dm-a', true],
+        ['dm-c', false],
+      ])
+    );
+    dataQualitySummaryService.getCurrentByDataMarts.mockResolvedValueOnce(
+      new Map([['dm-a', summaryA]])
+    );
+
+    await expect(
+      service.getSummaries(context, ['dm-a', 'missing-or-foreign', 'dm-c'])
+    ).resolves.toEqual({
+      items: [{ dataMartId: 'dm-a', summary: summaryA }],
+    });
+
+    expect(dataMartService.findByIdsAndProjectId).toHaveBeenCalledWith(
+      ['dm-a', 'missing-or-foreign', 'dm-c'],
+      'project-1'
+    );
+    expect(accessDecisionService.canAccessMany).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      EntityType.DATA_MART,
+      ['dm-a', 'dm-c'],
+      Action.SEE,
+      'project-1'
+    );
+    expect(dataQualitySummaryService.getCurrentByDataMarts).toHaveBeenCalledWith(
+      [dmA],
+      'project-1'
+    );
   });
 });

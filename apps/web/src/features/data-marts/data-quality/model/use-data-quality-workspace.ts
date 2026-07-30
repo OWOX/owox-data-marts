@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { dataQualityService } from '../api/data-quality.service';
 import { dataQualityPollingInterval } from './data-quality.model';
-import type { DataQualityConfig, DataQualityRun } from './types';
+import type { DataQualityCompactSummary, DataQualityConfig, DataQualityRun } from './types';
 
 const ROOT_QUERY_KEY = 'data-quality';
 const SILENT_QUERY_OPTIONS = {
@@ -16,9 +16,56 @@ export const dataQualityQueryKeys = {
     [...dataQualityQueryKeys.root(projectId, dataMartId), 'config'] as const,
   latest: (projectId: string, dataMartId: string) =>
     [...dataQualityQueryKeys.root(projectId, dataMartId), 'latest'] as const,
+  summary: (projectId: string, dataMartId: string) =>
+    [...dataQualityQueryKeys.root(projectId, dataMartId), 'summary'] as const,
+  summariesRoot: (projectId: string) => [ROOT_QUERY_KEY, projectId, 'summaries'] as const,
+  summaries: (projectId: string, dataMartIds: readonly string[]) =>
+    [...dataQualityQueryKeys.summariesRoot(projectId), dataMartIds] as const,
   run: (projectId: string, dataMartId: string, runId: string) =>
     [...dataQualityQueryKeys.root(projectId, dataMartId), 'run', runId] as const,
 };
+
+export function useDataQualitySummaries(projectId: string, dataMartIds: readonly string[]) {
+  const normalizedDataMartIds = Array.from(new Set(dataMartIds)).sort();
+
+  return useQuery({
+    queryKey: dataQualityQueryKeys.summaries(projectId, normalizedDataMartIds),
+    queryFn: async ({ signal }) => {
+      const summaries = await dataQualityService.getSummaries(normalizedDataMartIds, {
+        signal,
+        ...SILENT_QUERY_OPTIONS,
+      });
+      assertAllSummariesReturned(normalizedDataMartIds, summaries);
+      return summaries;
+    },
+    enabled: Boolean(projectId && normalizedDataMartIds.length > 0),
+    refetchInterval: query =>
+      Object.values(query.state.data ?? {}).some(
+        summary => dataQualityPollingInterval(summary.state) !== false
+      )
+        ? 2_000
+        : false,
+  });
+}
+
+export function useDataQualitySummary(projectId: string, dataMartId: string) {
+  return useQuery({
+    queryKey: dataQualityQueryKeys.summary(projectId, dataMartId),
+    queryFn: async ({ signal }) => {
+      const summaries = await dataQualityService.getSummaries([dataMartId], {
+        signal,
+        ...SILENT_QUERY_OPTIONS,
+      });
+      const summary = summaries[dataMartId];
+      if (!summary) {
+        throw new Error(`Data Quality summary was not returned for Data Mart ${dataMartId}`);
+      }
+      return summary;
+    },
+    enabled: Boolean(projectId && dataMartId),
+    refetchInterval: query => dataQualityPollingInterval(query.state.data?.state),
+  });
+}
 
 export function useDataQualityConfig(projectId: string, dataMartId: string) {
   return useQuery({
@@ -80,11 +127,7 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
   const activeRun = latestIsActive ? (latestQuery.data ?? null) : null;
   const latestRun = latestIsActive
     ? terminalRunRef.current.run
-    : (runQuery.data ??
-      (latestQuery.data?.runId === terminalRunRef.current.run?.runId
-        ? terminalRunRef.current.run
-        : latestQuery.data) ??
-      terminalRunRef.current.run);
+    : (runQuery.data ?? terminalRunRef.current.run);
 
   useEffect(() => {
     const previous = previousLatestRef.current;
@@ -125,6 +168,9 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
         queryKey: dataQualityQueryKeys.latest(projectId, dataMartId),
       });
       void queryClient.invalidateQueries({
+        queryKey: dataQualityQueryKeys.summary(projectId, dataMartId),
+      });
+      void queryClient.invalidateQueries({
         queryKey: dataQualityQueryKeys.config(projectId, dataMartId),
       });
     },
@@ -140,12 +186,16 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
       void queryClient.invalidateQueries({
         queryKey: dataQualityQueryKeys.latest(projectId, dataMartId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: dataQualityQueryKeys.summary(projectId, dataMartId),
+      });
     },
   });
 
   return {
     configResponse: configQuery.data,
     activeRun,
+    latestRunOverview: latestQuery.data ?? null,
     latestRun,
     isLoading: configQuery.isLoading || latestQuery.isLoading,
     isError: configQuery.isError || latestQuery.isError,
@@ -163,4 +213,15 @@ export function useDataQualityWorkspace(projectId: string, dataMartId: string) {
 
 function isActiveState(state: DataQualityRun['summary']['state']): boolean {
   return state === 'QUEUED' || state === 'RUNNING';
+}
+
+function assertAllSummariesReturned(
+  dataMartIds: readonly string[],
+  summaries: Partial<Record<string, DataQualityCompactSummary>>
+): asserts summaries is Record<string, DataQualityCompactSummary> {
+  for (const dataMartId of dataMartIds) {
+    if (!summaries[dataMartId]) {
+      throw new Error(`Data Quality summary was not returned for Data Mart ${dataMartId}`);
+    }
+  }
 }

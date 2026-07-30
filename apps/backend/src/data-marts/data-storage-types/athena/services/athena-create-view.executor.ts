@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CreateViewExecutor,
-  CreateViewOptions,
   CreateViewResult,
 } from '../../interfaces/create-view-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
@@ -30,9 +29,8 @@ export class AthenaCreateViewExecutor implements CreateViewExecutor {
   async createView(
     credentials: DataStorageCredentials,
     config: DataStorageConfig,
-    viewName: string,
-    sql: string,
-    options?: CreateViewOptions
+    fullyQualifiedViewName: string,
+    sql: string
   ): Promise<CreateViewResult> {
     if (!isAthenaCredentials(credentials)) {
       throw new Error('Athena storage credentials expected');
@@ -41,14 +39,10 @@ export class AthenaCreateViewExecutor implements CreateViewExecutor {
       throw new Error('Athena storage config expected');
     }
 
-    if (!viewName || !sql) {
+    if (!fullyQualifiedViewName || !sql) {
       throw new Error('View name and SQL must be provided');
     }
 
-    const fullyQualifiedViewName =
-      options?.requireFullyQualifiedName && !viewName.includes('.')
-        ? `default.${viewName}`
-        : viewName;
     const viewIdent = escapeAthenaIdentifier(fullyQualifiedViewName);
     const ddl = `CREATE OR REPLACE VIEW ${viewIdent} AS ${sql}`;
 

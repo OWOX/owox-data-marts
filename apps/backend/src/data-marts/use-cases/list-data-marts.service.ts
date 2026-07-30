@@ -11,7 +11,6 @@ import { ContextAccessService } from '../services/context/context-access.service
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
-import { DataQualitySummaryService } from '../services/data-quality-summary.service';
 
 export const DATA_MARTS_PAGE_SIZE = 1000;
 
@@ -25,8 +24,7 @@ export class ListDataMartsService {
     @InjectRepository(Report)
     private readonly reportRepo: Repository<Report>,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly contextAccessService: ContextAccessService,
-    private readonly dataQualitySummaryService: DataQualitySummaryService
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   async run(command: ListDataMartsCommand): Promise<PaginatedDataMartListItemsDto> {
@@ -81,10 +79,8 @@ export class ListDataMartsService {
       rawReportCounts.map(r => [r.dataMartId, Number(r.count)])
     );
 
-    const [userProjections, qualitySummaries] = await Promise.all([
-      this.userProjectionsFetcherService.fetchAllRelevantUserProjections(dataMarts),
-      this.dataQualitySummaryService.getCurrentByDataMarts(dataMarts, command.projectId),
-    ]);
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchAllRelevantUserProjections(dataMarts);
 
     const items = dataMarts.map(dm =>
       this.mapper.toListItemDto(
@@ -95,8 +91,7 @@ export class ListDataMartsService {
         },
         userProjections.getByUserId(dm.createdById),
         resolveOwnerUsers(dm.businessOwnerIds, userProjections),
-        resolveOwnerUsers(dm.technicalOwnerIds, userProjections),
-        qualitySummaries.get(dm.id)
+        resolveOwnerUsers(dm.technicalOwnerIds, userProjections)
       )
     );
 

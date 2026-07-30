@@ -160,6 +160,36 @@ describe('DataQualityService', () => {
     await expect(service.getLatestRun('mart-1')).resolves.toBeNull();
   });
 
+  it('loads compact summaries for multiple Data Marts through the batch endpoint', async () => {
+    const summary = compactSummary('RUNNING');
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        items: [{ dataMartId: 'mart-2', summary }],
+      },
+    });
+
+    await expect(service.getSummaries(['mart-2', 'mart-1'])).resolves.toEqual({
+      'mart-2': summary,
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/data-marts/data-quality/summaries',
+      { dataMartIds: ['mart-2', 'mart-1'] },
+      undefined
+    );
+  });
+
+  it('rejects malformed compact summary responses at the API boundary', async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        items: [{ dataMartId: 'mart-1', summary: { state: 'RUNNING' } }],
+      },
+    });
+
+    await expect(service.getSummaries(['mart-1'])).rejects.toThrow(
+      'Data Quality summaries response has an invalid shape'
+    );
+  });
+
   it('cancels a Data Quality run through the shared Data Mart run endpoint', async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: undefined });
 
@@ -205,6 +235,25 @@ describe('DataQualityService', () => {
     });
   });
 });
+
+function compactSummary(state: 'RUNNING' | 'PASSED') {
+  return {
+    state,
+    enabledChecks: 1,
+    totalChecks: 1,
+    passedChecks: state === 'PASSED' ? 1 : 0,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+    dataMartRunId: 'run-1',
+    lastRunAt: '2026-07-16T10:00:00.000Z',
+  };
+}
 
 function buildGenericRunResponse(runId: string, description: string) {
   return {

@@ -7,10 +7,6 @@ export interface CreateViewResult {
   fullyQualifiedName: string;
 }
 
-export interface CreateViewOptions {
-  requireFullyQualifiedName?: boolean;
-}
-
 /**
  * Storage-specific executor that creates or replaces a view for the provided SQL query.
  */
@@ -19,7 +15,6 @@ export interface CreateViewExecutor extends TypedComponent<DataStorageType> {
     credentials: DataStorageCredentials,
     config: DataStorageConfig,
     viewName: string,
-    sql: string,
-    options?: CreateViewOptions
+    sql: string
   ): Promise<CreateViewResult>;
 }

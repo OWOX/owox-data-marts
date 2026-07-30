@@ -28,6 +28,7 @@ describe('DataQuality controllers', () => {
     replaceConfig: jest.fn(),
     run: jest.fn(),
     runBatch: jest.fn(),
+    getSummaries: jest.fn(),
     getLatest: jest.fn(),
   };
   const mapper = new DataQualityApiMapper();
@@ -69,6 +70,19 @@ describe('DataQuality controllers', () => {
     await batchController.runBatch(context, { dataMartIds: ids });
 
     expect(service.runBatch).toHaveBeenCalledWith(context, ids);
+  });
+
+  it('maps stable de-duplicated ids into the summaries service', async () => {
+    service.getSummaries.mockResolvedValue({ items: [] });
+
+    await batchController.getSummaries(context, {
+      dataMartIds: ['dm-b', 'dm-a', 'dm-b'],
+    });
+
+    expect(service.getSummaries).toHaveBeenCalledWith(context, ['dm-b', 'dm-a']);
+    expect(
+      Reflect.getMetadata('__httpCode__', DataQualityBatchController.prototype.getSummaries)
+    ).toBe(200);
   });
 
   it('keeps latest and does not expose a DQ-specific detail handler', async () => {

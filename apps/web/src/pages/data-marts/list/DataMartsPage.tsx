@@ -3,7 +3,7 @@ import {
   DataMartTable,
   useDataMartList,
 } from '../../../features/data-marts/list';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns/columns.tsx';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 import { useConnector } from '../../../features/connectors/shared/model/hooks/useConnector.ts';
@@ -12,14 +12,17 @@ import {
   RunActivityIndicator,
 } from '../../../features/data-marts/shared/components/RunActivityIndicator';
 import { useProjectRoute } from '../../../shared/hooks';
+import { useDataQualitySummaries } from '../../../features/data-marts/data-quality';
 
 const DataMartsPageContent = () => {
   const { items, loadDataMarts, deleteDataMart, publishDataMart, refreshList, loading } =
     useDataMartList();
   const { connectors, fetchAvailableConnectors } = useConnector();
-  const { navigate } = useProjectRoute();
-  const hasActiveQualityRun = items.some(item =>
-    isDataQualityActivityState(item.qualitySummary.state)
+  const { navigate, projectId } = useProjectRoute();
+  const [visibleDataMartIds, setVisibleDataMartIds] = useState<string[]>([]);
+  const qualitySummariesQuery = useDataQualitySummaries(projectId ?? '', visibleDataMartIds);
+  const hasActiveQualityRun = Object.values(qualitySummariesQuery.data ?? {}).some(summary =>
+    isDataQualityActivityState(summary.state)
   );
 
   useEffect(() => {
@@ -52,6 +55,7 @@ const DataMartsPageContent = () => {
           deleteDataMart={deleteDataMart}
           publishDataMart={publishDataMart}
           refetchDataMarts={refreshList}
+          onVisibleDataMartIdsChange={setVisibleDataMartIds}
           isLoading={loading}
         />
       </div>

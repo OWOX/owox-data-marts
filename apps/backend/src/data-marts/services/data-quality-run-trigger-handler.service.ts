@@ -2,15 +2,23 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualityRunTrigger } from '../entities/data-quality-run-trigger.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { RunDataQualityService } from '../use-cases/run-data-quality.service';
 import { isCancellableDataMartRunStatus } from '../utils/data-mart-run-cancellation';
 import { BaseRunTriggerHandlerService } from './base-run-trigger-handler.service';
 import { DataMartRunService } from './data-mart-run.service';
-import { DataQualityRunService } from './data-quality-run.service';
+import {
+  DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE,
+  DataQualityRunService,
+} from './data-quality-run.service';
+
+const DATA_QUALITY_TRIGGER_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class DataQualityRunTriggerHandlerService extends BaseRunTriggerHandlerService<DataQualityRunTrigger> {
@@ -25,7 +33,8 @@ export class DataQualityRunTriggerHandlerService extends BaseRunTriggerHandlerSe
     schedulerFacade: SchedulerFacade,
     private readonly runDataQualityService: RunDataQualityService,
     dataMartRunService: DataMartRunService,
-    private readonly dataQualityRunService: DataQualityRunService
+    private readonly dataQualityRunService: DataQualityRunService,
+    private readonly systemClock: SystemTimeService
   ) {
     super(schedulerFacade, dataMartRunService, dataMartRunRepository);
   }
@@ -36,6 +45,10 @@ export class DataQualityRunTriggerHandlerService extends BaseRunTriggerHandlerSe
   ): Promise<void> {
     if (await this.cancelTriggerIfRunAlreadyCancelled(trigger)) return;
 
+    const heartbeat = setInterval(
+      () => void this.refreshTriggerHeartbeat(trigger),
+      DATA_QUALITY_TRIGGER_HEARTBEAT_INTERVAL_MS
+    );
     try {
       await this.runDataQualityService.executeExistingRun(
         trigger.dataMartRunId,
@@ -76,6 +89,21 @@ export class DataQualityRunTriggerHandlerService extends BaseRunTriggerHandlerSe
         new Date()
       );
       throw error;
+    } finally {
+      clearInterval(heartbeat);
+    }
+  }
+
+  private async refreshTriggerHeartbeat(trigger: DataQualityRunTrigger): Promise<void> {
+    try {
+      await this.repository.update(
+        { id: trigger.id, status: TriggerStatus.PROCESSING },
+        { modifiedAt: this.systemClock.now() }
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to refresh Data Quality trigger ${trigger.id}: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -105,6 +133,19 @@ export class DataQualityRunTriggerHandlerService extends BaseRunTriggerHandlerSe
 
   protected getTriggerRunIdField(): string {
     return 'dataMartRunId';
+  }
+
+  protected override async failOrphanedRun(run: DataMartRun): Promise<void> {
+    run.status = DataMartRunStatus.FAILED;
+    run.errors = [DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE];
+    run.finishedAt = this.systemClock.now();
+    if (run.dataQualitySummary) {
+      run.dataQualitySummary = {
+        ...run.dataQualitySummary,
+        state: DataQualitySummaryState.EXECUTION_FAILED,
+      };
+    }
+    await this.dataMartRunRepository.save(run);
   }
 }
 

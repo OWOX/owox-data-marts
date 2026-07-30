@@ -184,6 +184,13 @@ export class BatchRunDataQualityRequestApiDto {
   dataMartIds: string[];
 }
 
+export class GetDataQualitySummariesRequestApiDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  dataMartIds: string[];
+}
+
 export class DataQualityBatchRunSuccessApiDto {
   @ApiProperty()
   dataMartId: string;
@@ -275,6 +282,19 @@ export class CompactDataQualitySummaryApiDto extends DataQualitySummaryApiDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastRunAt: Date | null;
+}
+
+export class DataQualitySummaryItemApiDto {
+  @ApiProperty({ format: 'uuid' })
+  dataMartId: string;
+
+  @ApiProperty({ type: CompactDataQualitySummaryApiDto })
+  summary: CompactDataQualitySummaryApiDto;
+}
+
+export class GetDataQualitySummariesResponseApiDto {
+  @ApiProperty({ type: [DataQualitySummaryItemApiDto] })
+  items: DataQualitySummaryItemApiDto[];
 }
 
 export class DataQualityResultExampleApiDto implements DataQualityResultExample {

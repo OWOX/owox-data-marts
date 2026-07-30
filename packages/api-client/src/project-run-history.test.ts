@@ -131,6 +131,26 @@ describe('Runs API', () => {
     await expect(client.runs.list()).resolves.toEqual({ runs: [] });
   });
 
+  it('accepts Data Quality runs returned by project run history', async () => {
+    const response = {
+      runs: [
+        {
+          ...runHistory.runs[0],
+          type: 'DATA_QUALITY',
+        },
+      ],
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).resolves.toEqual(response);
+  });
+
   it('rejects an unexpected run-history response shape', async () => {
     const response = {
       runs: [

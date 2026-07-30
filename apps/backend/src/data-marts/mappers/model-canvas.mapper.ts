@@ -6,8 +6,6 @@ import { ModelCanvasDataMartsDto, ModelCanvasNodeDto } from '../dto/domain/model
 import { GetModelCanvasDataMartsQueryApiDto } from '../dto/presentation/get-model-canvas-data-marts-query-api.dto';
 import { ModelCanvasDataMartsResponseApiDto } from '../dto/presentation/model-canvas-response-api.dto';
 import { DataMart } from '../entities/data-mart.entity';
-import { DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
-import { createNoRunDataQualitySummary } from '../services/data-quality-summary.service';
 
 @Injectable()
 export class ModelCanvasMapper {
@@ -33,25 +31,19 @@ export class ModelCanvasMapper {
     );
   }
 
-  toNodeDto(dataMart: DataMart, qualitySummary?: DataQualitySummaryDto): ModelCanvasNodeDto {
+  toNodeDto(dataMart: DataMart): ModelCanvasNodeDto {
     return {
       id: dataMart.id,
       title: dataMart.title,
       status: dataMart.status,
       description: dataMart.description ?? null,
       fieldCount: dataMart.schema?.fields?.length ?? 0,
-      qualitySummary: qualitySummary ?? createNoRunDataQualitySummary(0),
     };
   }
 
-  toDataMartsDto(
-    dataMarts: DataMart[],
-    total: number,
-    offset: number,
-    qualitySummaries: ReadonlyMap<string, DataQualitySummaryDto> = new Map()
-  ): ModelCanvasDataMartsDto {
+  toDataMartsDto(dataMarts: DataMart[], total: number, offset: number): ModelCanvasDataMartsDto {
     return {
-      items: dataMarts.map(dataMart => this.toNodeDto(dataMart, qualitySummaries.get(dataMart.id))),
+      items: dataMarts.map(dataMart => this.toNodeDto(dataMart)),
       total,
       offset,
     };

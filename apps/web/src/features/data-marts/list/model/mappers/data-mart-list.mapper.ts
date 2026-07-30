@@ -23,6 +23,5 @@ export function mapDataMartListFromDto(
     contexts: dmart.contexts ?? [],
     availableForReporting: dmart.availableForReporting,
     availableForMaintenance: dmart.availableForMaintenance,
-    qualitySummary: dmart.qualitySummary,
   }));
 }

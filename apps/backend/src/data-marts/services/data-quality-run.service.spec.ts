@@ -184,10 +184,6 @@ describe('DataQualityRunService.enqueue', () => {
           type: DataStorageType.GOOGLE_BIGQUERY,
         },
         relationshipTargets: [],
-        technicalViews: {
-          source: null,
-          relationships: {},
-        },
       },
       dataQualitySummary: expect.objectContaining({
         state: DataQualitySummaryState.QUEUED,
@@ -417,6 +413,13 @@ describe('DataQualityRunService.enqueue', () => {
     expect(runRepository.findOne).toHaveBeenCalledWith({
       where: { dataMartId: 'dm-1', type: DataMartRunType.DATA_QUALITY },
       order: { createdAt: 'DESC', id: 'DESC' },
+      select: {
+        id: true,
+        dataQualitySummary: true,
+        createdAt: true,
+        startedAt: true,
+        finishedAt: true,
+      },
     });
   });
 
@@ -580,6 +583,7 @@ describe('DataQualityRunService.enqueue', () => {
       expect.objectContaining({
         where: expect.objectContaining({ dataMartId: 'dm-1', type: DataMartRunType.DATA_QUALITY }),
         order: { createdAt: 'DESC', id: 'DESC' },
+        select: { id: true },
       })
     );
   });

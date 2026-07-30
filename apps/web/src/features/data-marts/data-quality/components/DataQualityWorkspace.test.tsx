@@ -5,11 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataQualityWorkspace } from './DataQualityWorkspace';
-import type {
-  DataQualityCompactSummary,
-  DataQualityConfig,
-  DataQualityConfigResponse,
-} from '../model/types';
+import type { DataQualityConfig, DataQualityConfigResponse } from '../model/types';
 import { useDataQualityWorkspace } from '../model/use-data-quality-workspace';
 
 vi.mock('../model/use-data-quality-workspace', () => ({
@@ -80,6 +76,7 @@ function mockWorkspace(overrides: Record<string, unknown> = {}) {
   vi.mocked(useDataQualityWorkspace).mockReturnValue({
     configResponse,
     activeRun: null,
+    latestRunOverview: null,
     latestRun: null,
     isLoading: false,
     isError: false,
@@ -207,6 +204,53 @@ describe('DataQualityWorkspace', () => {
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'email' })).toBeInTheDocument();
       expect(screen.getByLabelText('Severity for Empty table')).toHaveValue('error');
+    });
+  });
+
+  it('adds a newly discovered rule to an existing dirty draft before saving', async () => {
+    const view = renderWorkspace();
+    fireEvent.change(screen.getByLabelText('Severity for Empty table'), {
+      target: { value: 'warning' },
+    });
+
+    const newRule = {
+      key: 'null_rate:field:["phone"]',
+      category: 'null_rate' as const,
+      scope: { type: 'FIELD' as const, fieldPath: ['phone'] },
+      severity: 'warning' as const,
+      enabled: false,
+      parameters: { thresholdPercent: 0 },
+      isApplicable: true,
+    };
+    mockWorkspace({
+      configResponse: {
+        ...configResponse,
+        effectiveConfig: {
+          ...configResponse.effectiveConfig,
+          rules: [...configResponse.effectiveConfig.rules, newRule],
+        },
+      },
+    });
+    view.rerender(
+      <MemoryRouter>
+        <DataQualityWorkspace projectId='project-1' dataMartId='mart-1' />
+      </MemoryRouter>
+    );
+
+    await addFieldCheck('phone', 'Null rate');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(saveConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rules: expect.arrayContaining([
+            expect.objectContaining({
+              key: newRule.key,
+              enabled: true,
+            }),
+          ]),
+        })
+      );
     });
   });
 
@@ -587,31 +631,6 @@ describe('DataQualityWorkspace', () => {
     expect(screen.queryByText('0 enabled')).not.toBeInTheDocument();
   });
 
-  it('uses the compact Data Mart summary only as a fallback while latest is unavailable', () => {
-    renderWorkspace({
-      qualitySummary: {
-        state: 'ISSUES',
-        enabledChecks: 2,
-        totalChecks: 2,
-        passedChecks: 1,
-        failedChecks: 1,
-        notApplicableChecks: 0,
-        errorChecks: 0,
-        noticeFindings: 0,
-        warningFindings: 1,
-        errorFindings: 0,
-        violationCount: 3,
-        highestSeverity: 'warning',
-        dataMartRunId: 'run-fallback',
-        lastRunAt: '2026-07-15T10:00:00.000Z',
-      },
-    });
-
-    expect(screen.getByRole('heading', { name: 'Issues found' })).toBeInTheDocument();
-    expect(screen.getByText('1 warning')).toBeInTheDocument();
-    expect(screen.getByText(/Last checked/)).toBeInTheDocument();
-  });
-
   it('prioritizes latest report problems and filters result cards without leaving the tab', () => {
     mockWorkspace({
       latestRun: {
@@ -859,24 +878,7 @@ describe('DataQualityWorkspace', () => {
       },
     });
 
-    renderWorkspace({
-      qualitySummary: {
-        state: 'NEVER_RUN',
-        enabledChecks: configResponse.effectiveConfig.rules.length,
-        totalChecks: 0,
-        passedChecks: 0,
-        failedChecks: 0,
-        notApplicableChecks: 0,
-        errorChecks: 0,
-        noticeFindings: 0,
-        warningFindings: 0,
-        errorFindings: 0,
-        violationCount: 0,
-        highestSeverity: null,
-        dataMartRunId: null,
-        lastRunAt: null,
-      },
-    });
+    renderWorkspace();
 
     expect(screen.getByRole('heading', { name: 'No checks are applicable' })).toBeInTheDocument();
     expect(
@@ -902,17 +904,14 @@ describe('DataQualityWorkspace', () => {
 
 function renderWorkspace({
   registerUnsavedGuard = vi.fn(),
-  qualitySummary,
 }: {
   registerUnsavedGuard?: ComponentProps<typeof DataQualityWorkspace>['registerUnsavedGuard'];
-  qualitySummary?: DataQualityCompactSummary;
 } = {}) {
   return render(
     <MemoryRouter>
       <DataQualityWorkspace
         projectId='project-1'
         dataMartId='mart-1'
-        qualitySummary={qualitySummary}
         registerUnsavedGuard={registerUnsavedGuard}
       />
     </MemoryRouter>

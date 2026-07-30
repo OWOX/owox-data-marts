@@ -212,12 +212,6 @@ describe('DataQualityApiMapper', () => {
             },
           },
         ],
-        technicalViews: {
-          source: 'project.internal.secret_source_view',
-          relationships: {
-            'rel-1': 'project.internal.secret_target_view',
-          },
-        },
       },
       dataQualitySummary: summary,
       dataQualityResults: [

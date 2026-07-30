@@ -74,10 +74,36 @@ describe('RunDataQualityBatchDialog', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['data-quality', 'project-1', 'mart-3'],
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['data-quality', 'project-1', 'summaries'],
+    });
     expect(toast.error).toHaveBeenCalledWith(
       'Data Quality checks queued for 2 of 3 Data Marts. 1 failed: A Data Quality run is already active'
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('describes canvas targets as every Data Mart shown by the current filters', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RunDataQualityBatchDialog
+          open
+          onOpenChange={vi.fn()}
+          dataMarts={[buildDataMart('mart-1', 'Orders'), buildDataMart('mart-2', 'Customers')]}
+          projectId='project-1'
+          onCompleted={vi.fn()}
+          targetScope='canvas'
+        />
+      </QueryClientProvider>
+    );
+
+    expect(
+      screen.getByText(
+        'Run Data Quality checks for all 2 Data Marts shown by the current canvas filters?'
+      )
+    ).toBeVisible();
   });
 
   it('keeps the confirmation open when the batch request fails', async () => {
@@ -228,21 +254,5 @@ function buildDataMart(id: string, title: string) {
     businessOwnerUsers: [],
     technicalOwnerUsers: [],
     contexts: [],
-    qualitySummary: {
-      state: 'NEVER_RUN',
-      enabledChecks: 1,
-      totalChecks: 0,
-      passedChecks: 0,
-      failedChecks: 0,
-      notApplicableChecks: 0,
-      errorChecks: 0,
-      noticeFindings: 0,
-      warningFindings: 0,
-      errorFindings: 0,
-      violationCount: 0,
-      highestSeverity: null,
-      dataMartRunId: null,
-      lastRunAt: null,
-    },
   };
 }

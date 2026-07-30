@@ -4,6 +4,7 @@ import { Switch } from '@owox/ui/components/switch';
 import { Badge } from '@owox/ui/components/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DATA_QUALITY_CATEGORY_DESCRIPTIONS,
   DATA_QUALITY_CATEGORY_LABELS,
@@ -27,6 +28,7 @@ interface DataQualityRuleEditorProps {
 }
 
 const SEVERITIES: DataQualitySeverity[] = ['error', 'warning', 'notice'];
+const MAX_THRESHOLD_HOURS = Math.floor(Number.MAX_SAFE_INTEGER / (60 * 60 * 1000));
 
 export function DataQualityRuleEditor({
   rule,
@@ -133,19 +135,15 @@ export function DataQualityRuleEditor({
               <Label className='whitespace-nowrap' htmlFor={`${controlId}-threshold-percent`}>
                 Threshold, %
               </Label>
-              <Input
+              <NumericParameterInput
                 id={`${controlId}-threshold-percent`}
                 aria-label='Null rate threshold percent'
-                type='number'
                 min={0}
                 max={100}
-                step='any'
                 className='w-36'
                 value={thresholdPercent ?? 0}
                 disabled={controlsDisabled}
-                onChange={event => {
-                  const next = Number(event.target.value);
-                  if (!Number.isFinite(next)) return;
+                onValidValue={next => {
                   onChange({
                     ...value,
                     parameters: { ...value.parameters, thresholdPercent: next },
@@ -160,18 +158,15 @@ export function DataQualityRuleEditor({
               <Label className='whitespace-nowrap' htmlFor={`${controlId}-threshold-hours`}>
                 Threshold, hours
               </Label>
-              <Input
+              <NumericParameterInput
                 id={`${controlId}-threshold-hours`}
                 aria-label={`Data freshness threshold hours for ${dataQualityScopeLabel(rule.scope)}`}
-                type='number'
                 min={0}
-                step='any'
+                max={MAX_THRESHOLD_HOURS}
                 className='w-36'
                 value={thresholdHours ?? 24}
                 disabled={controlsDisabled}
-                onChange={event => {
-                  const next = Number(event.target.value);
-                  if (!Number.isFinite(next)) return;
+                onValidValue={next => {
                   onChange({
                     ...value,
                     parameters: { ...value.parameters, thresholdHours: next },
@@ -184,4 +179,64 @@ export function DataQualityRuleEditor({
       </div>
     </div>
   );
+}
+
+interface NumericParameterInputProps {
+  id: string;
+  'aria-label': string;
+  value: number;
+  min: number;
+  max: number;
+  className?: string;
+  disabled: boolean;
+  onValidValue: (value: number) => void;
+}
+
+function NumericParameterInput({
+  value,
+  min,
+  max,
+  onValidValue,
+  ...inputProps
+}: NumericParameterInputProps) {
+  const [inputValue, setInputValue] = useState(String(value));
+  const isFocused = useRef(false);
+  const isValid = isValidNumericInput(inputValue, min, max);
+
+  useEffect(() => {
+    if (!isFocused.current) setInputValue(String(value));
+  }, [value]);
+
+  return (
+    <Input
+      {...inputProps}
+      type='number'
+      min={min}
+      max={max}
+      step='any'
+      value={inputValue}
+      aria-invalid={!isValid}
+      onFocus={() => {
+        isFocused.current = true;
+      }}
+      onChange={event => {
+        const nextInput = event.target.value;
+        setInputValue(nextInput);
+        if (!isValidNumericInput(nextInput, min, max)) return;
+        onValidValue(Number(nextInput));
+      }}
+      onBlur={() => {
+        isFocused.current = false;
+        if (!isValidNumericInput(inputValue, min, max)) {
+          setInputValue(String(value));
+        }
+      }}
+    />
+  );
+}
+
+function isValidNumericInput(value: string, min: number, max: number): boolean {
+  if (value.trim() === '') return false;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max;
 }

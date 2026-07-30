@@ -5,24 +5,17 @@ import { CreateViewCommand } from '../dto/domain/create-view.command';
 import { CreateViewResult } from '../data-storage-types/interfaces/create-view-executor.interface';
 import { isSqlDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
-import { DataStorageService } from '../services/data-storage.service';
-import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
-export interface CreateViewFromSnapshotCommand {
-  projectId: string;
-  storageId: string;
-  storageType: DataStorageType;
-  viewName: string;
-  sql: string;
-}
-
+/**
+ * Creates or replaces a view in the underlying storage using the provided SQL.
+ * Mirrors the structure of SqlDryRunService but performs a side-effect (DDL).
+ */
 @Injectable()
 export class CreateViewService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly createViewExecutorFacade: CreateViewExecutorFacade,
-    private readonly credentialsResolver: DataStorageCredentialsResolver,
-    private readonly dataStorageService: DataStorageService
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async run(command: CreateViewCommand): Promise<CreateViewResult> {
@@ -55,30 +48,6 @@ export class CreateViewService {
       storage.config,
       command.viewName,
       dataMart.definition.sqlQuery
-    );
-  }
-
-  async runFromSnapshot(command: CreateViewFromSnapshotCommand): Promise<CreateViewResult> {
-    const storage = await this.dataStorageService.getByProjectIdAndId(
-      command.projectId,
-      command.storageId
-    );
-    if (storage.type !== command.storageType) {
-      throw new Error('Data Storage type changed after the run was queued');
-    }
-    if (!storage.config || !storage.credentialId) {
-      throw new Error('Storage setup is not finished.');
-    }
-
-    const credentials = await this.credentialsResolver.resolve(storage);
-
-    return this.createViewExecutorFacade.createView(
-      storage.type,
-      credentials,
-      storage.config,
-      command.viewName,
-      command.sql,
-      { requireFullyQualifiedName: true }
     );
   }
 }

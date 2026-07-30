@@ -5,6 +5,8 @@ import {
   BatchRunDataQualityRequestApiDto,
   BatchRunDataQualityResponseApiDto,
   DataQualityConfigResponseApiDto,
+  GetDataQualitySummariesRequestApiDto,
+  GetDataQualitySummariesResponseApiDto,
   LatestDataQualityRunResponseApiDto,
   RunDataQualityResponseApiDto,
 } from '../dto/presentation/data-quality-api.dto';
@@ -12,6 +14,7 @@ import { DataQualityApiMapper } from '../mappers/data-quality-api.mapper';
 import { DataQualityApiService } from '../services/data-quality-api.service';
 import {
   GetDataQualityConfigSpec,
+  GetDataQualitySummariesSpec,
   GetLatestDataQualityRunSpec,
   ReplaceDataQualityConfigSpec,
   RunDataQualityBatchSpec,
@@ -35,6 +38,17 @@ export class DataQualityBatchController {
     @Body() request: BatchRunDataQualityRequestApiDto
   ): Promise<BatchRunDataQualityResponseApiDto> {
     return this.service.runBatch(context, this.mapper.toBatchIds(request));
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Post('summaries')
+  @HttpCode(HttpStatus.OK)
+  @GetDataQualitySummariesSpec()
+  async getSummaries(
+    @AuthContext() context: AuthorizationContext,
+    @Body() request: GetDataQualitySummariesRequestApiDto
+  ): Promise<GetDataQualitySummariesResponseApiDto> {
+    return this.service.getSummaries(context, this.mapper.toBatchIds(request));
   }
 }
 

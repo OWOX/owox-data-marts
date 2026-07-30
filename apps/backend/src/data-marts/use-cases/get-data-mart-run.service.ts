@@ -38,7 +38,10 @@ export class GetDataMartRunService {
       }
     }
 
-    let run = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.dataMartId);
+    const run = await this.dataMartRunService.getDataQualityDetailsByIdAndDataMartId(
+      command.runId,
+      command.dataMartId
+    );
     if (!run) {
       throw new NotFoundException('Run not found');
     }
@@ -46,13 +49,6 @@ export class GetDataMartRunService {
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(run);
     let dataQuality: DataQualityRunDetailsDto | null = null;
     if (run.type === DataMartRunType.DATA_QUALITY) {
-      run = await this.dataMartRunService.getDataQualityDetailsByIdAndDataMartId(
-        command.runId,
-        command.dataMartId
-      );
-      if (!run) {
-        throw new NotFoundException('Run not found');
-      }
       const targetIds = Array.from(
         new Set(
           (run.dataQualitySnapshot?.relationships ?? []).map(
@@ -70,7 +66,7 @@ export class GetDataMartRunService {
               Action.SEE,
               command.projectId
             )
-          : new Map(targetIds.map(targetId => [targetId, true]));
+          : new Map(targetIds.map(targetId => [targetId, false]));
       dataQuality = this.dataQualityApiMapper.toRunDetails(run, accessByTargetId);
     }
 

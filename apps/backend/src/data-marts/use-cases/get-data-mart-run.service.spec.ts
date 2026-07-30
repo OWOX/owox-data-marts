@@ -25,11 +25,6 @@ describe('GetDataMartRunService', () => {
       getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'dm-1' }),
     };
     const dataMartRunService = {
-      getByIdAndDataMartId: jest.fn().mockResolvedValue({
-        ...run,
-        dataQualitySnapshot: undefined,
-        dataQualityResults: undefined,
-      }),
       getDataQualityDetailsByIdAndDataMartId: jest.fn().mockResolvedValue(run),
     };
     const userProjectionsFetcherService = {
@@ -95,6 +90,7 @@ describe('GetDataMartRunService', () => {
       'run-1',
       'dm-1'
     );
+    expect(dataMartRunService.getDataQualityDetailsByIdAndDataMartId).toHaveBeenCalledTimes(1);
     expect(mapper.toDataMartRunDto).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'run-1' }),
       { id: 'creator-1' },
@@ -121,13 +117,33 @@ describe('GetDataMartRunService', () => {
 
   it('does not return a run id belonging to another Data Mart', async () => {
     const { service, dataMartRunService, accessDecisionService } = createService();
-    dataMartRunService.getByIdAndDataMartId.mockResolvedValue(null);
+    dataMartRunService.getDataQualityDetailsByIdAndDataMartId.mockResolvedValue(null);
 
     await expect(service.run(command)).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(dataMartRunService.getByIdAndDataMartId).toHaveBeenCalledWith('run-1', 'dm-1');
-    expect(dataMartRunService.getDataQualityDetailsByIdAndDataMartId).not.toHaveBeenCalled();
+    expect(dataMartRunService.getDataQualityDetailsByIdAndDataMartId).toHaveBeenCalledWith(
+      'run-1',
+      'dm-1'
+    );
     expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
+  });
+
+  it('redacts relationship details when no user principal is supplied', async () => {
+    const { service, accessDecisionService } = createService();
+    const commandWithoutPrincipal = new GetDataMartRunCommand('dm-1', 'project-1', 'run-1');
+
+    const response = await service.run(commandWithoutPrincipal);
+
+    expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
+    expect(response.dataQuality).toMatchObject({
+      results: [
+        expect.objectContaining({
+          examples: [],
+          sql: null,
+          redacted: true,
+        }),
+      ],
+    });
   });
 
   it('stops at the project-scoped Data Mart lookup for another project', async () => {
@@ -138,7 +154,7 @@ describe('GetDataMartRunService', () => {
 
     expect(dataMartService.getByIdAndProjectId).toHaveBeenCalledWith('dm-1', 'project-1');
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
-    expect(dataMartRunService.getByIdAndDataMartId).not.toHaveBeenCalled();
+    expect(dataMartRunService.getDataQualityDetailsByIdAndDataMartId).not.toHaveBeenCalled();
   });
 
   function qualityRun(): DataMartRun {

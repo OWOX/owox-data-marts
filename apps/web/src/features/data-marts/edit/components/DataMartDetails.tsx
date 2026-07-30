@@ -45,7 +45,7 @@ import { AiHelperButton } from './AiHelperButton';
 import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
-import { useLatestDataQualityRun } from '../../data-quality/model/use-data-quality-workspace';
+import { useDataQualitySummary } from '../../data-quality/model/use-data-quality-workspace';
 import {
   getDataMartRunActivityLabel,
   isDataQualityActivityState,
@@ -103,15 +103,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     definitionType: dataMartDefinitionType = null,
     validationErrors: dataMartValidationErrors = [],
   } = dataMart ?? {};
-  const { data: latestDataQualityRun } = useLatestDataQualityRun(projectId, dataMartId);
+  const { data: dataQualitySummary } = useDataQualitySummary(projectId, dataMartId);
   const storageId = dataMart?.storage.id;
 
   const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
-  const hasActiveDataQualityRun = isDataQualityActivityState(
-    latestDataQualityRun?.summary.state ?? dataMart?.qualitySummary?.state
-  );
+  const hasActiveDataQualityRun = isDataQualityActivityState(dataQualitySummary?.state);
   const runActivityLabel = getDataMartRunActivityLabel(hasActiveRuns, hasActiveDataQualityRun);
 
   const onActualizeSuccess = useCallback(() => {

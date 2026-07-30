@@ -23,6 +23,7 @@ describe('DataMartMapper', () => {
           provide: DataStorageMapper,
           useValue: {
             toDomainDto: jest.fn().mockReturnValue({}),
+            toApiResponse: jest.fn().mockResolvedValue({}),
           },
         },
         {
@@ -36,6 +37,15 @@ describe('DataMartMapper', () => {
   });
 
   describe('Data Mart list items', () => {
+    it('keeps Data Quality state out of the generic list item response', () => {
+      const response = mapper.toListItemResponse({
+        id: 'data-mart-1',
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+      } as never);
+
+      expect(response).not.toHaveProperty('qualitySummary');
+    });
+
     it('preserves a persisted null definition type for a draft', () => {
       const definitionState = {
         definitionType: null,
@@ -87,6 +97,28 @@ describe('DataMartMapper', () => {
 
       expect(mapper.toDomainDto(entity).definitionType).toBeUndefined();
     });
+  });
+
+  it('keeps Data Quality state out of the generic Data Mart response', async () => {
+    const response = await mapper.toResponse({
+      id: 'data-mart-1',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      storage: {},
+      createdAt: new Date('2026-07-23T12:00:00.000Z'),
+      modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+      triggersCount: 0,
+      reportsCount: 0,
+      createdByUser: null,
+      businessOwnerUsers: [],
+      technicalOwnerUsers: [],
+      availableForReporting: true,
+      availableForMaintenance: true,
+      contexts: [],
+      qualitySummary: { state: DataQualitySummaryState.PASSED },
+    } as never);
+
+    expect(response).not.toHaveProperty('qualitySummary');
   });
 
   describe('toBatchHealthStatusDomainResponse', () => {

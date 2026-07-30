@@ -292,25 +292,26 @@ function ModelCanvasInner({
     );
 
     setFlowNodes(
-      topologyNodes.map(node =>
+      topologyNodes.map(topologyNode =>
         buildFlowNode({
           node: {
-            ...node,
-            qualitySummary: liveQualitySummaries.get(node.id) ?? node.qualitySummary,
+            ...topologyNode,
+            qualitySummary:
+              liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
           },
-          position: positions.get(node.id) ?? { x: 0, y: 0 },
-          hasIncoming: hasIncoming.has(node.id),
-          hasOutgoing: hasOutgoing.has(node.id),
-          highlight: highlightState.get(node.id) ?? NO_HIGHLIGHT,
+          position: positions.get(topologyNode.id) ?? { x: 0, y: 0 },
+          hasIncoming: hasIncoming.has(topologyNode.id),
+          hasOutgoing: hasOutgoing.has(topologyNode.id),
+          highlight: highlightState.get(topologyNode.id) ?? NO_HIGHLIGHT,
           direction,
           viewMode,
           onOpenExternal: () => {
-            onOpenDataMartRef.current(node.id);
+            onOpenDataMartRef.current(topologyNode.id);
           },
           onOpenQuality: () => {
-            onOpenQualityRef.current(node.id);
+            onOpenQualityRef.current(topologyNode.id);
           },
-          onRunQuality: () => onRunQualityRef.current(node.id),
+          onRunQuality: () => onRunQualityRef.current(topologyNode.id),
         })
       )
     );

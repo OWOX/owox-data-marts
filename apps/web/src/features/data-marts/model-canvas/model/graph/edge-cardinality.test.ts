@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { DataMartStatus } from '../../../shared/enums/data-mart-status.enum';
-import type { ModelCanvasNode } from '../types';
+import type { ModelCanvasTopologyNode } from '../types';
 import { buildPrimaryKeysByNode, computeEdgeCardinality } from './edge-cardinality';
 import type { CanvasRenderEdge } from './merge-bidirectional-edges';
 
-function node(id: string, fields?: { name: string; isPrimaryKey: boolean }[]): ModelCanvasNode {
+function node(
+  id: string,
+  fields?: { name: string; isPrimaryKey: boolean }[]
+): ModelCanvasTopologyNode {
   return {
     id,
     title: id,

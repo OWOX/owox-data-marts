@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { DataQualitySummaryDto } from '../dto/domain/data-quality.dto';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
@@ -14,6 +14,8 @@ export class DataQualitySummaryService {
   constructor(
     @InjectRepository(DataMartRun)
     private readonly repository: Repository<DataMartRun>,
+    @InjectRepository(DataMart)
+    private readonly dataMartRepository: Repository<DataMart>,
     private readonly relationshipService: DataMartRelationshipService
   ) {}
 
@@ -26,6 +28,14 @@ export class DataQualitySummaryService {
 
     const runs = await this.repository
       .createQueryBuilder('run')
+      .select([
+        'run.id',
+        'run.dataMartId',
+        'run.createdAt',
+        'run.startedAt',
+        'run.finishedAt',
+        'run.dataQualitySummary',
+      ])
       .innerJoin('run.dataMart', 'dataMart')
       .leftJoin(
         DataMartRun,
@@ -93,6 +103,30 @@ export class DataQualitySummaryService {
     }
 
     return latest;
+  }
+
+  async getCurrentByDataMartIds(
+    dataMartIds: readonly string[],
+    projectId: string
+  ): Promise<Map<string, DataQualitySummaryDto>> {
+    const ids = Array.from(new Set(dataMartIds));
+    if (ids.length === 0) return new Map();
+
+    const dataMarts = await this.dataMartRepository.find({
+      where: { id: In(ids), projectId },
+    });
+    return this.getCurrentByDataMarts(dataMarts, projectId);
+  }
+
+  async getCurrentByDataMart(
+    dataMart: DataMart,
+    projectId: string
+  ): Promise<DataQualitySummaryDto> {
+    const summary = (await this.getCurrentByDataMarts([dataMart], projectId)).get(dataMart.id);
+    if (!summary) {
+      throw new Error(`Data Quality summary was not resolved for Data Mart ${dataMart.id}`);
+    }
+    return summary;
   }
 }
 

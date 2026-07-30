@@ -37,6 +37,7 @@ interface DataMartBulkActionsProps {
   publishDataMart: (id: string) => Promise<void>;
   onCompleted: () => void | Promise<void>;
   onClearDataMarts?: () => void;
+  targetScope?: 'selection' | 'canvas';
 }
 
 export function DataMartBulkActions({
@@ -46,6 +47,7 @@ export function DataMartBulkActions({
   publishDataMart,
   onCompleted,
   onClearDataMarts,
+  targetScope = 'selection',
 }: DataMartBulkActionsProps) {
   const [actionDataMarts, setActionDataMarts] = useState<DataMartBulkActionTarget[]>([]);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -142,7 +144,15 @@ export function DataMartBulkActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant='outline' size='sm' title='Bulk actions for selected data marts'>
+          <Button
+            variant='outline'
+            size='sm'
+            title={
+              targetScope === 'canvas'
+                ? 'Actions for all Data Marts shown by the current canvas filters'
+                : 'Bulk actions for selected data marts'
+            }
+          >
             <span>Actions</span>
             <Badge
               variant='secondary'
@@ -199,6 +209,7 @@ export function DataMartBulkActions({
           dataMarts={actionDataMarts}
           projectId={projectId}
           onCompleted={onCompleted}
+          targetScope={targetScope}
         />
       )}
 
@@ -209,19 +220,16 @@ export function DataMartBulkActions({
             <AlertDialogDescription>
               <span className='mt-2 block space-y-2'>
                 <span className='block'>
-                  You're about to delete{' '}
-                  <strong>
-                    {actionDataMarts.length} selected data mart
-                    {actionDataMarts.length === 1 ? '' : 's'}
-                  </strong>
-                  . This action cannot be undone.
+                  {targetScope === 'canvas'
+                    ? `You're about to delete all ${String(actionDataMarts.length)} data mart${actionDataMarts.length === 1 ? '' : 's'} shown by the current canvas filters.`
+                    : `You're about to delete ${String(actionDataMarts.length)} selected data mart${actionDataMarts.length === 1 ? '' : 's'}.`}
                 </span>
                 {actionDataMarts.some(
                   dataMart => dataMart.storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
                 ) && (
                   <span className='text-destructive block'>
-                    Some of the selected data marts will also become unavailable in the Google
-                    Sheets extension because they use legacy BigQuery storage.
+                    Some of these Data Marts will also become unavailable in the Google Sheets
+                    extension because they use legacy BigQuery storage.
                   </span>
                 )}
               </span>
@@ -247,8 +255,10 @@ export function DataMartBulkActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Publish Draft Data Marts?</AlertDialogTitle>
             <AlertDialogDescription>
-              You're about to publish {draftDataMarts.length} draft data mart
-              {draftDataMarts.length === 1 ? '' : 's'}.<br />
+              {targetScope === 'canvas'
+                ? `You're about to publish all ${String(draftDataMarts.length)} draft data mart${draftDataMarts.length === 1 ? '' : 's'} shown by the current canvas filters.`
+                : `You're about to publish ${String(draftDataMarts.length)} selected draft data mart${draftDataMarts.length === 1 ? '' : 's'}.`}
+              <br />
               Their schemas will be updated and they will become Published.
             </AlertDialogDescription>
           </AlertDialogHeader>

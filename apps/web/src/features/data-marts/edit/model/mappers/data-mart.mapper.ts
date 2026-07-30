@@ -32,7 +32,6 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     availableForReporting: dataMartDto.availableForReporting,
     availableForMaintenance: dataMartDto.availableForMaintenance,
     contexts: dataMartDto.contexts ?? [],
-    qualitySummary: dataMartDto.qualitySummary,
   };
 
   dataMart.canActualizeSchema = canActualizeSchema(dataMart.definitionType, dataMart.schema);

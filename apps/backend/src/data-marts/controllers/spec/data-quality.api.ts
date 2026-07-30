@@ -17,6 +17,8 @@ import {
   BatchRunDataQualityResponseApiDto,
   DataQualityConfigResponseApiDto,
   DataQualityConfigValueApiDto,
+  GetDataQualitySummariesRequestApiDto,
+  GetDataQualitySummariesResponseApiDto,
   LatestDataQualityRunResponseApiDto,
   RunDataQualityRequestApiDto,
   RunDataQualityResponseApiDto,
@@ -73,6 +75,15 @@ export function RunDataQualityBatchSpec() {
     ApiBody({ type: BatchRunDataQualityRequestApiDto }),
     ApiOkResponse({ type: BatchRunDataQualityResponseApiDto }),
     ApiBadRequestResponse({ description: 'Batch request failed validation' })
+  );
+}
+
+export function GetDataQualitySummariesSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get compact Data Quality summaries for Data Marts' }),
+    ApiBody({ type: GetDataQualitySummariesRequestApiDto }),
+    ApiOkResponse({ type: GetDataQualitySummariesResponseApiDto }),
+    ApiBadRequestResponse({ description: 'Summary request failed validation' })
   );
 }
 

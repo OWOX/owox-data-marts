@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
-import { CompactDataQualitySummaryApiDto } from './data-quality-api.dto';
 
 export class ModelCanvasNodeApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -17,9 +16,6 @@ export class ModelCanvasNodeApiDto {
 
   @ApiProperty({ example: 12, description: 'Number of fields in the output schema' })
   fieldCount: number;
-
-  @ApiProperty({ type: CompactDataQualitySummaryApiDto })
-  qualitySummary: CompactDataQualitySummaryApiDto;
 }
 
 export class ModelCanvasJoinConditionApiDto {

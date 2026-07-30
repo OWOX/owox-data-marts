@@ -7,7 +7,6 @@ import { AccessDecisionService, Action, EntityType } from '../services/access-de
 import { ContextAccessService } from '../services/context/context-access.service';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
-import { DataQualitySummaryService } from '../services/data-quality-summary.service';
 
 const CANVAS_DATA_MARTS_PAGE_SIZE = 1000;
 
@@ -18,8 +17,7 @@ export class GetModelCanvasDataMartsService {
     private readonly dataStorageService: DataStorageService,
     private readonly contextAccessService: ContextAccessService,
     private readonly mapper: ModelCanvasMapper,
-    private readonly accessDecisionService: AccessDecisionService,
-    private readonly dataQualitySummaryService: DataQualitySummaryService
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: GetModelCanvasDataMartsCommand): Promise<ModelCanvasDataMartsDto> {
@@ -59,11 +57,6 @@ export class GetModelCanvasDataMartsService {
       }
     );
 
-    const qualitySummaries = await this.dataQualitySummaryService.getCurrentByDataMarts(
-      items,
-      command.projectId
-    );
-
-    return this.mapper.toDataMartsDto(items, total, offset, qualitySummaries);
+    return this.mapper.toDataMartsDto(items, total, offset);
   }
 }

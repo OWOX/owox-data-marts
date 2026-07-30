@@ -34,7 +34,6 @@ import {
   toStoredDataQualityConfig,
 } from '../model/data-quality.model';
 import type {
-  DataQualityCompactSummary,
   DataQualityConfig,
   DataQualityConfigResponse,
   DataQualityRelationshipMetadata,
@@ -64,7 +63,6 @@ interface DataQualitySchemaFieldMetadata {
 interface DataQualityWorkspaceProps {
   projectId: string;
   dataMartId: string;
-  qualitySummary?: DataQualityCompactSummary;
   schemaFields?: DataQualitySchemaFieldMetadata[];
   registerUnsavedGuard?: (registration: QualityGuardRegistration | null) => void;
 }
@@ -95,13 +93,13 @@ const NEVER_RUN_SUMMARY = {
 export function DataQualityWorkspace({
   projectId,
   dataMartId,
-  qualitySummary,
   schemaFields = [],
   registerUnsavedGuard,
 }: DataQualityWorkspaceProps) {
   const {
     configResponse,
     activeRun,
+    latestRunOverview,
     latestRun,
     isLoading,
     isError,
@@ -280,15 +278,13 @@ export function DataQualityWorkspace({
     totalChecks: configuredEnabledChecks,
     notApplicableChecks: configuredEnabledChecks - applicableEnabledChecks,
   };
-  const displayedSummary =
-    activeRun?.summary ??
-    latestRun?.summary ??
-    (qualitySummary?.dataMartRunId ? qualitySummary : beforeFirstRunSummary);
+  const latestSummaryRun = latestRunOverview ?? latestRun;
+  const displayedSummary = activeRun?.summary ?? latestSummaryRun?.summary ?? beforeFirstRunSummary;
   const displayedSummaryIsActive =
     displayedSummary.state === 'QUEUED' || displayedSummary.state === 'RUNNING';
   const displayedCheckedAt = displayedSummaryIsActive
     ? null
-    : (latestRun?.finishedAt ?? latestRun?.createdAt ?? qualitySummary?.lastRunAt);
+    : (latestSummaryRun?.finishedAt ?? latestSummaryRun?.createdAt ?? null);
   const runButtonLabel = isStarting ? 'Queuing' : 'Run';
   const savedRunUnavailableReason = getRunUnavailableReason({
     canRun,
@@ -459,24 +455,18 @@ export function DataQualityWorkspace({
               disabled={!canEdit || isMutationBusy}
               onAddCheck={ruleKey => {
                 const addedRule = fieldRules.find(rule => rule.key === ruleKey);
+                if (addedRule?.scope.type !== 'FIELD') return;
+                const nextDraft = enableRuleInDraft(draftRef.current, addedRule);
+                if (!nextDraft) return;
+
                 setEditor(current =>
                   current?.workspaceKey === workspaceKey
-                    ? {
-                        ...current,
-                        draft: {
-                          ...current.draft,
-                          rules: current.draft.rules.map(rule =>
-                            rule.key === ruleKey ? { ...rule, enabled: true } : rule
-                          ),
-                        },
-                      }
+                    ? { ...current, draft: nextDraft }
                     : current
                 );
-                if (addedRule?.scope.type === 'FIELD') {
-                  toast.success(
-                    `${DATA_QUALITY_CATEGORY_LABELS[addedRule.category]} added to ${addedRule.scope.fieldPath.join('.')} — not saved yet`
-                  );
-                }
+                toast.success(
+                  `${DATA_QUALITY_CATEGORY_LABELS[addedRule.category]} added to ${addedRule.scope.fieldPath.join('.')} — not saved yet`
+                );
               }}
               onChange={updateRule}
             />
@@ -773,6 +763,30 @@ function RuleGroup({
       )}
     </section>
   );
+}
+
+function enableRuleInDraft(
+  draft: DataQualityConfig | null,
+  effectiveRule: EffectiveDataQualityRuleConfig
+): DataQualityConfig | null {
+  if (!draft) return null;
+  const existingRule = draft.rules.find(rule => rule.key === effectiveRule.key);
+  if (existingRule?.enabled) return null;
+
+  if (existingRule) {
+    return {
+      ...draft,
+      rules: draft.rules.map(rule =>
+        rule.key === effectiveRule.key ? { ...rule, enabled: true } : rule
+      ),
+    };
+  }
+
+  const storedRule = toStoredDataQualityConfig({ rules: [effectiveRule] }).rules[0];
+  return {
+    ...draft,
+    rules: [...draft.rules, { ...storedRule, enabled: true }],
+  };
 }
 
 function getRelationshipScopePresentation(

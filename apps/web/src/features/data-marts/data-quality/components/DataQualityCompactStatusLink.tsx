@@ -6,13 +6,11 @@ import {
   getDataQualityStatusVisual,
 } from '../../shared/utils/data-quality-status';
 import type { DataQualityStatusLabel } from '../../shared/utils/data-quality-status';
-import { useLatestDataQualityRun } from '../model/use-data-quality-workspace';
-import type { DataQualityCompactSummary, DataQualityRun } from '../model/types';
+import { useDataQualitySummary } from '../model/use-data-quality-workspace';
 
 interface DataQualityCompactStatusLinkProps {
   projectId: string;
   dataMartId: string;
-  summary?: DataQualityCompactSummary | null;
 }
 
 const BORDER_CLASSES = {
@@ -36,28 +34,29 @@ const COMPACT_STATUS_LABELS: Record<DataQualityStatusLabel, string> = {
   Cancelled: 'Data Quality check cancelled',
 };
 
-function getRunTimestamp(latestRun: DataQualityRun | null | undefined): string | null {
-  if (!latestRun) return null;
-  if (latestRun.summary.state === 'QUEUED') return latestRun.createdAt;
-  if (latestRun.summary.state === 'RUNNING') return latestRun.startedAt ?? latestRun.createdAt;
-  return latestRun.finishedAt ?? latestRun.startedAt ?? latestRun.createdAt;
-}
-
 export function DataQualityCompactStatusLink({
   projectId,
   dataMartId,
-  summary,
 }: DataQualityCompactStatusLinkProps) {
-  const { data: latestRun } = useLatestDataQualityRun(projectId, dataMartId);
-  const currentSummary = latestRun?.summary ?? summary;
-  const statusVisual = getDataQualityStatusVisual(currentSummary ?? { state: 'NEVER_RUN' });
+  const { data: currentSummary, isLoading, isError } = useDataQualitySummary(projectId, dataMartId);
+  if (isLoading || !currentSummary) {
+    return (
+      <DataQualityStatusPlaceholder
+        projectId={projectId}
+        dataMartId={dataMartId}
+        label={isError ? 'Data Quality status unavailable' : 'Loading Data Quality status'}
+      />
+    );
+  }
+
+  const statusVisual = getDataQualityStatusVisual(currentSummary);
   const statusLabel = COMPACT_STATUS_LABELS[statusVisual.label];
   const Icon = statusVisual.icon;
-  const checkedAt = latestRun ? getRunTimestamp(latestRun) : (summary?.lastRunAt ?? null);
+  const checkedAt = currentSummary.lastRunAt;
   const timeLabel =
-    currentSummary?.state === 'QUEUED'
+    currentSummary.state === 'QUEUED'
       ? 'Requested'
-      : currentSummary?.state === 'RUNNING'
+      : currentSummary.state === 'RUNNING'
         ? 'Started'
         : 'Last checked';
 
@@ -73,7 +72,7 @@ export function DataQualityCompactStatusLink({
           className={cn(
             'size-5 shrink-0',
             DATA_QUALITY_STATUS_TEXT_CLASSES[statusVisual.tone],
-            currentSummary?.state === 'RUNNING' && 'animate-spin'
+            currentSummary.state === 'RUNNING' && 'animate-spin'
           )}
           aria-hidden='true'
         />
@@ -94,6 +93,25 @@ export function DataQualityCompactStatusLink({
       <Link
         to={`/ui/${projectId}/data-marts/${dataMartId}/quality`}
         aria-label={`Open Data Quality: ${statusLabel}`}
+        className='text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center text-sm font-medium hover:underline'
+      >
+        Open
+      </Link>
+    </div>
+  );
+}
+
+function DataQualityStatusPlaceholder({
+  projectId,
+  dataMartId,
+  label,
+}: DataQualityCompactStatusLinkProps & { label: string }) {
+  return (
+    <div className='border-muted-foreground/30 mb-4 flex items-center justify-between gap-3 rounded-md border p-3'>
+      <span className='text-muted-foreground text-sm'>{label}</span>
+      <Link
+        to={`/ui/${projectId}/data-marts/${dataMartId}/quality`}
+        aria-label='Open Data Quality'
         className='text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center text-sm font-medium hover:underline'
       >
         Open

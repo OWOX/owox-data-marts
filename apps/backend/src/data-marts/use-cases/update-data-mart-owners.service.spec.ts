@@ -49,7 +49,6 @@ describe('UpdateDataMartOwnersService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
-
     const service = new UpdateDataMartOwnersService(
       dataMartService as never,
       mapper as never,

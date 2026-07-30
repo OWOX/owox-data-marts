@@ -242,10 +242,6 @@ export class DataQualityRunService {
               type: dataMart.storage.type,
             },
             relationshipTargets: cloneJson(relationshipTargets),
-            technicalViews: {
-              source: null,
-              relationships: {},
-            },
           },
           dataQualitySummary: createDataQualityLifecycleSummary(
             DataQualitySummaryState.QUEUED,
@@ -271,6 +267,13 @@ export class DataQualityRunService {
     return this.dataMartRunRepository.findOne({
       where: { dataMartId, type: DataMartRunType.DATA_QUALITY },
       order: { createdAt: 'DESC', id: 'DESC' },
+      select: {
+        id: true,
+        dataQualitySummary: true,
+        createdAt: true,
+        startedAt: true,
+        finishedAt: true,
+      },
     });
   }
 
@@ -282,6 +285,7 @@ export class DataQualityRunService {
         status: In([DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING]),
       },
       order: { createdAt: 'DESC', id: 'DESC' },
+      select: { id: true },
     });
     return active?.id ?? null;
   }

@@ -4,6 +4,7 @@ import { dataMartService } from '../../shared';
 import { toStoredDataQualityConfig } from '../model/data-quality.model';
 import { DataQualityRunDetailsMissingError } from '../model/types';
 import type {
+  DataQualityCompactSummary,
   DataQualityConfig,
   DataQualityConfigResponse,
   DataQualityRun,
@@ -30,6 +31,11 @@ interface LatestDataQualityRunResponseDto {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+}
+
+interface DataQualitySummaryItemDto {
+  dataMartId: string;
+  summary: DataQualityCompactSummary;
 }
 
 class DataQualityService extends ApiService {
@@ -86,6 +92,16 @@ class DataQualityService extends ApiService {
       config
     );
     return response ? { ...response, results: [] } : null;
+  }
+
+  async getSummaries(
+    dataMartIds: string[],
+    config?: AxiosRequestConfig
+  ): Promise<Partial<Record<string, DataQualityCompactSummary>>> {
+    if (dataMartIds.length === 0) return {};
+
+    const response = await this.post<unknown>('/data-quality/summaries', { dataMartIds }, config);
+    return toSummariesResponse(response);
   }
 
   async getRun(
@@ -178,8 +194,74 @@ function toRunDataQualityResponse(response: unknown): RunDataQualityResponse {
   return { runId: response.runId };
 }
 
+function toSummariesResponse(
+  response: unknown
+): Partial<Record<string, DataQualityCompactSummary>> {
+  if (!isRecord(response) || !Array.isArray(response.items)) {
+    throw new Error('Data Quality summaries response has an invalid shape');
+  }
+
+  const summaries: Record<string, DataQualityCompactSummary> = {};
+  for (const item of response.items) {
+    if (!isDataQualitySummaryItem(item)) {
+      throw new Error('Data Quality summaries response has an invalid shape');
+    }
+    summaries[item.dataMartId] = item.summary;
+  }
+  return summaries;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isDataQualitySummaryItem(value: unknown): value is DataQualitySummaryItemDto {
+  return (
+    isRecord(value) &&
+    typeof value.dataMartId === 'string' &&
+    isDataQualityCompactSummary(value.summary)
+  );
+}
+
+function isDataQualityCompactSummary(value: unknown): value is DataQualityCompactSummary {
+  if (!isRecord(value)) return false;
+
+  return (
+    isDataQualitySummaryState(value.state) &&
+    isNonNegativeNumber(value.enabledChecks) &&
+    isNonNegativeNumber(value.totalChecks) &&
+    isNonNegativeNumber(value.passedChecks) &&
+    isNonNegativeNumber(value.failedChecks) &&
+    isNonNegativeNumber(value.notApplicableChecks) &&
+    isNonNegativeNumber(value.errorChecks) &&
+    isNonNegativeNumber(value.noticeFindings) &&
+    isNonNegativeNumber(value.warningFindings) &&
+    isNonNegativeNumber(value.errorFindings) &&
+    isNonNegativeNumber(value.violationCount) &&
+    (value.highestSeverity === null ||
+      value.highestSeverity === 'error' ||
+      value.highestSeverity === 'warning' ||
+      value.highestSeverity === 'notice') &&
+    (value.dataMartRunId === null || typeof value.dataMartRunId === 'string') &&
+    (value.lastRunAt === null || typeof value.lastRunAt === 'string')
+  );
+}
+
+function isDataQualitySummaryState(value: unknown): value is DataQualityCompactSummary['state'] {
+  return (
+    value === 'NEVER_RUN' ||
+    value === 'QUEUED' ||
+    value === 'RUNNING' ||
+    value === 'PASSED' ||
+    value === 'ISSUES' ||
+    value === 'EXECUTION_FAILED' ||
+    value === 'CANCELLED' ||
+    value === 'ALL_DISABLED'
+  );
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 function isEffectiveConfig(value: unknown): value is EffectiveDataQualityConfig {

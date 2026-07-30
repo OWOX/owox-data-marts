@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   dismissAllPromos: vi.fn(),
   registerSchemaGuard: vi.fn(),
   hasActiveRuns: false,
-  latestQualityRun: null as null | { summary: { state: string } },
+  qualitySummary: null as null | { state: string },
 }));
 
 vi.mock('../../../../app/store/hooks', () => ({
@@ -34,7 +34,7 @@ vi.mock('../hooks/useDataMartNextStepPromo', () => ({
 }));
 
 vi.mock('../../data-quality/model/use-data-quality-workspace', () => ({
-  useLatestDataQualityRun: () => ({ data: mocks.latestQualityRun }),
+  useDataQualitySummary: () => ({ data: mocks.qualitySummary }),
 }));
 
 vi.mock('../../shared/hooks/useSchemaActualizeTrigger', () => ({
@@ -110,7 +110,7 @@ describe('DataMartDetails navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.hasActiveRuns = false;
-    mocks.latestQualityRun = null;
+    mocks.qualitySummary = null;
   });
 
   it('labels the quality route as Data Quality', () => {
@@ -122,7 +122,7 @@ describe('DataMartDetails navigation', () => {
   it.each(['QUEUED', 'RUNNING'])(
     'shows Data Quality activity while the latest run is %s',
     state => {
-      mocks.latestQualityRun = { summary: { state } };
+      mocks.qualitySummary = { state };
 
       renderDetails();
 
@@ -141,7 +141,7 @@ describe('DataMartDetails navigation', () => {
 
   it('uses combined copy when data and Data Quality runs are active together', () => {
     mocks.hasActiveRuns = true;
-    mocks.latestQualityRun = { summary: { state: 'RUNNING' } };
+    mocks.qualitySummary = { state: 'RUNNING' };
 
     renderDetails();
 
@@ -149,7 +149,7 @@ describe('DataMartDetails navigation', () => {
   });
 
   it('does not show run activity for a terminal Data Quality run', () => {
-    mocks.latestQualityRun = { summary: { state: 'PASSED' } };
+    mocks.qualitySummary = { state: 'PASSED' };
 
     renderDetails();
 
@@ -158,7 +158,7 @@ describe('DataMartDetails navigation', () => {
   });
 
   it('opens Data Mart Run History from Data Quality activity', () => {
-    mocks.latestQualityRun = { summary: { state: 'RUNNING' } };
+    mocks.qualitySummary = { state: 'RUNNING' };
 
     renderDetails();
     screen.getByRole('button', { name: 'View runs' }).click();

@@ -1,7 +1,7 @@
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { Import, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BulkCreateFromStorageDialog } from '../BulkCreateFromStorageDialog';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
@@ -37,6 +37,7 @@ interface DataTableProps<TData, TValue> {
   deleteDataMart: (id: string) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
   refetchDataMarts: () => Promise<void>;
+  onVisibleDataMartIdsChange?: (dataMartIds: string[]) => void;
   isLoading?: boolean;
 }
 
@@ -47,6 +48,7 @@ export function DataMartTable<TData, TValue>({
   deleteDataMart,
   publishDataMart,
   refetchDataMarts,
+  onVisibleDataMartIdsChange,
   isLoading,
 }: DataTableProps<TData, TValue>) {
   const { navigate, scope } = useProjectRoute();
@@ -136,6 +138,16 @@ export function DataMartTable<TData, TValue>({
 
   const selectedRows = table.getSelectedRowModel().flatRows;
   const hasSelectedRows = selectedRows.length > 0;
+  const visibleDataMartIdsKey = table
+    .getRowModel()
+    .rows.map(row => (row.original as { id: string }).id)
+    .join('\u0000');
+
+  useEffect(() => {
+    onVisibleDataMartIdsChange?.(
+      isLoading || !visibleDataMartIdsKey ? [] : visibleDataMartIdsKey.split('\u0000')
+    );
+  }, [isLoading, onVisibleDataMartIdsChange, visibleDataMartIdsKey]);
 
   // Row click handler with navigation
   const handleRowClick = (row: Row<TData>, e: React.MouseEvent) => {

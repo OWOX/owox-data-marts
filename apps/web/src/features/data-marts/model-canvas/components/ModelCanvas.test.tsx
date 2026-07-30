@@ -290,6 +290,14 @@ describe('ModelCanvas', () => {
     });
     expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
     expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+    expect(reactFlow.latestProps?.nodes?.[0].data?.qualitySummary?.state).toBe('PASSED');
   });
 });
 
