@@ -813,6 +813,15 @@ export function ReportColumnPicker({
   const hasUniqueCountMetric =
     hasPrimaryKey && outputControlsAvailable && effectiveOutputConfig.uniqueCountConfig;
 
+  // Whether the SYNTHETIC metric is the thing a `Unique Count` sort resolves to. False when a
+  // real schema field owns the name: if it is selected it owns the sort outright, and if it is
+  // merely present, emitting the label would produce an `ORDER BY "Unique Count"` ambiguous
+  // between the outer SELECT alias and the base column (precedence unspecified across
+  // dialects). Shared by the sort list and the disconnected-controls badge so a suppressed
+  // synthetic can never be reported as still supplying the column.
+  const syntheticUniqueCountAvailable =
+    hasUniqueCountMetric && !knownFieldNames.has(UNIQUE_COUNT_LABEL);
+
   // Sort-ONLY column list. Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a
   // projected field: it can be ordered by (the ORDER BY resolves to the SELECT alias), but a
   // filter or aggregation on it has no column to bind to and the backend rejects it. So it
@@ -825,14 +834,14 @@ export function ReportColumnPicker({
     // `key={item.value}`; if it is merely present but unselected, emitting the label would
     // produce an `ORDER BY "Unique Count"` that is ambiguous between the outer SELECT alias
     // and the base column, whose resolution precedence is not specified across dialects.
-    if (!hasUniqueCountMetric || knownFieldNames.has(UNIQUE_COUNT_LABEL)) {
+    if (!syntheticUniqueCountAvailable) {
       return selectedDropdownColumns;
     }
     return [
       ...selectedDropdownColumns,
       { name: UNIQUE_COUNT_LABEL, type: 'INTEGER', label: UNIQUE_COUNT_LABEL },
     ];
-  }, [selectedDropdownColumns, hasUniqueCountMetric, knownFieldNames]);
+  }, [selectedDropdownColumns, syntheticUniqueCountAvailable]);
 
   const controlsCount = useMemo(() => {
     return (
@@ -938,12 +947,12 @@ export function ReportColumnPicker({
       if (effectiveValueSet.has(rule.column) && knownFieldNames.has(rule.column)) return false;
       // Otherwise the synthetic metric can still supply the column, matching the backend's
       // validateSort (which adds the label to the selected set when uniqueCountConfig is on).
-      return !(rule.column === UNIQUE_COUNT_LABEL && hasUniqueCountMetric);
+      return !(rule.column === UNIQUE_COUNT_LABEL && syntheticUniqueCountAvailable);
     });
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
-    hasUniqueCountMetric,
+    syntheticUniqueCountAvailable,
     knownFieldNames,
     knownSliceKeys,
     effectiveValueSet,

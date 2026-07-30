@@ -1202,6 +1202,26 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
   });
 
+  // The badge and the sort row must agree: when the synthetic is suppressed because a real
+  // field owns the name, an unselected real field's rule is genuinely broken and both the
+  // struck-through row and the badge must say so.
+  it('reports a sort as disconnected when the synthetic is suppressed by an UNSELECTED real field', () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
+  });
+
   // The PK-loss auto-heal must prune the stranded sort rule in the SAME update that clears
   // the flag — otherwise validateSort rejects the leftover rule on every save and run.
   it('prunes a stranded "Unique Count" sort rule when the schema loses its primary key', () => {
