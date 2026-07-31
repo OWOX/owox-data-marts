@@ -1,19 +1,27 @@
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import {
+  OWOX_BLUE_BASE,
+  OWOX_GRAY_LIGHT,
+  OWOX_GREEN_BASE,
+  OWOX_ORANGE_BASE,
+  OWOX_PURPLE_BASE,
+  OWOX_RED_BASE,
+} from './owox-palette';
 
 /**
- * Accent / badge color per definition type, mirroring the OWOX Model Canvas
- * palette (owox/models). Kept in one place so ERD-style cards across canvases
- * (Models canvas, Joinable Data Marts diagram) stay in sync.
+ * Accent / badge color per definition type, drawn from the OWOX corporate
+ * palette. Kept in one place so ERD-style cards across canvases (Models
+ * canvas, Joinable Data Marts diagram) stay in sync.
  */
 export const DEFINITION_TYPE_ACCENT: Partial<Record<DataMartDefinitionType, string>> = {
-  [DataMartDefinitionType.SQL]: '#10b981', // emerald
-  [DataMartDefinitionType.VIEW]: '#3b82f6', // blue
-  [DataMartDefinitionType.TABLE]: '#8b5cf6', // violet
-  [DataMartDefinitionType.TABLE_PATTERN]: '#ec4899', // pink
-  [DataMartDefinitionType.CONNECTOR]: '#f59e0b', // amber
+  [DataMartDefinitionType.SQL]: OWOX_GREEN_BASE,
+  [DataMartDefinitionType.VIEW]: OWOX_BLUE_BASE,
+  [DataMartDefinitionType.TABLE]: OWOX_PURPLE_BASE,
+  [DataMartDefinitionType.TABLE_PATTERN]: OWOX_RED_BASE,
+  [DataMartDefinitionType.CONNECTOR]: OWOX_ORANGE_BASE,
 };
 
-export const DEFINITION_TYPE_FALLBACK_ACCENT = '#94a3b8'; // slate
+export const DEFINITION_TYPE_FALLBACK_ACCENT = OWOX_GRAY_LIGHT;
 
 export function definitionTypeAccent(type: DataMartDefinitionType | null | undefined): string {
   return type

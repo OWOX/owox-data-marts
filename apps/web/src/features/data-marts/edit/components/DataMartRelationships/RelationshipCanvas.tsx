@@ -49,6 +49,7 @@ import {
 } from '../../../shared/canvas/constants';
 import { EdgeArrowMarkers } from '../../../shared/canvas/edge-arrow';
 import { edgeMarkerId } from '../../../shared/canvas/edge-marker-id';
+import { OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
 import { definitionTypeAccent } from '../../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../../shared/canvas/erd-card';
 import { computeCanvasHighlight, NO_HIGHLIGHT } from '../../../shared/canvas/highlight';
@@ -117,8 +118,9 @@ const FIT_VIEW_SCALE = 0.85;
 const FIT_VIEW_PADDING = 1 / FIT_VIEW_SCALE - 1;
 const GRAPH_ZOOM_MIN = 0.05;
 const GRAPH_PAN_PADDING = 150;
-// Functional "attention" (e.g. missing PK) — amber, distinct from the non-functional WARNING_COLOR.
-const ATTENTION_COLOR = '#f59e0b'; // amber-500
+// Functional "attention" (e.g. missing PK) — corporate yellow, distinct from the
+// non-functional (orange) WARNING_COLOR.
+const ATTENTION_COLOR = OWOX_YELLOW_BASE;
 
 export interface RelationshipNodeData {
   isSource: boolean;

@@ -1,6 +1,7 @@
 import type { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartDefinitionTypeModel } from '../types/data-mart-definition-type.model';
 import { definitionTypeAccent } from './definition-type-accent';
+import { OWOX_GREEN_BASE, OWOX_YELLOW_BASE } from './owox-palette';
 
 interface ErdStatusDotProps {
   isDraft: boolean;
@@ -18,7 +19,8 @@ export function ErdStatusDot({ isDraft, decorative = false }: ErdStatusDotProps)
   return (
     <span className='inline-flex shrink-0 items-center' title={label}>
       <span
-        className={`h-2 w-2 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
+        className='h-2 w-2 rounded-full'
+        style={{ background: isDraft ? OWOX_YELLOW_BASE : OWOX_GREEN_BASE }}
         aria-hidden='true'
       />
       {!decorative && <span className='sr-only'>{label}</span>}

@@ -11,6 +11,7 @@ import {
 } from '../../shared/canvas/constants';
 import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
+import { OWOX_YELLOW_BASE } from '../../shared/canvas/owox-palette';
 import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '../model/erd-node';
 import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../model/object-labels';
 import type { CanvasNodeField } from '../model/types';
@@ -54,7 +55,11 @@ function FieldRow({ field }: { field: CanvasNodeField }) {
       title={field.isHidden ? `${field.alias} (hidden from reporting)` : field.alias}
     >
       {field.isPrimaryKey ? (
-        <KeyRound className='h-3 w-3 shrink-0 text-amber-500' aria-label='Primary key' />
+        <KeyRound
+          className='h-3 w-3 shrink-0'
+          style={{ color: OWOX_YELLOW_BASE }}
+          aria-label='Primary key'
+        />
       ) : (
         <span className='w-3 shrink-0' />
       )}
