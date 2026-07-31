@@ -4,3 +4,4 @@ export * from './validation';
 export * from './status.utils';
 export * from './table-pattern.utils';
 export * from './title-validation';
+export * from './data-last-updated.utils';

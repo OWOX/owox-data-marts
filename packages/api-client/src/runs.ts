@@ -26,6 +26,7 @@ const PROJECT_DATA_MART_RUN_TYPE_VALUES = [
   'AI_ASSISTANT',
   'HTTP_DATA',
   'MCP_QUERY',
+  'DATA_QUALITY',
 ] as const;
 
 export type OWOXProjectDataMartRunType = (typeof PROJECT_DATA_MART_RUN_TYPE_VALUES)[number];

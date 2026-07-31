@@ -1,5 +1,5 @@
 import { Check, Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -61,8 +61,11 @@ interface ModelCanvasProps {
   edges: CanvasRenderEdge[];
   searchQuery: string;
   onOpenDataMart: (dataMartId: string) => void;
+  onOpenQuality: (dataMartId: string) => void;
+  onRunQuality: (dataMartId: string) => Promise<void>;
   /** Scopes the persisted node positions — each storage keeps its own layout. */
   storageId?: string;
+  topLeftControls?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -136,6 +139,33 @@ function estimateEdgeLabelDimensions(
 const nodeTypes = { modelCanvasNode: ModelCanvasFlowNode };
 const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
 
+function getNodeTopologySignature(nodes: readonly ModelCanvasNode[]): string {
+  return JSON.stringify(
+    nodes.map(({ id, title, status, description, fieldCount, definitionType, fields }) => ({
+      id,
+      title,
+      status,
+      description,
+      fieldCount,
+      definitionType,
+      fields,
+    }))
+  );
+}
+
+function getEdgeTopologySignature(edges: readonly CanvasRenderEdge[]): string {
+  return JSON.stringify(edges);
+}
+
+function useStableValue<T>(value: T, getSignature: (value: T) => string): T {
+  const signature = getSignature(value);
+  const stableRef = useRef({ signature, value });
+  if (stableRef.current.signature !== signature) {
+    stableRef.current = { signature, value };
+  }
+  return stableRef.current.value;
+}
+
 interface FlowNodeParams {
   node: ModelCanvasNode;
   position: PathPoint;
@@ -146,6 +176,8 @@ interface FlowNodeParams {
   viewMode: CanvasViewMode;
   objectLabels: ObjectLabelsHidden;
   onOpenExternal: () => void;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
@@ -170,12 +202,16 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       fields: node.fields ?? [],
       viewMode,
       objectLabels,
+      dataLastUpdated: node.dataLastUpdated,
       hasIncoming: params.hasIncoming,
       hasOutgoing: params.hasOutgoing,
       highlighted: highlight.highlighted,
       dimmed: highlight.dimmed,
       direction: params.direction,
       onOpenExternal: params.onOpenExternal,
+      qualitySummary: node.qualitySummary,
+      onOpenQuality: params.onOpenQuality,
+      onRunQuality: params.onRunQuality,
     },
   };
 }
@@ -220,6 +256,8 @@ interface ModelCanvasInnerProps {
   edges: CanvasRenderEdge[];
   searchQuery: string;
   onOpenDataMart: (dataMartId: string) => void;
+  onOpenQuality: (dataMartId: string) => void;
+  onRunQuality: (dataMartId: string) => Promise<void>;
   storageId?: string;
 }
 
@@ -228,6 +266,8 @@ function ModelCanvasInner({
   edges,
   searchQuery,
   onOpenDataMart,
+  onOpenQuality,
+  onRunQuality,
   storageId,
 }: ModelCanvasInnerProps) {
   const reactFlow = useReactFlow<ModelCanvasFlowNodeType, ModelCanvasFlowEdgeType>();
@@ -236,6 +276,10 @@ function ModelCanvasInner({
 
   const onOpenDataMartRef = useRef(onOpenDataMart);
   onOpenDataMartRef.current = onOpenDataMart;
+  const onOpenQualityRef = useRef(onOpenQuality);
+  onOpenQualityRef.current = onOpenQuality;
+  const onRunQualityRef = useRef(onRunQuality);
+  onRunQualityRef.current = onRunQuality;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
   const searchQueryRef = useRef(searchQuery);
@@ -265,28 +309,30 @@ function ModelCanvasInner({
   const [flowNodes, setFlowNodes] = useState<ModelCanvasFlowNodeType[]>([]);
   const [flowEdges, setFlowEdges] = useState<ModelCanvasFlowEdgeType[]>([]);
   const graphBounds = useMemo(() => getCanvasGraphBounds(flowNodes), [flowNodes]);
+  const topologyNodes = useStableValue(nodes, getNodeTopologySignature);
+  const topologyEdges = useStableValue(edges, getEdgeTopologySignature);
 
   useEffect(() => {
-    const hasIncoming = new Set(edges.map(e => e.targetId));
-    const hasOutgoing = new Set(edges.map(e => e.sourceId));
-    const isDraft = new Map(nodes.map(n => [n.id, n.status === DataMartStatus.DRAFT]));
+    const hasIncoming = new Set(topologyEdges.map(e => e.targetId));
+    const hasOutgoing = new Set(topologyEdges.map(e => e.sourceId));
+    const isDraft = new Map(topologyNodes.map(n => [n.id, n.status === DataMartStatus.DRAFT]));
     const highlightState = computeCanvasHighlight(
-      nodes,
+      topologyNodes,
       searchQueryRef.current,
       n => n.id,
       n => n.title
     );
 
     const metaRowHidden = objectLabels.source && objectLabels.fields;
-    const dagreNodes: DagreLayoutNode[] = nodes.map(n => ({
+    const dagreNodes: DagreLayoutNode[] = topologyNodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
       height: computeNodeHeight(n, viewMode, metaRowHidden),
     }));
     const joinLabels = showJoinLabels
-      ? new Map(edges.map(e => [e.id, buildJoinLabel(e)]))
+      ? new Map(topologyEdges.map(e => [e.id, buildJoinLabel(e)]))
       : new Map<string, string[]>();
-    const dagreEdges: DagreLayoutEdge[] = edges.map(e => ({
+    const dagreEdges: DagreLayoutEdge[] = topologyEdges.map(e => ({
       id: e.id,
       sourceId: e.sourceId,
       targetId: e.targetId,
@@ -294,30 +340,42 @@ function ModelCanvasInner({
     }));
 
     const { positions } = runDagreLayout(dagreNodes, dagreEdges, direction);
-    const offsets = computeParallelEdgeOffsets(edges);
+    const offsets = computeParallelEdgeOffsets(topologyEdges);
     const savedPositions = savedPositionsRef.current ?? {};
+    const liveQualitySummaries = new Map(
+      nodesRef.current.map(node => [node.id, node.qualitySummary])
+    );
 
     setFlowNodes(
-      nodes.map(node =>
+      topologyNodes.map(topologyNode =>
         buildFlowNode({
-          node,
+          node: {
+            ...topologyNode,
+            qualitySummary:
+              liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
+          },
           // A user-dragged position wins over the computed layout.
-          position: savedPositions[node.id] ?? positions.get(node.id) ?? { x: 0, y: 0 },
-          hasIncoming: hasIncoming.has(node.id),
-          hasOutgoing: hasOutgoing.has(node.id),
-          highlight: highlightState.get(node.id) ?? NO_HIGHLIGHT,
+          position:
+            savedPositions[topologyNode.id] ?? positions.get(topologyNode.id) ?? { x: 0, y: 0 },
+          hasIncoming: hasIncoming.has(topologyNode.id),
+          hasOutgoing: hasOutgoing.has(topologyNode.id),
+          highlight: highlightState.get(topologyNode.id) ?? NO_HIGHLIGHT,
           direction,
           viewMode,
           objectLabels,
           onOpenExternal: () => {
-            onOpenDataMartRef.current(node.id);
+            onOpenDataMartRef.current(topologyNode.id);
           },
+          onOpenQuality: () => {
+            onOpenQualityRef.current(topologyNode.id);
+          },
+          onRunQuality: () => onRunQualityRef.current(topologyNode.id),
         })
       )
     );
 
     setFlowEdges(
-      edges.map(edge => {
+      topologyEdges.map(edge => {
         const sourceDimmed = highlightState.get(edge.sourceId)?.dimmed ?? false;
         const targetDimmed = highlightState.get(edge.targetId)?.dimmed ?? false;
         return buildFlowEdge({
@@ -354,7 +412,7 @@ function ModelCanvasInner({
     return () => {
       cancelAnimationFrame(rafId);
     };
-  }, [nodes, edges, direction, viewMode, showJoinLabels, objectLabels, reactFlow]);
+  }, [topologyNodes, topologyEdges, direction, viewMode, showJoinLabels, objectLabels, reactFlow]);
 
   const onNodesChange = useCallback((changes: NodeChange<ModelCanvasFlowNodeType>[]) => {
     setFlowNodes(prev => applyNodeChanges(changes, prev));
@@ -375,6 +433,18 @@ function ModelCanvasInner({
     },
     []
   );
+
+  useEffect(() => {
+    const summaries = new Map(nodes.map(node => [node.id, node.qualitySummary]));
+    setFlowNodes(current =>
+      current.map(node => {
+        const qualitySummary = summaries.get(node.id);
+        return qualitySummary && node.data.qualitySummary !== qualitySummary
+          ? { ...node, data: { ...node.data, qualitySummary } }
+          : node;
+      })
+    );
+  }, [nodes]);
 
   useEffect(() => {
     const state = computeCanvasHighlight(
@@ -680,7 +750,10 @@ export default function ModelCanvas({
   edges,
   searchQuery,
   onOpenDataMart,
+  onOpenQuality,
+  onRunQuality,
   storageId,
+  topLeftControls,
   className,
   style,
 }: ModelCanvasProps) {
@@ -692,12 +765,15 @@ export default function ModelCanvas({
       style={style ?? { height: 480 }}
     >
       <style>{NODE_PULSE_KEYFRAMES}</style>
+      {topLeftControls && <div className='absolute top-3 left-3 z-10'>{topLeftControls}</div>}
       <ReactFlowProvider>
         <ModelCanvasInner
           nodes={nodes}
           edges={edges}
           searchQuery={searchQuery}
           onOpenDataMart={onOpenDataMart}
+          onOpenQuality={onOpenQuality}
+          onRunQuality={onRunQuality}
           storageId={storageId}
         />
       </ReactFlowProvider>

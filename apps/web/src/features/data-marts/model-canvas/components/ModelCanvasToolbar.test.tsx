@@ -25,6 +25,9 @@ function renderToolbar() {
       onRelChange={vi.fn()}
       searchQuery=''
       onSearchChange={vi.fn()}
+      onRefreshDataLastUpdated={vi.fn()}
+      isRefreshingDataLastUpdated={false}
+      canRefreshDataLastUpdated={true}
     />
   );
 }

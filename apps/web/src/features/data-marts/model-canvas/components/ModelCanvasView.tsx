@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../../app/api';
 import { Button } from '../../../../shared/components/Button';
@@ -8,8 +9,16 @@ import { useProjectRoute } from '../../../../shared/hooks';
 import { filterCanvasData } from '../model/graph/filter-canvas-data';
 import { mergeBidirectionalEdges } from '../model/graph/merge-bidirectional-edges';
 import { useModelCanvas } from '../model/use-model-canvas';
+import { useRefreshDataLastUpdated } from '../model/use-refresh-data-last-updated';
 import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
+import { dataQualityService } from '../../data-quality/api/data-quality.service';
+import { dataMartService } from '../../shared';
+import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
+import { trackEvent } from '../../../../utils/data-layer';
+import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
+import { useDataQualitySummaries } from '../../data-quality/model/use-data-quality-workspace';
+import type { ModelCanvasData } from '../model/types';
 
 const ModelCanvas = lazy(() => import('./ModelCanvas'));
 
@@ -35,17 +44,28 @@ function extractErrorMessage(error: unknown): string | undefined {
   return apiError?.message;
 }
 
-function ModelCanvasViewContent() {
+interface ModelCanvasViewProps {
+  onActiveQualityRunChange?: (active: boolean) => void;
+}
+
+function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   const { dataStorages, loading: loadingStorages, fetchDataStorages } = useDataStorage();
   const [storageLoadError, setStorageLoadError] = useState<unknown>(null);
   const [storageLoadPending, setStorageLoadPending] = useState(true);
   const storageLoadGenerationRef = useRef(0);
   const mountedRef = useRef(false);
   const filters = useModelCanvasFilters();
-  const { scope } = useProjectRoute();
+  const { navigate, scope, projectId } = useProjectRoute();
   const storageKnown =
     Boolean(filters.storageId) && dataStorages.some(s => s.id === filters.storageId);
-  const { data, isLoading, error } = useModelCanvas(storageKnown ? filters.storageId : null);
+  const {
+    data: topology,
+    isLoading: isTopologyLoading,
+    error: topologyError,
+    refetch,
+  } = useModelCanvas(storageKnown ? filters.storageId : null);
+  const { refresh: refreshDataLastUpdated, isRefreshing: isRefreshingDataLastUpdated } =
+    useRefreshDataLastUpdated(storageKnown ? filters.storageId : null);
 
   const loadDataStorages = useCallback(async () => {
     const generation = ++storageLoadGenerationRef.current;
@@ -73,16 +93,125 @@ function ModelCanvasViewContent() {
     };
   }, [loadDataStorages]);
 
-  const filtered = useMemo(
-    () => (data ? filterCanvasData(data, filters.status, filters.rel) : null),
-    [data, filters.status, filters.rel]
+  const filteredTopology = useMemo(
+    () => (topology ? filterCanvasData(topology, filters.status, filters.rel) : null),
+    [filters.rel, filters.status, topology]
   );
+  const visibleDataMartIds = useMemo(
+    () => filteredTopology?.nodes.map(node => node.id) ?? [],
+    [filteredTopology]
+  );
+  const qualitySummariesQuery = useDataQualitySummaries(projectId ?? '', visibleDataMartIds);
+  const {
+    data: qualitySummaries,
+    isLoading: areQualitySummariesLoading,
+    error: qualitySummariesError,
+    refetch: refetchQuality,
+  } = qualitySummariesQuery;
+  const hasActiveQualityRun = Object.values(qualitySummaries ?? {}).some(summary =>
+    isDataQualityActivityState(summary?.state)
+  );
+  const filtered = useMemo<ModelCanvasData | null>(() => {
+    if (!filteredTopology) return null;
+    if (filteredTopology.nodes.length > 0 && !qualitySummaries) return null;
+
+    const nodes = filteredTopology.nodes.flatMap(node => {
+      const qualitySummary = qualitySummaries?.[node.id];
+      return qualitySummary ? [{ ...node, qualitySummary }] : [];
+    });
+    const nodeIds = new Set(nodes.map(node => node.id));
+
+    return {
+      nodes,
+      edges: filteredTopology.edges.filter(
+        edge => nodeIds.has(edge.sourceDataMartId) && nodeIds.has(edge.targetDataMartId)
+      ),
+    };
+  }, [filteredTopology, qualitySummaries]);
+
+  useEffect(() => {
+    onActiveQualityRunChange?.(hasActiveQualityRun);
+  }, [hasActiveQualityRun, onActiveQualityRunChange]);
+
   const renderEdges = useMemo(
     () => (filtered ? mergeBidirectionalEdges(filtered.edges) : []),
     [filtered]
   );
+  const selectedStorageType = dataStorages.find(storage => storage.id === filters.storageId)?.type;
+  const bulkActionDataMarts = useMemo(
+    () =>
+      (filtered?.nodes ?? []).map(node => ({
+        id: node.id,
+        status: node.status,
+        storageType: selectedStorageType,
+      })),
+    [filtered, selectedStorageType]
+  );
 
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
+
+  const runQuality = useCallback(
+    async (dataMartId: string) => {
+      try {
+        await dataQualityService.startRun(dataMartId);
+        toast.success('Data Quality run queued');
+        await refetchQuality();
+      } catch (caught) {
+        toast.error(extractErrorMessage(caught) ?? 'Failed to start Data Quality run');
+      }
+    },
+    [refetchQuality]
+  );
+
+  const deleteDataMart = useCallback(async (dataMartId: string) => {
+    try {
+      await dataMartService.deleteDataMart(dataMartId);
+      trackEvent({
+        event: 'data_mart_deleted',
+        category: 'DataMart',
+        action: 'Delete',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'DeleteError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
+  const publishDataMart = useCallback(async (dataMartId: string) => {
+    try {
+      await dataMartService.publishDataMart(dataMartId);
+      await dataMartService.createSchemaActualizeTrigger(dataMartId);
+      trackEvent({
+        event: 'data_mart_published',
+        category: 'DataMart',
+        action: 'Publish',
+        context: dataMartId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to publish data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'PublishError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
+  const refreshCanvas = useCallback(async () => {
+    await Promise.allSettled([refetch(), refetchQuality()]);
+  }, [refetch, refetchQuality]);
+
+  const isLoading =
+    isTopologyLoading || (visibleDataMartIds.length > 0 && areQualitySummariesLoading);
+  const error = topologyError ?? qualitySummariesError;
 
   return (
     <div className='dm-card p-4'>
@@ -96,6 +225,12 @@ function ModelCanvasViewContent() {
         onRelChange={filters.setRel}
         searchQuery={filters.searchQuery}
         onSearchChange={filters.setSearchQuery}
+        onRefreshDataLastUpdated={() => {
+          // Meeting decision: the check covers what the user actually sees — the filtered set.
+          void refreshDataLastUpdated((filtered?.nodes ?? []).map(node => node.id));
+        }}
+        isRefreshingDataLastUpdated={isRefreshingDataLastUpdated}
+        canRefreshDataLastUpdated={Boolean(filtered && filtered.nodes.length > 0)}
       />
       {storageLoadError ? (
         <CanvasMessage role='alert'>
@@ -124,10 +259,12 @@ function ModelCanvasViewContent() {
         <CanvasMessage role='alert'>
           {extractErrorMessage(error) ?? 'Failed to load the data model'}
         </CanvasMessage>
-      ) : !data || data.nodes.length === 0 ? (
+      ) : !topology || topology.nodes.length === 0 ? (
         <CanvasMessage>No data marts in this storage</CanvasMessage>
-      ) : !filtered || filtered.nodes.length === 0 ? (
+      ) : !filteredTopology || filteredTopology.nodes.length === 0 ? (
         <CanvasMessage>No data marts match the current filters</CanvasMessage>
+      ) : !filtered ? (
+        <SkeletonList />
       ) : (
         <Suspense fallback={<SkeletonList />}>
           <ModelCanvas
@@ -142,6 +279,20 @@ function ModelCanvasViewContent() {
                 'noopener,noreferrer'
               );
             }}
+            onOpenQuality={dataMartId => {
+              navigate(`/data-marts/${dataMartId}/quality`);
+            }}
+            onRunQuality={runQuality}
+            topLeftControls={
+              <DataMartBulkActions
+                dataMarts={bulkActionDataMarts}
+                projectId={projectId ?? ''}
+                deleteDataMart={deleteDataMart}
+                publishDataMart={publishDataMart}
+                onCompleted={refreshCanvas}
+                targetScope='canvas'
+              />
+            }
             style={canvasStyle}
           />
         </Suspense>
@@ -150,10 +301,10 @@ function ModelCanvasViewContent() {
   );
 }
 
-export function ModelCanvasView() {
+export function ModelCanvasView({ onActiveQualityRunChange }: ModelCanvasViewProps) {
   return (
     <DataStorageProvider>
-      <ModelCanvasViewContent />
+      <ModelCanvasViewContent onActiveQualityRunChange={onActiveQualityRunChange} />
     </DataStorageProvider>
   );
 }

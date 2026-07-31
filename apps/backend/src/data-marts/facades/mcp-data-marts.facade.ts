@@ -2,6 +2,7 @@ import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
 import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { SortConfig } from '../dto/schemas/sort-config.schema';
+import type { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
 
@@ -91,6 +92,11 @@ export interface McpQueryDataMartResponse {
   rows: unknown[][];
   truncated: boolean;
   totals: Record<string, number | string | boolean | null> | null;
+  /**
+   * When the source tables behind this result last changed at the warehouse. Best effort —
+   * `coverage: 'unavailable'` with a null timestamp is a normal outcome, not a failure.
+   */
+  dataLastUpdated: SourceDataLastUpdated;
   dataMart: {
     id: string;
     title: string;

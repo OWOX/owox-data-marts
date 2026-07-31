@@ -169,6 +169,128 @@ describe('QueryDataMartTool', () => {
       );
     });
 
+    describe('data_last_updated', () => {
+      const baseResponse = {
+        columns: ['revenue'],
+        columnMetadata: [{ name: 'revenue', displayName: 'Revenue' }],
+        rows: [['42']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      };
+
+      const callTool = () =>
+        tool.handler({ data_mart_id: 'dm1', fields: ['revenue'] }, AUTH_CTX as never);
+
+      it('serialises the measured block and marks it as measured by OWOX', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'complete',
+            sources: [
+              { table: 'my-project.ds.orders', dataLastUpdatedAt: '2026-07-25T08:30:00.000Z' },
+            ],
+          },
+        });
+
+        const result = await callTool();
+
+        expect(result.structuredContent).toMatchObject({
+          data_last_updated: {
+            data_last_updated_at: '2026-07-25T08:30:00.000Z',
+            computed_at: '2026-07-28T00:00:00.000Z',
+            coverage: 'complete',
+            sources: [
+              {
+                table: 'my-project.ds.orders',
+                data_last_updated_at: '2026-07-25T08:30:00.000Z',
+              },
+            ],
+          },
+          calculation_origin: { data_last_updated: 'measured_by_owox' },
+        });
+      });
+
+      it('tells the model to attribute the time to the source tables, not to the data', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'complete',
+            sources: [],
+          },
+        });
+
+        const instruction = (await callTool()).structuredContent as { _instruction: string };
+
+        expect(instruction._instruction).toContain('SOURCE TABLES');
+        expect(instruction._instruction).toContain('2026-07-25T08:30:00.000Z');
+      });
+
+      it('flags partial coverage as a lower bound', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'partial',
+            sources: [
+              {
+                table: 'my-project.ds.sheet_feed',
+                dataLastUpdatedAt: null,
+                note: 'external table — data lives outside BigQuery, modification time not tracked',
+              },
+            ],
+          },
+        });
+
+        const result = await callTool();
+        const sc = result.structuredContent as {
+          _instruction: string;
+          data_last_updated: { sources: { note?: string }[] };
+        };
+
+        expect(sc._instruction).toContain('at least as recent as');
+        expect(sc.data_last_updated.sources[0].note).toContain('external table');
+      });
+
+      it('tells the model to say "not determined" rather than imply freshness when unknown', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: null,
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'unavailable',
+            sources: [],
+          },
+        });
+
+        const result = await callTool();
+        const sc = result.structuredContent as {
+          _instruction: string;
+          calculation_origin: { data_last_updated: string };
+        };
+
+        expect(sc.calculation_origin.data_last_updated).toBe('not_available');
+        expect(sc._instruction).toContain('could not determine it');
+      });
+
+      it('still answers when the block is missing entirely — it must never fail a paid query', async () => {
+        facade.queryDataMart.mockResolvedValue(baseResponse);
+
+        const result = await callTool();
+
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({
+          data_last_updated: { data_last_updated_at: null, coverage: 'unavailable' },
+          calculation_origin: { data_last_updated: 'not_available' },
+        });
+      });
+    });
+
     it('sets truncated: true when the facade signals truncation', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],

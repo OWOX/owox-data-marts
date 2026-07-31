@@ -39,6 +39,7 @@ import { toStructuredToolError } from '../mappers/mcp-error.mapper';
 import { buildDataMartUiPath } from './data-mart-ui-path';
 import { joinPublicOrigin } from './mcp-public-url.util';
 import { buildFieldTypeMatrixSection } from './field-type-matrix';
+import { unavailableSourceDataLastUpdated } from '../../../data-marts/dto/schemas/source-data-last-updated.schema';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -72,6 +73,11 @@ Using the results:
 - The totals block is separate from the rows.
 - Totals keys are technical output column names. Match a totals key to column_metadata[].name, not to a business-friendly columns label.
 - When you use aggregations, the rows include an extra "Row Count" column — the number of underlying rows in each group. It is grouping metadata, not one of your requested fields; ignore it unless the user asked how many rows a group contains.
+- data_last_updated answers "how current is what I am looking at?". Read it carefully before repeating it:
+  - data_last_updated_at is when the SOURCE TABLES last changed in the data warehouse. It is NOT a statement about which time period the data covers: a table rewritten today may have only backfilled figures for 2021. Say "the source tables were last updated on X", never "the data is fresh as of X".
+  - null means unknown, not old and not fresh. Say the warehouse does not report it, and do not infer staleness from it.
+  - coverage "partial" means some sources could not be read, so the real time can only be MORE recent than the one reported — present it as "at least as recent as X" and mention that the picture is incomplete. "unavailable" means nothing could be determined.
+  - Mention it unprompted when the user's question depends on recency (today's numbers, "latest", trends up to now) or when they are about to act on the result.
 
 If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000). Always use the source metadata in the response: name the Data Mart the answer came from, distinguish numbers calculated by OWOX from arithmetic you perform yourself, and clearly warn the user when rows were truncated.`;
   readonly zodSchema = queryDataMartInputSchema.shape;
@@ -99,6 +105,33 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       .describe(
         'Server-side totals keyed by technical output column name. Match each key to column_metadata[].name.'
       ),
+    // Fresh object literals, never a shared schema instance: a reused instance serialises as a
+    // JSON-Schema $ref, which some clients degrade to an untyped value.
+    data_last_updated: z.object({
+      data_last_updated_at: z
+        .string()
+        .nullable()
+        .describe(
+          'When the SOURCE TABLES last changed in the warehouse (ISO-8601 UTC), not a claim about which period the data covers. null = the warehouse does not report it; treat as unknown, never as stale or fresh.'
+        ),
+      computed_at: z
+        .string()
+        .describe('When this was measured. Computed live for this query; never cached.'),
+      coverage: z
+        .enum(['complete', 'partial', 'unavailable'])
+        .describe(
+          'complete = every source table resolved. partial = some could not be read, so the true time is at least as recent as reported. unavailable = nothing could be determined.'
+        ),
+      sources: z
+        .array(
+          z.object({
+            table: z.string(),
+            data_last_updated_at: z.string().nullable(),
+            note: z.string().optional(),
+          })
+        )
+        .describe('Per-table detail behind the value. Views are excluded deliberately.'),
+    }),
     source: z.object({
       data_mart: z.object({
         id: z.string(),
@@ -109,6 +142,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     calculation_origin: z.object({
       rows: z.literal('taken_from_owox'),
       totals: z.enum(['calculated_by_owox', 'not_available']),
+      data_last_updated: z.enum(['measured_by_owox', 'not_available']),
     }),
     _instruction: z.string(),
   };
@@ -184,6 +218,18 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const totalsKeyInstruction = res.totals
         ? ' Totals keys are technical output names; match them to column_metadata[].name, not to display labels.'
         : '';
+      // This block is auxiliary metadata: a query that produced rows must still answer even if it
+      // is missing, so an absent block degrades to "unavailable" rather than failing the call.
+      const dataLastUpdated = res.dataLastUpdated ?? unavailableSourceDataLastUpdated();
+      // Repeated per response because the failure mode is specific and costly: relaying a source
+      // modification time as if it were the recency of the data itself.
+      const dataLastUpdatedInstruction = dataLastUpdated.dataLastUpdatedAt
+        ? ` If you mention how current the data is, say the SOURCE TABLES were last updated at ${dataLastUpdated.dataLastUpdatedAt} — do not restate it as the data being fresh or complete up to then.${
+            dataLastUpdated.coverage === 'partial'
+              ? ' Coverage is partial, so treat that as "at least as recent as" and say the picture is incomplete.'
+              : ''
+          }`
+        : ' The source last-updated time is unknown here; if asked how current the data is, say OWOX could not determine it rather than implying it is fresh or stale.';
       const structuredContent = {
         columns: headerColumns,
         column_metadata: res.columnMetadata.map((column, index) => ({
@@ -197,6 +243,16 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         truncated: isTruncated,
         ...(isTruncated ? { truncation: { reasons: truncationReasons } } : {}),
         totals: res.totals,
+        data_last_updated: {
+          data_last_updated_at: dataLastUpdated.dataLastUpdatedAt,
+          computed_at: dataLastUpdated.computedAt,
+          coverage: dataLastUpdated.coverage,
+          sources: dataLastUpdated.sources.map(source => ({
+            table: source.table,
+            data_last_updated_at: source.dataLastUpdatedAt,
+            ...(source.note ? { note: source.note } : {}),
+          })),
+        },
         source: {
           data_mart: {
             id: res.dataMart.id,
@@ -210,10 +266,13 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         calculation_origin: {
           rows: 'taken_from_owox' as const,
           totals: res.totals ? ('calculated_by_owox' as const) : ('not_available' as const),
+          data_last_updated: dataLastUpdated.dataLastUpdatedAt
+            ? ('measured_by_owox' as const)
+            : ('not_available' as const),
         },
         _instruction: isTruncated
-          ? `IMPORTANT: Rows are incomplete. Tell the user explicitly that the result was truncated and that any conclusion based on rows may be incomplete. State the Data Mart source. Server-provided totals still cover all matching rows; do not describe a value you calculate from returned rows as an OWOX-calculated total.${totalsKeyInstruction}`
-          : `State which Data Mart supplied the data. Identify server-provided rows and totals as taken from or calculated by OWOX. If you perform arithmetic from those values yourself, label it as an AI-side calculation.${totalsKeyInstruction}`,
+          ? `IMPORTANT: Rows are incomplete. Tell the user explicitly that the result was truncated and that any conclusion based on rows may be incomplete. State the Data Mart source. Server-provided totals still cover all matching rows; do not describe a value you calculate from returned rows as an OWOX-calculated total.${totalsKeyInstruction}${dataLastUpdatedInstruction}`
+          : `State which Data Mart supplied the data. Identify server-provided rows and totals as taken from or calculated by OWOX. If you perform arithmetic from those values yourself, label it as an AI-side calculation.${totalsKeyInstruction}${dataLastUpdatedInstruction}`,
       };
 
       return {

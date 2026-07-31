@@ -16,6 +16,8 @@ export const TESTIDS = {
   datamartTabNav: 'datamartTabNav',
   datamartTabOverview: 'datamartTabOverview',
   datamartTabDataSetup: 'datamartTabDataSetup',
+  datamartTabQuality: 'datamartTabQuality',
+  runSelectedDataQuality: 'run-selected-data-quality',
   datamartPublishButton: 'datamartPublishButton',
   datamartDeleteButton: 'datamartDeleteButton',
   datamartTitleInput: 'datamartTitleInput',
@@ -47,6 +49,7 @@ export const TESTIDS = {
   runHistoryTable: 'runHistoryTable',
   runHistoryEmptyState: 'runHistoryEmptyState',
   runLogView: 'runLogView',
+  dataQualityRunDetails: 'data-quality-run-details',
 
   // Notifications domain
   notifPage: 'notifPage',

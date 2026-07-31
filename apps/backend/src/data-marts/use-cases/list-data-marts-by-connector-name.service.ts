@@ -19,14 +19,13 @@ export class ListDataMartsByConnectorNameService {
       DataMartDefinitionType.CONNECTOR
     );
 
-    return dataMarts
-      .filter(dm => {
-        if (!dm.definition || dm.definitionType !== DataMartDefinitionType.CONNECTOR) {
-          return false;
-        }
-        const connectorDef = dm.definition as unknown as ConnectorDefinition;
-        return connectorDef?.connector?.source?.name === command.connectorName;
-      })
-      .map(dm => this.mapper.toDomainDto(dm));
+    const matchingDataMarts = dataMarts.filter(dm => {
+      if (!dm.definition || dm.definitionType !== DataMartDefinitionType.CONNECTOR) {
+        return false;
+      }
+      const connectorDef = dm.definition as unknown as ConnectorDefinition;
+      return connectorDef?.connector?.source?.name === command.connectorName;
+    });
+    return matchingDataMarts.map(dm => this.mapper.toDomainDto(dm));
   }
 }

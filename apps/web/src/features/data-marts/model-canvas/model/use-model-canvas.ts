@@ -5,7 +5,12 @@ import type { AxiosRequestConfig } from '../../../../app/api';
 import { dataMartService } from '../../shared/services/data-mart.service';
 import type { DataMartSchema } from '../../shared/types/data-mart-schema.types';
 import { modelCanvasService } from '../api/model-canvas.service';
-import type { CanvasNodeField, ModelCanvasData, ModelCanvasNode } from './types';
+import type { CanvasNodeField, ModelCanvasTopologyData, ModelCanvasTopologyNode } from './types';
+
+const SILENT_REQUEST_OPTIONS = {
+  skipLoadingIndicator: true,
+  skipErrorToast: true,
+} as const;
 
 /** Fetch detail for at most this many marts at once, to avoid a request stampede. */
 const ENRICH_CONCURRENCY = 6;
@@ -28,14 +33,13 @@ function mapSchemaFields(schema: DataMartSchema | null | undefined): CanvasNodeF
  * whole canvas.
  */
 async function enrichNodes(
-  nodes: ModelCanvasNode[],
+  nodes: ModelCanvasTopologyNode[],
   config: AxiosRequestConfig
-): Promise<ModelCanvasNode[]> {
+): Promise<ModelCanvasTopologyNode[]> {
   const enriched = [...nodes];
   const detailConfig: AxiosRequestConfig = {
     ...config,
-    skipLoadingIndicator: true,
-    skipErrorToast: true,
+    ...SILENT_REQUEST_OPTIONS,
   } as AxiosRequestConfig;
 
   for (let start = 0; start < enriched.length; start += ENRICH_CONCURRENCY) {
@@ -63,9 +67,9 @@ export function useModelCanvas(storageId: string | null) {
 
   const baseQuery = useQuery({
     queryKey: ['model-canvas', projectId, storageId],
-    queryFn: async ({ signal }): Promise<ModelCanvasData> => {
+    queryFn: async ({ signal }): Promise<ModelCanvasTopologyData> => {
       const id = storageId ?? '';
-      const config = { signal };
+      const config = { signal, ...SILENT_REQUEST_OPTIONS };
       const [nodes, edges] = await Promise.all([
         modelCanvasService.getDataMarts(id, config),
         modelCanvasService.getEdges(id, config),
@@ -95,7 +99,7 @@ export function useModelCanvas(storageId: string | null) {
 
   // Merge by id so a base refetch never resurrects stale titles/statuses from a
   // previously enriched snapshot — details contribute only their extra fields.
-  const data = useMemo((): ModelCanvasData | undefined => {
+  const data = useMemo((): ModelCanvasTopologyData | undefined => {
     if (!baseQuery.data) return undefined;
     const details = detailsQuery.data;
     if (!details) return baseQuery.data;
@@ -112,9 +116,7 @@ export function useModelCanvas(storageId: string | null) {
   }, [baseQuery.data, detailsQuery.data]);
 
   return {
+    ...baseQuery,
     data,
-    isLoading: baseQuery.isLoading,
-    isSuccess: baseQuery.isSuccess,
-    error: baseQuery.error,
   };
 }

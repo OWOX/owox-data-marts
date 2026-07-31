@@ -11,7 +11,17 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { BookOpenIcon, CalendarIcon, Globe, Info, Lock, Tags, Users } from 'lucide-react';
+import {
+  BookOpenIcon,
+  CalendarIcon,
+  Globe,
+  History,
+  Info,
+  Lock,
+  RefreshCw,
+  Tags,
+  Users,
+} from 'lucide-react';
 import { ContextPicker } from '../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { useInlineContextCreate } from '../../../features/contexts/hooks/useInlineContextCreate';
@@ -26,6 +36,8 @@ import {
 import type { UserProjectionDto } from '../../../shared/types/api';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { dataMartService } from '../../../features/data-marts/shared/services/data-mart.service';
+import { DataLastUpdatedValue } from '../../../features/data-marts/shared/components/DataLastUpdatedValue';
+import type { DataLastUpdatedDto } from '../../../features/data-marts/shared/types/api/response/data-mart-data-last-updated.dto';
 
 interface OutletContextType {
   dataMart: {
@@ -38,6 +50,7 @@ interface OutletContextType {
     availableForReporting?: boolean;
     availableForMaintenance?: boolean;
     contexts?: { id: string; name: string }[];
+    dataLastUpdated?: DataLastUpdatedDto | null;
   };
   updateDataMartOwners: (
     id: string,
@@ -59,6 +72,14 @@ export default function DataMartOverviewContent() {
     dataMart.availableForMaintenance !== false
   );
   const [contextIds, setContextIds] = useState<string[]>((dataMart.contexts ?? []).map(c => c.id));
+  // Only the refresh RESULT is state; the displayed value is derived. Mirroring the prop into
+  // state would let a later refetch (renaming the mart, toggling sharing) overwrite a fresh
+  // measurement with the older persisted snapshot — and an "unavailable" result is deliberately
+  // not persisted, so that revert would be silent and wrong.
+  const [refreshedDataLastUpdated, setRefreshedDataLastUpdated] =
+    useState<DataLastUpdatedDto | null>(null);
+  const [isRefreshingDataLastUpdated, setIsRefreshingDataLastUpdated] = useState(false);
+  const dataLastUpdated = refreshedDataLastUpdated ?? dataMart.dataLastUpdated ?? null;
 
   const isAdmin = useIsAdmin();
 
@@ -71,6 +92,30 @@ export default function DataMartOverviewContent() {
   useEffect(() => {
     setContextIds((dataMart.contexts ?? []).map(c => c.id));
   }, [dataMart.contexts]);
+
+  // A measurement belongs to ONE Data Mart. On a route-param-only navigation this component can
+  // stay mounted, and without the reset mart A's fresh result would render on mart B.
+  useEffect(() => {
+    setRefreshedDataLastUpdated(null);
+  }, [dataMart.id]);
+
+  const handleRefreshDataLastUpdated = useCallback(async () => {
+    setIsRefreshingDataLastUpdated(true);
+    try {
+      // The backend answers `coverage: "unavailable"` instead of erroring, so a catch here
+      // means transport, not "could not determine". An id it could not measure is absent from
+      // the response, in which case the previously known value stays on screen.
+      const { items } = await dataMartService.refreshDataLastUpdated([dataMart.id]);
+      const fresh = items.find(item => item.dataMartId === dataMart.id)?.dataLastUpdated;
+      if (fresh) {
+        setRefreshedDataLastUpdated(fresh);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to check Data Last Updated');
+    } finally {
+      setIsRefreshingDataLastUpdated(false);
+    }
+  }, [dataMart.id]);
 
   const handleAvailabilityChange = useCallback(
     async (reporting: boolean, maintenance: boolean) => {
@@ -425,6 +470,56 @@ export default function DataMartOverviewContent() {
                     }).format(new Date(dataMart.createdAt))}
                   </div>
                 </div>
+              </div>
+            </div>
+            <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+              <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
+                <span>Data Last Updated</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    When this Data Mart&apos;s source tables last changed in the storage — not which
+                    period the data covers
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className='flex items-center gap-2'>
+                <div className='inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
+                  <div className='flex aspect-square h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-white/10'>
+                    <History
+                      className='text-muted-foreground size-3.5 shrink-0 transition-colors'
+                      aria-hidden='true'
+                    />
+                  </div>
+                  <div className='text-muted-foreground min-w-0 truncate text-sm leading-tight'>
+                    <DataLastUpdatedValue block={dataLastUpdated} compact />
+                  </div>
+                </div>
+                <button
+                  type='button'
+                  onClick={() => void handleRefreshDataLastUpdated()}
+                  disabled={isRefreshingDataLastUpdated}
+                  aria-label='Check Data Last Updated now'
+                  title='Check now'
+                  className='text-muted-foreground hover:text-foreground flex aspect-square h-7 w-7 items-center justify-center rounded-full border bg-white transition-colors disabled:opacity-50 dark:bg-white/10'
+                >
+                  <RefreshCw
+                    className={`size-3.5 shrink-0 ${isRefreshingDataLastUpdated ? 'animate-spin' : ''}`}
+                    aria-hidden='true'
+                  />
+                </button>
               </div>
             </div>
             {dataMart.createdByUser && (

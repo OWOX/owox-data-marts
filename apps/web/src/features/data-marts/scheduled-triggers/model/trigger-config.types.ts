@@ -30,7 +30,12 @@ export interface ScheduledConnectorRunConfig {
   connector?: ConnectorDefinitionConfig;
 }
 
+export type ScheduledDataQualityRunConfig = null;
+
 /**
  * Union type of all possible trigger configurations
  */
-export type ScheduledTriggerConfig = ScheduledReportRunConfig | ScheduledConnectorRunConfig;
+export type ScheduledTriggerConfig =
+  | ScheduledReportRunConfig
+  | ScheduledConnectorRunConfig
+  | ScheduledDataQualityRunConfig;

@@ -13,4 +13,5 @@ export enum DataMartColumnKey {
   CONTEXTS = 'contexts',
   AVAILABLE_FOR_REPORTING = 'availableForReporting',
   AVAILABLE_FOR_MAINTENANCE = 'availableForMaintenance',
+  DATA_LAST_UPDATED = 'dataLastUpdated',
 }

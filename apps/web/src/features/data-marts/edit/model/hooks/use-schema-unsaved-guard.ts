@@ -7,6 +7,7 @@ export type SchemaGuardIntent = 'ai' | 'refresh' | 'publish' | 'definition' | 'n
 export type ResolvedSchema = DataMartSchema | null | undefined;
 
 export interface SchemaGuardRegistration {
+  changeLabel?: string;
   isDirty: () => boolean;
   getSchema: () => ResolvedSchema;
   save: () => Promise<ResolvedSchema>;
@@ -22,7 +23,9 @@ export interface SchemaUnsavedGuard {
   dialog: {
     open: boolean;
     intent: SchemaGuardIntent;
+    changeLabel: string;
     isSaving: boolean;
+    errorMessage: string | null;
     onSaveAndContinue: () => void;
     onDiscardAndContinue: () => void;
     onCancel: () => void;
@@ -31,17 +34,17 @@ export interface SchemaUnsavedGuard {
 
 export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
   const registrationRef = useRef<SchemaGuardRegistration | null>(null);
-  const isSchemaDirtyRef = useRef(false);
   const pendingActionRef = useRef<GuardedAction | null>(null);
   const [isSchemaDirty, setIsSchemaDirty] = useState(false);
   const [open, setOpen] = useState(false);
   const [intent, setIntent] = useState<SchemaGuardIntent>('refresh');
   const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const registerSchemaGuard = useCallback((registration: SchemaGuardRegistration | null) => {
     registrationRef.current = registration;
+    setErrorMessage(null);
     const nextIsDirty = registration?.isDirty() ?? false;
-    isSchemaDirtyRef.current = nextIsDirty;
     setIsSchemaDirty(nextIsDirty);
   }, []);
 
@@ -67,6 +70,7 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
         blockerRef.current.proceed?.();
       };
       setIntent('navigation');
+      setErrorMessage(null);
       setOpen(true);
     }
   }, [blocker]);
@@ -95,6 +99,7 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
         return;
       }
       setIntent(opts.intent);
+      setErrorMessage(null);
       setOpen(true);
     },
     [runAction]
@@ -108,18 +113,18 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
     }
     void (async () => {
       setIsSaving(true);
+      setErrorMessage(null);
       let resolved: ResolvedSchema;
       try {
         resolved = await registration.save();
-      } catch {
+      } catch (error) {
         setIsSaving(false);
-        // Keep the dialog open; the user keeps their unsaved changes.
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to save changes');
         return;
       }
       // Mark the registration as clean immediately so any navigation inside
       // the pending action is not blocked by the stale dirty flag.
       registrationRef.current = { ...registration, isDirty: () => false };
-      isSchemaDirtyRef.current = false;
       setIsSchemaDirty(false);
       setIsSaving(false);
       setOpen(false);
@@ -135,8 +140,8 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
     if (registration) {
       registrationRef.current = { ...registration, isDirty: () => false };
     }
-    isSchemaDirtyRef.current = false;
     setIsSchemaDirty(false);
+    setErrorMessage(null);
     setOpen(false);
     void runAction(resolved);
   }, [runAction]);
@@ -146,6 +151,7 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
     if (blockerRef.current.state === 'blocked') {
       blockerRef.current.reset();
     }
+    setErrorMessage(null);
     setOpen(false);
   }, []);
 
@@ -153,6 +159,15 @@ export function useSchemaUnsavedGuard(): SchemaUnsavedGuard {
     isSchemaDirty,
     registerSchemaGuard,
     runGuarded,
-    dialog: { open, intent, isSaving, onSaveAndContinue, onDiscardAndContinue, onCancel },
+    dialog: {
+      open,
+      intent,
+      changeLabel: registrationRef.current?.changeLabel ?? 'schema',
+      isSaving,
+      errorMessage,
+      onSaveAndContinue,
+      onDiscardAndContinue,
+      onCancel,
+    },
   };
 }

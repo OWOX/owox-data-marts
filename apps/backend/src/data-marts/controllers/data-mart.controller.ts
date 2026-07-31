@@ -7,7 +7,7 @@ import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/bat
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
-import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunDetailResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { ListDataMartsQueryApiDto } from '../dto/presentation/list-data-marts-query-api.dto';
@@ -42,12 +42,16 @@ import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-ava
 import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { RefreshDataMartDataLastUpdatedService } from '../use-cases/refresh-data-mart-data-last-updated.service';
+import { BatchDataMartDataLastUpdatedResponseApiDto } from '../dto/presentation/data-mart-data-last-updated-response-api.dto';
+import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { AiInsightsConfigService } from '../../common/ai-insights/services/ai-insights-config.service';
 import { ContextAccessService } from '../services/context/context-access.service';
 import { UpdateEntityContextsRequestApiDto } from '../dto/presentation/context-api.dto';
 import {
   BatchDataMartHealthStatusSpec,
+  RefreshDataMartDataLastUpdatedSpec,
   CancelDataMartRunSpec,
   CreateDataMartSpec,
   DeleteDataMartSpec,
@@ -99,7 +103,8 @@ export class DataMartController {
     private readonly getBlendableSchemaService: GetBlendableSchemaService,
     private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService,
     private readonly contextAccessService: ContextAccessService,
-    private readonly aiInsightsConfig: AiInsightsConfigService
+    private readonly aiInsightsConfig: AiInsightsConfigService,
+    private readonly refreshDataLastUpdatedService: RefreshDataMartDataLastUpdatedService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -341,10 +346,23 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
     @Param('runId') runId: string
-  ): Promise<DataMartRunResponseApiDto> {
+  ): Promise<DataMartRunDetailResponseApiDto> {
     const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
     const runDto = await this.getDataMartRunService.run(command);
-    return this.mapper.toRunResponse(runDto);
+    return this.mapper.toRunDetailResponse(runDto);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Post('data-last-updated/refresh')
+  @HttpCode(200)
+  @RefreshDataMartDataLastUpdatedSpec()
+  async refreshDataLastUpdated(
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto: RefreshDataMartDataLastUpdatedRequestApiDto
+  ): Promise<BatchDataMartDataLastUpdatedResponseApiDto> {
+    const command = this.mapper.toRefreshDataLastUpdatedCommand(dto, context);
+    const results = await this.refreshDataLastUpdatedService.run(command);
+    return this.mapper.toBatchDataLastUpdatedResponse(results);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

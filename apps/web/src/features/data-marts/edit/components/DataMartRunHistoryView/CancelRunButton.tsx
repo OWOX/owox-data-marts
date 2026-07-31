@@ -46,6 +46,7 @@ interface CancelRunButtonProps {
   variant?: 'destructive' | 'secondary';
   iconClassName?: string;
   labelClassName?: string;
+  isDataQuality?: boolean;
 }
 
 export function CancelRunButton({
@@ -56,6 +57,7 @@ export function CancelRunButton({
   variant = 'secondary',
   iconClassName = 'size-3',
   labelClassName = 'hidden sm:inline',
+  isDataQuality = false,
 }: CancelRunButtonProps) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -102,7 +104,11 @@ export function CancelRunButton({
         open={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
         title='Cancel run?'
-        description='This will request cancellation and stop the run if it is still in progress. Cancelling a run may result in incomplete data.'
+        description={
+          isDataQuality
+            ? 'This stops the Data Quality run between checks. Results already completed will remain available.'
+            : 'This will request cancellation and stop the run if it is still in progress. Cancelling a run may result in incomplete data.'
+        }
         confirmLabel='Cancel run'
         cancelLabel='Keep running'
         confirmDisabled={isCancelling}

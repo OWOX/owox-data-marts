@@ -16,6 +16,11 @@ interface ReactFlowStubProps {
     position: { x: number; y: number };
     width?: number;
     height?: number;
+    data?: {
+      onOpenQuality?: () => void;
+      onRunQuality?: () => Promise<void>;
+      qualitySummary?: { state: string };
+    };
   }[];
   onMove?: (event: unknown, viewport: ViewportStub) => void;
 }
@@ -27,6 +32,26 @@ const reactFlow = vi.hoisted(() => ({
   setViewport: vi.fn().mockResolvedValue(undefined),
   latestProps: null as ReactFlowStubProps | null,
   store: { width: 800, height: 600 },
+}));
+
+const layout = vi.hoisted(() => ({
+  runDagreLayout: vi.fn(
+    (
+      nodes: { id: string }[]
+    ): {
+      positions: Map<string, { x: number; y: number }>;
+      routes: Map<string, { x: number; y: number }[]>;
+      labelPositions: Map<string, { x: number; y: number }>;
+    } => ({
+      positions: new Map(nodes.map((node, index) => [node.id, { x: index * 300, y: 0 }])),
+      routes: new Map(),
+      labelPositions: new Map(),
+    })
+  ),
+}));
+
+vi.mock('../model/graph/dagre-layout', () => ({
+  runDagreLayout: layout.runDagreLayout,
 }));
 
 vi.mock('@xyflow/react', () => ({
@@ -74,6 +99,8 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
           },
           {
             id: 'customers',
@@ -81,11 +108,15 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 2,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
           },
         ]}
         edges={[]}
         searchQuery='orders'
         onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -117,6 +148,8 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
           },
           {
             id: 'customers',
@@ -124,11 +157,15 @@ describe('ModelCanvas', () => {
             status: DataMartStatus.PUBLISHED,
             description: null,
             fieldCount: 2,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
           },
         ]}
         edges={[]}
         searchQuery=''
         onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
       />
     );
 
@@ -147,4 +184,145 @@ describe('ModelCanvas', () => {
       zoom: 1,
     });
   });
+
+  it('binds Quality navigation and run actions to the matching Data Mart id', async () => {
+    const onOpenQuality = vi.fn();
+    const onRunQuality = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ModelCanvas
+        nodes={[
+          {
+            id: 'orders',
+            title: 'Orders',
+            status: DataMartStatus.PUBLISHED,
+            description: null,
+            fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={onOpenQuality}
+        onRunQuality={onRunQuality}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes).toHaveLength(1);
+    });
+    reactFlow.latestProps?.nodes?.[0].data?.onOpenQuality?.();
+    await reactFlow.latestProps?.nodes?.[0].data?.onRunQuality?.();
+
+    expect(onOpenQuality).toHaveBeenCalledWith('orders');
+    expect(onRunQuality).toHaveBeenCalledWith('orders');
+  });
+
+  it('renders supplied controls in the top-left canvas overlay', () => {
+    render(
+      <ModelCanvas
+        nodes={[
+          {
+            id: 'orders',
+            title: 'Orders',
+            status: DataMartStatus.PUBLISHED,
+            description: null,
+            fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+        topLeftControls={<button type='button'>Actions 1</button>}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Actions 1' })).toBeVisible();
+  });
+
+  it('updates quality status without rerunning layout or fitting the viewport', async () => {
+    const node = {
+      id: 'orders',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      description: null,
+      fieldCount: 3,
+      qualitySummary: buildQualitySummary(),
+      dataLastUpdated: null,
+    };
+    const { rerender } = render(
+      <ModelCanvas
+        nodes={[node]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+      expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <ModelCanvas
+        nodes={[
+          {
+            ...node,
+            qualitySummary: {
+              ...node.qualitySummary,
+              state: 'PASSED',
+              passedChecks: 1,
+              lastRunAt: '2026-07-28T00:00:00.000Z',
+            },
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes?.[0].data?.qualitySummary?.state).toBe('PASSED');
+    });
+    expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+    expect(reactFlow.fitView).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+    expect(reactFlow.latestProps?.nodes?.[0].data?.qualitySummary?.state).toBe('PASSED');
+  });
 });
+
+function buildQualitySummary() {
+  return {
+    state: 'NEVER_RUN' as const,
+    enabledChecks: 1,
+    totalChecks: 0,
+    passedChecks: 0,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+    dataMartRunId: null,
+    lastRunAt: null,
+  };
+}

@@ -10,6 +10,10 @@ import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '
 import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../model/object-labels';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
+import type { DataQualityCompactSummary } from '../../shared/types';
+import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
+import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
+import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
 
 export interface ModelCanvasFlowNodeData {
   title: string;
@@ -20,12 +24,16 @@ export interface ModelCanvasFlowNodeData {
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;
   objectLabels?: ObjectLabelsHidden;
+  dataLastUpdated: DataLastUpdatedDto | null;
   hasIncoming: boolean;
   hasOutgoing: boolean;
   highlighted: boolean;
   dimmed: boolean;
   direction: CanvasDirection;
   onOpenExternal: () => void;
+  qualitySummary: DataQualityCompactSummary;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 export type ModelCanvasFlowNodeType = Node<
@@ -163,15 +171,25 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
 
       {/* Meta row: definition badge + field count. Skipped entirely when both are hidden. */}
       {(withSource || withFieldCount) && (
-        <div className='flex items-center gap-2 px-3.5 pt-1 pb-3'>
+        <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
           {withSource && <ErdDefinitionBadge type={data.definitionType} />}
           {withFieldCount && (
-            <span className='text-muted-foreground text-[11px]'>
+            <span className='ml-auto shrink-0'>
               {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
             </span>
           )}
         </div>
       )}
+      {/* Status icons row: quality shield + data-last-updated clock */}
+      <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
+        <DataQualityCanvasStatusIcon
+          dataMartTitle={data.title}
+          summary={data.qualitySummary}
+          onOpenQuality={data.onOpenQuality}
+          onRunQuality={data.onRunQuality}
+        />
+        <DataLastUpdatedCanvasIcon dataMartTitle={data.title} block={data.dataLastUpdated} />
+      </div>
 
       {/* ERD body: field rows (only in ERD view) */}
       {showBody && (

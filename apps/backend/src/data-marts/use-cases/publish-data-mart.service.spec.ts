@@ -53,7 +53,6 @@ describe('PublishDataMartService', () => {
     const advancedSearchIndexSync = {
       scheduleReindex: jest.fn().mockResolvedValue(undefined),
     };
-
     const service = new (PublishDataMartService as any)(
       dataMartService as any,
       definitionValidatorFacade as any,

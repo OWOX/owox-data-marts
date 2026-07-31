@@ -41,7 +41,6 @@ describe('UpdateDataMartDefinitionService', () => {
     const eventDispatcher = {
       publishExternal: jest.fn(),
     };
-
     const service = new UpdateDataMartDefinitionService(
       dataMartService as any,
       mapper as any,

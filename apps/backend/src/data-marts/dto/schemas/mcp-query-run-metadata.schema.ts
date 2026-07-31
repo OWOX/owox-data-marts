@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SourceDataLastUpdatedSchema } from './source-data-last-updated.schema';
 
 export const McpQueryRunMetadataSchema = z.object({
   columns: z.array(z.string()),
@@ -17,6 +18,11 @@ export const McpQueryRunMetadataSchema = z.object({
       limit: z.number().int().positive(),
     })
     .optional(),
+  /**
+   * Snapshot of when the source tables had last changed at the moment this run executed.
+   * Optional so runs recorded before this field existed still parse.
+   */
+  dataLastUpdated: SourceDataLastUpdatedSchema.optional(),
 });
 
 export type McpQueryRunMetadata = z.infer<typeof McpQueryRunMetadataSchema>;
