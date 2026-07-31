@@ -680,6 +680,9 @@ describe('RunReportService', () => {
       report.dataMart.id,
       measured
     );
+    // The in-memory entity must carry the fresh value too: Report.dataMart is saved with
+    // cascade when the run finishes, and a stale snapshot would overwrite the persisted column.
+    expect(report.dataMart.dataLastUpdated).toEqual(measured);
   });
 
   it('measures the blended SQL and journals WITHOUT persisting for a blended run', async () => {
@@ -739,6 +742,7 @@ describe('RunReportService', () => {
     expect(dataMartRun.reportDefinition!.dataLastUpdated).toEqual(measured);
     // A blended measurement spans several Data Marts and would overstate this one.
     expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalled();
+    expect(report.dataMart.dataLastUpdated).toBeUndefined();
   });
 
   it('stores reportDefinition.executionSqlQuery (inlined SQL) when output controls are present', async () => {

@@ -454,6 +454,10 @@ export class RunReportService {
       dataMartRun.reportDefinition.dataLastUpdated = dataLastUpdated;
     }
     if (!needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
+      // Also refresh the in-memory entity: `dataMart` is the same instance as
+      // `report.dataMart` (cascade: true), and Report is fully re-saved when the run
+      // finishes — a stale in-memory snapshot would cascade over the value written below.
+      dataMart.dataLastUpdated = dataLastUpdated;
       try {
         await this.dataMartService.updateDataLastUpdated(dataMart.id, dataLastUpdated);
       } catch (error) {
