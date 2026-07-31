@@ -3,6 +3,7 @@ import { FilterConfigSchema } from './filter-config.schema';
 import { SortConfigSchema } from './sort-config.schema';
 import { AggregationConfigSchema } from './aggregation-config.schema';
 import { DateTruncConfigSchema } from './date-trunc-config.schema';
+import { SourceDataLastUpdatedSchema } from './source-data-last-updated.schema';
 
 export const HTTP_DATA_FORMAT = 'ndjson' as const;
 
@@ -33,6 +34,11 @@ export const HttpDataRunMetadataSchema = z.object({
   // Fully-composed executed SQL (output controls inlined as literals). Present only for the
   // report-level HTTP Data endpoint, and only when output controls / blending produced an override.
   executionSqlQuery: z.string().optional(),
+  /**
+   * Snapshot of when the source tables had last changed at the moment this run executed.
+   * Optional so runs recorded before this field existed still parse.
+   */
+  dataLastUpdated: SourceDataLastUpdatedSchema.optional(),
 });
 
 export type HttpDataRunMetadata = z.infer<typeof HttpDataRunMetadataSchema>;

@@ -43,7 +43,9 @@ import {
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -114,7 +116,8 @@ export class RunReportService {
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly consumptionTrackingService: ConsumptionTrackingService
+    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService
   ) {}
 
   /**
@@ -246,6 +249,18 @@ export class RunReportService {
       );
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
 
+      // Data Last Updated rides along with the run (meeting decision: measure when data is
+      // delivered anyway). Started here so it overlaps the read/write below; the service never
+      // rejects and caps itself, so it cannot fail or stall the run.
+      const dataLastUpdatedPromise = blendingDecision.needsBlending
+        ? this.sourceDataLastUpdatedService.resolveForSql({
+            storage: dataMart.storage,
+            sql: blendingDecision.blendedSql ?? '',
+            params: blendingDecision.params,
+            signal,
+          })
+        : this.sourceDataLastUpdatedService.resolveForDefinition({ dataMart, signal });
+
       reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
       reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
 
@@ -310,6 +325,13 @@ export class RunReportService {
         await reportWriter.writeReportDataBatch(batch);
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       }
+
+      await this.recordDataLastUpdated(
+        dataLastUpdatedPromise,
+        dataMart,
+        blendingDecision.needsBlending,
+        dataMartRun
+      );
     } catch (error) {
       processingError = error;
       throw error;
@@ -411,6 +433,37 @@ export class RunReportService {
     }
 
     this.logger.debug(`${stopReason} for report ${reportId}`);
+  }
+
+  /**
+   * Journals the run-time Data Last Updated snapshot onto the run record (persisted when the run
+   * finishes) and, for a NON-blended run only, saves it as the Data Mart's last-known value: a
+   * non-blended run reads exactly the Data Mart's own sources, so the measurement carries the
+   * same meaning as the manual Check now. A blended run spans several Data Marts and would
+   * overstate this one, so it journals only. Entirely best-effort — a run that delivered data
+   * must never fail over its metadata.
+   */
+  private async recordDataLastUpdated(
+    dataLastUpdatedPromise: Promise<SourceDataLastUpdated>,
+    dataMart: DataMart,
+    needsBlending: boolean,
+    dataMartRun?: DataMartRun
+  ): Promise<void> {
+    const dataLastUpdated = await dataLastUpdatedPromise;
+    if (dataMartRun?.reportDefinition) {
+      dataMartRun.reportDefinition.dataLastUpdated = dataLastUpdated;
+    }
+    if (!needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
+      try {
+        await this.dataMartService.updateDataLastUpdated(dataMart.id, dataLastUpdated);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to persist data last updated for data mart ${dataMart.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
   }
 
   private async *readReportBatches(

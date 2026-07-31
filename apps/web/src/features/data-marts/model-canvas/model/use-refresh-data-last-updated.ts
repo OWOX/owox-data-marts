@@ -62,6 +62,9 @@ export function useRefreshDataLastUpdated(storageId: string | null) {
           return;
         }
 
+        toast.success(
+          `Data Last Updated checked for ${String(measured.size)} data mart${measured.size === 1 ? '' : 's'}`
+        );
         queryClient.setQueryData<ModelCanvasTopologyData>(
           ['model-canvas', projectId, storageId],
           previous =>

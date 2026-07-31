@@ -44,8 +44,8 @@ export function DataLastUpdatedCanvasIcon({
           <DataLastUpdatedDetails block={block} />
         ) : (
           <div className='text-xs'>
-            Data Last Updated has not been checked yet. Use the toolbar button to measure the
-            visible Data Marts.
+            Data Last Updated has not been checked yet. Use Actions → Data Last Updated to measure
+            the visible Data Marts.
           </div>
         )}
       </TooltipContent>

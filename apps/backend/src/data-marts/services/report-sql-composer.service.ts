@@ -53,7 +53,7 @@ export class ReportSqlComposerService {
     precomputedDecision?: BlendingDecision,
     // Reuse an already-resolved schema (totals path) so the decision isn't recomputed.
     precomputedBlendableSchema?: BlendableSchemaDto
-  ): Promise<{ sql: string; params?: SqlParameter[] }> {
+  ): Promise<{ sql: string; params?: SqlParameter[]; needsBlending: boolean }> {
     const decision =
       precomputedDecision ??
       (await this.blendedReportDataService.resolveBlendingDecision(
@@ -65,7 +65,7 @@ export class ReportSqlComposerService {
     // Post-join aggregation is built into the blended SQL by BlendedReportDataService,
     // so the blended path below already carries any aggregation / date-trunc / row-count.
     if (decision.needsBlending && decision.blendedSql) {
-      return { sql: decision.blendedSql, params: decision.params };
+      return { sql: decision.blendedSql, params: decision.params, needsBlending: true };
     }
 
     if (decision.needsBlending && !decision.blendedSql) {
@@ -147,9 +147,9 @@ export class ReportSqlComposerService {
     );
 
     if (isQueryBuildResult(queryResult)) {
-      return { sql: queryResult.sql, params: queryResult.params };
+      return { sql: queryResult.sql, params: queryResult.params, needsBlending: false };
     }
-    return { sql: queryResult };
+    return { sql: queryResult, needsBlending: false };
   }
 
   /**

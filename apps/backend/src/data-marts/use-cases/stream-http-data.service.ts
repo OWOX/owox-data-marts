@@ -35,6 +35,7 @@ import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
+import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import {
@@ -131,7 +132,8 @@ export class StreamHttpDataService {
     @Inject(DATA_STORAGE_ERROR_MAPPER_RESOLVER)
     private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>,
     private readonly reportTotalsService: ReportTotalsService,
-    private readonly reportService: ReportService
+    private readonly reportService: ReportService,
+    private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService
   ) {}
 
   async stream(command: StreamHttpDataCommand, res: Response): Promise<void> {
@@ -297,6 +299,16 @@ export class StreamHttpDataService {
         throw new InternalServerErrorException('Blended SQL was not produced for this Data Mart');
       }
 
+      // Data Last Updated rides along with the stream (meeting decision: measure when data is
+      // delivered anyway). Never rejects, self-capped — cannot fail or stall the stream.
+      const dataLastUpdatedPromise = decision.needsBlending
+        ? this.sourceDataLastUpdatedService.resolveForSql({
+            storage: dataMart.storage,
+            sql: decision.blendedSql ?? '',
+            params: decision.params,
+          })
+        : this.sourceDataLastUpdatedService.resolveForDefinition({ dataMart });
+
       let sqlOverride: string | undefined = decision.blendedSql;
       let sqlOverrideParams = decision.params;
       if (!decision.needsBlending && hasOutputControls(readPlan)) {
@@ -326,6 +338,23 @@ export class StreamHttpDataService {
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
       // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
       const totals = await this.computeTotalsBestEffort(readPlan, accessor, dataMart);
+
+      // Journalled into the run metadata regardless of outcome; persisted as the Data Mart's
+      // last-known value only when the stream reads exactly this Data Mart's own sources (a
+      // blended stream spans several Data Marts and would overstate this one).
+      const dataLastUpdated = await dataLastUpdatedPromise;
+      baseMetadata.dataLastUpdated = dataLastUpdated;
+      if (!decision.needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
+        try {
+          await this.dataMartService.updateDataLastUpdated(dataMart.id, dataLastUpdated);
+        } catch (persistError) {
+          this.logger.warn(
+            `Failed to persist data last updated for data mart ${dataMart.id}: ${
+              persistError instanceof Error ? persistError.message : String(persistError)
+            }`
+          );
+        }
+      }
 
       // Aggregated reports rename headers to "<column> | <FN>" and append Row Count, so project by
       // the resolved header names. A report always projects by resolved headers — correct for both

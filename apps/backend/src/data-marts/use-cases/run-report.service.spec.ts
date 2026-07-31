@@ -54,6 +54,21 @@ describe('RunReportService', () => {
       actualizeSchemaInEntity: jest.fn().mockResolvedValue(undefined),
       saveActualizedSchema: jest.fn().mockResolvedValue(undefined),
       save: jest.fn().mockResolvedValue(undefined),
+      updateDataLastUpdated: jest.fn().mockResolvedValue(undefined),
+    };
+    const sourceDataLastUpdatedService = {
+      resolveForSql: jest.fn().mockResolvedValue({
+        dataLastUpdatedAt: null,
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'unavailable',
+        sources: [],
+      }),
+      resolveForDefinition: jest.fn().mockResolvedValue({
+        dataLastUpdatedAt: null,
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'unavailable',
+        sources: [],
+      }),
     };
     const availableDestinationTypesService = {
       verifyIsAllowed: jest.fn(),
@@ -104,7 +119,8 @@ describe('RunReportService', () => {
       blendedReportDataService as never,
       reportSqlComposerService as never,
       { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never,
-      consumptionTrackingService as never
+      consumptionTrackingService as never,
+      sourceDataLastUpdatedService as never
     );
 
     return {
@@ -114,6 +130,7 @@ describe('RunReportService', () => {
       projectBalanceService,
       blendedReportDataService,
       dataMartService,
+      sourceDataLastUpdatedService,
       availableDestinationTypesService,
       reportRunService,
       reportRunTriggerService,
@@ -608,6 +625,120 @@ describe('RunReportService', () => {
     expect(writer.finalize).toHaveBeenCalledWith(undefined, {
       mainRowsTruncationInfo: null,
     });
+  });
+
+  it('journals data last updated on the run record and persists it for a NON-blended run', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      sourceDataLastUpdatedService,
+      dataMartService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({ needsBlending: false });
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete' as const,
+      sources: [{ table: 'p.d.t', dataLastUpdatedAt: '2026-07-30T08:00:00.000Z' }],
+    };
+    sourceDataLastUpdatedService.resolveForDefinition.mockResolvedValue(measured);
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    // Journalled on the run record (persisted at finish), and — since a non-blended run reads
+    // exactly this Data Mart's own sources — saved as the last-known value too.
+    expect(dataMartRun.reportDefinition!.dataLastUpdated).toEqual(measured);
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith(
+      report.dataMart.id,
+      measured
+    );
+  });
+
+  it('measures the blended SQL and journals WITHOUT persisting for a blended run', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      sourceDataLastUpdatedService,
+      dataMartService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
+      needsBlending: true,
+      blendedSql: 'SELECT blended',
+      params: [],
+    });
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete' as const,
+      sources: [],
+    };
+    sourceDataLastUpdatedService.resolveForSql.mockResolvedValue(measured);
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(sourceDataLastUpdatedService.resolveForSql).toHaveBeenCalledWith(
+      expect.objectContaining({ sql: 'SELECT blended' })
+    );
+    expect(sourceDataLastUpdatedService.resolveForDefinition).not.toHaveBeenCalled();
+    expect(dataMartRun.reportDefinition!.dataLastUpdated).toEqual(measured);
+    // A blended measurement spans several Data Marts and would overstate this one.
+    expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalled();
   });
 
   it('stores reportDefinition.executionSqlQuery (inlined SQL) when output controls are present', async () => {

@@ -15,8 +15,12 @@ describe('SourceDataLastUpdatedService', () => {
     sources: [{ table: 'my-project.ds.orders', dataLastUpdatedAt: '2026-07-25T08:30:00.000Z' }],
   };
 
+  const queryBuilderFacade = {
+    buildQuery: jest.fn().mockResolvedValue({ sql: 'SELECT * FROM t', params: [] }),
+  };
+
   const createService = (registry: { tryResolve: jest.Mock }) =>
-    new SourceDataLastUpdatedService(registry as never);
+    new SourceDataLastUpdatedService(registry as never, queryBuilderFacade as never);
 
   const withResolver = (resolveForSqlBatch: jest.Mock) =>
     createService({ tryResolve: jest.fn().mockResolvedValue({ resolveForSqlBatch }) });

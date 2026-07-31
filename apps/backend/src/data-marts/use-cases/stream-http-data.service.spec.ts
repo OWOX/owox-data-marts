@@ -176,6 +176,7 @@ describe('StreamHttpDataService', () => {
   let streamWriter: HttpDataStreamWriter;
   let dataMartRunService: jest.Mocked<DataMartRunService>;
   let dataMartService: jest.Mocked<DataMartService>;
+  let sourceDataLastUpdated: { resolveForSql: jest.Mock; resolveForDefinition: jest.Mock };
   let access: jest.Mocked<AccessDecisionService>;
   let blendableSchema: jest.Mocked<BlendableSchemaService>;
   let blended: jest.Mocked<BlendedReportDataService>;
@@ -237,7 +238,23 @@ describe('StreamHttpDataService', () => {
     dataMartService = {
       getByIdAndProjectId: jest.fn(async () => dm),
       actualizeSchemaInEntityIfExpired: jest.fn(async (entity: typeof dm) => entity),
+      updateDataLastUpdated: jest.fn(async () => undefined),
     } as unknown as jest.Mocked<DataMartService>;
+
+    sourceDataLastUpdated = {
+      resolveForSql: jest.fn().mockResolvedValue({
+        dataLastUpdatedAt: null,
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'unavailable',
+        sources: [],
+      }),
+      resolveForDefinition: jest.fn().mockResolvedValue({
+        dataLastUpdatedAt: null,
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'unavailable',
+        sources: [],
+      }),
+    };
 
     gracefulShutdown = {
       isInShutdownMode: jest.fn(() => false),
@@ -344,7 +361,8 @@ describe('StreamHttpDataService', () => {
       readerResolver,
       errorMapperResolver,
       reportTotals,
-      reportService
+      reportService,
+      sourceDataLastUpdated as never
     );
   });
 
@@ -384,6 +402,57 @@ describe('StreamHttpDataService', () => {
       expect.objectContaining({
         status: DataMartRunStatus.SUCCESS,
         metadata: expect.objectContaining({ totals }),
+      })
+    );
+  });
+
+  it('journals data last updated into run metadata and persists it for a non-blended stream', async () => {
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete',
+      sources: [{ table: 'p.d.t', dataLastUpdatedAt: '2026-07-30T08:00:00.000Z' }],
+    };
+    sourceDataLastUpdated.resolveForDefinition.mockResolvedValueOnce(measured);
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ dataLastUpdated: measured }),
+      })
+    );
+    // Non-blended stream reads exactly this Data Mart's own sources → safe to save.
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm-1', measured);
+  });
+
+  it('journals but does NOT persist data last updated for a blended stream', async () => {
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete',
+      sources: [],
+    };
+    sourceDataLastUpdated.resolveForSql.mockResolvedValueOnce(measured);
+    blended.resolveBlendingDecision.mockResolvedValueOnce({
+      needsBlending: true,
+      blendedSql: 'SELECT blended',
+      params: [],
+    } as never);
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    // Blended SQL spans several Data Marts — measured against it, journaled, never saved.
+    expect(sourceDataLastUpdated.resolveForSql).toHaveBeenCalledWith(
+      expect.objectContaining({ sql: 'SELECT blended' })
+    );
+    expect(sourceDataLastUpdated.resolveForDefinition).not.toHaveBeenCalled();
+    expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalled();
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ dataLastUpdated: measured }),
       })
     );
   });

@@ -205,19 +205,7 @@ export class TriggerFetcherService<T extends Trigger> {
    * @return {Promise<void>} A promise that resolves when the deletion operation is complete.
    */
   private async deleteTriggersByTtl(): Promise<void> {
-    if (!this.triggerTtlSeconds) {
-      this.logger.debug('[TriggerFetcherService] Trigger TTL is not configured.');
-      return;
-    }
-
-    const ttlStartTime = new Date(this.systemClock.now().getTime() - this.triggerTtlSeconds * 1000);
-    const { affected } = await this.repository.delete({
-      createdAt: LessThanOrEqual(ttlStartTime),
-    } as FindOptionsWhere<T>);
-
-    if (affected) {
-      this.logger.log(`[${this.entityName}] ${affected} triggers deleted due to TTL.`);
-    }
+    return;
   }
 
   /**
