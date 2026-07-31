@@ -22,3 +22,5 @@ export const OWOX_ORANGE_BASE = OWOX_PALETTE.orange[0];
 export const OWOX_RED_BASE = OWOX_PALETTE.red[0];
 export const OWOX_PURPLE_BASE = OWOX_PALETTE.purple[0];
 export const OWOX_GRAY_LIGHT = OWOX_PALETTE.gray[3];
+/** Meaning-carrying strokes (edges, borders, handles) need ≥3:1 on white — gray[3] fails WCAG 1.4.11. */
+export const OWOX_GRAY_DARK = OWOX_PALETTE.gray[2];

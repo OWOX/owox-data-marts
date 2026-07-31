@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
 import {
   DIMMED_OPACITY,
@@ -99,7 +100,12 @@ export default function ModelCanvasFlowEdge({
   }
 
   const color = warning ? WARNING_COLOR : selected ? OWOX_BLUE : EDGE_NEUTRAL_COLOR;
-  const markerId = edgeMarkerId('mc-arrow', id);
+  // useId is unique per rendered edge element, so two mounted canvases (e.g.
+  // inline + fullscreen) can never emit duplicate SVG marker ids — a duplicate
+  // would make url(#…) resolve to the *other* instance's marker and freeze the
+  // arrowhead color there.
+  const instanceId = useId();
+  const markerId = edgeMarkerId('mc-arrow', instanceId);
 
   return (
     <>

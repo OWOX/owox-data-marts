@@ -19,6 +19,7 @@ interface ReactFlowStubProps {
     };
   }[];
   edges?: { id: string; source: string; target: string; selected?: boolean }[];
+  deleteKeyCode?: string | null;
   onMove?: (event: unknown, viewport: ViewportStub) => void;
   onMoveStart?: (event: unknown) => void;
   onNodeClick?: (event: unknown, node: { id: string }) => void;
@@ -354,6 +355,41 @@ describe('RelationshipCanvas filters', () => {
       false,
       false,
     ]);
+  });
+
+  it('disables React Flow delete handling — the diagram has no delete semantics', async () => {
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps).not.toBeNull();
+    });
+    expect(reactFlowHarness.latestProps?.deleteKeyCode).toBeNull();
+  });
+
+  it('uses controlled filter props when provided instead of its internal state', async () => {
+    const onShowLoopedChange = vi.fn();
+    const loop = buildRelationship('rel-loop', 'source-1');
+    render(
+      <RelationshipCanvas
+        {...buildCanvasProps([buildRelationship('rel-1', 'target-1'), loop])}
+        showLooped
+        onShowLoopedChange={onShowLoopedChange}
+        statusFilter='all'
+        onStatusFilterChange={vi.fn()}
+      />
+    );
+
+    // Controlled showLooped=true renders the loop node (3 = root + target + loop).
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Diagram filters/ }));
+    fireEvent.click(await screen.findByRole('switch', { name: 'Show looped Data Marts' }));
+
+    // The change is delegated to the owner, not applied internally.
+    expect(onShowLoopedChange).toHaveBeenCalledWith(false);
+    expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
   });
 
   it('filters targets by status', async () => {

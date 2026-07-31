@@ -14,10 +14,14 @@ import type {
  * from the detail endpoint — non-blocking (cards render with a neutral accent
  * until it arrives) and tolerant of individual failures (403/404 leave the
  * card neutral instead of breaking the diagram).
+ *
+ * `enabled` should be true only while the diagram is actually visible (graph
+ * view) — the detail payloads are heavy and useless to the list view.
  */
 export function useRelationshipDefinitionTypes(
   relationshipGraph: RelationshipGraph | null,
-  relationships: DataMartRelationship[]
+  relationships: DataMartRelationship[],
+  enabled: boolean
 ): Map<string, DataMartDefinitionType | null> {
   const targetIds = useMemo(() => {
     const ids = new Set<string>();
@@ -48,7 +52,8 @@ export function useRelationshipDefinitionTypes(
       });
       return byId;
     },
-    enabled: targetIds.length > 0,
+    enabled: enabled && targetIds.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   return data ?? EMPTY_MAP;

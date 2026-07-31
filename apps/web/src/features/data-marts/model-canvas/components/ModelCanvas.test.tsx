@@ -15,6 +15,7 @@ interface ReactFlowStubProps {
   nodes?: {
     id?: string;
     selected?: boolean;
+    deletable?: boolean;
     position: { x: number; y: number };
     width?: number;
     height?: number;
@@ -24,9 +25,17 @@ interface ReactFlowStubProps {
       qualitySummary?: { state: string };
     };
   }[];
-  edges?: { id: string; source: string; target: string; selected?: boolean }[];
+  edges?: {
+    id: string;
+    source: string;
+    target: string;
+    selected?: boolean;
+    deletable?: boolean;
+  }[];
+  deleteKeyCode?: string | null;
   onMove?: (event: unknown, viewport: ViewportStub) => void;
   onNodeClick?: (event: unknown, node: { id: string }) => void;
+  onEdgeClick?: () => void;
   onPaneClick?: () => void;
 }
 
@@ -273,6 +282,68 @@ describe('ModelCanvas', () => {
       reactFlow.latestProps?.onPaneClick?.();
     });
     expect(reactFlow.latestProps?.edges?.map(e => e.selected ?? false)).toEqual([false, false]);
+
+    // A single-edge click supersedes the card selection.
+    act(() => {
+      reactFlow.latestProps?.onNodeClick?.(null, { id: 'customers' });
+    });
+    act(() => {
+      reactFlow.latestProps?.onEdgeClick?.();
+    });
+    expect(
+      reactFlow.latestProps?.nodes?.find(node => node.id === 'customers')?.selected ?? false
+    ).toBe(false);
+
+    // The canvas has no delete semantics — Backspace must not remove elements.
+    expect(reactFlow.latestProps?.deleteKeyCode).toBeNull();
+    expect(reactFlow.latestProps?.nodes?.every(node => node.deletable === false)).toBe(true);
+    expect(reactFlow.latestProps?.edges?.every(e => e.deletable === false)).toBe(true);
+  });
+
+  it('re-flows the layout when the active algorithm is picked again, dropping saved positions', async () => {
+    render(
+      <ModelCanvas
+        nodes={[
+          {
+            id: 'orders',
+            title: 'Orders',
+            status: DataMartStatus.PUBLISHED,
+            description: null,
+            fieldCount: 3,
+            qualitySummary: buildQualitySummary(),
+            dataLastUpdated: null,
+          },
+        ]}
+        edges={[]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+        storageId='storage-1'
+      />
+    );
+
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+    });
+
+    localStorage.setItem(
+      'model-canvas-positions:storage-1',
+      JSON.stringify({ orders: { x: 1, y: 2 } })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas settings' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
+    });
+
+    // Re-picking the already-active algorithm still re-flows (and clears
+    // positions) instead of silently wiping them with no visible effect.
+    fireEvent.click(screen.getByRole('radio', { name: 'Vertical' }));
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(3);
+    });
+    expect(localStorage.getItem('model-canvas-positions:storage-1')).toBeNull();
   });
 
   it('renders supplied controls in the top-left canvas overlay', () => {

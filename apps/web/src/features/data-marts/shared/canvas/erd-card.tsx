@@ -28,8 +28,13 @@ export function ErdStatusDot({ isDraft, decorative = false }: ErdStatusDotProps)
   );
 }
 
-/** Definition-type pill (VIEW / SQL / TABLE / PATTERN / CONNECTOR) used in ERD card meta rows. */
+/**
+ * Definition-type pill (VIEW / SQL / TABLE / PATTERN / CONNECTOR) used in ERD
+ * card meta rows. Renders nothing while the type is unknown (still enriching,
+ * fetch failed, or no access) — a gray "—" pill would only add noise.
+ */
 export function ErdDefinitionBadge({ type }: { type: DataMartDefinitionType | null }) {
+  if (!type) return null;
   const info = DataMartDefinitionTypeModel.getInfo(type);
   const color = definitionTypeAccent(type);
   const Icon = info.icon;

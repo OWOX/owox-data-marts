@@ -192,6 +192,9 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
     draggable: true,
     selectable: false,
     focusable: false,
+    // This canvas has no delete semantics — guard against React Flow's
+    // default Backspace handling removing a selected card.
+    deletable: false,
     style: STATIC_NODE_STYLE,
     data: {
       title: node.title,
@@ -240,6 +243,7 @@ function buildFlowEdge(params: FlowEdgeParams): ModelCanvasFlowEdgeType {
     focusable: false,
     // Clicking an edge selects it; selection is what turns it brand-blue.
     selectable: true,
+    deletable: false,
     data: {
       bowOffset: params.bowOffset,
       warning,
@@ -305,6 +309,10 @@ function ModelCanvasInner({
     storageIdRef.current = storageId;
     savedPositionsRef.current = loadSavedPositions(storageId);
   }
+  // Bumped when the user re-picks the current layout algorithm: the direction
+  // state alone would bail out of React's re-render, silently clearing saved
+  // positions without the expected re-flow.
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
   const [ready, setReady] = useState(false);
   const [flowNodes, setFlowNodes] = useState<ModelCanvasFlowNodeType[]>([]);
   const [flowEdges, setFlowEdges] = useState<ModelCanvasFlowEdgeType[]>([]);
@@ -341,7 +349,20 @@ function ModelCanvasInner({
 
     const { positions } = runDagreLayout(dagreNodes, dagreEdges, direction);
     const offsets = computeParallelEdgeOffsets(topologyEdges);
-    const savedPositions = savedPositionsRef.current ?? {};
+
+    // Prune saved positions of data marts that no longer exist, so the
+    // localStorage entry does not grow forever.
+    const knownIds = new Set(topologyNodes.map(n => n.id));
+    const allSaved = Object.entries(savedPositionsRef.current ?? {});
+    const savedPositions: SavedPositions = Object.fromEntries(
+      allSaved.filter(([id]) => knownIds.has(id))
+    );
+    if (allSaved.length !== Object.keys(savedPositions).length) {
+      savedPositionsRef.current = savedPositions;
+      if (storageIdRef.current) {
+        storageService.set(positionsStorageKey(storageIdRef.current), savedPositions);
+      }
+    }
     const liveQualitySummaries = new Map(
       nodesRef.current.map(node => [node.id, node.qualitySummary])
     );
@@ -412,7 +433,16 @@ function ModelCanvasInner({
     return () => {
       cancelAnimationFrame(rafId);
     };
-  }, [topologyNodes, topologyEdges, direction, viewMode, showJoinLabels, objectLabels, reactFlow]);
+  }, [
+    topologyNodes,
+    topologyEdges,
+    direction,
+    layoutEpoch,
+    viewMode,
+    showJoinLabels,
+    objectLabels,
+    reactFlow,
+  ]);
 
   const onNodesChange = useCallback((changes: NodeChange<ModelCanvasFlowNodeType>[]) => {
     setFlowNodes(prev => applyNodeChanges(changes, prev));
@@ -437,6 +467,11 @@ function ModelCanvasInner({
   }, []);
 
   const handlePaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
+
+  // Selecting a single edge supersedes any card selection (and vice versa).
+  const handleEdgeClick = useCallback(() => {
     setSelectedNodeId(null);
   }, []);
 
@@ -523,16 +558,26 @@ function ModelCanvasInner({
   const handleDirectionChange = useCallback((next: CanvasDirection) => {
     setDirection(next);
     storageService.set(LAYOUT_LS_KEY, next);
-    // Picking a layout algorithm is an explicit re-layout — drop manual positions.
+    // Picking a layout algorithm is an explicit re-layout — drop manual
+    // positions, and bump the epoch so re-picking the active algorithm still
+    // re-flows instead of silently wiping the saved arrangement.
     savedPositionsRef.current = {};
     if (storageIdRef.current) {
       storageService.remove(positionsStorageKey(storageIdRef.current));
     }
+    setLayoutEpoch(epoch => epoch + 1);
   }, []);
 
   const handleObjectLabelsChange = useCallback((next: ObjectLabelsHidden) => {
-    setObjectLabels(next);
-    storageService.set(OBJECT_LABELS_LS_KEY, serializeObjectLabelsHidden(next));
+    setObjectLabels(current => {
+      // No-op picks (e.g. "Check all" when everything is checked) must not
+      // re-run the layout effect and throw away the user's pan/zoom.
+      if (serializeObjectLabelsHidden(current) === serializeObjectLabelsHidden(next)) {
+        return current;
+      }
+      storageService.set(OBJECT_LABELS_LS_KEY, serializeObjectLabelsHidden(next));
+      return next;
+    });
   }, []);
 
   const handleViewModeChange = useCallback((next: CanvasViewMode) => {
@@ -760,7 +805,9 @@ function ModelCanvasInner({
           onEdgesChange={onEdgesChange}
           onNodeDragStop={onNodeDragStop}
           onNodeClick={handleNodeClick}
+          onEdgeClick={handleEdgeClick}
           onPaneClick={handlePaneClick}
+          deleteKeyCode={null}
           nodesDraggable
           nodesConnectable={false}
           elementsSelectable

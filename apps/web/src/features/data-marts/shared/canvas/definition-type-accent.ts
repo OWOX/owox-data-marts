@@ -1,7 +1,7 @@
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import {
   OWOX_BLUE_BASE,
-  OWOX_GRAY_LIGHT,
+  OWOX_GRAY_DARK,
   OWOX_GREEN_BASE,
   OWOX_ORANGE_BASE,
   OWOX_PURPLE_BASE,
@@ -21,7 +21,7 @@ export const DEFINITION_TYPE_ACCENT: Partial<Record<DataMartDefinitionType, stri
   [DataMartDefinitionType.CONNECTOR]: OWOX_ORANGE_BASE,
 };
 
-export const DEFINITION_TYPE_FALLBACK_ACCENT = OWOX_GRAY_LIGHT;
+export const DEFINITION_TYPE_FALLBACK_ACCENT = OWOX_GRAY_DARK;
 
 export function definitionTypeAccent(type: DataMartDefinitionType | null | undefined): string {
   return type

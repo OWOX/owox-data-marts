@@ -36,6 +36,11 @@ import type {
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
 
+import { storageService } from '../../../../../services/localstorage.service';
+import {
+  parseRelationshipStatusFilter,
+  type RelationshipStatusFilter,
+} from './relationship-canvas-filters';
 import { cleanBlendedFieldOverride } from './blended-field-override.utils';
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
@@ -234,7 +239,41 @@ export function DataMartRelationshipsContent({
   const { rows: transientRows, isLoading: isLoadingTransient } =
     useTransientRelationships(relationshipGraph);
 
-  const definitionTypes = useRelationshipDefinitionTypes(relationshipGraph, relationships);
+  // Enrichment fetches full data-mart details — only worth it when the
+  // diagram is actually on screen (the list view never renders badges).
+  const definitionTypes = useRelationshipDefinitionTypes(
+    relationshipGraph,
+    relationships,
+    viewMode === 'graph'
+  );
+
+  // Diagram filters live here (not inside the canvas) so the inline and
+  // fullscreen instances stay in sync; keys are scoped per data mart because
+  // a filter useful on one mart's diagram would silently truncate another's.
+  const showLoopedKey = `relationship-canvas-show-looped:${dataMartId}`;
+  const statusFilterKey = `relationship-canvas-status-filter:${dataMartId}`;
+  const [showLooped, setShowLooped] = useState(
+    () => storageService.get(showLoopedKey, 'boolean') ?? false
+  );
+  const [statusFilter, setStatusFilter] = useState<RelationshipStatusFilter>(() =>
+    parseRelationshipStatusFilter(storageService.get(statusFilterKey))
+  );
+
+  const handleShowLoopedChange = useCallback(
+    (checked: boolean) => {
+      setShowLooped(checked);
+      storageService.set(showLoopedKey, checked);
+    },
+    [showLoopedKey]
+  );
+
+  const handleStatusFilterChange = useCallback(
+    (next: RelationshipStatusFilter) => {
+      setStatusFilter(next);
+      storageService.set(statusFilterKey, next);
+    },
+    [statusFilterKey]
+  );
 
   const filteredRows = useMemo(() => {
     if (!searchQuery) return transientRows;
@@ -460,6 +499,10 @@ export function DataMartRelationshipsContent({
             relationshipGraph={relationshipGraph}
             connectedFieldCounts={connectedFieldCounts}
             searchQuery={searchQuery}
+            showLooped={showLooped}
+            onShowLoopedChange={handleShowLoopedChange}
+            statusFilter={statusFilter}
+            onStatusFilterChange={handleStatusFilterChange}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -641,6 +684,10 @@ export function DataMartRelationshipsContent({
                 relationshipGraph={relationshipGraph}
                 connectedFieldCounts={connectedFieldCounts}
                 searchQuery={searchQuery}
+                showLooped={showLooped}
+                onShowLoopedChange={handleShowLoopedChange}
+                statusFilter={statusFilter}
+                onStatusFilterChange={handleStatusFilterChange}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

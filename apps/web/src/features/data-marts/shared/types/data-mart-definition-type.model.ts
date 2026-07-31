@@ -43,6 +43,14 @@ export const DataMartDefinitionTypeModel = {
         icon: () => null,
       };
     }
-    return this.types[type];
+    // Fall back for enum values the FE build does not know yet — an undefined
+    // info object would crash badge consumers on `info.icon`.
+    return (
+      (this.types[type] as DataMartDefinitionTypeInfo | undefined) ?? {
+        type: null,
+        displayName: '\u2014',
+        icon: () => null,
+      }
+    );
   },
 };

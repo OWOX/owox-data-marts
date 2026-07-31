@@ -13,7 +13,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   BaseEdge,
   Handle,
@@ -49,7 +49,7 @@ import {
 } from '../../../shared/canvas/constants';
 import { EdgeArrowMarkers } from '../../../shared/canvas/edge-arrow';
 import { edgeMarkerId } from '../../../shared/canvas/edge-marker-id';
-import { OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
+import { OWOX_GRAY_DARK, OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
 import { definitionTypeAccent } from '../../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../../shared/canvas/erd-card';
 import { computeCanvasHighlight, NO_HIGHLIGHT } from '../../../shared/canvas/highlight';
@@ -74,6 +74,11 @@ import {
   getNextGraphZoom,
   type GraphZoomRange,
 } from './relationship-canvas-zoom';
+import {
+  parseRelationshipStatusFilter,
+  RELATIONSHIP_STATUS_FILTER_OPTIONS,
+  type RelationshipStatusFilter,
+} from './relationship-canvas-filters';
 
 interface RelationshipCanvasProps {
   dataMartId: string;
@@ -89,6 +94,11 @@ interface RelationshipCanvasProps {
   connectedFieldCounts?: Map<string, number>;
   searchQuery: string;
   onRequestFullscreen?: () => void;
+  /** Controlled diagram filters — see RelationshipCanvasInnerProps. */
+  showLooped?: boolean;
+  onShowLoopedChange?: (checked: boolean) => void;
+  statusFilter?: RelationshipStatusFilter;
+  onStatusFilterChange?: (next: RelationshipStatusFilter) => void;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -99,19 +109,6 @@ const TGT_H = 92;
 
 const SHOW_LOOPED_LS_KEY = 'relationship-canvas-show-looped';
 const STATUS_FILTER_LS_KEY = 'relationship-canvas-status-filter';
-
-/** Status filter for target data marts on the diagram. */
-export type RelationshipStatusFilter = 'all' | 'PUBLISHED' | 'DRAFT';
-
-const STATUS_FILTER_OPTIONS: { value: RelationshipStatusFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'PUBLISHED', label: 'Published' },
-  { value: 'DRAFT', label: 'Draft' },
-];
-
-function parseStatusFilter(value: string | null): RelationshipStatusFilter {
-  return value === 'PUBLISHED' || value === 'DRAFT' ? value : 'all';
-}
 const H_GAP = 280;
 const V_GAP = 24;
 const FIT_VIEW_SCALE = 0.85;
@@ -177,12 +174,14 @@ function IndicatorLabel({ data }: { data: RelationshipNodeData }) {
         gap: 2,
         fontSize: 10,
         fontWeight: 600,
-        color: isAttention ? ATTENTION_COLOR : WARNING_COLOR,
+        // The corporate yellow is too light for 10px text (WCAG); keep it on
+        // the triangle glyph and use the dark gray for the label itself.
+        color: isAttention ? OWOX_GRAY_DARK : WARNING_COLOR,
         lineHeight: 1,
         whiteSpace: 'nowrap',
       }}
     >
-      {isAttention && <TriangleAlert style={{ width: 12, height: 12 }} />}
+      {isAttention && <TriangleAlert style={{ width: 12, height: 12, color: ATTENTION_COLOR }} />}
       {indicator.label}
     </span>
   );
@@ -207,6 +206,8 @@ function cardStateStyle(data: RelationshipNodeData, selected: boolean): React.CS
     filter: data.dimmed ? 'grayscale(0.8)' : undefined,
     animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
     transition: 'opacity 0.2s, filter 0.2s',
+    // Cards are clickable (highlight all connections) — advertise it.
+    cursor: 'pointer',
   };
 }
 
@@ -359,7 +360,10 @@ function RelationshipFlowEdge({
   });
   // Gray at rest, brand-blue only when this edge is selected (as in owox/models).
   const color = data.warning ? WARNING_COLOR : selected ? OWOX_BLUE : EDGE_NEUTRAL_COLOR;
-  const markerId = edgeMarkerId('rel-arrow', id);
+  // useId keeps marker ids unique across the inline and fullscreen instances of
+  // this diagram (both stay mounted at once) — see ModelCanvasFlowEdge.
+  const instanceId = useId();
+  const markerId = edgeMarkerId('rel-arrow', instanceId);
 
   return (
     <>
@@ -407,6 +411,8 @@ interface EdgeInfo {
 interface RelationshipFlowGraph {
   nodes: RelationshipFlowNodeType[];
   edges: RelationshipFlowEdgeType[];
+  /** Nodes dropped directly by the loop/status filters (their subtrees are dropped on top). */
+  filteredOutCount: number;
 }
 
 function getRelationshipFlowGraphIdentity(graph: RelationshipFlowGraph): string {
@@ -466,9 +472,12 @@ function buildRelationshipFlow({
 }: BuildRelationshipFlowParams): RelationshipFlowGraph {
   // Filtering a node out also drops its subtree: children can't resolve their
   // parent key and are skipped below. The root data mart is always shown.
+  let filteredOutCount = 0;
   const passesFilters = (targetStatus: string, isCycleStub: boolean): boolean => {
-    if (isCycleStub && !showLooped) return false;
-    if (statusFilter !== 'all' && targetStatus !== statusFilter) return false;
+    if ((isCycleStub && !showLooped) || (statusFilter !== 'all' && targetStatus !== statusFilter)) {
+      filteredOutCount++;
+      return false;
+    }
     return true;
   };
   const nodeInfos = new Map<string, NodeInfo>();
@@ -487,7 +496,6 @@ function buildRelationshipFlow({
     userHasAccess: true,
   });
 
-  let nodeCounter = 0;
   const aliasPathToNodeKey = new Map<string, string>();
   aliasPathToNodeKey.set('', dataMartId);
 
@@ -497,7 +505,10 @@ function buildRelationshipFlow({
     info: Omit<NodeInfo, 'dmId'>,
     aliasPath: string
   ): void {
-    const nodeKey = `${dmId}-${nodeCounter++}`;
+    // Alias paths are unique within the graph, so keying nodes by them keeps
+    // ids stable when filters drop earlier nodes (a positional counter would
+    // shift every id and remount every node on a filter toggle).
+    const nodeKey = `path:${aliasPath}`;
     edgeInfos.push({ sourceId: parentNodeKey, targetId: nodeKey });
     hasOutgoing.add(parentNodeKey);
     nodeInfos.set(nodeKey, { dmId, ...info });
@@ -648,7 +659,7 @@ function buildRelationshipFlow({
     });
   }
 
-  return { nodes, edges };
+  return { nodes, edges, filteredOutCount };
 }
 
 interface RelationshipCanvasInnerProps {
@@ -664,6 +675,16 @@ interface RelationshipCanvasInnerProps {
   searchQuery: string;
   onRequestFullscreen?: () => void;
   onOpenExternal: (targetId: string) => void;
+  /**
+   * Diagram filters. When provided (the edit page passes them from
+   * DataMartRelationshipsContent so the inline and fullscreen instances stay
+   * in sync), the canvas is controlled; otherwise it falls back to its own
+   * localStorage-backed state.
+   */
+  showLooped?: boolean;
+  onShowLoopedChange?: (checked: boolean) => void;
+  statusFilter?: RelationshipStatusFilter;
+  onStatusFilterChange?: (next: RelationshipStatusFilter) => void;
 }
 
 function RelationshipCanvasInner({
@@ -679,6 +700,10 @@ function RelationshipCanvasInner({
   searchQuery,
   onRequestFullscreen,
   onOpenExternal,
+  showLooped: showLoopedProp,
+  onShowLoopedChange,
+  statusFilter: statusFilterProp,
+  onStatusFilterChange,
 }: RelationshipCanvasInnerProps) {
   const reactFlow = useReactFlow<RelationshipFlowNodeType, RelationshipFlowEdgeType>();
   const paneWidth = useStore(s => s.width);
@@ -689,22 +714,40 @@ function RelationshipCanvasInner({
     min: GRAPH_ZOOM_MIN,
     max: GRAPH_ZOOM_MAX,
   });
-  const [showLooped, setShowLooped] = useState(
+  const [internalShowLooped, setInternalShowLooped] = useState(
     () => storageService.get(SHOW_LOOPED_LS_KEY, 'boolean') ?? false
   );
-  const [statusFilter, setStatusFilter] = useState<RelationshipStatusFilter>(() =>
-    parseStatusFilter(storageService.get(STATUS_FILTER_LS_KEY))
+  const [internalStatusFilter, setInternalStatusFilter] = useState<RelationshipStatusFilter>(() =>
+    parseRelationshipStatusFilter(storageService.get(STATUS_FILTER_LS_KEY))
+  );
+  const showLooped = showLoopedProp ?? internalShowLooped;
+  const statusFilter = statusFilterProp ?? internalStatusFilter;
+
+  const handleShowLoopedChange = useCallback(
+    (checked: boolean) => {
+      if (onShowLoopedChange) {
+        onShowLoopedChange(checked);
+        return;
+      }
+      setInternalShowLooped(checked);
+      storageService.set(SHOW_LOOPED_LS_KEY, checked);
+    },
+    [onShowLoopedChange]
   );
 
-  const handleShowLoopedChange = useCallback((checked: boolean) => {
-    setShowLooped(checked);
-    storageService.set(SHOW_LOOPED_LS_KEY, checked);
-  }, []);
+  const handleStatusFilterChange = useCallback(
+    (next: RelationshipStatusFilter) => {
+      if (onStatusFilterChange) {
+        onStatusFilterChange(next);
+        return;
+      }
+      setInternalStatusFilter(next);
+      storageService.set(STATUS_FILTER_LS_KEY, next);
+    },
+    [onStatusFilterChange]
+  );
 
-  const handleStatusFilterChange = useCallback((next: RelationshipStatusFilter) => {
-    setStatusFilter(next);
-    storageService.set(STATUS_FILTER_LS_KEY, next);
-  }, []);
+  const filtersActive = showLooped || statusFilter !== 'all';
 
   const graphResult = useMemo(
     () =>
@@ -738,6 +781,13 @@ function RelationshipCanvasInner({
     ]
   );
 
+  // Selection is tracked manually (the graph is memo-derived, not React Flow
+  // state). Clicking an edge highlights just that edge; clicking a data mart
+  // card highlights every edge connected to it, so all of its relationships
+  // are visible at once. Pane click (or a repeat click) clears.
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
   const graphIdentity = useMemo(() => getRelationshipFlowGraphIdentity(graphResult), [graphResult]);
   const graphBounds = useMemo(() => getCanvasGraphBounds(graphResult.nodes), [graphResult.nodes]);
   const previousGraphIdentityRef = useRef(graphIdentity);
@@ -746,6 +796,10 @@ function RelationshipCanvasInner({
     if (previousGraphIdentityRef.current === graphIdentity) return;
     previousGraphIdentityRef.current = graphIdentity;
     userInteractedRef.current = false;
+    // The graph changed (filters, data) — a kept selection could point at a
+    // node/edge that no longer exists, so drop the highlight explicitly.
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
   }, [graphIdentity]);
 
   const highlightState = useMemo(
@@ -758,13 +812,6 @@ function RelationshipCanvasInner({
       ),
     [graphResult.nodes, searchQuery]
   );
-
-  // Selection is tracked manually (the graph is memo-derived, not React Flow
-  // state). Clicking an edge highlights just that edge; clicking a data mart
-  // card highlights every edge connected to it, so all of its relationships
-  // are visible at once. Pane click (or a repeat click) clears.
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const flowNodes = useMemo(
     () =>
@@ -939,10 +986,16 @@ function RelationshipCanvasInner({
               <Button
                 variant='outline'
                 size='icon'
-                className='h-12 w-12'
-                aria-label='Diagram filters'
+                className='relative h-12 w-12'
+                aria-label={filtersActive ? 'Diagram filters (active)' : 'Diagram filters'}
               >
                 <Settings className='h-6 w-6' />
+                {filtersActive && (
+                  <span
+                    className='bg-primary absolute top-1.5 right-1.5 h-2 w-2 rounded-full'
+                    aria-hidden='true'
+                  />
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent align='end' side='left' className='w-56'>
@@ -959,7 +1012,7 @@ function RelationshipCanvasInner({
               </div>
               <PopoverTitle className='mt-3 border-t pt-3'>Status</PopoverTitle>
               <div role='radiogroup' aria-label='Status filter' className='mt-2 space-y-0.5'>
-                {STATUS_FILTER_OPTIONS.map(option => (
+                {RELATIONSHIP_STATUS_FILTER_OPTIONS.map(option => (
                   <button
                     key={option.value}
                     type='button'
@@ -999,6 +1052,7 @@ function RelationshipCanvasInner({
           onEdgeClick={handleEdgeClick}
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
+          deleteKeyCode={null}
           onMove={handleMove}
           onMoveStart={(event: unknown) => {
             if (event) markUserInteracted();
@@ -1013,6 +1067,13 @@ function RelationshipCanvasInner({
             nodeColor={node => definitionTypeAccent(node.data.definitionType)}
           />
         </ReactFlow>
+        {graphResult.nodes.length === 1 && graphResult.filteredOutCount > 0 && (
+          <div className='pointer-events-none absolute inset-x-0 bottom-6 flex justify-center'>
+            <span className='bg-background text-muted-foreground rounded-md border px-3 py-1.5 text-sm shadow-sm'>
+              No related data marts match the current filters
+            </span>
+          </div>
+        )}
       </div>
     </>
   );
@@ -1030,6 +1091,10 @@ export function RelationshipCanvas({
   connectedFieldCounts,
   searchQuery,
   onRequestFullscreen,
+  showLooped,
+  onShowLoopedChange,
+  statusFilter,
+  onStatusFilterChange,
   className,
   style,
 }: RelationshipCanvasProps) {
@@ -1063,6 +1128,10 @@ export function RelationshipCanvas({
           searchQuery={searchQuery}
           onRequestFullscreen={onRequestFullscreen}
           onOpenExternal={handleOpenExternal}
+          showLooped={showLooped}
+          onShowLoopedChange={onShowLoopedChange}
+          statusFilter={statusFilter}
+          onStatusFilterChange={onStatusFilterChange}
         />
       </ReactFlowProvider>
     </div>
