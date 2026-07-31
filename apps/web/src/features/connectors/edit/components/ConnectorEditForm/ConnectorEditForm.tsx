@@ -27,6 +27,7 @@ import { extractApiError } from '../../../../../app/api/extract-api-error.util';
 import {
   GOOGLE_SHEETS_CONNECTOR_NAME,
   getAvailableGoogleSheetsSelectedFields,
+  getGoogleSheetsPreviewConfigurationKey,
   isGoogleSheetsSystemField,
   resolveGoogleSheetsPreviewSelection,
   withoutGoogleSheetsSystemFields,
@@ -92,7 +93,7 @@ export function ConnectorEditForm({
   );
   const isGoogleSheetsConnector = selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME;
   const currentConfigurationKey = useMemo(
-    () => JSON.stringify(connectorConfiguration),
+    () => getGoogleSheetsPreviewConfigurationKey(connectorConfiguration),
     [connectorConfiguration]
   );
 
@@ -388,7 +389,7 @@ export function ConnectorEditForm({
       }
 
       const configuration = options?.configuration ?? connectorConfiguration;
-      const configurationKey = JSON.stringify(configuration);
+      const configurationKey = getGoogleSheetsPreviewConfigurationKey(configuration);
       setPreviewConfigurationKey(null);
       setFieldsOnlyPreviewError(null);
 

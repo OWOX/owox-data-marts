@@ -81,6 +81,17 @@ export function isGoogleSheetsImportAllColumnsEnabled(
   return value !== false && value !== 0 && value !== 'false' && value !== '0';
 }
 
+export function getGoogleSheetsPreviewConfigurationKey(
+  configuration: Record<string, unknown>
+): string {
+  const previewConfiguration = Object.fromEntries(
+    Object.entries(configuration).filter(
+      ([fieldName]) => fieldName !== GOOGLE_SHEETS_IMPORT_ALL_COLUMNS_FIELD
+    )
+  );
+  return JSON.stringify(previewConfiguration);
+}
+
 export function shouldImportAllGoogleSheetsColumns(
   selectedFields: string[],
   availableFields: string[]

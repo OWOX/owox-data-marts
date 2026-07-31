@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SECRET_MASK } from '../../../../shared/constants/secrets';
 import {
   getAvailableGoogleSheetsSelectedFields,
+  getGoogleSheetsPreviewConfigurationKey,
   hasValidGoogleSheetsServiceAccountConfiguration,
   isValidGoogleSheetsServiceAccountKey,
   resolveGoogleSheetsPreviewSelection,
@@ -68,6 +69,33 @@ describe('Google Sheets field configuration', () => {
         ['_owox_row_number', 'Campaign']
       )
     ).toEqual({ ImportAllColumns: true });
+  });
+
+  it('keeps the field preview valid when only the column-selection mode changes', () => {
+    const previewConfiguration = {
+      SpreadsheetId: 'spreadsheet-1',
+      SheetName: 'Goals',
+      HeaderRow: 1,
+    };
+
+    expect(
+      getGoogleSheetsPreviewConfigurationKey({
+        ...previewConfiguration,
+        ImportAllColumns: true,
+      })
+    ).toBe(
+      getGoogleSheetsPreviewConfigurationKey({
+        ...previewConfiguration,
+        ImportAllColumns: false,
+      })
+    );
+    expect(
+      getGoogleSheetsPreviewConfigurationKey({
+        ...previewConfiguration,
+        SheetName: 'Updated Goals',
+        ImportAllColumns: false,
+      })
+    ).not.toBe(getGoogleSheetsPreviewConfigurationKey(previewConfiguration));
   });
 });
 
