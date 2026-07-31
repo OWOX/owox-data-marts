@@ -1,6 +1,6 @@
 # Data Last Updated
 
-Data Last Updated shows when the source tables behind a Data Mart last changed in the storage. It answers the question "how current is what I am looking at?" before you build a report or act on an answer from an AI assistant.
+Data Last Updated shows when the source tables/views behind a Data Mart last changed in the storage. It answers the question "how current is what I am looking at?" before you build a report or act on an answer from an AI assistant.
 
 Data Last Updated is currently measured for **Google BigQuery** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
 
