@@ -101,6 +101,49 @@ describe('ConnectorSecretService', () => {
   });
 
   describe('mergeDefinitionSecrets', () => {
+    // The merge only ever dereferences a pointer this DataMart already has
+    // stored. That is what lets a Data Mart still carrying a pointer into
+    // another one's record recover its values (extractAndSaveSecrets then forks
+    // them onto a record of its own), while a pointer supplied by the caller
+    // buys nothing.
+    it('never loads secrets for a _secrets_id supplied by the caller', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const previous = makeDefinition([{ _id: 'a', _secrets_id: 'ours', AccountIDs: '33' }]);
+      const incoming = makeDefinition([
+        // Unknown _id, plus a pointer at another DataMart's record.
+        { _id: 'invented', _secrets_id: 'belongs-to-another-datamart', AccessToken: SECRET_MASK },
+      ]);
+
+      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
+      // Nothing was resolved, so the mask stands - and extractAndSaveSecrets
+      // drops it rather than storing it as a credential.
+      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
+    });
+
+    it('replaces a caller-supplied _secrets_id with the stored one', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      (credentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'ours',
+        credentials: { AccessToken: 'our-token' },
+      });
+
+      const previous = makeDefinition([{ _id: 'a', _secrets_id: 'ours', AccountIDs: '33' }]);
+      const incoming = makeDefinition([
+        { _id: 'a', _secrets_id: 'belongs-to-another-datamart', AccessToken: SECRET_MASK },
+      ]);
+
+      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(credentialsService.getCredentialsById).toHaveBeenCalledWith('ours');
+      expect(cfg[0]._secrets_id).toBe('ours');
+      expect(cfg[0].AccessToken).toBe('our-token');
+    });
+
     it('keeps previous secret when incoming has SECRET_MASK', async () => {
       const { service } = createService(['AccessToken']);
       const previous = makeDefinition([

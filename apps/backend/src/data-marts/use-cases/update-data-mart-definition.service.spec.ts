@@ -8,6 +8,7 @@ import { UpdateDataMartDefinitionService } from './update-data-mart-definition.s
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { EntityType, Action } from '../services/access-decision';
 
 describe('UpdateDataMartDefinitionService', () => {
   const createService = () => {
@@ -166,6 +167,50 @@ describe('UpdateDataMartDefinitionService', () => {
       previousDefinition
     );
     expect(dataMart.definition).toBe(savedDefinition);
+  });
+
+  it('refuses to copy a configuration from a Data Mart the user cannot copy credentials from', async () => {
+    const { service, dataMartService, accessDecisionService, connectorSecretService, dataMart } =
+      createService();
+
+    dataMart.definitionType = DataMartDefinitionType.CONNECTOR;
+    // EDIT on the target is granted, COPY_CREDENTIALS on the source is not.
+    accessDecisionService.canAccess.mockImplementation(async (...args: unknown[]) =>
+      args[4] !== Action.COPY_CREDENTIALS
+    );
+
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      {
+        connector: {
+          source: {
+            name: 'FacebookMarketing',
+            configuration: [{ _copiedFrom: { configId: 'src-1' } }],
+          },
+        },
+      } as any,
+      'dm-source',
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      EntityType.DATA_MART,
+      'dm-source',
+      Action.COPY_CREDENTIALS,
+      'proj-1'
+    );
+    // The source is never read and no secrets are touched.
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalledWith('dm-source', 'proj-1');
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
+    expect(dataMartService.save).not.toHaveBeenCalled();
   });
 
   it('should throw ForbiddenException when user has no edit access to data mart', async () => {

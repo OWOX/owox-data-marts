@@ -73,6 +73,25 @@ export class UpdateDataMartDefinitionService {
       let mergedDefinition: ConnectorDefinition;
 
       if (command.sourceDataMartId) {
+        // Copying a configuration carries the source's stored credentials into
+        // this Data Mart, so it takes permission on the source and not only on
+        // the target being edited.
+        if (command.userId) {
+          const canCopyCredentials = await this.accessDecisionService.canAccess(
+            command.userId,
+            command.roles,
+            EntityType.DATA_MART,
+            command.sourceDataMartId,
+            Action.COPY_CREDENTIALS,
+            command.projectId
+          );
+          if (!canCopyCredentials) {
+            throw new ForbiddenException(
+              'You do not have permission to copy the configuration of this DataMart'
+            );
+          }
+        }
+
         const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
           command.sourceDataMartId,
           command.projectId
