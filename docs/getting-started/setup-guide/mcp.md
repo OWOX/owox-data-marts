@@ -280,7 +280,7 @@ When presenting results, the assistant must name the source Data Mart. It must d
 
 #### Data last updated
 
-`data_last_updated` answers "how current is what I am looking at?". Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call's own credits cover it.
+`data_last_updated` answers "how current is what I am looking at?". Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call's own credits cover it. The same value appears across the OWOX UI — see [Data Last Updated](./data-last-updated.md).
 
 | Field                  | Description                                                                                                                                                          |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
