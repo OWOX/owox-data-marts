@@ -21,6 +21,12 @@ export interface User {
   projectTitle?: string;
   mcpServerUrl?: string;
   onboarding?: OnboardingAnswer[];
+  /**
+   * True when the session is in view-only mode.
+   * Server rejects mutating API methods; client uses this to suppress analytics.
+   * UI controls may stay enabled — blocked actions fail after the request.
+   */
+  viewOnly?: boolean;
 }
 
 /**

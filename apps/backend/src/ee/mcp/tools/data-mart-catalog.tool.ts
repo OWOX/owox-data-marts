@@ -19,9 +19,11 @@ import { joinPublicOrigin } from './mcp-public-url.util';
 const inputSchema = z
   .object({
     status: z
-      .literal('published')
+      .enum(['published', 'draft'])
       .optional()
-      .describe('Catalog state filter. Only published Data Marts are available through MCP.'),
+      .describe(
+        'Catalog state filter. Defaults to published. Draft returns draft metadata only; only published Data Marts can be inspected or queried through MCP.'
+      ),
   })
   .strict();
 
@@ -31,7 +33,7 @@ type ListDataMartsInput = z.infer<typeof inputSchema>;
 export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> {
   readonly name = 'list_data_marts';
   readonly description =
-    'List data marts available to the current OWOX project member. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog.';
+    'List data marts available to the current OWOX project member. Defaults to published data marts; use status=draft only to browse draft metadata, because other MCP data-mart tools accept published data marts only. Use only when the user explicitly asks to list or browse data marts; for a concrete analytical question use get_relevant_data_marts_by_prompt instead, and for open-ended orientation use summarize_data_catalog.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     project: z.object({ id: z.string(), title: z.string() }).optional(),

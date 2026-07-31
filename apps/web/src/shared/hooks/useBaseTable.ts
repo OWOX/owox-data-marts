@@ -4,6 +4,7 @@ import {
   type Table,
   type ColumnFiltersState,
   type RowSelectionState,
+  type TableOptions,
   type VisibilityState,
   getCoreRowModel,
   useReactTable,
@@ -31,6 +32,8 @@ export interface UseBaseTableConfig<TData> {
   defaultPageSize?: number;
   /** Enable row selection functionality */
   enableRowSelection?: boolean;
+  /** Stable row identity used to preserve selection across data refreshes */
+  getRowId?: TableOptions<TData>['getRowId'];
 }
 
 /**
@@ -74,6 +77,7 @@ export function useBaseTable<TData>({
   defaultSortingColumn,
   defaultPageSize,
   enableRowSelection = false,
+  getRowId,
 }: UseBaseTableConfig<TData>): UseBaseTableReturn<TData> {
   // Initialize table storage (sorting, visibility, pagination, sizing)
   const {
@@ -144,6 +148,7 @@ export function useBaseTable<TData>({
       }
     },
     enableRowSelection,
+    getRowId,
     enableColumnResizing: true,
     columnResizeMode: 'onChange',
   });

@@ -18,7 +18,7 @@ export function CreateScheduledTriggerSpec() {
     ApiOperation({
       summary: 'Create a scheduled trigger for a DataMart',
       description:
-        'Creates a scheduled connector run or report run trigger for a published DataMart. REPORT_RUN triggers require triggerConfig.reportId and report mutation access. CONNECTOR_RUN triggers must not include triggerConfig and require a Technical User role.',
+        'Creates a scheduled report, connector, or Data Quality run for a published DataMart. REPORT_RUN triggers require triggerConfig.reportId and report mutation access. CONNECTOR_RUN and DATA_QUALITY_RUN triggers must not include triggerConfig and require Data Mart trigger management access. DATA_QUALITY_RUN also requires an Output Schema, a definition, and at least one applicable enabled Data Quality check.',
     }),
     ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
     ApiBody({
@@ -46,6 +46,15 @@ export function CreateScheduledTriggerSpec() {
             cronExpression: '0 * * * *',
             timeZone: 'UTC',
             isActive: false,
+          },
+        },
+        dataQualityRun: {
+          summary: 'Schedule Data Quality checks',
+          value: {
+            type: ScheduledTriggerType.DATA_QUALITY_RUN,
+            cronExpression: '0 6 * * *',
+            timeZone: 'UTC',
+            isActive: true,
           },
         },
       },

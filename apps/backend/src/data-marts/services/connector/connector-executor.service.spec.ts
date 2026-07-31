@@ -15,6 +15,7 @@ jest.mock('@owox/connectors', () => ({
   },
 }));
 
+import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { ConnectorExecutorService } from './connector-executor.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
@@ -524,6 +525,125 @@ describe('ConnectorExecutorService', () => {
     expect(serializedBytes).toBeLessThan(7 * 1024 * 1024);
     expect(logs.join()).toContain('huge entry 3');
     expect(logs.join()).not.toContain('huge entry 0');
+  });
+
+  it('persists a connector warning without a second generic error entry', async () => {
+    const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+    // A failing connector emits both: the bare status flag, then the classified cause.
+    // Only the cause belongs in errors — the flag carries no detail, and storing it too
+    // renders a generic ERROR row beside a run whose only real failure is a warning.
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.STATUS,
+        status: 5,
+        at: new Date().toISOString(),
+        toFormattedString: () => 'STATUS: ERROR',
+      });
+      emitMessage({
+        type: ConnectorMessageType.WARNING,
+        at: new Date().toISOString(),
+        warning: 'Session has expired',
+        toFormattedString: () => '[WARNING] Session has expired',
+      });
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    const errors = finalUpdate![1].errors as string[];
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('Session has expired');
+    // The warning counts as the terminal failure, so the fallback must stay quiet
+    expect(errors.join()).not.toContain('finished without terminal success status');
+  });
+
+  it('still reports a failure when the connector sends a status flag and no detail', async () => {
+    const { service, dataMartRunRepository, processSpawner, emitMessage } = createService();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitMessage({
+        type: ConnectorMessageType.STATUS,
+        status: 5,
+        at: new Date().toISOString(),
+        toFormattedString: () => 'STATUS: ERROR',
+      });
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    expect((finalUpdate![1].errors as string[]).join()).toContain(
+      'finished without terminal success status'
+    );
+  });
+
+  it('persists a cancelled configuration as a warning, not an error', async () => {
+    const { service, dataMartRunRepository, processSpawner } = createService();
+    const controller = new AbortController();
+    controller.abort();
+    (processSpawner.spawnConnector as jest.Mock).mockRejectedValue(
+      new Error('Connector process was aborted')
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    const persisted = (dataMartRunRepository.update as jest.Mock).mock.calls
+      .map(call => call[1]?.errors as string[] | undefined)
+      .filter((errors): errors is string[] => Array.isArray(errors) && errors.length > 0)
+      .pop();
+
+    expect(persisted![0]).toContain(ConnectorMessageType.WARNING);
+    expect(persisted![0]).not.toContain(`"type":"${ConnectorMessageType.ERROR}"`);
+  });
+
+  it('persists expired storage credentials as a warning, not an error', async () => {
+    const { service, dataMartRunRepository, storageConfigService } = createService();
+    (storageConfigService.buildStorageConfig as jest.Mock).mockRejectedValue(
+      new CredentialsExpiredException('storage-1', 'storage')
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    const errors = finalUpdate![1].errors as string[];
+    expect(errors[0]).toContain(ConnectorMessageType.WARNING);
+    expect(errors.join()).toContain('Reconnect this Storage');
+  });
+
+  it('records a configuration missing its _id as a run error', async () => {
+    // Skipping it silently left no configuration result at all, so the run persisted as
+    // FAILED with errors = null — invisible in run history and in the failure email.
+    const { service, dataMartRunRepository } = createService();
+    const dataMart = createDataMart({
+      definition: {
+        connector: {
+          source: {
+            name: 'TestConnector',
+            node: 'test_node',
+            fields: ['field1'],
+            configuration: [{ param: 'val' }],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const finalUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.find(
+      call => call[1]?.status === DataMartRunStatus.FAILED
+    );
+
+    expect(finalUpdate![1].errors).not.toBeNull();
+    expect((finalUpdate![1].errors as string[]).join()).toContain('missing _id');
   });
 
   it('marks an aborted connector run as CANCELLED', async () => {

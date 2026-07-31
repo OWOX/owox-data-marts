@@ -133,7 +133,7 @@ export function ScheduledTriggerFormSheet({
         <SheetHeader>
           <SheetTitle>{isEditMode ? 'Edit' : 'Create'} Scheduled Trigger</SheetTitle>
           <SheetDescription>
-            Configure automatic runs for your reports or connectors.
+            Configure automatic runs for reports, connectors, or Data Quality checks.
           </SheetDescription>
         </SheetHeader>
         <ScheduledTriggerForm

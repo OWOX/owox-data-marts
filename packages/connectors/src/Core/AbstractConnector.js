@@ -101,8 +101,7 @@ var AbstractConnector = class AbstractConnector {
         // if import is already in progress skip this run in order to avoid dublication
         if( this.config.isInProgress() ) {
 
-          this.config.logMessage("Import is already in progress");
-          this.config.addWarningToCurrentStatus();
+          this.config.addWarningToCurrentStatus("Import is already in progress");
 
         // stat a new import
         } else {

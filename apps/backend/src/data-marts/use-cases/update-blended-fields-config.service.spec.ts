@@ -29,7 +29,6 @@ describe('UpdateBlendedFieldsConfigService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(canAccess),
     };
-
     const service = new UpdateBlendedFieldsConfigService(
       dataMartService as never,
       reportDataCacheService as never,

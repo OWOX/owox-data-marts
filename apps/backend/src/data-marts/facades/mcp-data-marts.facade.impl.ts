@@ -46,6 +46,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
+    const status = request.status === 'draft' ? DataMartStatus.DRAFT : DataMartStatus.PUBLISHED;
     const result = await this.listDataMartsService.run(
       new ListDataMartsCommand(
         request.projectId,
@@ -53,15 +54,15 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         request.roles,
         undefined,
         undefined,
-        DataMartStatus.PUBLISHED
+        status
       )
     );
 
     return {
       dataMarts: result.items
-        // Keep this gate in the MCP facade even though the tool defaults to `published`: a direct
-        // facade caller must not make a draft discoverable through MCP either.
-        .filter(item => item.status === DataMartStatus.PUBLISHED)
+        // Keep this gate at the facade boundary: the underlying list use case is allowed to
+        // return a mixed result, but MCP must return only the explicitly requested state.
+        .filter(item => item.status === status)
         .map(item => ({
           id: item.id,
           title: item.title,

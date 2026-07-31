@@ -322,7 +322,9 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       return this.accessToken;
     } catch (error) {
       this.config.logMessage(`❌ Authentication failed: ${error.message}`);
-      throw new Error(`Authentication failed: ${error.message}`);
+      const wrapped = new Error(`Authentication failed: ${error.message}`);
+      wrapped.isWarning = error.isWarning;
+      throw wrapped;
     }
   }
 

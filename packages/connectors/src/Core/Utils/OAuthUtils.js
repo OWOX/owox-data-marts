@@ -41,7 +41,11 @@ var OAuthUtils = {
       const json = JSON.parse(text);
 
       if (json.error) {
-        throw new Error(`Token error: ${json.error}`);
+        const error = new Error(`Token error: ${json.error}`);
+        // invalid_grant = dead/revoked refresh token (RFC 6749): the user must
+        // reconnect the account — a warning, not an ops-actionable error
+        error.isWarning = json.error === 'invalid_grant';
+        throw error;
       }
 
       config.AccessToken = { value: json.access_token };
@@ -49,7 +53,9 @@ var OAuthUtils = {
 
       return json.access_token;
     } catch (error) {
-      throw new Error(`Failed to get access token: ${error.message}`);
+      const wrapped = new Error(`Failed to get access token: ${error.message}`);
+      wrapped.isWarning = error.isWarning;
+      throw wrapped;
     }
   },
 
@@ -96,7 +102,9 @@ var OAuthUtils = {
 
     } catch (error) {
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
-      throw new Error(`Service Account authentication failed: ${error.message}`);
+      const wrapped = new Error(`Service Account authentication failed: ${error.message}`);
+      wrapped.isWarning = error.isWarning;
+      throw wrapped;
     }
   },
 

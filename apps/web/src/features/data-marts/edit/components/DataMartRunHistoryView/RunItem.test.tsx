@@ -1,13 +1,27 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import type { PropsWithChildren, ReactElement } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunItem } from './RunItem';
 import { LogViewType } from './types';
 import { DataMartRunStatus, DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunItem } from '../../model/types/data-mart-run';
+
+const dataMartServiceMock = vi.hoisted(() => ({
+  getDataMartRunById: vi.fn(),
+}));
+
+vi.mock('../../../shared', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../../shared')>();
+  return {
+    ...actual,
+    dataMartService: dataMartServiceMock,
+  };
+});
 
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -36,6 +50,7 @@ const createRun = (overrides: Partial<DataMartRunItem> = {}): DataMartRunItem =>
     aiAssistantDefinition: null,
     createdByUser: null,
     additionalParams: null,
+    qualitySummary: null,
     ...overrides,
   }) as DataMartRunItem;
 
@@ -50,26 +65,25 @@ const renderRunItem = (
   isExpanded = false,
   cancelDataMartRun = vi.fn().mockResolvedValue(undefined),
   dataMartId: string | undefined = 'dm-1',
-  dataMartRef?: DataMartRef
+  dataMartRef?: DataMartRef,
+  searchTerm = ''
 ) => {
   const onToggle = vi.fn();
 
-  render(
-    <MemoryRouter>
-      <RunItem
-        run={run}
-        isExpanded={isExpanded}
-        onToggle={onToggle}
-        logViewType={LogViewType.STRUCTURED}
-        setLogViewType={vi.fn()}
-        searchTerm=''
-        setSearchTerm={vi.fn()}
-        cancelDataMartRun={cancelDataMartRun}
-        dataMartId={dataMartId}
-        dataMartConnectorInfo={null}
-        dataMartRef={dataMartRef}
-      />
-    </MemoryRouter>
+  renderWithProviders(
+    <RunItem
+      run={run}
+      isExpanded={isExpanded}
+      onToggle={onToggle}
+      logViewType={LogViewType.STRUCTURED}
+      setLogViewType={vi.fn()}
+      searchTerm={searchTerm}
+      setSearchTerm={vi.fn()}
+      cancelDataMartRun={cancelDataMartRun}
+      dataMartId={dataMartId}
+      dataMartConnectorInfo={null}
+      dataMartRef={dataMartRef}
+    />
   );
 
   return { onToggle, cancelDataMartRun };
@@ -115,6 +129,9 @@ function buildRunTimestamp(): Date {
 describe('RunItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dataMartServiceMock.getDataMartRunById.mockResolvedValue(
+      buildGenericQualityRunDetail('run-1', 'Expanded run finding')
+    );
   });
 
   it('requires confirmation before cancelling a running connector run', async () => {
@@ -192,21 +209,42 @@ describe('RunItem', () => {
     expect(screen.getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();
   });
 
+  it('uses Data Quality-specific cancellation copy for an active quality run', () => {
+    renderRunItem(
+      createRun({
+        type: DataMartRunType.DATA_QUALITY,
+        status: DataMartRunStatus.RUNNING,
+        qualitySummary: {
+          ...createQualityRun().qualitySummary!,
+          state: 'RUNNING',
+        },
+      }),
+      true
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
+
+    expect(
+      screen.getByText(
+        'This stops the Data Quality run between checks. Results already completed will remain available.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/may result in incomplete data/i)).not.toBeInTheDocument();
+  });
+
   it('does not show a cancel button when data mart id is unavailable', () => {
-    render(
-      <MemoryRouter>
-        <RunItem
-          run={createRun()}
-          isExpanded={true}
-          onToggle={vi.fn()}
-          logViewType={LogViewType.STRUCTURED}
-          setLogViewType={vi.fn()}
-          searchTerm=''
-          setSearchTerm={vi.fn()}
-          cancelDataMartRun={vi.fn()}
-          dataMartConnectorInfo={null}
-        />
-      </MemoryRouter>
+    renderWithProviders(
+      <RunItem
+        run={createRun()}
+        isExpanded={true}
+        onToggle={vi.fn()}
+        logViewType={LogViewType.STRUCTURED}
+        setLogViewType={vi.fn()}
+        searchTerm=''
+        setSearchTerm={vi.fn()}
+        cancelDataMartRun={vi.fn()}
+        dataMartConnectorInfo={null}
+      />
     );
 
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
@@ -219,40 +257,36 @@ describe('RunItem', () => {
   });
 
   it('does not show a cancel button for Looker Studio or HTTP Data runs', () => {
-    const { rerender } = render(
-      <MemoryRouter>
-        <RunItem
-          run={createRun({ type: DataMartRunType.LOOKER_STUDIO })}
-          isExpanded={true}
-          onToggle={vi.fn()}
-          logViewType={LogViewType.STRUCTURED}
-          setLogViewType={vi.fn()}
-          searchTerm=''
-          setSearchTerm={vi.fn()}
-          cancelDataMartRun={vi.fn()}
-          dataMartId='dm-1'
-          dataMartConnectorInfo={null}
-        />
-      </MemoryRouter>
+    const { rerender } = renderWithProviders(
+      <RunItem
+        run={createRun({ type: DataMartRunType.LOOKER_STUDIO })}
+        isExpanded={true}
+        onToggle={vi.fn()}
+        logViewType={LogViewType.STRUCTURED}
+        setLogViewType={vi.fn()}
+        searchTerm=''
+        setSearchTerm={vi.fn()}
+        cancelDataMartRun={vi.fn()}
+        dataMartId='dm-1'
+        dataMartConnectorInfo={null}
+      />
     );
 
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
 
     rerender(
-      <MemoryRouter>
-        <RunItem
-          run={createRun({ type: DataMartRunType.HTTP_DATA })}
-          isExpanded={true}
-          onToggle={vi.fn()}
-          logViewType={LogViewType.STRUCTURED}
-          setLogViewType={vi.fn()}
-          searchTerm=''
-          setSearchTerm={vi.fn()}
-          cancelDataMartRun={vi.fn()}
-          dataMartId='dm-1'
-          dataMartConnectorInfo={null}
-        />
-      </MemoryRouter>
+      <RunItem
+        run={createRun({ type: DataMartRunType.HTTP_DATA })}
+        isExpanded={true}
+        onToggle={vi.fn()}
+        logViewType={LogViewType.STRUCTURED}
+        setLogViewType={vi.fn()}
+        searchTerm=''
+        setSearchTerm={vi.fn()}
+        cancelDataMartRun={vi.fn()}
+        dataMartId='dm-1'
+        dataMartConnectorInfo={null}
+      />
     );
 
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
@@ -285,4 +319,168 @@ describe('RunItem', () => {
     );
     expect(screen.getByText('2026-06-07 18:35:00').closest('.flex-wrap')).not.toBeNull();
   });
+
+  it('shows the lightweight Quality summary without requesting full details while collapsed', () => {
+    renderRunItem(createQualityRun(), false);
+
+    expect(screen.getByText('1 finding')).toBeInTheDocument();
+    expect(screen.getByText('Issues found')).toBeInTheDocument();
+    expect(screen.queryByTestId('data-quality-run-details')).not.toBeInTheDocument();
+    expect(dataMartServiceMock.getDataMartRunById).not.toHaveBeenCalled();
+  });
+
+  it('requests the exact Quality run through generic detail only when expanded', async () => {
+    renderRunItem(createQualityRun(), true);
+
+    expect(await screen.findByTestId('quality-result-result-run-1')).toBeInTheDocument();
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledTimes(1);
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledWith(
+      'dm-1',
+      'run-1',
+      expect.objectContaining({ signal: expect.anything() })
+    );
+    expect(screen.queryByText('Structured')).not.toBeInTheDocument();
+  });
+
+  it('keeps generic infrastructure diagnostics reachable for a failed Quality run', async () => {
+    renderRunItem(
+      createRun({
+        ...createQualityRun(),
+        status: DataMartRunStatus.FAILED,
+        errors: ['Data Quality execution failed before every check completed'],
+      }),
+      true
+    );
+
+    expect(await screen.findByText('Run diagnostics')).toBeInTheDocument();
+    expect(
+      screen.getByText('Data Quality execution failed before every check completed')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download diagnostics JSON' })).toBeInTheDocument();
+  });
+
+  it('does not hide Quality diagnostics behind the shared log search', async () => {
+    renderRunItem(
+      createRun({
+        ...createQualityRun(),
+        status: DataMartRunStatus.FAILED,
+        errors: ['Data Quality execution failed before every check completed'],
+      }),
+      true,
+      undefined,
+      'dm-1',
+      undefined,
+      'nonmatching connector log search'
+    );
+
+    expect(await screen.findByText('Run diagnostics')).toBeInTheDocument();
+    expect(
+      screen.getByText('Data Quality execution failed before every check completed')
+    ).toBeInTheDocument();
+  });
+
+  it('uses the same exact Quality detail in project-wide history context', async () => {
+    const dataMartRef = {
+      id: 'dm-1',
+      title: 'Campaigns',
+      href: '/ui/project-1/data-marts/dm-1/run-history',
+    };
+
+    renderRunItem(createQualityRun(), true, undefined, dataMartRef.id, dataMartRef);
+
+    expect(await screen.findByTestId('quality-result-result-run-1')).toBeInTheDocument();
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledWith(
+      'dm-1',
+      'run-1',
+      expect.objectContaining({ signal: expect.anything() })
+    );
+  });
 });
+
+function createQualityRun(): DataMartRunItem {
+  return createRun({
+    type: DataMartRunType.DATA_QUALITY,
+    status: DataMartRunStatus.SUCCESS,
+    finishedAt: new Date('2026-06-04T12:01:00.000Z'),
+    qualitySummary: {
+      state: 'ISSUES',
+      enabledChecks: 2,
+      totalChecks: 2,
+      passedChecks: 1,
+      failedChecks: 1,
+      notApplicableChecks: 0,
+      errorChecks: 0,
+      noticeFindings: 0,
+      warningFindings: 1,
+      errorFindings: 0,
+      violationCount: 3,
+      highestSeverity: 'warning',
+      dataMartRunId: 'run-1',
+      lastRunAt: '2026-06-04T12:01:00.000Z',
+    },
+  });
+}
+
+function renderWithProviders(ui: ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/ui/project-1/data-marts/dm-1/run-history']}>
+        <Routes>
+          <Route path='/ui/:projectId/*' element={children} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  return render(ui, { wrapper: Wrapper });
+}
+
+function buildGenericQualityRunDetail(runId: string, description: string) {
+  return {
+    id: runId,
+    type: DataMartRunType.DATA_QUALITY,
+    createdAt: '2026-06-04T12:00:00.000Z',
+    startedAt: '2026-06-04T12:00:00.000Z',
+    finishedAt: '2026-06-04T12:01:00.000Z',
+    dataQuality: {
+      snapshot: {
+        config: { rules: [] },
+        schema: { fields: [] },
+        relationships: [],
+        definitionType: 'SQL',
+      },
+      summary: {
+        state: 'ISSUES',
+        enabledChecks: 1,
+        totalChecks: 1,
+        passedChecks: 0,
+        failedChecks: 1,
+        notApplicableChecks: 0,
+        errorChecks: 0,
+        noticeFindings: 0,
+        warningFindings: 1,
+        errorFindings: 0,
+        violationCount: 1,
+        highestSeverity: 'warning',
+      },
+      results: [
+        {
+          id: `result-${runId}`,
+          ruleKey: 'negative_values:field:["amount"]',
+          category: 'negative_values',
+          scope: { type: 'FIELD', fieldPath: ['amount'] },
+          severity: 'warning',
+          status: 'FAILED',
+          violationCount: 1,
+          description,
+          examples: [],
+          sql: null,
+          error: null,
+          redacted: false,
+          createdAt: '2026-06-04T12:01:00.000Z',
+        },
+      ],
+    },
+  };
+}

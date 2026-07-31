@@ -56,6 +56,15 @@ export class DataMartService {
     return this.dataMartRepository.findOne({ where: { id }, withDeleted });
   }
 
+  async findByIdsAndProjectId(ids: readonly string[], projectId: string): Promise<DataMart[]> {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return [];
+    return this.dataMartRepository.find({
+      where: { id: In(uniqueIds), projectId },
+      select: ['id'],
+    });
+  }
+
   async findByProjectIdForList(
     projectId: string,
     options?: {

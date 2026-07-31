@@ -61,12 +61,18 @@ class TiktokMarketingApiProvider {
 
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
-            console.error("TikTok Marketing API rate limit exceeded. Retrying...");
+            // stdout, not stderr: a retry notice is not a run error. This class has no
+            // config reference, so it cannot use logMessage.
+            console.log("TikTok Marketing API rate limit exceeded. Retrying...");
             await AsyncUtils.delay(backoff);
             backoff *= 2;
             continue;
           }
-          throw new Error(`TikTok API error: ${jsonData.message}`);
+          const error = new Error(`TikTok API error: ${jsonData.message}`);
+          // Matched on message text because TikTok's Business API docs don't publish
+          // reliable numeric codes for these; switch to jsonData.code if they ever do
+          error.isWarning = /No permission to operate advertiser|doesn't exist or has been deleted/.test(jsonData.message);
+          throw error;
         }
 
         return jsonData;

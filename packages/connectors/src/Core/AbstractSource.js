@@ -87,6 +87,11 @@ var AbstractSource = class AbstractSource {
         }
         catch (error) {
           if (!this._shouldRetry(error, attempt)) {
+            // Never downgrade a flag a deeper layer already set: it classified with more
+            // context than the status code available here, so its `true` wins. A `false`
+            // from below only means "not one of the cases I recognise", so a genuine
+            // 401/403 can still promote it.
+            error.isWarning = error.isWarning || this._isAuthError(error);
             throw error;
           }
 
@@ -205,6 +210,22 @@ var AbstractSource = class AbstractSource {
       // By default, don't retry any errors
       // Each connector should implement its own retry logic
       return false;
+    }
+    //----------------------------------------------------------------
+
+  //---- _isAuthError ----------------------------------------------
+    /**
+     * Determines if an error indicates expired/invalid credentials (the user needs to
+     * re-authorize) rather than a transient or internal failure. Default implementation
+     * checks standard HTTP auth status codes. Source implementations should override this
+     * for providers whose auth errors don't surface as 401/403 (e.g. Facebook's OAuthException
+     * comes back as HTTP 400 with a payload error code).
+     *
+     * @param {HttpRequestException} error - The error to check
+     * @return {boolean} True if this is an authentication/authorization failure
+     */
+    _isAuthError(error) {
+      return error.statusCode === HTTP_STATUS.UNAUTHORIZED || error.statusCode === HTTP_STATUS.FORBIDDEN;
     }
     //----------------------------------------------------------------
 

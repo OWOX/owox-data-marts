@@ -85,7 +85,7 @@ describe('McpDataMartsFacadeImpl', () => {
       }),
     }) as unknown as jest.Mocked<SummarizeMcpDataCatalogService>;
 
-  it('lists data marts using project-member context', async () => {
+  it('lists only published data marts by default using project-member context', async () => {
     const listDataMartsService = createListDataMartsService([
       new DataMartListItemDto(
         'dm_1',
@@ -144,6 +144,62 @@ describe('McpDataMartsFacadeImpl', () => {
           description: 'Mock Description',
           status: DataMartStatus.PUBLISHED,
           updatedAt: '2026-06-10T10:00:00.000Z',
+        },
+      ],
+    });
+  });
+
+  it('lists only draft data marts when drafts are explicitly requested', async () => {
+    const listDataMartsService = createListDataMartsService([
+      new DataMartListItemDto(
+        'dm_1',
+        'Orders',
+        DataMartStatus.PUBLISHED,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Published data mart'
+      ),
+      new DataMartListItemDto(
+        'dm_draft',
+        'Draft Orders',
+        DataMartStatus.DRAFT,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-11T10:00:00.000Z'),
+        'Draft data mart'
+      ),
+    ]);
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      createGetDataMartService(),
+      createDataMartService(),
+      createQueryDataMartService(),
+      createBlendableSchemaService(),
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.listDataMarts({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      status: 'draft',
+    });
+
+    expect(listDataMartsService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DataMartStatus.DRAFT })
+    );
+    expect(result).toEqual({
+      dataMarts: [
+        {
+          id: 'dm_draft',
+          title: 'Draft Orders',
+          description: 'Draft data mart',
+          status: DataMartStatus.DRAFT,
+          updatedAt: '2026-06-11T10:00:00.000Z',
         },
       ],
     });

@@ -36,7 +36,6 @@ describe('ReportMapper — uniqueCountConfig round-trip', () => {
     toDomainDto: jest.fn().mockReturnValue({ id: 'dd-1' }),
     toApiResponse: jest.fn().mockResolvedValue({ id: 'dd-1' }),
   };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -128,6 +127,7 @@ describe('ReportMapper — uniqueCountConfig round-trip', () => {
     const response = await mapper.toResponse(reportDto);
 
     expect(response.uniqueCountConfig).toBe(true);
+    expect(mockDataMartMapper.toResponse).toHaveBeenCalledWith(reportDto.dataMart);
   });
 
   it('toUpdateDomainCommand: uniqueCountConfig=false is threaded through', () => {

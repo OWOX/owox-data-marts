@@ -17,6 +17,7 @@ export class ConsumptionTrackingService {
   private readonly pubSubService?: PubSubService;
 
   private readonly connectorRunConsumptionTopic?: string;
+  private readonly dataQualityRunConsumptionTopic?: string;
   private readonly aiProcessRunConsumptionTopic?: string;
   private readonly sheetsReportRunConsumptionTopic?: string;
   private readonly lookerReportRunConsumptionTopic?: string;
@@ -41,6 +42,15 @@ export class ConsumptionTrackingService {
       );
       if (this.connectorRunConsumptionTopic) {
         this.logger.log(`Consumption Connector Run topic: ${this.connectorRunConsumptionTopic}`);
+      }
+
+      this.dataQualityRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_DATA_QUALITY_RUN_TOPIC'
+      );
+      if (this.dataQualityRunConsumptionTopic) {
+        this.logger.log(
+          `Consumption Data Quality Run topic: ${this.dataQualityRunConsumptionTopic}`
+        );
       }
 
       this.sheetsReportRunConsumptionTopic = configService.get<string>(
@@ -139,6 +149,39 @@ export class ConsumptionTrackingService {
       inputSource: connectorTitle ? connectorTitle : connectorName,
       processRunId: connectorRunId,
     });
+  }
+
+  public async registerDataQualityRunConsumption(
+    dataMart: DataMart,
+    dataMartRunId: string
+  ): Promise<void> {
+    if (!this.pubSubService || !this.dataQualityRunConsumptionTopic) {
+      this.logger.debug('Data Quality run consumption tracking is not configured, skipping...');
+      return;
+    }
+
+    const command = {
+      ...this.baseDataMartConsumptionPayload(dataMart),
+      processRunId: dataMartRunId,
+    };
+
+    try {
+      const messageId = await this.pubSubService.publishMessageWithDefaultWrap(
+        this.dataQualityRunConsumptionTopic,
+        command
+      );
+      this.logger.log(
+        `Sent Data Quality consumption command to PubSub. Message: ${messageId}. Topic: ${this.dataQualityRunConsumptionTopic}. CMD: ${JSON.stringify(command)}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Failed to send Data Quality consumption command to PubSub: ${message}. Topic: ${this.dataQualityRunConsumptionTopic}. CMD: ${JSON.stringify(command)}`,
+        stack
+      );
+      throw error;
+    }
   }
 
   public async registerSheetsReportRunConsumption(

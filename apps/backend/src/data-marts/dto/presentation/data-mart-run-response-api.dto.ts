@@ -7,6 +7,12 @@ import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-
 import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
+import { DataQualityRunDetailsDto } from '../domain/data-quality.dto';
+import {
+  CompactDataQualitySummaryApiDto,
+  DataQualityRunDetailsResponseApiDto,
+} from './data-quality-api.dto';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export type DataMartRunAiSourceResponseDefinition = Omit<DataMartRunAiSourceDefinition, 'trace'>;
 export type DataMartRunTotals = Record<string, number | string | boolean | null> | null;
@@ -47,24 +53,27 @@ export class DataMartRunResponseApiDto {
     description: 'Current run lifecycle status.',
     enum: DataMartRunStatus,
     enumName: 'DataMartRunStatus',
+    nullable: true,
   })
-  status: DataMartRunStatus;
+  status: DataMartRunStatus | null;
 
   @ApiProperty({
     example: 'CONNECTOR',
     description: 'Execution category that produced the run.',
     enum: DataMartRunType,
     enumName: 'DataMartRunType',
+    nullable: true,
   })
-  type: DataMartRunType;
+  type: DataMartRunType | null;
 
   @ApiProperty({
     example: 'manual',
     description: 'Run trigger type (manual, scheduled)',
     enum: RunType,
     enumName: 'RunType',
+    nullable: true,
   })
-  runType: RunType;
+  runType: RunType | null;
 
   @ApiProperty({ example: 'a5c9b1d2-3456-7890-abcd-ef0123456789' })
   dataMartId: string;
@@ -188,6 +197,9 @@ export class DataMartRunResponseApiDto {
   })
   finishedAt: string | Date | null;
 
+  @ApiProperty({ type: UserProjectionDto, nullable: true })
+  createdByUser: UserProjectionDto | null;
+
   @ApiProperty({
     type: Object,
     additionalProperties: true,
@@ -200,4 +212,12 @@ export class DataMartRunResponseApiDto {
 
   @DataMartRunTotalsApiProperty()
   totals: DataMartRunTotals;
+
+  @ApiProperty({ type: CompactDataQualitySummaryApiDto, required: false, nullable: true })
+  qualitySummary: CompactDataQualitySummaryApiDto | null;
+}
+
+export class DataMartRunDetailResponseApiDto extends DataMartRunResponseApiDto {
+  @ApiProperty({ type: DataQualityRunDetailsResponseApiDto, required: false, nullable: true })
+  dataQuality?: DataQualityRunDetailsDto | null;
 }

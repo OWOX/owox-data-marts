@@ -486,12 +486,14 @@ describeIfSnowflakeCredentials(
     // Sort + limit
     // -------------------------------------------------------------------------
 
-    it('sort by amount DESC + limit 2 → rows 5,4 (amounts 50,40)', async () => {
+    it('sort by amount DESC + limit 2 → rows 7,5 (NULL amount first, then 50)', async () => {
+      // Seed row 7 has amount=NULL. Snowflake treats NULL as highest, so DESC puts
+      // NULLs first — the all-NULL row leads before amount 50 (id 5).
       const rows = await runFilter({
         sort: [{ column: 'amount', direction: 'desc' }],
         limit: 2,
       });
-      expect(rows.map(r => String(r.id ?? r.ID ?? ''))).toEqual(['5', '4']);
+      expect(rows.map(r => String(r.id ?? r.ID ?? ''))).toEqual(['7', '5']);
     }, 30000);
 
     // -------------------------------------------------------------------------
@@ -721,19 +723,29 @@ describeIfSnowflakeCredentials(
         expect(Number(row['Row Count'])).toBe(4);
       }, 60000);
 
-      // Case 9 — ORDER BY aggregated alias (SUM desc) + limit 1 returns larger group.
-      it('ORDER BY SUM desc + limit 1 returns the active group (larger sum 90 vs 60)', async () => {
+      // Case 9 — ORDER BY aggregated alias (SUM desc) with the NULL-status bucket.
+      // Three groups: active SUM=90, inactive SUM=60, NULL-status SUM=NULL.
+      // Snowflake DESC treats NULL as highest, so the NULL-status group leads.
+      it('ORDER BY SUM desc: NULL-status group first, then active (90), then inactive (60)', async () => {
         const rows = await runFilter({
           columns: ['status', 'amount'],
           aggregations: [{ column: 'amount', function: 'SUM' }],
           sort: [{ column: 'amount', direction: 'desc' }],
-          limit: 1,
         });
 
-        expect(rows).toHaveLength(1);
-        const row = rows[0];
-        expect(String(row.status ?? row.STATUS ?? '')).toBe('active');
-        expect(Number(row['amount | SUM'])).toBeCloseTo(90, 5);
+        expect(rows).toHaveLength(3);
+        const statusOf = (r: Record<string, unknown>): unknown =>
+          'status' in r ? r.status : r.STATUS;
+
+        // 1) NULL-status bucket (SUM of NULL amount → NULL) leads under DESC NULLS FIRST
+        expect(statusOf(rows[0])).toBeNull();
+        expect(rows[0]['amount | SUM']).toBeNull();
+        // 2) active SUM=90 is the highest non-NULL aggregate
+        expect(String(statusOf(rows[1]))).toBe('active');
+        expect(Number(rows[1]['amount | SUM'])).toBeCloseTo(90, 5);
+        // 3) inactive SUM=60
+        expect(String(statusOf(rows[2]))).toBe('inactive');
+        expect(Number(rows[2]['amount | SUM'])).toBeCloseTo(60, 5);
       }, 60000);
 
       // Case 10 — multi-dimension group-by (status + date-trunc MONTH).

@@ -7,7 +7,7 @@ import type { ScheduledTriggerConfig } from '../../trigger-config.types.ts';
 export interface CreateScheduledTriggerRequestApiDto {
   /**
    * Type of the scheduled trigger
-   * @example CONNECTOR_RUN
+   * @example DATA_QUALITY_RUN
    */
   type: ScheduledTriggerType;
 

@@ -1,4 +1,5 @@
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
+import { DataMartStatus } from '../../../data-marts/enums/data-mart-status.enum';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpToolRegistry } from './mcp-tool.registry';
@@ -32,7 +33,7 @@ describe('ListDataMartsTool', () => {
             id: 'dm_1',
             title: 'Orders',
             description: null,
-            status: 'published',
+            status: DataMartStatus.PUBLISHED,
             updatedAt: '2026-06-10T10:00:00.000Z',
           },
         ],
@@ -49,7 +50,7 @@ describe('ListDataMartsTool', () => {
             title: 'Orders',
             description: '',
             url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
-            status: 'published',
+            status: DataMartStatus.PUBLISHED,
             updated_at: '2026-06-10T10:00:00.000Z',
           },
         ],
@@ -66,7 +67,7 @@ describe('ListDataMartsTool', () => {
                   title: 'Orders',
                   description: '',
                   url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
-                  status: 'published',
+                  status: DataMartStatus.PUBLISHED,
                   updated_at: '2026-06-10T10:00:00.000Z',
                 },
               ],
@@ -85,6 +86,45 @@ describe('ListDataMartsTool', () => {
     });
   });
 
+  it('lists draft data marts only when explicitly requested', async () => {
+    const facade = {
+      listDataMarts: jest.fn().mockResolvedValue({
+        dataMarts: [
+          {
+            id: 'dm_draft',
+            title: 'Draft Orders',
+            description: 'Unpublished changes',
+            status: 'DRAFT',
+            updatedAt: '2026-06-11T10:00:00.000Z',
+          },
+        ],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new ListDataMartsTool(facade, publicOrigin, projectContext as never);
+
+    const result = await tool.handler({ status: 'draft' }, context);
+
+    expect(facade.listDataMarts).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      status: 'draft',
+    });
+    expect(result.structuredContent).toEqual({
+      project: { id: 'project-1', title: 'Analytics' },
+      data_marts: [
+        {
+          id: 'dm_draft',
+          title: 'Draft Orders',
+          description: 'Unpublished changes',
+          url: 'https://app.owox.com/ui/project-1/data-marts/dm_draft/data-setup',
+          status: 'DRAFT',
+          updated_at: '2026-06-11T10:00:00.000Z',
+        },
+      ],
+    });
+  });
+
   it('rejects explicit project_id input', async () => {
     const tool = new ListDataMartsTool(
       {} as McpDataMartsFacade,
@@ -93,6 +133,16 @@ describe('ListDataMartsTool', () => {
     );
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
+  });
+
+  it('rejects an unsupported catalog state', () => {
+    const tool = new ListDataMartsTool(
+      {} as McpDataMartsFacade,
+      publicOrigin,
+      projectContext as never
+    );
+
+    expect(() => tool.parseInput({ status: 'archived' })).toThrow();
   });
 
   it('returns the catalog when optional project metadata is unavailable', async () => {

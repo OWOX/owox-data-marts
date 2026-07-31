@@ -1,16 +1,24 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthenticationError, AuthorizationError, type Payload } from '@owox/idp-protocol';
+import {
+  ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE,
+  AuthenticationError,
+  AuthorizationError,
+  type Payload,
+  ViewOnlyModeError,
+} from '@owox/idp-protocol';
 import { ClsService } from 'nestjs-cls';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Role, Strategy, type RoleConfig } from '../types';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
+import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
 
 describe('IdpGuard', () => {
   let roleConfig: RoleConfig;
   let rejectApiKeyAuth: boolean;
+  let viewOnlySafe: boolean;
   let request: AuthenticatedRequest;
   let idpProvider: {
     parseToken: jest.Mock<Promise<Payload | null>, [string]>;
@@ -25,6 +33,7 @@ describe('IdpGuard', () => {
   beforeEach(() => {
     roleConfig = Role.authenticated(Strategy.PARSE);
     rejectApiKeyAuth = false;
+    viewOnlySafe = false;
     request = {
       headers: {
         'x-owox-authorization': 'Bearer access-token',
@@ -54,6 +63,9 @@ describe('IdpGuard', () => {
           if (metadataKey === REJECT_API_KEY_AUTH_METADATA) {
             return rejectApiKeyAuth;
           }
+          if (metadataKey === VIEW_ONLY_SAFE_METADATA) {
+            return viewOnlySafe;
+          }
           return undefined;
         }),
       } as unknown as Reflector,
@@ -75,6 +87,7 @@ describe('IdpGuard', () => {
       roles: [],
       authFlow: undefined,
       apiKeyId: undefined,
+      viewOnly: undefined,
     });
   });
 
@@ -85,8 +98,15 @@ describe('IdpGuard', () => {
     await expect(guard.canActivate(context())).rejects.toThrow(AuthorizationError);
   });
 
-  it('keeps Role.none optional and does not authenticate', async () => {
+  it('keeps Role.none optional and does not authenticate or apply view-only checks', async () => {
+    // Optional routes skip IDP entirely — even if a user access token is present
+    // and would be view-only. Real auth for those endpoints is external (service
+    // account / connector JWT), so view-only is not applied here by design.
     roleConfig = Role.none();
+    request.method = 'POST';
+    request.headers = { 'x-owox-authorization': 'Bearer access-token' };
+    idpProvider.parseToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+    idpProvider.introspectToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
 
     await expect(guard.canActivate(context())).resolves.toBe(true);
 
@@ -225,6 +245,107 @@ describe('IdpGuard', () => {
     );
 
     await expect(guard.canActivate(context())).resolves.toBe(true);
+  });
+
+  describe('view-only restrictions', () => {
+    it.each(['GET', 'HEAD', 'OPTIONS'] as const)(
+      'allows view-only sessions for safe method %s',
+      async method => {
+        roleConfig = Role.viewer(Strategy.PARSE);
+        request.method = method;
+        idpProvider.parseToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+
+        await expect(guard.canActivate(context())).resolves.toBe(true);
+
+        expect(request.idpContext.viewOnly).toBe(true);
+        expect(clsService.set).toHaveBeenCalledWith(
+          AUTH_CONTEXT,
+          expect.objectContaining({ viewOnly: true })
+        );
+      }
+    );
+
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'] as const)(
+      'rejects view-only sessions for state-changing method %s with ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE',
+      async method => {
+        roleConfig = Role.viewer(Strategy.PARSE);
+        request.method = method;
+        idpProvider.parseToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+
+        let error: unknown;
+        try {
+          await guard.canActivate(context());
+        } catch (caughtError) {
+          error = caughtError;
+        }
+
+        expect(error).toBeInstanceOf(ViewOnlyModeError);
+        expect(error).toBeInstanceOf(AuthorizationError);
+        expect((error as ViewOnlyModeError).code).toBe(ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE);
+        expect((error as ViewOnlyModeError).getStatus()).toBe(403);
+        expect(idpProjectionsService.updateProjectionsFromIdpPayload).not.toHaveBeenCalled();
+      }
+    );
+
+    it('does not treat roles or unrelated claims as view-only', async () => {
+      roleConfig = Role.viewer(Strategy.PARSE);
+      request.method = 'POST';
+      // Unrelated claim noise — only Payload.viewOnly enables restrictions.
+      idpProvider.parseToken.mockResolvedValue(
+        payload(['viewer'], { readOnly: true } as Partial<Payload>)
+      );
+
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+    });
+
+    it('allows state-changing methods when viewOnly is false or absent', async () => {
+      roleConfig = Role.viewer(Strategy.PARSE);
+      request.method = 'POST';
+      idpProvider.parseToken.mockResolvedValue(payload(['editor'], { viewOnly: false }));
+
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+    });
+
+    it('allows a read-semantics POST explicitly marked as view-only safe', async () => {
+      roleConfig = Role.viewer(Strategy.PARSE);
+      viewOnlySafe = true;
+      request.method = 'POST';
+      idpProvider.parseToken.mockResolvedValue(payload(['viewer'], { viewOnly: true }));
+
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+
+      expect(request.idpContext.viewOnly).toBe(true);
+    });
+
+    it.each(['PUT', 'PATCH', 'DELETE'] as const)(
+      'does not apply the view-only safe escape hatch to %s',
+      async method => {
+        roleConfig = Role.viewer(Strategy.PARSE);
+        viewOnlySafe = true;
+        request.method = method;
+        idpProvider.parseToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+
+        await expect(guard.canActivate(context())).rejects.toBeInstanceOf(ViewOnlyModeError);
+      }
+    );
+
+    it('enforces view-only before updating IDP projections on mutations', async () => {
+      roleConfig = Role.viewer(Strategy.PARSE);
+      request.method = 'PUT';
+      idpProvider.parseToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+
+      await expect(guard.canActivate(context())).rejects.toBeInstanceOf(ViewOnlyModeError);
+      expect(idpProjectionsService.updateProjectionsFromIdpPayload).not.toHaveBeenCalled();
+    });
+
+    it('also enforces view-only when token is resolved via INTROSPECT strategy', async () => {
+      roleConfig = Role.viewer(Strategy.INTROSPECT);
+      request.method = 'PATCH';
+      idpProvider.introspectToken.mockResolvedValue(payload(['admin'], { viewOnly: true }));
+
+      await expect(guard.canActivate(context())).rejects.toBeInstanceOf(ViewOnlyModeError);
+      expect(idpProvider.parseToken).not.toHaveBeenCalled();
+    });
   });
 
   function context(): ExecutionContext {

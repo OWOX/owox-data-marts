@@ -28,4 +28,11 @@ export class AuthContextResponseApiDto {
 
   @ApiPropertyOptional({ nullable: true })
   apiKeyId?: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'True when the session is in view-only mode. Mutating API requests are rejected server-side; clients may also suppress analytics.',
+  })
+  viewOnly?: boolean;
 }

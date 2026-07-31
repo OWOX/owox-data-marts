@@ -37,6 +37,7 @@ import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
+import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBalanceService } from '../project-balance.service';
@@ -233,12 +234,22 @@ export class ConnectorExecutorService {
         await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
       } catch (error) {
         const schemaError = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Error schema actualization: ${schemaError}`, (error as Error)?.stack, {
+        const logMeta = {
           dataMartId: dataMart.id,
           projectId: dataMart.projectId,
           runId,
           error: schemaError,
-        });
+        };
+        if (error instanceof CredentialsExpiredException) {
+          // Customer must reconnect their storage — not ops-actionable, don't page
+          this.logger.warn(`Error schema actualization: ${schemaError}`, logMeta);
+        } else {
+          this.logger.error(
+            `Error schema actualization: ${schemaError}`,
+            (error as Error)?.stack,
+            logMeta
+          );
+        }
       }
 
       this.gracefulShutdownService.unregisterActiveProcess(processId);
@@ -260,10 +271,31 @@ export class ConnectorExecutorService {
       const configId = (config as Record<string, unknown>)._id as string;
 
       if (!configId) {
-        this.logger.error(
-          `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`,
-          { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, configIndex }
-        );
+        // A stored configuration with no _id is a data-integrity defect in the data mart
+        // definition — nothing the customer can act on, so it stays an error. It also has
+        // to be recorded as a run error: skipping straight to `continue` left a run with
+        // no configuration results, which persists as FAILED with errors = null and so
+        // explains itself neither in run history nor in the failure email.
+        const errorMessage = `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`;
+        this.logger.error(errorMessage, {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configIndex,
+        });
+        configurationResults.push({
+          configIndex,
+          success: false,
+          logs: [],
+          errors: [
+            {
+              type: ConnectorMessageType.ERROR,
+              at: this.systemTimeService.now().toISOString(),
+              error: errorMessage,
+              toFormattedString: () => `[ERROR] ${errorMessage}`,
+            },
+          ],
+        });
         continue;
       }
 
@@ -280,6 +312,18 @@ export class ConnectorExecutorService {
             case ConnectorMessageType.ERROR:
               addMessageToArray(configErrors, message);
               this.logger.error(`${message.toFormattedString()}`, {
+                dataMartId: dataMart.id,
+                projectId: dataMart.projectId,
+                runId,
+                configId,
+              });
+              break;
+            case ConnectorMessageType.WARNING:
+              // Still counts as a run failure (goes into configErrors, same as ERROR) so the
+              // "finished without terminal success status" fallback below doesn't also fire —
+              // it's just not paged as an ERROR-severity log.
+              addMessageToArray(configErrors, message);
+              this.logger.warn(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
                 runId,
@@ -313,8 +357,14 @@ export class ConnectorExecutorService {
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
                 success = false;
-                addMessageToArray(configErrors, message);
-                this.logger.error(`${message.toFormattedString()}`, {
+                // Goes to logs, not errors: this flag carries no detail (just a numeric
+                // code), and the actual cause arrives as its own ERROR/WARNING message on
+                // the same run. Recording it as an error would render a second, generic
+                // ERROR row next to a run whose only real failure is a warning — and the
+                // "finished without terminal success status" fallback below already
+                // covers the case where no detail message arrives at all.
+                addMessageToArray(configLogs, message);
+                this.logger.warn(`${message.toFormattedString()}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
                   runId,
@@ -423,25 +473,44 @@ export class ConnectorExecutorService {
       } catch (error) {
         success = false;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        addMessageToArray(configErrors, {
-          type: ConnectorMessageType.ERROR,
-          at: this.systemTimeService.now().toISOString(),
+        // The user cancelled the run, or the customer must reconnect their storage.
+        // Neither is ops-actionable, so it is a warning in run history as well as in
+        // monitoring — deciding here keeps the persisted type and the log severity
+        // from drifting apart.
+        const isWarning = signal?.aborted === true || error instanceof CredentialsExpiredException;
+        const summary = `Configuration ${configIndex + 1} failed: ${errorMessage}`;
+        const at = this.systemTimeService.now().toISOString();
+        const logMeta = {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          configIndex,
           error: errorMessage,
-          toFormattedString: () =>
-            `[ERROR] Configuration ${configIndex + 1} failed: ${errorMessage}`,
-        });
-        this.logger.error(
-          `Configuration ${configIndex + 1} failed: ${errorMessage}`,
-          (error as Error)?.stack,
-          {
-            dataMartId: dataMart.id,
-            projectId: dataMart.projectId,
-            runId,
-            configId,
-            configIndex,
-            error: errorMessage,
-          }
+        };
+
+        addMessageToArray(
+          configErrors,
+          isWarning
+            ? {
+                type: ConnectorMessageType.WARNING,
+                at,
+                warning: errorMessage,
+                toFormattedString: () => `[WARNING] ${summary}`,
+              }
+            : {
+                type: ConnectorMessageType.ERROR,
+                at,
+                error: errorMessage,
+                toFormattedString: () => `[ERROR] ${summary}`,
+              }
         );
+
+        if (isWarning) {
+          this.logger.warn(summary, logMeta);
+        } else {
+          this.logger.error(summary, (error as Error)?.stack, logMeta);
+        }
       } finally {
         if (credentialUpdates) {
           try {

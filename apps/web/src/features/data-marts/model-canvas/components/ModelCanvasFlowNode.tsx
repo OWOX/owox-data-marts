@@ -1,14 +1,21 @@
-import { ExternalLink, Info } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronRight, ExternalLink, Info, KeyRound } from 'lucide-react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
+import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
+import { DIMMED_OPACITY, HIGHLIGHT_COLOR, SOCKET_STYLE } from '../../shared/canvas/constants';
 import {
-  DIMMED_OPACITY,
-  HIGHLIGHT_COLOR,
-  NODE_BORDER_COLOR,
-  SOCKET_STYLE,
-  WARNING_COLOR,
-} from '../../shared/canvas/constants';
+  type CanvasViewMode,
+  collapsedRowCount,
+  definitionTypeAccent,
+  nodeWidth,
+  orderFields,
+} from '../model/erd-node';
+import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
+import type { DataQualityCompactSummary } from '../../shared/types';
+import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedValue } from '../../shared/components/DataLastUpdatedValue';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
 
@@ -20,6 +27,9 @@ export interface ModelCanvasFlowNodeData {
   isDraft: boolean;
   fieldCount: number;
   description: string | null;
+  definitionType: DataMartDefinitionType | null;
+  fields: CanvasNodeField[];
+  viewMode: CanvasViewMode;
   dataLastUpdated: DataLastUpdatedDto | null;
   hasIncoming: boolean;
   hasOutgoing: boolean;
@@ -27,6 +37,9 @@ export interface ModelCanvasFlowNodeData {
   dimmed: boolean;
   direction: CanvasDirection;
   onOpenExternal: () => void;
+  qualitySummary: DataQualityCompactSummary;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 export type ModelCanvasFlowNodeType = Node<
@@ -34,12 +47,69 @@ export type ModelCanvasFlowNodeType = Node<
   'modelCanvasNode'
 >;
 
+function StatusDot({ isDraft }: { isDraft: boolean }) {
+  const label = isDraft ? 'Draft' : 'Published';
+  return (
+    <span className='inline-flex shrink-0 items-center' title={label}>
+      <span
+        className={`h-2 w-2 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
+        aria-hidden='true'
+      />
+      <span className='sr-only'>{label}</span>
+    </span>
+  );
+}
+
+function DefinitionBadge({ type }: { type: DataMartDefinitionType | null }) {
+  const info = DataMartDefinitionTypeModel.getInfo(type);
+  const color = definitionTypeAccent(type);
+  const Icon = info.icon;
+  return (
+    <span
+      className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase'
+      style={{ background: color }}
+    >
+      <Icon className='h-2.5 w-2.5' />
+      {info.displayName}
+    </span>
+  );
+}
+
+function FieldRow({ field }: { field: CanvasNodeField }) {
+  return (
+    <div
+      className='border-border/50 flex items-center gap-2 border-b px-3.5 py-1.5 text-[11.5px] last:border-b-0'
+      style={{ opacity: field.isHidden ? 0.5 : 1 }}
+      title={field.isHidden ? `${field.alias} (hidden from reporting)` : field.alias}
+    >
+      {field.isPrimaryKey ? (
+        <KeyRound className='h-3 w-3 shrink-0 text-amber-500' aria-label='Primary key' />
+      ) : (
+        <span className='w-3 shrink-0' />
+      )}
+      <span className='text-foreground flex-1 truncate'>{field.alias}</span>
+      <span className='text-muted-foreground shrink-0 font-mono text-[10px] tracking-tight'>
+        {field.type}
+      </span>
+    </div>
+  );
+}
+
 export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowNodeType>) {
-  const borderColor = data.highlighted
-    ? HIGHLIGHT_COLOR
-    : data.isDraft
-      ? WARNING_COLOR
-      : NODE_BORDER_COLOR;
+  const [expanded, setExpanded] = useState(false);
+  const accent = definitionTypeAccent(data.definitionType);
+  const isErd = data.viewMode === 'erd';
+  const fields = data.fields;
+  const showBody = isErd && fields.length > 0;
+
+  const ordered = orderFields(fields);
+  const collapsed = collapsedRowCount(fields);
+  const visible = expanded ? ordered : ordered.slice(0, collapsed);
+  const hiddenCount = ordered.length - collapsed;
+
+  const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
+  const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
+  const openExternalLabel = `Open ${data.title} in new tab`;
 
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -47,44 +117,27 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
     data.onOpenExternal();
   }
 
-  const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
-  const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
-  const openExternalLabel = `Open ${data.title} in new tab`;
+  function toggleExpanded(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    setExpanded(v => !v);
+  }
 
   return (
     <div
+      className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
       style={{
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        borderRadius: 8,
-        border: `2px solid ${borderColor}`,
-        background: 'var(--background)',
+        width: nodeWidth(data.viewMode),
+        borderColor: data.highlighted ? HIGHLIGHT_COLOR : undefined,
         boxShadow: data.highlighted
           ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
-          : '0 1px 4px 0 rgba(0,0,0,0.12)',
-        cursor: 'default',
-        position: 'relative',
+          : undefined,
         opacity: data.dimmed ? DIMMED_OPACITY : 1,
         filter: data.dimmed ? 'grayscale(0.8)' : undefined,
         animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
         transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
-      {data.isDraft && (
-        <span
-          style={{
-            position: 'absolute',
-            top: -18,
-            right: 4,
-            fontSize: 10,
-            fontWeight: 600,
-            color: WARNING_COLOR,
-            lineHeight: 1,
-          }}
-        >
-          Draft
-        </span>
-      )}
       {data.hasIncoming && (
         <Handle
           type='target'
@@ -93,63 +146,103 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
           style={SOCKET_STYLE}
         />
       )}
-      <div
-        className='bg-muted flex items-center justify-between'
-        style={{
-          padding: '8px 10px 8px 14px',
-          fontSize: 13,
-          fontWeight: 600,
-          borderRadius: '6px 6px 0 0',
-        }}
-      >
-        <span className='truncate' title={data.title}>
+
+      {/* Header: accent stripe + title + status + actions */}
+      <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
+        <span
+          className='h-4 w-1 shrink-0 rounded-sm'
+          style={{ background: accent }}
+          aria-hidden='true'
+        />
+        <span
+          className='text-foreground flex-1 truncate text-[13px] font-semibold'
+          title={data.title}
+        >
           {data.title}
         </span>
-        <div className='ml-2 flex shrink-0 items-center gap-0.5'>
-          {data.description && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type='button'
-                  className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
-                  aria-label={`Description for ${data.title}`}
-                  onPointerDown={e => {
-                    e.stopPropagation();
-                  }}
-                >
-                  <Info style={{ width: 14, height: 14 }} aria-hidden='true' />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side='top' align='center' role='tooltip'>
-                {data.description}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
-            onPointerDown={e => {
-              e.stopPropagation();
-            }}
-            onClick={handleExtClick}
-            title={openExternalLabel}
-            aria-label={openExternalLabel}
-          >
-            <ExternalLink style={{ width: 14, height: 14 }} aria-hidden='true' />
-          </button>
-        </div>
+        <StatusDot isDraft={data.isDraft} />
+        {data.description && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type='button'
+                className='text-muted-foreground hover:text-foreground nodrag inline-flex cursor-default rounded p-0.5 transition-colors'
+                aria-label={`Description for ${data.title}`}
+                onPointerDown={e => {
+                  e.stopPropagation();
+                }}
+              >
+                <Info className='h-3.5 w-3.5' aria-hidden='true' />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side='top' align='center' role='tooltip' className='max-w-xs'>
+              {data.description}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        <button
+          type='button'
+          className='text-muted-foreground hover:text-foreground nodrag shrink-0 cursor-pointer rounded p-0.5 transition-colors'
+          onPointerDown={e => {
+            e.stopPropagation();
+          }}
+          onClick={handleExtClick}
+          title={openExternalLabel}
+          aria-label={openExternalLabel}
+        >
+          <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
+        </button>
       </div>
-      <div
-        className='text-muted-foreground flex items-center gap-2'
-        style={{ padding: '6px 14px 8px', fontSize: 11, minWidth: 0 }}
-      >
-        <span className='min-w-0 truncate' title='Data Last Updated'>
-          <DataLastUpdatedValue block={data.dataLastUpdated} compact />
-        </span>
+      {/* Meta row: definition badge + field count */}
+      <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
+        <DefinitionBadge type={data.definitionType} />
         <span className='ml-auto shrink-0'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>
+        <span className='min-w-0 truncate' title='Data Last Updated'>
+          <DataLastUpdatedValue block={data.dataLastUpdated} compact />
+        </span>
       </div>
+      {/* Data Quality row */}
+      <div className='text-muted-foreground flex items-center px-3.5 pt-1 pb-3 text-[11px]'>
+        <DataQualityCanvasStatusIcon
+          dataMartTitle={data.title}
+          summary={data.qualitySummary}
+          onOpenQuality={data.onOpenQuality}
+          onRunQuality={data.onRunQuality}
+        />
+      </div>
+
+      {/* ERD body: field rows (only in ERD view) */}
+      {showBody && (
+        <div className='border-t'>
+          {visible.map(field => (
+            <FieldRow key={field.name} field={field} />
+          ))}
+          {hiddenCount > 0 && (
+            <button
+              type='button'
+              className='text-muted-foreground hover:text-foreground hover:bg-muted nodrag flex w-full items-center justify-center gap-1 border-t py-1.5 text-[11px] font-medium transition-colors'
+              onPointerDown={e => {
+                e.stopPropagation();
+              }}
+              onClick={toggleExpanded}
+            >
+              {expanded ? (
+                <>
+                  <ChevronDown className='h-3 w-3' /> Show less
+                </>
+              ) : (
+                <>
+                  <ChevronRight className='h-3 w-3' /> +{hiddenCount} more field
+                  {hiddenCount !== 1 ? 's' : ''}
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       {data.hasOutgoing && (
         <Handle
           type='source'

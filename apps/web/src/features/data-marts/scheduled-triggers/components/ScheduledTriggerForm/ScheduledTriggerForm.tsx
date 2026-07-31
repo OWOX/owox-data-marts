@@ -82,7 +82,7 @@ export function ScheduledTriggerForm({
             name='type'
             render={({ field }) => (
               <FormItem>
-                <FormLabel tooltip='Choose what you want this trigger to run - a report or a connector'>
+                <FormLabel tooltip='Choose what you want this trigger to run'>
                   Trigger Type
                 </FormLabel>
                 <Select
@@ -102,6 +102,9 @@ export function ScheduledTriggerForm({
                     <SelectItem value={ScheduledTriggerType.REPORT_RUN}>Report Run</SelectItem>
                     <SelectItem value={ScheduledTriggerType.CONNECTOR_RUN}>
                       Connector Run
+                    </SelectItem>
+                    <SelectItem value={ScheduledTriggerType.DATA_QUALITY_RUN}>
+                      Data Quality Run
                     </SelectItem>
                   </SelectContent>
                 </Select>

@@ -154,8 +154,7 @@ class AbstractStorage {
         // if import is already in progress skip this run in order to avoid dublication 
         if( this.config.isInProgress() ) {
         // add retry
-          this.config.logMessage("Unable to start cleanup because import is in progress");
-          this.config.addWarningToCurrentStatus();
+          this.config.addWarningToCurrentStatus("Unable to start cleanup because import is in progress");
     
     
         // cheking if data column is exists in this.columnNames

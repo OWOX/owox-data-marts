@@ -10,6 +10,7 @@ jest.mock('../../common/markdown/markdown-parser.service', () => ({
 jest.mock('../../idp', () => ({
   __esModule: true,
   Auth: () => () => undefined,
+  ViewOnlySafe: () => () => undefined,
   Role: {
     viewer: jest.fn(),
   },

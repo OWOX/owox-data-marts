@@ -1,0 +1,102 @@
+import { applyDecorators } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiExtraModels,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  getSchemaPath,
+} from '@nestjs/swagger';
+import {
+  BatchRunDataQualityRequestApiDto,
+  BatchRunDataQualityResponseApiDto,
+  DataQualityConfigResponseApiDto,
+  DataQualityConfigValueApiDto,
+  GetDataQualitySummariesRequestApiDto,
+  GetDataQualitySummariesResponseApiDto,
+  LatestDataQualityRunResponseApiDto,
+  RunDataQualityRequestApiDto,
+  RunDataQualityResponseApiDto,
+} from '../../dto/presentation/data-quality-api.dto';
+
+const dataMartParam = () => ApiParam({ name: 'dataMartId', description: 'Data Mart id' });
+const readErrors = () =>
+  applyDecorators(
+    ApiForbiddenResponse({ description: 'SEE access is required' }),
+    ApiNotFoundResponse({ description: 'Data Mart was not found in the current project' })
+  );
+
+export function GetDataQualityConfigSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get the effective Data Quality configuration' }),
+    dataMartParam(),
+    ApiOkResponse({ type: DataQualityConfigResponseApiDto }),
+    readErrors()
+  );
+}
+
+export function ReplaceDataQualityConfigSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Replace or reset the Data Quality configuration' }),
+    ApiExtraModels(DataQualityConfigValueApiDto),
+    dataMartParam(),
+    ApiBody({
+      schema: {
+        oneOf: [{ $ref: getSchemaPath(DataQualityConfigValueApiDto) }, { type: 'null' }],
+      },
+    }),
+    ApiOkResponse({ type: DataQualityConfigResponseApiDto }),
+    ApiBadRequestResponse({ description: 'Configuration failed validation' }),
+    ApiForbiddenResponse({ description: 'EDIT access is required' }),
+    ApiNotFoundResponse({ description: 'Data Mart was not found in the current project' })
+  );
+}
+
+export function RunDataQualitySpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Run Data Quality using the saved configuration' }),
+    dataMartParam(),
+    ApiBody({ type: RunDataQualityRequestApiDto, required: false }),
+    ApiCreatedResponse({ type: RunDataQualityResponseApiDto }),
+    ApiForbiddenResponse({ description: 'EDIT access is required' }),
+    ApiNotFoundResponse({ description: 'Data Mart was not found in the current project' }),
+    ApiConflictResponse({ description: 'Data Mart is ineligible or already has an active run' })
+  );
+}
+
+export function RunDataQualityBatchSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Independently enqueue Data Quality runs for selected Data Marts' }),
+    ApiBody({ type: BatchRunDataQualityRequestApiDto }),
+    ApiOkResponse({ type: BatchRunDataQualityResponseApiDto }),
+    ApiBadRequestResponse({ description: 'Batch request failed validation' })
+  );
+}
+
+export function GetDataQualitySummariesSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get compact Data Quality summaries for Data Marts' }),
+    ApiBody({ type: GetDataQualitySummariesRequestApiDto }),
+    ApiOkResponse({ type: GetDataQualitySummariesResponseApiDto }),
+    ApiBadRequestResponse({ description: 'Summary request failed validation' })
+  );
+}
+
+export function GetLatestDataQualityRunSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get the latest compact Data Quality run' }),
+    ApiExtraModels(LatestDataQualityRunResponseApiDto),
+    dataMartParam(),
+    ApiOkResponse({
+      schema: {
+        oneOf: [{ $ref: getSchemaPath(LatestDataQualityRunResponseApiDto) }, { type: 'null' }],
+      },
+    }),
+    readErrors()
+  );
+}

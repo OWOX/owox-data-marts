@@ -1,17 +1,21 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  type DataQualityCompactSummary,
   DataMartRunStatus,
   DataMartRunTriggerType,
   DataMartRunType,
 } from '../../../features/data-marts/shared';
+import type { ProjectDataMartRunResponseDto } from '../../../features/data-marts/shared/types/api/response/data-mart-run.response.dto';
 import { dataMartService } from '../../../features/data-marts/shared';
 import { getConnectorInfoByName } from '../../../features/connectors/shared/utils';
 import DataMartRunsPage from './DataMartRunsPage';
 
 const dataMartServiceMock = vi.hoisted(() => ({
   getProjectDataMartRuns: vi.fn(),
+  getDataMartRunById: vi.fn(),
   cancelDataMartRun: vi.fn(),
 }));
 
@@ -43,6 +47,10 @@ vi.mock('../../../features/idp', () => ({
 describe('DataMartRunsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dataMartServiceMock.getDataMartRunById.mockImplementation(
+      (_dataMartId: string, runId: string) =>
+        Promise.resolve(buildGenericQualityRunDetail(runId, `Result for ${runId}`))
+    );
     vi.mocked(getConnectorInfoByName).mockResolvedValue({
       name: 'FacebookMarketing',
       displayName: 'Facebook Marketing',
@@ -111,6 +119,75 @@ describe('DataMartRunsPage', () => {
     expect(getConnectorInfoByName).not.toHaveBeenCalled();
   });
 
+  it('renders a lightweight Data Quality summary in project-wide history', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns).mockResolvedValueOnce({
+      runs: [
+        buildProjectRun({
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: {
+            state: 'ISSUES',
+            enabledChecks: 2,
+            totalChecks: 2,
+            passedChecks: 1,
+            failedChecks: 1,
+            notApplicableChecks: 0,
+            errorChecks: 0,
+            noticeFindings: 0,
+            warningFindings: 1,
+            errorFindings: 0,
+            violationCount: 4,
+            highestSeverity: 'warning',
+            dataMartRunId: 'run-1',
+            lastRunAt: '2026-06-05T10:01:00.000Z',
+          },
+        }),
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Manual data quality run')).toBeInTheDocument();
+    expect(screen.getByText('1 finding')).toBeInTheDocument();
+    expect(screen.getByText('Issues found')).toBeInTheDocument();
+    expect(document.querySelector('.lucide-shield-check')).toBeInTheDocument();
+  });
+
+  it('requests only the expanded project-level Quality run through generic detail', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns).mockResolvedValueOnce({
+      runs: [
+        buildProjectRun({
+          id: 'run-latest',
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: buildQualitySummary('run-latest'),
+        }),
+        buildProjectRun({
+          id: 'run-older',
+          status: DataMartRunStatus.SUCCESS,
+          type: DataMartRunType.DATA_QUALITY,
+          qualitySummary: buildQualitySummary('run-older'),
+        }),
+      ],
+    });
+
+    renderPage();
+
+    const runRows = await screen.findAllByText('Manual data quality run');
+    expect(dataMartServiceMock.getDataMartRunById).not.toHaveBeenCalled();
+
+    fireEvent.click(runRows[1]);
+
+    expect(await screen.findByTestId('quality-result-result-run-older')).toBeInTheDocument();
+    expect(screen.queryByTestId('quality-result-result-run-latest')).not.toBeInTheDocument();
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledTimes(1);
+    expect(dataMartServiceMock.getDataMartRunById).toHaveBeenCalledWith(
+      'dm-1',
+      'run-older',
+      expect.objectContaining({ signal: expect.anything() })
+    );
+  });
+
   it('refreshes the first page while a loaded run is not final and stops after completion', async () => {
     vi.useFakeTimers();
     vi.mocked(dataMartService.getProjectDataMartRuns)
@@ -132,6 +209,7 @@ describe('DataMartRunsPage', () => {
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenCalledTimes(2);
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 0, {
       skipLoadingIndicator: true,
+      skipErrorToast: true,
     });
 
     await act(async () => {
@@ -168,14 +246,48 @@ describe('DataMartRunsPage', () => {
 });
 
 function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={['/ui/project-1/data-marts/runs']}>
-      <DataMartRunsPage />
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/ui/project-1/data-marts/runs']}>
+        <Routes>
+          <Route path='/ui/:projectId/data-marts/runs' element={<DataMartRunsPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 
-function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMartRunStatus }) {
+function buildQualitySummary(dataMartRunId: string): DataQualityCompactSummary {
+  return {
+    state: 'ISSUES',
+    enabledChecks: 1,
+    totalChecks: 1,
+    passedChecks: 0,
+    failedChecks: 1,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 1,
+    errorFindings: 0,
+    violationCount: 1,
+    highestSeverity: 'warning',
+    dataMartRunId,
+    lastRunAt: '2026-06-05T10:01:00.000Z',
+  };
+}
+
+function buildProjectRun({
+  id = 'run-1',
+  status,
+  type = DataMartRunType.CONNECTOR,
+  qualitySummary = null,
+}: {
+  id?: string;
+  status: DataMartRunStatus;
+  type?: DataMartRunType;
+  qualitySummary?: DataQualityCompactSummary | null;
+}): ProjectDataMartRunResponseDto {
   return {
     id,
     dataMartId: 'dm-1',
@@ -196,7 +308,7 @@ function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMa
         },
       },
     },
-    type: DataMartRunType.CONNECTOR,
+    type,
     runType: DataMartRunTriggerType.MANUAL,
     startedAt: '2026-06-05T10:00:00.000Z',
     finishedAt: status === DataMartRunStatus.SUCCESS ? '2026-06-05T10:01:00.000Z' : null,
@@ -209,9 +321,59 @@ function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMa
     aiSourceDefinition: null,
     createdByUser: null,
     additionalParams: null,
+    qualitySummary,
     dataMart: {
       id: 'dm-1',
       title: 'Marketing Mart',
+    },
+  };
+}
+
+function buildGenericQualityRunDetail(runId: string, description: string) {
+  return {
+    id: runId,
+    type: DataMartRunType.DATA_QUALITY,
+    createdAt: '2026-06-05T10:00:00.000Z',
+    startedAt: '2026-06-05T10:00:00.000Z',
+    finishedAt: '2026-06-05T10:01:00.000Z',
+    dataQuality: {
+      snapshot: {
+        config: { rules: [] },
+        schema: { fields: [] },
+        relationships: [],
+        definitionType: 'SQL',
+      },
+      summary: {
+        state: 'ISSUES',
+        enabledChecks: 1,
+        totalChecks: 1,
+        passedChecks: 0,
+        failedChecks: 1,
+        notApplicableChecks: 0,
+        errorChecks: 0,
+        noticeFindings: 0,
+        warningFindings: 1,
+        errorFindings: 0,
+        violationCount: 1,
+        highestSeverity: 'warning',
+      },
+      results: [
+        {
+          id: `result-${runId}`,
+          ruleKey: 'negative_values:field:["amount"]',
+          category: 'negative_values',
+          scope: { type: 'FIELD', fieldPath: ['amount'] },
+          severity: 'warning',
+          status: 'FAILED',
+          violationCount: 1,
+          description,
+          examples: [],
+          sql: null,
+          error: null,
+          redacted: false,
+          createdAt: '2026-06-05T10:01:00.000Z',
+        },
+      ],
     },
   };
 }

@@ -6,3 +6,6 @@ export * from './providers/index.js';
 
 // Middleware
 export * from './middleware/index.js';
+
+// Shared utilities (view-only claim resolution, etc.)
+export * from './utils/view-only.js';

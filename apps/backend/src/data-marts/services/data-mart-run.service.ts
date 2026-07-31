@@ -263,6 +263,19 @@ export class DataMartRunService {
     });
   }
 
+  public async getDataQualityDetailsByIdAndDataMartId(
+    runId: string,
+    dataMartId: string
+  ): Promise<DataMartRun | null> {
+    return this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .addSelect('run.dataQualitySnapshot')
+      .addSelect('run.dataQualityResults')
+      .where('run.id = :runId', { runId })
+      .andWhere('run.dataMartId = :dataMartId', { dataMartId })
+      .getOne();
+  }
+
   public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
     const result = await this.dataMartRunRepository.update(
       {

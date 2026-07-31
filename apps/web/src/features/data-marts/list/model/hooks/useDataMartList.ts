@@ -1,29 +1,44 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useDataMartListContext } from '../context';
 import { mapDataMartListFromDto } from '../mappers/data-mart-list.mapper.ts';
 import { dataMartService } from '../../../shared';
 import { trackEvent } from '../../../../../utils/data-layer';
 
+const SILENT_REQUEST_OPTIONS = {
+  skipLoadingIndicator: true,
+  skipErrorToast: true,
+} as const;
+
 export function useDataMartList() {
   const { state, dispatch } = useDataMartListContext();
+  const requestGenerationRef = useRef(0);
 
-  const loadDataMarts = useCallback(async () => {
-    dispatch({ type: 'SET_LOADING' });
+  const loadDataMarts = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      const requestGeneration = ++requestGenerationRef.current;
+      if (!options.silent) dispatch({ type: 'SET_LOADING' });
 
-    try {
-      const response = await dataMartService.getDataMarts();
-      const listItems = mapDataMartListFromDto(response);
-      dispatch({ type: 'SET_ITEMS', payload: listItems });
-    } catch (error) {
-      dispatch({
-        type: 'SET_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to load data marts',
-      });
-    }
-  }, [dispatch]);
+      try {
+        const response = await dataMartService.getDataMarts(
+          options.silent ? SILENT_REQUEST_OPTIONS : undefined
+        );
+        if (requestGeneration !== requestGenerationRef.current) return;
+        const listItems = mapDataMartListFromDto(response);
+        dispatch({ type: 'SET_ITEMS', payload: listItems });
+      } catch (error) {
+        if (options.silent || requestGeneration !== requestGenerationRef.current) return;
+        dispatch({
+          type: 'SET_ERROR',
+          payload: error instanceof Error ? error.message : 'Failed to load data marts',
+        });
+      }
+    },
+    [dispatch]
+  );
 
   const deleteDataMart = useCallback(
     async (id: string) => {
+      requestGenerationRef.current += 1;
       dispatch({ type: 'SET_LOADING' });
 
       try {

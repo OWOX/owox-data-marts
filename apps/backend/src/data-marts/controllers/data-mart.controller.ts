@@ -1,13 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy, ViewOnlySafe } from '../../idp';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
-import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunDetailResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { ListDataMartsQueryApiDto } from '../dto/presentation/list-data-marts-query-api.dto';
@@ -346,10 +346,10 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
     @Param('runId') runId: string
-  ): Promise<DataMartRunResponseApiDto> {
+  ): Promise<DataMartRunDetailResponseApiDto> {
     const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
     const runDto = await this.getDataMartRunService.run(command);
-    return this.mapper.toRunResponse(runDto);
+    return this.mapper.toRunDetailResponse(runDto);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -366,6 +366,7 @@ export class DataMartController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @ViewOnlySafe()
   @Post('health-status')
   @HttpCode(200)
   @BatchDataMartHealthStatusSpec()

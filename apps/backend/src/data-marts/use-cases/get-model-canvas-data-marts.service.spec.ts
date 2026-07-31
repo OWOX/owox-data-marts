@@ -18,7 +18,6 @@ describe('GetModelCanvasDataMartsService', () => {
     canAccess: jest.fn(),
     canAccessMany: jest.fn(),
   };
-
   const service = new GetModelCanvasDataMartsService(
     dataMartService as unknown as DataMartService,
     dataStorageService as unknown as DataStorageService,

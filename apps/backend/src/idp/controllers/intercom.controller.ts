@@ -1,6 +1,6 @@
 import { Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, RejectApiKeyAuth } from '../decorators';
+import { Auth, AuthContext, RejectApiKeyAuth, ViewOnlySafe } from '../decorators';
 import type { AuthorizationContext } from '../types';
 import { Role, Strategy } from '../types';
 import { IssueIntercomJwtService } from '../use-cases/issue-intercom-jwt.service';
@@ -18,6 +18,7 @@ export class IntercomController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @ViewOnlySafe()
   @Post('jwt')
   @HttpCode(HttpStatus.OK)
   @IssueIntercomJwtSpec()

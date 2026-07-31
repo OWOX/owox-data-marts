@@ -255,35 +255,82 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @return {boolean} True if the error should trigger a retry, false otherwise
    */
   isValidToRetry(error) {
-    console.log(`isValidToRetry() called`);
-    console.log(`error.statusCode =`, error.statusCode);
+    const { retry, reason } = this._evaluateRetry(error);
+    this._logRetryDecision(error, reason, retry);
+    return retry;
+  }
 
+  //---- _evaluateRetry --------------------------------------------
+  /**
+   * The retry decision itself, without logging, so _isAuthError can consult it
+   * without emitting a second entry for the same error.
+   *
+   * @param {HttpRequestException} error - The error to judge
+   * @return {{retry: boolean, reason: string}} Decision and the inputs behind it
+   */
+  _evaluateRetry(error) {
     // Network-level errors (ETIMEDOUT, ECONNRESET, etc.) have no statusCode — always retry
     if (!error.statusCode) {
-      return true;
+      return { retry: true, reason: 'no statusCode (network-level error)' };
     }
 
     if (error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
-      return true;
+      return { retry: true, reason: 'server error' };
     }
 
     if (!error.payload || !error.payload.error) {
-      return false;
+      return { retry: false, reason: 'no Facebook error payload' };
     }
 
     const fbErr = error.payload.error;
     const code = Number(fbErr.code);
     const subcode = Number(fbErr.error_subcode);
+    const codeRetryable = FB_RETRYABLE_ERROR_CODES.includes(code);
+    const subcodeRetryable = FB_RETRYABLE_ERROR_CODES.includes(subcode);
 
-    console.log(`FB error.code = ${code}`);
-    console.log(`FB error.error_subcode = ${subcode}`);
-    console.log(`is_transient = ${fbErr.is_transient}`);
-    console.log(`code in retry list = ${FB_RETRYABLE_ERROR_CODES.includes(code)}`);
-    console.log(`subcode in retry list = ${FB_RETRYABLE_ERROR_CODES.includes(subcode)}`);
+    return {
+      retry: fbErr.is_transient === true || codeRetryable || subcodeRetryable,
+      reason: `code=${code} subcode=${subcode} is_transient=${fbErr.is_transient} `
+        + `codeRetryable=${codeRetryable} subcodeRetryable=${subcodeRetryable}`,
+    };
+  }
 
-    return fbErr.is_transient === true
-      || FB_RETRYABLE_ERROR_CODES.includes(code)
-      || FB_RETRYABLE_ERROR_CODES.includes(subcode);
+  //---- _logRetryDecision -----------------------------------------
+  /**
+   * Records why a retry decision was made, as a single structured log entry.
+   * Goes through config.logMessage rather than console.log so it stays one entry
+   * in the run log JSON — raw console writes are split per line by the backend.
+   *
+   * @param {HttpRequestException} error - The error being judged
+   * @param {string} reason - The inputs behind the decision
+   * @param {boolean} retry - The decision itself
+   */
+  _logRetryDecision(error, reason, retry) {
+    this.config.logMessage(
+      `Facebook retry check: statusCode=${error.statusCode} ${reason} -> retry=${retry}`
+    );
+  }
+
+  //---- _isAuthError ----------------------------------------------
+  /**
+   * Facebook returns OAuth/session/permission errors as HTTP 400 with
+   * error.type 'OAuthException' (session expired, password changed, app
+   * deleted, missing permissions), not as HTTP 401/403, so the default
+   * statusCode check from AbstractSource doesn't catch them.
+   *
+   * Facebook also reuses that same type for throttling, outages and anything it
+   * marks is_transient, which are not credential problems. Rather than restate
+   * which of those are transient, defer to the retry logic: if it would have
+   * retried, exhausting the attempts is a real failure worth alerting on.
+   *
+   * @param {HttpRequestException} error - The error to check
+   * @return {boolean} True if this is an authentication/authorization failure
+   */
+  _isAuthError(error) {
+    if (this._evaluateRetry(error).retry) {
+      return false;
+    }
+    return error.payload?.error?.type === 'OAuthException' || super._isAuthError(error);
   }
 
   //---- fetchData -------------------------------------------------
@@ -504,7 +551,6 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @private
    */
   _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, level, url }) {
-    console.log('Insights request fields for', nodeName, ':', fields);
     let insightsUrl = `${url}act_${accountId}/insights?level=${level}&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
     if (breakdowns.length > 0) {
       insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
