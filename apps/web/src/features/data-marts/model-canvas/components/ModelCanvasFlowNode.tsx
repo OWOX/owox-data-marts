@@ -3,24 +3,23 @@ import { ChevronDown, ChevronRight, ExternalLink, Info, KeyRound } from 'lucide-
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
-import { DataMartDefinitionTypeModel } from '../../shared/types/data-mart-definition-type.model';
-import { DIMMED_OPACITY, HIGHLIGHT_COLOR, SOCKET_STYLE } from '../../shared/canvas/constants';
 import {
-  type CanvasViewMode,
-  collapsedRowCount,
-  definitionTypeAccent,
-  nodeWidth,
-  orderFields,
-} from '../model/erd-node';
+  DIMMED_OPACITY,
+  HIGHLIGHT_COLOR,
+  OWOX_BLUE,
+  SOCKET_STYLE,
+} from '../../shared/canvas/constants';
+import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
+import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
+import { OWOX_YELLOW_BASE } from '../../shared/canvas/owox-palette';
+import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '../model/erd-node';
+import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../model/object-labels';
 import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
-
-export const NODE_WIDTH = 240;
-export const NODE_HEIGHT = 74;
 
 export interface ModelCanvasFlowNodeData {
   title: string;
@@ -30,6 +29,7 @@ export interface ModelCanvasFlowNodeData {
   definitionType: DataMartDefinitionType | null;
   fields: CanvasNodeField[];
   viewMode: CanvasViewMode;
+  objectLabels?: ObjectLabelsHidden;
   dataLastUpdated: DataLastUpdatedDto | null;
   hasIncoming: boolean;
   hasOutgoing: boolean;
@@ -47,34 +47,6 @@ export type ModelCanvasFlowNodeType = Node<
   'modelCanvasNode'
 >;
 
-function StatusDot({ isDraft }: { isDraft: boolean }) {
-  const label = isDraft ? 'Draft' : 'Published';
-  return (
-    <span className='inline-flex shrink-0 items-center' title={label}>
-      <span
-        className={`h-2 w-2 rounded-full ${isDraft ? 'bg-amber-400' : 'bg-emerald-500'}`}
-        aria-hidden='true'
-      />
-      <span className='sr-only'>{label}</span>
-    </span>
-  );
-}
-
-function DefinitionBadge({ type }: { type: DataMartDefinitionType | null }) {
-  const info = DataMartDefinitionTypeModel.getInfo(type);
-  const color = definitionTypeAccent(type);
-  const Icon = info.icon;
-  return (
-    <span
-      className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase'
-      style={{ background: color }}
-    >
-      <Icon className='h-2.5 w-2.5' />
-      {info.displayName}
-    </span>
-  );
-}
-
 function FieldRow({ field }: { field: CanvasNodeField }) {
   return (
     <div
@@ -83,7 +55,11 @@ function FieldRow({ field }: { field: CanvasNodeField }) {
       title={field.isHidden ? `${field.alias} (hidden from reporting)` : field.alias}
     >
       {field.isPrimaryKey ? (
-        <KeyRound className='h-3 w-3 shrink-0 text-amber-500' aria-label='Primary key' />
+        <KeyRound
+          className='h-3 w-3 shrink-0'
+          style={{ color: OWOX_YELLOW_BASE }}
+          aria-label='Primary key'
+        />
       ) : (
         <span className='w-3 shrink-0' />
       )}
@@ -95,12 +71,22 @@ function FieldRow({ field }: { field: CanvasNodeField }) {
   );
 }
 
-export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowNodeType>) {
+export default function ModelCanvasFlowNode({
+  data,
+  selected,
+}: NodeProps<ModelCanvasFlowNodeType>) {
   const [expanded, setExpanded] = useState(false);
   const accent = definitionTypeAccent(data.definitionType);
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
   const showBody = isErd && fields.length > 0;
+
+  // Object labels: the accent stripe and the source badge encode the same
+  // definition type, so they show and hide together (as in owox/models).
+  const labels = data.objectLabels ?? NOTHING_HIDDEN;
+  const withSource = !labels.source;
+  const withFieldCount = !labels.fields;
+  const withStatus = !labels.status;
 
   const ordered = orderFields(fields);
   const collapsed = collapsedRowCount(fields);
@@ -128,10 +114,12 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
       className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
       style={{
         width: nodeWidth(data.viewMode),
-        borderColor: data.highlighted ? HIGHLIGHT_COLOR : undefined,
+        borderColor: data.highlighted ? HIGHLIGHT_COLOR : selected ? OWOX_BLUE : undefined,
         boxShadow: data.highlighted
           ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
-          : undefined,
+          : selected
+            ? `0 0 0 1px ${OWOX_BLUE}`
+            : undefined,
         opacity: data.dimmed ? DIMMED_OPACITY : 1,
         filter: data.dimmed ? 'grayscale(0.8)' : undefined,
         animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
@@ -149,18 +137,20 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
 
       {/* Header: accent stripe + title + status + actions */}
       <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
-        <span
-          className='h-4 w-1 shrink-0 rounded-sm'
-          style={{ background: accent }}
-          aria-hidden='true'
-        />
+        {withSource && (
+          <span
+            className='h-4 w-1 shrink-0 rounded-sm'
+            style={{ background: accent }}
+            aria-hidden='true'
+          />
+        )}
         <span
           className='text-foreground flex-1 truncate text-[13px] font-semibold'
           title={data.title}
         >
           {data.title}
         </span>
-        <StatusDot isDraft={data.isDraft} />
+        {withStatus && <ErdStatusDot isDraft={data.isDraft} />}
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -193,13 +183,18 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
           <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
         </button>
       </div>
-      {/* Meta row: definition badge + field count */}
-      <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
-        <DefinitionBadge type={data.definitionType} />
-        <span className='ml-auto shrink-0'>
-          {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
-        </span>
-      </div>
+
+      {/* Meta row: definition badge + field count. Skipped entirely when both are hidden. */}
+      {(withSource || withFieldCount) && (
+        <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
+          {withSource && <ErdDefinitionBadge type={data.definitionType} />}
+          {withFieldCount && (
+            <span className='ml-auto shrink-0'>
+              {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
       {/* Status icons row: quality shield + data-last-updated clock */}
       <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
         <DataQualityCanvasStatusIcon

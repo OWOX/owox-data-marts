@@ -1,29 +1,7 @@
-import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import type { CanvasNodeField, ModelCanvasNode } from './types';
 
 /** Canvas node display density. Compact = header only; ERD = header + field rows. */
 export type CanvasViewMode = 'compact' | 'erd';
-
-/**
- * Accent / badge color per definition type, mirroring the OWOX Model Canvas
- * palette (owox/models). Kept in one place so the header stripe, the badge and
- * the minimap dot stay in sync.
- */
-export const DEFINITION_TYPE_ACCENT: Partial<Record<DataMartDefinitionType, string>> = {
-  [DataMartDefinitionType.SQL]: '#10b981', // emerald
-  [DataMartDefinitionType.VIEW]: '#3b82f6', // blue
-  [DataMartDefinitionType.TABLE]: '#8b5cf6', // violet
-  [DataMartDefinitionType.TABLE_PATTERN]: '#ec4899', // pink
-  [DataMartDefinitionType.CONNECTOR]: '#f59e0b', // amber
-};
-
-export const DEFINITION_TYPE_FALLBACK_ACCENT = '#94a3b8'; // slate
-
-export function definitionTypeAccent(type: DataMartDefinitionType | null | undefined): string {
-  return type
-    ? (DEFINITION_TYPE_ACCENT[type] ?? DEFINITION_TYPE_FALLBACK_ACCENT)
-    : DEFINITION_TYPE_FALLBACK_ACCENT;
-}
 
 // ---- Layout geometry -------------------------------------------------------
 // The dagre layout runs before render, so it needs a size estimate per node.
@@ -40,6 +18,8 @@ export const ERD_ROW_HEIGHT = 26;
 export const ERD_EXPAND_ROW_HEIGHT = 26;
 /** ERD nodes show at most this many rows before collapsing behind a toggle. */
 export const ERD_COLLAPSED_ROWS = 4;
+/** Height of the meta row (badge + field count), subtracted when object labels hide it. */
+export const CARD_META_ROW_HEIGHT = 36;
 
 export function nodeWidth(viewMode: CanvasViewMode): number {
   return viewMode === 'erd' ? ERD_NODE_WIDTH : COMPACT_NODE_WIDTH;
@@ -60,15 +40,26 @@ export function collapsedRowCount(fields: CanvasNodeField[]): number {
   return Math.min(fields.length, Math.max(ERD_COLLAPSED_ROWS, keyCount));
 }
 
-/** Collapsed layout height for a node, used by dagre and as the initial render size. */
+/**
+ * Collapsed layout height for a node, used by dagre and as the initial render
+ * size. `metaRowHidden` reflects the object-labels preference: when both the
+ * source badge and the field count are hidden, the card drops its meta row.
+ */
 export function computeNodeHeight(
   node: Pick<ModelCanvasNode, 'fields'>,
-  viewMode: CanvasViewMode
+  viewMode: CanvasViewMode,
+  metaRowHidden = false
 ): number {
-  if (viewMode !== 'erd') return COMPACT_NODE_HEIGHT;
+  const metaAdjustment = metaRowHidden ? -CARD_META_ROW_HEIGHT : 0;
+  if (viewMode !== 'erd') return COMPACT_NODE_HEIGHT + metaAdjustment;
   const fields = node.fields ?? [];
-  if (fields.length === 0) return COMPACT_NODE_HEIGHT;
+  if (fields.length === 0) return COMPACT_NODE_HEIGHT + metaAdjustment;
   const rows = collapsedRowCount(fields);
   const hasMore = fields.length > rows;
-  return ERD_HEADER_HEIGHT + rows * ERD_ROW_HEIGHT + (hasMore ? ERD_EXPAND_ROW_HEIGHT : 0);
+  return (
+    ERD_HEADER_HEIGHT +
+    metaAdjustment +
+    rows * ERD_ROW_HEIGHT +
+    (hasMore ? ERD_EXPAND_ROW_HEIGHT : 0)
+  );
 }
