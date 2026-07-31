@@ -3,7 +3,12 @@ import { ChevronDown, ChevronRight, ExternalLink, Info, KeyRound } from 'lucide-
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
-import { DIMMED_OPACITY, HIGHLIGHT_COLOR, SOCKET_STYLE } from '../../shared/canvas/constants';
+import {
+  DIMMED_OPACITY,
+  HIGHLIGHT_COLOR,
+  OWOX_BLUE,
+  SOCKET_STYLE,
+} from '../../shared/canvas/constants';
 import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
 import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '../model/erd-node';
@@ -61,7 +66,10 @@ function FieldRow({ field }: { field: CanvasNodeField }) {
   );
 }
 
-export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowNodeType>) {
+export default function ModelCanvasFlowNode({
+  data,
+  selected,
+}: NodeProps<ModelCanvasFlowNodeType>) {
   const [expanded, setExpanded] = useState(false);
   const accent = definitionTypeAccent(data.definitionType);
   const isErd = data.viewMode === 'erd';
@@ -101,10 +109,12 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
       className='bg-background relative flex cursor-grab flex-col overflow-hidden rounded-xl border shadow-sm active:cursor-grabbing'
       style={{
         width: nodeWidth(data.viewMode),
-        borderColor: data.highlighted ? HIGHLIGHT_COLOR : undefined,
+        borderColor: data.highlighted ? HIGHLIGHT_COLOR : selected ? OWOX_BLUE : undefined,
         boxShadow: data.highlighted
           ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
-          : undefined,
+          : selected
+            ? `0 0 0 1px ${OWOX_BLUE}`
+            : undefined,
         opacity: data.dimmed ? DIMMED_OPACITY : 1,
         filter: data.dimmed ? 'grayscale(0.8)' : undefined,
         animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,

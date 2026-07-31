@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartStatus } from '../../shared/enums/data-mart-status.enum';
 import ModelCanvas from './ModelCanvas';
@@ -13,6 +13,8 @@ interface ViewportStub {
 interface ReactFlowStubProps {
   children?: ReactNode;
   nodes?: {
+    id?: string;
+    selected?: boolean;
     position: { x: number; y: number };
     width?: number;
     height?: number;
@@ -22,7 +24,10 @@ interface ReactFlowStubProps {
       qualitySummary?: { state: string };
     };
   }[];
+  edges?: { id: string; source: string; target: string; selected?: boolean }[];
   onMove?: (event: unknown, viewport: ViewportStub) => void;
+  onNodeClick?: (event: unknown, node: { id: string }) => void;
+  onPaneClick?: () => void;
 }
 
 const reactFlow = vi.hoisted(() => ({
@@ -217,6 +222,57 @@ describe('ModelCanvas', () => {
 
     expect(onOpenQuality).toHaveBeenCalledWith('orders');
     expect(onRunQuality).toHaveBeenCalledWith('orders');
+  });
+
+  it('highlights every edge of the clicked data mart and clears on pane click', async () => {
+    const edge = (id: string, sourceId: string, targetId: string) => ({
+      id,
+      sourceId,
+      targetId,
+      bidirectional: false,
+      joinNotConfigured: false,
+      joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+    });
+    render(
+      <ModelCanvas
+        nodes={['orders', 'customers', 'sessions'].map(id => ({
+          id,
+          title: id,
+          status: DataMartStatus.PUBLISHED,
+          description: null,
+          fieldCount: 1,
+          qualitySummary: buildQualitySummary(),
+          dataLastUpdated: null,
+        }))}
+        edges={[edge('e1', 'orders', 'customers'), edge('e2', 'sessions', 'customers')]}
+        searchQuery=''
+        onOpenDataMart={vi.fn()}
+        onOpenQuality={vi.fn()}
+        onRunQuality={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.edges).toHaveLength(2);
+    });
+
+    act(() => {
+      reactFlow.latestProps?.onNodeClick?.(null, { id: 'customers' });
+    });
+    expect(reactFlow.latestProps?.edges?.map(e => e.selected ?? false)).toEqual([true, true]);
+    expect(reactFlow.latestProps?.nodes?.find(node => node.id === 'customers')?.selected).toBe(
+      true
+    );
+
+    act(() => {
+      reactFlow.latestProps?.onNodeClick?.(null, { id: 'orders' });
+    });
+    expect(reactFlow.latestProps?.edges?.map(e => e.selected ?? false)).toEqual([true, false]);
+
+    act(() => {
+      reactFlow.latestProps?.onPaneClick?.();
+    });
+    expect(reactFlow.latestProps?.edges?.map(e => e.selected ?? false)).toEqual([false, false]);
   });
 
   it('renders supplied controls in the top-left canvas overlay', () => {

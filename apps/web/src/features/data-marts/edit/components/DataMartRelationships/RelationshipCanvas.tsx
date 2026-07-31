@@ -186,17 +186,21 @@ function IndicatorLabel({ data }: { data: RelationshipNodeData }) {
   );
 }
 
-function cardStateStyle(data: RelationshipNodeData): React.CSSProperties {
+function cardStateStyle(data: RelationshipNodeData, selected: boolean): React.CSSProperties {
   return {
     width: NODE_W,
     borderColor: data.highlighted
       ? HIGHLIGHT_COLOR
       : hasNodeWarning(data)
         ? WARNING_COLOR
-        : undefined,
+        : selected
+          ? OWOX_BLUE
+          : undefined,
     boxShadow: data.highlighted
       ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
-      : undefined,
+      : selected
+        ? `0 0 0 1px ${OWOX_BLUE}`
+        : undefined,
     opacity: data.dimmed ? DIMMED_OPACITY : 1,
     filter: data.dimmed ? 'grayscale(0.8)' : undefined,
     animation: data.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
@@ -204,7 +208,7 @@ function cardStateStyle(data: RelationshipNodeData): React.CSSProperties {
   };
 }
 
-export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeType>) {
+export function RelationshipFlowNode({ data, selected }: NodeProps<RelationshipFlowNodeType>) {
   const accent = definitionTypeAccent(data.definitionType);
 
   function handleExtClick(e: React.MouseEvent) {
@@ -217,7 +221,7 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
     return (
       <div
         className='bg-primary/5 relative flex items-center gap-2 rounded-xl border shadow-sm'
-        style={{ ...cardStateStyle(data), height: SRC_H, padding: '0 14px' }}
+        style={{ ...cardStateStyle(data, selected), height: SRC_H, padding: '0 14px' }}
       >
         <IndicatorLabel data={data} />
         <span
@@ -250,7 +254,7 @@ export function RelationshipFlowNode({ data }: NodeProps<RelationshipFlowNodeTyp
     <div
       title={data.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
       className='bg-background relative flex flex-col rounded-xl border shadow-sm'
-      style={cardStateStyle(data)}
+      style={cardStateStyle(data, selected)}
     >
       <IndicatorLabel data={data} />
       <Handle type='target' position={Position.Left} isConnectable={false} style={SOCKET_STYLE} />
@@ -753,20 +757,26 @@ function RelationshipCanvasInner({
     [graphResult.nodes, searchQuery]
   );
 
+  // Selection is tracked manually (the graph is memo-derived, not React Flow
+  // state). Clicking an edge highlights just that edge; clicking a data mart
+  // card highlights every edge connected to it, so all of its relationships
+  // are visible at once. Pane click (or a repeat click) clears.
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
   const flowNodes = useMemo(
     () =>
       graphResult.nodes.map(node => {
         const state = highlightState.get(node.id) ?? NO_HIGHLIGHT;
-        return node.data.highlighted === state.highlighted && node.data.dimmed === state.dimmed
+        const selected = node.id === selectedNodeId;
+        return node.data.highlighted === state.highlighted &&
+          node.data.dimmed === state.dimmed &&
+          (node.selected ?? false) === selected
           ? node
-          : { ...node, data: { ...node.data, ...state } };
+          : { ...node, selected, data: { ...node.data, ...state } };
       }),
-    [graphResult.nodes, highlightState]
+    [graphResult.nodes, highlightState, selectedNodeId]
   );
-
-  // Edge selection is tracked manually (the edge list is memo-derived, not
-  // React Flow state): clicking an edge turns it brand-blue, pane click clears.
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   const flowEdges = useMemo(
     () =>
@@ -774,20 +784,30 @@ function RelationshipCanvasInner({
         const dimmed =
           (highlightState.get(edge.source)?.dimmed ?? false) &&
           (highlightState.get(edge.target)?.dimmed ?? false);
-        const selected = edge.id === selectedEdgeId;
+        const selected =
+          edge.id === selectedEdgeId ||
+          (selectedNodeId !== null &&
+            (edge.source === selectedNodeId || edge.target === selectedNodeId));
         return edge.data.dimmed === dimmed && (edge.selected ?? false) === selected
           ? edge
           : { ...edge, selected, data: { ...edge.data, dimmed } };
       }),
-    [graphResult.edges, highlightState, selectedEdgeId]
+    [graphResult.edges, highlightState, selectedEdgeId, selectedNodeId]
   );
 
   const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string }) => {
     setSelectedEdgeId(current => (current === edge.id ? null : edge.id));
+    setSelectedNodeId(null);
+  }, []);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
+    setSelectedNodeId(current => (current === node.id ? null : node.id));
+    setSelectedEdgeId(null);
   }, []);
 
   const handlePaneClick = useCallback(() => {
     setSelectedEdgeId(null);
+    setSelectedNodeId(null);
   }, []);
 
   const highlightStateRef = useRef(highlightState);
@@ -975,6 +995,7 @@ function RelationshipCanvasInner({
           minZoom={zoomRange.min}
           maxZoom={zoomRange.max}
           onEdgeClick={handleEdgeClick}
+          onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
           onMove={handleMove}
           onMoveStart={(event: unknown) => {

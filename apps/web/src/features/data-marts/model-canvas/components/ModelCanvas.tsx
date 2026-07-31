@@ -355,8 +355,8 @@ function ModelCanvasInner({
               liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
           },
           // A user-dragged position wins over the computed layout.
-          position:
-            savedPositions[topologyNode.id] ?? positions.get(topologyNode.id) ?? { x: 0, y: 0 },
+          position: savedPositions[topologyNode.id] ??
+            positions.get(topologyNode.id) ?? { x: 0, y: 0 },
           hasIncoming: hasIncoming.has(topologyNode.id),
           hasOutgoing: hasOutgoing.has(topologyNode.id),
           highlight: highlightState.get(topologyNode.id) ?? NO_HIGHLIGHT,
@@ -421,6 +421,44 @@ function ModelCanvasInner({
   const onEdgesChange = useCallback((changes: EdgeChange<ModelCanvasFlowEdgeType>[]) => {
     setFlowEdges(prev => applyEdgeChanges(changes, prev));
   }, []);
+
+  // Clicking a data mart highlights every edge connected to it, so all of its
+  // relationships are visible at once. Click the card again (or the pane) to clear.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: { id: string }) => {
+    setSelectedNodeId(current => (current === node.id ? null : node.id));
+    // Node selection supersedes any single-edge selection.
+    setFlowEdges(prev =>
+      prev.some(edge => edge.selected)
+        ? prev.map(edge => (edge.selected ? { ...edge, selected: false } : edge))
+        : prev
+    );
+  }, []);
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
+
+  const displayNodes = useMemo(
+    () =>
+      selectedNodeId
+        ? flowNodes.map(node => (node.id === selectedNodeId ? { ...node, selected: true } : node))
+        : flowNodes,
+    [flowNodes, selectedNodeId]
+  );
+
+  const displayEdges = useMemo(
+    () =>
+      selectedNodeId
+        ? flowEdges.map(edge =>
+            edge.source === selectedNodeId || edge.target === selectedNodeId
+              ? { ...edge, selected: true }
+              : edge
+          )
+        : flowEdges,
+    [flowEdges, selectedNodeId]
+  );
 
   const onNodeDragStop = useCallback(
     (_event: MouseEvent | TouchEvent, node: ModelCanvasFlowNodeType) => {
@@ -714,13 +752,15 @@ function ModelCanvasInner({
       </div>
       {ready && (
         <ReactFlow
-          nodes={flowNodes}
-          edges={flowEdges}
+          nodes={displayNodes}
+          edges={displayEdges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeDragStop={onNodeDragStop}
+          onNodeClick={handleNodeClick}
+          onPaneClick={handlePaneClick}
           nodesDraggable
           nodesConnectable={false}
           elementsSelectable

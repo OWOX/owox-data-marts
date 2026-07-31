@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
@@ -9,6 +9,7 @@ interface ReactFlowStubProps {
   minZoom?: number;
   nodes?: {
     id: string;
+    selected?: boolean;
     position: { x: number; y: number };
     width?: number;
     height?: number;
@@ -17,8 +18,11 @@ interface ReactFlowStubProps {
       onOpenExternal: () => void;
     };
   }[];
+  edges?: { id: string; source: string; target: string; selected?: boolean }[];
   onMove?: (event: unknown, viewport: ViewportStub) => void;
   onMoveStart?: (event: unknown) => void;
+  onNodeClick?: (event: unknown, node: { id: string }) => void;
+  onPaneClick?: () => void;
 }
 
 interface ViewportStub {
@@ -314,6 +318,42 @@ describe('RelationshipCanvas filters', () => {
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
     });
+  });
+
+  it('highlights every edge of a clicked data mart and clears on pane click', async () => {
+    render(
+      <RelationshipCanvas
+        {...buildCanvasProps([
+          buildRelationship('rel-1', 'target-1'),
+          buildRelationship('rel-2', 'target-2'),
+        ])}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.edges).toHaveLength(2);
+    });
+
+    const rootId = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isSource)?.id ?? '';
+    act(() => {
+      reactFlowHarness.latestProps?.onNodeClick?.(null, { id: rootId });
+    });
+
+    expect(reactFlowHarness.latestProps?.edges?.map(edge => edge.selected ?? false)).toEqual([
+      true,
+      true,
+    ]);
+    expect(reactFlowHarness.latestProps?.nodes?.find(node => node.id === rootId)?.selected).toBe(
+      true
+    );
+
+    act(() => {
+      reactFlowHarness.latestProps?.onPaneClick?.();
+    });
+    expect(reactFlowHarness.latestProps?.edges?.map(edge => edge.selected ?? false)).toEqual([
+      false,
+      false,
+    ]);
   });
 
   it('filters targets by status', async () => {
