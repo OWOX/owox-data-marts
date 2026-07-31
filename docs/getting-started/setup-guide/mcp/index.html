@@ -548,9 +548,48 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">columns</code></td><td>Business-friendly headers matching the header row in <code dir="auto">rows</code>. When <code dir="auto">aggregations</code> are used, an extra <code dir="auto">Row Count</code> column is appended</td></tr><tr><td><code dir="auto">column_metadata</code></td><td>Exact technical query <code dir="auto">name</code> plus business-friendly <code dir="auto">display_name</code>, type, and description when available</td></tr><tr><td><code dir="auto">rows</code></td><td>The data rows, as a compact header-once table</td></tr><tr><td><code dir="auto">returned_rows</code></td><td>Number of rows in the response</td></tr><tr><td><code dir="auto">truncated</code></td><td><code dir="auto">true</code> if not all matching rows were returned — narrow the query or raise <code dir="auto">limit</code></td></tr><tr><td><code dir="auto">truncation</code></td><td>Present only when truncated; <code dir="auto">reasons</code> is <code dir="auto">row_limit</code>, <code dir="auto">payload_byte_cap</code>, or both</td></tr><tr><td><code dir="auto">totals</code></td><td>Server-side totals over all matching rows, ignoring the row limit</td></tr><tr><td><code dir="auto">source</code></td><td>The id, title, and OWOX link of the Data Mart that supplied the response</td></tr><tr><td><code dir="auto">calculation_origin</code></td><td>Marks rows as taken from OWOX and totals as calculated by OWOX when available</td></tr></tbody></table>
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">columns</code></td><td>Business-friendly headers matching the header row in <code dir="auto">rows</code>. When <code dir="auto">aggregations</code> are used, an extra <code dir="auto">Row Count</code> column is appended</td></tr><tr><td><code dir="auto">column_metadata</code></td><td>Exact technical query <code dir="auto">name</code> plus business-friendly <code dir="auto">display_name</code>, type, and description when available</td></tr><tr><td><code dir="auto">rows</code></td><td>The data rows, as a compact header-once table</td></tr><tr><td><code dir="auto">returned_rows</code></td><td>Number of rows in the response</td></tr><tr><td><code dir="auto">truncated</code></td><td><code dir="auto">true</code> if not all matching rows were returned — narrow the query or raise <code dir="auto">limit</code></td></tr><tr><td><code dir="auto">truncation</code></td><td>Present only when truncated; <code dir="auto">reasons</code> is <code dir="auto">row_limit</code>, <code dir="auto">payload_byte_cap</code>, or both</td></tr><tr><td><code dir="auto">totals</code></td><td>Server-side totals over all matching rows, ignoring the row limit</td></tr><tr><td><code dir="auto">data_last_updated</code></td><td>When the source tables behind this result last changed in the warehouse — see below</td></tr><tr><td><code dir="auto">source</code></td><td>The id, title, and OWOX link of the Data Mart that supplied the response</td></tr><tr><td><code dir="auto">calculation_origin</code></td><td>Marks rows as taken from OWOX, and totals and <code dir="auto">data_last_updated</code> as produced by OWOX when available</td></tr></tbody></table>
 <p>Only data marts and fields your <a href="/docs/project/roles-and-permissions/">project role</a> permits are queryable. For more on how aggregations and totals are computed, see <a href="/docs/getting-started/setup-guide/report-aggregations/">Report Aggregations and Totals</a>; for why a given aggregation may be rejected on a field, see <a href="/docs/getting-started/setup-guide/output-controls/">Report Output Controls</a>.</p>
 <p>When presenting results, the assistant must name the source Data Mart. It must distinguish OWOX-provided values from any arithmetic it performs itself. If <code dir="auto">truncated</code> is true, it must explicitly tell the user that returned rows are incomplete; server-provided totals remain valid for all matching rows, but any number calculated from returned rows can be incomplete.</p>
+<div class="sl-heading-wrapper level-h4"><h4 id="data-last-updated">Data last updated</h4><a class="sl-anchor-link" href="#data-last-updated"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Data last updated”</span></a></div>
+<p><code dir="auto">data_last_updated</code> answers “how current is what I am looking at?”. Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call’s own credits cover it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">data_last_updated_at</code></td><td>ISO-8601 UTC time when the newest source table last changed, or <code dir="auto">null</code> when the warehouse does not report it</td></tr><tr><td><code dir="auto">computed_at</code></td><td>When this measurement was taken</td></tr><tr><td><code dir="auto">coverage</code></td><td><code dir="auto">complete</code>, <code dir="auto">partial</code> (some sources unreadable — the real time can only be more recent), or <code dir="auto">unavailable</code> (nothing could be determined)</td></tr><tr><td><code dir="auto">sources</code></td><td>Per-table detail, each with its own time and an optional <code dir="auto">note</code> explaining a gap</td></tr></tbody></table>
+<p>Read the value precisely. It is a <strong>storage</strong> timestamp, not a statement about the data’s content:</p>
+<ul>
+<li>It says when something last <strong>wrote to</strong> the source tables. A backfill can rewrite a table today with figures from 2021, so “updated today” does not mean “covers today”. For this reason the field is <em>data last updated</em>, not <em>freshness</em>.</li>
+<li><code dir="auto">null</code> means <strong>unknown</strong> — neither fresh nor stale. The assistant should say OWOX could not determine it, without implying either.</li>
+<li>With <code dir="auto">coverage: "partial"</code>, treat the timestamp as “at least as recent as” and say the picture is incomplete.</li>
+</ul>
+<p>Coverage is best effort per storage. Google BigQuery works first, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report <code dir="auto">unavailable</code>. <code dir="auto">sources</code> deliberately omits views: a view’s own modification time reflects a change to its definition, not to any data.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="list_destinations"><code dir="auto">list_destinations</code></h3><a class="sl-anchor-link" href="#list_destinations"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “list_destinations”</span></a></div>
 <p>Lists the destinations in the current project — such as Google Sheets, Looker Studio, or messaging destinations — so the assistant knows where a report could be sent.</p>
 <p><strong>Returns</strong> an array of destination objects:</p>
