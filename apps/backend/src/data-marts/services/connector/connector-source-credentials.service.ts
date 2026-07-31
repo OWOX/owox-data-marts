@@ -99,11 +99,26 @@ export class ConnectorSourceCredentialsService {
   }
 
   /**
-   * Delete OAuth credentials (soft delete)
-   * @param id - ConnectorSourceCredentials ID
+   * Delete secrets by ID, scoped to the DataMart that owns them (soft delete)
+   *
+   * The owning dataMartId is part of the statement, so a DataMart cannot delete
+   * secrets that belong to another one no matter which IDs the caller passes.
+   *
+   * @param ids - ConnectorSourceCredentials IDs
+   * @param dataMartId - DataMart the secrets must belong to
+   * @returns Number of deleted records
    */
-  async deleteCredentials(id: string): Promise<void> {
-    await this.connectorSourceCredentialsRepository.softDelete(id);
+  async deleteCredentialsByIdsAndDataMart(ids: string[], dataMartId: string): Promise<number> {
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    const result = await this.connectorSourceCredentialsRepository.softDelete({
+      id: In(ids),
+      dataMartId,
+    });
+
+    return result.affected ?? 0;
   }
 
   /**
@@ -404,6 +419,29 @@ export class ConnectorSourceCredentialsService {
     return await this.connectorSourceCredentialsRepository.find({
       where: { dataMartId },
     });
+  }
+
+  /**
+   * Get the owning DataMart of each of the given credentials
+   *
+   * Only id and dataMartId are selected: callers use this to authorize a
+   * destructive action, so the secret payload is deliberately not loaded.
+   * IDs with no row (deleted or never existed) are absent from the map.
+   *
+   * @param ids - Array of ConnectorSourceCredentials IDs
+   * @returns Map of ID to owning DataMart ID (undefined for project-level credentials)
+   */
+  async getDataMartIdsByCredentialsIds(ids: string[]): Promise<Map<string, string | undefined>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.connectorSourceCredentialsRepository.find({
+      where: { id: In(ids) },
+      select: ['id', 'dataMartId'],
+    });
+
+    return new Map(rows.map(row => [row.id, row.dataMartId]));
   }
 
   /**

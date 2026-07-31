@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
@@ -20,6 +20,8 @@ const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
  * - extracts and saves non-OAuth secrets to a separate table for security.
  */
 export class ConnectorSecretService {
+  private readonly logger = new Logger(ConnectorSecretService.name);
+
   constructor(
     private readonly connectorService: ConnectorService,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
@@ -137,6 +139,31 @@ export class ConnectorSecretService {
         delete obj[key];
       } else if (value && typeof value === 'object' && !Array.isArray(value)) {
         this.removeSecretsRecursively(value as Record<string, unknown>, secretFieldNames);
+      }
+    }
+  }
+
+  /**
+   * Removes secret fields that only hold a {@link SECRET_MASK} placeholder.
+   *
+   * @param obj Object to clean (mutates in place)
+   * @param secretFieldNames Set of secret field names
+   */
+  private removeMaskedSecretsRecursively(
+    obj: Record<string, unknown>,
+    secretFieldNames: Set<string>
+  ): void {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key.startsWith('_')) {
+        continue;
+      }
+
+      if (secretFieldNames.has(key)) {
+        if (this.isSecretMask(value)) {
+          delete obj[key];
+        }
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        this.removeMaskedSecretsRecursively(value as Record<string, unknown>, secretFieldNames);
       }
     }
   }
@@ -322,43 +349,50 @@ export class ConnectorSecretService {
         }
         this.removeGeneratedRefreshTokenRecursively(configItem);
 
-        // If no secrets found, return as-is
+        // If no secrets found, return as-is. Secret fields left holding a mask
+        // have no value behind them — the credentials record is gone, or the
+        // copy source had none — so drop them rather than persisting the
+        // placeholder as if it were the credential itself.
         if (Object.keys(secrets).length === 0) {
+          this.removeMaskedSecretsRecursively(configItem, secretFieldNames);
           return configItem;
         }
 
         const existingSecretsId = configItem._secrets_id as string | undefined;
+        const existingSecrets = existingSecretsId
+          ? await this.connectorSourceCredentialsService.getCredentialsById(existingSecretsId)
+          : null;
 
-        if (existingSecretsId) {
-          const existingSecrets =
-            await this.connectorSourceCredentialsService.getCredentialsById(existingSecretsId);
+        if (existingSecrets && existingSecrets.projectId !== projectId) {
+          throw new Error(
+            `Unauthorized: secrets ${existingSecretsId} do not belong to project ${projectId}`
+          );
+        }
 
-          if (existingSecrets && existingSecrets.projectId !== projectId) {
-            throw new Error(
-              `Unauthorized: secrets ${existingSecretsId} do not belong to project ${projectId}`
-            );
-          }
+        // A secrets record belongs to exactly one DataMart. Writing through a
+        // pointer owned by another one would overwrite that DataMart's
+        // credentials, so take a record of our own instead. This is what keeps
+        // any path that produces a foreign pointer harmless, and it also
+        // repairs definitions that already share a record: the first save after
+        // this change gives each DataMart its own copy of the values.
+        const belongsToAnotherDataMart = Boolean(
+          existingSecrets?.dataMartId && existingSecrets.dataMartId !== dataMartId
+        );
 
-          if (!existingSecrets) {
-            const credentialsEntity =
-              await this.connectorSourceCredentialsService.createSecretsForConfig(
-                projectId,
-                connectorName,
-                dataMartId,
-                configId,
-                secrets,
-                userId
-              );
-            configItem._secrets_id = credentialsEntity.id;
-          } else {
-            await this.connectorSourceCredentialsService.updateSecretsForConfig(
-              existingSecretsId,
-              projectId,
-              secrets
-            );
-          }
+        if (belongsToAnotherDataMart) {
+          this.logger.warn(
+            `Configuration ${configId} of DataMart ${dataMartId} referenced secrets ${existingSecretsId} ` +
+              `owned by DataMart ${existingSecrets?.dataMartId}. Creating a separate secrets record.`
+          );
+        }
+
+        if (existingSecrets && !belongsToAnotherDataMart) {
+          await this.connectorSourceCredentialsService.updateSecretsForConfig(
+            existingSecrets.id,
+            projectId,
+            secrets
+          );
         } else {
-          // Create new secrets record
           const credentialsEntity =
             await this.connectorSourceCredentialsService.createSecretsForConfig(
               projectId,
@@ -681,54 +715,88 @@ export class ConnectorSecretService {
   }
 
   /**
-   * Deletes secrets for configuration items that were removed from DataMart.
+   * Deletes secrets that the DataMart no longer references.
    *
-   * This method compares the current configuration item IDs with the previous ones
-   * and deletes secrets for items that no longer exist.
+   * Orphans are the `_secrets_id` values of the previous definition that no
+   * configuration item of the current definition points at any more. Comparing
+   * references rather than configuration `_id`s keeps a record alive as long as
+   * anything still uses it — which matters when several configuration items
+   * share one record — and still reclaims the record of an item that kept its
+   * `_id` but dropped its pointer, as happens when it switches to OAuth.
+   *
+   * Records owned by another DataMart are reported and left alone, so one
+   * DataMart's save can never delete another's secrets.
    *
    * @param dataMartId DataMart ID
-   * @param currentConfigIds Set of current configuration item _ids
+   * @param currentDefinition Connector definition being saved
    * @param previousDefinition Previous connector definition (if exists)
    */
   async deleteOrphanedSecrets(
     dataMartId: string,
-    currentConfigIds: Set<string>,
+    currentDefinition: ConnectorDefinition,
     previousDefinition: ConnectorDefinition | undefined
   ): Promise<void> {
     if (!previousDefinition) {
       return;
     }
 
-    const previousConfigItems = previousDefinition.connector?.source?.configuration || [];
-
-    // Find config items that existed before but are not in the current configuration
-    const orphanedSecretsIds: string[] = [];
-
-    for (const item of previousConfigItems) {
-      const configItem = item as Record<string, unknown>;
-      const configId = configItem._id as string | undefined;
-      const secretsId = configItem._secrets_id as string | undefined;
-
-      // If this config item had secrets and is no longer in the current configuration
-      if (configId && secretsId && !currentConfigIds.has(configId)) {
-        orphanedSecretsIds.push(secretsId);
-      }
-    }
+    const referencedSecretsIds = this.collectSecretsIds(currentDefinition);
+    const orphanedSecretsIds = [...this.collectSecretsIds(previousDefinition)].filter(
+      secretsId => !referencedSecretsIds.has(secretsId)
+    );
 
     if (orphanedSecretsIds.length === 0) {
       return;
     }
 
-    // A secrets row can end up referenced by another DataMart (e.g. a stale
-    // copy-from pointer). Only delete rows that actually belong to this
-    // DataMart, so one DataMart's save can never delete another's secrets.
-    const secretsMap =
-      await this.connectorSourceCredentialsService.getCredentialsByIds(orphanedSecretsIds);
+    const ownerBySecretsId =
+      await this.connectorSourceCredentialsService.getDataMartIdsByCredentialsIds(
+        orphanedSecretsIds
+      );
+
+    const ownSecretsIds: string[] = [];
     for (const secretsId of orphanedSecretsIds) {
-      if (secretsMap.get(secretsId)?.dataMartId === dataMartId) {
-        await this.connectorSourceCredentialsService.deleteCredentials(secretsId);
+      if (!ownerBySecretsId.has(secretsId)) {
+        // Already deleted or never existed - nothing left to reclaim.
+        continue;
+      }
+
+      const ownerDataMartId = ownerBySecretsId.get(secretsId);
+      if (ownerDataMartId !== dataMartId) {
+        this.logger.warn(
+          `DataMart ${dataMartId} stopped referencing secrets ${secretsId}, which belong to ` +
+            `${ownerDataMartId ? `DataMart ${ownerDataMartId}` : 'no DataMart'}. Leaving them in place.`
+        );
+        continue;
+      }
+
+      ownSecretsIds.push(secretsId);
+    }
+
+    await this.connectorSourceCredentialsService.deleteCredentialsByIdsAndDataMart(
+      ownSecretsIds,
+      dataMartId
+    );
+  }
+
+  /**
+   * Collects the secrets records referenced by a definition's configuration.
+   *
+   * @param definition Connector definition
+   * @returns Set of referenced `_secrets_id` values
+   */
+  private collectSecretsIds(definition: ConnectorDefinition): Set<string> {
+    const configuration = definition?.connector?.source?.configuration || [];
+    const secretsIds = new Set<string>();
+
+    for (const item of configuration) {
+      const secretsId = (item as Record<string, unknown>)._secrets_id;
+      if (typeof secretsId === 'string' && secretsId) {
+        secretsIds.add(secretsId);
       }
     }
+
+    return secretsIds;
   }
 
   /**
@@ -812,8 +880,6 @@ export class ConnectorSecretService {
       >;
       const secretsId = sourceConfigWithSecrets._secrets_id as string | undefined;
       const secretsEntity = secretsId ? sourceSecretsMap.get(secretsId) : undefined;
-      const generatedRefreshToken =
-        secretsEntity?.credentials?.[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
       if (secretsEntity?.credentials) {
         this.injectSecretsAtPaths(sourceConfigWithSecrets, secretsEntity.credentials);
       }
@@ -827,18 +893,15 @@ export class ConnectorSecretService {
       delete mergedItem._copiedFrom;
       // A copied config must never keep the source's _secrets_id: that id is
       // scoped 1:1 to the source DataMart's own config item, and reusing it
-      // would alias both DataMarts' manual credentials to the same row.
+      // would alias both DataMarts' manual credentials to the same record.
       delete mergedItem._secrets_id;
       mergedItem._id = randomUUID();
+      // The generated refresh token is not copied either. It is a rotating
+      // value minted at run time and bound to the source's own credentials
+      // record: handing the same one to two records lets each rotate it
+      // independently, and the first rotation silently breaks the other. The
+      // copy re-mints its own from the refresh token it was given.
       delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
-      if (
-        typeof generatedRefreshToken === 'string' &&
-        generatedRefreshToken &&
-        !this.hasSourceCredentialIdRecursively(mergedItem) &&
-        this.hasSameRefreshToken(sourceConfigWithSecrets, mergedItem)
-      ) {
-        mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] = generatedRefreshToken;
-      }
 
       return mergedItem;
     });
@@ -855,47 +918,4 @@ export class ConnectorSecretService {
     } as ConnectorDefinition;
   }
 
-  private hasSameRefreshToken(
-    sourceConfig: Record<string, unknown>,
-    mergedConfig: unknown
-  ): boolean {
-    const sourceRefreshToken = this.getRefreshTokenValue(sourceConfig);
-    const mergedRefreshToken = this.getRefreshTokenValue(mergedConfig);
-
-    return (
-      typeof sourceRefreshToken === 'string' &&
-      sourceRefreshToken !== '' &&
-      !this.isSecretMask(sourceRefreshToken) &&
-      mergedRefreshToken === sourceRefreshToken
-    );
-  }
-
-  private getRefreshTokenValue(value: unknown): unknown {
-    if (!value || typeof value !== 'object') {
-      return undefined;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const nestedValue = this.getRefreshTokenValue(item);
-        if (nestedValue !== undefined) {
-          return nestedValue;
-        }
-      }
-      return undefined;
-    }
-
-    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-      if (key === 'refresh_token' || key === 'RefreshToken' || key.endsWith('.RefreshToken')) {
-        return nestedValue;
-      }
-
-      const nestedRefreshToken = this.getRefreshTokenValue(nestedValue);
-      if (nestedRefreshToken !== undefined) {
-        return nestedRefreshToken;
-      }
-    }
-
-    return undefined;
-  }
 }
