@@ -54,10 +54,10 @@ describe('IntercomController', () => {
     expect(Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, IntercomController)).toBe(true);
   });
 
-  it('allows Intercom JWT issuance in view-only sessions', () => {
+  it('blocks Intercom JWT issuance in view-only sessions', () => {
     expect(
       Reflect.getMetadata(VIEW_ONLY_SAFE_METADATA, IntercomController.prototype.issueJwt)
-    ).toBe(true);
+    ).toBeUndefined();
   });
 
   it('should propagate BadRequestException from use-case', async () => {
