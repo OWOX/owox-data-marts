@@ -154,16 +154,42 @@ test('BigQuery full refresh quotes dynamic sheet column names', async () => {
   assert.match(mergeQuery, /INSERT \(\s*`id`, `select`/);
 });
 
+test('BigQuery escapes dynamic field descriptions in create and alter statements', async () => {
+  const storage = bigQueryStorage();
+  const queries = [];
+  storage.schema = {
+    id: { type: 'INTEGER' },
+    path: { type: 'STRING', description: 'Google Sheets column: C:\\Reports\\' },
+  };
+  storage.getSelectedFields = () => ['id', 'path'];
+  storage.getColumnType = column => storage.schema[column].type;
+  storage.existingColumns = {};
+  storage.executeQuery = async query => {
+    queries.push(query);
+    return [];
+  };
+
+  await storage.createTableIfItDoesntExist(true);
+  await storage.addNewColumns(['path']);
+
+  const escapedPath = 'C:\\\\Reports\\\\';
+  assert.ok(queries[0].includes(escapedPath));
+  assert.ok(queries[1].includes(escapedPath));
+});
+
 test('BigQuery load failure preserves live table and cleans staging', async () => {
   const storage = bigQueryStorage();
   const dropped = [];
+  const stagedColumns = { id: { name: 'id', type: 'INTEGER' } };
+  let existingColumnsDuringSave;
   let published = false;
   storage.checkIfGoogleBigQueryIsConnected = () => {};
   storage.createDatasetIfItDoesntExist = async () => {};
   storage.createSnapshotTableName = () => 'live_table__owox_staging_run';
-  storage.createTableIfItDoesntExist = async () => ({ id: { name: 'id', type: 'INTEGER' } });
+  storage.createTableIfItDoesntExist = async () => stagedColumns;
   storage.executeQuery = async () => [];
   storage.saveData = async () => {
+    existingColumnsDuringSave = storage.existingColumns;
     throw new Error('load failed');
   };
   storage.publishSnapshotTable = async () => {
@@ -175,6 +201,7 @@ test('BigQuery load failure preserves live table and cleans staging', async () =
 
   await assert.rejects(storage.replaceData([{ id: 1 }]), /load failed/);
   assert.equal(published, false);
+  assert.equal(existingColumnsDuringSave, stagedColumns);
   assert.deepEqual(dropped, ['live_table__owox_staging_run']);
 });
 

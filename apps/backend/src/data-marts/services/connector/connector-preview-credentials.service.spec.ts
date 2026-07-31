@@ -2,9 +2,9 @@ import { AuthorizationContext } from '../../../idp';
 import { AccessDecisionService } from '../access-decision';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
-import { GoogleSheetsPreviewCredentialsService } from './google-sheets-preview-credentials.service';
+import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
 
-describe('GoogleSheetsPreviewCredentialsService', () => {
+describe('ConnectorPreviewCredentialsService', () => {
   const context: AuthorizationContext = {
     projectId: 'proj-1',
     userId: 'user-1',
@@ -23,7 +23,7 @@ describe('GoogleSheetsPreviewCredentialsService', () => {
     } as unknown as AccessDecisionService;
 
     return {
-      service: new GoogleSheetsPreviewCredentialsService(credentialInjector, credentials, access),
+      service: new ConnectorPreviewCredentialsService(credentialInjector, credentials, access),
       credentialInjector,
       credentials,
       access,
@@ -45,7 +45,7 @@ describe('GoogleSheetsPreviewCredentialsService', () => {
       configId: 'config-2',
     });
 
-    await expect(service.inject(config, context)).resolves.toBeDefined();
+    await expect(service.inject('GoogleSheets', config, context)).resolves.toBeDefined();
     expect(access.canAccess).toHaveBeenCalledWith(
       'user-1',
       ['editor'],
@@ -72,7 +72,7 @@ describe('GoogleSheetsPreviewCredentialsService', () => {
     });
     (access.canAccess as jest.Mock).mockResolvedValue(false);
 
-    await expect(service.inject(config, context)).rejects.toThrow(
+    await expect(service.inject('GoogleSheets', config, context)).rejects.toThrow(
       'The selected credentials cannot be used for this preview'
     );
   });
@@ -86,7 +86,7 @@ describe('GoogleSheetsPreviewCredentialsService', () => {
     });
 
     await expect(
-      service.inject({ _id: 'config-1', _secrets_id: 'secret-1' }, context)
+      service.inject('GoogleSheets', { _id: 'config-1', _secrets_id: 'secret-1' }, context)
     ).rejects.toThrow('The selected credentials cannot be used for this preview');
   });
 
@@ -97,7 +97,7 @@ describe('GoogleSheetsPreviewCredentialsService', () => {
       _secrets_id: 'secret-1',
       AuthType: { service_account: { ServiceAccountKey: '{"client_email":"new@test"}' } },
     };
-    await service.inject(config, context);
+    await service.inject('GoogleSheets', config, context);
     expect(credentialInjector.injectSecrets).toHaveBeenCalledWith(
       expect.not.objectContaining({ _secrets_id: expect.anything() }),
       'proj-1'

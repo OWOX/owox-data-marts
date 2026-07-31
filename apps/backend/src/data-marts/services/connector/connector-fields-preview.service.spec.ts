@@ -44,10 +44,10 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { AuthorizationContext } from '../../../idp';
-import { GoogleSheetsPreviewCredentialsService } from '../../services/connector/google-sheets-preview-credentials.service';
-import { GoogleSheetsFieldsPreviewService } from './google-sheets-fields-preview.service';
+import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
+import { ConnectorFieldsPreviewService } from './connector-fields-preview.service';
 
-describe('GoogleSheetsFieldsPreviewService', () => {
+describe(ConnectorFieldsPreviewService.name, () => {
   const context: AuthorizationContext = {
     projectId: 'project-1',
     userId: 'user-1',
@@ -58,11 +58,13 @@ describe('GoogleSheetsFieldsPreviewService', () => {
     const previewCredentials = {
       inject: jest
         .fn()
-        .mockImplementation((config: Record<string, unknown>) => Promise.resolve(config)),
-    } as unknown as GoogleSheetsPreviewCredentialsService;
+        .mockImplementation((_connectorName: string, config: Record<string, unknown>) =>
+          Promise.resolve(config)
+        ),
+    } as unknown as ConnectorPreviewCredentialsService;
 
     return {
-      service: new GoogleSheetsFieldsPreviewService(previewCredentials),
+      service: new ConnectorFieldsPreviewService(previewCredentials),
       previewCredentials,
     };
   };
@@ -82,6 +84,7 @@ describe('GoogleSheetsFieldsPreviewService', () => {
       sheet: {
         overview: 'Sheet columns',
         uniqueKeys: ['_owox_row_number'],
+        uniqueKeysByDataLevel: { sheet: ['_owox_row_number'] },
         defaultFields: ['product', 'amount'],
         fields: {
           product: { type: 'STRING' },
@@ -90,21 +93,34 @@ describe('GoogleSheetsFieldsPreviewService', () => {
       },
     });
 
-    const result = await service.run(context, {
+    const result = await service.run(context, 'GoogleSheets', {
       SpreadsheetId: 'sheet-1',
     });
 
-    expect(previewCredentials.inject).toHaveBeenCalledWith({ SpreadsheetId: 'sheet-1' }, context);
+    expect(previewCredentials.inject).toHaveBeenCalledWith(
+      'GoogleSheets',
+      { SpreadsheetId: 'sheet-1' },
+      context
+    );
     expect(result).toEqual([
       expect.objectContaining({
         name: 'sheet',
         defaultFields: ['product', 'amount'],
+        uniqueKeysByDataLevel: { sheet: ['_owox_row_number'] },
         fields: [
           expect.objectContaining({ name: 'product', type: 'STRING' }),
           expect.objectContaining({ name: 'amount', type: 'NUMBER' }),
         ],
       }),
     ]);
+  });
+
+  it('rejects connectors that do not support dynamic field preview', async () => {
+    const { service } = createService();
+
+    await expect(service.run(context, 'MissingConnector', {})).rejects.toThrow(
+      "Connector 'MissingConnector' does not support dynamic field preview"
+    );
   });
 
   it('maps provider failures to Bad Gateway', async () => {
@@ -115,7 +131,7 @@ describe('GoogleSheetsFieldsPreviewService', () => {
     });
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
-    await expect(service.run(context, {})).rejects.toThrow(BadGatewayException);
+    await expect(service.run(context, 'GoogleSheets', {})).rejects.toThrow(BadGatewayException);
   });
 
   it('does not expose provider authentication failures as an application 401', async () => {
@@ -126,7 +142,7 @@ describe('GoogleSheetsFieldsPreviewService', () => {
     });
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
-    const preview = service.run(context, {});
+    const preview = service.run(context, 'GoogleSheets', {});
     await expect(preview).rejects.toBeInstanceOf(BadRequestException);
     await expect(preview).rejects.toThrow('Connector credentials are invalid or expired');
   });
@@ -141,7 +157,7 @@ describe('GoogleSheetsFieldsPreviewService', () => {
     );
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
-    const preview = service.run(context, {});
+    const preview = service.run(context, 'GoogleSheets', {});
     await expect(preview).rejects.toBeInstanceOf(ForbiddenException);
     await expect(preview).rejects.toThrow(providerError.message);
   });
@@ -150,7 +166,9 @@ describe('GoogleSheetsFieldsPreviewService', () => {
     const { service } = createService();
     fetchFieldsSchemaMock.mockRejectedValue(new Error('unexpected mapper bug'));
 
-    await expect(service.run(context, {})).rejects.toThrow(InternalServerErrorException);
+    await expect(service.run(context, 'GoogleSheets', {})).rejects.toThrow(
+      InternalServerErrorException
+    );
   });
 
   it('bounds preview work with a backend timeout', async () => {
@@ -162,7 +180,7 @@ describe('GoogleSheetsFieldsPreviewService', () => {
       return new Promise(() => undefined);
     });
 
-    const preview = service.run(context, {});
+    const preview = service.run(context, 'GoogleSheets', {});
     const rejection = expect(preview).rejects.toThrow(GatewayTimeoutException);
     await jest.advanceTimersByTimeAsync(15_000);
 

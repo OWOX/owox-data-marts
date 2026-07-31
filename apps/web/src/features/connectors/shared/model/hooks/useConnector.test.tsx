@@ -29,7 +29,7 @@ describe('useConnector preview requests', () => {
     const first = deferred<ConnectorFieldsResponseApiDto[]>();
     const second = deferred<ConnectorFieldsResponseApiDto[]>();
     const previewSpy = vi
-      .spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields')
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFields')
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const { result } = renderHook(() => useConnector(), { wrapper });
@@ -37,11 +37,11 @@ describe('useConnector preview requests', () => {
     let firstRequest!: Promise<ConnectorFieldsResponseApiDto[] | null>;
     let secondRequest!: Promise<ConnectorFieldsResponseApiDto[] | null>;
     act(() => {
-      firstRequest = result.current.previewGoogleSheetsFields({ SheetName: 'Old' });
-      secondRequest = result.current.previewGoogleSheetsFields({ SheetName: 'New' });
+      firstRequest = result.current.previewConnectorFields('GoogleSheets', { SheetName: 'Old' });
+      secondRequest = result.current.previewConnectorFields('GoogleSheets', { SheetName: 'New' });
     });
 
-    const firstSignal = previewSpy.mock.calls[0]?.[1]?.signal;
+    const firstSignal = previewSpy.mock.calls[0]?.[2]?.signal;
     expect(firstSignal?.aborted).toBe(true);
 
     await act(async () => {
@@ -65,7 +65,7 @@ describe('useConnector preview requests', () => {
     vi.spyOn(ConnectorApiService.prototype, 'getConnectorFields').mockReturnValue(
       staticFields.promise
     );
-    vi.spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields').mockResolvedValue(
+    vi.spyOn(ConnectorApiService.prototype, 'previewConnectorFields').mockResolvedValue(
       fields('sheet', 'Sheet Column')
     );
     const { result } = renderHook(() => useConnector(), { wrapper });
@@ -73,7 +73,7 @@ describe('useConnector preview requests', () => {
     let staticRequest!: Promise<void>;
     await act(async () => {
       staticRequest = result.current.fetchConnectorFields('GoogleAds');
-      await result.current.previewGoogleSheetsFields({ SheetName: 'Current' });
+      await result.current.previewConnectorFields('GoogleSheets', { SheetName: 'Current' });
     });
     await act(async () => {
       staticFields.resolve(fields('ads', 'Ad Field'));
@@ -85,12 +85,15 @@ describe('useConnector preview requests', () => {
 
   it('aborts the preview request when the editor unmounts', async () => {
     const previewSpy = vi
-      .spyOn(ConnectorApiService.prototype, 'previewGoogleSheetsFields')
+      .spyOn(ConnectorApiService.prototype, 'previewConnectorFields')
       .mockReturnValue(new Promise(() => undefined));
     const PreviewControl = () => {
-      const { loadingFields, previewGoogleSheetsFields } = useConnector();
+      const { loadingFields, previewConnectorFields } = useConnector();
       return (
-        <button type='button' onClick={() => void previewGoogleSheetsFields({ SheetName: 'Data' })}>
+        <button
+          type='button'
+          onClick={() => void previewConnectorFields('GoogleSheets', { SheetName: 'Data' })}
+        >
           {String(loadingFields)}
         </button>
       );
@@ -102,7 +105,7 @@ describe('useConnector preview requests', () => {
     );
     fireEvent.click(view.getByRole('button'));
     expect(view.getByRole('button')).toHaveTextContent('true');
-    const signal = previewSpy.mock.calls[0]?.[1]?.signal;
+    const signal = previewSpy.mock.calls[0]?.[2]?.signal;
     expect(signal?.aborted).toBe(false);
 
     view.rerender(<ConnectorContextProvider>{null}</ConnectorContextProvider>);

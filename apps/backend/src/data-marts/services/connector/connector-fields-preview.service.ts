@@ -12,26 +12,17 @@ import {
 import { Connectors, Core } from '@owox/connectors';
 import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-schema';
 import { AuthorizationContext } from '../../../idp';
-import { GoogleSheetsPreviewCredentialsService } from '../../services/connector/google-sheets-preview-credentials.service';
-
-interface SourceFieldsSchema {
-  [key: string]: {
-    overview?: string;
-    description?: string;
-    documentation?: string;
-    uniqueKeys?: string[];
-    defaultFields?: string[];
-    destinationName?: string;
-    fields?: Record<string, { type?: string; description?: string }>;
-  };
-}
+import { ConnectorPreviewCredentialsService } from './connector-preview-credentials.service';
+import {
+  mapConnectorFieldsSchema,
+  type SourceFieldsSchema,
+} from './connector-fields-schema.mapper';
 
 const PREVIEW_TIMEOUT_MS = 15_000;
-const GOOGLE_SHEETS_SOURCE_NAME = 'GoogleSheets';
 
 class PreviewTimeoutError extends Error {}
 
-class GoogleSheetsFieldsPreviewConfig extends Core.AbstractConfig {
+class ConnectorFieldsPreviewConfig extends Core.AbstractConfig {
   private readonly logger: Logger;
 
   constructor(configData: Record<string, unknown>, logger: Logger) {
@@ -52,37 +43,44 @@ class GoogleSheetsFieldsPreviewConfig extends Core.AbstractConfig {
   addWarningToCurrentStatus(): void {}
 
   logMessage(message: string): void {
-    this.logger.debug(`[${GOOGLE_SHEETS_SOURCE_NAME}] ${message}`);
+    this.logger.debug(message);
   }
 }
 
 @Injectable()
-export class GoogleSheetsFieldsPreviewService {
-  private readonly logger = new Logger(GoogleSheetsFieldsPreviewService.name);
+export class ConnectorFieldsPreviewService {
+  private readonly logger = new Logger(ConnectorFieldsPreviewService.name);
 
-  constructor(private readonly previewCredentials: GoogleSheetsPreviewCredentialsService) {}
+  constructor(private readonly previewCredentials: ConnectorPreviewCredentialsService) {}
 
   async run(
     context: AuthorizationContext,
+    connectorName: string,
     configuration: Record<string, unknown>
   ): Promise<ConnectorFieldsSchema> {
-    const SourceClass = Connectors[GOOGLE_SHEETS_SOURCE_NAME]?.GoogleSheetsSource;
+    const SourceClass = Connectors[connectorName]?.[`${connectorName}Source`];
     if (typeof SourceClass?.prototype?.fetchFieldsSchema !== 'function') {
-      throw new InternalServerErrorException('Google Sheets field preview is unavailable');
+      throw new BadRequestException(
+        `Connector '${connectorName}' does not support dynamic field preview`
+      );
     }
 
     let configWithCredentials: Record<string, unknown>;
     try {
-      configWithCredentials = await this.previewCredentials.inject(configuration, context);
+      configWithCredentials = await this.previewCredentials.inject(
+        connectorName,
+        configuration,
+        context
+      );
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error('Failed to resolve credentials for Google Sheets field preview', error);
+      this.logger.error(`Failed to resolve credentials for ${connectorName} field preview`, error);
       throw new InternalServerErrorException('Unable to resolve credentials for field preview');
     }
 
-    const source = this.createSource(configWithCredentials);
+    const source = this.createSource(connectorName, configWithCredentials);
 
     try {
       source.config.validate();
@@ -95,37 +93,20 @@ export class GoogleSheetsFieldsPreviewService {
       const sourceFieldsSchema = (await this.withTimeout(signal =>
         source.fetchFieldsSchema(signal)
       )) as SourceFieldsSchema;
-      return ConnectorFieldsSchema.parse(this.mapFieldsSchemaToDto(sourceFieldsSchema));
+      return ConnectorFieldsSchema.parse(mapConnectorFieldsSchema(sourceFieldsSchema));
     } catch (error) {
       throw this.mapPreviewError(error);
     }
   }
 
-  private createSource(configuration: Record<string, unknown>) {
-    const SourceClass = Connectors[GOOGLE_SHEETS_SOURCE_NAME].GoogleSheetsSource;
+  private createSource(connectorName: string, configuration: Record<string, unknown>) {
+    const SourceClass = Connectors[connectorName][`${connectorName}Source`];
     const sourceConfig = new Core.SourceConfigDto({
-      name: GOOGLE_SHEETS_SOURCE_NAME,
+      name: connectorName,
       config: configuration,
     });
 
-    return new SourceClass(new GoogleSheetsFieldsPreviewConfig(sourceConfig.config, this.logger));
-  }
-
-  private mapFieldsSchemaToDto(sourceFieldsSchema: SourceFieldsSchema) {
-    return Object.keys(sourceFieldsSchema).map(key => ({
-      name: key,
-      overview: sourceFieldsSchema[key].overview,
-      description: sourceFieldsSchema[key].description,
-      documentation: sourceFieldsSchema[key].documentation,
-      uniqueKeys: sourceFieldsSchema[key].uniqueKeys,
-      defaultFields: sourceFieldsSchema[key].defaultFields,
-      destinationName: sourceFieldsSchema[key].destinationName,
-      fields: Object.keys(sourceFieldsSchema[key].fields ?? {}).map(fieldKey => ({
-        name: fieldKey,
-        type: sourceFieldsSchema[key].fields?.[fieldKey].type,
-        description: sourceFieldsSchema[key].fields?.[fieldKey].description,
-      })),
-    }));
+    return new SourceClass(new ConnectorFieldsPreviewConfig(sourceConfig.config, this.logger));
   }
 
   private async withTimeout<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -182,7 +163,7 @@ export class GoogleSheetsFieldsPreviewService {
       return new BadGatewayException('Connector provider is temporarily unavailable');
     }
 
-    this.logger.error('Unexpected Google Sheets field preview failure', error);
+    this.logger.error('Unexpected connector field preview failure', error);
     return new InternalServerErrorException('Unable to preview connector fields');
   }
 

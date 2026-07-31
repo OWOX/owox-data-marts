@@ -37,6 +37,21 @@ describe('Google Sheets field configuration', () => {
   it('persists explicit subset mode and detects an explicit select-all change', () => {
     expect(shouldImportAllGoogleSheetsColumns(['Campaign'], availableFields)).toBe(false);
     expect(shouldImportAllGoogleSheetsColumns(['Campaign', 'Spend'], availableFields)).toBe(true);
+    const subsetConfiguration = withGoogleSheetsImportAllColumns(
+      { ImportAllColumns: true },
+      ['_owox_row_number', 'Campaign'],
+      availableFields,
+      availableFields
+    );
+    expect(subsetConfiguration).toEqual({ ImportAllColumns: false });
+    expect(
+      resolveGoogleSheetsPreviewSelection(
+        subsetConfiguration,
+        ['_owox_row_number', 'Campaign'],
+        availableFields,
+        availableFields
+      )
+    ).toEqual(['_owox_row_number', 'Campaign']);
     expect(
       withGoogleSheetsImportAllColumns(
         { ImportAllColumns: false },

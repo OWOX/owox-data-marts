@@ -6,6 +6,7 @@ interface UseRefreshDataMartAfterConnectorRunOptions {
   dataMartId: string;
   isGoogleSheetsConnector: boolean;
   isManualRunTriggered: boolean;
+  hasUnsavedSchemaChanges: boolean;
   runs: DataMartRunItem[];
   refreshDataMart: (id: string) => Promise<void>;
 }
@@ -14,6 +15,7 @@ export function useRefreshDataMartAfterConnectorRun({
   dataMartId,
   isGoogleSheetsConnector,
   isManualRunTriggered,
+  hasUnsavedSchemaChanges,
   runs,
   refreshDataMart,
 }: UseRefreshDataMartAfterConnectorRunOptions): void {
@@ -21,7 +23,7 @@ export function useRefreshDataMartAfterConnectorRun({
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
-    if (runs.length === 0 || !isGoogleSheetsConnector || !dataMartId) {
+    if (runs.length === 0 || !isGoogleSheetsConnector || !dataMartId || hasUnsavedSchemaChanges) {
       return;
     }
     const latestSuccessfulRun = runs.find(
@@ -45,5 +47,12 @@ export function useRefreshDataMartAfterConnectorRun({
 
     lastObservedSuccessfulRunIdRef.current = latestSuccessfulRun.id;
     void refreshDataMart(dataMartId);
-  }, [dataMartId, isGoogleSheetsConnector, isManualRunTriggered, refreshDataMart, runs]);
+  }, [
+    dataMartId,
+    hasUnsavedSchemaChanges,
+    isGoogleSheetsConnector,
+    isManualRunTriggered,
+    refreshDataMart,
+    runs,
+  ]);
 }

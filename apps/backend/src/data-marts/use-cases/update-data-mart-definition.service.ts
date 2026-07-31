@@ -16,6 +16,7 @@ import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-dat
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../services/connector/connector.constants';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -182,7 +183,7 @@ export class UpdateDataMartDefinitionService {
 
     const definition = command.definition as ConnectorDefinition;
     const source = definition?.connector?.source;
-    if (source?.name === 'GoogleSheets' && source.configuration?.length !== 1) {
+    if (source?.name === GOOGLE_SHEETS_CONNECTOR_NAME && source.configuration?.length !== 1) {
       throw new BadRequestException('GoogleSheets requires exactly one source configuration');
     }
   }
@@ -194,7 +195,7 @@ export class UpdateDataMartDefinitionService {
     if (
       !command.userId ||
       !command.sourceDataMartId ||
-      definition.connector.source.name !== 'GoogleSheets'
+      definition.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME
     ) {
       return;
     }
@@ -219,7 +220,7 @@ export class UpdateDataMartDefinitionService {
     previous: ConnectorDefinition | undefined,
     copySource: ConnectorDefinition | undefined
   ): void {
-    if (incoming.connector.source.name !== 'GoogleSheets') {
+    if (incoming.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
       return;
     }
 

@@ -28,12 +28,13 @@ export class ConnectorApiService extends ApiService {
     return this.get<ConnectorFieldsResponseApiDto[]>(`/${connectorName}/fields`);
   }
 
-  async previewGoogleSheetsFields(
+  async previewConnectorFields(
+    connectorName: string,
     configuration: Record<string, unknown>,
     config?: AxiosRequestConfig
   ): Promise<ConnectorFieldsResponseApiDto[]> {
     return this.post<ConnectorFieldsResponseApiDto[]>(
-      '/GoogleSheets/fields/preview',
+      `/${connectorName}/fields/preview`,
       {
         configuration,
       },

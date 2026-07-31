@@ -6,6 +6,7 @@ import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
 import { NestedConfigurationField } from './NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
 import { GoogleSheetsServiceAccountField } from './GoogleSheetsServiceAccountField';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../../../shared/utils/google-sheets-fields.utils';
 
 interface ConfigurationOneOfRenderProps {
   specification: ConnectorSpecificationResponseApiDto;
@@ -140,7 +141,7 @@ export function ConfigurationOneOfRender({
                     ? (optionConfiguration[option.value] as Record<string, unknown>)
                     : {};
                 const isGoogleSheetsServiceAccountField =
-                  connectorName === 'GoogleSheets' &&
+                  connectorName === GOOGLE_SHEETS_CONNECTOR_NAME &&
                   specification.name === 'AuthType' &&
                   option.value === 'service_account' &&
                   itemName === 'ServiceAccountKey';

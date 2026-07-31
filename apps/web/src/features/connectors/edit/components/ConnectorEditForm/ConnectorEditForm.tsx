@@ -80,7 +80,7 @@ export function ConnectorEditForm({
     fetchAvailableConnectors,
     fetchConnectorSpecification,
     fetchConnectorFields,
-    previewGoogleSheetsFields,
+    previewConnectorFields,
   } = useConnector();
 
   useEffect(() => {
@@ -230,6 +230,13 @@ export function ConnectorEditForm({
     () => resolveEffectiveDataLevel(connectorConfiguration, connectorSpecification),
     [connectorConfiguration, connectorSpecification]
   );
+  const availableSelectedNodeFields = useMemo(
+    () =>
+      connectorFields
+        ?.find(field => field.name === selectedNode)
+        ?.fields?.map(field => field.name) ?? [],
+    [connectorFields, selectedNode]
+  );
 
   // Union the persisted fields with whatever the effective DataLevel requires (e.g. TikTok
   // ad_insights needs ad_id at AUCTION_AD). No-op for nodes without uniqueKeysByDataLevel.
@@ -278,22 +285,41 @@ export function ConnectorEditForm({
   };
 
   const handleFieldToggle = (fieldName: string, isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedFields(prev => (prev.includes(fieldName) ? prev : [...prev, fieldName]));
-    } else {
-      setSelectedFields(prev => prev.filter(f => f !== fieldName));
+    const nextSelectedFields = isChecked
+      ? selectedFields.includes(fieldName)
+        ? selectedFields
+        : [...selectedFields, fieldName]
+      : selectedFields.filter(field => field !== fieldName);
+
+    setSelectedFields(nextSelectedFields);
+    if (isGoogleSheetsConnector) {
+      setConnectorConfiguration(configuration =>
+        withGoogleSheetsImportAllColumns(
+          configuration,
+          nextSelectedFields,
+          availableSelectedNodeFields,
+          selectedFields
+        )
+      );
     }
     setIsDirty(true);
   };
 
   const handleSelectAllFields = (fieldNames: string[], isSelected: boolean) => {
-    if (isSelected) {
-      setSelectedFields(prev => {
-        const newFields = fieldNames.filter(fieldName => !prev.includes(fieldName));
-        return [...prev, ...newFields];
-      });
-    } else {
-      setSelectedFields(prev => prev.filter(fieldName => !fieldNames.includes(fieldName)));
+    const nextSelectedFields = isSelected
+      ? [...selectedFields, ...fieldNames.filter(fieldName => !selectedFields.includes(fieldName))]
+      : selectedFields.filter(fieldName => !fieldNames.includes(fieldName));
+
+    setSelectedFields(nextSelectedFields);
+    if (isGoogleSheetsConnector) {
+      setConnectorConfiguration(configuration =>
+        withGoogleSheetsImportAllColumns(
+          configuration,
+          nextSelectedFields,
+          availableSelectedNodeFields,
+          selectedFields
+        )
+      );
     }
     setIsDirty(true);
   };
@@ -367,7 +393,7 @@ export function ConnectorEditForm({
       setFieldsOnlyPreviewError(null);
 
       try {
-        const previewFields = await previewGoogleSheetsFields(configuration);
+        const previewFields = await previewConnectorFields(connectorName, configuration);
         if (!previewFields) {
           if (mode === 'fields-only') {
             setFieldsOnlyPreviewError('Failed to load Google Sheets columns');
@@ -418,13 +444,7 @@ export function ConnectorEditForm({
         return false;
       }
     },
-    [
-      connectorConfiguration,
-      mode,
-      previewGoogleSheetsFields,
-      selectedConnector?.name,
-      selectedFields,
-    ]
+    [connectorConfiguration, mode, previewConnectorFields, selectedConnector?.name, selectedFields]
   );
 
   useEffect(() => {
@@ -753,10 +773,7 @@ export function ConnectorEditForm({
           }}
           onBack={handleBack}
           onFinish={() => {
-            const availableFields =
-              connectorFields
-                ?.find(field => field.name === selectedNode)
-                ?.fields?.map(field => field.name) ?? [];
+            const availableFields = availableSelectedNodeFields;
             const activeSelectedFields =
               selectedConnector?.name === GOOGLE_SHEETS_CONNECTOR_NAME
                 ? getAvailableGoogleSheetsSelectedFields(selectedFields, availableFields)

@@ -17,6 +17,7 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
           dataMartId: 'dm-1',
           isGoogleSheetsConnector: true,
           isManualRunTriggered: false,
+          hasUnsavedSchemaChanges: false,
           runs,
           refreshDataMart,
         });
@@ -41,6 +42,7 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
         dataMartId: 'dm-1',
         isGoogleSheetsConnector: true,
         isManualRunTriggered: true,
+        hasUnsavedSchemaChanges: false,
         runs: [run('new-run', DataMartRunStatus.SUCCESS)],
         refreshDataMart,
       });
@@ -59,11 +61,56 @@ describe('useRefreshDataMartAfterConnectorRun', () => {
         dataMartId: 'dm-1',
         isGoogleSheetsConnector: false,
         isManualRunTriggered: true,
+        hasUnsavedSchemaChanges: false,
         runs: [run('new-run', DataMartRunStatus.SUCCESS)],
         refreshDataMart,
       });
     });
 
     expect(refreshDataMart).not.toHaveBeenCalled();
+  });
+
+  it('defers refresh until unsaved schema changes are cleared', async () => {
+    const refreshDataMart = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = renderHook(
+      ({
+        hasUnsavedSchemaChanges,
+        runs,
+      }: {
+        hasUnsavedSchemaChanges: boolean;
+        runs: DataMartRunItem[];
+      }) => {
+        useRefreshDataMartAfterConnectorRun({
+          dataMartId: 'dm-1',
+          isGoogleSheetsConnector: true,
+          isManualRunTriggered: false,
+          hasUnsavedSchemaChanges,
+          runs,
+          refreshDataMart,
+        });
+      },
+      {
+        initialProps: {
+          hasUnsavedSchemaChanges: false,
+          runs: [run('old-run', DataMartRunStatus.SUCCESS)],
+        },
+      }
+    );
+
+    rerender({
+      hasUnsavedSchemaChanges: true,
+      runs: [run('new-run', DataMartRunStatus.SUCCESS)],
+    });
+    expect(refreshDataMart).not.toHaveBeenCalled();
+
+    rerender({
+      hasUnsavedSchemaChanges: false,
+      runs: [run('new-run', DataMartRunStatus.SUCCESS)],
+    });
+
+    await waitFor(() => {
+      expect(refreshDataMart).toHaveBeenCalledWith('dm-1');
+    });
+    expect(refreshDataMart).toHaveBeenCalledTimes(1);
   });
 });

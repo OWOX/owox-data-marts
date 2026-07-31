@@ -119,11 +119,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
   const hasActiveDataQualityRun = isDataQualityActivityState(dataQualitySummary?.state);
   const runActivityLabel = getDataMartRunActivityLabel(hasActiveRuns, hasActiveDataQualityRun);
+  const schemaGuard = useSchemaUnsavedGuard();
 
   useRefreshDataMartAfterConnectorRun({
     dataMartId,
     isGoogleSheetsConnector,
     isManualRunTriggered,
+    hasUnsavedSchemaChanges: schemaGuard.isSchemaDirty,
     runs,
     refreshDataMart,
   });
@@ -143,8 +145,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
-
-  const schemaGuard = useSchemaUnsavedGuard();
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 

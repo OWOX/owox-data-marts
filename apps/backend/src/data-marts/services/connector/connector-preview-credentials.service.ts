@@ -4,11 +4,10 @@ import { Action, AccessDecisionService, EntityType } from '../access-decision';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 
-const GOOGLE_SHEETS_CONNECTOR_NAME = 'GoogleSheets';
 const SECRET_MASK = '**********';
 
 @Injectable()
-export class GoogleSheetsPreviewCredentialsService {
+export class ConnectorPreviewCredentialsService {
   constructor(
     private readonly credentialInjector: ConnectorCredentialInjectorService,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
@@ -16,11 +15,12 @@ export class GoogleSheetsPreviewCredentialsService {
   ) {}
 
   async inject(
+    connectorName: string,
     config: Record<string, unknown>,
     context: AuthorizationContext
   ): Promise<Record<string, unknown>> {
     const previewConfig = this.withoutStoredSecretReferenceForInlineKey(config);
-    await this.validateReferences(previewConfig, context);
+    await this.validateReferences(connectorName, previewConfig, context);
     return this.credentialInjector.injectSecrets(previewConfig, context.projectId);
   }
 
@@ -40,6 +40,7 @@ export class GoogleSheetsPreviewCredentialsService {
   }
 
   private async validateReferences(
+    connectorName: string,
     config: Record<string, unknown>,
     context: AuthorizationContext
   ): Promise<void> {
@@ -53,7 +54,7 @@ export class GoogleSheetsPreviewCredentialsService {
       if (
         !credential ||
         credential.projectId !== context.projectId ||
-        credential.connectorName !== GOOGLE_SHEETS_CONNECTOR_NAME
+        credential.connectorName !== connectorName
       ) {
         throw this.invalidCredentials();
       }

@@ -15,7 +15,7 @@ import { ConnectorOAuthCredentialsResponseApiDto } from '../../dto/presentation/
 import { ConnectorOAuthStatusResponseApiDto } from '../../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../../dto/presentation/connector-oauth-settings-response-api.dto';
 import { ExchangeOAuthCredentialsDto } from '../../dto/presentation/exchange-oauth-credentials.dto';
-import { GoogleSheetsFieldsPreviewRequestApiDto } from '../../dto/presentation/google-sheets-fields-preview-request-api.dto';
+import { ConnectorFieldsPreviewRequestApiDto } from '../../dto/presentation/connector-fields-preview-request-api.dto';
 
 export function GetAvailableConnectorsSpec() {
   return applyDecorators(
@@ -42,10 +42,11 @@ export function GetConnectorFieldsSpec() {
   );
 }
 
-export function PreviewGoogleSheetsFieldsSpec() {
+export function PreviewConnectorFieldsSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Preview fields from a Google Sheets source configuration' }),
-    ApiBody({ type: GoogleSheetsFieldsPreviewRequestApiDto }),
+    ApiOperation({ summary: 'Preview fields from a connector source configuration' }),
+    ApiParam({ name: 'connectorName', description: 'Connector name' }),
+    ApiBody({ type: ConnectorFieldsPreviewRequestApiDto }),
     ApiOkResponse({ type: ConnectorFieldsResponseApiDto, isArray: true }),
     ApiResponse({ status: 400, description: 'Unable to preview connector fields' }),
     ApiResponse({ status: 403, description: 'Connector credentials cannot access the resource' }),

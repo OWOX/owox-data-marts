@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from './connector.constants';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
@@ -815,7 +816,9 @@ export class ConnectorSecretService {
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
-      if (incoming.connector.source.name === 'GoogleSheets') {
+      // Google Sheets has one configuration per Data Mart, so copied secrets are
+      // persisted under the new configuration instead of reusing the source row.
+      if (incoming.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME) {
         delete mergedItem._secrets_id;
       }
       mergedItem._id = randomUUID();

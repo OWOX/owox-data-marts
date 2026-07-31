@@ -308,6 +308,32 @@ test('uses the selected fields subset and never writes unselected sheet columns'
   assert.deepEqual(Object.keys(schema), ['_owox_row_number', 'campaign', 'spend']);
 });
 
+test('keeps rows that have values only in unselected columns', () => {
+  const source = createSource({
+    importAllColumns: false,
+    fields: 'sheet _owox_row_number, sheet notes',
+  });
+
+  const snapshot = source._buildSheetSnapshot(
+    [
+      ['Name', 'Email', 'Notes'],
+      ['Ada', 'ada@example.test', 'Keep'],
+      ['Bob', 'bob@example.test', ''],
+      ['Cara', 'cara@example.test'],
+    ],
+    true
+  );
+
+  assert.deepEqual(
+    Array.from(snapshot.rows, row => row._owox_row_number),
+    [2, 3, 4]
+  );
+  assert.deepEqual(
+    Array.from(snapshot.rows, row => row.notes),
+    ['Keep', null, null]
+  );
+});
+
 test('does not map a missing generated column name to a newly named column at the same position', () => {
   const source = createSource({
     importAllColumns: false,

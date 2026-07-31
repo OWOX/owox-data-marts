@@ -327,7 +327,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     this._assertImportColumnCount(columns);
 
     const firstDataRowNumber = headerRowNumber + 1;
-    const rows = this._buildRows(dataRows, columns, firstDataRowNumber);
+    const rows = this._buildRows(dataRows, columns, firstDataRowNumber, detectedColumns);
 
     return { columns, rows };
   }
@@ -775,12 +775,16 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     return candidate;
   }
 
-  _buildRows(dataRows, columns, firstDataRowNumber) {
+  _buildRows(dataRows, columns, firstDataRowNumber, rowPresenceColumns = columns) {
     const importedAt = this._formatWarehouseTimestamp(new Date());
     const includeImportedAt = this._shouldIncludeImportedAt();
 
     return dataRows
-      .map((row, index) => {
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) =>
+        rowPresenceColumns.some(column => this._normalizeCellValue(row[column.index]) !== null)
+      )
+      .map(({ row, index }) => {
         const normalizedRow = {
           _owox_row_number: firstDataRowNumber + index,
         };
@@ -793,8 +797,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         });
 
         return normalizedRow;
-      })
-      .filter(row => columns.some(column => row[column.name] !== null));
+      });
   }
 
   _formatWarehouseTimestamp(value) {

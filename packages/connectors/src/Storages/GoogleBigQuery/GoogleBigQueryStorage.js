@@ -223,7 +223,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let columnType = this.getColumnType(columnName);
         
         if( "description" in this.schema[ columnName ] ) {
-          columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
+          columnDescription = ` OPTIONS(description="${this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"])}")`;
         }
 
         if( "GoogleBigQueryPartitioned" in this.schema[ columnName ] 
@@ -285,6 +285,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         this.quoteFieldIdentifiers = true;
         stagingTableCreated = true;
         const stagedColumns = await this.createTableIfItDoesntExist(true);
+        this.existingColumns = stagedColumns;
 
         if (data.length) {
           await this.saveData(data);
@@ -409,7 +410,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           let columnType = this.getColumnType(columnName);
           
           if( "description" in this.schema[ columnName ] ) {
-            columnDescription = ` OPTIONS (description = "${this.schema[ columnName ]["description"]}")`;
+            columnDescription = ` OPTIONS (description = "${this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"])}")`;
           }
 
           columns.push(`ADD COLUMN IF NOT EXISTS ${columnName} ${columnType}${columnDescription}`);

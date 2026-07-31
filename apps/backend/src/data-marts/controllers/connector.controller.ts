@@ -5,7 +5,7 @@ import {
   GetAvailableConnectorsSpec,
   GetConnectorSpecificationSpec,
   GetConnectorFieldsSpec,
-  PreviewGoogleSheetsFieldsSpec,
+  PreviewConnectorFieldsSpec,
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
   GetConnectorOAuthSettingsSpec,
@@ -23,8 +23,8 @@ import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/con
 import { ConnectorOauthService } from '../services/connector/connector-oauth.service';
 import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
-import { GoogleSheetsFieldsPreviewService } from '../use-cases/connector/google-sheets-fields-preview.service';
-import { GoogleSheetsFieldsPreviewRequestApiDto } from '../dto/presentation/google-sheets-fields-preview-request-api.dto';
+import { ConnectorFieldsPreviewService } from '../services/connector/connector-fields-preview.service';
+import { ConnectorFieldsPreviewRequestApiDto } from '../dto/presentation/connector-fields-preview-request-api.dto';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -33,7 +33,7 @@ export class ConnectorController {
     private readonly availableConnectorService: AvailableConnectorService,
     private readonly specificationConnectorService: SpecificationConnectorService,
     private readonly fieldsConnectorService: FieldsConnectorService,
-    private readonly googleSheetsFieldsPreviewService: GoogleSheetsFieldsPreviewService,
+    private readonly connectorFieldsPreviewService: ConnectorFieldsPreviewService,
     private readonly mapper: ConnectorMapper,
     private readonly connectorOauthService: ConnectorOauthService
   ) {}
@@ -67,14 +67,16 @@ export class ConnectorController {
   }
 
   @Auth(Role.editor())
-  @Post('GoogleSheets/fields/preview')
-  @PreviewGoogleSheetsFieldsSpec()
-  async previewGoogleSheetsFields(
+  @Post(':connectorName/fields/preview')
+  @PreviewConnectorFieldsSpec()
+  async previewConnectorFields(
     @AuthContext() context: AuthorizationContext,
-    @Body() body: GoogleSheetsFieldsPreviewRequestApiDto
+    @Param('connectorName') connectorName: string,
+    @Body() body: ConnectorFieldsPreviewRequestApiDto
   ): Promise<ConnectorFieldsResponseApiDto[]> {
-    const fields = await this.googleSheetsFieldsPreviewService.run(
+    const fields = await this.connectorFieldsPreviewService.run(
       context,
+      connectorName,
       body.configuration ?? {}
     );
     return this.mapper.toFieldsResponse(fields);
