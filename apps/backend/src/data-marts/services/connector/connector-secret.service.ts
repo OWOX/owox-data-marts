@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
@@ -827,34 +828,33 @@ export class ConnectorSecretService {
    *    configuration array containing items with properly merged secrets from their
    *    respective source configurations.
    *
+   * Each copied item names its own source Data Mart, so one save may copy from
+   * several of them.
+   *
    * @param incoming New definition coming from the client, may have mixed configurations (some with _copiedFrom, some without)
-   * @param sourceDefinition Definition from the source Data Mart to copy secrets from
+   * @param sourceDefinitionsByDataMartId Definitions of every Data Mart being copied from, keyed by their id
+   * @param defaultSourceDataMartId Source used by copied items that name none (clients predating per-item sources)
    * @returns Definition with correctly merged secret values from source configurations
-   * @throws Error if connector types don't match
-   * @throws Error if source configuration with specified _id is not found (when _copiedFrom is present)
+   * @throws BusinessViolationException if connector types don't match
+   * @throws BusinessViolationException if the source Data Mart or configuration cannot be resolved
    */
   async mergeDefinitionSecretsFromSource(
     incoming: ConnectorDefinition,
-    sourceDefinition: ConnectorDefinition
+    sourceDefinitionsByDataMartId: Map<string, ConnectorDefinition>,
+    defaultSourceDataMartId?: string
   ): Promise<ConnectorDefinition> {
-    if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
-      throw new Error(
-        `Cannot copy secrets from different connector type. ` +
-          `Source: ${sourceDefinition.connector.source.name}, ` +
-          `Target: ${incoming.connector.source.name}`
-      );
-    }
-
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
-    const sourceSecretsIds = sourceDefinition.connector.source.configuration
-      .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
-      .filter((id): id is string => !!id);
+    const sourceSecretsIds = [...sourceDefinitionsByDataMartId.values()].flatMap(definition =>
+      definition.connector.source.configuration
+        .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
+        .filter((id): id is string => !!id)
+    );
     const sourceSecretsMap =
       await this.connectorSourceCredentialsService.getCredentialsByIds(sourceSecretsIds);
 
     const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
       const itemWithMetadata = incomingItem as Record<string, unknown> & {
-        _copiedFrom?: { configId: string };
+        _copiedFrom?: { configId: string; dataMartId?: string };
       };
 
       if (!itemWithMetadata._copiedFrom?.configId) {
@@ -862,15 +862,36 @@ export class ConnectorSecretService {
       }
 
       const sourceConfigId = itemWithMetadata._copiedFrom.configId;
+      const sourceDataMartId = itemWithMetadata._copiedFrom.dataMartId ?? defaultSourceDataMartId;
+      const sourceDefinition = sourceDataMartId
+        ? sourceDefinitionsByDataMartId.get(sourceDataMartId)
+        : undefined;
+
+      if (!sourceDefinition) {
+        throw new BusinessViolationException(
+          'Cannot copy a configuration from a Data Mart that is not part of this request.',
+          { sourceDataMartId, sourceConfigId }
+        );
+      }
+
+      if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
+        throw new BusinessViolationException(
+          `Cannot copy a configuration between different connector types. ` +
+            `Source: ${sourceDefinition.connector.source.name}, ` +
+            `target: ${incoming.connector.source.name}.`,
+          { sourceDataMartId, sourceConfigId }
+        );
+      }
 
       const sourceConfig = sourceDefinition.connector.source.configuration.find(
         config => (config as Record<string, unknown> & { _id?: string })._id === sourceConfigId
       );
 
       if (!sourceConfig) {
-        throw new Error(
-          `Source configuration with _id "${sourceConfigId}" not found. ` +
-            `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
+        throw new BusinessViolationException(
+          'The copied configuration no longer exists in the Data Mart it came from. ' +
+            'Reopen the source Data Mart and copy the configuration again.',
+          { sourceDataMartId, sourceConfigId }
         );
       }
 

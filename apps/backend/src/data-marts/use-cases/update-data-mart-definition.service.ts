@@ -29,6 +29,43 @@ export class UpdateDataMartDefinitionService {
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
+  /**
+   * Collects the Data Marts a save copies configurations from.
+   *
+   * Each copied item names its own source, so one save can draw on several.
+   * `command.sourceDataMartId` covers items that name none, which is what
+   * clients predating per-item sources send.
+   */
+  private collectSourceDataMartIds(
+    definition: ConnectorDefinition,
+    command: UpdateDataMartDefinitionCommand
+  ): string[] {
+    const sourceDataMartIds = new Set<string>();
+
+    for (const item of definition.connector?.source?.configuration || []) {
+      const copiedFrom = (item as Record<string, unknown>)._copiedFrom as
+        | { dataMartId?: string; configId?: string }
+        | undefined;
+
+      if (!copiedFrom?.configId) {
+        continue;
+      }
+
+      const sourceDataMartId = copiedFrom.dataMartId ?? command.sourceDataMartId;
+      if (sourceDataMartId) {
+        sourceDataMartIds.add(sourceDataMartId);
+      }
+    }
+
+    // A source named by the request but by no item still has to be honoured:
+    // older clients sent the id without marking up the items.
+    if (sourceDataMartIds.size === 0 && command.sourceDataMartId) {
+      sourceDataMartIds.add(command.sourceDataMartId);
+    }
+
+    return [...sourceDataMartIds];
+  }
+
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
@@ -72,43 +109,55 @@ export class UpdateDataMartDefinitionService {
       const connectorDefinition = command.definition as ConnectorDefinition;
       let mergedDefinition: ConnectorDefinition;
 
-      if (command.sourceDataMartId) {
+      const sourceDataMartIds = this.collectSourceDataMartIds(connectorDefinition, command);
+
+      if (sourceDataMartIds.length > 0) {
+        const sourceDefinitions = new Map<string, ConnectorDefinition>();
+
         // Copying a configuration carries the source's stored credentials into
         // this Data Mart, so it takes permission on the source and not only on
-        // the target being edited.
+        // the target being edited. Every source is checked before any of them is
+        // read, so a save that is not fully permitted touches nothing.
         if (command.userId) {
-          const canCopyCredentials = await this.accessDecisionService.canAccess(
-            command.userId,
-            command.roles,
-            EntityType.DATA_MART,
-            command.sourceDataMartId,
-            Action.COPY_CREDENTIALS,
-            command.projectId
-          );
-          if (!canCopyCredentials) {
-            throw new ForbiddenException(
-              'You do not have permission to copy the configuration of this DataMart'
+          for (const sourceDataMartId of sourceDataMartIds) {
+            const canCopyCredentials = await this.accessDecisionService.canAccess(
+              command.userId,
+              command.roles,
+              EntityType.DATA_MART,
+              sourceDataMartId,
+              Action.COPY_CREDENTIALS,
+              command.projectId
             );
+            if (!canCopyCredentials) {
+              throw new ForbiddenException(
+                'You do not have permission to copy the configuration of this DataMart'
+              );
+            }
           }
         }
 
-        const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
-          command.sourceDataMartId,
-          command.projectId
-        );
-
-        if (
-          !sourceDataMart.definition ||
-          sourceDataMart.definitionType !== DataMartDefinitionType.CONNECTOR
-        ) {
-          throw new BusinessViolationException(
-            'Source Data Mart does not have a connector definition'
+        for (const sourceDataMartId of sourceDataMartIds) {
+          const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
+            sourceDataMartId,
+            command.projectId
           );
+
+          if (
+            !sourceDataMart.definition ||
+            sourceDataMart.definitionType !== DataMartDefinitionType.CONNECTOR
+          ) {
+            throw new BusinessViolationException(
+              'Source Data Mart does not have a connector definition'
+            );
+          }
+
+          sourceDefinitions.set(sourceDataMartId, sourceDataMart.definition as ConnectorDefinition);
         }
 
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
           connectorDefinition,
-          sourceDataMart.definition as ConnectorDefinition
+          sourceDefinitions,
+          command.sourceDataMartId
         );
 
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(

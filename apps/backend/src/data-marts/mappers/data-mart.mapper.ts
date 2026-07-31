@@ -235,7 +235,6 @@ export class DataMartMapper {
       dto.definitionType,
       dto.definition,
       dto.sourceDataMartId,
-      dto.sourceConfigurationId,
       context.userId,
       context.roles ?? []
     );

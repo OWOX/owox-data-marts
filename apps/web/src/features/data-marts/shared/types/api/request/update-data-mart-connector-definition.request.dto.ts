@@ -5,5 +5,4 @@ export interface UpdateDataMartConnectorDefinitionRequestDto {
   definitionType: DataMartDefinitionType.CONNECTOR;
   definition: ConnectorDefinitionDto;
   sourceDataMartId?: string;
-  sourceConfigurationId?: string;
 }

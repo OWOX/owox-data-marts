@@ -329,6 +329,10 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           case DataMartDefinitionType.CONNECTOR: {
             const connectorDef = definition as ConnectorDefinitionConfig;
 
+            // Each copied configuration carries its own source, and they need
+            // not agree: the backend resolves every item against the Data Mart
+            // named in its own _copiedFrom. sourceDataMartId stays in the
+            // request for older backends, which only understand one source.
             let sourceDataMartId: string | undefined;
 
             for (const config of connectorDef.connector.source.configuration) {
