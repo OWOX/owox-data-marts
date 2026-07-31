@@ -16,7 +16,7 @@ import type { CanvasNodeField } from '../model/types';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
-import { DataLastUpdatedValue } from '../../shared/components/DataLastUpdatedValue';
+import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
 
 export const NODE_WIDTH = 240;
@@ -199,18 +199,16 @@ export default function ModelCanvasFlowNode({ data }: NodeProps<ModelCanvasFlowN
         <span className='ml-auto shrink-0'>
           {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
         </span>
-        <span className='min-w-0 truncate' title='Data Last Updated'>
-          <DataLastUpdatedValue block={data.dataLastUpdated} compact />
-        </span>
       </div>
-      {/* Data Quality row */}
-      <div className='text-muted-foreground flex items-center px-3.5 pt-1 pb-3 text-[11px]'>
+      {/* Status icons row: quality shield + data-last-updated clock */}
+      <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
         <DataQualityCanvasStatusIcon
           dataMartTitle={data.title}
           summary={data.qualitySummary}
           onOpenQuality={data.onOpenQuality}
           onRunQuality={data.onRunQuality}
         />
+        <DataLastUpdatedCanvasIcon dataMartTitle={data.title} block={data.dataLastUpdated} />
       </div>
 
       {/* ERD body: field rows (only in ERD view) */}
