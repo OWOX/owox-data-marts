@@ -206,7 +206,11 @@ describe('ReportSqlComposerService', () => {
         mainTableReference: 'p.d.view_x',
       })
     );
-    expect(result).toEqual({ sql: 'SELECT 1', params: [{ name: 'p0', value: 1 }] });
+    expect(result).toEqual({
+      sql: 'SELECT 1',
+      params: [{ name: 'p0', value: 1 }],
+      needsBlending: false,
+    });
   });
 
   it('passes recursive native field types to QueryBuilder for nested output controls', async () => {
@@ -291,7 +295,7 @@ describe('ReportSqlComposerService', () => {
     } as never;
     const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
     expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
-    expect(result).toEqual({ sql: 'SELECT * FROM t' });
+    expect(result).toEqual({ sql: 'SELECT * FROM t', needsBlending: false });
   });
 
   it('uses blended sql + params when needsBlending=true', async () => {
@@ -323,6 +327,7 @@ describe('ReportSqlComposerService', () => {
     expect(result).toEqual({
       sql: 'WITH ... SELECT ... WHERE @p0',
       params: [{ name: 'p0', value: 1 }],
+      needsBlending: true,
     });
   });
 
