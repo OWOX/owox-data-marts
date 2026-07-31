@@ -112,7 +112,6 @@ describe('CopyReportAsDataMartService', () => {
         DataMartDefinitionType.SQL,
         { sqlQuery: 'SELECT 1' },
         undefined,
-        undefined,
         'user-1',
         ['editor']
       )

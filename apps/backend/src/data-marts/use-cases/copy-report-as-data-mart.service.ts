@@ -107,7 +107,6 @@ export class CopyReportAsDataMartService {
         DataMartDefinitionType.SQL,
         { sqlQuery: sql } as SqlDefinition,
         undefined,
-        undefined,
         command.userId,
         command.roles
       )

@@ -1,3 +1,4 @@
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import type { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
@@ -59,6 +60,12 @@ describe('ConnectorSecretService', () => {
     } as unknown as ConnectorDefinition;
   };
 
+  // Copied items name their own source Data Mart; these cover the items that
+  // do not, which fall back to the source named by the request itself.
+  const SOURCE_DATA_MART_ID = 'source-datamart';
+  const fromSingleSource = (definition: ConnectorDefinition) =>
+    new Map([[SOURCE_DATA_MART_ID, definition]]);
+
   describe('mask', () => {
     it('masks secret fields using SECRET_MASK', async () => {
       const { service } = createService(['AccessToken']);
@@ -101,6 +108,49 @@ describe('ConnectorSecretService', () => {
   });
 
   describe('mergeDefinitionSecrets', () => {
+    // The merge only ever dereferences a pointer this DataMart already has
+    // stored. That is what lets a Data Mart still carrying a pointer into
+    // another one's record recover its values (extractAndSaveSecrets then forks
+    // them onto a record of its own), while a pointer supplied by the caller
+    // buys nothing.
+    it('never loads secrets for a _secrets_id supplied by the caller', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const previous = makeDefinition([{ _id: 'a', _secrets_id: 'ours', AccountIDs: '33' }]);
+      const incoming = makeDefinition([
+        // Unknown _id, plus a pointer at another DataMart's record.
+        { _id: 'invented', _secrets_id: 'belongs-to-another-datamart', AccessToken: SECRET_MASK },
+      ]);
+
+      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
+      // Nothing was resolved, so the mask stands - and extractAndSaveSecrets
+      // drops it rather than storing it as a credential.
+      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
+    });
+
+    it('replaces a caller-supplied _secrets_id with the stored one', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      (credentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'ours',
+        credentials: { AccessToken: 'our-token' },
+      });
+
+      const previous = makeDefinition([{ _id: 'a', _secrets_id: 'ours', AccountIDs: '33' }]);
+      const incoming = makeDefinition([
+        { _id: 'a', _secrets_id: 'belongs-to-another-datamart', AccessToken: SECRET_MASK },
+      ]);
+
+      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(credentialsService.getCredentialsById).toHaveBeenCalledWith('ours');
+      expect(cfg[0]._secrets_id).toBe('ours');
+      expect(cfg[0].AccessToken).toBe('our-token');
+    });
+
     it('keeps previous secret when incoming has SECRET_MASK', async () => {
       const { service } = createService(['AccessToken']);
       const previous = makeDefinition([
@@ -619,7 +669,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0].AccessToken).toBe('access1');
@@ -664,7 +714,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -703,7 +753,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
@@ -744,7 +794,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
@@ -773,8 +823,8 @@ describe('ConnectorSecretService', () => {
       } as unknown as ConnectorDefinition;
 
       await expect(
-        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
-      ).rejects.toThrow('Cannot copy secrets from different connector type');
+        service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID)
+      ).rejects.toThrow('Cannot copy a configuration between different connector types');
     });
 
     it('returns configuration as is when _copiedFrom.configId metadata is missing (existing config)', async () => {
@@ -790,7 +840,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       // Should return the item unchanged (will be merged with previous in the next step)
@@ -812,8 +862,61 @@ describe('ConnectorSecretService', () => {
       ]);
 
       await expect(
-        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
-      ).rejects.toThrow('Source configuration with _id "non-existent-id" not found');
+        service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID)
+      ).rejects.toThrow(BusinessViolationException);
+    });
+
+    it('copies each item from the Data Mart its own metadata names', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+        new Map([
+          ['secrets-a', { id: 'secrets-a', credentials: { AccessToken: 'token-a' } }],
+          ['secrets-b', { id: 'secrets-b', credentials: { AccessToken: 'token-b' } }],
+        ])
+      );
+
+      const sourceA = makeDefinition([{ _id: 'a-1', _secrets_id: 'secrets-a', AccountIDs: '1' }]);
+      const sourceB = makeDefinition([{ _id: 'b-1', _secrets_id: 'secrets-b', AccountIDs: '2' }]);
+
+      const incoming = makeDefinition([
+        {
+          AccessToken: SECRET_MASK,
+          AccountIDs: '1',
+          _copiedFrom: { dataMartId: 'dm-a', configId: 'a-1' },
+        },
+        {
+          AccessToken: SECRET_MASK,
+          AccountIDs: '2',
+          _copiedFrom: { dataMartId: 'dm-b', configId: 'b-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(
+        incoming,
+        new Map([
+          ['dm-a', sourceA],
+          ['dm-b', sourceB],
+        ])
+      );
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0].AccessToken).toBe('token-a');
+      expect(cfg[1].AccessToken).toBe('token-b');
+      expect(cfg[0]).not.toHaveProperty('_copiedFrom');
+      expect(cfg[1]).not.toHaveProperty('_copiedFrom');
+      expect(cfg[0]._id).not.toBe(cfg[1]._id);
+    });
+
+    it('rejects a copy whose source Data Mart was not resolved', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const incoming = makeDefinition([
+        { AccessToken: SECRET_MASK, _copiedFrom: { dataMartId: 'dm-unknown', configId: 'a-1' } },
+      ]);
+
+      await expect(
+        service.mergeDefinitionSecretsFromSource(incoming, new Map())
+      ).rejects.toThrow(BusinessViolationException);
     });
 
     it('generates new _id for each copied configuration', async () => {
@@ -828,7 +931,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0]._id).not.toBe('source-1');
@@ -861,7 +964,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       // The value is carried over from the source's credentials record, but the
@@ -904,7 +1007,7 @@ describe('ConnectorSecretService', () => {
         },
       ]);
 
-      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, fromSingleSource(sourceDefinition), SOURCE_DATA_MART_ID);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       // First config (existing) should be unchanged

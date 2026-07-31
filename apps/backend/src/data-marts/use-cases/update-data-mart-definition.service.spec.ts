@@ -8,6 +8,7 @@ import { UpdateDataMartDefinitionService } from './update-data-mart-definition.s
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { EntityType, Action } from '../services/access-decision';
 
 describe('UpdateDataMartDefinitionService', () => {
   const createService = () => {
@@ -74,7 +75,6 @@ describe('UpdateDataMartDefinitionService', () => {
         'proj-1',
         definitionType,
         definition,
-        undefined,
         undefined,
         'user-1',
         ['editor']
@@ -145,7 +145,6 @@ describe('UpdateDataMartDefinitionService', () => {
       DataMartDefinitionType.CONNECTOR,
       incomingDefinition as any,
       'dm-source',
-      undefined,
       'user-1',
       ['editor']
     );
@@ -154,7 +153,8 @@ describe('UpdateDataMartDefinitionService', () => {
 
     expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
       incomingDefinition,
-      sourceDataMart.definition
+      new Map([['dm-source', sourceDataMart.definition]]),
+      'dm-source'
     );
     expect(connectorSecretService.mergeDefinitionSecrets).toHaveBeenCalledWith(
       mergedFromSource,
@@ -168,6 +168,155 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(dataMart.definition).toBe(savedDefinition);
   });
 
+  it('copies configurations from several Data Marts in one save', async () => {
+    const { service, dataMartService, accessDecisionService, connectorSecretService, dataMart } =
+      createService();
+
+    dataMart.definitionType = DataMartDefinitionType.CONNECTOR;
+
+    const makeSource = (id: string, configId: string) => ({
+      id,
+      projectId: 'proj-1',
+      definitionType: DataMartDefinitionType.CONNECTOR,
+      definition: {
+        connector: {
+          source: { name: 'FacebookMarketing', configuration: [{ _id: configId }] },
+        },
+      },
+    });
+    const sourceA = makeSource('dm-a', 'a-1');
+    const sourceB = makeSource('dm-b', 'b-1');
+    dataMartService.getByIdAndProjectId.mockImplementation(async (id: string) => {
+      if (id === 'dm-a') return sourceA;
+      if (id === 'dm-b') return sourceB;
+      return dataMart;
+    });
+    connectorSecretService.extractAndSaveSecrets.mockResolvedValue({
+      connector: { source: { name: 'FacebookMarketing', configuration: [] } },
+    });
+
+    const incomingDefinition = {
+      connector: {
+        source: {
+          name: 'FacebookMarketing',
+          configuration: [
+            { _copiedFrom: { dataMartId: 'dm-a', configId: 'a-1' } },
+            { _copiedFrom: { dataMartId: 'dm-b', configId: 'b-1' } },
+          ],
+        },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      incomingDefinition as any,
+      // The client still sends the first source only; the per-item metadata is
+      // what actually resolves each copy.
+      'dm-a',
+      'user-1',
+      ['editor']
+    );
+
+    await service.run(command);
+
+    // Both sources are authorized, and both definitions reach the merge.
+    for (const sourceDataMartId of ['dm-a', 'dm-b']) {
+      expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+        'user-1',
+        ['editor'],
+        EntityType.DATA_MART,
+        sourceDataMartId,
+        Action.COPY_CREDENTIALS,
+        'proj-1'
+      );
+    }
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
+      incomingDefinition,
+      new Map([
+        ['dm-a', sourceA.definition],
+        ['dm-b', sourceB.definition],
+      ]),
+      'dm-a'
+    );
+    expect(dataMartService.save).toHaveBeenCalled();
+  });
+
+  it('refuses the whole save when one of several copy sources is not permitted', async () => {
+    const { service, connectorSecretService, accessDecisionService, dataMart } = createService();
+
+    dataMart.definitionType = DataMartDefinitionType.CONNECTOR;
+    accessDecisionService.canAccess.mockImplementation(
+      async (...args: unknown[]) => args[4] !== Action.COPY_CREDENTIALS || args[3] !== 'dm-b'
+    );
+
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      {
+        connector: {
+          source: {
+            name: 'FacebookMarketing',
+            configuration: [
+              { _copiedFrom: { dataMartId: 'dm-a', configId: 'a-1' } },
+              { _copiedFrom: { dataMartId: 'dm-b', configId: 'b-1' } },
+            ],
+          },
+        },
+      } as any,
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
+  });
+
+  it('refuses to copy a configuration from a Data Mart the user cannot copy credentials from', async () => {
+    const { service, dataMartService, accessDecisionService, connectorSecretService, dataMart } =
+      createService();
+
+    dataMart.definitionType = DataMartDefinitionType.CONNECTOR;
+    // EDIT on the target is granted, COPY_CREDENTIALS on the source is not.
+    accessDecisionService.canAccess.mockImplementation(async (...args: unknown[]) =>
+      args[4] !== Action.COPY_CREDENTIALS
+    );
+
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      {
+        connector: {
+          source: {
+            name: 'FacebookMarketing',
+            configuration: [{ _copiedFrom: { configId: 'src-1' } }],
+          },
+        },
+      } as any,
+      'dm-source',
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      EntityType.DATA_MART,
+      'dm-source',
+      Action.COPY_CREDENTIALS,
+      'proj-1'
+    );
+    // The source is never read and no secrets are touched.
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalledWith('dm-source', 'proj-1');
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
+    expect(dataMartService.save).not.toHaveBeenCalled();
+  });
+
   it('should throw ForbiddenException when user has no edit access to data mart', async () => {
     const { service, accessDecisionService } = createService();
     accessDecisionService.canAccess.mockResolvedValue(false);
@@ -177,7 +326,6 @@ describe('UpdateDataMartDefinitionService', () => {
       'proj-1',
       DataMartDefinitionType.TABLE,
       { tableName: 'my_table' },
-      undefined,
       undefined,
       'user-1',
       ['editor']

@@ -47,6 +47,7 @@ function allActions(entityType: EntityType): Action[] {
       return [
         Action.SEE,
         Action.USE,
+        Action.COPY_CREDENTIALS,
         Action.EDIT,
         Action.DELETE,
         Action.CONFIGURE_SHARING,
@@ -244,11 +245,16 @@ const dmNonOwnerTuSharedReporting: AccessRule[] = dmActions.flatMap(action => {
   );
 });
 
-// Non-owner TU + Shared for maintenance = SEE + USE + EDIT + DELETE + MANAGE_TRIGGERS
+// Non-owner TU + Shared for maintenance
+// = SEE + USE + COPY_CREDENTIALS + EDIT + DELETE + MANAGE_TRIGGERS
+// COPY_CREDENTIALS follows EDIT here, as it does for Storage and Destination:
+// whoever may edit the Data Mart's connector configuration can already run it
+// with those credentials, so copying them grants no further capability.
 const dmNonOwnerTuSharedMaint: AccessRule[] = dmActions.flatMap(action => {
   const allowed = [
     Action.SEE,
     Action.USE,
+    Action.COPY_CREDENTIALS,
     Action.EDIT,
     Action.DELETE,
     Action.MANAGE_TRIGGERS,
@@ -268,6 +274,7 @@ const dmNonOwnerTuSharedBoth: AccessRule[] = dmActions.flatMap(action => {
   const allowed = [
     Action.SEE,
     Action.USE,
+    Action.COPY_CREDENTIALS,
     Action.EDIT,
     Action.DELETE,
     Action.MANAGE_TRIGGERS,

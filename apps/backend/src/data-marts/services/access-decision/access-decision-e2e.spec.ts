@@ -227,6 +227,93 @@ describe('AccessDecisionService — E2E sharing flows', () => {
     });
   });
 
+  describe('Scenario: Copy credentials from a DataMart', () => {
+    const mockDataMart = (
+      m: ReturnType<typeof createService>,
+      sharing: { availableForReporting: boolean; availableForMaintenance: boolean },
+      isTechOwner = false
+    ) => {
+      m.dataMartRepository.findOne.mockResolvedValue({ id: 'dm-1', ...sharing });
+      m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(isTechOwner ? 1 : 0);
+      m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
+    };
+
+    it('should deny COPY_CREDENTIALS on a not-shared DataMart', async () => {
+      const m = createService();
+      mockDataMart(m, { availableForReporting: false, availableForMaintenance: false });
+
+      const result = await m.service.canAccess(
+        'tu-user',
+        ['editor'],
+        EntityType.DATA_MART,
+        'dm-1',
+        Action.COPY_CREDENTIALS,
+        'proj-1'
+      );
+      expect(result).toBe(false);
+    });
+
+    it('should deny COPY_CREDENTIALS on a DataMart shared for reporting only', async () => {
+      const m = createService();
+      mockDataMart(m, { availableForReporting: true, availableForMaintenance: false });
+
+      const result = await m.service.canAccess(
+        'tu-user',
+        ['editor'],
+        EntityType.DATA_MART,
+        'dm-1',
+        Action.COPY_CREDENTIALS,
+        'proj-1'
+      );
+      expect(result).toBe(false);
+    });
+
+    it('should allow COPY_CREDENTIALS on a DataMart shared for maintenance', async () => {
+      const m = createService();
+      mockDataMart(m, { availableForReporting: false, availableForMaintenance: true });
+
+      const result = await m.service.canAccess(
+        'tu-user',
+        ['editor'],
+        EntityType.DATA_MART,
+        'dm-1',
+        Action.COPY_CREDENTIALS,
+        'proj-1'
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should allow COPY_CREDENTIALS for the technical owner', async () => {
+      const m = createService();
+      mockDataMart(m, { availableForReporting: false, availableForMaintenance: false }, true);
+
+      const result = await m.service.canAccess(
+        'tu-user',
+        ['editor'],
+        EntityType.DATA_MART,
+        'dm-1',
+        Action.COPY_CREDENTIALS,
+        'proj-1'
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should deny COPY_CREDENTIALS to a BU even when shared for maintenance', async () => {
+      const m = createService();
+      mockDataMart(m, { availableForReporting: false, availableForMaintenance: true });
+
+      const result = await m.service.canAccess(
+        'bu-user',
+        ['viewer'],
+        EntityType.DATA_MART,
+        'dm-1',
+        Action.COPY_CREDENTIALS,
+        'proj-1'
+      );
+      expect(result).toBe(false);
+    });
+  });
+
   describe('Scenario: Copy credentials: non-owner on "Shared for use" → 403', () => {
     it('should deny COPY_CREDENTIALS on shared-for-use destination', async () => {
       const m = createService();
