@@ -215,5 +215,6 @@ function buildDataMart(id = 'mart-1', title = 'Orders'): DataMartListItem {
     businessOwnerUsers: [],
     technicalOwnerUsers: [],
     contexts: [],
+    dataLastUpdated: null,
   } as DataMartListItem;
 }

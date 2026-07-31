@@ -52,7 +52,7 @@ export class RefreshDataMartDataLastUpdatedService {
       return results;
     }
 
-    const dataMarts = await this.dataMartService.findByIdsAndProjectId(
+    const dataMarts = await this.dataMartService.findByIdsAndProjectIdForSourceLookup(
       command.ids,
       command.projectId
     );

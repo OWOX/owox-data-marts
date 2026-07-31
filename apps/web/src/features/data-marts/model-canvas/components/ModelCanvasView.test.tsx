@@ -284,6 +284,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.DRAFT,
           description: null,
           fieldCount: 1,
+          dataLastUpdated: null,
         },
       ],
     };
@@ -325,6 +326,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.PUBLISHED,
           description: null,
           fieldCount: 1,
+          dataLastUpdated: null,
         },
       ],
     };
@@ -363,6 +365,7 @@ describe('ModelCanvasView', () => {
           status: DataMartStatus.DRAFT,
           description: null,
           fieldCount: 1,
+          dataLastUpdated: null,
         },
       ],
     };
@@ -497,6 +500,7 @@ function buildCanvasData(): ModelCanvasTopologyData {
         status: DataMartStatus.PUBLISHED,
         description: null,
         fieldCount: 3,
+        dataLastUpdated: null,
       },
       {
         id: 'mart-2',
@@ -504,6 +508,7 @@ function buildCanvasData(): ModelCanvasTopologyData {
         status: DataMartStatus.PUBLISHED,
         description: null,
         fieldCount: 2,
+        dataLastUpdated: null,
       },
     ],
     edges: [

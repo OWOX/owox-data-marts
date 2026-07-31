@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { dataMartService } from '../../shared/services/data-mart.service';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
-import type { ModelCanvasData } from './types';
+import type { ModelCanvasTopologyData } from './types';
 
 /**
  * The refresh endpoint validates `ids` with `@ArrayMaxSize(200)`, while the canvas pages up to
@@ -62,7 +62,7 @@ export function useRefreshDataLastUpdated(storageId: string | null) {
           return;
         }
 
-        queryClient.setQueryData<ModelCanvasData>(
+        queryClient.setQueryData<ModelCanvasTopologyData>(
           ['model-canvas', projectId, storageId],
           previous =>
             previous && {

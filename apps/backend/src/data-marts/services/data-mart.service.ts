@@ -269,7 +269,10 @@ export class DataMartService {
    * which also drags in connector state, schema, owners and contexts — a sweep over a whole
    * canvas would hydrate all of that per Data Mart for fields it never reads.
    */
-  async findByIdsAndProjectId(ids: string[], projectId: string): Promise<DataMart[]> {
+  async findByIdsAndProjectIdForSourceLookup(
+    ids: string[],
+    projectId: string
+  ): Promise<DataMart[]> {
     if (ids.length === 0) {
       return [];
     }

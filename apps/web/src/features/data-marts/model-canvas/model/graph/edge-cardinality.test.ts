@@ -14,6 +14,7 @@ function node(
     status: DataMartStatus.PUBLISHED,
     description: null,
     fieldCount: fields?.length ?? 0,
+    dataLastUpdated: null,
     fields: fields?.map(f => ({
       name: f.name,
       alias: f.name,

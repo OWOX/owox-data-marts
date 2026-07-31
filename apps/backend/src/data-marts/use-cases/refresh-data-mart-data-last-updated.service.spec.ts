@@ -32,7 +32,7 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
   }) => {
     const dataMarts = overrides.dataMarts ?? [mart('dm1')];
     const dataMartService = {
-      findByIdsAndProjectId: jest.fn().mockResolvedValue(dataMarts),
+      findByIdsAndProjectIdForSourceLookup: jest.fn().mockResolvedValue(dataMarts),
       updateDataLastUpdated: jest.fn().mockResolvedValue(undefined),
     };
     const accessDecisionService = {
@@ -209,6 +209,6 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
     const results = await service.run(command());
 
     expect(results.size).toBe(0);
-    expect(dataMartService.findByIdsAndProjectId).not.toHaveBeenCalled();
+    expect(dataMartService.findByIdsAndProjectIdForSourceLookup).not.toHaveBeenCalled();
   });
 });
