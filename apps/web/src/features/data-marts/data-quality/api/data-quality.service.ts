@@ -132,20 +132,26 @@ class DataQualityService extends ApiService {
 
 function toStoredConfig(config: DataQualityConfig | EffectiveDataQualityConfig): DataQualityConfig {
   if (config.rules.some(rule => 'isApplicable' in rule)) {
-    return toStoredDataQualityConfig(config as EffectiveDataQualityConfig);
+    return {
+      rules: toStoredDataQualityConfig(config as EffectiveDataQualityConfig).rules.filter(
+        rule => rule.enabled
+      ),
+    };
   }
   return {
-    rules: config.rules.map(rule => ({
-      key: rule.key,
-      category: rule.category,
-      scope:
-        rule.scope.type === 'FIELD'
-          ? { type: rule.scope.type, fieldPath: [...rule.scope.fieldPath] }
-          : { ...rule.scope },
-      severity: rule.severity,
-      enabled: rule.enabled,
-      parameters: { ...rule.parameters },
-    })),
+    rules: config.rules
+      .filter(rule => rule.enabled)
+      .map(rule => ({
+        key: rule.key,
+        category: rule.category,
+        scope:
+          rule.scope.type === 'FIELD'
+            ? { type: rule.scope.type, fieldPath: [...rule.scope.fieldPath] }
+            : { ...rule.scope },
+        severity: rule.severity,
+        enabled: rule.enabled,
+        parameters: { ...rule.parameters },
+      })),
   };
 }
 

@@ -246,6 +246,114 @@ describe('DataQualityCheckCompiler', () => {
     return plan.sql;
   };
 
+  it('requests only the source columns used by each check family', async () => {
+    const compiler = createDataQualityCheckCompiler();
+    const cases = [
+      {
+        rule: tableRule(DataQualityCategory.EMPTY_TABLE),
+        expectedColumns: ['`id`'],
+      },
+      {
+        rule: tableRule(DataQualityCategory.PK_UNIQUENESS),
+        expectedColumns: ['`id`', '`tenant_id`'],
+      },
+      {
+        rule: fieldRule(DataQualityCategory.NEGATIVE_VALUES, 'amount'),
+        expectedColumns: ['`amount`', '`id`', '`tenant_id`'],
+      },
+      {
+        rule: tableRule(DataQualityCategory.DUPLICATE_ROWS),
+        expectedColumns: [],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const resolveSourceQuery = jest.fn(async (_columns?: string[]) => sourceQuery);
+      const input = {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        sourceQuery,
+        resolveSourceQuery,
+        schema: schema(DataStorageType.GOOGLE_BIGQUERY),
+        rule: testCase.rule,
+      };
+
+      await compiler.compile(input);
+
+      expect(resolveSourceQuery).toHaveBeenCalledWith(testCase.expectedColumns);
+    }
+  });
+
+  it.each([
+    {
+      category: DataQualityCategory.RELATIONSHIP_INTEGRITY,
+      sourceColumns: ['`customer_id`', '`id`', '`tenant_id`'],
+      targetColumns: ['`id`'],
+    },
+    {
+      category: DataQualityCategory.REVERSE_RELATIONSHIP,
+      sourceColumns: ['`customer_id`'],
+      targetColumns: ['`id`', '`tenant_id`'],
+    },
+  ])(
+    'requests only relationship columns for $category',
+    async ({ category, sourceColumns, targetColumns }) => {
+      const compiler = createDataQualityCheckCompiler();
+      const resolveSourceQuery = jest.fn(async (_columns?: string[]) => sourceQuery);
+      const resolveTargetSourceQuery = jest.fn(async (_columns?: string[]) => targetQuery);
+      const singleJoinRelationship = {
+        ...relationship,
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'id' }],
+      };
+      const input = {
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        sourceQuery,
+        resolveSourceQuery,
+        schema: schema(DataStorageType.GOOGLE_BIGQUERY),
+        rule: relationshipRule(category),
+        relationship: {
+          snapshot: singleJoinRelationship,
+          resolveTargetSourceQuery,
+          targetSchema: schema(DataStorageType.GOOGLE_BIGQUERY),
+          targetStorageType: DataStorageType.GOOGLE_BIGQUERY,
+          sourceConnectionId: 'connection-1',
+          targetConnectionId: 'connection-1',
+        },
+      };
+
+      await compiler.compile(input);
+
+      expect(resolveSourceQuery).toHaveBeenCalledWith(sourceColumns);
+      expect(resolveTargetSourceQuery).toHaveBeenCalledWith(targetColumns);
+    }
+  );
+
+  it('does not copy whole rows into violation CTEs', async () => {
+    const compiler = createDataQualityCheckCompiler();
+    const negative = await compiler.compile({
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      sourceQuery,
+      schema: schema(DataStorageType.GOOGLE_BIGQUERY),
+      rule: fieldRule(DataQualityCategory.NEGATIVE_VALUES, 'amount'),
+    });
+    const relationshipPlan = await compiler.compile({
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      sourceQuery,
+      schema: schema(DataStorageType.GOOGLE_BIGQUERY),
+      rule: relationshipRule(DataQualityCategory.RELATIONSHIP_INTEGRITY),
+      relationship: {
+        snapshot: relationship,
+        targetSourceQuery: targetQuery,
+        targetSchema: schema(DataStorageType.GOOGLE_BIGQUERY),
+        targetStorageType: DataStorageType.GOOGLE_BIGQUERY,
+        sourceConnectionId: 'connection-1',
+        targetConnectionId: 'connection-1',
+      },
+    });
+
+    expect(sql(negative)).not.toMatch(/SELECT\s+\*\s+FROM dq_source/);
+    expect(sql(relationshipPlan)).not.toMatch(/SELECT\s+\w+\.\*\s+FROM dq_source/);
+  });
+
   it('keeps a literal dotted field distinct from a segmented nested field', async () => {
     const nestedSchema = {
       type: 'bigquery-data-mart-schema',
@@ -279,27 +387,36 @@ describe('DataQualityCheckCompiler', () => {
       ],
     } as DataMartSchema;
     const compiler = createDataQualityCheckCompiler();
+    const resolveLiteralSourceQuery = jest.fn(async (_columns?: string[]) => sourceQuery);
+    const resolveNestedSourceQuery = jest.fn(async (_columns?: string[]) => sourceQuery);
 
-    const literal = await compiler.compile({
+    const literalInput = {
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       sourceQuery,
+      resolveSourceQuery: resolveLiteralSourceQuery,
       schema: nestedSchema,
       rule: fieldRule(DataQualityCategory.NULL_RATE, ['customer.id'], {
         thresholdPercent: 0,
       }),
-    });
-    const nested = await compiler.compile({
+    };
+    const nestedInput = {
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       sourceQuery,
+      resolveSourceQuery: resolveNestedSourceQuery,
       schema: nestedSchema,
       rule: fieldRule(DataQualityCategory.NULL_RATE, ['customer', 'id'], {
         thresholdPercent: 0,
       }),
-    });
+    };
+
+    const literal = await compiler.compile(literalInput);
+    const nested = await compiler.compile(nestedInput);
 
     expect(sql(literal)).toContain('`customer.id`');
     expect(sql(literal)).not.toContain('`customer`.`id`');
     expect(sql(nested)).toContain('`customer`.`id`');
+    expect(resolveLiteralSourceQuery).toHaveBeenCalledWith(['`customer.id`']);
+    expect(resolveNestedSourceQuery).toHaveBeenCalledWith(['`customer`']);
   });
 
   it('quotes a dotted relationship join field as one physical identifier', async () => {
@@ -333,6 +450,54 @@ describe('DataQualityCheckCompiler', () => {
     expect(sql(plan)).toContain('source.`customer.id` = target.`customer.id`');
     expect(sql(plan)).not.toContain('`customer`.`id`');
   });
+
+  it.each([DataQualityCategory.RELATIONSHIP_INTEGRITY, DataQualityCategory.REVERSE_RELATIONSHIP])(
+    'avoids range aliases shadowed by relationship columns for %s',
+    async category => {
+      const sourceSchema = schema(DataStorageType.GOOGLE_BIGQUERY) as unknown as {
+        fields: Array<Record<string, unknown>>;
+      };
+      const targetSchema = schema(DataStorageType.GOOGLE_BIGQUERY) as unknown as {
+        fields: Array<Record<string, unknown>>;
+      };
+      sourceSchema.fields.push({
+        name: 'target',
+        type: 'STRING',
+        mode: 'NULLABLE',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        isPrimaryKey: false,
+        isHiddenForReporting: false,
+      });
+      targetSchema.fields.push({
+        name: 'source',
+        type: 'STRING',
+        mode: 'NULLABLE',
+        status: DataMartSchemaFieldStatus.CONNECTED,
+        isPrimaryKey: false,
+        isHiddenForReporting: false,
+      });
+      const plan = await createDataQualityCheckCompiler().compile({
+        storageType: DataStorageType.GOOGLE_BIGQUERY,
+        sourceQuery,
+        schema: sourceSchema as unknown as DataMartSchema,
+        rule: relationshipRule(category),
+        relationship: {
+          snapshot: relationship,
+          targetSourceQuery: targetQuery,
+          targetSchema: targetSchema as unknown as DataMartSchema,
+          targetStorageType: DataStorageType.GOOGLE_BIGQUERY,
+          sourceConnectionId: 'connection-1',
+          targetConnectionId: 'connection-1',
+        },
+      });
+      const measurement = sql(plan);
+
+      expect(measurement).toContain('FROM dq_source AS dq_row_source');
+      expect(measurement).toContain('FROM dq_target AS dq_row_target');
+      expect(measurement).toContain('dq_row_source.`tenant_id` = dq_row_target.`tenant_id`');
+      expect(measurement).toContain('dq_row_source.`customer_id` = dq_row_target.`id`');
+    }
+  );
 
   it('keeps every generated header line commented when details contain control characters', async () => {
     const plan = await createDataQualityCheckCompiler().compile({

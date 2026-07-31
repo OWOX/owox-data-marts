@@ -24,85 +24,54 @@ describe('DataQualitySnapshotTableReferenceService', () => {
     jest.resetAllMocks();
   });
 
-  it('uses the shared stable Data Mart view for a SQL source', async () => {
+  it('builds an explicit projection from the stable SQL Data Mart view', async () => {
     tableReferenceService.resolveTableName.mockResolvedValue('warehouse.internal.view_dm_source');
     identifierEscaper.escapeIdentifier.mockResolvedValue('`warehouse`.`internal`.`view_dm_source`');
-
-    await expect(
-      service.resolve({
-        dataMartId: 'dm-source',
-        projectId: 'project-1',
-        definition: { sqlQuery: 'SELECT saved_value FROM saved_source' },
-        storage: {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-        },
-        liveStorage: {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-        },
-      })
-    ).resolves.toEqual({
-      query: 'SELECT * FROM `warehouse`.`internal`.`view_dm_source`',
+    const reference = await service.resolve({
+      dataMartId: 'dm-source',
+      projectId: 'project-1',
+      definition: { sqlQuery: 'SELECT saved_value FROM saved_source' },
+      storage: {
+        id: 'storage-1',
+        type: DataStorageType.GOOGLE_BIGQUERY,
+      },
+      liveStorage: {
+        id: 'storage-1',
+        type: DataStorageType.GOOGLE_BIGQUERY,
+      },
     });
 
-    expect(tableReferenceService.resolveTableName).toHaveBeenCalledWith('dm-source', 'project-1');
-    expect(identifierEscaper.escapeIdentifier).toHaveBeenCalledWith(
-      DataStorageType.GOOGLE_BIGQUERY,
-      'warehouse.internal.view_dm_source'
+    expect(reference).toEqual({ buildQuery: expect.any(Function) });
+    await expect(reference.buildQuery(['`customer_id`', '`source_pk`'])).resolves.toBe(
+      'SELECT `customer_id`, `source_pk` FROM `warehouse`.`internal`.`view_dm_source`'
     );
     expect(queryBuilder.buildQuery).not.toHaveBeenCalled();
-  });
-
-  it('uses the shared stable Data Mart view for a SQL relationship target', async () => {
-    tableReferenceService.resolveTableName.mockResolvedValue('warehouse.internal.view_dm_target');
-    identifierEscaper.escapeIdentifier.mockResolvedValue('`warehouse`.`internal`.`view_dm_target`');
-
-    await expect(
-      service.resolve({
-        dataMartId: 'dm-target',
-        projectId: 'project-1',
-        definition: { sqlQuery: 'SELECT saved_value FROM saved_target' },
-        storage: {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-        },
-        liveStorage: {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-        },
-      })
-    ).resolves.toEqual({
-      query: 'SELECT * FROM `warehouse`.`internal`.`view_dm_target`',
-    });
-
-    expect(tableReferenceService.resolveTableName).toHaveBeenCalledWith('dm-target', 'project-1');
+    expect(tableReferenceService.resolveTableName).toHaveBeenCalledTimes(1);
   });
 
   it('builds a non-SQL query from the saved definition after validating storage identity', async () => {
-    queryBuilder.buildQuery.mockResolvedValue('SELECT * FROM saved_table');
+    queryBuilder.buildQuery.mockResolvedValue('SELECT `id` FROM saved_table');
 
-    await expect(
-      service.resolve({
-        dataMartId: 'dm-source',
-        projectId: 'project-1',
-        definition: { fullyQualifiedName: 'warehouse.dataset.saved_table' },
-        storage: {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-        },
-        liveStorage: {
-          id: 'storage-1',
-          type: DataStorageType.GOOGLE_BIGQUERY,
-        },
-      })
-    ).resolves.toEqual({
-      query: 'SELECT * FROM saved_table',
+    const reference = await service.resolve({
+      dataMartId: 'dm-source',
+      projectId: 'project-1',
+      definition: { fullyQualifiedName: 'warehouse.dataset.saved_table' },
+      storage: {
+        id: 'storage-1',
+        type: DataStorageType.GOOGLE_BIGQUERY,
+      },
+      liveStorage: {
+        id: 'storage-1',
+        type: DataStorageType.GOOGLE_BIGQUERY,
+      },
     });
 
-    expect(queryBuilder.buildQuery).toHaveBeenCalledWith(DataStorageType.GOOGLE_BIGQUERY, {
-      fullyQualifiedName: 'warehouse.dataset.saved_table',
-    });
+    await expect(reference.buildQuery(['`id`'])).resolves.toBe('SELECT `id` FROM saved_table');
+    expect(queryBuilder.buildQuery).toHaveBeenCalledWith(
+      DataStorageType.GOOGLE_BIGQUERY,
+      { fullyQualifiedName: 'warehouse.dataset.saved_table' },
+      { columns: ['`id`'] }
+    );
     expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
   });
 

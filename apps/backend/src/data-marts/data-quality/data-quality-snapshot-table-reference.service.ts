@@ -16,7 +16,7 @@ export interface DataQualitySnapshotTableReferenceInput {
 }
 
 interface DataQualitySnapshotTableReference {
-  query: string | QueryBuildResult;
+  buildQuery(columns: string[]): Promise<string | QueryBuildResult>;
 }
 
 export class DataQualitySnapshotStorageMismatchError extends Error {
@@ -38,26 +38,29 @@ export class DataQualitySnapshotTableReferenceService {
     input: DataQualitySnapshotTableReferenceInput
   ): Promise<DataQualitySnapshotTableReference> {
     this.validateStorage(input.storage, input.liveStorage);
-    if (!input.definition) {
+    const definition = input.definition;
+    if (!definition) {
       throw new Error('Data Mart definition snapshot is unavailable');
     }
-    if (!isSqlDefinition(input.definition)) {
-      return {
-        query: await this.queryBuilder.buildQuery(input.storage.type, input.definition),
-      };
-    }
+    const mainTableReference = isSqlDefinition(definition)
+      ? await this.resolveSqlTableReference(input)
+      : undefined;
+    return {
+      buildQuery: async columns =>
+        mainTableReference
+          ? `SELECT ${columns.length > 0 ? columns.join(', ') : '*'} FROM ${mainTableReference}`
+          : this.queryBuilder.buildQuery(input.storage.type, definition, { columns }),
+    };
+  }
 
+  private async resolveSqlTableReference(
+    input: DataQualitySnapshotTableReferenceInput
+  ): Promise<string> {
     const tableReference = await this.tableReferenceService.resolveTableName(
       input.dataMartId,
       input.projectId
     );
-    const escapedReference = await this.identifierEscaper.escapeIdentifier(
-      input.storage.type,
-      tableReference
-    );
-    return {
-      query: `SELECT * FROM ${escapedReference}`,
-    };
+    return this.identifierEscaper.escapeIdentifier(input.storage.type, tableReference);
   }
 
   private validateStorage(

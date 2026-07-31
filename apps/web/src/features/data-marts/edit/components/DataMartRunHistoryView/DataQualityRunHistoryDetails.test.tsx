@@ -112,7 +112,7 @@ describe('DataQualityRunHistoryDetails', () => {
     fireEvent.click(screen.getByRole('button', { name: 'SQL' }));
 
     expect(screen.getByText('SELECT * FROM source WHERE amount < 0')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy SQL' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy to Clipboard' })).toBeInTheDocument();
 
     expect(screen.getByText('Run snapshot')).toBeInTheDocument();
     expect(screen.getAllByText('SQL')).toHaveLength(2);

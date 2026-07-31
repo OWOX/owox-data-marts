@@ -43,6 +43,8 @@ interface ClaimedDataQualityRun {
   dataMart: DataMart;
 }
 
+type DataQualityQueryResolver = (columns: string[]) => Promise<string | QueryBuildResult>;
+
 interface ProviderErrorIdentity {
   code?: unknown;
   errorCode?: unknown;
@@ -113,7 +115,7 @@ export class RunDataQualityService {
           definition: definitionRun,
           schema: snapshot.schema ?? undefined,
         } as DataMart;
-        const sourceQuery = await this.resolveSnapshotTableReference({
+        const resolveSourceQuery = await this.resolveSnapshotTableReference({
           dataMartId: dataMart.id,
           projectId: expectedProjectId,
           definition: definitionRun,
@@ -121,7 +123,7 @@ export class RunDataQualityService {
           liveStorage: toStorageSnapshot(dataMart),
         });
         const targets = await this.loadRelationshipTargets(snapshot, expectedProjectId);
-        const targetSourceQueries = new Map<string, Promise<string | QueryBuildResult>>();
+        const targetSourceQueries = new Map<string, Promise<DataQualityQueryResolver>>();
         const compiled: DataQualityCompiledCheck[] = [];
 
         for (const originalRule of pendingRules) {
@@ -145,7 +147,7 @@ export class RunDataQualityService {
             compiled.push(
               await this.compiler.compile({
                 storageType: dataMart.storage.type,
-                sourceQuery,
+                resolveSourceQuery,
                 schema: snapshot.schema,
                 rule,
                 relationship: relationshipSnapshot
@@ -313,7 +315,7 @@ export class RunDataQualityService {
     snapshot: DataQualityRelationshipSnapshot,
     targetSnapshot: DataQualityRelationshipTargetSnapshot | undefined,
     target: DataMart | undefined,
-    targetSourceQueries: Map<string, Promise<string | QueryBuildResult>>,
+    targetSourceQueries: Map<string, Promise<DataQualityQueryResolver>>,
     projectId: string
   ): DataQualityRelationshipCompileContext | undefined {
     if (snapshot.targetAccessible === false) {
@@ -324,19 +326,19 @@ export class RunDataQualityService {
     }
     return {
       snapshot,
-      resolveTargetSourceQuery: () => {
-        let targetSourceQuery = targetSourceQueries.get(snapshot.id);
-        if (!targetSourceQuery) {
-          targetSourceQuery = this.resolveRelationshipTargetSourceQuery(
+      resolveTargetSourceQuery: async columns => {
+        let targetSourceQueryResolver = targetSourceQueries.get(snapshot.id);
+        if (!targetSourceQueryResolver) {
+          targetSourceQueryResolver = this.resolveRelationshipTargetSourceQuery(
             dataMartRun,
             snapshot,
             targetSnapshot,
             target,
             projectId
           );
-          targetSourceQueries.set(snapshot.id, targetSourceQuery);
+          targetSourceQueries.set(snapshot.id, targetSourceQueryResolver);
         }
-        return targetSourceQuery;
+        return (await targetSourceQueryResolver)(columns);
       },
       targetSchema: targetSnapshot.schema,
       targetStorageType: targetSnapshot.storage.type,
@@ -351,7 +353,7 @@ export class RunDataQualityService {
     targetSnapshot: DataQualityRelationshipTargetSnapshot,
     target: DataMart | undefined,
     projectId: string
-  ): Promise<string | QueryBuildResult> {
+  ): Promise<DataQualityQueryResolver> {
     return this.resolveSnapshotTableReference({
       dataMartId: relationship.targetDataMartId,
       projectId,
@@ -363,9 +365,16 @@ export class RunDataQualityService {
 
   private async resolveSnapshotTableReference(
     input: DataQualitySnapshotTableReferenceInput
-  ): Promise<string | QueryBuildResult> {
+  ): Promise<DataQualityQueryResolver> {
     try {
-      return (await this.snapshotTableReference.resolve(input)).query;
+      const reference = await this.snapshotTableReference.resolve(input);
+      return async columns => {
+        try {
+          return await reference.buildQuery(columns);
+        } catch (error) {
+          throw new DataQualitySourceQueryError(error);
+        }
+      };
     } catch (error) {
       if (error instanceof DataQualitySnapshotStorageMismatchError) {
         throw error;

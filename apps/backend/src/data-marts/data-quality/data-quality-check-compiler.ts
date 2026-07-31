@@ -53,12 +53,14 @@ export interface DataQualityNotApplicableCheck extends DataQualityCompiledBase {
 
 export type DataQualityCompiledCheck = DataQualityExecutableCheck | DataQualityNotApplicableCheck;
 
+type DataQualityQueryResolver = (columns: string[]) => Promise<string | QueryBuildResult>;
+
 export interface DataQualityRelationshipCompileContext {
   snapshot: DataQualityRelationshipSnapshot;
   /** Existing eager input retained for direct compiler callers. */
   targetSourceQuery?: string | QueryBuildResult;
   /** Preferred runtime input: invoked only after relationship applicability is validated. */
-  resolveTargetSourceQuery?: () => Promise<string | QueryBuildResult>;
+  resolveTargetSourceQuery?: DataQualityQueryResolver;
   targetSchema: DataMartSchema | null;
   targetStorageType: DataStorageType;
   sourceConnectionId: string;
@@ -67,7 +69,8 @@ export interface DataQualityRelationshipCompileContext {
 
 export interface DataQualityCompileInput {
   storageType: DataStorageType;
-  sourceQuery: string | QueryBuildResult;
+  sourceQuery?: string | QueryBuildResult;
+  resolveSourceQuery?: DataQualityQueryResolver;
   schema: DataMartSchema | null;
   rule: DataQualityRuleConfig;
   relationship?: DataQualityRelationshipCompileContext;
@@ -94,7 +97,6 @@ export class DataQualityCheckCompiler {
     const rule = DataQualityRuleConfigSchema.parse(rawInput.rule);
     const input = { ...rawInput, rule };
     const dialect = await this.dialectResolver.resolve(input.storageType);
-    const sourceSql = extractSql(input.sourceQuery);
 
     if (!rule.enabled) return notApplicable(rule, 'The check is disabled');
     if (!rule.isApplicable) {
@@ -110,6 +112,7 @@ export class DataQualityCheckCompiler {
         return notApplicable(rule, NESTED_COLLECTION_FIELD_REASON);
       }
     }
+    const sourceSql = await resolveSourceSql(input, dialect);
 
     switch (rule.category) {
       case DataQualityCategory.EMPTY_TABLE:
@@ -765,7 +768,7 @@ export class DataQualityCheckCompiler {
       rule,
       sourceSql,
       field,
-      [`${expression} IS NOT NULL`, `${expression} < 0`],
+      [`source.${expression} IS NOT NULL`, `source.${expression} < 0`],
       schema,
       dialect
     );
@@ -783,7 +786,7 @@ export class DataQualityCheckCompiler {
       field,
       collectFields(schema),
       dialect,
-      'violation',
+      'source',
       'negative_value'
     );
     return executable(
@@ -799,7 +802,9 @@ export class DataQualityCheckCompiler {
         ctes: [
           {
             name: 'dq_violations',
-            body: renderSelect(['*'], 'dq_source', { where: predicates }),
+            body: renderSelect(splitProjection(readableExample.sql), 'dq_source AS source', {
+              where: predicates,
+            }),
           },
           {
             name: 'dq_summary',
@@ -812,7 +817,7 @@ export class DataQualityCheckCompiler {
         summaryColumns: ['is_applicable', 'violation_count'],
         examples: {
           from: 'dq_violations AS violation',
-          columns: splitProjection(readableExample.sql),
+          columns: readableExample.aliases.map(alias => `violation.${alias} AS ${alias}`),
           aliases: readableExample.aliases,
           dialect,
         },
@@ -844,6 +849,14 @@ export class DataQualityCheckCompiler {
     const targetFields = new Map(
       collectFields(relationship.targetSchema).map(field => [fieldPathKey(field.path), field])
     );
+    const occupiedAliases = new Set(
+      [...sourceFields.values(), ...targetFields.values()]
+        .filter(field => field.path.length === 1)
+        .map(field => field.path[0].toLowerCase())
+    );
+    const sourceAlias = availableRelationshipAlias('source', occupiedAliases);
+    occupiedAliases.add(sourceAlias.toLowerCase());
+    const targetAlias = availableRelationshipAlias('target', occupiedAliases);
     const missing = relationship.snapshot.joinConditions.find(
       condition =>
         !sourceFields.has(fieldPathKey([condition.sourceFieldName])) ||
@@ -860,14 +873,23 @@ export class DataQualityCheckCompiler {
       return notApplicable(input.rule, NESTED_COLLECTION_FIELD_REASON);
     }
 
+    const targetColumns = quoteTopLevelColumns(
+      [
+        ...relationship.snapshot.joinConditions.map(condition => [condition.targetFieldName]),
+        ...(reverse
+          ? readablePrimaryKeyFields([...targetFields.values()]).map(field => field.path)
+          : []),
+      ],
+      dialect
+    );
     const targetSourceQuery = relationship.resolveTargetSourceQuery
-      ? await relationship.resolveTargetSourceQuery()
+      ? await relationship.resolveTargetSourceQuery(targetColumns)
       : relationship.targetSourceQuery;
     if (targetSourceQuery === undefined) {
       return notApplicable(input.rule, 'Relationship target source is unavailable');
     }
     const targetSql = extractSql(targetSourceQuery);
-    const tupleSide = reverse ? 'target' : 'source';
+    const tupleSide = reverse ? targetAlias : sourceAlias;
     const tupleFields = relationship.snapshot.joinConditions.map(condition =>
       dialect.quoteIdentifierPath([reverse ? condition.targetFieldName : condition.sourceFieldName])
     );
@@ -876,11 +898,11 @@ export class DataQualityCheckCompiler {
     );
     const equalityPredicates = relationship.snapshot.joinConditions.map(
       condition =>
-        `source.${dialect.quoteIdentifierPath([condition.sourceFieldName])} = target.${dialect.quoteIdentifierPath([condition.targetFieldName])}`
+        `${sourceAlias}.${dialect.quoteIdentifierPath([condition.sourceFieldName])} = ${targetAlias}.${dialect.quoteIdentifierPath([condition.targetFieldName])}`
     );
-    const primary = reverse ? 'dq_target AS target' : 'dq_source AS source';
-    const secondary = reverse ? 'dq_source AS source' : 'dq_target AS target';
-    const violationAlias = reverse ? 'target' : 'source';
+    const primary = reverse ? `dq_target AS ${targetAlias}` : `dq_source AS ${sourceAlias}`;
+    const secondary = reverse ? `dq_source AS ${sourceAlias}` : `dq_target AS ${targetAlias}`;
+    const violationAlias = reverse ? targetAlias : sourceAlias;
     const projectionFields = reverse
       ? relationship.snapshot.joinConditions.map(condition => condition.targetFieldName)
       : relationship.snapshot.joinConditions.map(condition => condition.sourceFieldName);
@@ -891,7 +913,7 @@ export class DataQualityCheckCompiler {
       projectionFields,
       schemaFields,
       dialect,
-      'violation',
+      violationAlias,
       reverse ? 'target_join_value' : 'source_join_value'
     );
     const joinMappings = relationship.snapshot.joinConditions.map(
@@ -919,7 +941,7 @@ export class DataQualityCheckCompiler {
         ctes: [
           {
             name: 'dq_violations',
-            body: renderSelect([`${violationAlias}.*`], primary, {
+            body: renderSelect(splitProjection(projection.sql), primary, {
               where: [
                 ...nonNullPredicates,
                 [
@@ -944,7 +966,7 @@ export class DataQualityCheckCompiler {
         summaryColumns: ['is_applicable', 'violation_count'],
         examples: {
           from: 'dq_violations AS violation',
-          columns: splitProjection(projection.sql),
+          columns: projection.aliases.map(alias => `violation.${alias} AS ${alias}`),
           aliases: projection.aliases,
           dialect,
         },
@@ -1002,6 +1024,17 @@ function notApplicable(rule: DataQualityRuleConfig, reason: string): DataQuality
   };
 }
 
+async function resolveSourceSql(
+  input: DataQualityCompileInput & { rule: DataQualityRuleConfig },
+  dialect: DataQualitySqlDialect
+): Promise<string> {
+  const query = input.resolveSourceQuery
+    ? await input.resolveSourceQuery(requiredSourceColumns(input, dialect))
+    : input.sourceQuery;
+  if (query === undefined) throw new Error('Data Quality source query is unavailable');
+  return extractSql(query);
+}
+
 function extractSql(queryValue: string | QueryBuildResult): string {
   if (!isQueryBuildResult(queryValue)) return ensureSourceSql(queryValue);
   if (queryValue.params?.length) {
@@ -1014,6 +1047,12 @@ function ensureSourceSql(sql: string): string {
   const normalized = sql.trim().replace(/;\s*$/, '');
   if (!normalized) throw new Error('Data Quality source SQL must not be empty');
   return normalized;
+}
+
+function availableRelationshipAlias(preferred: string, occupied: ReadonlySet<string>): string {
+  let alias = preferred;
+  while (occupied.has(alias.toLowerCase())) alias = `dq_row_${alias}`;
+  return alias;
 }
 
 function collectFields(
@@ -1075,6 +1114,61 @@ function collectTopLevelMaterializedFields(
     }));
 }
 
+function requiredSourceColumns(
+  input: DataQualityCompileInput & { rule: DataQualityRuleConfig },
+  dialect: DataQualitySqlDialect
+): string[] {
+  const fields = collectFields(input.schema);
+  const primaryKeys = readablePrimaryKeyFields(fields);
+  switch (input.rule.category) {
+    case DataQualityCategory.EMPTY_TABLE:
+      return quoteTopLevelColumns(
+        collectTopLevelMaterializedFields(input.schema)
+          .slice(0, 1)
+          .map(field => field.path),
+        dialect
+      );
+    case DataQualityCategory.PK_UNIQUENESS:
+      return quoteTopLevelColumns(
+        fields.filter(field => field.isPrimaryKey).map(field => field.path),
+        dialect
+      );
+    case DataQualityCategory.DUPLICATE_ROWS:
+      return [];
+    case DataQualityCategory.RELATIONSHIP_INTEGRITY:
+    case DataQualityCategory.REVERSE_RELATIONSHIP:
+      return quoteTopLevelColumns(
+        [
+          ...(input.relationship?.snapshot.joinConditions.map(condition => [
+            condition.sourceFieldName,
+          ]) ?? []),
+          ...(input.rule.category === DataQualityCategory.RELATIONSHIP_INTEGRITY
+            ? primaryKeys.map(field => field.path)
+            : []),
+        ],
+        dialect
+      );
+    default: {
+      const field = resolveFieldRule(input.rule, input.schema);
+      return quoteTopLevelColumns(
+        field ? [field.path, ...primaryKeys.map(primaryKey => primaryKey.path)] : [],
+        dialect
+      );
+    }
+  }
+}
+
+function quoteTopLevelColumns(
+  paths: readonly (readonly string[])[],
+  dialect: DataQualitySqlDialect
+): string[] {
+  const names = new Set<string>();
+  for (const path of paths) {
+    if (path[0]) names.add(path[0]);
+  }
+  return [...names].map(name => dialect.quoteIdentifierPath([name]));
+}
+
 function descendantsRequireFlattening(field: DataMartSchemaField): boolean {
   const mode = 'mode' in field && typeof field.mode === 'string' ? field.mode.toUpperCase() : '';
   const type = String(field.type).trim().toUpperCase();
@@ -1096,6 +1190,18 @@ function resolveFieldRule(
   return collectFields(schema).find(field => fieldPathKey(field.path) === scopeKey) ?? null;
 }
 
+function readablePrimaryKeyFields(
+  fields: DataQualityFieldDescriptor[],
+  excludedFieldPath?: readonly string[]
+): DataQualityFieldDescriptor[] {
+  return fields.filter(
+    field =>
+      field.isPrimaryKey &&
+      !field.requiresFlattening &&
+      (!excludedFieldPath || fieldPathKey(field.path) !== fieldPathKey(excludedFieldPath))
+  );
+}
+
 function readableFieldExampleProjection(
   field: DataQualityFieldDescriptor,
   fields: DataQualityFieldDescriptor[],
@@ -1103,12 +1209,7 @@ function readableFieldExampleProjection(
   alias: string,
   valueAlias: string
 ): { sql: string; aliases: string[] } {
-  const primaryKeys = fields.filter(
-    candidate =>
-      candidate.isPrimaryKey &&
-      !candidate.requiresFlattening &&
-      fieldPathKey(candidate.path) !== fieldPathKey(field.path)
-  );
+  const primaryKeys = readablePrimaryKeyFields(fields, field.path);
   const aliases = [
     valueAlias,
     ...primaryKeys.map((_candidate, index) => `primary_key_value_${index + 1}`),
@@ -1129,12 +1230,7 @@ function readablePrimaryKeyProjection(
   tableAlias: string,
   excludedFieldPath?: readonly string[]
 ): { sql: string; aliases: string[] } {
-  const primaryKeys = fields.filter(
-    field =>
-      field.isPrimaryKey &&
-      !field.requiresFlattening &&
-      (!excludedFieldPath || fieldPathKey(field.path) !== fieldPathKey(excludedFieldPath))
-  );
+  const primaryKeys = readablePrimaryKeyFields(fields, excludedFieldPath);
   const aliases = primaryKeys.map((_field, index) => `primary_key_value_${index + 1}`);
   return {
     sql: primaryKeys

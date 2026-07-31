@@ -82,6 +82,17 @@ const stored = (
   ...parsed(key, status),
 });
 
+const snapshotReference = (query: string) => ({
+  buildQuery: jest.fn(async () => query),
+});
+
+const projectedSnapshotReference = (table: string) => ({
+  buildQuery: jest.fn(async (columns: string[]) => {
+    const projection = columns.length > 0 ? columns.join(', ') : '*';
+    return `SELECT ${projection} FROM ${table}`;
+  }),
+});
+
 describe('RunDataQualityService', () => {
   let dataMart: DataMart;
   let dataMartRun: DataMartRun;
@@ -213,9 +224,7 @@ describe('RunDataQualityService', () => {
       registerDataQualityRunConsumption: jest.fn().mockResolvedValue(undefined),
     } as never;
     snapshotTableReference = {
-      resolve: jest.fn().mockResolvedValue({
-        query: 'SELECT * FROM source',
-      }),
+      resolve: jest.fn().mockResolvedValue(snapshotReference('SELECT * FROM source')),
     } as unknown as jest.Mocked<DataQualitySnapshotTableReferenceService>;
     const clock = {
       now: jest.fn().mockReturnValueOnce(startedAt).mockReturnValue(finishedAt),
@@ -236,9 +245,9 @@ describe('RunDataQualityService', () => {
     dataMart.definition = { sqlQuery: 'SELECT current_value FROM changed_source' } as never;
     dataMartRun.definitionRun = { sqlQuery: 'SELECT saved_value FROM saved_source' };
     dataMartRun.dataQualitySnapshot!.definitionType = DataMartDefinitionType.SQL;
-    snapshotTableReference.resolve.mockResolvedValue({
-      query: 'SELECT * FROM `project`.`internal`.`dq_run_source`',
-    });
+    snapshotTableReference.resolve.mockResolvedValue(
+      projectedSnapshotReference('`project`.`internal`.`dq_run_source`')
+    );
 
     await service.executeExistingRun('run-1', 'project-1');
 
@@ -256,7 +265,11 @@ describe('RunDataQualityService', () => {
       },
     });
     expect(compiler.compile).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceQuery: 'SELECT * FROM `project`.`internal`.`dq_run_source`' })
+      expect.objectContaining({ resolveSourceQuery: expect.any(Function) })
+    );
+    const resolveSourceQuery = compiler.compile.mock.calls[0][0].resolveSourceQuery;
+    await expect(resolveSourceQuery?.(['`id`'])).resolves.toBe(
+      'SELECT `id` FROM `project`.`internal`.`dq_run_source`'
     );
     expect(JSON.stringify(compiler.compile.mock.calls)).not.toContain('changed_source');
     expect(JSON.stringify(compiler.compile.mock.calls)).not.toContain('saved_source');
@@ -358,12 +371,8 @@ describe('RunDataQualityService', () => {
     repositories.get(DataMart)!.find.mockResolvedValue([target] as never);
     snapshotTableReference.resolve.mockImplementation(async input =>
       input.dataMartId === 'dm-1'
-        ? {
-            query: 'SELECT * FROM `project`.`internal`.`dq_run_source`',
-          }
-        : {
-            query: 'SELECT * FROM `project`.`internal`.`dq_run_target`',
-          }
+        ? projectedSnapshotReference('`project`.`internal`.`dq_run_source`')
+        : projectedSnapshotReference('`project`.`internal`.`dq_run_target`')
     );
     const realCompiler = createDataQualityCheckCompiler();
     const realParser = createDataQualityResultParser();
@@ -399,9 +408,12 @@ describe('RunDataQualityService', () => {
 
     expect(dataMartRun.dataQualityResults).toHaveLength(2);
     expect(emittedSql).toHaveLength(2);
-    expect(emittedSql[0]).toContain('SELECT * FROM `project`.`internal`.`dq_run_source`');
-    expect(emittedSql[1]).toContain('SELECT * FROM `project`.`internal`.`dq_run_source`');
-    expect(emittedSql[1]).toContain('SELECT * FROM `project`.`internal`.`dq_run_target`');
+    expect(emittedSql[0]).toContain('SELECT `source_pk` FROM `project`.`internal`.`dq_run_source`');
+    expect(emittedSql[1]).toContain(
+      'SELECT `customer_id`, `source_pk` FROM `project`.`internal`.`dq_run_source`'
+    );
+    expect(emittedSql[1]).toContain('SELECT `id` FROM `project`.`internal`.`dq_run_target`');
+    expect(emittedSql.join('\n')).not.toContain('SELECT *');
 
     const mainResult = dataMartRun.dataQualityResults?.find(
       result => result.ruleKey === mainRule.key
@@ -489,18 +501,14 @@ describe('RunDataQualityService', () => {
     repositories.get(DataMart)!.find.mockResolvedValue([target] as never);
     snapshotTableReference.resolve.mockImplementation(async input =>
       input.dataMartId === 'dm-1'
-        ? {
-            query: 'SELECT * FROM `project`.`internal`.`dq_run_source`',
-          }
-        : {
-            query: 'SELECT * FROM `project`.`internal`.`dq_run_target`',
-          }
+        ? projectedSnapshotReference('`project`.`internal`.`dq_run_source`')
+        : projectedSnapshotReference('`project`.`internal`.`dq_run_target`')
     );
     compiler.compile.mockImplementation(async input => {
       const relationship = input.relationship as
-        | { resolveTargetSourceQuery?: () => Promise<unknown> }
+        | { resolveTargetSourceQuery?: (columns: string[]) => Promise<unknown> }
         | undefined;
-      await relationship?.resolveTargetSourceQuery?.();
+      await relationship?.resolveTargetSourceQuery?.(['`id`']);
       return plan(input.rule.key);
     });
 
@@ -691,9 +699,7 @@ describe('RunDataQualityService', () => {
       if (input.dataMartId === 'dm-2') {
         throw providerError;
       }
-      return {
-        query: 'SELECT * FROM source',
-      };
+      return snapshotReference('SELECT * FROM source');
     });
     const realCompiler = createDataQualityCheckCompiler();
     let capturedBoundaryError: unknown;
@@ -894,9 +900,7 @@ describe('RunDataQualityService', () => {
       );
       snapshotTableReference.resolve.mockImplementation(async input => {
         if (input.dataMartId === 'dm-1') {
-          return {
-            query: 'SELECT * FROM source',
-          };
+          return snapshotReference('SELECT * FROM source');
         }
         expect(input.definition).toEqual({ sqlQuery: 'SELECT id FROM saved_target' });
         expect(input.liveStorage).toEqual(liveStorage);
