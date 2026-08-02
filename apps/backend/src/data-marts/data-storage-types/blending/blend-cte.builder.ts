@@ -6,7 +6,7 @@ import { sanitizeSqlComment } from './sql-comment.utils';
 import { BlendTreeNode, PassthroughField, ROW_SURROGATE_ALIAS } from './blended-query.types';
 import { Logger } from '@nestjs/common';
 import { BlendedSqlDialect, renderLeftJoinOn } from './blended-sql-dialect';
-import { reAggregateFunctionFor } from './re-aggregation';
+import { preJoinAggregateFunctionFor, reAggregateFunctionFor } from './re-aggregation';
 import type { ValueSleeveIdentity } from './metric-sleeve.planner';
 
 /**
@@ -386,7 +386,7 @@ export class BlendCteBuilder {
 
     const aggregatedParts = blendedFields.map(field => {
       const aggregated = this.dialect.buildAggregation(
-        field.aggregateFunction,
+        preJoinAggregateFunctionFor(field.aggregateFunction, field.targetFieldType),
         this.dialect.quoteFieldRef(field.targetFieldName)
       );
       return `${aggregated} AS ${this.dialect.quoteIdentifier(field.outputAlias)}`;

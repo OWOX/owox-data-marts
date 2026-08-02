@@ -370,6 +370,7 @@ export class BlendedReportDataService {
         // WHERE can reference them, but must not appear in the final SELECT.
         isHidden: f.isHidden || !columnConfigSet.has(f.name),
         aggregateFunction: f.aggregateFunction,
+        targetFieldType: f.sourceFieldType ?? f.type,
       }));
 
       chains.push({

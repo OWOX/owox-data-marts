@@ -13,6 +13,8 @@ export interface BlendedFieldConfig {
   outputAlias: string;
   isHidden: boolean;
   aggregateFunction: AggregateFunction;
+  /** Gates the deterministic roll-up substitution — see `preJoinAggregateFunctionFor`. */
+  targetFieldType?: string;
 }
 
 export interface ResolvedRelationshipChain {

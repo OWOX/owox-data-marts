@@ -26,47 +26,18 @@ import {
 } from '../data-storage-types/data-mart-schema.utils';
 import {
   resolveFieldGovernance,
+  withoutCountBesideSleevedCountDistinct,
   NON_SUMMARIZABLE_AGGREGATIONS,
   type AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
 import { categorizeFieldType } from '../dto/schemas/field-type-category';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
-import {
-  ReportAggregateFunction,
-  SLEEVE_ROUTED_FUNCTIONS,
-} from '../dto/schemas/aggregate-function.schema';
+import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
 
 type SchemaFieldDescriptor = ReturnType<typeof collectSchemaFieldPathDescriptors>[number];
-
-/**
- * Drops `COUNT` from a JOINED column's totals set when `COUNT_DISTINCT` is there and sleeve-routed.
- *
- * The two are computed at different grains: `COUNT_DISTINCT` goes through a metric sleeve, which
- * reads the RAW path before the join's fan-out is collapsed, while `COUNT` is re-aggregated over
- * the dedup CTE — one row per main-mart row. Each is defensible alone; side by side in one Totals
- * block they invite a comparison that does not hold, because `COUNT(DISTINCT x) <= COUNT(x)` is an
- * invariant both people and LLM callers take for granted, and here it can be inverted. Nobody asked
- * for that `COUNT`: Totals add every governance-allowed function themselves.
- *
- * Sleeve-routing `COUNT` instead would make it count RAW rows — the fan-out inflation this whole
- * feature exists to remove — so the coherent choice is to show the one number that is correct at
- * the report's grain.
- *
- * Derived from `SLEEVE_ROUTED_FUNCTIONS` rather than hardcoded: if the routing of either function
- * ever changes, this rule turns itself off instead of silently hiding a metric that no longer
- * disagrees.
- */
-function withoutCountBesideSleevedCountDistinct(
-  allowed: ReportAggregateFunction[]
-): ReportAggregateFunction[] {
-  const grainsDiffer =
-    SLEEVE_ROUTED_FUNCTIONS.has('COUNT_DISTINCT') && !SLEEVE_ROUTED_FUNCTIONS.has('COUNT');
-  if (!grainsDiffer || !allowed.includes('COUNT_DISTINCT')) return allowed;
-  return allowed.filter(fn => fn !== 'COUNT');
-}
 
 @Injectable()
 export class ReportSqlComposerService {

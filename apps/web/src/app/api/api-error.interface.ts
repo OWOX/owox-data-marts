@@ -6,6 +6,8 @@
 export interface ApiValidationError {
   code?: string;
   column?: string;
+  /** OUTPUT_COLUMN_NAME_COLLISION names the colliding OUTPUT name here, not in `column`. */
+  label?: string;
   function?: string;
   type?: string;
   operator?: string;

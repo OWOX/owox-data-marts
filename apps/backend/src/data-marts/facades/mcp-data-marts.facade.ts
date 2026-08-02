@@ -143,7 +143,7 @@ export interface McpDataMartsFacade {
 // Part of the queryDataMart contract: the tool catches these to emit query_timeout / query_cancelled.
 // They live on the facade surface (not in the use-case) so consumers don't reach into internals.
 
-// Recorded FAILED and never billed (billing is success-path only).
+// Never billed, and never recorded in Run History (both are success-path only).
 export class QueryTimeoutError extends Error {
   readonly deadlineMs: number;
   constructor(deadlineMs: number) {
@@ -153,7 +153,7 @@ export class QueryTimeoutError extends Error {
   }
 }
 
-// Client aborted (disconnect / cancel). Recorded CANCELLED, never billed. Stops the server waiting
+// Client aborted (disconnect / cancel). Never billed or recorded. Stops the server waiting
 // and asks the warehouse to cancel the in-flight job/statement (for storages that honor it).
 export class QueryAbortedError extends Error {
   constructor() {

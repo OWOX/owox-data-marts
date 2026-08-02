@@ -162,13 +162,14 @@ export class QueryDataMartService {
     // Cancels the DWH work on any early exit (client abort / deadline / rows failure), not just abort.
     const workController = new AbortController();
     try {
-      // Inside the try so `dataMart` is resolved for the CANCELLED audit row.
       if (signal?.aborted) {
         throw new QueryAbortedError();
       }
 
-      // Only the app-side timer and abort actually stop the server waiting; both throw, so billing
-      // (success-path only) is skipped. Audit + billing stay OUTSIDE the race — fast local writes.
+      // Only the app-side timer and abort actually stop the server waiting; both throw, so neither
+      // billing nor the audit row (both success-path only) happens. A timed-out or cancelled query
+      // is deliberately NOT recorded in Run History — an MCP client aborts often, and a row per
+      // abandoned request would bury the runs that matter.
       const deadline = new Promise<never>((_, reject) => {
         deadlineTimer = setTimeout(() => {
           workController.abort();

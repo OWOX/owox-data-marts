@@ -42,6 +42,8 @@ const RECOGNIZED_CODES = new Set([
 interface ValidatorErrorEntry {
   code?: string;
   column?: string;
+  /** OUTPUT_COLUMN_NAME_COLLISION names the colliding OUTPUT name here, not in `column`. */
+  label?: string;
   function?: string;
   type?: string;
   operator?: string;
@@ -231,7 +233,12 @@ export function translateOutputControlsError(
   const unrecognized = errors?.filter(e => !RECOGNIZED_CODES.has(e.code ?? '')) ?? [];
   if (unrecognized.length > 0) {
     const detail = [
-      ...new Set(unrecognized.map(e => (e.column ? `${e.code} (${e.column})` : e.code))),
+      ...new Set(
+        unrecognized.map(e => {
+          const named = e.column ?? e.label;
+          return named ? `${e.code} (${named})` : e.code;
+        })
+      ),
     ]
       .filter(Boolean)
       .join(', ');

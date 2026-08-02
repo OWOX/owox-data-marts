@@ -10,25 +10,27 @@ import {
 describe('SLEEVE_ROUTING', () => {
   it('routes exactly the functions whose answer depends on how often a value repeats', () => {
     expect([...SLEEVE_ROUTED_FUNCTIONS].sort()).toEqual(
-      ['AVG', 'COUNT_DISTINCT', 'P25', 'P50', 'P75', 'P95', 'SUM'].sort()
+      ['AVG', 'COUNT_DISTINCT', 'P25', 'P50', 'P75', 'P95', 'STRING_AGG', 'SUM'].sort()
     );
   });
 
   it('gives COUNT_DISTINCT its own shape and every other routed function the value shape', () => {
     expect(sleeveShapeFor('COUNT_DISTINCT')).toBe('count-distinct');
-    for (const fn of ['SUM', 'AVG', 'P25', 'P50', 'P75', 'P95'] as ReportAggregateFunction[]) {
+    for (const fn of [
+      'SUM',
+      'AVG',
+      'P25',
+      'P50',
+      'P75',
+      'P95',
+      'STRING_AGG',
+    ] as ReportAggregateFunction[]) {
       expect(sleeveShapeFor(fn)).toBe('value');
     }
   });
 
   it('leaves every unrouted function without a shape', () => {
-    for (const fn of [
-      'COUNT',
-      'MIN',
-      'MAX',
-      'ANY_VALUE',
-      'STRING_AGG',
-    ] as ReportAggregateFunction[]) {
+    for (const fn of ['COUNT', 'MIN', 'MAX', 'ANY_VALUE'] as ReportAggregateFunction[]) {
       expect(sleeveShapeFor(fn)).toBeNull();
       expect(SLEEVE_ROUTED_FUNCTIONS.has(fn)).toBe(false);
     }

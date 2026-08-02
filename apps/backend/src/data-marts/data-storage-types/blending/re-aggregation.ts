@@ -1,4 +1,5 @@
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
+import { categorizeFieldType } from '../../dto/schemas/field-type-category';
 
 /**
  * Re-aggregation function for a passthrough field bubbling UP through the bottom-up CTE
@@ -35,4 +36,26 @@ export function reAggregateFunctionFor(aggregateFunction: AggregateFunction): Ag
       // aggregation lands.
       return aggregateFunction;
   }
+}
+
+// Types MAX is defined for on every supported warehouse. BOOLEAN and the `other` category
+// (JSON, ARRAY, STRUCT, GEOGRAPHY, VARIANT) are rejected by at least one of them.
+const ORDERABLE_CATEGORIES = new Set(['number', 'string', 'date', 'time']);
+
+/**
+ * The pre-join roll-up to actually emit for a declared one.
+ *
+ * `ANY_VALUE` is non-deterministic, and the dedup CTE it produces is read TWICE — by the outer
+ * GROUP BY and again inside every metric sleeve. Engines that inline a `WITH` evaluate each
+ * reference separately, so the two can disagree and the sleeve's join-back on that value then
+ * matches nothing: SUM/AVG come back NULL and COUNT DISTINCT a confident 0. `MAX` picks a stable
+ * member of the same set. Without a resolvable type the declared function stands, since MAX is
+ * not valid for every type.
+ */
+export function preJoinAggregateFunctionFor(
+  aggregateFunction: AggregateFunction,
+  fieldType?: string
+): AggregateFunction {
+  if (aggregateFunction !== 'ANY_VALUE' || !fieldType) return aggregateFunction;
+  return ORDERABLE_CATEGORIES.has(categorizeFieldType(fieldType)) ? 'MAX' : aggregateFunction;
 }

@@ -72,7 +72,7 @@ describe('translateOutputControlsError', () => {
   it('falls back to an informative translation naming unrecognized codes and columns', () => {
     const translated = translateOutputControlsError(
       validatorError([
-        { code: 'OUTPUT_COLUMN_NAME_COLLISION', column: 'channel' },
+        { code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'channel' },
         { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' },
       ])
     );

@@ -37,7 +37,8 @@ function formatValidationErrors(errors: ApiValidationError[] | undefined): strin
       const text = e.message?.trim();
       if (text) return text;
       if (!e.code) return null;
-      const target = e.function && e.column ? `${e.function}(${e.column})` : e.column;
+      const column = e.column ?? e.label;
+      const target = e.function && column ? `${e.function}(${column})` : column;
       const rule = humanizeValidationCode(e.code);
       return target ? `${rule}: ${target}.` : `${rule}.`;
     })

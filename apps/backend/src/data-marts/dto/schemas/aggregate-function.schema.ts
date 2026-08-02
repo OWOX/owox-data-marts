@@ -57,11 +57,15 @@ const SLEEVE_ROUTING: Record<ReportAggregateFunction, SleeveShape | null> = {
   P50: 'value',
   P75: 'value',
   P95: 'value',
+  // Same `value` shape: a joined roll-up read once per fanned main row is repeated verbatim
+  // ("paid, shipped, paid, shipped"), which is not a different question the way COUNT's is.
+  STRING_AGG: 'value',
+  // COUNT deliberately counts the rows that SURVIVE the join, and MIN/MAX/ANY_VALUE are
+  // indifferent to how often a value repeats.
   COUNT: null,
   MIN: null,
   MAX: null,
   ANY_VALUE: null,
-  STRING_AGG: null,
 };
 
 const SLEEVE_ROUTING_ENTRIES = Object.entries(SLEEVE_ROUTING) as [

@@ -4206,7 +4206,10 @@ describeIfCredentials(
 
     const builder = new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer());
 
-    function context(primaryKeyFields: string[], fn: 'SUM' | 'P50' = 'SUM'): BlendedQueryContext {
+    function context(
+      primaryKeyFields: string[],
+      fn: 'SUM' | 'P50' | 'STRING_AGG' = 'SUM'
+    ): BlendedQueryContext {
       const fieldIndex = buildBlendedFieldIndex({
         blendedFields: [
           {
@@ -4215,9 +4218,17 @@ describeIfCredentials(
             originalFieldName: 'revenue',
             type: 'NUMERIC',
           },
+          {
+            name: 'orders__status',
+            aliasPath: 'orders',
+            originalFieldName: 'status',
+            type: 'STRING',
+          },
         ],
         availableSources: [{ aliasPath: 'orders', isIncluded: true }],
       } as never);
+
+      const valueColumn = fn === 'STRING_AGG' ? 'orders__status' : 'orders__revenue';
 
       return {
         mainTableReference: `\`${cartsFQN}\``,
@@ -4246,14 +4257,20 @@ describeIfCredentials(
                 isHidden: false,
                 aggregateFunction: 'ANY_VALUE',
               },
+              {
+                targetFieldName: 'status',
+                outputAlias: 'orders__status',
+                isHidden: false,
+                aggregateFunction: 'ANY_VALUE',
+              },
             ],
             targetDataMartTitle: 'Orders',
             targetDataMartUrl: 'http://x/orders',
             targetPrimaryKeyFields: primaryKeyFields,
           },
         ],
-        columns: ['region', 'orders__revenue'],
-        aggregations: [{ column: 'orders__revenue', function: fn }],
+        columns: ['region', valueColumn],
+        aggregations: [{ column: valueColumn, function: fn }],
         fieldIndex,
       };
     }
@@ -4299,12 +4316,16 @@ describeIfCredentials(
         ('c4','o4','APAC'), ('c5','o5','APAC'), ('c6','o6','APAC')`
       );
 
-      await adapter.executeQuery(`CREATE TABLE \`${ordersFQN}\` (orderId STRING, revenue NUMERIC)`);
       await adapter.executeQuery(
-        `INSERT INTO \`${ordersFQN}\` (orderId, revenue) VALUES
-        ('o1', 100), ('o1', 100), ('o2', 70), ('o3', 40), ('o3', 41),
-        ('o4', 10), ('o5', 20),
-        ('o6', 30), ('o6', 30), ('o6', 30), ('o6', 30), ('o6', 30)`
+        `CREATE TABLE \`${ordersFQN}\` (orderId STRING, revenue NUMERIC, status STRING)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${ordersFQN}\` (orderId, revenue, status) VALUES
+        ('o1', 100, 'paid'), ('o1', 100, 'paid'), ('o2', 70, 'shipped'),
+        ('o3', 40, 'paid'), ('o3', 41, 'paid'),
+        ('o4', 10, 'paid'), ('o5', 20, 'paid'),
+        ('o6', 30, 'paid'), ('o6', 30, 'paid'), ('o6', 30, 'paid'), ('o6', 30, 'paid'),
+        ('o6', 30, 'paid')`
       );
     }, 180000);
 
@@ -4348,6 +4369,17 @@ describeIfCredentials(
 
       const fanned = await runBlend(context([], 'P50'));
       expect(byRegionOf(fanned, 'orders__revenue | MEDIAN').get('APAC')).toBe(30);
+    }, 120000);
+
+    // Post-join STRING_AGG read the dedup CTE once per fanned main row, repeating the joined
+    // value verbatim. EU has two carts on two orders, so the list is one entry per order.
+    it('STRING_AGG lists each joined row once, not once per fanned main row', async () => {
+      const rows = await runBlend(context(['orderId'], 'STRING_AGG'));
+      const eu = rows.find(r => r.region === 'EU')!;
+      expect(String(eu['orders__status | STRINGAGG']).split(', ').sort()).toEqual([
+        'paid',
+        'shipped',
+      ]);
     }, 120000);
   }
 );

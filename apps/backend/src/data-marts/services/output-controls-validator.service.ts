@@ -33,6 +33,7 @@ import {
 } from '../dto/schemas/field-type-category';
 import {
   resolveFieldGovernance,
+  withoutCountBesideSleevedCountDistinct,
   AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
 import {
@@ -325,6 +326,19 @@ export class OutputControlsValidatorService {
         continue;
       }
       seenPairs.add(pairKey);
+      // An unresolvable type disables BOTH gates below, and the governance map skips the same
+      // columns the type map does (a hidden blended field is absent from both), so anything at
+      // all would pass — percentiles included, which have no type floor. `validateDateTruncs`
+      // rejects this case; be symmetric.
+      if (resolveType(rule.column) === undefined) {
+        errors.push({
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+          column: rule.column,
+          function: rule.function,
+          type: 'unknown',
+        });
+        continue;
+      }
       // Type floor: a hard SQL-validity rule (SUM/AVG only make sense on numbers) that
       // fires regardless of data-mart governance, so a bad override can't smuggle invalid SQL.
       if (rule.function === 'SUM' || rule.function === 'AVG') {
@@ -779,9 +793,13 @@ export class OutputControlsValidatorService {
       // schema assembled without that service.
       allowedByColumn.set(
         blended.name,
-        resolveFieldGovernance(blended.type, {
-          allowedAggregations: blended.postJoinAggregations,
-        }).allowedAggregations
+        // Same rule Totals applies: a joined column must not offer both COUNT and
+        // COUNT_DISTINCT, which are computed at different grains and can invert.
+        withoutCountBesideSleevedCountDistinct(
+          resolveFieldGovernance(blended.type, {
+            allowedAggregations: blended.postJoinAggregations,
+          }).allowedAggregations
+        )
       );
     }
     return allowedByColumn;
