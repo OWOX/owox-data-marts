@@ -474,6 +474,7 @@ export class MetricSleeveBuilder {
     //   key on the joined mart is irrelevant to it.
     //
     // A composite key gets one `_oid_<i>` slot per column; a single one keeps the bare `_oid`.
+    // Both identity-field forms also carry the parent join key as `_oid_key_<i>`.
     let oidItems: string[];
     let oidAliasNames: string[];
     // The identity leg IS the dedup key: with no join conditions there is nothing to identify a
@@ -496,15 +497,27 @@ export class MetricSleeveBuilder {
     // project — a second opinion here would dedup on a column the source CTE never emitted.
     const ownerIdentity = valueSleeveIdentityFor(ownerChain);
     if (isIdentity && ownerIdentity.kind === 'primary-key') {
-      // A declared key is unique across the whole joined mart, so — unlike the surrogate below —
-      // it needs no join key beside it to be meaningful.
       const pkRefs = ownerIdentity.columns.map(
         c => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(c)}`
       );
-      oidAliasNames = pkRefs.length === 1 ? ['_oid'] : pkRefs.map((_, i) => `_oid_${i}`);
-      oidItems = pkRefs.map(
-        (ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(oidAliasNames[i])}`
+      // The parent join key rides along, exactly as it does for the surrogate below. A key that
+      // really is unique across the joined mart functionally determines that join key, so the
+      // extra column cannot split a genuine duplicate and costs nothing. What it DOES rescue is
+      // a key declared unique only WITHIN the join key — `line_no` per order is the common
+      // shape, and it is indistinguishable from a correct declaration — where `line 1` of two
+      // different orders carrying the same value would otherwise collapse into one row.
+      const partitionKeyRefs = ownerChain.relationship.joinConditions.map(
+        jc => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(jc.targetFieldName)}`
       );
+      const pkAliasNames = pkRefs.length === 1 ? ['_oid'] : pkRefs.map((_, i) => `_oid_${i}`);
+      const keyAliasNames = partitionKeyRefs.map((_, i) => `_oid_key_${i}`);
+      oidAliasNames = [...pkAliasNames, ...keyAliasNames];
+      oidItems = [
+        ...pkRefs.map((ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(pkAliasNames[i])}`),
+        ...partitionKeyRefs.map(
+          (ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(keyAliasNames[i])}`
+        ),
+      ];
     } else if (isIdentity) {
       const ownerIdRef = `${rawOwnerAlias}.${this.dialect.quoteIdentifier(ROW_SURROGATE_ALIAS)}`;
       // The surrogate is numbered PER parent-join-key group (`buildRawCte` partitions the

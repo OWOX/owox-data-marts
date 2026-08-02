@@ -228,8 +228,8 @@ export class ReportSqlComposerService {
    * a joined/blended metric with fan-out, not a discrepancy to chase — rows and Totals are each
    * independently correct at their own grain, they just don't add up to each other. A
    * non-blended (main-native) aggregate has no fan-out and stays additive as before. Joined
-   * percentile totals REMAIN an unweighted approximation (the value sleeve does not cover
-   * holistic/percentile aggregates).
+   * percentile totals go through the same value sleeve, so they are computed over the
+   * de-duplicated distribution rather than the fanned one.
    *
    * Totals are otherwise INDEPENDENT of the report's own display aggregation functions — the
    * numeric auto-summary is computed even for a non-aggregated report. Row Count and Unique
@@ -482,9 +482,7 @@ export class ReportSqlComposerService {
   // across all rows; SUM/AVG carry DISTINCT (owner, value) across all rows first,),
   // not by the pre-join roll-up. this is NOT "exact" in the sense of summing
   // to the report's own per-group row values — a symmetric aggregate is non-additive across
-  // GROUP BY (see composeTotals' doc comment). Accepted limitation: blended percentiles remain
-  // an unweighted approximation — the value sleeve does not cover holistic/percentile
-  // aggregates.
+  // GROUP BY (see composeTotals' doc comment).
   private collectBlendedAllowedSets(
     blendableSchema: BlendableSchemaDto,
     aggregatedColumns: ReadonlySet<string>

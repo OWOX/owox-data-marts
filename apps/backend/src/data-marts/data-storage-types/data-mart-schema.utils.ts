@@ -68,6 +68,48 @@ export function getPrimaryKeyFields(
   return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
 }
 
+/**
+ * The declared primary key as a ROW IDENTITY — every component or none at all.
+ *
+ * `getPrimaryKeyFields` answers a different question ("which PK columns may the reporting view
+ * reference"), and its answer is PRUNED: it drops `isHiddenForReporting` and DISCONNECTED
+ * components. A caller that only checks whether the result is non-empty therefore cannot tell a
+ * complete composite key from one component of it — and de-duplicating rows by PART of a key
+ * merges rows the key itself keeps distinct, silently under-counting. That is a wrong number
+ * with no error, so this returns nothing rather than something incomplete.
+ *
+ * `isHiddenForReporting` is deliberately NOT a reason to drop a component: hidden means absent
+ * from the reporting MENU, not from the source — the column still exists and still projects, and
+ * `hasUsablePrimaryKey` says as much ("a hidden PK still keys the join").
+ *
+ * A component makes the whole key unusable when it is DISCONNECTED (gone from the source, so it
+ * cannot be projected at all) or NESTED (a dotted path is not a single projectable identifier —
+ * it forces the raw CTE to `SELECT *` — and a struct member is a poor row identity anyway).
+ * Disconnected subtrees are still walked, so a key component hiding inside one is SEEN and
+ * disqualifies the key, instead of leaving a partial key that looks complete.
+ */
+export function collectPrimaryKeyRowIdentity(fields: readonly DataMartSchemaField[]): string[] {
+  const columns: string[] = [];
+  let complete = true;
+
+  const walk = (nodes: readonly DataMartSchemaField[], prefix: string, reachable: boolean) => {
+    for (const field of nodes) {
+      const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+      const isReachable = reachable && isConnected(field);
+      if (field.isPrimaryKey) {
+        if (isReachable && !fullName.includes('.')) columns.push(fullName);
+        else complete = false;
+      }
+      if ('fields' in field && field.fields?.length) {
+        walk(field.fields as DataMartSchemaField[], fullName, isReachable);
+      }
+    }
+  };
+  walk(fields, '', true);
+
+  return complete ? columns : [];
+}
+
 // TRUE when the schema has at least one primary-key field usable as a dedup/join key — i.e.
 // `isPrimaryKey` and NOT DISCONNECTED. Unlike `getPrimaryKeyFields` (which ALSO prunes
 // `isHiddenForReporting` for the reporting-view projection), a hidden PK still keys the join,

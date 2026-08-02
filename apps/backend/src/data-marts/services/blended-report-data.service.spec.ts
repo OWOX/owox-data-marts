@@ -529,10 +529,16 @@ describe('BlendedReportDataService', () => {
           schema: {
             fields: [
               { name: 'org_key', type: 'STRING', status: 'CONNECTED', isPrimaryKey: true },
+              // Hidden from the reporting MENU, but still present in the source and still part
+              // of the key — so it must be carried, not silently dropped.
+              {
+                name: 'tenant',
+                type: 'STRING',
+                status: 'CONNECTED',
+                isPrimaryKey: true,
+                isHiddenForReporting: true,
+              },
               { name: 'field', type: 'STRING', status: 'CONNECTED', isPrimaryKey: false },
-              // A disconnected key is pruned by getPrimaryKeyFields — it cannot key a sleeve,
-              // since the query no longer projects it.
-              { name: 'legacy_key', type: 'STRING', status: 'DISCONNECTED', isPrimaryKey: true },
             ],
           },
         },
@@ -548,7 +554,79 @@ describe('BlendedReportDataService', () => {
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       // Without this the value sleeve falls back to the synthetic per-row surrogate, which
       // counts a genuine duplicate row twice.
-      expect(context?.chains[0].targetPrimaryKeyFields).toEqual(['org_key']);
+      expect(context?.chains[0].targetPrimaryKeyFields).toEqual(['org_key', 'tenant']);
+    });
+
+    it('drops the whole key when one component is gone from the source', async () => {
+      const columnConfig = ['blended_field'];
+      const report = makeReport({ columnConfig });
+
+      const blendedField = new BlendedFieldDto();
+      blendedField.name = 'blended_field';
+      blendedField.sourceRelationshipId = 'rel-1';
+      blendedField.sourceDataMartId = 'dm-target';
+      blendedField.sourceDataMartTitle = 'Target';
+      blendedField.targetAlias = 'alias_1';
+      blendedField.originalFieldName = 'field';
+      blendedField.type = 'STRING';
+      blendedField.isHidden = false;
+      blendedField.aggregateFunction = 'ANY_VALUE';
+      blendedField.transitiveDepth = 1;
+      blendedField.aliasPath = 'alias_1';
+      blendedField.outputPrefix = 'alias_1';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'alias_1',
+            title: 'Target',
+            defaultAlias: 'alias_1',
+            depth: 1,
+            fieldCount: 1,
+            isIncluded: true,
+            isAccessibleForReporting: true,
+            relationshipId: 'rel-1',
+            dataMartId: 'dm-target',
+          },
+        ],
+        blendedFields: [blendedField],
+      });
+
+      const mockRel = {
+        id: 'rel-1',
+        targetAlias: 'alias_1',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: {
+          id: 'dm-target',
+          title: 'Target',
+          schema: {
+            fields: [
+              { name: 'date', type: 'DATE', status: 'CONNECTED', isPrimaryKey: true },
+              // Half of a composite key. De-duplicating by `date` alone would merge every
+              // campaign of that day into one row and under-count the SUM — worse than the
+              // surrogate it replaced, and invisible.
+              {
+                name: 'campaign_id',
+                type: 'STRING',
+                status: 'DISCONNECTED',
+                isPrimaryKey: true,
+              },
+              { name: 'field', type: 'STRING', status: 'CONNECTED', isPrimaryKey: false },
+            ],
+          },
+        },
+        joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: 'date' }],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      expect(context?.chains[0].targetPrimaryKeyFields).toEqual([]);
     });
 
     it('throws when two requested chains produce the same outputAlias (cross-chain collision)', async () => {

@@ -4188,3 +4188,196 @@ describeIfCredentials('Totals restricted to the groups a metric filter keeps', (
     expect(Number(rows[0]['orders__orderId | COUNTUNIQUE'])).toBe(3);
   }, 120000);
 });
+
+// ---------------------------------------------------------------------------
+// De-duplication by the joined Data Mart's DECLARED PRIMARY KEY, real BigQuery.
+//
+// The sleeve has to tell one row of the joined mart from another before it aggregates. Without a
+// declared key it numbers rows with a synthetic surrogate, which cannot distinguish a genuine
+// duplicate row from two distinct ones — so a joined mart holding the same row twice has its
+// value summed twice. Every joined fixture in this file until now had exactly one row per key,
+// which is precisely the shape that hides this.
+//
+// Topology: main = carts, one sibling chain — orders (main.orderId = orders.orderId).
+// The dimension (`region`) is main-native, so the only thing under test is the identity leg.
+//
+// Seed:
+//   carts(cartId, orderId, region): c1→o1/EU · c2→o2/EU · c3→o3/US
+//   orders(orderId, revenue):
+//     o1=100 TWICE  — a true duplicate row: same key, same value
+//     o2=70
+//     o3=40 and o3=41 — same key, DIFFERENT values: contradictory data
+//
+// Ground truth with the key declared:
+//   EU: o1 counted once (100) + o2 (70)              = 170
+//   US: o3's two rows disagree, so both survive       = 81
+// Without the key, the surrogate makes o1's two rows two owners and EU reads 270 — the second
+// test asserts exactly that, so the pair proves the key is what changed the number and not the
+// fixture. The US bucket is identical under both, which is the point: de-duplication removes the
+// join's duplicates, never the data's.
+describeIfCredentials(
+  'value sleeve de-duplicates by a declared primary key (real BigQuery)',
+  () => {
+    let adapter: BigQueryApiAdapter;
+    let cartsFQN: string;
+    let ordersFQN: string;
+
+    const builder = new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer());
+
+    function context(primaryKeyFields: string[], fn: 'SUM' | 'P50' = 'SUM'): BlendedQueryContext {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'orders__revenue',
+            aliasPath: 'orders',
+            originalFieldName: 'revenue',
+            type: 'NUMERIC',
+          },
+        ],
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      } as never);
+
+      return {
+        mainTableReference: `\`${cartsFQN}\``,
+        mainDataMartTitle: 'Carts',
+        mainDataMartUrl: 'http://x/carts',
+        chains: [
+          {
+            relationship: {
+              id: 'rel-orders',
+              targetAlias: 'orders',
+              joinConditions: [{ sourceFieldName: 'orderId', targetFieldName: 'orderId' }],
+              blendedFields: [],
+              projectId: 'proj',
+              createdById: 'user-1',
+              createdAt: new Date(),
+              modifiedAt: new Date(),
+            } as unknown as DataMartRelationship,
+            targetTableReference: `\`${ordersFQN}\``,
+            parentAlias: 'main',
+            cteName: 'orders',
+            blendedFields: [
+              {
+                targetFieldName: 'revenue',
+                outputAlias: 'orders__revenue',
+                // Raw passthrough — the identity branch, the only one a declared key applies to.
+                isHidden: false,
+                aggregateFunction: 'ANY_VALUE',
+              },
+            ],
+            targetDataMartTitle: 'Orders',
+            targetDataMartUrl: 'http://x/orders',
+            targetPrimaryKeyFields: primaryKeyFields,
+          },
+        ],
+        columns: ['region', 'orders__revenue'],
+        aggregations: [{ column: 'orders__revenue', function: fn }],
+        fieldIndex,
+      };
+    }
+
+    async function runBlend(ctx: BlendedQueryContext): Promise<Record<string, unknown>[]> {
+      const { sql, params } = builder.buildBlendedQuery(ctx);
+      const { jobId } = await adapter.executeQuery(sql, params);
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 5000, autoPaginate: false });
+      return rows as Record<string, unknown>[];
+    }
+
+    const byRegionOf = (rows: Record<string, unknown>[], label: string) =>
+      new Map(rows.map(r => [String(r.region), Number(r[label])]));
+    const sumByRegion = (rows: Record<string, unknown>[]) =>
+      byRegionOf(rows, 'orders__revenue | SUM');
+
+    beforeAll(async () => {
+      const credentials = BigQueryServiceAccountCredentialsSchema.parse(
+        JSON.parse(BQ_SERVICE_ACCOUNT_KEY!)
+      );
+      adapter = new BigQueryApiAdapter(credentials, {
+        projectId: BQ_PROJECT_ID!,
+        location: BIGQUERY_AUTODETECT_LOCATION,
+      });
+
+      const stamp = `${Date.now()}`;
+      cartsFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.pkdedup_carts_${stamp}`;
+      ordersFQN = `${BQ_PROJECT_ID}.${BQ_DATASET}.pkdedup_orders_${stamp}`;
+
+      await adapter.executeQuery(
+        `CREATE TABLE \`${cartsFQN}\` (cartId STRING, orderId STRING, region STRING)`
+      );
+      await adapter.executeQuery(
+        `INSERT INTO \`${cartsFQN}\` (cartId, orderId, region) VALUES
+        ('c1','o1','EU'), ('c2','o2','EU'), ('c3','o3','US'),
+        ('c4','o4','APAC'), ('c5','o5','APAC'), ('c6','o6','APAC')`
+      );
+
+      await adapter.executeQuery(`CREATE TABLE \`${ordersFQN}\` (orderId STRING, revenue NUMERIC)`);
+      await adapter.executeQuery(
+        `INSERT INTO \`${ordersFQN}\` (orderId, revenue) VALUES
+        ('o1', 100), ('o1', 100), ('o2', 70), ('o3', 40), ('o3', 41),
+        ('o4', 10), ('o5', 20),
+        ('o6', 30), ('o6', 30), ('o6', 30), ('o6', 30), ('o6', 30)`
+      );
+    }, 180000);
+
+    afterAll(async () => {
+      for (const fqn of [cartsFQN, ordersFQN]) {
+        try {
+          await adapter.executeQuery(`DROP TABLE IF EXISTS \`${fqn}\``);
+        } catch (error) {
+          console.warn(`Failed to drop pk-dedup table ${fqn}:`, error);
+        }
+      }
+    }, 60000);
+
+    it('counts a duplicated joined row ONCE: EU=170, and keeps contradictory rows apart: US=81', async () => {
+      const { sql } = builder.buildBlendedQuery(context(['orderId']));
+      // The key replaces the surrogate outright — the window function is not merely unused here,
+      // it is never computed.
+      expect(sql).not.toContain('__owox_rid');
+      expect(sql).not.toContain('ROW_NUMBER()');
+
+      const byRegion = sumByRegion(await runBlend(context(['orderId'])));
+
+      expect(byRegion.get('EU')).toBe(170);
+      // o3's two rows disagree on the value, so the key alone does NOT merge them — the sleeve
+      // removes the join's duplicates, not the data's.
+      expect(byRegion.get('US')).toBe(81);
+    }, 120000);
+
+    it('without a declared key the same data reads EU=270 — the duplicate is summed twice', async () => {
+      const { sql } = builder.buildBlendedQuery(context([]));
+      expect(sql).toContain('AS __owox_rid');
+
+      const byRegion = sumByRegion(await runBlend(context([])));
+
+      // The control: identical tables, identical query shape, only the declared key removed.
+      expect(byRegion.get('EU')).toBe(270);
+      expect(byRegion.get('US')).toBe(81);
+    }, 120000);
+
+    // A percentile is where de-duplication matters MOST and is hardest to see: a SUM shifted by a
+    // duplicate is at least obviously bigger, whereas a duplicate silently reweights a
+    // distribution. The APAC group is seeded for exactly that — three distinct orders 10/20/30,
+    // with 30 repeated five times.
+    //
+    //   de-duplicated: [10, 20, 30]                    -> median 20
+    //   fanned:        [10, 20, 30, 30, 30, 30, 30]    -> median 30
+    //
+    // Both are odd-sized, so the median is unambiguous under any boundary convention — the
+    // assertion cannot pass by accident of BigQuery's approximate-quantile rounding.
+    it('a percentile is taken over the de-duplicated distribution: APAC median 20, not 30', async () => {
+      const rows = await runBlend(context(['orderId'], 'P50'));
+      expect(byRegionOf(rows, 'orders__revenue | MEDIAN').get('APAC')).toBe(20);
+
+      const fanned = await runBlend(context([], 'P50'));
+      expect(byRegionOf(fanned, 'orders__revenue | MEDIAN').get('APAC')).toBe(30);
+    }, 120000);
+  }
+);

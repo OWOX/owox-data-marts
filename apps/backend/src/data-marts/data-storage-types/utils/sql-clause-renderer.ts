@@ -345,6 +345,19 @@ export abstract class SqlClauseRenderer {
     }
   }
 
+  /**
+   * A percentile is the one aggregation whose ANSWER, not just its spelling, differs per
+   * warehouse — worth knowing before comparing the same report across two storages:
+   *
+   * - BigQuery (`APPROX_QUANTILES`) and Athena/Trino (`APPROX_PERCENTILE`) are APPROXIMATE and
+   *   return a value drawn FROM the data.
+   * - Snowflake, Redshift and Databricks (`PERCENTILE_CONT`) are exact and INTERPOLATE, so they
+   *   can return a value that appears nowhere in the column.
+   *
+   * On `[1, 2, 3, 4]` the median is 2 or 3 on the first pair and 2.5 on the second. Both are
+   * defensible definitions; neither is a defect, and this is not something the query layer can
+   * paper over without reimplementing the aggregate.
+   */
   protected renderPercentile(_p: 25 | 50 | 75 | 95, _columnRef: string): string {
     throw new Error(`Percentile aggregation not supported for this storage`);
   }

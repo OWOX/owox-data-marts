@@ -28,9 +28,16 @@ different question than the report asked:
 - `SUM` over it adds the same underlying row once per report row it fans out to — too much.
 - `COUNT DISTINCT` over it counts per-key results, not distinct entities — too few, or too many.
 - `AVG` becomes an unweighted average of averages.
+- A percentile is weighted by how many times the join repeated each value.
 
-`MIN`, `MAX` and `COUNT` are unaffected (idempotent or already additive), which is why only
-`COUNT_DISTINCT`, `SUM` and `AVG` are routed (`SLEEVE_ROUTED_FUNCTIONS`).
+`MIN` and `MAX` are unaffected (idempotent), and `COUNT` deliberately counts the rows that survive
+the join — which is why the routed set is `COUNT_DISTINCT`, `SUM`, `AVG` and the percentiles
+(`SLEEVE_ROUTING`, which also states the SQL SHAPE each one's sleeve takes).
+
+One consequence worth knowing: `MIN`/`MAX` read the dedup CTE while `SUM`/`AVG`/percentiles read
+the raw rows, so for a field whose pre-join roll-up is a raw passthrough the four are computed at
+different grains and `MIN <= AVG <= MAX` can fail to hold. Reconciling them is a product decision,
+not just a code change.
 
 A **metric sleeve** is a separate CTE for one such metric that re-joins the RAW path — bypassing
 the dedup — and recomputes the metric at the REPORT's own dimension grain. The outer query then
@@ -103,12 +110,15 @@ Totals value. That is correct, not a bug.
 
 ## Known limitations
 
-- A metric (`HAVING`) filter on a joined `COUNT DISTINCT`/`SUM`/`AVG` is rejected: HAVING renders
-  from the dedup CTE, so it would filter on a different value than the SELECT returns. That applies
-  to the Totals restriction's own `having` as well, not just the outer query's.
-- Percentiles on joined fields are still an unweighted approximation — not sleeve-routed yet.
-- A declared primary key on the joined mart is not consulted; `SUM`/`AVG` de-duplicate by the
-  pre-join group key, or by the per-row surrogate for a raw passthrough field.
+- A metric (`HAVING`) filter on ANY sleeve-routed joined metric is rejected: HAVING renders from
+  the dedup CTE, so it would filter on a different value than the SELECT returns. That applies to
+  the Totals restriction's own `having` as well, not just the outer query's.
+- A percentile's ANSWER, not just its spelling, differs per warehouse: BigQuery and Athena
+  approximate, the `PERCENTILE_CONT` dialects interpolate exactly (see `renderPercentile`).
+- `SUM`/`AVG`/percentiles de-duplicate by the pre-join group key, or — for a raw passthrough
+  field — by the joined mart's declared primary key, falling back to a per-row surrogate when it
+  declares none. The key is all-or-nothing: a partial one would merge rows the key itself keeps
+  distinct (`collectPrimaryKeyRowIdentity`).
 
 Arithmetic is proven by the live suites in `apps/backend/test/integration/*.integration.ts`
 (`-t 'fan-out'`), not by the unit tests — those can only check the SQL text.

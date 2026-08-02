@@ -1,5 +1,6 @@
 import {
   isConnected,
+  collectPrimaryKeyRowIdentity,
   createBaseFieldSchemaForType,
   getPrimaryKeyFields,
   hasUsablePrimaryKey,
@@ -185,5 +186,77 @@ describe('hasUsablePrimaryKey', () => {
       fields: [mkField('inner_pk', true)],
     } as unknown as DataMartSchemaField;
     expect(hasUsablePrimaryKey([mkField('top_non_pk', false), container])).toBe(true);
+  });
+});
+
+describe('collectPrimaryKeyRowIdentity', () => {
+  const connected = DataMartSchemaFieldStatus.CONNECTED;
+  const mkField = (
+    name: string,
+    isPrimaryKey: boolean,
+    extra: Partial<DataMartSchemaField> = {}
+  ): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: connected,
+      isPrimaryKey,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+
+  it('returns the declared key columns in schema order', () => {
+    expect(
+      collectPrimaryKeyRowIdentity([
+        mkField('date', true),
+        mkField('cost', false),
+        mkField('campaign_id', true),
+      ])
+    ).toEqual(['date', 'campaign_id']);
+  });
+
+  it('keeps a component hidden for reporting — hidden means off the menu, not gone', () => {
+    // The consumer projects this column explicitly into the raw CTE, so hiding it from the
+    // reporting menu does not stop it identifying a row. Dropping it would leave HALF a
+    // composite key, which merges rows the key itself keeps distinct.
+    expect(
+      collectPrimaryKeyRowIdentity([
+        mkField('date', true),
+        mkField('campaign_id', true, { isHiddenForReporting: true }),
+      ])
+    ).toEqual(['date', 'campaign_id']);
+  });
+
+  it('returns nothing when one component is gone from the source', () => {
+    expect(
+      collectPrimaryKeyRowIdentity([
+        mkField('date', true),
+        mkField('campaign_id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('returns nothing when a component is nested', () => {
+    // A dotted path is not one projectable identifier — it forces the raw CTE to `SELECT *` —
+    // and a struct member is a poor row identity regardless.
+    const container = {
+      ...mkField('meta', false),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    expect(collectPrimaryKeyRowIdentity([mkField('date', true), container])).toEqual([]);
+  });
+
+  it('sees a component buried in a DISCONNECTED subtree and disqualifies the key', () => {
+    // The traversal must not simply skip disconnected subtrees: a key component hiding in one
+    // would go unseen and the remaining columns would look like a complete key.
+    const container = {
+      ...mkField('meta', false, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    expect(collectPrimaryKeyRowIdentity([mkField('date', true), container])).toEqual([]);
+  });
+
+  it('returns nothing when no key is declared', () => {
+    expect(collectPrimaryKeyRowIdentity([mkField('date', false)])).toEqual([]);
+    expect(collectPrimaryKeyRowIdentity([])).toEqual([]);
   });
 });

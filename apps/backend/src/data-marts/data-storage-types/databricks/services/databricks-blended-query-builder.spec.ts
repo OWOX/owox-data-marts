@@ -181,6 +181,51 @@ describe('DatabricksBlendedQueryBuilder — row surrogate (__owox_rid) for value
     expect(s).toContain('orders_raw.amount AS _val');
     expect(s).toContain('ANY_VALUE(sleeve_orders__amount.`orders__amount | SUM`)');
   });
+
+  it('spells a joined percentile as an ordered-set aggregate inside the value sleeve', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: '`catalog`.`schema`.`orders`',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'orders__amount',
+          aliasPath: 'orders',
+          originalFieldName: 'amount',
+          type: 'DOUBLE',
+        },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'P75' } as AggregationRule],
+    });
+    const s = sql.replace(/\s+/g, ' ');
+
+    // `PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...)` is a different grammar from a plain
+    // aggregate call, and it sits in the sleeve's OUTER select over the dedup subquery — the
+    // shape most likely to be mis-assembled, so it is pinned per dialect.
+    expect(s).toContain(
+      'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY _val) AS `orders__amount | P75`'
+    );
+    expect(s).toContain('orders_raw.amount AS _val');
+  });
 });
 
 describe('DatabricksBlendedQueryBuilder — output controls', () => {

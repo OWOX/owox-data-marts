@@ -627,9 +627,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   /**
    * SQL expression assigning a value distinct per raw row, PRE-fan-out — the synthetic
-   * owner-identity surrogate a value-sleeve (SUM/AVG, C2.2) dedups on: `DISTINCT (dim,
-   * <this>, value)`. No declared PK is required or consulted in this slice (see the C2
-   * plan's "no-PK ⇒ synthetic surrogate" decision); genuine duplicate raw rows are
+   * owner-identity surrogate a value-sleeve dedups on: `DISTINCT (dim, <this>, value)`. Emitted
+   * only for an owner whose joined Data Mart declares NO usable primary key; with one, that key
+   * is the identity and this window is not computed at all. Without it, genuine duplicate raw
+   * rows are
    * deliberately counted as distinct owners here — a documented, later follow-up.
    *
    * Default `ROW_NUMBER() OVER (ORDER BY 1)`: BigQuery, Snowflake, Trino/Presto (Athena)

@@ -507,6 +507,59 @@ describe('OutputControlsValidatorService', () => {
       expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
     });
 
+    it('rejects a case-only duplicate in a projection that carries NO output control', async () => {
+      // A report that only selects columns is not an output-controls report, so this method used
+      // to return before ever checking the projection. The pair then persisted and failed much
+      // later at the Redshift reader, which folds identifiers — the opposite of the promise that
+      // such a report "cannot reach that state in the first place".
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: unsupportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['country', 'Country'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      // Uniqueness is a property of the projection alone — no schema resolution, and no
+      // output-controls capability gate (a plain selection needs no such support).
+      expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
+      expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    it('accepts a projection with no output control and no collision', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: unsupportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['country', 'revenue'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
     it('throws BadRequestException when storage type is not supported', async () => {
       const capabilitySvc = makeCapabilityService(false);
       const schemaSvc = makeBlendableSchemaService();
@@ -3884,6 +3937,39 @@ describe('OutputControlsValidatorService', () => {
             message: expect.stringContaining('orders__amount'),
           },
         ]);
+      });
+
+      it('rejects a HAVING percentile rule whose column is BLENDED (joined)', () => {
+        // Percentiles joined SLEEVE_ROUTED_FUNCTIONS when they became sleeve-routed, so this gate
+        // widened with them — silently, since the gate reads the set rather than listing
+        // functions. Pin it: HAVING is still rendered from the dedup CTE, so it would filter on a
+        // different value than the SELECT returns.
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__amount', function: 'P95', operator: 'gt', value: 10 }],
+          [{ column: 'orders__amount', function: 'P95' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([
+          {
+            code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+            column: 'orders__amount',
+            function: 'P95',
+            message: expect.stringContaining('orders__amount'),
+          },
+        ]);
+      });
+
+      it('allows a HAVING percentile rule whose column is MAIN (no sleeve involved)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'revenue', function: 'P95', operator: 'gt', value: 10 }],
+          [{ column: 'revenue', function: 'P95' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex // 'revenue' is not a key in this index
+        );
+        expect(errors).toEqual([]);
       });
 
       it('allows a HAVING COUNT_DISTINCT rule whose column is MAIN (native, not in the blended index)', () => {

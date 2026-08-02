@@ -930,8 +930,10 @@ describe('MetricSleeveBuilder', () => {
         // With a real key, two raw rows that agree on it AND on the value are the same row the
         // join returned twice — the surrogate would have made them two owners and summed twice.
         expect(sql).not.toContain('__owox_rid');
-        // The key is unique across the whole joined mart, so it needs no join key beside it.
-        expect(sql).not.toContain('_oid_key_0');
+        // The parent join key rides along anyway. A key unique only WITHIN the join key
+        // (`line_no` per order) is indistinguishable from a correct declaration, and without
+        // this, line 1 of two different orders carrying the same value would collapse into one.
+        expect(sql).toContain('organizations_raw.orgId AS _oid_key_0');
       });
 
       it('gives a composite key one slot per column', () => {

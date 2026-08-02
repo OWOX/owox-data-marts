@@ -259,6 +259,50 @@ describe('AthenaBlendedQueryBuilder — row surrogate (__owox_rid) for value-sle
 
     expect(sql).toContain('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY 1) AS __owox_rid');
   });
+
+  it('spells a joined percentile with the Trino form, casting the deduped value', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: '"mydb"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        // DECIMAL on purpose: this is the type approx_percentile refuses, and the one the
+        // aggregation menu happily offers percentiles for.
+        {
+          name: 'orders__amount',
+          aliasPath: 'orders',
+          originalFieldName: 'amount',
+          type: 'DECIMAL',
+        },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'P95' } as AggregationRule],
+    });
+    const s = sql.replace(/\s+/g, ' ');
+
+    // Athena leaves safe identifiers unquoted, so the deduped slot reads bare.
+    expect(s).toContain('APPROX_PERCENTILE(CAST(_val AS DOUBLE), 0.95) AS "orders__amount | P95"');
+    expect(s).toContain('orders_raw.amount AS _val');
+    expect(s).toContain('arbitrary(sleeve_orders__amount."orders__amount | P95")');
+  });
 });
 
 describe('AthenaBlendedQueryBuilder — output controls', () => {

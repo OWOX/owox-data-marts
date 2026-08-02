@@ -116,6 +116,11 @@ export type ValueSleeveIdentity =
  * A declared key is TRUSTED, exactly as the main mart's Unique Count trusts it: declaring a key
  * is the statement that it identifies a row. A key that is not in fact unique collapses rows the
  * surrogate kept apart.
+ *
+ * The non-empty check below is only sound because `targetPrimaryKeyFields` is all-or-nothing —
+ * a subset of a composite key looks exactly like a complete key from here, and would silently
+ * merge rows the real key distinguishes. The producer owns that rule; see the field's own
+ * documentation and `collectPrimaryKeyRowIdentity`.
  */
 export function valueSleeveIdentityFor(chain: ResolvedRelationshipChain): ValueSleeveIdentity {
   const declared = chain.targetPrimaryKeyFields ?? [];
@@ -246,7 +251,7 @@ export function sleeveJoinColumns(filterOpts: SleeveFilterOptions): string[] {
  * Totals path applies — so a stale/crafted override could let a REST report request e.g.
  * SUM(X) AND COUNT_DISTINCT(X) on the SAME joined column X. That produces a COUNT_DISTINCT
  * sleeve and a value sleeve both wanting the bare `sleeve_<X>` name (they don't merge — the
- * grouping only spans the SUM/AVG subset). Without this guard that emits a duplicate CTE name
+ * grouping only spans the value-shaped subset). Without this guard that emits a duplicate CTE name
  * every warehouse rejects. The order it receives names in (COUNT_DISTINCT sleeves first, then
  * value groups) is deterministic, so the disambiguation is stable.
  *
@@ -318,11 +323,11 @@ export function dimensionsFingerprint(dimensions: readonly string[]): string {
  * value-sleeve group, whose key also carries its dimensions. Insertion order is preserved so
  * the emitted WITH clause stays deterministic.
  *
- * Lives here, beside its SUM/AVG counterpart, because this module is meant to be the single
+ * Lives here, beside its value-sleeve counterpart, because this module is meant to be the single
  * answer to "which sleeves exist, who owns each, and what is it called". It was inline in
  * `MetricSleeveBuilder.buildAll` instead — which made the module's own README false, and meant
- * the two planned follow-ups (percentile sleeves, de-duplicating SUM/AVG by a declared primary
- * key) would each have had to reopen the builder to add a grouping rule.
+ * that adding percentile sleeves, or de-duplicating by a declared primary key, would each have
+ * had to reopen the builder to add a grouping rule. Both landed without touching it.
  */
 export function groupCountDistinctMetrics(
   metrics: ReadonlyArray<AggregationRule>,

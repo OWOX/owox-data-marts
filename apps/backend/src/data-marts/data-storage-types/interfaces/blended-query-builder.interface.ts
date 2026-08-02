@@ -24,12 +24,17 @@ export interface ResolvedRelationshipChain {
   targetDataMartTitle: string;
   targetDataMartUrl: string;
   /**
-   * The JOINED Data Mart's own declared primary-key columns, when it has any.
+   * The JOINED Data Mart's own declared primary-key columns — EVERY component or none.
    *
    * A value sleeve (joined SUM/AVG/percentile) has to tell one owner row from another before it
    * aggregates. With a declared key it uses that key; without one it falls back to a synthetic
-   * per-row surrogate, which cannot tell a genuine duplicate row from two distinct ones. Empty or
-   * absent means "no key declared" — see `valueSleeveIdentityFor`.
+   * per-row surrogate, which cannot tell a genuine duplicate row from two distinct ones.
+   *
+   * The all-or-nothing rule is load-bearing, not tidiness: this list is consumed by checking that
+   * it is non-empty, so a PARTIAL composite key would be indistinguishable from a complete one,
+   * and de-duplicating by part of a key merges rows the key itself keeps distinct. Producers must
+   * therefore emit `[]` rather than a subset — `collectPrimaryKeyRowIdentity` is the one
+   * implementation of that rule. Empty or absent means "no usable key".
    */
   targetPrimaryKeyFields?: string[];
 }

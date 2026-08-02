@@ -24,6 +24,7 @@ import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import {
+  collectPrimaryKeyRowIdentity,
   collectSchemaFieldPaths,
   collectSchemaFieldPathTypes,
   getPrimaryKeyFields,
@@ -380,12 +381,12 @@ export class BlendedReportDataService {
         targetDataMartTitle: rel.targetDataMart.title,
         targetDataMartUrl,
         // Lets a value sleeve de-duplicate this joined mart's rows by its OWN declared key
-        // instead of a synthetic per-row surrogate. Nested paths are excluded: the raw CTE
-        // cannot project a dotted path as a single identifier (it widens to `SELECT *`), and a
-        // struct field is not a usable row identity anyway.
-        targetPrimaryKeyFields: getPrimaryKeyFields(rel.targetDataMart.schema?.fields ?? [])
-          .map(pk => pk.name)
-          .filter(name => !name.includes('.')),
+        // instead of a synthetic per-row surrogate. All-or-nothing by construction — see
+        // `collectPrimaryKeyRowIdentity`: de-duplicating by PART of a composite key merges rows
+        // the key itself keeps distinct.
+        targetPrimaryKeyFields: collectPrimaryKeyRowIdentity(
+          rel.targetDataMart.schema?.fields ?? []
+        ),
       });
     }
 

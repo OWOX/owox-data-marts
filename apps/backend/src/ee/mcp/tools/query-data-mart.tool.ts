@@ -41,6 +41,14 @@ import { joinPublicOrigin } from './mcp-public-url.util';
 import { buildFieldTypeMatrixSection } from './field-type-matrix';
 import { unavailableSourceDataLastUpdated } from '../../../data-marts/dto/schemas/source-data-last-updated.schema';
 
+/**
+ * What the caller is told when totals failed. Deliberately constant: the raw warehouse message
+ * quotes SQL, table and column names, and sometimes a filter value, and none of that helps a
+ * model decide what to do next — which is simply "do not sum the rows yourself".
+ */
+const TOTALS_UNAVAILABLE_MESSAGE =
+  'Totals could not be computed for this query. Do not substitute a total summed from the returned rows — they are only the returned page.';
+
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
   readonly name = 'query_data_mart';
@@ -261,7 +269,12 @@ If truncated is true, not all matching rows were returned: narrow the query (few
             ...(source.note ? { note: source.note } : {}),
           })),
         },
-        ...(res.totalsError ? { totals_error: res.totalsError } : {}),
+        // The FACT of the failure is what the caller must act on — it tells the model not to sum
+        // the returned page — and the raw storage message is not needed for that. Forwarding it
+        // would break the same rule the failure path below states in full: a warehouse error
+        // routinely quotes the SQL, table and column names, and sometimes a filter value. The
+        // reason is logged and recorded in Run History, where it belongs.
+        ...(res.totalsError ? { totals_error: TOTALS_UNAVAILABLE_MESSAGE } : {}),
         source: {
           data_mart: {
             id: res.dataMart.id,
