@@ -24,7 +24,12 @@ describe('ReportSqlComposerService', () => {
     }) as unknown as Report;
 
   const createService = (
-    decision: { needsBlending: boolean; blendedSql?: string; columnFilter?: string[] },
+    decision: {
+      needsBlending: boolean;
+      blendedSql?: string;
+      columnFilter?: string[];
+      blendedDataHeaders?: ReportDataHeader[];
+    },
     builtSql = 'SELECT built FROM dm',
     capabilitySupported = true
   ) => {
