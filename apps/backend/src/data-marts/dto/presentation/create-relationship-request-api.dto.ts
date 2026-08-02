@@ -13,15 +13,28 @@ import { ALIAS_SEGMENT_ERROR, ALIAS_SEGMENT_REGEX } from '../schemas/blended-fie
 
 const TARGET_ALIAS_MESSAGE = `targetAlias ${ALIAS_SEGMENT_ERROR}`;
 
+/**
+ * A join key must be a TOP-LEVEL column. A dotted path (`address.city`) is rejected because the
+ * blended query cannot express it: a joined Data Mart is collapsed to one row per join key by a
+ * CTE that projects the key as `SELECT address.city … GROUP BY address.city`, which every engine
+ * names after the LAST segment — so the CTE exposes `city`, while every reference to it is built
+ * as `<cte>.address.city`. It never resolved; it was simply accepted and failed at the warehouse.
+ */
+const JOIN_FIELD_PATTERN = /^[^.]+$/;
+const JOIN_FIELD_MESSAGE =
+  'must be a top-level column name — a nested path (containing ".") cannot be used as a join key';
+
 export class JoinConditionApiDto {
   @ApiProperty({ example: 'user_id', description: 'Field name in the source data mart' })
   @IsString()
   @MinLength(1)
+  @Matches(JOIN_FIELD_PATTERN, { message: `sourceFieldName ${JOIN_FIELD_MESSAGE}` })
   sourceFieldName: string;
 
   @ApiProperty({ example: 'user_id', description: 'Field name in the target data mart' })
   @IsString()
   @MinLength(1)
+  @Matches(JOIN_FIELD_PATTERN, { message: `targetFieldName ${JOIN_FIELD_MESSAGE}` })
   targetFieldName: string;
 }
 
@@ -49,6 +62,9 @@ export class CreateRelationshipRequestApiDto {
     type: [JoinConditionApiDto],
     description: 'Conditions used to join the data marts',
   })
+  // Deliberately NOT @ArrayMinSize(1): an empty array is a supported DRAFT state (see
+  // join-condition.schema.spec). A draft relationship pulled into a blended query is caught at
+  // build time instead, with a message naming it.
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => JoinConditionApiDto)

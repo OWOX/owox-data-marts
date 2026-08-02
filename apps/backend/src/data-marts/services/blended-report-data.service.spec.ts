@@ -1678,6 +1678,80 @@ describe('BlendedReportDataService', () => {
         expect(chain.blendedFields[0].isHidden).toBe(true);
       });
 
+      // A Totals plan projects ONLY metrics and carries no HAVING in filterConfig — its dimensions
+      // and metric filters live in `groupRestriction`. The emitted SQL still references
+      // them, so they must count as referenced columns here: otherwise a joined restriction
+      // dimension never reaches the chain builder, its qualifier falls back to `main."<alias>"`
+      // (unrecognized name), and a plan whose only blended reference was that dimension is routed
+      // to the flat builder altogether.
+      it('extends the join chain for a blended dimension referenced only by groupRestriction', async () => {
+        const report = {
+          ...makeReport({ columnConfig: ['main_a'] }),
+          groupRestriction: {
+            dimensions: ['blended_b'],
+            having: [{ column: 'main_a', function: 'SUM', operator: 'gt', value: 1 }],
+          },
+        } as unknown as Report;
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_b';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'b';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'target_alias',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Target DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName
+          .mockResolvedValueOnce('`project.dataset.main_table`')
+          .mockResolvedValueOnce('`project.dataset.target_table`');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.chains).toHaveLength(1);
+        expect(context!.chains[0].blendedFields[0].outputAlias).toBe('blended_b');
+        // ...and the restriction itself reaches the builder, or there is nothing to join on.
+        expect(context!.groupRestriction?.dimensions).toEqual(['blended_b']);
+      });
+
       it('does not include blended chain if filterConfig references only a native column', async () => {
         const columnConfig = ['main_a'];
         const report = makeReport({

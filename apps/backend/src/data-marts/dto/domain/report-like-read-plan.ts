@@ -2,6 +2,7 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { Report } from '../../entities/report.entity';
 import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 import { FilterConfig } from '../schemas/filter-config.schema';
+import { GroupRestriction } from './group-restriction';
 import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
@@ -16,6 +17,12 @@ export interface ReportLikeReadPlan {
   sortConfig?: SortConfig;
   limitConfig?: number | null;
   aggregationConfig?: AggregationConfig;
+  /**
+   * Totals only: restrict the query to rows of the groups the report's metric (HAVING) filters
+   * keep. Totals have no GROUP BY, so those filters cannot apply there directly — see
+   * `ReportSqlComposerService.composeTotals`.
+   */
+  groupRestriction?: GroupRestriction;
   dateTruncConfig?: DateTruncConfig;
   uniqueCountConfig?: UniqueCountConfig;
   /**

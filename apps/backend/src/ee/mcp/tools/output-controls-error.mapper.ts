@@ -32,6 +32,7 @@ const RECOGNIZED_CODES = new Set([
   'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART',
   'AGGREGATION_REQUIRES_COLUMN_CONFIG',
   'HAVING_FILTER_NOT_AGGREGATED',
+  'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
   'INVALID_OPERATOR_FOR_TYPE',
   ...NOT_SELECTED_CODES,
   ...AGG_NOT_ALLOWED_CODES,
@@ -138,6 +139,24 @@ export function translateOutputControlsError(
     sections.push({
       code: 'having_filter_not_aggregated',
       message: `This report carries a stored post-aggregation (HAVING) constraint${rules ? ` on ${rules}` : ''} whose aggregation is no longer configured. It was created in the OWOX UI and cannot be expressed over MCP. Either re-add the matching aggregation, or pass filters: [] to clear the stored constraint together with the row filters, then re-apply the filters you want.`,
+    });
+  }
+
+  // A HAVING constraint on a joined COUNT DISTINCT / SUM / AVG: those metrics are
+  // computed in a separate "sleeve" pass, which HAVING is not routed through yet, so the
+  // combination is rejected rather than filtered on a stale value. This fires on reports that
+  // ran fine before, and for an agent this text is the only recovery signal — name the rule and
+  // both ways out.
+  const sleeveHaving =
+    errors?.filter(e => e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED') ?? [];
+  if (sleeveHaving.length > 0) {
+    const rules = sleeveHaving
+      .map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
+      .filter(Boolean)
+      .join(', ');
+    sections.push({
+      code: 'having_on_joined_metric_not_supported',
+      message: `A metric (HAVING) constraint${rules ? ` on ${rules}` : ''} targets a metric of a JOINED Data Mart (COUNT DISTINCT, SUM or AVG), which is computed at the report's own grain and cannot be filtered on yet. Filter on a column of the main Data Mart, or on a different metric, instead. If this constraint is stored on the report, pass filters: [] to clear it together with the row filters, then re-apply the ones you want.`,
     });
   }
 

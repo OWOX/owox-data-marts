@@ -46,7 +46,10 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade as never,
       tableReferenceService as never,
       capabilityService as never,
-      blendableSchemaService as never
+      blendableSchemaService as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
 
     return {
@@ -179,7 +182,10 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade as never,
       tableReferenceService as never,
       capabilityService as never,
-      blendableSchemaService as never
+      blendableSchemaService as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const filterConfig = [{ column: 'a', operator: 'eq', value: 1 }];
     const sortConfig = [{ column: 'a', direction: 'asc' }];
@@ -227,7 +233,10 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade as never,
       tableReferenceService as never,
       capabilityService as never,
-      blendableSchemaService as never
+      blendableSchemaService as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const filterConfig = [
       {
@@ -279,7 +288,10 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade as never,
       tableReferenceService as never,
       capabilityService as never,
-      blendableSchemaService as never
+      blendableSchemaService as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const report = {
       dataMart: {
@@ -307,7 +319,10 @@ describe('ReportSqlComposerService', () => {
       {} as never,
       {} as never,
       { isSupported: jest.fn() } as never,
-      { computeBlendableSchema: jest.fn() } as never
+      { computeBlendableSchema: jest.fn() } as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const result = await composer.compose(
       {
@@ -458,7 +473,10 @@ describe('ReportSqlComposerService', () => {
         facade as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
     }
 
@@ -573,7 +591,10 @@ describe('ReportSqlComposerService', () => {
         queryBuilderFacade as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
     }
 
@@ -676,7 +697,10 @@ describe('ReportSqlComposerService', () => {
         queryBuilderFacade as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
 
       await expect(
@@ -721,7 +745,10 @@ describe('ReportSqlComposerService', () => {
         facade as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
     }
 
@@ -813,7 +840,10 @@ describe('ReportSqlComposerService', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never
+      {} as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
 
     it('returns SQL unchanged when there are no params', () => {
@@ -879,7 +909,10 @@ describe('ReportSqlComposerService', () => {
         queryBuilderFacade as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
       const report = {
         filterConfig: [{ column: 'name', operator: 'eq', value: "O'Brien" }],
@@ -915,7 +948,10 @@ describe('ReportSqlComposerService', () => {
         queryBuilderFacade as never,
         { resolveTableName: jest.fn().mockResolvedValue('p.d.t') } as never,
         { isSupported: jest.fn().mockReturnValue(true) } as never,
-        { computeBlendableSchema: jest.fn() } as never
+        { computeBlendableSchema: jest.fn() } as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
       const report = {
         filterConfig: [{ column: 'd', operator: 'gte', value: '2024-01-01' }],
@@ -944,7 +980,10 @@ describe('ReportSqlComposerService', () => {
         queryBuilderFacade as never,
         { resolveTableName: jest.fn() } as never,
         { isSupported: jest.fn().mockReturnValue(true) } as never,
-        { computeBlendableSchema: jest.fn() } as never
+        { computeBlendableSchema: jest.fn() } as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
       const report = {
         dataMart: {

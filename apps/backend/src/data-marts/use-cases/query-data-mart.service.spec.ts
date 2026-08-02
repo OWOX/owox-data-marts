@@ -172,6 +172,49 @@ describe('QueryDataMartService', () => {
     expect(reader.finalize).toHaveBeenCalledTimes(1);
   });
 
+  // Totals are best-effort so a failure never costs the caller its rows — but a null with no
+  // reason is indistinguishable from "this report has no totals", which invites summing the
+  // returned page instead (wrong for any non-additive metric). The whole reporting chain
+  // (service -> facade -> MCP tool -> run metadata) had no assertion anywhere.
+  it('reports WHY totals are missing instead of silently returning null', async () => {
+    const { service, reportTotalsService } = createService();
+    reportTotalsService.computeTotals.mockRejectedValue(new Error('sleeve exploded'));
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+
+    // The rows still arrive — degrading, not failing.
+    expect(result.rows).toHaveLength(2);
+    expect(result.totals).toBeNull();
+    expect(result.totalsError).toContain('sleeve exploded');
+  });
+
+  it('leaves totalsError unset when totals are simply not applicable', async () => {
+    const { service } = createService();
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+
+    expect(result.totals).toBeNull();
+    expect(result.totalsError).toBeUndefined();
+  });
+
   it('threads the request sortConfig into the composed read plan', async () => {
     const { service, composer } = createService();
 

@@ -1,6 +1,7 @@
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
+import { GroupRestriction } from '../../dto/domain/group-restriction';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
@@ -65,6 +66,13 @@ export interface DataMartQueryOptions {
    * DataMartTableReferenceService) instead of wrapping the user SQL.
    */
   mainTableReference?: string;
+
+  /**
+   * Totals only: restrict the query to the rows of the groups the report's metric (HAVING)
+   * filters keep. A Totals query has no GROUP BY, so those filters cannot apply directly —
+   * see `SqlClauseRenderer.renderKeptGroupsJoin`.
+   */
+  groupRestriction?: GroupRestriction;
 
   /**
    * Column name → storage field type. Positional dialects (Athena) use it to cast

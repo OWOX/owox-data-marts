@@ -17,6 +17,22 @@ export const NUMBER_TYPES = new Set([
   'BIGNUMERIC',
   'DECIMAL',
 ]);
+/**
+ * The subset of NUMBER_TYPES that is IEEE-754 and can therefore hold NaN. Exact types
+ * (NUMERIC/DECIMAL) cannot, so a join on them needs no NaN handling.
+ */
+export const FLOATING_POINT_TYPES = new Set([
+  'FLOAT',
+  'FLOAT64',
+  'REAL',
+  'DOUBLE',
+  'DOUBLE PRECISION',
+]);
+
+export function isFloatingPointType(fieldType: string | undefined): boolean {
+  return fieldType !== undefined && FLOATING_POINT_TYPES.has(fieldType.toUpperCase());
+}
+
 export const DATE_TYPES = new Set([
   'DATE',
   'DATETIME',

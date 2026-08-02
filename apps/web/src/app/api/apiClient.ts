@@ -122,6 +122,23 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 400 && !skipErrorToast) {
       showApiErrorToast(error, 'Bad request');
     }
+
+    // A 5xx used to show the user NOTHING: only 400/403/404 were toasted, and the backend
+    // deliberately sends no `message` for a non-HTTP exception (it could carry SQL or internals),
+    // so a failed action just looked like it did nothing. Report the failure and the request id —
+    // that id is the only handle support has to find the matching server log.
+    const status = error.response?.status;
+    if (status !== undefined && status >= 500 && !skipErrorToast) {
+      const requestId = (error.response?.data as { requestId?: string } | undefined)?.requestId;
+      // Passing `undefined` rather than the error on purpose: the server body carries no usable
+      // message for a 5xx, and forwarding it risks surfacing an internal one if that ever changes.
+      showApiErrorToast(
+        undefined,
+        requestId
+          ? `Something went wrong on our side. Request id: ${requestId}`
+          : 'Something went wrong on our side. Please try again'
+      );
+    }
     return Promise.reject(error);
   }
 );

@@ -82,6 +82,12 @@ export class BlendedReportDataService {
     }
     const sortColumns = (report.sortConfig ?? []).map(s => s.column);
     const hasPreJoinFilters = preJoinFilterColumns.length > 0;
+    // Totals only — a persisted `Report` never carries a restriction (see composeTotals).
+    const groupRestriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
+    const restrictionColumns = [
+      ...(groupRestriction?.dimensions ?? []),
+      ...(groupRestriction?.having ?? []).map(rule => rule.column),
+    ];
 
     if (columnConfig === null || columnConfig === undefined) {
       // Without an explicit column config the native projection is "all native
@@ -139,6 +145,14 @@ export class BlendedReportDataService {
       ...columnConfig,
       ...postJoinFilterColumns,
       ...sortColumns,
+      // A Totals plan projects only metrics and carries no HAVING in `filterConfig` — its
+      // dimensions and metric filters live in `groupRestriction` instead. They are
+      // nonetheless referenced by the emitted SQL, so they must count as referenced here too:
+      // otherwise a JOINED restriction dimension never reaches `buildRelationshipChains`, its
+      // qualifier falls back to `main."<alias>"` (unrecognized name), its source is never
+      // access-checked, and a report whose ONLY blended reference was that dimension is routed
+      // to the flat builder altogether.
+      ...restrictionColumns,
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
@@ -210,6 +224,7 @@ export class BlendedReportDataService {
         primaryKeyColumns: pkFields.map(f => f.name),
         columnTypes: this.buildBlendedColumnTypes(blendableSchema),
         fieldIndex,
+        groupRestriction,
       }
     );
     const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;

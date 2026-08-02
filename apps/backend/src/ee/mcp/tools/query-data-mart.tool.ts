@@ -132,6 +132,12 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         )
         .describe('Per-table detail behind the value. Views are excluded deliberately.'),
     }),
+    totals_error: z
+      .string()
+      .optional()
+      .describe(
+        'Present only when totals were requested but FAILED. Totals are null in that case for a reason, not because the report has none — do not substitute a total summed from the returned rows.'
+      ),
     source: z.object({
       data_mart: z.object({
         id: z.string(),
@@ -141,7 +147,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
     }),
     calculation_origin: z.object({
       rows: z.literal('taken_from_owox'),
-      totals: z.enum(['calculated_by_owox', 'not_available']),
+      totals: z.enum(['calculated_by_owox', 'not_available', 'failed']),
       data_last_updated: z.enum(['measured_by_owox', 'not_available']),
     }),
     _instruction: z.string(),
@@ -217,7 +223,9 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const isTruncated = truncationReasons.length > 0;
       const totalsKeyInstruction = res.totals
         ? ' Totals keys are technical output names; match them to column_metadata[].name, not to display labels.'
-        : '';
+        : res.totalsError
+          ? ' Totals could not be computed for this query (see totals_error). Say so; do NOT present a total summed from the returned rows as an OWOX total.'
+          : '';
       // This block is auxiliary metadata: a query that produced rows must still answer even if it
       // is missing, so an absent block degrades to "unavailable" rather than failing the call.
       const dataLastUpdated = res.dataLastUpdated ?? unavailableSourceDataLastUpdated();
@@ -253,6 +261,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
             ...(source.note ? { note: source.note } : {}),
           })),
         },
+        ...(res.totalsError ? { totals_error: res.totalsError } : {}),
         source: {
           data_mart: {
             id: res.dataMart.id,
@@ -265,7 +274,11 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         },
         calculation_origin: {
           rows: 'taken_from_owox' as const,
-          totals: res.totals ? ('calculated_by_owox' as const) : ('not_available' as const),
+          totals: res.totals
+            ? ('calculated_by_owox' as const)
+            : res.totalsError
+              ? ('failed' as const)
+              : ('not_available' as const),
           data_last_updated: dataLastUpdated.dataLastUpdatedAt
             ? ('measured_by_owox' as const)
             : ('not_available' as const),
@@ -361,6 +374,19 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         'field_not_found',
         `Unknown field(s) in this data mart: ${cols}. Call get_data_mart_details_by_id to get this data mart's exact field names (including joined/blended fields) and copy them verbatim into "fields"; never guess or invent field names.`
       );
+    }
+
+    if (err instanceof BusinessViolationException) {
+      // A name the query engine reserves for its own aliases. The field exists and the query is
+      // well-formed, so neither a schema re-fetch nor a query rewrite fixes it — only a rename
+      // in the Data Mart does; without naming the field the caller cannot act at all.
+      const reservedNameColumns = err.errorDetails?.['reservedNameColumns'] as string[] | undefined;
+      if (reservedNameColumns?.length) {
+        return toStructuredToolError(
+          'field_name_reserved',
+          `Field(s) ${reservedNameColumns.join(', ')} collide with a name reserved by the OWOX query engine, so they cannot be used as a selected or grouped column. Rename the field (or its output alias) in the Data Mart and retry; until that is done, the only way to get results is to drop these field(s) from "fields". The name(s) do exist in this data mart, so do not re-fetch the schema.`
+        );
+      }
     }
 
     // Generic denial — the raw message leaks the caller's identity and hidden data-mart titles.

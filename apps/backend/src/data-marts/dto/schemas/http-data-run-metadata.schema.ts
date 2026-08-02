@@ -28,8 +28,14 @@ export const HttpDataRunMetadataSchema = z.object({
   // Grand-total row keyed by output-column name: one scalar per selected metric aggregated over the
   // full result (every selected numeric field, plus non-numeric fields eligible for Count/Count Unique).
   // Computed as a SEPARATE best-effort query at run time whenever the result has an eligible metric —
-  // NOT limited to explicitly aggregated reports. Omitted when nothing is eligible or the query fails.
+  // NOT limited to explicitly aggregated reports. Omitted when nothing is eligible, or when the
+  // totals query failed — in which case `totalsError` says so.
   totals: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
+  // Why totals are absent, when the cause was a FAILURE rather than "nothing eligible". Totals are
+  // best-effort so their failure never costs the run its rows, but an unexplained absence is
+  // indistinguishable from a report that has no totals — and this is the only record of the run
+  // anyone can inspect afterwards.
+  totalsError: z.string().optional(),
   // Fully-composed executed SQL (output controls inlined as literals). Present only for the
   // report-level HTTP Data endpoint, and only when output controls / blending produced an override.
   executionSqlQuery: z.string().optional(),

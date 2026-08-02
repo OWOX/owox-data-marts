@@ -14,7 +14,6 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
-import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { AthenaClauseRenderer } from './athena-clause-renderer';
 import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
@@ -64,33 +63,25 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
     if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
-      const agg = this.clauseRenderer.renderAggregatedSelect(
-        queryOptions?.columns ?? [],
+      return this.clauseRenderer.renderAggregatedQuery({
+        fromClause,
+        columns: queryOptions?.columns ?? [],
         aggregations,
-        buildDateTruncUnitMap(dateTruncs),
-        {
-          includeRowCount: rowCount,
-          includeUniqueCount: uniqueCount,
-          primaryKeyColumns: queryOptions?.primaryKeyColumns,
-          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
-          typeByColumn: columnTypes,
-        }
-      );
-      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
-      const aggOrderBy = this.clauseRenderer.renderOrderBy(
-        queryOptions?.sort ?? [],
-        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
-      );
-      const having = this.clauseRenderer.renderHaving(
-        queryOptions?.filters ?? [],
-        undefined,
-        'h',
-        resolveColumnType
-      );
-      return {
-        sql: `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`,
-        params: [...where.params, ...having.params, ...aggOrderBy.params, ...limit.params],
-      };
+        dateTruncs,
+        filters: queryOptions?.filters ?? [],
+        sort: queryOptions?.sort ?? [],
+        limit: queryOptions?.limit ?? null,
+        rowCount,
+        uniqueCount,
+        primaryKeyColumns: queryOptions?.primaryKeyColumns,
+        groupRestriction: queryOptions?.groupRestriction,
+        // Bare column names: the FROM is not aliased. The restriction subquery projects private
+        // key aliases, so nothing it exposes can make an outer reference ambiguous.
+        qualifyColumn: undefined,
+        qualifyProjection: undefined,
+        typeByColumn: columnTypes,
+        resolveColumnType,
+      });
     }
 
     return {

@@ -21,6 +21,8 @@ export class DatabricksBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   // identifier case-sensitive — so the base's bare return for simple
   // names is safe; no quoteIdentifier override needed.
   protected buildStringAgg(fieldName: string): string {
-    return `CONCAT_WS(', ', COLLECT_LIST(CAST(${fieldName} AS STRING)))`;
+    // SORT_ARRAY keeps the roll-up deterministic across the dedup CTE's two references
+    // (outer query + metric sleeve); COLLECT_LIST alone has no defined order.
+    return `CONCAT_WS(', ', SORT_ARRAY(COLLECT_LIST(CAST(${fieldName} AS STRING))))`;
   }
 }

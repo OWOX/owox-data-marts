@@ -97,6 +97,14 @@ export interface McpQueryDataMartResponse {
    * `coverage: 'unavailable'` with a null timestamp is a normal outcome, not a failure.
    */
   dataLastUpdated: SourceDataLastUpdated;
+  /**
+   * Why `totals` is null, when the reason is a FAILURE rather than "this report has no totals
+   * metric". Totals are computed best-effort so a failure never costs the caller its rows — but
+   * silently dropping them reads as "this report has no totals", and the caller then either
+   * reports no total or sums the page itself (wrong for any non-additive metric). Naming the
+   * failure is what makes that distinguishable.
+   */
+  totalsError?: string;
   dataMart: {
     id: string;
     title: string;
