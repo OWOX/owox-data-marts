@@ -45,6 +45,53 @@ function responseBodyMessage(structured: unknown): string | undefined {
   return undefined;
 }
 
+/** Header used when the body carries a constraint list instead of a written sentence. */
+const VALIDATION_FAILED_MESSAGE = 'Request validation failed';
+
+/**
+ * The per-constraint reasons NestJS's `ValidationPipe` puts in the body's `message` as a string
+ * ARRAY — one entry per failed class-validator rule ("title must be a string", "property foo
+ * should not exist").
+ *
+ * `responseBodyMessage` only accepts a string, so that array used to fall through to
+ * `exception.message`, which `HttpException` derives from the class name whenever the body's
+ * message is not a string — the literal "Bad Request Exception". Every reason was dropped before
+ * the response left the process, and the caller was told only that something was wrong.
+ */
+function validationConstraints(structured: unknown): string[] | undefined {
+  if (!structured || typeof structured !== 'object' || Array.isArray(structured)) return undefined;
+  const msg = (structured as Record<string, unknown>).message;
+  if (!Array.isArray(msg)) return undefined;
+  const constraints = msg
+    .filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
+    .map(asSentence);
+  return constraints.length > 0 ? constraints : undefined;
+}
+
+/**
+ * class-validator writes bare clauses ("title must be a string"). The interface concatenates the
+ * entries of one `details.errors` list into a single line, so without terminal punctuation two
+ * constraints run together into one unreadable sentence.
+ */
+function asSentence(constraint: string): string {
+  const text = constraint.trim();
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+/**
+ * Whether the body already carries its own `details` envelope — a caller that built one
+ * deliberately (the output-controls validator, the Zod mappers) owns it, and its structured codes
+ * are richer than anything reconstructed from sentences.
+ */
+function hasOwnDetails(structured: unknown): boolean {
+  return (
+    !!structured &&
+    typeof structured === 'object' &&
+    !Array.isArray(structured) &&
+    (structured as Record<string, unknown>).details !== undefined
+  );
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -61,6 +108,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const structured =
       isHttp && typeof exception.getResponse === 'function' ? exception.getResponse() : undefined;
+    const constraints = validationConstraints(structured);
     const responseBody: Record<string, unknown> = {
       ...(structured && typeof structured === 'object' && !Array.isArray(structured)
         ? (structured as Record<string, unknown>)
@@ -68,7 +116,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message:
         responseBodyMessage(structured) ??
+        (constraints ? VALIDATION_FAILED_MESSAGE : undefined) ??
         (isHttp && exception instanceof Error ? exception.message : undefined),
+      // The constraints travel STRUCTURED rather than folded into `message`: `message` is a string
+      // for every other error this filter emits and callers call string methods on it directly, and
+      // `details.errors[]` is the envelope the interface already renders — capped and de-duplicated
+      // — for the output-controls validator, so a DTO failing twenty rules cannot wall off a toast.
+      ...(constraints && !hasOwnDetails(structured)
+        ? { details: { errors: constraints.map(message => ({ message })) } }
+        : {}),
       timestamp: new Date().toISOString(),
       path: request?.originalUrl || request?.url,
       requestId: (request?.headers?.['x-request-id'] as string) || undefined,
