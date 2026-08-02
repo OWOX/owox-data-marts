@@ -584,13 +584,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       .join('.');
   }
 
-  /**
-   * Accepts the FULL report function union, not just the pre-join `AggregateFunction` set: a
-   * metric sleeve computes a joined percentile inside its own CTE, and the percentile spelling is
-   * genuinely per-warehouse. Rather than teach every dialect's builder a second percentile
-   * override, that one case is delegated to the clause renderer — the same expression the flat
-   * (non-blended) aggregated SELECT emits for the same function.
-   */
+  // Percentiles are delegated to the clause renderer rather than given a second per-dialect
+  // override, so the blended and flat paths cannot spell them differently.
   protected buildAggregation(
     aggregateFunction: ReportAggregateFunction,
     fieldName: string
@@ -598,8 +593,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     if (isPercentileFunction(aggregateFunction)) {
       const renderer = this.clauseRenderer;
       if (!renderer) {
-        // Unreachable through `buildBlendedQuery` (its capability guard rejects a rendererless
-        // dialect first). Silently falling back to `P50(x)` would emit SQL no engine accepts.
         throw new Error(
           `buildAggregation: ${aggregateFunction} needs a clause renderer to spell the ` +
             `percentile for this storage, and none is registered`

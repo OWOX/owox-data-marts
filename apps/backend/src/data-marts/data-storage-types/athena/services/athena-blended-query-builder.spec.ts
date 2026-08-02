@@ -279,8 +279,6 @@ describe('AthenaBlendedQueryBuilder — row surrogate (__owox_rid) for value-sle
     });
     const fieldIndex = buildBlendedFieldIndex({
       blendedFields: [
-        // DECIMAL on purpose: this is the type approx_percentile refuses, and the one the
-        // aggregation menu happily offers percentiles for.
         {
           name: 'orders__amount',
           aliasPath: 'orders',
@@ -298,7 +296,6 @@ describe('AthenaBlendedQueryBuilder — row surrogate (__owox_rid) for value-sle
     });
     const s = sql.replace(/\s+/g, ' ');
 
-    // Athena leaves safe identifiers unquoted, so the deduped slot reads bare.
     expect(s).toContain('APPROX_PERCENTILE(CAST(_val AS DOUBLE), 0.95) AS "orders__amount | P95"');
     expect(s).toContain('orders_raw.amount AS _val');
     expect(s).toContain('arbitrary(sleeve_orders__amount."orders__amount | P95")');

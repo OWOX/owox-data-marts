@@ -84,24 +84,13 @@ export class MetricSleeveBuilder {
     // COUNT_DISTINCT sleeves stay ONE-CTE-PER-METRIC — their single-level
     // `COUNT(DISTINCT col)` dedup shape differs from a value sleeve's nested
     // DISTINCT-then-aggregate form, so they never merge with a value sleeve.
-    //
-    // Both splits read the SHAPE off `SLEEVE_ROUTING` rather than re-listing functions here:
-    // the routing table and this branching were two copies of one decision, and the copy that
-    // lagged (this one) would drop the newly-routed metric from the query with no SELECT item
-    // for its header to bind to.
     const countDistinctSleeveMetrics = sleeveMetrics.filter(
       m => sleeveShapeFor(m.function) === 'count-distinct'
     );
-    // Value sleeves that share the SAME owner chain + dimensions merge into ONE dedup pass:
-    // e.g. a Totals report auto-requesting SUM AND AVG for one numeric joined field used to
-    // emit two identical `SELECT DISTINCT dims, __owox_rid, value` subqueries — now it emits
-    // one, with several outer aggregates read off it.
+    // Value sleeves sharing the SAME owner chain + dimensions merge into ONE dedup pass.
     const valueSleeveMetrics = sleeveMetrics.filter(m => sleeveShapeFor(m.function) === 'value');
-    // Still asserted even though the split is now derived: `sleeveMetrics` is `AggregationRule[]`
-    // and a caller could hand over a metric this builder was never meant to see. Such a metric
-    // would silently vanish — `sleeveMetricKeys` (below) still excludes it from the normal
-    // aggregated SELECT, but no sleeve CTE is ever built for it, so its header column resolves to
-    // nothing (NULL column / hard SQL error).
+    // A metric with no shape would vanish silently: excluded from the aggregated SELECT, yet no
+    // sleeve CTE built for it, so its header binds to nothing.
     const routedSleeveMetrics = countDistinctSleeveMetrics.length + valueSleeveMetrics.length;
     if (routedSleeveMetrics !== sleeveMetrics.length) {
       const unhandled = sleeveMetrics.filter(m => sleeveShapeFor(m.function) === null);
@@ -461,20 +450,9 @@ export class MetricSleeveBuilder {
       });
     });
 
-    // Owner identity leg of the inner `SELECT DISTINCT`, in three forms:
-    //
-    // - identity field WITH a declared primary key on the joined mart: that key. Two raw rows
-    //   agreeing on the key AND on the value are the same row counted twice by the join, so they
-    //   collapse; two rows agreeing on the key but NOT the value stay separate, so contradictory
-    //   data is never silently resolved to one of its versions.
-    // - identity field with NO declared key: the per-raw-row surrogate (`__owox_rid`, C2.1) —
-    //   with nothing to tell rows apart, each raw row must count separately.
-    // - non-identity field: the pre-join GROUP KEY itself (the owner dedup CTE's own `GROUP BY`
-    //   key) — that CTE is already ONE row per key, so the key IS the identity, and a declared
-    //   key on the joined mart is irrelevant to it.
-    //
-    // A composite key gets one `_oid_<i>` slot per column; a single one keeps the bare `_oid`.
-    // Both identity-field forms also carry the parent join key as `_oid_key_<i>`.
+    // Owner identity leg of the inner `SELECT DISTINCT`: the joined mart's declared key, else a
+    // per-raw-row surrogate, else — for a non-identity field — the owner dedup CTE's own group
+    // key, which is already one row per key.
     let oidItems: string[];
     let oidAliasNames: string[];
     // The identity leg IS the dedup key: with no join conditions there is nothing to identify a
@@ -493,19 +471,14 @@ export class MetricSleeveBuilder {
       );
     }
     const rawOwnerAlias = this.dialect.quoteIdentifier(`${group.ownerCteName}_raw`);
-    // Resolved from the chain by the SAME function the raw-CTE builder used to decide what to
-    // project — a second opinion here would dedup on a column the source CTE never emitted.
+    // Same resolver the raw-CTE builder used to decide what to project.
     const ownerIdentity = valueSleeveIdentityFor(ownerChain);
     if (isIdentity && ownerIdentity.kind === 'primary-key') {
       const pkRefs = ownerIdentity.columns.map(
         c => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(c)}`
       );
-      // The parent join key rides along, exactly as it does for the surrogate below. A key that
-      // really is unique across the joined mart functionally determines that join key, so the
-      // extra column cannot split a genuine duplicate and costs nothing. What it DOES rescue is
-      // a key declared unique only WITHIN the join key — `line_no` per order is the common
-      // shape, and it is indistinguishable from a correct declaration — where `line 1` of two
-      // different orders carrying the same value would otherwise collapse into one row.
+      // Rescues a key declared unique only WITHIN the join key (`line_no` per order), which is
+      // indistinguishable from a correct declaration. A real key determines the join key anyway.
       const partitionKeyRefs = ownerChain.relationship.joinConditions.map(
         jc => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(jc.targetFieldName)}`
       );
@@ -619,9 +592,6 @@ export class MetricSleeveBuilder {
     );
     const pulls: { metric: AggregationRule; alias: string }[] = [];
     const outerAggItems = group.metrics.map(m => {
-      // Runtime narrowing (mirrors the class's fail-loud style elsewhere): a value-sleeve group
-      // must only ever contain functions SLEEVE_ROUTING gives the `value` shape —
-      // `groupValueSleeveMetrics` is only fed that pre-filtered subset, but
       // `ValueSleeveGroup.metrics` is typed as the broader `AggregationRule[]`.
       if (!VALUE_SLEEVE_FUNCTIONS.has(m.function)) {
         throw new Error(

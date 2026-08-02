@@ -88,13 +88,7 @@ export class ReportSqlComposerService {
   ): Promise<{
     sql: string;
     params?: SqlParameter[];
-    /**
-     * Base-typed headers for the JOINED columns, which are absent from the native schema and so
-     * cannot be resolved by the reader. Returned alongside the SQL because this method already
-     * resolves the blending decision that carries them: a caller that needs them otherwise has to
-     * resolve the decision a second time just to reach `blendedDataHeaders`, and one that forgets
-     * silently emits untyped columns instead of failing.
-     */
+    /** Types for the JOINED columns, which the reader cannot resolve from the native schema. */
     blendedDataHeaders?: ReportDataHeader[];
   }> {
     const decision =

@@ -380,10 +380,6 @@ export class BlendedReportDataService {
         blendedFields: chainBlendedFields,
         targetDataMartTitle: rel.targetDataMart.title,
         targetDataMartUrl,
-        // Lets a value sleeve de-duplicate this joined mart's rows by its OWN declared key
-        // instead of a synthetic per-row surrogate. All-or-nothing by construction — see
-        // `collectPrimaryKeyRowIdentity`: de-duplicating by PART of a composite key merges rows
-        // the key itself keeps distinct.
         targetPrimaryKeyFields: collectPrimaryKeyRowIdentity(
           rel.targetDataMart.schema?.fields ?? []
         ),

@@ -5,8 +5,6 @@ import { UNIQUE_COUNT_LABEL } from '../../../dto/schemas/aggregation-labels';
 describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () => {
   const r = new AthenaClauseRenderer();
 
-  // The CAST is load-bearing, not cosmetic: Trino's approx_percentile accepts only
-  // bigint/double/real, while percentiles are offered for every numeric type (DECIMAL included).
   it('P50 metric with one dimension produces APPROX_PERCENTILE with fraction 0.5', () => {
     const out = r.renderAggregatedSelect(
       ['channel', 'price'],

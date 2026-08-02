@@ -2882,7 +2882,6 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
       { column: 'revenue', function: 'SUM' }, // main (non-blended) column -> not an owner
     ] as AggregationRule[];
 
-    // No declared key on the joined mart, so the owner falls back to the synthetic surrogate.
     expect(collectValueSleeveOwners(aggs, outputAliasToRoot, context)).toEqual(
       new Map([['organizations', { kind: 'row-surrogate' }]])
     );
@@ -2964,12 +2963,7 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     const { sql } = builder.buildBlendedQuery(ctx);
 
     const orgsRaw = normalizeSql(extractCteBody(sql, 'organizations_raw'));
-    // A key column is frequently referenced by nothing else — neither a join key nor a selected
-    // field — so the raw CTE has to be told to project it, or the sleeve dedups on a column that
-    // is not in scope.
     expect(orgsRaw).toContain('orgKey');
-    // And the surrogate window is not merely unused, it is not computed: a ROW_NUMBER() over a
-    // large joined mart is real work.
     expect(orgsRaw).not.toContain('ROW_NUMBER()');
     expect(sql).not.toContain('__owox_rid');
   });
@@ -3325,9 +3319,6 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
       const builder = new TestBlendedWithRenderer();
       const { chain, fieldIndex } = organizationsFixture();
 
-      // Simulate a future function routed through a sleeve (e.g. a MIN/MAX sleeve) before
-      // SLEEVE_ROUTING states which shape its CTE takes — this must fail loud, not silently drop
-      // the metric's SELECT item.
       (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).add('MIN');
 
       const ctx: BlendedQueryContext = {
@@ -3351,8 +3342,6 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
         aggregations: [
           { column: 'organizations__orgId', function: 'COUNT_DISTINCT' } as AggregationRule,
           { column: 'organizations__revenue', function: 'SUM' } as AggregationRule,
-          // A percentile takes the same `value` shape as SUM/AVG — the branch is derived from
-          // SLEEVE_ROUTING, so adding one needs no new builder branch.
           { column: 'organizations__revenue', function: 'P50' } as AggregationRule,
         ],
       };

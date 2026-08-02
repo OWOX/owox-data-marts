@@ -508,12 +508,9 @@ export class OutputControlsValidatorService {
       args.uniqueCountConfig === true;
 
     if (!hasOutputControls) {
-      // A projection alone is not an output control, so this method used to return here — and a
-      // report that ONLY selects columns was never checked for a duplicate output name. Two
-      // columns differing just in case, or only past 127 bytes, then persisted happily and blew
-      // up later at the Redshift reader, which folds and truncates identifiers. Uniqueness is a
-      // property of the projection by itself: no aggregations, no schema resolution, and none of
-      // the storage-capability gate below (a plain selection needs no output-controls support).
+      // Output-name uniqueness is a property of the projection alone, so it is checked even
+      // though a plain selection carries no output control — Redshift folds identifiers at read
+      // time, and a case-only pair used to persist and fail there.
       if ((args.columnConfig?.length ?? 0) > 0) {
         this.throwIfInvalid(this.validateOutputColumnNames(args.columnConfig!, [], false, false));
       }
@@ -739,7 +736,6 @@ export class OutputControlsValidatorService {
     this.throwIfInvalid(errors);
   }
 
-  /** The one rejection shape, so the projection-only pre-check and the full pass agree. */
   private throwIfInvalid(errors: ValidationError[]): void {
     if (errors.length > 0) {
       throw new BadRequestException({

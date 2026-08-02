@@ -66,10 +66,8 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
       : '?';
   }
 
-  // CAST to DOUBLE for the same reason renderStringAgg casts to VARCHAR: Trino's
-  // approx_percentile only accepts bigint/double/real, while the aggregation menu offers
-  // percentiles for every numeric type — DECIMAL/NUMERIC included. Without the cast a report
-  // that saves cleanly fails at the warehouse with an opaque signature error.
+  // Trino's approx_percentile takes only bigint/double/real, while percentiles are offered for
+  // every numeric type — DECIMAL included.
   protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
     return `APPROX_PERCENTILE(CAST(${columnRef} AS DOUBLE), ${p / 100})`;
   }

@@ -124,10 +124,7 @@ export class BlendCteBuilder {
 
     const preJoinFilters = preJoinByCte.get(alias) ?? [];
     const preJoinColumns = new Set(preJoinFilters.map(r => r.column));
-    // The row identity a value sleeve on THIS chain will dedup by, when it owns one. A declared
-    // key is projected like any other referenced column; only a keyless owner pays for the
-    // surrogate window. Resolved once here and read by both branches below, so the raw CTE
-    // cannot project one identity while the sleeve dedups on another.
+    // Only a keyless owner pays for the surrogate window.
     const valueSleeveIdentity = valueSleeveOwners?.get(alias);
     const identityColumns =
       valueSleeveIdentity?.kind === 'primary-key' ? valueSleeveIdentity.columns : [];
@@ -355,9 +352,8 @@ export class BlendCteBuilder {
     chain: ResolvedRelationshipChain,
     children: BlendTreeNode[],
     preJoinColumns: ReadonlySet<string>,
-    // The declared primary-key columns a value sleeve on this chain dedups by. Projected here
-    // because the sleeve reads them off `<alias>_raw`, and a PK is frequently not otherwise
-    // referenced — it need be neither a join key nor a selected field.
+    // A declared key is frequently referenced by nothing else — neither a join key nor a
+    // selected field — so the sleeve's dedup columns must be projected explicitly.
     identityColumns: readonly string[] = []
   ): string[] {
     const refs = new Set<string>();

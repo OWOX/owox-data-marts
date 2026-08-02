@@ -127,8 +127,6 @@ describe('ReportSqlComposerService', () => {
 
     const result = await service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] });
 
-    // Only these carry a type for a JOINED column — it is absent from the native schema, so a
-    // caller that cannot reach them emits the column untyped instead of failing.
     expect(result.blendedDataHeaders).toEqual([joinedHeader]);
   });
 

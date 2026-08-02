@@ -68,26 +68,9 @@ export function getPrimaryKeyFields(
   return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
 }
 
-/**
- * The declared primary key as a ROW IDENTITY — every component or none at all.
- *
- * `getPrimaryKeyFields` answers a different question ("which PK columns may the reporting view
- * reference"), and its answer is PRUNED: it drops `isHiddenForReporting` and DISCONNECTED
- * components. A caller that only checks whether the result is non-empty therefore cannot tell a
- * complete composite key from one component of it — and de-duplicating rows by PART of a key
- * merges rows the key itself keeps distinct, silently under-counting. That is a wrong number
- * with no error, so this returns nothing rather than something incomplete.
- *
- * `isHiddenForReporting` is deliberately NOT a reason to drop a component: hidden means absent
- * from the reporting MENU, not from the source — the column still exists and still projects, and
- * `hasUsablePrimaryKey` says as much ("a hidden PK still keys the join").
- *
- * A component makes the whole key unusable when it is DISCONNECTED (gone from the source, so it
- * cannot be projected at all) or NESTED (a dotted path is not a single projectable identifier —
- * it forces the raw CTE to `SELECT *` — and a struct member is a poor row identity anyway).
- * Disconnected subtrees are still walked, so a key component hiding inside one is SEEN and
- * disqualifies the key, instead of leaving a partial key that looks complete.
- */
+// The declared primary key as a row identity — every component or none, since de-duplicating by
+// PART of a composite key merges rows the key itself keeps distinct. Unlike getPrimaryKeyFields,
+// a hidden component still counts: hidden means off the reporting menu, not absent from the source.
 export function collectPrimaryKeyRowIdentity(fields: readonly DataMartSchemaField[]): string[] {
   const columns: string[] = [];
   let complete = true;

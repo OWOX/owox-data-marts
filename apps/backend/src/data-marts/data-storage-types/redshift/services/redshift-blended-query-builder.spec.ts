@@ -213,9 +213,6 @@ describe('RedshiftBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     });
     const s = sql.replace(/\s+/g, ' ');
 
-    // `PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...)` is a different grammar from a plain
-    // aggregate call, and it sits in the sleeve's OUTER select over the dedup subquery — the
-    // shape most likely to be mis-assembled, so it is pinned per dialect.
     expect(s).toContain(
       'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY _val) AS "orders__amount | P75"'
     );

@@ -345,19 +345,9 @@ export abstract class SqlClauseRenderer {
     }
   }
 
-  /**
-   * A percentile is the one aggregation whose ANSWER, not just its spelling, differs per
-   * warehouse — worth knowing before comparing the same report across two storages:
-   *
-   * - BigQuery (`APPROX_QUANTILES`) and Athena/Trino (`APPROX_PERCENTILE`) are APPROXIMATE and
-   *   return a value drawn FROM the data.
-   * - Snowflake, Redshift and Databricks (`PERCENTILE_CONT`) are exact and INTERPOLATE, so they
-   *   can return a value that appears nowhere in the column.
-   *
-   * On `[1, 2, 3, 4]` the median is 2 or 3 on the first pair and 2.5 on the second. Both are
-   * defensible definitions; neither is a defect, and this is not something the query layer can
-   * paper over without reimplementing the aggregate.
-   */
+  // The one aggregation whose ANSWER differs per warehouse, not just its spelling: BigQuery and
+  // Athena approximate and return a value from the data, PERCENTILE_CONT interpolates. On
+  // [1,2,3,4] the median is 2 or 3 there and 2.5 here.
   protected renderPercentile(_p: 25 | 50 | 75 | 95, _columnRef: string): string {
     throw new Error(`Percentile aggregation not supported for this storage`);
   }
@@ -370,13 +360,8 @@ export abstract class SqlClauseRenderer {
     return `ANY_VALUE(${columnRef})`;
   }
 
-  /**
-   * PUBLIC because the blended path needs the same spelling: a metric sleeve computes its
-   * metric inside its own CTE, and a percentile has a genuinely per-warehouse form
-   * (`APPROX_QUANTILES(...)[OFFSET(n)]`, `APPROX_PERCENTILE`, `PERCENTILE_CONT ... WITHIN GROUP`)
-   * that the blend's own `buildAggregation` does not spell. Two independent spellings of the
-   * same function is exactly the drift this class exists to prevent.
-   */
+  // Public because a metric sleeve computes its metric in its own CTE and needs this spelling —
+  // two independent spellings of one function is the drift this class exists to prevent.
   renderAggregateExpression(fn: ReportAggregateFunction, columnRef: string): string {
     switch (fn) {
       case 'COUNT_DISTINCT':

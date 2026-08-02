@@ -215,9 +215,6 @@ describe('collectPrimaryKeyRowIdentity', () => {
   });
 
   it('keeps a component hidden for reporting — hidden means off the menu, not gone', () => {
-    // The consumer projects this column explicitly into the raw CTE, so hiding it from the
-    // reporting menu does not stop it identifying a row. Dropping it would leave HALF a
-    // composite key, which merges rows the key itself keeps distinct.
     expect(
       collectPrimaryKeyRowIdentity([
         mkField('date', true),
@@ -236,8 +233,6 @@ describe('collectPrimaryKeyRowIdentity', () => {
   });
 
   it('returns nothing when a component is nested', () => {
-    // A dotted path is not one projectable identifier — it forces the raw CTE to `SELECT *` —
-    // and a struct member is a poor row identity regardless.
     const container = {
       ...mkField('meta', false),
       fields: [mkField('inner_id', true)],
@@ -246,8 +241,6 @@ describe('collectPrimaryKeyRowIdentity', () => {
   });
 
   it('sees a component buried in a DISCONNECTED subtree and disqualifies the key', () => {
-    // The traversal must not simply skip disconnected subtrees: a key component hiding in one
-    // would go unseen and the remaining columns would look like a complete key.
     const container = {
       ...mkField('meta', false, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
       fields: [mkField('inner_id', true)],

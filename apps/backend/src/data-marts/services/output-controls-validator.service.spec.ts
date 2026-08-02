@@ -508,10 +508,6 @@ describe('OutputControlsValidatorService', () => {
     });
 
     it('rejects a case-only duplicate in a projection that carries NO output control', async () => {
-      // A report that only selects columns is not an output-controls report, so this method used
-      // to return before ever checking the projection. The pair then persisted and failed much
-      // later at the Redshift reader, which folds identifiers — the opposite of the promise that
-      // such a report "cannot reach that state in the first place".
       const capabilitySvc = makeCapabilityService(false);
       const schemaSvc = makeBlendableSchemaService();
       const validator = new OutputControlsValidatorService(
@@ -532,8 +528,6 @@ describe('OutputControlsValidatorService', () => {
         })
       ).rejects.toThrow(BadRequestException);
 
-      // Uniqueness is a property of the projection alone — no schema resolution, and no
-      // output-controls capability gate (a plain selection needs no such support).
       expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
       expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
     });
@@ -3940,10 +3934,6 @@ describe('OutputControlsValidatorService', () => {
       });
 
       it('rejects a HAVING percentile rule whose column is BLENDED (joined)', () => {
-        // Percentiles joined SLEEVE_ROUTED_FUNCTIONS when they became sleeve-routed, so this gate
-        // widened with them — silently, since the gate reads the set rather than listing
-        // functions. Pin it: HAVING is still rendered from the dedup CTE, so it would filter on a
-        // different value than the SELECT returns.
         const errors = svc.validateHavingFilters(
           [{ column: 'orders__amount', function: 'P95', operator: 'gt', value: 10 }],
           [{ column: 'orders__amount', function: 'P95' }],

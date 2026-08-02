@@ -45,18 +45,12 @@ function responseBodyMessage(structured: unknown): string | undefined {
   return undefined;
 }
 
-/** Header used when the body carries a constraint list instead of a written sentence. */
 const VALIDATION_FAILED_MESSAGE = 'Request validation failed';
 
 /**
- * The per-constraint reasons NestJS's `ValidationPipe` puts in the body's `message` as a string
- * ARRAY — one entry per failed class-validator rule ("title must be a string", "property foo
- * should not exist").
- *
- * `responseBodyMessage` only accepts a string, so that array used to fall through to
- * `exception.message`, which `HttpException` derives from the class name whenever the body's
- * message is not a string — the literal "Bad Request Exception". Every reason was dropped before
- * the response left the process, and the caller was told only that something was wrong.
+ * The per-constraint reasons `ValidationPipe` puts in the body's `message` as a string ARRAY.
+ * `responseBodyMessage` only takes a string, so they used to fall through to `exception.message`
+ * — which `HttpException` derives from the class name: the literal "Bad Request Exception".
  */
 function validationConstraints(structured: unknown): string[] | undefined {
   if (!structured || typeof structured !== 'object' || Array.isArray(structured)) return undefined;
@@ -68,21 +62,13 @@ function validationConstraints(structured: unknown): string[] | undefined {
   return constraints.length > 0 ? constraints : undefined;
 }
 
-/**
- * class-validator writes bare clauses ("title must be a string"). The interface concatenates the
- * entries of one `details.errors` list into a single line, so without terminal punctuation two
- * constraints run together into one unreadable sentence.
- */
+// The interface concatenates one `details.errors` list into a single line, and class-validator
+// writes bare clauses, so without punctuation two constraints run together.
 function asSentence(constraint: string): string {
   const text = constraint.trim();
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-/**
- * Whether the body already carries its own `details` envelope — a caller that built one
- * deliberately (the output-controls validator, the Zod mappers) owns it, and its structured codes
- * are richer than anything reconstructed from sentences.
- */
 function hasOwnDetails(structured: unknown): boolean {
   return (
     !!structured &&
@@ -118,10 +104,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         responseBodyMessage(structured) ??
         (constraints ? VALIDATION_FAILED_MESSAGE : undefined) ??
         (isHttp && exception instanceof Error ? exception.message : undefined),
-      // The constraints travel STRUCTURED rather than folded into `message`: `message` is a string
-      // for every other error this filter emits and callers call string methods on it directly, and
-      // `details.errors[]` is the envelope the interface already renders — capped and de-duplicated
-      // — for the output-controls validator, so a DTO failing twenty rules cannot wall off a toast.
+      // Structured rather than folded into `message`, which stays a string every caller can call
+      // string methods on; `details.errors[]` is already rendered capped and de-duplicated.
       ...(constraints && !hasOwnDetails(structured)
         ? { details: { errors: constraints.map(message => ({ message })) } }
         : {}),

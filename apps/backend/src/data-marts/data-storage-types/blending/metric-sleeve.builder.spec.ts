@@ -595,8 +595,6 @@ describe('MetricSleeveBuilder', () => {
     });
 
     it('P50: wraps the same inner value-dedup subquery with the dialect percentile form', () => {
-      // TestBlendedWithRenderer, not TestBlendedQueryBuilder: the percentile spelling comes from
-      // the clause renderer, which the rendererless builder does not have.
       const builder = new TestBlendedWithRenderer();
       const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
       const metric = { column: 'organizations__orgId', function: 'P50' } as AggregationRule;
@@ -607,8 +605,6 @@ describe('MetricSleeveBuilder', () => {
       const sql = normalizeSql(sleeve.sql);
 
       expect(sleeve.alias).toBe('organizations__orgId | MEDIAN');
-      // Byte-identical dedup pass to SUM/AVG — a percentile's answer depends on how many times
-      // each value appears, so the fan-out has to be collapsed before the quantile is taken.
       expect(sql).toContain('SELECT DISTINCT users.users__country AS _owox_dim_0');
       expect(sql).toContain('organizations_raw.__owox_rid AS _oid');
       expect(sql).toContain('organizations_raw.orgId AS _val');
@@ -631,8 +627,6 @@ describe('MetricSleeveBuilder', () => {
         { outputAliasToRoot, filters: [] }
       );
 
-      // They share an owner, dimensions AND value column, so the DISTINCT set is identical —
-      // deduping it twice would be pure waste.
       expect(sleeves).toHaveLength(1);
       const sql = normalizeSql(sleeves[0].sql);
       expect(sql.match(/SELECT DISTINCT/g)).toHaveLength(1);
@@ -653,9 +647,6 @@ describe('MetricSleeveBuilder', () => {
         builder.sleeves().buildSleeveCte(metric, ['users__country'], context, outputAliasToRoot).sql
       );
 
-      // The identity leg is in the DISTINCT tuple, so two organizations that happen to share a
-      // value stay two rows. A `DISTINCT _val` would collapse them and flatten the distribution
-      // — the fix must remove the join's duplicates, not the data's.
       expect(sql).toContain('organizations_raw.__owox_rid AS _oid');
       expect(sql).toContain('organizations_raw.orgId AS _oid_key_0');
     });
@@ -897,10 +888,6 @@ describe('MetricSleeveBuilder', () => {
     // guard and collided with the synthetic alias inside the SELECT DISTINCT, silently corrupting
     // the dedup set instead of failing.
     describe('de-duplication by a declared primary key', () => {
-      /**
-       * The shared fixture with a declared key on the `organizations` chain. Everything else is
-       * identical, so any SQL difference below is attributable to the key alone.
-       */
       function fixtureWithOrgPrimaryKey(primaryKeyColumns: string[]) {
         const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
         return {
@@ -927,12 +914,7 @@ describe('MetricSleeveBuilder', () => {
         );
 
         expect(sql).toContain('organizations_raw.orgKey AS _oid');
-        // With a real key, two raw rows that agree on it AND on the value are the same row the
-        // join returned twice — the surrogate would have made them two owners and summed twice.
         expect(sql).not.toContain('__owox_rid');
-        // The parent join key rides along anyway. A key unique only WITHIN the join key
-        // (`line_no` per order) is indistinguishable from a correct declaration, and without
-        // this, line 1 of two different orders carrying the same value would collapse into one.
         expect(sql).toContain('organizations_raw.orgId AS _oid_key_0');
       });
 
@@ -961,14 +943,11 @@ describe('MetricSleeveBuilder', () => {
             .sql
         );
 
-        // Nothing tells two identical rows apart, so each raw row stays its own owner.
         expect(sql).toContain('organizations_raw.__owox_rid AS _oid');
         expect(sql).toContain('organizations_raw.orgId AS _oid_key_0');
       });
 
       it('ignores a declared key on a NON-IDENTITY owner, which is keyed by its pre-join group key', () => {
-        // The owner's dedup CTE is already one row per pre-join key, so the key IS the identity
-        // there — a declared key on the joined mart has nothing left to de-duplicate.
         const builder = new TestBlendedQueryBuilder();
         const chain = makeChain({
           relationship: makeRelationship({

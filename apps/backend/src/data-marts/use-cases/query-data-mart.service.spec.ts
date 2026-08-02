@@ -240,9 +240,6 @@ describe('QueryDataMartService', () => {
       })
     );
 
-    // A joined column is absent from the native schema, so dropping these left the reader with a
-    // bare `ReportDataHeader(name, name)` — and `column_metadata[].type` empty for exactly the
-    // columns a caller cannot infer.
     expect(reader.prepareReportData).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ blendedDataHeaders: [joinedHeader] })
@@ -251,7 +248,6 @@ describe('QueryDataMartService', () => {
 
   it('reports the type of a joined column in column_metadata', async () => {
     const { service, composer } = createService({
-      // What the reader resolves once it is handed the blended headers.
       dataHeaders: [
         new ReportDataHeader('channel', 'channel'),
         new ReportDataHeader(

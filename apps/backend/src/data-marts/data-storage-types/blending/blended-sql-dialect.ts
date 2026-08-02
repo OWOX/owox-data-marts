@@ -19,11 +19,6 @@ import { ColumnRefResolver, SqlClauseRenderer } from '../utils/sql-clause-render
 export interface BlendedSqlDialect {
   quoteIdentifier(name: string): string;
   quoteFieldRef(ref: string): string;
-  /**
-   * Spells one aggregate for this warehouse. Takes the full REPORT function union — the pre-join
-   * CTEs only ever pass the declared `AggregateFunction` subset, but a metric sleeve also spells
-   * post-join percentiles, whose form is per-warehouse.
-   */
   buildAggregation(aggregateFunction: ReportAggregateFunction, fieldName: string): string;
   buildRowSurrogate(partitionByRefs: readonly string[]): string;
   clauseRenderer(): SqlClauseRenderer | null;

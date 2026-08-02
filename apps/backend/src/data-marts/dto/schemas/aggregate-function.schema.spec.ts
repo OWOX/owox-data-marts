@@ -7,19 +7,8 @@ import {
   type ReportAggregateFunction,
 } from './aggregate-function.schema';
 
-/**
- * `SLEEVE_ROUTING` is the single source of truth for four separate behaviours: which joined
- * metrics get a sleeve at all, which SQL shape that sleeve takes, which owner chains carry a row
- * identity, and which metric (`HAVING`) filters the output-controls validator rejects. The
- * `Record<ReportAggregateFunction, …>` type forces every function to state an answer, but it
- * cannot check that the answer is the RIGHT one — and each wrong answer fails silently, as a
- * plausible number rather than an error. These pin the values.
- */
 describe('SLEEVE_ROUTING', () => {
   it('routes exactly the functions whose answer depends on how often a value repeats', () => {
-    // COUNT_DISTINCT, and everything that reads the multiset of values. A fanning join changes
-    // all of these; MIN/MAX/ANY_VALUE/STRING_AGG/COUNT are either indifferent to duplicates or
-    // deliberately counted over the surviving rows.
     expect([...SLEEVE_ROUTED_FUNCTIONS].sort()).toEqual(
       ['AVG', 'COUNT_DISTINCT', 'P25', 'P50', 'P75', 'P95', 'SUM'].sort()
     );
@@ -33,8 +22,6 @@ describe('SLEEVE_ROUTING', () => {
   });
 
   it('leaves every unrouted function without a shape', () => {
-    // A shape here without a routing entry (or the reverse) is what the builder's fail-loud
-    // guard exists for — this asserts the table itself, before any builder sees it.
     for (const fn of [
       'COUNT',
       'MIN',

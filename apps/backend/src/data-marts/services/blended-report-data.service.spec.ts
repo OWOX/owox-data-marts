@@ -529,8 +529,6 @@ describe('BlendedReportDataService', () => {
           schema: {
             fields: [
               { name: 'org_key', type: 'STRING', status: 'CONNECTED', isPrimaryKey: true },
-              // Hidden from the reporting MENU, but still present in the source and still part
-              // of the key — so it must be carried, not silently dropped.
               {
                 name: 'tenant',
                 type: 'STRING',
@@ -552,8 +550,6 @@ describe('BlendedReportDataService', () => {
       await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
-      // Without this the value sleeve falls back to the synthetic per-row surrogate, which
-      // counts a genuine duplicate row twice.
       expect(context?.chains[0].targetPrimaryKeyFields).toEqual(['org_key', 'tenant']);
     });
 
@@ -603,9 +599,6 @@ describe('BlendedReportDataService', () => {
           schema: {
             fields: [
               { name: 'date', type: 'DATE', status: 'CONNECTED', isPrimaryKey: true },
-              // Half of a composite key. De-duplicating by `date` alone would merge every
-              // campaign of that day into one row and under-count the SUM — worse than the
-              // surrogate it replaced, and invisible.
               {
                 name: 'campaign_id',
                 type: 'STRING',

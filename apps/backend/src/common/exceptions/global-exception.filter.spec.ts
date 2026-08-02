@@ -1,11 +1,6 @@
 import { ArgumentsHost, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { GlobalExceptionFilter } from './global-exception.filter';
 
-/**
- * `ValidationPipe` throws `new BadRequestException(<string[]>)`, and `HttpException.createBody`
- * turns an array argument into `{ message: [...], error, statusCode }` — so the body always
- * carries the constraint list under `message`. These specs pin that shape, not a hand-made one.
- */
 function validationException(constraints: unknown[]): BadRequestException {
   return new BadRequestException(constraints);
 }
@@ -49,11 +44,7 @@ describe('GlobalExceptionFilter', () => {
       );
 
       const response = body();
-      // Pre-fix this read "Bad Request Exception" — HttpException derives `message` from the class
-      // name whenever the body's own message is not a string, and the list was dropped entirely.
       expect(response.message).toBe('Request validation failed');
-      // Punctuated: the interface concatenates one list into a single line, and bare clauses
-      // would run together.
       expect(response.details).toEqual({
         errors: [
           { message: 'title must be a string.' },
@@ -83,8 +74,6 @@ describe('GlobalExceptionFilter', () => {
         hostFor(json)
       );
 
-      // The output-controls validator and the Zod mappers author richer, coded entries than
-      // anything reconstructed from sentences — theirs wins.
       expect(body().details).toEqual(own);
     });
 

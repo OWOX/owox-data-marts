@@ -46,21 +46,10 @@ export function collectSleeveMetrics(
 }
 
 /**
- * C2.1: the chains that own a joined value-sleeve metric whose sleeve READS a per-row identity,
- * each mapped to WHICH identity it uses. Only these chains' `<alias>_raw` CTEs carry it — a
- * declared key means projecting those columns, no key means the `__owox_rid` window; every other
- * raw CTE stays lean. Mirrors `collectSleeveMetrics`'s "blended column only" filter, but resolves
- * through `fieldIndex` (not just `outputAliasToRoot`) to get the owning chain's `cteName` — the
- * same resolution `buildSleeveCte`'s `rawRef` uses for the COUNT_DISTINCT sleeve.
- *
- * gated by `isIdentityPreJoinField` — the SAME check
- * `buildValueSleeveGroupCte` branches on. Only its IDENTITY (raw `ANY_VALUE`
- * passthrough) branch reads a per-row identity; the non-identity branch (the field's own pre-join
- * aggregate — e.g. the DEFAULT joined-SUM shape) keys off the owner dedup CTE's OWN
- * pre-join GROUP KEY instead and needs neither the key nor the surrogate. Before this gate, ANY
- * blended SUM/AVG owner got `__owox_rid` unconditionally, so a non-identity owner's raw CTE
- * carried a per-row `ROW_NUMBER()` window nothing downstream ever read — dead weight, and on some
- * engines a real unpartitioned full-table window computation.
+ * The chains whose sleeve reads a per-row identity, each mapped to WHICH identity — so only those
+ * `<alias>_raw` CTEs carry it and every other stays lean. Gated by `isIdentityPreJoinField`, the
+ * same check `buildValueSleeveGroupCte` branches on: a non-identity owner keys off its dedup CTE's
+ * own group key and needs neither the declared key nor the surrogate window.
  */
 export function collectValueSleeveOwners(
   aggregations: AggregationRule[],
@@ -76,10 +65,7 @@ export function collectValueSleeveOwners(
     if (!outputAliasToRoot.has(r.column)) continue; // main (non-blended) column
     const entry = fieldIndex.get(r.column);
     if (!entry) {
-      // A blended (outputAliasToRoot-mapped) column with no fieldIndex entry is the same
-      // invariant violation buildSleeveCte throws on (e.g. a hidden aggregated column that
-      // mapOutputAliasesToRoot stamped but buildBlendedFieldIndex skipped). Fail loud here
-      // too — silently skipping it would drop the identity its owner chain needs.
+      // Skipping it silently would drop the identity its owner chain needs.
       throw new BusinessViolationException(
         `collectValueSleeveOwners: no fieldIndex entry for value-sleeve metric column='${r.column}' ` +
           `(the column is aggregated but missing from the blended field index)`
@@ -93,34 +79,14 @@ export function collectValueSleeveOwners(
   return owners;
 }
 
-/**
- * How a value sleeve tells one row of a joined Data Mart from another.
- *
- * - `primary-key` — the joined mart's OWN declared key. Two rows that agree on the key AND on the
- *   metric's value are then the same owner and are counted once; two rows that agree on the key
- *   but not the value stay separate, so no silent choice is made between contradictory rows.
- * - `row-surrogate` — no key was declared, so every raw row is its own owner (`__owox_rid`).
- *   Correct for well-formed data, but it cannot tell a genuine duplicate row from two distinct
- *   ones, and duplicates are then summed twice.
- */
 export type ValueSleeveIdentity =
   | { kind: 'primary-key'; columns: string[] }
   | { kind: 'row-surrogate' };
 
 /**
- * ONE answer to "what identifies a row of this joined mart", read by the raw-CTE builder (which
- * must project those columns, or emit the surrogate window) and by the sleeve builder (which puts
- * them in its DISTINCT tuple). Two independent answers would mean a sleeve deduping on a column
- * its own source CTE never projected.
- *
- * A declared key is TRUSTED, exactly as the main mart's Unique Count trusts it: declaring a key
- * is the statement that it identifies a row. A key that is not in fact unique collapses rows the
- * surrogate kept apart.
- *
- * The non-empty check below is only sound because `targetPrimaryKeyFields` is all-or-nothing —
- * a subset of a composite key looks exactly like a complete key from here, and would silently
- * merge rows the real key distinguishes. The producer owns that rule; see the field's own
- * documentation and `collectPrimaryKeyRowIdentity`.
+ * One answer for both the raw-CTE builder (which projects the columns) and the sleeve builder
+ * (which dedups on them). The declared key is trusted, as Unique Count trusts it; the non-empty
+ * check is only sound because `targetPrimaryKeyFields` is all-or-nothing.
  */
 export function valueSleeveIdentityFor(chain: ResolvedRelationshipChain): ValueSleeveIdentity {
   const declared = chain.targetPrimaryKeyFields ?? [];
