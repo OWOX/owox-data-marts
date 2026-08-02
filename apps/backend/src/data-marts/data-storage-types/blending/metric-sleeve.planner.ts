@@ -1,5 +1,8 @@
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
-import { SLEEVE_ROUTED_FUNCTIONS } from '../../dto/schemas/aggregate-function.schema';
+import {
+  SLEEVE_ROUTED_FUNCTIONS,
+  VALUE_SLEEVE_FUNCTIONS,
+} from '../../dto/schemas/aggregate-function.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { aggregationFunctionsForColumn } from '../../dto/schemas/aggregation-labels';
 import {
@@ -68,7 +71,7 @@ export function collectValueSleeveOwnerCtes(
   const fieldIndex = context.fieldIndex;
   if (!fieldIndex) return owners;
   for (const r of aggregations) {
-    if (r.function !== 'SUM' && r.function !== 'AVG') continue;
+    if (!VALUE_SLEEVE_FUNCTIONS.has(r.function)) continue;
     if (!outputAliasToRoot.has(r.column)) continue; // main (non-blended) column
     const entry = fieldIndex.get(r.column);
     if (!entry) {

@@ -3296,13 +3296,13 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
       (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).delete('MIN');
     });
 
-    it('throws a clear error for a SLEEVE_ROUTED_FUNCTIONS entry with no COUNT_DISTINCT/SUM/AVG branch', () => {
+    it('throws a clear error for a routed function SLEEVE_ROUTING gives no shape', () => {
       const builder = new TestBlendedWithRenderer();
       const { chain, fieldIndex } = organizationsFixture();
 
-      // Simulate a future function added to SLEEVE_ROUTED_FUNCTIONS (e.g. a MIN/MAX sleeve)
-      // before a builder branch exists to build its CTE — this must fail loud, not silently
-      // drop the metric's SELECT item.
+      // Simulate a future function routed through a sleeve (e.g. a MIN/MAX sleeve) before
+      // SLEEVE_ROUTING states which shape its CTE takes — this must fail loud, not silently drop
+      // the metric's SELECT item.
       (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).add('MIN');
 
       const ctx: BlendedQueryContext = {
@@ -3312,11 +3312,11 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
       };
 
       expect(() => builder.buildBlendedQuery(ctx)).toThrow(
-        /sleeve-routed function\(s\) \[organizations__orgId:MIN\].*not handled by the COUNT_DISTINCT or SUM\/AVG sleeve/
+        /\[organizations__orgId:MIN\].*carry no sleeve shape in SLEEVE_ROUTING/
       );
     });
 
-    it('does NOT throw for the current real set (COUNT_DISTINCT, SUM, AVG all handled)', () => {
+    it('does NOT throw for the real set — every routed function has a handled shape', () => {
       const builder = new TestBlendedWithRenderer();
       const { chain, fieldIndex } = organizationsFixture();
 
@@ -3326,6 +3326,9 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
         aggregations: [
           { column: 'organizations__orgId', function: 'COUNT_DISTINCT' } as AggregationRule,
           { column: 'organizations__revenue', function: 'SUM' } as AggregationRule,
+          // A percentile takes the same `value` shape as SUM/AVG — the branch is derived from
+          // SLEEVE_ROUTING, so adding one needs no new builder branch.
+          { column: 'organizations__revenue', function: 'P50' } as AggregationRule,
         ],
       };
 

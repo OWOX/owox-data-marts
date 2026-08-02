@@ -357,7 +357,14 @@ export abstract class SqlClauseRenderer {
     return `ANY_VALUE(${columnRef})`;
   }
 
-  protected renderAggregateExpression(fn: ReportAggregateFunction, columnRef: string): string {
+  /**
+   * PUBLIC because the blended path needs the same spelling: a metric sleeve computes its
+   * metric inside its own CTE, and a percentile has a genuinely per-warehouse form
+   * (`APPROX_QUANTILES(...)[OFFSET(n)]`, `APPROX_PERCENTILE`, `PERCENTILE_CONT ... WITHIN GROUP`)
+   * that the blend's own `buildAggregation` does not spell. Two independent spellings of the
+   * same function is exactly the drift this class exists to prevent.
+   */
+  renderAggregateExpression(fn: ReportAggregateFunction, columnRef: string): string {
     switch (fn) {
       case 'COUNT_DISTINCT':
         return `COUNT(DISTINCT ${columnRef})`;

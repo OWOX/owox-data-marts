@@ -34,37 +34,77 @@ export const REPORT_AGGREGATE_FUNCTIONS = [
 export type ReportAggregateFunction = (typeof REPORT_AGGREGATE_FUNCTIONS)[number];
 
 /**
+ * The two SQL shapes a metric sleeve can take.
+ *
+ * - `count-distinct` — a single-level `COUNT(DISTINCT col)` evaluated at the report's dimension
+ *   grain over the RAW (pre-dedup) path.
+ * - `value` — a nested `SELECT DISTINCT (dims, owner identity, value)` dedup pass wrapped by the
+ *   metric's own aggregate. Every function whose answer depends on how MANY times each joined
+ *   value appears takes this shape: `SUM` and `AVG`, and the percentiles, whose whole input is
+ *   the multiset of values (a fanning join silently reweights the distribution).
+ */
+export type SleeveShape = 'count-distinct' | 'value';
+
+/**
  * which functions the blended query builder routes through a "sleeve" CTE — a
  * dimension-grain recomputation that avoids join-fan-out over/under-counting — when their
- * column is blended (joined). See `collectSleeveMetrics` in `blending/metric-sleeve.planner.ts`.
+ * column is blended (joined), and which SHAPE each one's sleeve takes. See `collectSleeveMetrics`
+ * in `blending/metric-sleeve.planner.ts`.
  *
  * Declared as an exhaustive record rather than a bare set on purpose. HAVING is NOT sleeve-
  * routed, so the output-controls validator gates the SAME set; a developer enabling HAVING for
  * one function would naturally delete it from a set — and would thereby silently switch that
  * function's SELECT back to the fan-out-prone dedup path, which is the defect this whole
  * feature exists to fix. With a record, every function must state an answer, and turning one
- * off is a visible `false`.
+ * off is a visible `null`.
+ *
+ * The SHAPE lives here rather than in the builder's own branching for the same reason: the
+ * builder used to re-derive the split with its own `function === 'SUM' || …` filters and could
+ * only catch a disagreement at run time, with a thrown error, on a report that happened to use
+ * the newly-routed function.
  */
-const SLEEVE_ROUTING: Record<ReportAggregateFunction, boolean> = {
-  COUNT_DISTINCT: true,
-  SUM: true,
-  AVG: true,
-  COUNT: false,
-  MIN: false,
-  MAX: false,
-  ANY_VALUE: false,
-  STRING_AGG: false,
-  P25: false,
-  P50: false,
-  P75: false,
-  P95: false,
+const SLEEVE_ROUTING: Record<ReportAggregateFunction, SleeveShape | null> = {
+  COUNT_DISTINCT: 'count-distinct',
+  SUM: 'value',
+  AVG: 'value',
+  P25: 'value',
+  P50: 'value',
+  P75: 'value',
+  P95: 'value',
+  COUNT: null,
+  MIN: null,
+  MAX: null,
+  ANY_VALUE: null,
+  STRING_AGG: null,
 };
 
+const SLEEVE_ROUTING_ENTRIES = Object.entries(SLEEVE_ROUTING) as [
+  ReportAggregateFunction,
+  SleeveShape | null,
+][];
+
 export const SLEEVE_ROUTED_FUNCTIONS: ReadonlySet<ReportAggregateFunction> = new Set(
-  (Object.entries(SLEEVE_ROUTING) as [ReportAggregateFunction, boolean][])
-    .filter(([, routed]) => routed)
-    .map(([fn]) => fn)
+  SLEEVE_ROUTING_ENTRIES.filter(([, shape]) => shape !== null).map(([fn]) => fn)
 );
+
+/** The sleeve shape this function needs, or `null` when it is not sleeve-routed at all. */
+export function sleeveShapeFor(fn: ReportAggregateFunction): SleeveShape | null {
+  return SLEEVE_ROUTING[fn];
+}
+
+/** The functions taking the nested dedup-then-aggregate `value` shape. */
+export const VALUE_SLEEVE_FUNCTIONS: ReadonlySet<ReportAggregateFunction> = new Set(
+  SLEEVE_ROUTING_ENTRIES.filter(([, shape]) => shape === 'value').map(([fn]) => fn)
+);
+
+const PERCENTILE_FUNCTION_SET: ReadonlySet<string> = new Set(PERCENTILE_FUNCTIONS);
+
+/** Narrows to the percentile subset, which the clause renderer spells per warehouse. */
+export function isPercentileFunction(
+  fn: ReportAggregateFunction
+): fn is (typeof PERCENTILE_FUNCTIONS)[number] {
+  return PERCENTILE_FUNCTION_SET.has(fn);
+}
 
 // Compile-time guard: REPORT_AGGREGATE_FUNCTIONS must stay in sync with the two source lists.
 // This line fails to compile if a value/order drifts.

@@ -1,4 +1,8 @@
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import {
+  VALUE_SLEEVE_FUNCTIONS,
+  sleeveShapeFor,
+} from '../../dto/schemas/aggregate-function.schema';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 import { aggregatedColumnLabel } from '../../dto/schemas/aggregation-labels';
 import {
@@ -79,31 +83,32 @@ export class MetricSleeveBuilder {
     // COUNT_DISTINCT sleeves stay ONE-CTE-PER-METRIC — their single-level
     // `COUNT(DISTINCT col)` dedup shape differs from a value sleeve's nested
     // DISTINCT-then-aggregate form, so they never merge with a value sleeve.
-    const countDistinctSleeveMetrics = sleeveMetrics.filter(m => m.function === 'COUNT_DISTINCT');
-    // SUM/AVG value sleeves that share the SAME owner chain + dimensions merge into ONE
-    // dedup pass: e.g. a Totals report auto-requesting SUM AND AVG for one numeric joined
-    // field used to emit two identical `SELECT DISTINCT dims, __owox_rid, value` subqueries —
-    // now it emits one, with two outer aggregates read off it.
-    const valueSleeveMetrics = sleeveMetrics.filter(
-      m => m.function === 'SUM' || m.function === 'AVG'
+    //
+    // Both splits read the SHAPE off `SLEEVE_ROUTING` rather than re-listing functions here:
+    // the routing table and this branching were two copies of one decision, and the copy that
+    // lagged (this one) would drop the newly-routed metric from the query with no SELECT item
+    // for its header to bind to.
+    const countDistinctSleeveMetrics = sleeveMetrics.filter(
+      m => sleeveShapeFor(m.function) === 'count-distinct'
     );
-    // the split above is exhaustive ONLY as long as it agrees with
-    // SLEEVE_ROUTED_FUNCTIONS by construction — a future function added to that set but not
-    // handled by either filter would silently vanish here: `sleeveMetricKeys` (below) still
-    // excludes it from the normal aggregated SELECT, but no sleeve CTE is ever built for it,
-    // so its header column resolves to nothing (NULL column / hard SQL error). Fail loud
-    // instead of shipping a query with a missing SELECT item.
+    // Value sleeves that share the SAME owner chain + dimensions merge into ONE dedup pass:
+    // e.g. a Totals report auto-requesting SUM AND AVG for one numeric joined field used to
+    // emit two identical `SELECT DISTINCT dims, __owox_rid, value` subqueries — now it emits
+    // one, with several outer aggregates read off it.
+    const valueSleeveMetrics = sleeveMetrics.filter(m => sleeveShapeFor(m.function) === 'value');
+    // Still asserted even though the split is now derived: `sleeveMetrics` is `AggregationRule[]`
+    // and a caller could hand over a metric this builder was never meant to see. Such a metric
+    // would silently vanish — `sleeveMetricKeys` (below) still excludes it from the normal
+    // aggregated SELECT, but no sleeve CTE is ever built for it, so its header column resolves to
+    // nothing (NULL column / hard SQL error).
     const routedSleeveMetrics = countDistinctSleeveMetrics.length + valueSleeveMetrics.length;
     if (routedSleeveMetrics !== sleeveMetrics.length) {
-      const unhandled = sleeveMetrics.filter(
-        m => m.function !== 'COUNT_DISTINCT' && m.function !== 'SUM' && m.function !== 'AVG'
-      );
+      const unhandled = sleeveMetrics.filter(m => sleeveShapeFor(m.function) === null);
       throw new Error(
-        `buildAll: sleeve-routed function(s) ` +
-          `[${unhandled.map(m => `${m.column}:${m.function}`).join(', ')}] are in ` +
-          `SLEEVE_ROUTED_FUNCTIONS but not handled by the COUNT_DISTINCT or SUM/AVG sleeve ` +
-          `branch — add a branch (or a dedicated sleeve builder) for this function before ` +
-          `routing it through SLEEVE_ROUTED_FUNCTIONS`
+        `buildAll: function(s) ` +
+          `[${unhandled.map(m => `${m.column}:${m.function}`).join(', ')}] were passed as sleeve ` +
+          `metrics but carry no sleeve shape in SLEEVE_ROUTING — give the function a shape ` +
+          `there (and a branch here, if it needs a new one) before routing it through a sleeve`
       );
     }
     // split any owner+dims group that mixes an identity (ANY_VALUE) field with a
@@ -582,15 +587,15 @@ export class MetricSleeveBuilder {
     );
     const pulls: { metric: AggregationRule; alias: string }[] = [];
     const outerAggItems = group.metrics.map(m => {
-      // Runtime narrowing (mirrors the class's fail-loud style elsewhere): a value-sleeve
-      // group must only ever contain SUM/AVG metrics — `groupValueSleeveMetrics` is only fed
-      // the pre-filtered SUM/AVG subset of sleeve metrics, but `ValueSleeveGroup.metrics` is
-      // typed as the broader `AggregationRule[]`, so this also narrows `m.function` for
-      // `buildAggregation` below (which only accepts the non-percentile function union).
-      if (m.function !== 'SUM' && m.function !== 'AVG') {
+      // Runtime narrowing (mirrors the class's fail-loud style elsewhere): a value-sleeve group
+      // must only ever contain functions SLEEVE_ROUTING gives the `value` shape —
+      // `groupValueSleeveMetrics` is only fed that pre-filtered subset, but
+      // `ValueSleeveGroup.metrics` is typed as the broader `AggregationRule[]`.
+      if (!VALUE_SLEEVE_FUNCTIONS.has(m.function)) {
         throw new Error(
           `buildValueSleeveGroupCte: value-sleeve group metric column='${m.column}' has ` +
-            `non-value function='${m.function}' (only SUM/AVG belong in a value-sleeve group)`
+            `function='${m.function}', which SLEEVE_ROUTING does not give the 'value' shape ` +
+            `(only dedup-then-aggregate functions belong in a value-sleeve group)`
         );
       }
       const slot = valueSlotByColumn.get(m.column)!;
@@ -721,12 +726,12 @@ export class MetricSleeveBuilder {
     // with a collision-disambiguated name (see `cteNameOverride`).
     const sleeveCteName = cteNameOverride ?? sleeveCteNameForColumn(metric.column);
 
-    if (metric.function === 'SUM' || metric.function === 'AVG') {
+    if (VALUE_SLEEVE_FUNCTIONS.has(metric.function)) {
       const ownerCteName = this.sleeveRawRef(metric.column, fieldIndex, outputAliasToRoot).cteName;
       if (!ownerCteName) {
         throw new Error(
           `buildSleeveCte: value-sleeve metric column='${metric.column}' resolved to a main ` +
-            `(non-blended) column; a SUM/AVG value sleeve requires a joined column`
+            `(non-blended) column; a ${metric.function} value sleeve requires a joined column`
         );
       }
       const merged = this.buildValueSleeveGroupCte(

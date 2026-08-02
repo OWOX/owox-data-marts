@@ -205,6 +205,47 @@ describe('SnowflakeBlendedQueryBuilder — row surrogate (__owox_rid) for value-
     expect(s).toContain('"orders_raw"."amount" AS "_val"');
     expect(s).toContain('ANY_VALUE("sleeve_orders__amount"."orders__amount | SUM")');
   });
+
+  it('spells a joined percentile as an ordered-set aggregate inside the value sleeve', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'mydb."myschema"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'orders__amount', aliasPath: 'orders', originalFieldName: 'amount', type: 'FLOAT' },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'P95' } as AggregationRule],
+    });
+    const s = sql.replace(/\s+/g, ' ');
+
+    // `PERCENTILE_CONT(...) WITHIN GROUP (ORDER BY ...)` is a different grammar from a plain
+    // aggregate call, and it now has to sit in the sleeve's OUTER select over the dedup
+    // subquery — the shape most likely to be mis-assembled, so it is pinned per dialect.
+    expect(s).toContain(
+      'PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "_val") AS "orders__amount | P95"'
+    );
+    expect(s).toContain('"orders_raw"."amount" AS "_val"');
+    expect(s).toContain('ANY_VALUE("sleeve_orders__amount"."orders__amount | P95")');
+  });
 });
 
 describe('SnowflakeBlendedQueryBuilder — output controls', () => {

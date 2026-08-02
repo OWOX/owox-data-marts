@@ -1,7 +1,10 @@
 import { NotImplementedException } from '@nestjs/common';
 import { BlendedQueryBuilder, BlendedQueryContext } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
+import {
+  ReportAggregateFunction,
+  isPercentileFunction,
+} from '../../dto/schemas/aggregate-function.schema';
 import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
 import { buildOptionalDateTruncUnitMap, buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
 import {
@@ -584,7 +587,29 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       .join('.');
   }
 
-  protected buildAggregation(aggregateFunction: AggregateFunction, fieldName: string): string {
+  /**
+   * Accepts the FULL report function union, not just the pre-join `AggregateFunction` set: a
+   * metric sleeve computes a joined percentile inside its own CTE, and the percentile spelling is
+   * genuinely per-warehouse. Rather than teach every dialect's builder a second percentile
+   * override, that one case is delegated to the clause renderer — the same expression the flat
+   * (non-blended) aggregated SELECT emits for the same function.
+   */
+  protected buildAggregation(
+    aggregateFunction: ReportAggregateFunction,
+    fieldName: string
+  ): string {
+    if (isPercentileFunction(aggregateFunction)) {
+      const renderer = this.clauseRenderer;
+      if (!renderer) {
+        // Unreachable through `buildBlendedQuery` (its capability guard rejects a rendererless
+        // dialect first). Silently falling back to `P50(x)` would emit SQL no engine accepts.
+        throw new Error(
+          `buildAggregation: ${aggregateFunction} needs a clause renderer to spell the ` +
+            `percentile for this storage, and none is registered`
+        );
+      }
+      return renderer.renderAggregateExpression(aggregateFunction, fieldName);
+    }
     switch (aggregateFunction) {
       case 'STRING_AGG':
         return this.buildStringAgg(fieldName);

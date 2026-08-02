@@ -175,15 +175,23 @@ describe('BigQueryBlendedQueryBuilder', () => {
       expect(sql).toContain('GROUP BY\n  main.channel');
     });
 
-    it('routes a P95 metric through the BigQuery dialect percentile expression', () => {
+    it('routes a joined P95 through its value sleeve, spelled with the BigQuery percentile form', () => {
       const { sql } = builder.buildBlendedQuery({
         ...buildContext([orderChain()], ['channel', 'order_amount']),
+        fieldIndex: orderFieldIndex,
         aggregations: [{ column: 'order_amount', function: 'P95' }],
       });
 
+      // A percentile's entire input is the MULTISET of values, so a fanning join reweights the
+      // distribution — the same reason SUM/AVG are sleeved. It is computed over the sleeve's
+      // de-duplicated set, and spelled by the clause renderer so it matches the flat path.
+      expect(sql).toContain('sleeve_order_amount AS (');
+      expect(sql).toContain('APPROX_QUANTILES(_val, 100)[OFFSET(95)] AS `order_amount | P95`');
       expect(sql).toContain(
-        'APPROX_QUANTILES(orders.order_amount, 100)[OFFSET(95)] AS `order_amount | P95`'
+        'ANY_VALUE(sleeve_order_amount.`order_amount | P95`) AS `order_amount | P95`'
       );
+      // The pre-fix shape: the percentile taken straight off the dedup CTE, once per fanned row.
+      expect(sql).not.toContain('APPROX_QUANTILES(orders.order_amount');
       expect(sql).toContain('GROUP BY\n  main.channel');
     });
   });

@@ -594,6 +594,72 @@ describe('MetricSleeveBuilder', () => {
       ]);
     });
 
+    it('P50: wraps the same inner value-dedup subquery with the dialect percentile form', () => {
+      // TestBlendedWithRenderer, not TestBlendedQueryBuilder: the percentile spelling comes from
+      // the clause renderer, which the rendererless builder does not have.
+      const builder = new TestBlendedWithRenderer();
+      const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+      const metric = { column: 'organizations__orgId', function: 'P50' } as AggregationRule;
+
+      const sleeve = builder
+        .sleeves()
+        .buildSleeveCte(metric, ['users__country'], context, outputAliasToRoot);
+      const sql = normalizeSql(sleeve.sql);
+
+      expect(sleeve.alias).toBe('organizations__orgId | MEDIAN');
+      // Byte-identical dedup pass to SUM/AVG — a percentile's answer depends on how many times
+      // each value appears, so the fan-out has to be collapsed before the quantile is taken.
+      expect(sql).toContain('SELECT DISTINCT users.users__country AS _owox_dim_0');
+      expect(sql).toContain('organizations_raw.__owox_rid AS _oid');
+      expect(sql).toContain('organizations_raw.orgId AS _val');
+      expect(sql).toContain(
+        'APPROX_QUANTILES(_val, 100)[OFFSET(50)] AS `organizations__orgId | MEDIAN`'
+      );
+      expect(sql).toContain('GROUP BY _owox_dim_0');
+    });
+
+    it('merges a percentile with SUM/AVG on the same column into ONE dedup pass', () => {
+      const builder = new TestBlendedWithRenderer();
+      const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+
+      const sleeves = builder.sleeves().buildAll(
+        [
+          { column: 'organizations__orgId', function: 'SUM' },
+          { column: 'organizations__orgId', function: 'P75' },
+        ] as AggregationRule[],
+        { ...context, columns: ['users__country', 'organizations__orgId'] },
+        { outputAliasToRoot, filters: [] }
+      );
+
+      // They share an owner, dimensions AND value column, so the DISTINCT set is identical —
+      // deduping it twice would be pure waste.
+      expect(sleeves).toHaveLength(1);
+      const sql = normalizeSql(sleeves[0].sql);
+      expect(sql.match(/SELECT DISTINCT/g)).toHaveLength(1);
+      expect(sql.match(/AS _val/g)).toHaveLength(1);
+      expect(sql).toContain('SUM(_val) AS `organizations__orgId | SUM`');
+      expect(sql).toContain(
+        'APPROX_QUANTILES(_val, 100)[OFFSET(75)] AS `organizations__orgId | P75`'
+      );
+      expect(sleeves[0].pulls.map(p => p.metric.function)).toEqual(['SUM', 'P75']);
+    });
+
+    it('keeps equal values from DIFFERENT owner rows, which is what a percentile weighs', () => {
+      const builder = new TestBlendedWithRenderer();
+      const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+      const metric = { column: 'organizations__orgId', function: 'P50' } as AggregationRule;
+
+      const sql = normalizeSql(
+        builder.sleeves().buildSleeveCte(metric, ['users__country'], context, outputAliasToRoot).sql
+      );
+
+      // The identity leg is in the DISTINCT tuple, so two organizations that happen to share a
+      // value stay two rows. A `DISTINCT _val` would collapse them and flatten the distribution
+      // — the fix must remove the join's duplicates, not the data's.
+      expect(sql).toContain('organizations_raw.__owox_rid AS _oid');
+      expect(sql).toContain('organizations_raw.orgId AS _oid_key_0');
+    });
+
     it('AVG: wraps the same inner value-dedup subquery with an outer AVG', () => {
       const builder = new TestBlendedQueryBuilder();
       const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
