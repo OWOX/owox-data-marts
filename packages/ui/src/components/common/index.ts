@@ -1,4 +1,5 @@
 export { CopyButton } from './copy-button';
+export { CopyLinkButton } from './copy-link-button';
 export { FieldWithActions } from './field-with-actions';
 export type { FieldWithActionsAction } from './field-with-actions';
 export { LoadingSpinner, FullScreenLoader } from './loading-spinner';
