@@ -215,6 +215,75 @@ describe('QueryDataMartService', () => {
     expect(result.totalsError).toBeUndefined();
   });
 
+  it('forwards the composer blended headers so joined columns resolve a type', async () => {
+    const { service, composer, reader } = createService();
+    const joinedHeader = new ReportDataHeader(
+      'partner__cost',
+      'partner Cost',
+      undefined,
+      'NUMERIC' as ReportDataHeader['storageFieldType']
+    );
+    composer.compose.mockResolvedValue({
+      sql: 'SELECT 1',
+      params: [],
+      blendedDataHeaders: [joinedHeader],
+    });
+
+    await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'partner__cost'],
+        limit: 100,
+      })
+    );
+
+    // A joined column is absent from the native schema, so dropping these left the reader with a
+    // bare `ReportDataHeader(name, name)` — and `column_metadata[].type` empty for exactly the
+    // columns a caller cannot infer.
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ blendedDataHeaders: [joinedHeader] })
+    );
+  });
+
+  it('reports the type of a joined column in column_metadata', async () => {
+    const { service, composer } = createService({
+      // What the reader resolves once it is handed the blended headers.
+      dataHeaders: [
+        new ReportDataHeader('channel', 'channel'),
+        new ReportDataHeader(
+          'partner__cost',
+          'partner Cost',
+          undefined,
+          'NUMERIC' as ReportDataHeader['storageFieldType']
+        ),
+      ],
+    });
+    composer.compose.mockResolvedValue({
+      sql: 'SELECT 1',
+      params: [],
+      blendedDataHeaders: [],
+    });
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'partner__cost'],
+        limit: 100,
+      })
+    );
+
+    expect(result.columnMetadata).toContainEqual(
+      expect.objectContaining({ name: 'partner__cost', type: 'NUMERIC' })
+    );
+  });
+
   it('threads the request sortConfig into the composed read plan', async () => {
     const { service, composer } = createService();
 

@@ -85,7 +85,18 @@ export class ReportSqlComposerService {
     precomputedDecision?: BlendingDecision,
     // Reuse an already-resolved schema (totals path) so the decision isn't recomputed.
     precomputedBlendableSchema?: BlendableSchemaDto
-  ): Promise<{ sql: string; params?: SqlParameter[] }> {
+  ): Promise<{
+    sql: string;
+    params?: SqlParameter[];
+    /**
+     * Base-typed headers for the JOINED columns, which are absent from the native schema and so
+     * cannot be resolved by the reader. Returned alongside the SQL because this method already
+     * resolves the blending decision that carries them: a caller that needs them otherwise has to
+     * resolve the decision a second time just to reach `blendedDataHeaders`, and one that forgets
+     * silently emits untyped columns instead of failing.
+     */
+    blendedDataHeaders?: ReportDataHeader[];
+  }> {
     const decision =
       precomputedDecision ??
       (await this.blendedReportDataService.resolveBlendingDecision(
@@ -97,7 +108,11 @@ export class ReportSqlComposerService {
     // Post-join aggregation is built into the blended SQL by BlendedReportDataService,
     // so the blended path below already carries any aggregation / date-trunc / row-count.
     if (decision.needsBlending && decision.blendedSql) {
-      return { sql: decision.blendedSql, params: decision.params };
+      return {
+        sql: decision.blendedSql,
+        params: decision.params,
+        blendedDataHeaders: decision.blendedDataHeaders,
+      };
     }
 
     if (decision.needsBlending && !decision.blendedSql) {

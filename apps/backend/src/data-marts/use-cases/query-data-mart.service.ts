@@ -260,6 +260,11 @@ export class QueryDataMartService {
             sqlOverride: composed.sql,
             sqlOverrideParams: composed.params,
             columnFilter: r.fields,
+            // A JOINED column is absent from the native schema, so only these carry its type.
+            // Without them the reader falls back to a bare `ReportDataHeader(name, name)` and
+            // `column_metadata[].type` is missing for exactly the columns an AI caller is least
+            // able to guess at — it cannot tell a joined revenue figure from a joined label.
+            blendedDataHeaders: composed.blendedDataHeaders,
             aggregationConfig: readPlan.aggregationConfig ?? undefined,
             queryTimeoutMs,
             signal: workController.signal,

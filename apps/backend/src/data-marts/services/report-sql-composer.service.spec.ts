@@ -8,6 +8,7 @@ import { AthenaClauseRenderer } from '../data-storage-types/athena/services/athe
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 
 describe('ReportSqlComposerService', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -109,6 +110,29 @@ describe('ReportSqlComposerService', () => {
 
     expect(result.sql).toBe('SELECT blended FROM cte');
     expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
+  });
+
+  it('returns the decision blended headers so a caller need not resolve the decision twice', async () => {
+    const joinedHeader = new ReportDataHeader('partner__cost', 'partner Cost');
+    const { service } = createService({
+      needsBlending: true,
+      blendedSql: 'SELECT blended FROM cte',
+      blendedDataHeaders: [joinedHeader],
+    });
+
+    const result = await service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] });
+
+    // Only these carry a type for a JOINED column — it is absent from the native schema, so a
+    // caller that cannot reach them emits the column untyped instead of failing.
+    expect(result.blendedDataHeaders).toEqual([joinedHeader]);
+  });
+
+  it('has no blended headers on the non-blended path', async () => {
+    const { service } = createService({ needsBlending: false, columnFilter: ['a'] }, 'SELECT a');
+
+    const result = await service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] });
+
+    expect(result.blendedDataHeaders).toBeUndefined();
   });
 
   it('falls back to the query builder facade when blending is not needed', async () => {
