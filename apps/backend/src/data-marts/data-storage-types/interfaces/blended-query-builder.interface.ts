@@ -23,6 +23,15 @@ export interface ResolvedRelationshipChain {
   blendedFields: BlendedFieldConfig[];
   targetDataMartTitle: string;
   targetDataMartUrl: string;
+  /**
+   * The JOINED Data Mart's own declared primary-key columns, when it has any.
+   *
+   * A value sleeve (joined SUM/AVG/percentile) has to tell one owner row from another before it
+   * aggregates. With a declared key it uses that key; without one it falls back to a synthetic
+   * per-row surrogate, which cannot tell a genuine duplicate row from two distinct ones. Empty or
+   * absent means "no key declared" — see `valueSleeveIdentityFor`.
+   */
+  targetPrimaryKeyFields?: string[];
 }
 
 /**

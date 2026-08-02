@@ -379,6 +379,13 @@ export class BlendedReportDataService {
         blendedFields: chainBlendedFields,
         targetDataMartTitle: rel.targetDataMart.title,
         targetDataMartUrl,
+        // Lets a value sleeve de-duplicate this joined mart's rows by its OWN declared key
+        // instead of a synthetic per-row surrogate. Nested paths are excluded: the raw CTE
+        // cannot project a dotted path as a single identifier (it widens to `SELECT *`), and a
+        // struct field is not a usable row identity anyway.
+        targetPrimaryKeyFields: getPrimaryKeyFields(rel.targetDataMart.schema?.fields ?? [])
+          .map(pk => pk.name)
+          .filter(name => !name.includes('.')),
       });
     }
 

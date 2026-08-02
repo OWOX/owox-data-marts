@@ -24,10 +24,7 @@ import { BlendedSqlDialect, createColumnQualifier } from '../blending/blended-sq
 import { BlendCteBuilder } from '../blending/blend-cte.builder';
 import { partitionBlendedFilters } from '../blending/blended-filter-partition';
 import { MetricSleeveBuilder } from '../blending/metric-sleeve.builder';
-import {
-  collectSleeveMetrics,
-  collectValueSleeveOwnerCtes,
-} from '../blending/metric-sleeve.planner';
+import { collectSleeveMetrics, collectValueSleeveOwners } from '../blending/metric-sleeve.planner';
 
 /**
  * Base class for blended SQL query builders.
@@ -309,7 +306,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // C2.1: which chains' raw CTEs need the per-row surrogate (`__owox_rid`) — only a chain
     // that owns a joined SUM/AVG (a future value-sleeve metric) needs it; every other raw
     // CTE stays lean. The value sleeve itself (C2.2) and its routing (C2.3) land later.
-    const valueSleeveOwnerCtes = collectValueSleeveOwnerCtes(
+    const valueSleeveOwners = collectValueSleeveOwners(
       context.aggregations ?? [],
       outputAliasToRoot,
       context
@@ -320,7 +317,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         root,
         preJoinByCte,
         resolveColumnType,
-        valueSleeveOwnerCtes
+        valueSleeveOwners
       );
       cteBlocks.push(...ctes);
       cteParams.push(...params);

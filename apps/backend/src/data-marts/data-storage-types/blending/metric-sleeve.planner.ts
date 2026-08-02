@@ -46,30 +46,31 @@ export function collectSleeveMetrics(
 }
 
 /**
- * C2.1: the set of chain CTE names that own a joined SUM/AVG metric whose value sleeve
- * actually READS the per-row surrogate — only these chains' `<alias>_raw` CTEs need
- * `__owox_rid`; every other raw CTE stays lean. Mirrors `collectSleeveMetrics`'s "blended
- * column only" filter, but resolves through `fieldIndex` (not just `outputAliasToRoot`)
- * to get the owning chain's `cteName` — the same resolution `buildSleeveCte`'s `rawRef`
- * uses for the COUNT_DISTINCT sleeve.
+ * C2.1: the chains that own a joined value-sleeve metric whose sleeve READS a per-row identity,
+ * each mapped to WHICH identity it uses. Only these chains' `<alias>_raw` CTEs carry it — a
+ * declared key means projecting those columns, no key means the `__owox_rid` window; every other
+ * raw CTE stays lean. Mirrors `collectSleeveMetrics`'s "blended column only" filter, but resolves
+ * through `fieldIndex` (not just `outputAliasToRoot`) to get the owning chain's `cteName` — the
+ * same resolution `buildSleeveCte`'s `rawRef` uses for the COUNT_DISTINCT sleeve.
  *
  * gated by `isIdentityPreJoinField` — the SAME check
  * `buildValueSleeveGroupCte` branches on. Only its IDENTITY (raw `ANY_VALUE`
- * passthrough) branch reads `__owox_rid`; the non-identity branch (the field's own pre-join
+ * passthrough) branch reads a per-row identity; the non-identity branch (the field's own pre-join
  * aggregate — e.g. the DEFAULT joined-SUM shape) keys off the owner dedup CTE's OWN
- * pre-join GROUP KEY instead and never references `__owox_rid`. Before this gate, ANY blended
- * SUM/AVG owner got `__owox_rid` unconditionally, so a non-identity owner's raw CTE carried a
- * per-row `ROW_NUMBER()` window nothing downstream ever read — dead weight, and on some
+ * pre-join GROUP KEY instead and needs neither the key nor the surrogate. Before this gate, ANY
+ * blended SUM/AVG owner got `__owox_rid` unconditionally, so a non-identity owner's raw CTE
+ * carried a per-row `ROW_NUMBER()` window nothing downstream ever read — dead weight, and on some
  * engines a real unpartitioned full-table window computation.
  */
-export function collectValueSleeveOwnerCtes(
+export function collectValueSleeveOwners(
   aggregations: AggregationRule[],
   outputAliasToRoot: ReadonlyMap<string, string>,
   context: BlendedQueryContext
-): ReadonlySet<string> {
-  const owners = new Set<string>();
+): ReadonlyMap<string, ValueSleeveIdentity> {
+  const owners = new Map<string, ValueSleeveIdentity>();
   const fieldIndex = context.fieldIndex;
   if (!fieldIndex) return owners;
+  const chainByCte = new Map(context.chains.map(c => [c.cteName, c]));
   for (const r of aggregations) {
     if (!VALUE_SLEEVE_FUNCTIONS.has(r.function)) continue;
     if (!outputAliasToRoot.has(r.column)) continue; // main (non-blended) column
@@ -78,16 +79,49 @@ export function collectValueSleeveOwnerCtes(
       // A blended (outputAliasToRoot-mapped) column with no fieldIndex entry is the same
       // invariant violation buildSleeveCte throws on (e.g. a hidden aggregated column that
       // mapOutputAliasesToRoot stamped but buildBlendedFieldIndex skipped). Fail loud here
-      // too — silently skipping it would drop the surrogate its owner chain needs.
+      // too — silently skipping it would drop the identity its owner chain needs.
       throw new BusinessViolationException(
-        `collectValueSleeveOwnerCtes: no fieldIndex entry for value-sleeve metric column='${r.column}' ` +
+        `collectValueSleeveOwners: no fieldIndex entry for value-sleeve metric column='${r.column}' ` +
           `(the column is aggregated but missing from the blended field index)`
       );
     }
     if (!isIdentityPreJoinField(r.column, fieldIndex, context)) continue;
-    owners.add(entry.cteName);
+    const chain = chainByCte.get(entry.cteName);
+    if (!chain) continue; // buildSleeveCte / buildValueSleeveGroupCte report this mismatch
+    owners.set(entry.cteName, valueSleeveIdentityFor(chain));
   }
   return owners;
+}
+
+/**
+ * How a value sleeve tells one row of a joined Data Mart from another.
+ *
+ * - `primary-key` — the joined mart's OWN declared key. Two rows that agree on the key AND on the
+ *   metric's value are then the same owner and are counted once; two rows that agree on the key
+ *   but not the value stay separate, so no silent choice is made between contradictory rows.
+ * - `row-surrogate` — no key was declared, so every raw row is its own owner (`__owox_rid`).
+ *   Correct for well-formed data, but it cannot tell a genuine duplicate row from two distinct
+ *   ones, and duplicates are then summed twice.
+ */
+export type ValueSleeveIdentity =
+  | { kind: 'primary-key'; columns: string[] }
+  | { kind: 'row-surrogate' };
+
+/**
+ * ONE answer to "what identifies a row of this joined mart", read by the raw-CTE builder (which
+ * must project those columns, or emit the surrogate window) and by the sleeve builder (which puts
+ * them in its DISTINCT tuple). Two independent answers would mean a sleeve deduping on a column
+ * its own source CTE never projected.
+ *
+ * A declared key is TRUSTED, exactly as the main mart's Unique Count trusts it: declaring a key
+ * is the statement that it identifies a row. A key that is not in fact unique collapses rows the
+ * surrogate kept apart.
+ */
+export function valueSleeveIdentityFor(chain: ResolvedRelationshipChain): ValueSleeveIdentity {
+  const declared = chain.targetPrimaryKeyFields ?? [];
+  return declared.length > 0
+    ? { kind: 'primary-key', columns: [...declared] }
+    : { kind: 'row-surrogate' };
 }
 
 export function collectReportDimensions(

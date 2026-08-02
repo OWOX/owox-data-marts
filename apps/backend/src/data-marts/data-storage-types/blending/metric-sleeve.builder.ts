@@ -35,6 +35,7 @@ import {
   sleeveCteNameForColumn,
   sleeveJoinColumns,
   splitValueSleeveGroupsByIdentity,
+  valueSleeveIdentityFor,
 } from './metric-sleeve.planner';
 
 /**
@@ -460,11 +461,19 @@ export class MetricSleeveBuilder {
       });
     });
 
-    // Owner identity leg of the inner `SELECT DISTINCT`: for an identity field, the per-raw-row
-    // surrogate (`__owox_rid`, C2.1) — genuinely distinct raw rows must count separately. For a
-    // non-identity field, the pre-join GROUP KEY itself (the owner dedup CTE's own `GROUP BY`
-    // key) — that CTE is already ONE row per key, so the key IS the identity; a composite join
-    // key gets one `_oid_<i>` slot per key column.
+    // Owner identity leg of the inner `SELECT DISTINCT`, in three forms:
+    //
+    // - identity field WITH a declared primary key on the joined mart: that key. Two raw rows
+    //   agreeing on the key AND on the value are the same row counted twice by the join, so they
+    //   collapse; two rows agreeing on the key but NOT the value stay separate, so contradictory
+    //   data is never silently resolved to one of its versions.
+    // - identity field with NO declared key: the per-raw-row surrogate (`__owox_rid`, C2.1) —
+    //   with nothing to tell rows apart, each raw row must count separately.
+    // - non-identity field: the pre-join GROUP KEY itself (the owner dedup CTE's own `GROUP BY`
+    //   key) — that CTE is already ONE row per key, so the key IS the identity, and a declared
+    //   key on the joined mart is irrelevant to it.
+    //
+    // A composite key gets one `_oid_<i>` slot per column; a single one keeps the bare `_oid`.
     let oidItems: string[];
     let oidAliasNames: string[];
     // The identity leg IS the dedup key: with no join conditions there is nothing to identify a
@@ -482,18 +491,28 @@ export class MetricSleeveBuilder {
           `de-duplicated and would be undercounted. Edit the relationship to add a join condition`
       );
     }
-    if (isIdentity) {
-      const ownerIdRef =
-        `${this.dialect.quoteIdentifier(`${group.ownerCteName}_raw`)}.` +
-        `${this.dialect.quoteIdentifier(ROW_SURROGATE_ALIAS)}`;
+    const rawOwnerAlias = this.dialect.quoteIdentifier(`${group.ownerCteName}_raw`);
+    // Resolved from the chain by the SAME function the raw-CTE builder used to decide what to
+    // project — a second opinion here would dedup on a column the source CTE never emitted.
+    const ownerIdentity = valueSleeveIdentityFor(ownerChain);
+    if (isIdentity && ownerIdentity.kind === 'primary-key') {
+      // A declared key is unique across the whole joined mart, so — unlike the surrogate below —
+      // it needs no join key beside it to be meaningful.
+      const pkRefs = ownerIdentity.columns.map(
+        c => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(c)}`
+      );
+      oidAliasNames = pkRefs.length === 1 ? ['_oid'] : pkRefs.map((_, i) => `_oid_${i}`);
+      oidItems = pkRefs.map(
+        (ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(oidAliasNames[i])}`
+      );
+    } else if (isIdentity) {
+      const ownerIdRef = `${rawOwnerAlias}.${this.dialect.quoteIdentifier(ROW_SURROGATE_ALIAS)}`;
       // The surrogate is numbered PER parent-join-key group (`buildRawCte` partitions the
       // window there), so it identifies a row only together with that key: without the key in
       // the tuple, row 1 of key A and row 1 of key B carrying the same value would collapse
       // into one DISTINCT row and the SUM would silently lose one of them.
       const partitionKeyRefs = ownerChain.relationship.joinConditions.map(
-        jc =>
-          `${this.dialect.quoteIdentifier(`${group.ownerCteName}_raw`)}.` +
-          `${this.dialect.quoteFieldRef(jc.targetFieldName)}`
+        jc => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(jc.targetFieldName)}`
       );
       const keyAliasNames = partitionKeyRefs.map((_, i) => `_oid_key_${i}`);
       oidAliasNames = ['_oid', ...keyAliasNames];

@@ -896,6 +896,122 @@ describe('MetricSleeveBuilder', () => {
     // resolves identifiers case-insensitively — so a dimension named `_OID` slipped past the
     // guard and collided with the synthetic alias inside the SELECT DISTINCT, silently corrupting
     // the dedup set instead of failing.
+    describe('de-duplication by a declared primary key', () => {
+      /**
+       * The shared fixture with a declared key on the `organizations` chain. Everything else is
+       * identical, so any SQL difference below is attributable to the key alone.
+       */
+      function fixtureWithOrgPrimaryKey(primaryKeyColumns: string[]) {
+        const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+        return {
+          outputAliasToRoot,
+          context: {
+            ...context,
+            chains: context.chains.map(c =>
+              c.cteName === 'organizations'
+                ? { ...c, targetPrimaryKeyFields: primaryKeyColumns }
+                : c
+            ),
+          },
+        };
+      }
+
+      it('keys the DISTINCT tuple on the declared key instead of the row surrogate', () => {
+        const builder = new TestBlendedQueryBuilder();
+        const { context, outputAliasToRoot } = fixtureWithOrgPrimaryKey(['orgKey']);
+        const metric = { column: 'organizations__orgId', function: 'SUM' } as AggregationRule;
+
+        const sql = normalizeSql(
+          builder.sleeves().buildSleeveCte(metric, ['users__country'], context, outputAliasToRoot)
+            .sql
+        );
+
+        expect(sql).toContain('organizations_raw.orgKey AS _oid');
+        // With a real key, two raw rows that agree on it AND on the value are the same row the
+        // join returned twice — the surrogate would have made them two owners and summed twice.
+        expect(sql).not.toContain('__owox_rid');
+        // The key is unique across the whole joined mart, so it needs no join key beside it.
+        expect(sql).not.toContain('_oid_key_0');
+      });
+
+      it('gives a composite key one slot per column', () => {
+        const builder = new TestBlendedQueryBuilder();
+        const { context, outputAliasToRoot } = fixtureWithOrgPrimaryKey(['tenant', 'orgKey']);
+        const metric = { column: 'organizations__orgId', function: 'AVG' } as AggregationRule;
+
+        const sql = normalizeSql(
+          builder.sleeves().buildSleeveCte(metric, ['users__country'], context, outputAliasToRoot)
+            .sql
+        );
+
+        expect(sql).toContain('organizations_raw.tenant AS _oid_0');
+        expect(sql).toContain('organizations_raw.orgKey AS _oid_1');
+        expect(sql).not.toContain('__owox_rid');
+      });
+
+      it('still uses the surrogate when the joined mart declares no key', () => {
+        const builder = new TestBlendedQueryBuilder();
+        const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+        const metric = { column: 'organizations__orgId', function: 'SUM' } as AggregationRule;
+
+        const sql = normalizeSql(
+          builder.sleeves().buildSleeveCte(metric, ['users__country'], context, outputAliasToRoot)
+            .sql
+        );
+
+        // Nothing tells two identical rows apart, so each raw row stays its own owner.
+        expect(sql).toContain('organizations_raw.__owox_rid AS _oid');
+        expect(sql).toContain('organizations_raw.orgId AS _oid_key_0');
+      });
+
+      it('ignores a declared key on a NON-IDENTITY owner, which is keyed by its pre-join group key', () => {
+        // The owner's dedup CTE is already one row per pre-join key, so the key IS the identity
+        // there — a declared key on the joined mart has nothing left to de-duplicate.
+        const builder = new TestBlendedQueryBuilder();
+        const chain = makeChain({
+          relationship: makeRelationship({
+            targetAlias: 'hits',
+            joinConditions: [{ sourceFieldName: 'session_id', targetFieldName: 'session_id' }],
+          }),
+          targetTableReference: 'hits_table',
+          parentAlias: 'main',
+          targetPrimaryKeyFields: ['hit_id'],
+          blendedFields: [
+            {
+              targetFieldName: 'amount',
+              outputAlias: 'hits__amount',
+              isHidden: false,
+              aggregateFunction: 'SUM', // non-identity pre-join roll-up
+            },
+          ],
+        });
+        const fieldIndex = buildBlendedFieldIndex({
+          blendedFields: [
+            {
+              name: 'hits__amount',
+              aliasPath: 'hits',
+              originalFieldName: 'amount',
+              type: 'FLOAT64',
+            },
+          ],
+          availableSources: [{ aliasPath: 'hits', isIncluded: true }],
+        } as never);
+        const context: BlendedQueryContext = {
+          ...buildContext([chain], ['hits__amount']),
+          fieldIndex,
+        };
+        const metric = { column: 'hits__amount', function: 'SUM' } as AggregationRule;
+
+        const sql = normalizeSql(
+          builder.sleeves().buildSleeveCte(metric, [], context, new Map([['hits__amount', 'hits']]))
+            .sql
+        );
+
+        expect(sql).toContain('hits.session_id AS _oid');
+        expect(sql).not.toContain('hit_id');
+      });
+    });
+
     describe('reserved inner alias guard is case-insensitive', () => {
       const buildGroup = (dimensions: string[]) => {
         const sleeves = new TestBlendedQueryBuilder().sleeves();

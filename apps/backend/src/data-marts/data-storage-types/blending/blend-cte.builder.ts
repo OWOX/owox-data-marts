@@ -7,6 +7,7 @@ import { BlendTreeNode, PassthroughField, ROW_SURROGATE_ALIAS } from './blended-
 import { Logger } from '@nestjs/common';
 import { BlendedSqlDialect, renderLeftJoinOn } from './blended-sql-dialect';
 import { reAggregateFunctionFor } from './re-aggregation';
+import type { ValueSleeveIdentity } from './metric-sleeve.planner';
 
 /**
  * Builds the CTE tree a blended query is made of: one `<alias>_raw` CTE per data mart, an
@@ -96,7 +97,7 @@ export class BlendCteBuilder {
     node: BlendTreeNode,
     preJoinByCte: ReadonlyMap<string, FilterRule[]>,
     resolveColumnType?: ColumnTypeResolver,
-    valueSleeveOwnerCtes?: ReadonlySet<string>
+    valueSleeveOwners?: ReadonlyMap<string, ValueSleeveIdentity>
   ): {
     ctes: string[];
     passthroughFields: PassthroughField[];
@@ -111,7 +112,7 @@ export class BlendCteBuilder {
         child,
         preJoinByCte,
         resolveColumnType,
-        valueSleeveOwnerCtes
+        valueSleeveOwners
       );
       ctes.push(...childResult.ctes);
       params.push(...childResult.params);
@@ -123,10 +124,18 @@ export class BlendCteBuilder {
 
     const preJoinFilters = preJoinByCte.get(alias) ?? [];
     const preJoinColumns = new Set(preJoinFilters.map(r => r.column));
+    // The row identity a value sleeve on THIS chain will dedup by, when it owns one. A declared
+    // key is projected like any other referenced column; only a keyless owner pays for the
+    // surrogate window. Resolved once here and read by both branches below, so the raw CTE
+    // cannot project one identity while the sleeve dedups on another.
+    const valueSleeveIdentity = valueSleeveOwners?.get(alias);
+    const identityColumns =
+      valueSleeveIdentity?.kind === 'primary-key' ? valueSleeveIdentity.columns : [];
     const subsidiaryColumns = this.collectSubsidiaryReferences(
       chain,
       node.children,
-      preJoinColumns
+      preJoinColumns,
+      identityColumns
     );
     const rawCte = this.buildRawCte(
       `${alias}_raw`,
@@ -137,7 +146,7 @@ export class BlendCteBuilder {
       preJoinFilters,
       `s_${alias}_`,
       resolveColumnType,
-      valueSleeveOwnerCtes?.has(alias) ?? false,
+      valueSleeveIdentity?.kind === 'row-surrogate',
       // partition the surrogate by this chain's OWN parent-join key, so the
       // window is computed per key group instead of once over the whole joined mart. The
       // value sleeve carries the same key alongside `__owox_rid` in its DISTINCT tuple, which
@@ -345,7 +354,11 @@ export class BlendCteBuilder {
   collectSubsidiaryReferences(
     chain: ResolvedRelationshipChain,
     children: BlendTreeNode[],
-    preJoinColumns: ReadonlySet<string>
+    preJoinColumns: ReadonlySet<string>,
+    // The declared primary-key columns a value sleeve on this chain dedups by. Projected here
+    // because the sleeve reads them off `<alias>_raw`, and a PK is frequently not otherwise
+    // referenced — it need be neither a join key nor a selected field.
+    identityColumns: readonly string[] = []
   ): string[] {
     const refs = new Set<string>();
     for (const jc of chain.relationship.joinConditions) refs.add(jc.targetFieldName);
@@ -354,6 +367,7 @@ export class BlendCteBuilder {
       for (const jc of child.chain.relationship.joinConditions) refs.add(jc.sourceFieldName);
     }
     for (const col of preJoinColumns) refs.add(col);
+    for (const col of identityColumns) refs.add(col);
     return Array.from(refs).sort();
   }
 

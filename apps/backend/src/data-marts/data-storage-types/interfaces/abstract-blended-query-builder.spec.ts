@@ -15,7 +15,7 @@ import { ResolvedRelationshipChain, BlendedQueryContext } from './blended-query-
 import { SqlParameter } from '../utils/sql-clause-renderer';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
 import { buildBlendedFieldIndex } from '../../services/blended-field-index';
-import { collectValueSleeveOwnerCtes } from '../blending/metric-sleeve.planner';
+import { collectValueSleeveOwners } from '../blending/metric-sleeve.planner';
 import {
   SLEEVE_ROUTED_FUNCTIONS,
   ReportAggregateFunction,
@@ -2844,7 +2844,7 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     return { context };
   }
 
-  it('collectValueSleeveOwnerCtes picks SUM/AVG on blended IDENTITY columns, not COUNT_DISTINCT or a main column', () => {
+  it('collectValueSleeveOwners picks value metrics on blended IDENTITY columns, not COUNT_DISTINCT or a main column', () => {
     const organizationsChain = makeChain({
       relationship: makeRelationship({ targetAlias: 'organizations' }),
       targetTableReference: 'organizations_table',
@@ -2882,12 +2882,13 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
       { column: 'revenue', function: 'SUM' }, // main (non-blended) column -> not an owner
     ] as AggregationRule[];
 
-    expect(collectValueSleeveOwnerCtes(aggs, outputAliasToRoot, context)).toEqual(
-      new Set(['organizations'])
+    // No declared key on the joined mart, so the owner falls back to the synthetic surrogate.
+    expect(collectValueSleeveOwners(aggs, outputAliasToRoot, context)).toEqual(
+      new Map([['organizations', { kind: 'row-surrogate' }]])
     );
   });
 
-  it('collectValueSleeveOwnerCtes excludes an owner whose ONLY value-sleeve metric is on a NON-IDENTITY pre-join field ( — default joined SUM)', () => {
+  it('collectValueSleeveOwners excludes an owner whose ONLY value-sleeve metric is on a NON-IDENTITY pre-join field ( — default joined SUM)', () => {
     // The DEFAULT production shape: a joined numeric field pre-aggregated with SUM at its
     // own join key (NOT a raw ANY_VALUE passthrough). Its value sleeve reads the owner
     // dedup CTE's own already-aggregated column, keyed by the pre-join GROUP KEY — it never
@@ -2928,7 +2929,7 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     };
     const aggs = [{ column: 'hits__amount', function: 'SUM' }] as AggregationRule[];
 
-    expect(collectValueSleeveOwnerCtes(aggs, outputAliasToRoot, context)).toEqual(new Set());
+    expect(collectValueSleeveOwners(aggs, outputAliasToRoot, context)).toEqual(new Map());
   });
 
   it('projects __owox_rid on the raw CTE of a chain that owns a joined SUM metric', () => {
@@ -2947,6 +2948,30 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     // The users chain owns no value-sleeve metric — its raw CTE must stay lean.
     const usersRaw = normalizeSql(extractCteBody(sql, 'users_raw'));
     expect(usersRaw).not.toContain('__owox_rid');
+  });
+
+  it('projects the declared primary key instead of __owox_rid, and skips the window entirely', () => {
+    const builder = new TestBlendedWithRenderer();
+    const { context } = fixtureEventsUsersOrgs();
+    const ctx: BlendedQueryContext = {
+      ...context,
+      chains: context.chains.map(c =>
+        c.cteName === 'organizations' ? { ...c, targetPrimaryKeyFields: ['orgKey'] } : c
+      ),
+      aggregations: [{ column: 'organizations__revenue', function: 'SUM' } as AggregationRule],
+    };
+
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    const orgsRaw = normalizeSql(extractCteBody(sql, 'organizations_raw'));
+    // A key column is frequently referenced by nothing else — neither a join key nor a selected
+    // field — so the raw CTE has to be told to project it, or the sleeve dedups on a column that
+    // is not in scope.
+    expect(orgsRaw).toContain('orgKey');
+    // And the surrogate window is not merely unused, it is not computed: a ROW_NUMBER() over a
+    // large joined mart is real work.
+    expect(orgsRaw).not.toContain('ROW_NUMBER()');
+    expect(sql).not.toContain('__owox_rid');
   });
 
   it('projects __owox_rid on the raw CTE of a chain that owns a joined AVG metric', () => {
@@ -3136,7 +3161,7 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     }
   });
 
-  it('collectValueSleeveOwnerCtes throws (not silently skips) for a blended SUM column missing from the field index', () => {
+  it('collectValueSleeveOwners throws (not silently skips) for a blended SUM column missing from the field index', () => {
     // A blended column present in outputAliasToRoot but absent from fieldIndex (e.g. a
     // hidden aggregated column mapOutputAliasesToRoot stamped but buildBlendedFieldIndex
     // skipped) is the SAME invariant violation buildSleeveCte throws on — the two paths
@@ -3149,8 +3174,8 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     };
     const aggs = [{ column: 'organizations__revenue', function: 'SUM' }] as AggregationRule[];
 
-    expect(() => collectValueSleeveOwnerCtes(aggs, outputAliasToRoot, context)).toThrow(
-      /collectValueSleeveOwnerCtes: no fieldIndex entry for value-sleeve metric column='organizations__revenue'/
+    expect(() => collectValueSleeveOwners(aggs, outputAliasToRoot, context)).toThrow(
+      /collectValueSleeveOwners: no fieldIndex entry for value-sleeve metric column='organizations__revenue'/
     );
   });
 });
