@@ -250,12 +250,12 @@ describe('Ownership (e2e)', () => {
       expect(dm.businessOwnerUsers).toHaveLength(0);
     });
 
-    it('GET /api/data-marts/:id - new DM is reporting-shared, maintenance-private by default', async () => {
+    it('GET /api/data-marts/:id - new DM is shared for reporting and for maintenance by default', async () => {
       const res = await agent.get(`/api/data-marts/${dataMartId}`).set(AUTH_HEADER);
 
       expect(res.status).toBe(200);
       expect(res.body.availableForReporting).toBe(true);
-      expect(res.body.availableForMaintenance).toBe(false);
+      expect(res.body.availableForMaintenance).toBe(true);
     });
 
     it('PUT /api/data-marts/:id/owners - updates technical and business owners', async () => {
