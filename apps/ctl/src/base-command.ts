@@ -4,6 +4,7 @@ import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from '@ow
 
 import { resolveAuthConfig, type AuthConfig } from './config-store.js';
 import { renderJson } from './output.js';
+import { Agent } from 'undici';
 
 type BaseFlags = {
   'env-file'?: string;
@@ -68,7 +69,13 @@ export abstract class BaseCommand extends Command {
   };
 
   protected createClient(config: AuthConfig): OWOXApiClient {
-    return new OWOXApiClient({ apiKey: config.apiKey });
+    return new OWOXApiClient({
+      apiKey: config.apiKey,
+      // NDJSON traversals legitimately run for minutes, so the default body and header
+      // timeouts have to go. This lives here rather than in the api client, which must
+      // stay free of Node-only imports to build for the browser.
+      streamDispatcher: new Agent({ bodyTimeout: 0, headersTimeout: 0 }),
+    });
   }
 
   protected loadEnvironment(flags: Pick<BaseFlags, 'env-file'>): string | null {

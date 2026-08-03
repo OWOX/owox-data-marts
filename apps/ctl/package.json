@@ -16,7 +16,8 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@owox/api-client": "*",
-    "@owox/internal-helpers": "*"
+    "@owox/internal-helpers": "*",
+    "undici": "^6.26.0"
   },
   "devDependencies": {
     "@owox/eslint-config": "*",
