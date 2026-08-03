@@ -12,16 +12,9 @@ Use the MCP server to explore your [data marts](../core-concepts.md) in plain la
 
 ## Step 1: Connect your AI assistant
 
-Set up whichever assistant you use — you only need one. The client discovers the OAuth endpoints and registers itself automatically: there is no client ID, secret, or token to copy.
+Set up whichever assistant you use — you only need one. Connect to the shared MCP server, `https://mcp.owox.com/mcp`: the client discovers its OAuth endpoints and registers itself automatically, so there is no client ID, secret, or token to copy. You select your project during authorization — see [Step 2](#step-2-authorize-access).
 
-You can use either MCP server URL:
-
-- **Shared MCP server:** `https://mcp.owox.com/mcp` — choose this when you want to select the project during authorization.
-- **Project-specific MCP server:** `https://{projectId}.mcp.owox.com/mcp` — choose this when OWOX UI or API gives you the project URL directly. The `projectId` is already in MD5 format. It is only a stable URL identifier and does not grant access by itself.
-
-Both URLs use the same OAuth flow and the same MCP tools. A project-specific URL skips the project selection screen. Authorization still succeeds only if the signed-in user is an active member of that project.
-
-If you connect project-specific MCP servers for multiple projects, give each connection a unique name, such as `Marketing` or `Finance`. This makes it easier to select the right server and tell your assistant which project's MCP tools to use.
+> **Note:** Connecting to multiple projects, or scripting the setup from a URL your OWOX UI or API already gave you? See [Use a project-specific URL](#use-a-project-specific-url) below.
 
 ### Claude Desktop
 
@@ -61,6 +54,14 @@ To confirm your MCP server is configured correctly, open the Connectors section 
 ![ChatGPT authorization screen with the Sign in with OWOX Data Marts button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/bf383601-ad2b-4870-3703-b78dd49fdf00/public)
 
 ![ChatGPT chat composer with the OWOX Data Marts plugin available for a new chat](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/55bbd278-3784-40b0-fe98-4a16d1006c00/public)
+
+### Use a project-specific URL
+
+The steps above connect the shared MCP server and let you pick a project during authorization. If OWOX UI or API already gave you a project's URL — `https://{projectId}.mcp.owox.com/mcp` — you can connect that instead: add it as a custom connector rather than picking OWOX Data Marts from the client's connector directory (in Claude, use **Add → Add custom connector**). The `projectId` is already in MD5 format; it is only a stable URL identifier and does not grant access by itself.
+
+A project-specific URL uses the same OAuth flow and the same MCP tools as the shared one, but it skips the project selection screen in [Step 2](#step-2-authorize-access) — authorization still succeeds only if the signed-in user is an active member of that project.
+
+If you connect project-specific MCP servers for multiple projects, give each connection a unique name, such as `Marketing` or `Finance`. This makes it easier to select the right server and tell your assistant which project's MCP tools to use.
 
 ## Step 2: Authorize access
 
