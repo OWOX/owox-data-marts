@@ -4,7 +4,12 @@ jest.mock('node:dns/promises', () => ({
 }));
 
 import dns from 'node:dns/promises';
-import { assertPublicHttpUrl, isPrivateIpv6, UnsafeUrlError } from './safe-url.helper';
+import {
+  assertPublicHttpUrl,
+  fetchPublicUrl,
+  isPrivateIpv6,
+  UnsafeUrlError,
+} from './safe-url.helper';
 
 const resolve4 = dns.resolve4 as jest.Mock;
 const resolve6 = dns.resolve6 as jest.Mock;
@@ -116,6 +121,55 @@ describe('assertPublicHttpUrl', () => {
     });
     expect(resolve4).not.toHaveBeenCalled();
     expect(resolve6).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchPublicUrl', () => {
+  const fetchMock = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resolve4.mockResolvedValue(['93.184.216.34']);
+    resolve6.mockResolvedValue([]);
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  const redirectTo = (location: string) =>
+    new Response(null, { status: 302, headers: { location } });
+
+  it('refuses a redirect into a private network', async () => {
+    fetchMock.mockResolvedValueOnce(redirectTo('http://169.254.169.254/latest/meta-data/'));
+
+    await expect(fetchPublicUrl('https://example.com/hook', { method: 'POST' })).rejects.toThrow(
+      UnsafeUrlError
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('replays method and body on a guarded hop', async () => {
+    fetchMock
+      .mockResolvedValueOnce(redirectTo('https://example.com/moved'))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }));
+
+    const response = await fetchPublicUrl('https://example.com/hook', {
+      method: 'POST',
+      body: '{"a":1}',
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://example.com/moved',
+      expect.objectContaining({ method: 'POST', body: '{"a":1}', redirect: 'manual' })
+    );
+  });
+
+  it('gives up rather than looping forever', async () => {
+    fetchMock.mockResolvedValue(redirectTo('https://example.com/next'));
+
+    await expect(
+      fetchPublicUrl('https://example.com/hook', { method: 'POST' })
+    ).rejects.toMatchObject({ reason: 'too-many-redirects' });
   });
 });
 

@@ -7,7 +7,8 @@ export type UnsafeUrlReason =
   | 'private-ipv4'
   | 'private-ipv6'
   /** Hostname produced no usable public address (NXDOMAIN, empty answers, or DNS failure). */
-  | 'dns-unresolvable';
+  | 'dns-unresolvable'
+  | 'too-many-redirects';
 
 export class UnsafeUrlError extends Error {
   constructor(
@@ -26,6 +27,9 @@ export interface SafeUrlOptions {
 
 const DEFAULT_PROTOCOLS = ['http:', 'https:'] as const;
 const IPV4_LITERAL = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+/** Every hop is re-checked, so this bounds cost rather than exposure. */
+const MAX_REDIRECT_HOPS = 5;
 
 /**
  * Guards outbound requests to user-supplied URLs against SSRF.
@@ -94,6 +98,38 @@ export async function assertPublicHttpUrl(rawUrl: string, options?: SafeUrlOptio
   }
 
   return url;
+}
+
+/**
+ * `fetch` for a user-supplied URL, guarding every hop rather than only the first.
+ *
+ * `assertPublicHttpUrl` vets one URL, but `fetch` follows redirects by itself, so a
+ * public host answering 302 with `http://169.254.169.254/` would still be requested.
+ * The method and body are replayed on each hop: dropping them the way `redirect: follow`
+ * does for 301/302/303 would silently deliver an empty request instead of the payload.
+ *
+ * @throws {UnsafeUrlError}
+ */
+export async function fetchPublicUrl(
+  rawUrl: string,
+  init: RequestInit,
+  options?: SafeUrlOptions
+): Promise<Response> {
+  let currentUrl = rawUrl;
+
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    await assertPublicHttpUrl(currentUrl, options);
+
+    const response = await fetch(currentUrl, { ...init, redirect: 'manual' });
+    const location = response.headers.get('location');
+    if (!REDIRECT_STATUSES.has(response.status) || !location) {
+      return response;
+    }
+
+    currentUrl = new URL(location, currentUrl).toString();
+  }
+
+  throw new UnsafeUrlError('too-many-redirects', rawUrl);
 }
 
 /** No-op for anything that is not an IPv4 literal. @throws {UnsafeUrlError} */

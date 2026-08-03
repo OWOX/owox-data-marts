@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { assertPublicHttpUrl } from '../../common/helpers/safe-url.helper';
+import { assertPublicHttpUrl, fetchPublicUrl } from '../../common/helpers/safe-url.helper';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationPendingQueue } from '../entities/notification-pending-queue.entity';
 import { ProjectNotificationSettings } from '../entities/project-notification-settings.entity';
@@ -54,7 +54,7 @@ export class NotificationWebhookService {
     const timeoutId = setTimeout(() => controller.abort(), this.WEBHOOK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(url, {
+      const response = await fetchPublicUrl(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,8 +142,6 @@ export class NotificationWebhookService {
     projectId: string,
     context?: { userId?: string; projectTitle?: string }
   ): Promise<void> {
-    await assertPublicHttpUrl(webhookUrl);
-
     const handler = NOTIFICATION_DEFINITIONS[notificationType];
     if (!handler) {
       throw new Error(`No handler found for notification type: ${notificationType}`);
@@ -161,7 +159,7 @@ export class NotificationWebhookService {
     const timeoutId = setTimeout(() => controller.abort(), this.WEBHOOK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(webhookUrl, {
+      const response = await fetchPublicUrl(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
