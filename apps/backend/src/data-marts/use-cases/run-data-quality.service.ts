@@ -31,6 +31,7 @@ import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum'
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import { ProjectBalanceService } from '../services/project-balance.service';
 import { DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE } from '../services/data-quality-run.service';
 import {
   DataQualitySnapshotStorageMismatchError,
@@ -82,7 +83,8 @@ export class RunDataQualityService {
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    private readonly systemClock: SystemTimeService
+    private readonly systemClock: SystemTimeService,
+    private readonly projectBalanceService: ProjectBalanceService
   ) {}
 
   async executeExistingRun(
@@ -104,6 +106,7 @@ export class RunDataQualityService {
     try {
       signal?.throwIfAborted();
       if (pendingRules.length > 0) {
+        await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
         const definitionRun = dataMartRun.definitionRun;
         if (!definitionRun) {
           throw new Error(

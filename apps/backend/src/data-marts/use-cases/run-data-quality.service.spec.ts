@@ -24,14 +24,17 @@ import { DataQualitySeverity } from '../enums/data-quality-severity.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualityStoredCheckResult } from '../dto/schemas/data-quality/data-quality-run.schema';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import { ProjectBalanceService } from '../services/project-balance.service';
 import {
   DataQualitySnapshotStorageMismatchError,
   DataQualitySnapshotTableReferenceService,
 } from '../data-quality/data-quality-snapshot-table-reference.service';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { RunDataQualityService } from './run-data-quality.service';
 
 const rule = (key: string) => ({
@@ -103,6 +106,7 @@ describe('RunDataQualityService', () => {
   let executor: jest.Mocked<DataQualityQueryExecutorService>;
   let parser: jest.Mocked<DataQualityResultParser>;
   let consumption: jest.Mocked<ConsumptionTrackingService>;
+  let projectBalance: jest.Mocked<ProjectBalanceService>;
   let snapshotTableReference: jest.Mocked<DataQualitySnapshotTableReferenceService>;
   let runQueryBuilder: Record<string, jest.Mock>;
   let service: RunDataQualityService;
@@ -223,6 +227,9 @@ describe('RunDataQualityService', () => {
     consumption = {
       registerDataQualityRunConsumption: jest.fn().mockResolvedValue(undefined),
     } as never;
+    projectBalance = {
+      verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
+    } as never;
     snapshotTableReference = {
       resolve: jest.fn().mockResolvedValue(snapshotReference('SELECT * FROM source')),
     } as unknown as jest.Mocked<DataQualitySnapshotTableReferenceService>;
@@ -237,7 +244,8 @@ describe('RunDataQualityService', () => {
       executor,
       parser,
       consumption,
-      clock
+      clock,
+      projectBalance
     );
   });
 
@@ -1016,6 +1024,21 @@ describe('RunDataQualityService', () => {
 
     expect(runQueryBuilder.innerJoinAndSelect).toHaveBeenCalledWith('run.dataMart', 'dataMart');
     expect(runQueryBuilder.innerJoinAndSelect).toHaveBeenCalledWith('dataMart.storage', 'storage');
+  });
+
+  it('does not execute Data Quality queries when project balance blocks operations', async () => {
+    projectBalance.verifyCanPerformOperations.mockRejectedValue(
+      new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+    );
+
+    await service.executeExistingRun('run-1', 'project-1');
+
+    expect(projectBalance.verifyCanPerformOperations).toHaveBeenCalledWith('project-1');
+    expect(snapshotTableReference.resolve).not.toHaveBeenCalled();
+    expect(compiler.compile).not.toHaveBeenCalled();
+    expect(executor.executeChecks).not.toHaveBeenCalled();
+    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(dataMartRun.status).toBe(DataMartRunStatus.FAILED);
   });
 
   it('publishes consumption only after final SUCCESS is persisted', async () => {
