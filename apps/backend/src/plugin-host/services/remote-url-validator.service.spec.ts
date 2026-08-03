@@ -235,5 +235,31 @@ describe('RemoteUrlValidatorService', () => {
         ok: true,
       });
     });
+
+    // The delivery URL is allowed five guarded hops; rejecting the descriptor for one
+    // would fail a vendor over ordinary CDN or trailing-slash behaviour.
+    it('follows a redirect to the descriptor, as the delivery URL is allowed to', async () => {
+      route({
+        '/.well-known/owox-plugin.json': () => redirect('https://cdn.example.com/owox-plugin.json'),
+        'cdn.example.com/owox-plugin.json': () => descriptor(),
+        'plugin.example.com': () => page(),
+      });
+
+      await expect(service().validate(PLUGIN_URL)).resolves.toMatchObject({ ok: true });
+    });
+
+    it('still guards every descriptor hop', async () => {
+      route({
+        '/.well-known/owox-plugin.json': () => redirect('https://internal.example/descriptor.json'),
+        'plugin.example.com': () => page(),
+      });
+      resolve4.mockImplementation((host: string) =>
+        Promise.resolve(host === 'internal.example' ? ['10.0.0.5'] : ['93.184.216.34'])
+      );
+
+      await expect(service().validate(PLUGIN_URL)).resolves.toMatchObject({
+        code: ReleaseRejectionCode.URL_PRIVATE_NETWORK,
+      });
+    });
   });
 });

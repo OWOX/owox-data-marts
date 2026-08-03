@@ -22,6 +22,11 @@ interface DescriptorBody {
   sdkVersion?: unknown;
 }
 
+/** What a guarded redirect walk ends on: the first non-redirect response, or why it stopped. */
+type WalkResult =
+  | { readonly ok: true; readonly response: Response; readonly finalUrl: string }
+  | { readonly ok: false; readonly rejection: RemoteUrlCheckResult };
+
 /**
  * Decides whether a plugin's remote entry point may be hosted in an OWOX iframe.
  *
@@ -49,38 +54,58 @@ export class RemoteUrlValidatorService {
   }
 
   private async run(rawUrl: string): Promise<RemoteUrlCheckResult> {
+    const walked = await this.walk(rawUrl, ReleaseRejectionCode.URL_UNREACHABLE);
+    if (!walked.ok) {
+      return walked.rejection;
+    }
+
+    const blocked = this.checkEmbeddable(walked.response);
+    if (blocked) {
+      return this.reject(ReleaseRejectionCode.IFRAME_BLOCKED, blocked);
+    }
+
+    return this.checkDescriptor(walked.finalUrl);
+  }
+
+  /**
+   * Follows redirects with `guard()` on every hop, because `probe()` is deliberately manual.
+   *
+   * Shared by the delivery URL and the descriptor beside it: leaving the descriptor on a
+   * bare probe rejected a vendor for hosting behaviour -- trailing-slash normalisation, an
+   * http→https upgrade, a CDN hop -- that the delivery URL is allowed to redirect through.
+   * `code` names what an unusable redirect means for each caller.
+   */
+  private async walk(rawUrl: string, code: ReleaseRejectionCode): Promise<WalkResult> {
     let currentUrl = rawUrl;
 
     for (let hop = 0; hop < this.config.maxRedirectHops; hop++) {
       const guarded = await this.guard(currentUrl);
       if (!guarded.ok) {
-        return guarded;
+        return { ok: false, rejection: guarded };
       }
 
       const response = await this.probe(currentUrl);
-
       if (!REDIRECT_STATUSES.has(response.status)) {
-        const blocked = this.checkEmbeddable(response);
-        if (blocked) {
-          return this.reject(ReleaseRejectionCode.IFRAME_BLOCKED, blocked);
-        }
-        return this.checkDescriptor(currentUrl);
+        return { ok: true, response, finalUrl: currentUrl };
       }
 
       const location = response.headers.get('location');
       if (!location) {
-        return this.reject(
-          ReleaseRejectionCode.URL_UNREACHABLE,
-          `Redirect at ${currentUrl} carried no Location header`
-        );
+        return {
+          ok: false,
+          rejection: this.reject(code, `Redirect at ${currentUrl} carried no Location header`),
+        };
       }
       currentUrl = new URL(location, currentUrl).toString();
     }
 
-    return this.reject(
-      ReleaseRejectionCode.URL_UNREACHABLE,
-      `More than ${this.config.maxRedirectHops} redirects starting at ${rawUrl}`
-    );
+    return {
+      ok: false,
+      rejection: this.reject(
+        code,
+        `More than ${this.config.maxRedirectHops} redirects starting at ${rawUrl}`
+      ),
+    };
   }
 
   /**
@@ -197,7 +222,12 @@ export class RemoteUrlValidatorService {
     const base = finalUrl.endsWith('/') ? finalUrl : `${finalUrl}/`;
     const descriptorUrl = new URL(SDK_DESCRIPTOR_PATH, base).toString();
 
-    const response = await this.probe(descriptorUrl);
+    const walked = await this.walk(descriptorUrl, ReleaseRejectionCode.SDK_HANDSHAKE_FAILED);
+    if (!walked.ok) {
+      return walked.rejection;
+    }
+
+    const response = walked.response;
     if (!response.ok) {
       return this.reject(
         ReleaseRejectionCode.SDK_HANDSHAKE_FAILED,
