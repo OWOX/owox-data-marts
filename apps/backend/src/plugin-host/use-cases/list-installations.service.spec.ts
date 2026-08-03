@@ -25,27 +25,31 @@ function setup(rows: unknown[] = [installation()], pluginOverrides = {}) {
   } as unknown as jest.Mocked<PluginInstallationService>;
 
   const pluginService = {
-    findById: jest.fn().mockResolvedValue({
-      id: 'p1',
-      repoOwner: 'OWOX',
-      repoName: 'example',
-      repoHtmlUrl: 'https://github.com/OWOX/example',
-      createdAt: new Date('2026-07-01T00:00:00.000Z'),
-      isPrivateRepo: false,
-      currentVersionId: 'v1',
-      suspendedAt: null,
-      ...pluginOverrides,
-    }),
+    findByIds: jest.fn().mockResolvedValue([
+      {
+        id: 'p1',
+        repoOwner: 'OWOX',
+        repoName: 'example',
+        repoHtmlUrl: 'https://github.com/OWOX/example',
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+        isPrivateRepo: false,
+        currentVersionId: 'v1',
+        suspendedAt: null,
+        ...pluginOverrides,
+      },
+    ]),
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
-    findById: jest.fn().mockResolvedValue({
-      id: 'v1',
-      semver: '1.0.0',
-      displayName: 'Example',
-      description: 'x',
-      deliveryUrl: 'https://plugin.example.com',
-    }),
+    findByIds: jest.fn().mockResolvedValue([
+      {
+        id: 'v1',
+        semver: '1.0.0',
+        displayName: 'Example',
+        description: 'x',
+        deliveryUrl: 'https://plugin.example.com',
+      },
+    ]),
   } as unknown as jest.Mocked<PluginVersionService>;
 
   return {
@@ -93,8 +97,8 @@ describe('ListInstallationsService', () => {
       (s.installations.findByMember as jest.Mock).mockResolvedValue([installation()]);
       const service = new ListInstallationsService(
         s.installations,
-        { findById: jest.fn().mockResolvedValue(null) } as unknown as PluginService,
-        { findById: jest.fn() } as unknown as PluginVersionService,
+        { findByIds: jest.fn().mockResolvedValue([]) } as unknown as PluginService,
+        { findByIds: jest.fn().mockResolvedValue([]) } as unknown as PluginVersionService,
         new PluginPresentationMapper()
       );
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { PluginVersion } from '../entities/plugin-version.entity';
 import { PluginVersionConflictError } from '../errors/plugin-host.errors';
@@ -31,6 +31,11 @@ export class PluginVersionService {
 
   findById(id: string): Promise<PluginVersion | null> {
     return this.repository.findOneBy({ id });
+  }
+
+  /** Bulk form for list surfaces, so a Gallery of N plugins stays one query. */
+  findByIds(ids: readonly string[]): Promise<PluginVersion[]> {
+    return ids.length === 0 ? Promise.resolve([]) : this.repository.findBy({ id: In([...ids]) });
   }
 
   findAllByPluginId(pluginId: string): Promise<PluginVersion[]> {

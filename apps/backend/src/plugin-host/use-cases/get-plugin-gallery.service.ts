@@ -46,31 +46,24 @@ export class GetPluginGalleryService {
       ])
     );
 
-    const entries = await Promise.all(
-      [...scopesByPlugin].map(([pluginId, scopes]) =>
-        this.toEntry(pluginId, [...scopes], stateByPlugin.get(pluginId) ?? 'not_installed')
+    // Two bulk reads for the same reason as the line above. A publication with no plugin
+    // behind it should be impossible, but such a row simply does not come back here, so
+    // one broken publication cannot take down a member's whole Gallery either.
+    const plugins = await this.pluginService.findByIds([...scopesByPlugin.keys()]);
+    const versions = await this.versionService.findByIds(
+      plugins.map(plugin => plugin.currentVersionId).filter(id => id !== null)
+    );
+    const versionById = new Map(versions.map(version => [version.id, version]));
+
+    return plugins.map(plugin =>
+      this.mapper.toMemberDto(
+        plugin,
+        plugin.currentVersionId ? (versionById.get(plugin.currentVersionId) ?? null) : null,
+        {
+          scopes: [...(scopesByPlugin.get(plugin.id) ?? [])],
+          installationState: stateByPlugin.get(plugin.id) ?? 'not_installed',
+        }
       )
     );
-
-    return entries.filter((entry): entry is PluginGalleryEntryDto => entry !== null);
-  }
-
-  private async toEntry(
-    pluginId: string,
-    scopes: PluginPublicationScope[],
-    installationState: PluginInstallationState
-  ): Promise<PluginGalleryEntryDto | null> {
-    const plugin = await this.pluginService.findById(pluginId);
-    if (!plugin) {
-      // A publication with no plugin behind it should be impossible, but one broken row
-      // must not take down a member's whole Gallery.
-      return null;
-    }
-
-    const version = plugin.currentVersionId
-      ? await this.versionService.findById(plugin.currentVersionId)
-      : null;
-
-    return this.mapper.toMemberDto(plugin, version, { scopes, installationState });
   }
 }

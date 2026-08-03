@@ -31,29 +31,36 @@ export class ListInstallationsService {
       ? rows
       : rows.filter(row => row.uninstalledAt === null);
 
-    const entries = await Promise.all(
-      visible.map(async row => {
-        const plugin = await this.pluginService.findById(row.pluginId);
-        if (!plugin) {
-          return null;
-        }
+    // Two bulk reads rather than two per row: this list grows with a member's history.
+    const plugins = await this.pluginService.findByIds(visible.map(row => row.pluginId));
+    const pluginById = new Map(plugins.map(plugin => [plugin.id, plugin]));
+    const versions = await this.versionService.findByIds(
+      plugins.map(plugin => plugin.currentVersionId).filter(id => id !== null)
+    );
+    const versionById = new Map(versions.map(version => [version.id, version]));
 
-        const version = plugin.currentVersionId
-          ? await this.versionService.findById(plugin.currentVersionId)
-          : null;
+    const entries: InstalledPluginDto[] = [];
+    for (const row of visible) {
+      const plugin = pluginById.get(row.pluginId);
+      if (!plugin) {
+        continue;
+      }
 
-        return {
-          ...this.mapper.toMemberDto(plugin, version, {
+      entries.push({
+        ...this.mapper.toMemberDto(
+          plugin,
+          plugin.currentVersionId ? (versionById.get(plugin.currentVersionId) ?? null) : null,
+          {
             scopes: [],
             installationState: row.uninstalledAt === null ? 'installed' : 'uninstalled',
-          }),
-          installationId: row.id,
-          installedAt: row.installedAt,
-          uninstalledAt: row.uninstalledAt,
-        };
-      })
-    );
+          }
+        ),
+        installationId: row.id,
+        installedAt: row.installedAt,
+        uninstalledAt: row.uninstalledAt,
+      });
+    }
 
-    return entries.filter((entry): entry is InstalledPluginDto => entry !== null);
+    return entries;
   }
 }

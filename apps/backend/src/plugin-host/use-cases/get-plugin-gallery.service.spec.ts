@@ -31,12 +31,12 @@ function setup() {
   } as unknown as jest.Mocked<PluginPublicationService>;
 
   const pluginService = {
-    findById: jest.fn((id: string) => Promise.resolve(plugin(id))),
+    findByIds: jest.fn((ids: string[]) => Promise.resolve(ids.map(id => plugin(id)))),
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
-    findById: jest.fn((id: string) =>
-      Promise.resolve({ id, semver: '1.0.0', displayName: 'Example' })
+    findByIds: jest.fn((ids: string[]) =>
+      Promise.resolve(ids.map(id => ({ id, semver: '1.0.0', displayName: 'Example' })))
     ),
   } as unknown as jest.Mocked<PluginVersionService>;
 
@@ -55,6 +55,7 @@ function setup() {
     publications,
     installations,
     pluginService,
+    versionService,
   };
 }
 
@@ -110,7 +111,7 @@ describe('GetPluginGalleryService', () => {
 
     await s.service.run(COMMAND);
 
-    expect(s.pluginService.findById).toHaveBeenCalledTimes(1);
+    expect(s.pluginService.findByIds).toHaveBeenCalledWith(['p1']);
   });
 
   // Hiding it would leave a member wondering where an installed plugin went; §12 says
@@ -120,7 +121,9 @@ describe('GetPluginGalleryService', () => {
     s.publications.findVisibleTo.mockResolvedValue([
       publication(PluginPublicationScope.DEPLOYMENT),
     ] as never);
-    s.pluginService.findById.mockResolvedValue(plugin('p1', { suspendedAt: new Date() }) as never);
+    s.pluginService.findByIds.mockResolvedValue([
+      plugin('p1', { suspendedAt: new Date() }),
+    ] as never);
 
     const [entry] = await s.service.run(COMMAND);
 
@@ -144,8 +147,25 @@ describe('GetPluginGalleryService', () => {
     s.publications.findVisibleTo.mockResolvedValue([
       publication(PluginPublicationScope.DEPLOYMENT),
     ] as never);
-    s.pluginService.findById.mockResolvedValue(null);
+    s.pluginService.findByIds.mockResolvedValue([]);
 
     await expect(s.service.run(COMMAND)).resolves.toEqual([]);
+  });
+
+  // The comment above findByMember argues against per-row lookups; this holds the
+  // plugin and version reads to the same rule.
+  it('reads plugins and versions in one query each, however long the list', async () => {
+    const s = setup();
+    s.publications.findVisibleTo.mockResolvedValue([
+      publication(PluginPublicationScope.DEPLOYMENT, 'p1'),
+      publication(PluginPublicationScope.PROJECT, 'p2'),
+      publication(PluginPublicationScope.DEPLOYMENT, 'p3'),
+    ] as never);
+
+    const entries = await s.service.run(COMMAND);
+
+    expect(entries).toHaveLength(3);
+    expect(s.pluginService.findByIds).toHaveBeenCalledTimes(1);
+    expect(s.versionService.findByIds).toHaveBeenCalledTimes(1);
   });
 });

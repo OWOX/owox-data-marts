@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
 import { SyncReport } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
@@ -19,6 +19,11 @@ export class PluginService {
 
   findById(id: string): Promise<Plugin | null> {
     return this.repository.findOneBy({ id });
+  }
+
+  /** Bulk form for list surfaces, so a Gallery of N plugins stays one query. */
+  findByIds(ids: readonly string[]): Promise<Plugin[]> {
+    return ids.length === 0 ? Promise.resolve([]) : this.repository.findBy({ id: In([...ids]) });
   }
 
   /**
