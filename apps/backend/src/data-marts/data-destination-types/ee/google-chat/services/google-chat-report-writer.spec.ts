@@ -112,6 +112,16 @@ describe('GoogleChatReportWriter', () => {
     expect(webhookClient.send).not.toHaveBeenCalled();
   });
 
+  it('reports invalid Google Chat credentials without an email-specific error', async () => {
+    const { writer } = createWriter({ type: 'email-credentials', to: [] });
+
+    await expect(
+      writer.prepareToWriteReport(createReport(), new ReportDataDescription([]))
+    ).rejects.toThrow(
+      'Google Chat destination has neither valid webhook nor channel-email credentials'
+    );
+  });
+
   it('splits oversized Insights without dropping multibyte content', () => {
     const markdown = `# Large insight\n${'Д'.repeat(16_000)}`;
     const messages = buildGoogleChatMessages({

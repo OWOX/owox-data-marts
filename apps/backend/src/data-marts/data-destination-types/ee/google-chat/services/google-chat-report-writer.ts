@@ -14,6 +14,7 @@ import { InsightTemplateService } from '../../../../services/insight-template.se
 import { InsightTemplateSourceUsageService } from '../../../../services/insight-template-source-usage.service';
 import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
+import { EmailCredentialsSchema } from '../../email/schemas/email-credentials.schema';
 import { BaseEmailReportWriter } from '../../email/services/email-report-writer';
 import {
   GoogleChatCredentials,
@@ -150,6 +151,8 @@ function splitMarkdownForGoogleChat(input: {
     const candidateCharacters = characters.slice(offset, offset + bestLength);
     const lastNewlineIndex = candidateCharacters.lastIndexOf('\n');
     const hasMoreContent = bestLength < characters.length - offset;
+    // Prefer a nearby newline, but do not parse or rewrite Markdown blocks: exact content and
+    // strict API payload sizing take priority over destination-specific reformatting here.
     const splitLength =
       hasMoreContent && lastNewlineIndex >= 0 && lastNewlineIndex + 1 >= Math.floor(bestLength / 2)
         ? lastNewlineIndex + 1
@@ -233,6 +236,12 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       this.googleChatCredentials = parsed.data;
       this.usesEmailDelivery = false;
       return;
+    }
+
+    if (!EmailCredentialsSchema.safeParse(resolvedCredentials).success) {
+      throw new Error(
+        'Google Chat destination has neither valid webhook nor channel-email credentials'
+      );
     }
 
     // Channel email remains a supported delivery method for existing and new destinations.

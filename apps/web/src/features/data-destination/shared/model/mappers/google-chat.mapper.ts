@@ -61,16 +61,22 @@ export class GoogleChatMapper implements DestinationMapper {
       throw new Error('Invalid form data for Google Chat destination');
     }
 
-    const credentials =
-      formData.credentials.deliveryMethod === 'email'
-        ? {
-            type: DataDestinationCredentialsType.EMAIL_CREDENTIALS as const,
-            to: formData.credentials.to,
-          }
-        : {
-            type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS as const,
-            webhookUrl: formData.credentials.webhookUrl ?? '',
-          };
+    let credentials: CreateDataDestinationRequestDto['credentials'];
+    if (formData.credentials.deliveryMethod === 'email') {
+      credentials = {
+        type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
+        to: formData.credentials.to,
+      };
+    } else {
+      const webhookUrl = formData.credentials.webhookUrl?.trim();
+      if (!webhookUrl) {
+        throw new Error('Google Chat webhook URL is required');
+      }
+      credentials = {
+        type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS,
+        webhookUrl,
+      };
+    }
 
     return {
       title: formData.title,

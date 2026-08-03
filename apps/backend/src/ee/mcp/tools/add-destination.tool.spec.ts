@@ -42,7 +42,8 @@ describe('AddDestinationTool', () => {
       },
     });
     expect(tool.description).toContain('google_sheets');
-    expect(tool.description).toContain('email-based types');
+    expect(tool.description).toContain('channel-email delivery only');
+    expect(tool.description).toContain('secret URL');
     expect(tool.description).toContain('looker_studio');
   });
 
@@ -209,7 +210,7 @@ describe('AddDestinationTool', () => {
         context
       )
     ).rejects.toThrow(
-      "The 'emails' parameter is required for creating email-based destination types"
+      "The 'emails' parameter is required for email, slack, teams, and channel-email Google Chat"
     );
 
     expect(destinationsFacade.createDestination).not.toHaveBeenCalled();

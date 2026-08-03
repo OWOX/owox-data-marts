@@ -28,4 +28,16 @@ describe('GoogleChatAccessValidator', () => {
 
     expect(result.valid).toBe(true);
   });
+
+  it('returns channel-email validation errors for invalid email credentials', async () => {
+    const validator = new GoogleChatAccessValidator({
+      resolve: jest.fn().mockResolvedValue({ type: 'email-credentials', to: [] }),
+    } as never);
+
+    const result = await validator.validate(config, {} as never);
+    const errors = result.reason?.errors as Array<{ path: Array<string | number> }>;
+
+    expect(result.valid).toBe(false);
+    expect(errors[0].path).toEqual(['to']);
+  });
 });

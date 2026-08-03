@@ -43,6 +43,16 @@ describe('GoogleChatMapper', () => {
     });
   });
 
+  it('rejects a webhook create request without a URL', () => {
+    expect(() =>
+      mapper.mapToCreateRequest({
+        title: 'Marketing Chat',
+        type: DataDestinationType.GOOGLE_CHAT,
+        credentials: { deliveryMethod: 'webhook' },
+      })
+    ).toThrow('Google Chat webhook URL is required');
+  });
+
   it('preserves an existing email-based Google Chat destination', () => {
     const destination = mapper.mapFromDto({
       id: 'destination-1',

@@ -8,7 +8,10 @@ import {
   ValidationResult,
 } from '../../../interfaces/data-destination-access-validator.interface';
 import { EmailConfigInputSchema } from '../../email/schemas/email-config.schema';
-import { EmailCredentialsSchema } from '../../email/schemas/email-credentials.schema';
+import {
+  EmailCredentialsSchema,
+  EmailCredentialsType,
+} from '../../email/schemas/email-credentials.schema';
 import { GoogleChatCredentialsSchema } from '../schemas/google-chat-credentials.schema';
 
 @Injectable()
@@ -29,12 +32,14 @@ export class GoogleChatAccessValidator implements DataDestinationAccessValidator
       return new ValidationResult(false, 'Credentials are not configured');
     }
 
-    const webhookCredentials = GoogleChatCredentialsSchema.safeParse(resolvedCredentials);
-    const emailCredentials = EmailCredentialsSchema.safeParse(resolvedCredentials);
-    if (!webhookCredentials.success && !emailCredentials.success) {
-      this.logger.warn('Invalid Google Chat credentials format', webhookCredentials.error);
+    const credentialsValidation =
+      resolvedCredentials.type === EmailCredentialsType
+        ? EmailCredentialsSchema.safeParse(resolvedCredentials)
+        : GoogleChatCredentialsSchema.safeParse(resolvedCredentials);
+    if (!credentialsValidation.success) {
+      this.logger.warn('Invalid Google Chat credentials format', credentialsValidation.error);
       return new ValidationResult(false, 'Invalid Google Chat credentials', {
-        errors: webhookCredentials.error.errors,
+        errors: credentialsValidation.error.errors,
       });
     }
 

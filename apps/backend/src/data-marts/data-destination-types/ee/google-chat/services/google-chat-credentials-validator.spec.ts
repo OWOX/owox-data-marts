@@ -28,7 +28,9 @@ describe('GoogleChatCredentialsValidator', () => {
       to: [],
     } as unknown as DataDestinationCredentials;
     const result = await validator.validate(invalidCredentials);
+    const errors = result.reason?.errors as Array<{ path: Array<string | number> }>;
 
     expect(result.valid).toBe(false);
+    expect(errors[0].path).toEqual(['to']);
   });
 });
