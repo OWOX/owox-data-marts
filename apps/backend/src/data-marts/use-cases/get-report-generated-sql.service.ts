@@ -23,7 +23,9 @@ export class GetReportGeneratedSqlService {
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
-  async run(command: GetReportGeneratedSqlCommand): Promise<{ sql: string }> {
+  async run(
+    command: GetReportGeneratedSqlCommand
+  ): Promise<{ sql: string; canModifySource: boolean }> {
     if (!command.userId) {
       throw new UnauthorizedException('Authenticated user is required');
     }
@@ -40,17 +42,30 @@ export class GetReportGeneratedSqlService {
       throw new NotFoundException(`Report with ID ${command.reportId} not found`);
     }
 
-    const canEditDataMart = await this.accessDecisionService.canAccess(
-      command.userId,
-      command.roles,
-      EntityType.DATA_MART,
-      report.dataMart.id,
-      Action.EDIT,
-      command.projectId
-    );
-    if (!canEditDataMart) {
+    // Reading SQL is transparency, not a maintenance privilege: anyone who can see the
+    // report (i.e. sees its source data mart) may read it. Access to the joined sources
+    // is enforced separately by the composer — see BlendedReportDataService.
+    const [canSeeDataMart, canModifySource] = await Promise.all([
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        report.dataMart.id,
+        Action.SEE,
+        command.projectId
+      ),
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        report.dataMart.id,
+        Action.EDIT,
+        command.projectId
+      ),
+    ]);
+    if (!canSeeDataMart) {
       throw new ForbiddenException(
-        'You do not have permission to view the generated SQL of this report: edit access to the source data mart is required.'
+        'You do not have permission to view the generated SQL of this report: access to the source data mart is required.'
       );
     }
 
@@ -71,6 +86,6 @@ export class GetReportGeneratedSqlService {
       userId: command.userId,
       roles: command.roles,
     });
-    return { sql };
+    return { sql, canModifySource };
   }
 }

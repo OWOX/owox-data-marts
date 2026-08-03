@@ -39,7 +39,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         value={value}
         onChange={() => {}}
         allColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
-        selectedColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
+        sortColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
         joinedSources={[]}
       />
     );
@@ -73,7 +73,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         value={value}
         onChange={() => {}}
         allColumns={[]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[]}
       />
     );
@@ -102,7 +102,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
         value={value}
         onChange={onChange}
         allColumns={[]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[
           {
             aliasPath: 'users',
@@ -139,7 +139,7 @@ describe('OutputSettingsDropdown readable labels', () => {
         value={value}
         onChange={() => {}}
         allColumns={[productId]}
-        selectedColumns={[productId]}
+        sortColumns={[productId]}
         joinedSources={[]}
       />
     );
@@ -164,13 +164,61 @@ describe('OutputSettingsDropdown readable labels', () => {
         value={value}
         onChange={() => {}}
         allColumns={[productId]}
-        selectedColumns={[productId]}
+        sortColumns={[productId]}
         joinedSources={[]}
       />
     );
 
     expect(screen.getByText('Product ID')).toBeInTheDocument();
     expect(screen.queryByText('orders.product_id')).not.toBeInTheDocument();
+  });
+});
+
+describe('OutputSettingsDropdown sort by Unique Count', () => {
+  const uniqueCount: OutputSettingsDropdownColumn = {
+    name: 'Unique Count',
+    type: 'INTEGER',
+    label: 'Unique Count',
+  };
+
+  it('does not mark a sort on "Unique Count" as disconnected when it is a selected column', () => {
+    const value: OutputConfig = {
+      ...EMPTY_CONFIG,
+      sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[]}
+        sortColumns={[uniqueCount]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Unique Count')).not.toHaveClass('line-through');
+    expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+  });
+
+  it('marks a sort on "Unique Count" as disconnected once it is no longer a selected column (toggle turned off)', () => {
+    const value: OutputConfig = {
+      ...EMPTY_CONFIG,
+      sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[]}
+        sortColumns={[]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Unique Count')).toHaveClass('line-through');
+    expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
   });
 });
 
@@ -193,7 +241,7 @@ describe('OutputSettingsDropdown no longer hosts aggregation controls', () => {
         value={value}
         onChange={() => {}}
         allColumns={[revenue]}
-        selectedColumns={[revenue]}
+        sortColumns={[revenue]}
         joinedSources={[]}
       />
     );

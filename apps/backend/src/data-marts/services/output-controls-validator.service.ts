@@ -644,6 +644,15 @@ export class OutputControlsValidatorService {
           homeFieldTypes.set(blended.name, blended.type);
           knownOutputColumns.add(blended.name);
         }
+        // Unique Count is always a KNOWN sort target (like a schema field) — whether it's
+        // currently SELECTED (projected) depends on uniqueCountConfig, checked below by
+        // validateSort. So a stale sort-by-Unique-Count left after disabling the toggle is
+        // classified SORT_COLUMN_NOT_SELECTED (a 400) rather than routed to the harsher
+        // DISCONNECTED_REPORT_COLUMNS path, which is reserved for names absent from the
+        // schema entirely. NOTE: this is a code-level classification only — the web renders
+        // just `message`, not `details.errors[].code`, so the two read the same to the user.
+        // The web prunes this rule when the PK disappears, keeping the 400 largely unreachable.
+        knownOutputColumns.add(UNIQUE_COUNT_LABEL);
 
         if (parsedFilters.length > 0) {
           const fieldIndex = buildBlendedFieldIndex(blendableSchema);
@@ -669,6 +678,9 @@ export class OutputControlsValidatorService {
           // selection. Validate sort against that same native-only set so a sort on a
           // blended column is caught here at save time instead of failing at run time.
           const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
+          // Unique Count is a synthetic metric column (COUNT(DISTINCT <pk>)), not a
+          // projected field — allow sorting by it whenever it's enabled.
+          if (args.uniqueCountConfig === true) selectedSet.add(UNIQUE_COUNT_LABEL);
           errors.push(...this.validateSort(parsedSort, selectedSet));
         }
         if (parsedAggregations.length > 0) {

@@ -234,6 +234,8 @@ function getDataQualitySummaryLabel(run: DataMartRunItem): string {
       return 'Running';
     case 'EXECUTION_FAILED':
       return 'Partial results';
+    case 'RESTRICTED':
+      return 'Restricted';
     case 'CANCELLED':
       return 'Partial results kept';
     case 'ALL_DISABLED':

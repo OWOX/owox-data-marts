@@ -31,6 +31,7 @@ const COMPACT_STATUS_LABELS: Record<DataQualityStatusLabel, string> = {
   Passed: 'Data Quality checks passed',
   'Issues found': 'Data Quality issues found',
   'Run failed': 'Data Quality check failed',
+  Restricted: 'Data Quality run restricted',
   Cancelled: 'Data Quality check cancelled',
 };
 

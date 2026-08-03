@@ -109,6 +109,23 @@ describe('getRunSummaryParts', () => {
     expect(description).toBe('Scheduled data quality run');
   });
 
+  it('labels a restricted DATA_QUALITY run', () => {
+    const run = {
+      type: DataMartRunType.DATA_QUALITY,
+      triggerType: 'manual',
+      qualitySummary: {
+        state: 'RESTRICTED',
+        warningFindings: 0,
+        errorFindings: 0,
+        noticeFindings: 0,
+      },
+    } as unknown as DataMartRunItem;
+
+    const [, title] = getRunSummaryParts(run, null);
+
+    expect(title).toBe('Restricted');
+  });
+
   it('describes a wholly not-applicable Data Quality run without calling it passed', () => {
     const run = {
       type: DataMartRunType.DATA_QUALITY,

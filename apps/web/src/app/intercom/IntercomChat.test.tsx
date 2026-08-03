@@ -16,6 +16,7 @@ vi.mock('../store/hooks', () => {
 vi.mock('../../features/idp', () => {
   return {
     useAuth: vi.fn(),
+    isViewOnlySession: (user: { viewOnly?: boolean } | null) => user?.viewOnly === true,
   };
 });
 
@@ -101,6 +102,20 @@ describe('IntercomChat', () => {
     render(<IntercomChat />);
 
     expect(document.getElementById('intercom-widget-script')).toBeNull();
+    expect(intercomSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not load Intercom in a view-only session', () => {
+    (useFlags as any).mockReturnValue({
+      flags: { INTERCOM_APP_ID: 'app_view_only' },
+      callState: RequestStatus.LOADED,
+    });
+    (useAuth as any).mockReturnValue({ user: { id: 'u4', viewOnly: true } });
+
+    render(<IntercomChat />);
+
+    expect(document.getElementById('intercom-widget-script')).toBeNull();
+    expect(apiClient.post).not.toHaveBeenCalled();
     expect(intercomSpy).not.toHaveBeenCalled();
   });
 

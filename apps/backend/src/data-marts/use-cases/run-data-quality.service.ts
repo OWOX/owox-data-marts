@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import {
   DataQualityCheckCompiler,
   DataQualityCompiledCheck,
@@ -31,6 +32,7 @@ import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum'
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import { ProjectBalanceService } from '../services/project-balance.service';
 import { DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE } from '../services/data-quality-run.service';
 import {
   DataQualitySnapshotStorageMismatchError,
@@ -82,7 +84,8 @@ export class RunDataQualityService {
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    private readonly systemClock: SystemTimeService
+    private readonly systemClock: SystemTimeService,
+    private readonly projectBalanceService: ProjectBalanceService
   ) {}
 
   async executeExistingRun(
@@ -104,6 +107,7 @@ export class RunDataQualityService {
     try {
       signal?.throwIfAborted();
       if (pendingRules.length > 0) {
+        await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
         const definitionRun = dataMartRun.definitionRun;
         if (!definitionRun) {
           throw new Error(
@@ -210,6 +214,10 @@ export class RunDataQualityService {
         await this.finishRun(dataMartRun, true);
         return;
       }
+      if (error instanceof ProjectOperationBlockedException) {
+        await this.finishRun(dataMartRun, false, error);
+        return;
+      }
 
       const missingRules = pendingRules.filter(
         rule => !parsedResults.some(result => result.ruleKey === rule.key)
@@ -248,7 +256,8 @@ export class RunDataQualityService {
       if (
         dataMartRun.status === DataMartRunStatus.CANCELLED ||
         dataMartRun.status === DataMartRunStatus.SUCCESS ||
-        dataMartRun.status === DataMartRunStatus.FAILED
+        dataMartRun.status === DataMartRunStatus.FAILED ||
+        dataMartRun.status === DataMartRunStatus.RESTRICTED
       ) {
         return null;
       }
@@ -427,7 +436,11 @@ export class RunDataQualityService {
     };
   }
 
-  private async finishRun(dataMartRun: DataMartRun, cancelled: boolean): Promise<void> {
+  private async finishRun(
+    dataMartRun: DataMartRun,
+    cancelled: boolean,
+    restriction?: ProjectOperationBlockedException
+  ): Promise<void> {
     await this.dataSource.transaction(async manager => {
       const runRepository = manager.getRepository(DataMartRun);
       const currentRun = await this.findRunForResultMutation(manager, dataMartRun.id, true);
@@ -437,7 +450,8 @@ export class RunDataQualityService {
       if (
         currentRun.status === DataMartRunStatus.FAILED ||
         currentRun.status === DataMartRunStatus.SUCCESS ||
-        (currentRun.status === DataMartRunStatus.CANCELLED && cancelled)
+        currentRun.status === DataMartRunStatus.RESTRICTED ||
+        (currentRun.status === DataMartRunStatus.CANCELLED && (cancelled || restriction))
       ) {
         Object.assign(dataMartRun, currentRun);
         return;
@@ -456,6 +470,7 @@ export class RunDataQualityService {
         currentRun.dataQualitySummary.enabledChecks
       );
       if (cancelled) summary.state = DataQualitySummaryState.CANCELLED;
+      else if (restriction) summary.state = DataQualitySummaryState.RESTRICTED;
       const finishedAt =
         currentRun.status === DataMartRunStatus.CANCELLED && !cancelled
           ? this.systemClock.now()
@@ -463,13 +478,17 @@ export class RunDataQualityService {
       currentRun.dataQualitySummary = summary;
       currentRun.status = cancelled
         ? DataMartRunStatus.CANCELLED
-        : summary.state === DataQualitySummaryState.EXECUTION_FAILED
-          ? DataMartRunStatus.FAILED
-          : DataMartRunStatus.SUCCESS;
+        : restriction
+          ? DataMartRunStatus.RESTRICTED
+          : summary.state === DataQualitySummaryState.EXECUTION_FAILED
+            ? DataMartRunStatus.FAILED
+            : DataMartRunStatus.SUCCESS;
       currentRun.finishedAt = finishedAt;
-      currentRun.errors = results.some(result => result.status === DataQualityCheckStatus.ERROR)
-        ? [DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE]
-        : [];
+      currentRun.errors = restriction
+        ? [restriction.message]
+        : results.some(result => result.status === DataQualityCheckStatus.ERROR)
+          ? [DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE]
+          : [];
       await runRepository.save(currentRun);
       Object.assign(dataMartRun, currentRun);
     });

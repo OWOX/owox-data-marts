@@ -8,6 +8,8 @@ import {
 import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
 import { buildOptionalDateTruncUnitMap, buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
 import {
+  ROW_COUNT_LABEL,
+  UNIQUE_COUNT_LABEL,
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
 } from '../../dto/schemas/aggregation-labels';
@@ -269,6 +271,15 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       ...(context.groupRestriction?.dimensions ?? []),
       ...(context.groupRestriction?.having ?? []).map(rule => rule.column),
     ]);
+    // Row Count / Unique Count are OUTER-SELECT aliases, not columns of any CTE. A sort (or
+    // HAVING) on one would otherwise flow through collectMainReferences into the main raw CTE
+    // and emit `SELECT "Unique Count" FROM <main table>` — a column that does not exist, so
+    // every run and Generated SQL preview fails in the warehouse. Dropped here rather than
+    // per-source so filters and any future ref source are covered too. A real column that
+    // legitimately owns the name arrives via `columns`, so keep it when it is selected.
+    for (const label of [UNIQUE_COUNT_LABEL, ROW_COUNT_LABEL]) {
+      if (!columnSet.has(label)) referencedColumns.delete(label);
+    }
 
     const cteBuilder = new BlendCteBuilder(this.dialectPort());
     const roots = cteBuilder.buildTree(chains);

@@ -249,6 +249,10 @@ Access to edit, delete, or run a Report requires one of two conditions:
 
 > ☝️ A Report owner can edit, delete, and run the Report only while its Destination still exists. If the Destination is deleted, the owner can still see the Report but cannot edit, delete, or run it until the Destination is restored or ownership is reassigned by a Technical User.
 
+**Viewing the Report's SQL follows visibility, not maintenance access.** Anyone who can see a Report can open **Preview SQL** and read or copy the generated query — including Business Users and Technical Users without maintenance access to the parent Data Mart. Two actions in that dialog stay restricted to users with Data Mart maintenance access and are hidden for everyone else: the SQL validator (dry run) and **Copy as Data Mart**.
+
+If the Report pulls fields from a [joined Data Mart](../getting-started/setup-guide/joinable-data-marts.md) that the viewer cannot access, the SQL is not shown at all — the error names the inaccessible Data Mart.
+
 ---
 
 ### Report Trigger
