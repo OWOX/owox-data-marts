@@ -10,4 +10,6 @@ Google Sheets now writes the Data Mart name after the field name, in parentheses
 
 Existing sheets pick the new headers up on their next refresh. Row 1 is rewritten in place — no column is added, removed or reordered, and nothing shifts under your own content to the right of the imported range.
 
-Data Studio, email-based destinations, the HTTP data endpoint and MCP field metadata keep the Data Mart name as a prefix.
+Data Studio, email-based destinations, the HTTP data endpoint and MCP field metadata keep the Data Mart name as a prefix — the position follows the surface that renders the label, not the report, so reading a Google Sheets report through the HTTP data endpoint still returns the prefixed form. Match columns on the technical field name, which is identical everywhere.
+
+Labels are also no longer padded: an Output Alias or field alias typed with a leading or trailing space used to leak that space into the column name, and a whitespace-only alias produced a column that looked unnamed.

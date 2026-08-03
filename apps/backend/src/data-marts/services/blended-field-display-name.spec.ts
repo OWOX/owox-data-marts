@@ -100,4 +100,52 @@ describe('formatBlendedFieldDisplayName', () => {
       ).toBe('id');
     });
   });
+
+  // Both halves are free-form user input and are stored as typed — `z.string().min(1)` accepts
+  // `"  "`, and neither the form nor the schema trims. Padding on either side must not reach the
+  // label, or a Google Sheets header reads `Revenue  (Orders)` with a doubled space.
+  describe.each(['prefix', 'suffix'] as const)('padded field name (%s style)', style => {
+    it('strips padding around the field alias', () => {
+      expect(
+        formatBlendedFieldDisplayName(
+          {
+            name: 'orders__revenue',
+            outputPrefix: 'Orders',
+            alias: '  Revenue  ',
+            originalFieldName: 'revenue',
+          },
+          style
+        )
+      ).toBe(style === 'suffix' ? 'Revenue (Orders)' : 'Orders Revenue');
+    });
+
+    it('falls through to the original field name when the alias is whitespace only', () => {
+      // Otherwise the label degrades to `   (Orders)` — a column that looks unnamed.
+      expect(
+        formatBlendedFieldDisplayName(
+          {
+            name: 'orders__revenue',
+            outputPrefix: 'Orders',
+            alias: '   ',
+            originalFieldName: 'revenue',
+          },
+          style
+        )
+      ).toBe(style === 'suffix' ? 'revenue (Orders)' : 'Orders revenue');
+    });
+
+    it('falls through to the technical name when both the alias and the original are blank', () => {
+      expect(
+        formatBlendedFieldDisplayName(
+          {
+            name: 'orders__revenue',
+            outputPrefix: 'Orders',
+            alias: '  ',
+            originalFieldName: ' ',
+          },
+          style
+        )
+      ).toBe(style === 'suffix' ? 'orders__revenue (Orders)' : 'Orders orders__revenue');
+    });
+  });
 });

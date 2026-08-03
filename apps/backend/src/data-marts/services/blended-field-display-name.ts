@@ -27,14 +27,18 @@ export type BlendedFieldNameStyle = 'prefix' | 'suffix';
  * label was considered and rejected: it makes a column's header depend on which other columns
  * happen to be selected, so adding an unrelated field silently renames an existing one.
  *
- * A blank (empty or whitespace-only) `outputPrefix` yields the bare field name — never
- * `Field name ()`.
+ * Both halves are normalized, because both are free-form user input: the field alias and the join's
+ * Output Alias are stored as typed (`z.string().min(1)` accepts `"  "`, and neither the form nor the
+ * schema trims). Untrimmed they leak into the label as invisible padding — `Field  (Data Mart)` with
+ * a doubled space, or `   (Data Mart)` for a whitespace-only alias, which reads as a column with no
+ * name at all. A blank alias therefore falls through to the next candidate, and a blank Data Mart
+ * name yields the bare field name — never `Field name ()`.
  */
 export function formatBlendedFieldDisplayName(
   field: BlendedFieldDisplayNameSource,
   style: BlendedFieldNameStyle = 'prefix'
 ): string {
-  const fieldName = field.alias || field.originalFieldName || field.name;
+  const fieldName = field.alias?.trim() || field.originalFieldName?.trim() || field.name;
   const dataMartName = field.outputPrefix?.trim();
 
   if (!dataMartName) return fieldName;

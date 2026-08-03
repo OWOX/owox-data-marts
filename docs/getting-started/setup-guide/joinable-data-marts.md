@@ -81,6 +81,8 @@ The **Output Alias** at the top of the tab controls how the joined Data Mart is 
   - `revenue (orders)` in **Google Sheets**, so the field name stays readable in a narrow header cell;
   - `orders revenue` in **Data Studio**, **email-based destinations** and the **HTTP data endpoint**.
 
+The position follows the surface that renders the label, not the report. Reading a Google Sheets report through the HTTP data endpoint therefore returns `orders revenue`, even though its sheet shows `revenue (orders)` — match columns on the technical field name, which is identical everywhere, rather than on the label.
+
 Rename it to anything that reads well in reports — by default it inherits the target Data Mart title.
 
 ### Per-field overrides

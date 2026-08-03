@@ -7,6 +7,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
@@ -1058,6 +1060,32 @@ describe('StreamHttpDataService', () => {
           }),
         })
       );
+    });
+
+    it('does not carry the report destination into the read plan (joined labels follow this surface)', async () => {
+      // Joined-field labels belong to the surface that renders them, not to the place the report
+      // also writes to. A Google Sheets report suffixes them (`revenue (Orders)`) to survive a
+      // narrow header cell; this endpoint emits NDJSON, where the prefix reads fine. Forwarding
+      // `dataDestination` would make two reports on the same Data Mart, with identical column
+      // configs, return different titles here purely because one writes to a spreadsheet.
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect(readPlan).not.toHaveProperty('dataDestination');
+      expect(usesSuffixedJoinedFieldNames(readPlan)).toBe(false);
     });
 
     it('rejects with NotFoundException for a report belonging to another project, and does no work', async () => {

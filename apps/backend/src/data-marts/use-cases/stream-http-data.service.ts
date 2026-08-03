@@ -221,6 +221,13 @@ export class StreamHttpDataService {
       runId: randomUUID(),
       startedAt: this.systemTimeService.now(),
       buildPlan: async currentDataMart => {
+        // The report's `dataDestination` is deliberately NOT carried into the read plan. Joined-field
+        // labels follow the surface that renders them, not the place the report also writes to: this
+        // endpoint emits NDJSON, where a `Data Mart name Field name` prefix reads fine, so it keeps
+        // the prefix even for a report whose destination is Google Sheets (which suffixes the name to
+        // survive a narrow header cell). Forwarding the destination here would make two reports on
+        // the same Data Mart, with identical column configs, return different `title`s over this
+        // endpoint purely because one of them happens to write to a spreadsheet.
         const readPlan: ReportLikeReadPlan = {
           dataMart: currentDataMart,
           columnConfig: report.columnConfig ?? undefined,
