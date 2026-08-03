@@ -1,4 +1,5 @@
 import type { McpDataDestinationsFacade } from '../../../data-marts/facades/mcp-data-destinations.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpToolRegistry } from './mcp-tool.registry';
 import { ListDestinationsTool } from './list-destinations.tool';
@@ -14,6 +15,9 @@ describe('ListDestinationsTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   it('lists destinations using token project-member context', async () => {
     const facade = {
@@ -23,11 +27,17 @@ describe('ListDestinationsTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataDestinationsFacade>;
-    const tool = new ListDestinationsTool(facade);
+    const tool = new ListDestinationsTool(facade, publicOrigin);
 
     const structuredContent = {
       destinations: [
-        { id: 'dest_1', name: 'Marketing Sheet', type: 'google_sheets', owner: 'ann@owox.com' },
+        {
+          id: 'dest_1',
+          name: 'Marketing Sheet',
+          type: 'google_sheets',
+          owner: 'ann@owox.com',
+          url: 'https://app.owox.com/ui/project-1/data-destinations?id=dest_1',
+        },
       ],
     };
 
@@ -48,17 +58,17 @@ describe('ListDestinationsTool', () => {
   });
 
   it('rejects unexpected input', () => {
-    const tool = new ListDestinationsTool({} as McpDataDestinationsFacade);
+    const tool = new ListDestinationsTool({} as McpDataDestinationsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
   });
 
   it('is registered with read-only metadata and the right scope', () => {
     const registry = new McpToolRegistry([
-      new ListDestinationsTool({} as McpDataDestinationsFacade),
+      new ListDestinationsTool({} as McpDataDestinationsFacade, publicOrigin),
     ]);
 
-    expect(new ListDestinationsTool({} as McpDataDestinationsFacade)).toMatchObject({
+    expect(new ListDestinationsTool({} as McpDataDestinationsFacade, publicOrigin)).toMatchObject({
       name: 'list_destinations',
       requiredScopes: ['mcp:read'],
       outputSchema: expect.objectContaining({

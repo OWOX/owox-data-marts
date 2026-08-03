@@ -52,13 +52,78 @@ describe('translateOutputControlsError', () => {
   it('falls back to an informative translation naming unrecognized codes and columns', () => {
     const translated = translateOutputControlsError(
       validatorError([
-        { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'channel' },
+        { code: 'OUTPUT_COLUMN_NAME_COLLISION', column: 'channel' },
         { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' },
       ])
     );
     expect(translated).toMatchObject({ code: 'output_controls_invalid' });
-    expect(translated?.message).toContain('DATE_TRUNC_REQUIRES_DATE_COLUMN (channel)');
+    expect(translated?.message).toContain('OUTPUT_COLUMN_NAME_COLLISION (channel)');
     expect(translated?.message).toContain('PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG');
+  });
+
+  it('translates date-bucket misuse with a per-variant fix instead of the generic fallback', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'channel', type: 'STRING' },
+        { code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP', column: 'day', type: 'DATE' },
+      ])
+    );
+    expect(translated).toMatchObject({ code: 'invalid_date_bucket' });
+    expect(translated?.message).toContain("'channel'");
+    expect(translated?.message).toContain('not a date/timestamp');
+    expect(translated?.message).toContain('remove time_zone');
+  });
+
+  it('speaks the MCP vocabulary for invalid operators (internal relative_date → preset names)', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        {
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'session_time',
+          type: 'TIME',
+          operator: 'relative_date',
+        },
+      ])
+    );
+    expect(translated).toMatchObject({ code: 'invalid_operator' });
+    expect(translated?.message).not.toContain("'relative_date'");
+    expect(translated?.message).toContain('this_week');
+    expect(translated?.message).toContain('in_last_n_days');
+  });
+
+  it('explains a boolean value on a non-boolean field instead of naming internal is_true', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        {
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'utm_source',
+          type: 'STRING',
+          operator: 'is_true',
+        },
+      ])
+    );
+    expect(translated).toMatchObject({ code: 'invalid_operator' });
+    expect(translated?.message).toContain('boolean true/false value');
+    expect(translated?.message).not.toContain("operator 'is_true'");
+  });
+
+  it('combines every recognized family into one message (first family sets the code)', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        {
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'revenue',
+          type: 'FLOAT',
+          operator: 'contains',
+        },
+        { code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD', column: 'name', function: 'SUM' },
+        { code: 'SORT_COLUMN_NOT_SELECTED', column: 'ts' },
+      ])
+    );
+    expect(translated).toMatchObject({ code: 'field_not_selected' });
+    expect(translated?.message).toContain("'contains'");
+    expect(translated?.message).toContain('SUM(name)');
+    expect(translated?.message).toContain('missing from "fields"');
   });
 
   it('returns null for a BadRequestException without structured validation errors', () => {

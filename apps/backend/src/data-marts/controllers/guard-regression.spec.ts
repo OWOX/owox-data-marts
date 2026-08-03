@@ -33,6 +33,27 @@ function extractAuthDecorators(source: string): Array<{ method: string; role: st
   return results;
 }
 
+function extractViewOnlySafeMethods(source: string): string[] {
+  const results: string[] = [];
+  const lines = source.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].includes('@ViewOnlySafe()')) {
+      continue;
+    }
+
+    for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+      const methodMatch = lines[j].match(/async\s+(\w+)\s*\(/);
+      if (methodMatch) {
+        results.push(methodMatch[1]);
+        break;
+      }
+    }
+  }
+
+  return results;
+}
+
 describe('DataMart controller — editor guards unchanged', () => {
   const source = readController('data-mart.controller.ts');
   const decorators = extractAuthDecorators(source);
@@ -143,6 +164,34 @@ describe('DataMart utility triggers — viewer guards (lowered)', () => {
     const entry = decorators.find(d => d.method === 'createTrigger');
     expect(entry).toBeDefined();
     expect(entry!.role).toBe('viewer');
+  });
+});
+
+describe('View-only safe POST routes', () => {
+  it('allows only the read-semantics Data Mart health endpoint', () => {
+    expect(extractViewOnlySafeMethods(readController('data-mart.controller.ts'))).toEqual([
+      'getBatchHealthStatus',
+    ]);
+  });
+
+  it('allows only Storage access validation', () => {
+    expect(extractViewOnlySafeMethods(readController('data-storage.controller.ts'))).toEqual([
+      'validate',
+    ]);
+  });
+
+  it('allows Markdown rendering', () => {
+    expect(extractViewOnlySafeMethods(readController('markdown-parser.controller.ts'))).toEqual([
+      'parseToHtml',
+    ]);
+  });
+
+  it('keeps SQL preview blocked because it can execute SQL and update validation state', () => {
+    expect(
+      extractViewOnlySafeMethods(
+        readController('insight-artifact-sql-preview-trigger.controller.ts')
+      )
+    ).toEqual([]);
   });
 });
 

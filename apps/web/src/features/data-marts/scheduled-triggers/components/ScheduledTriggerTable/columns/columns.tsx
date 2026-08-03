@@ -1,4 +1,3 @@
-import { ScheduledTriggerType } from '../../../enums';
 import type { ScheduledTrigger } from '../../../model/scheduled-trigger.model';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@owox/ui/components/badge';
@@ -11,6 +10,7 @@ import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/co
 import { ScheduledTriggerColumnLabels } from './columnLabels';
 import { ScheduledTriggerColumnKey } from './columnKeys';
 import { UserReference } from '../../../../../../shared/components/UserReference';
+import { getScheduledTriggerTypeLabel } from '../../../utils/scheduled-trigger-labels';
 
 interface ScheduledTriggerTableColumnsProps {
   onEditTrigger: (id: string) => void;
@@ -31,8 +31,8 @@ export const getScheduledTriggerColumns = ({
       </SortableHeader>
     ),
     cell: ({ row }) => {
-      const type = row.getValue(ScheduledTriggerColumnKey.TYPE);
-      const label = type === ScheduledTriggerType.REPORT_RUN ? 'Report Run' : 'Connector Run';
+      const type = String(row.getValue(ScheduledTriggerColumnKey.TYPE));
+      const label = getScheduledTriggerTypeLabel(type);
       return <Badge variant='outline'>{label}</Badge>;
     },
   },

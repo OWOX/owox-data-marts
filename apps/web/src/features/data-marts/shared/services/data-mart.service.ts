@@ -7,6 +7,7 @@ import type {
   DataMartListItemResponseDto,
   DataMartListResponseDto,
   DataMartResponseDto,
+  DataMartRunResponseDto,
   DataMartRunListResponseDto,
   ProjectDataMartRunListResponseDto,
   SqlValidationResponseDto,
@@ -14,13 +15,13 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
   BatchDataMartHealthStatusResponseDto,
+  BatchDataLastUpdatedResponseDto,
   DataMartAiHelperAvailabilityResponseDto,
   CreateAiHelperTriggerRequestDto,
   AiHelperTriggerResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
-import type { DataMartRunItem } from '../../edit';
 
 /**
  * Data Mart Service
@@ -146,10 +147,10 @@ export class DataMartService extends ApiService {
    * @param payload Payload for the manual run. If not provided, the data mart will be run with the default payload.
    * The payload is specific to the data mart definition type.
    * For example, for a connector data mart, the payload is the connector configuration fields with unknown structure.
-   * @returns Promise with updated data mart
+   * @returns Promise with the created run id
    */
-  async runDataMart(id: string, payload: Record<string, unknown>): Promise<DataMartResponseDto> {
-    return this.post<DataMartResponseDto>(`/${id}/manual-run`, { payload: payload });
+  async runDataMart(id: string, payload: Record<string, unknown>): Promise<{ runId: string }> {
+    return this.post<{ runId: string }>(`/${id}/manual-run`, { payload });
   }
 
   /**
@@ -161,6 +162,28 @@ export class DataMartService extends ApiService {
   async cancelDataMartRun(id: string, runId: string): Promise<void> {
     await this.post(`/${id}/runs/${runId}/cancel`, undefined, {
       skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  /**
+   * Refresh the Data Last Updated snapshot for one or more data marts.
+   *
+   * One call measures the whole set, so ids sharing a storage pay for that storage's warehouse
+   * client once. Ids absent from the response could not be measured — keep their previous value
+   * rather than clearing it.
+   * @param ids Data mart IDs to measure
+   * @returns Promise with the freshly measured blocks
+   */
+  async refreshDataLastUpdated(
+    ids: string[],
+    config?: AxiosRequestConfig
+  ): Promise<BatchDataLastUpdatedResponseDto> {
+    return this.post<BatchDataLastUpdatedResponseDto>('/data-last-updated/refresh', { ids }, {
+      // The backend measures a whole sweep in one call and soft-caps it at two minutes;
+      // leave transport headroom above that.
+      timeout: 150000,
+      skipLoadingIndicator: true,
+      ...config,
     } as AxiosRequestConfig);
   }
 
@@ -340,8 +363,8 @@ export class DataMartService extends ApiService {
     dataMartId: string,
     runId: string,
     config?: AxiosRequestConfig
-  ): Promise<DataMartRunItem> {
-    return this.get<DataMartRunItem>(`/${dataMartId}/runs/${runId}`, undefined, config);
+  ): Promise<DataMartRunResponseDto> {
+    return this.get<DataMartRunResponseDto>(`/${dataMartId}/runs/${runId}`, undefined, config);
   }
 
   /**

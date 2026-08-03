@@ -75,8 +75,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
           await this.startImportProcessOfTimeSeriesData(advertiserIds, timeSeriesNodes, startDate, daysToFetch);
         } catch (error) {
-          this.config.logMessage(`Error determining date range: ${error.message}`);
-          console.error(error.stack);
+          this._logFailure('Error determining date range', error);
         }
       }
 
@@ -84,14 +83,12 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       try {
         this.cleanUpExpiredData();
       } catch (error) {
-        this.config.logMessage(`Error during data cleanup: ${error.message}`);
-        console.error(error.stack);
+        this._logFailure('Error during data cleanup', error);
       }
 
       this._checkAndReportErrors(advertiserIds);
     } catch (error) {
       this.config.logMessage(`Error during import process: ${error.message}`);
-      console.error(error.stack);
       throw error;
     }
   }
@@ -127,23 +124,26 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
         this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for advertiser ${advertiserId}` : `No records have been fetched`);
 
+        let saved = true;
         if (data.length || this.config.CreateEmptyTables?.value) {
           try {
             const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
             const storage = await this.getStorageByNode(nodeName);
             await storage.saveData(preparedData);
           } catch (storageError) {
-            this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
-            console.error(`Error details: ${storageError.stack}`);
+            saved = false;
+            this._logFailure('Error saving data to storage', storageError);
             this._trackAdvertiserError(advertiserId, storageError);
           }
         }
 
-        // Mark this advertiser as having at least one successful operation
-        this.advertiserSuccesses.set(advertiserId, true);
+        // Only a completed save counts: marking success after a failed write would let a
+        // run where every write failed finish as successful, silently losing the data
+        if (saved) {
+          this.advertiserSuccesses.set(advertiserId, true);
+        }
       } catch (error) {
-        this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
-        console.error(`Error details: ${error.stack}`);
+        this._logFailure(`Error fetching ${nodeName} for advertiser ${advertiserId}`, error);
         this._trackAdvertiserError(advertiserId, error);
         // Continue with other advertisers rather than stopping the whole process
       }
@@ -180,23 +180,25 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
             this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
 
+            let saved = true;
             if (data.length || this.config.CreateEmptyTables?.value) {
               try {
                 const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
                 const storage = await this.getStorageByNode(nodeName);
                 await storage.saveData(preparedData);
               } catch (storageError) {
-                this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
-                console.error(`Error details: ${storageError.stack}`);
+                saved = false;
+                this._logFailure('Error saving data to storage', storageError);
                 this._trackAdvertiserError(advertiserId, storageError);
               }
             }
 
-            // Mark this advertiser as having at least one successful operation
-            this.advertiserSuccesses.set(advertiserId, true);
+            // Only a completed save counts — see startImportProcessOfCatalogData
+            if (saved) {
+              this.advertiserSuccesses.set(advertiserId, true);
+            }
           } catch (error) {
-            this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}: ${error.message}`);
-            console.error(`Error details: ${error.stack}`);
+            this._logFailure(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}`, error);
             this._trackAdvertiserError(advertiserId, error);
             // Continue with other nodes rather than stopping the whole process
           }
@@ -287,7 +289,31 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
   }
 
   /**
+   * Record a failure that did not stop the import
+   *
+   * Routes by classification: customer-actionable failures become warnings, everything
+   * else stays an error so it is still alerted on.
+   *
+   * @param {string} context - What was being attempted, e.g. "Error saving data to storage"
+   * @param {Error} error - The failure, carrying isWarning when it has been classified
+   * @private
+   */
+  _logFailure(context, error) {
+    // Customer-actionable failures (missing permission, deleted advertiser) are fully
+    // described by their message, and a stack there is just noise.
+    if (error.isWarning) {
+      this.config.addWarningToCurrentStatus(`${context}: ${error.message}`);
+      return;
+    }
+    // Everything else stays an error so it is still alerted on. These are swallowed so
+    // the remaining advertisers still import, which leaves the run log as the only place
+    // they can be diagnosed from — so keep the stack, in a single structured entry.
+    this.config.logError(`${context}: ${error.message}\n${error.stack ?? ''}`.trim());
+  }
+
+  /**
    * Track an error for a specific advertiser
+   *
    * @param {string} advertiserId - The advertiser ID
    * @param {Error} error - The error that occurred
    * @private
@@ -332,13 +358,20 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           errorMessages.push(`Advertiser ${advertiserId}: ${firstError.message}`);
         }
       }
-      throw new Error(`All advertisers failed to import data. Errors: ${errorMessages.join('; ')}`);
+      const error = new Error(`All advertisers failed to import data. Errors: ${errorMessages.join('; ')}`);
+      // Warning only if every recorded error is one. An advertiser can fail more than
+      // once — a permission warning on the fetch, then a genuine storage failure — and
+      // any single real error means the run still needs attention.
+      error.isWarning = failedAdvertisers.every(advertiserId => {
+        const errors = this.advertiserErrors.get(advertiserId) || [];
+        return errors.length > 0 && errors.every(recorded => recorded.isWarning === true);
+      });
+      throw error;
     }
 
     if (failedAdvertisers.length > 0 && successfulAdvertisers.length > 0) {
-      this.config.addWarningToCurrentStatus();
-      this.config.logMessage(
-        `Warning: ${failedAdvertisers.length} out of ${totalAdvertisers} advertisers had errors. ` +
+      this.config.addWarningToCurrentStatus(
+        `${failedAdvertisers.length} out of ${totalAdvertisers} advertisers had errors. ` +
         `Failed advertisers: ${failedAdvertisers.join(', ')}. ` +
         `Successful advertisers: ${successfulAdvertisers.join(', ')}`
       );

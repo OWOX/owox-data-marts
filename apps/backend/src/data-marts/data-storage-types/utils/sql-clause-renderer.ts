@@ -380,6 +380,55 @@ export abstract class SqlClauseRenderer {
     // name across placeholders, so occurrence count need not equal params.length.
   }
 
+  /**
+   * IN/NOT IN for param-binding dialects: one placeholder and one param per value,
+   * names advanced sequentially so positional binders stay aligned. `placeholderFor`
+   * supplies the dialect's placeholder text for a given param name (BigQuery returns
+   * `@name`/CAST-wrapped, Athena ignores the name and returns `?`).
+   */
+  protected renderInListWithParams(
+    rule: Extract<FilterRule, { operator: 'in' | 'not_in' }>,
+    col: string,
+    paramName: string,
+    placeholderFor: (name: string) => string
+  ): RenderedClause {
+    const placeholders: string[] = [];
+    const params: SqlParameter[] = [];
+    let name = paramName;
+    for (const v of rule.value) {
+      placeholders.push(placeholderFor(name));
+      params.push({ name, value: v });
+      name = this.nextParamName(name);
+    }
+    return {
+      sql: this.inListSql(rule.operator, col, placeholders.join(', ')),
+      params,
+    };
+  }
+
+  /** IN/NOT IN for literal-inlining dialects: `lit` is the dialect's escaping formatter. */
+  protected renderInListWithLiterals(
+    rule: Extract<FilterRule, { operator: 'in' | 'not_in' }>,
+    col: string,
+    lit: (value: string | number | boolean | null) => string
+  ): RenderedClause {
+    return {
+      sql: this.inListSql(rule.operator, col, rule.value.map(v => lit(v)).join(', ')),
+      params: [],
+    };
+  }
+
+  /**
+   * Null-inclusive `NOT IN`: SQL `NOT IN` drops NULLs (UNKNOWN), but "is none of"
+   * should keep rows where the column is missing — treat NULL as "not any of the
+   * listed values". Matches the null-inclusive `neq` / `not_contains` operators.
+   */
+  private inListSql(operator: 'in' | 'not_in', col: string, list: string): string {
+    return operator === 'in'
+      ? `${col} IN (${list})`
+      : `(${col} IS NULL OR ${col} NOT IN (${list}))`;
+  }
+
   protected nextParamName(paramName: string): string {
     const match = paramName.match(/^(.*?)(\d+)$/);
     if (!match) {

@@ -49,7 +49,7 @@ export default function DataMartRunsPage() {
       const response = await dataMartService.getProjectDataMartRuns(
         PROJECT_RUNS_PAGE_SIZE,
         offset,
-        isSilent ? { skipLoadingIndicator: true } : undefined
+        isSilent ? { skipLoadingIndicator: true, skipErrorToast: true } : undefined
       );
       const nextRuns = mapProjectDataMartRunListResponseDtoToEntity(response);
       setRuns(currentRuns => {

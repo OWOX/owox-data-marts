@@ -4,16 +4,29 @@ import { REPORT_AGGREGATE_FUNCTIONS } from './relationship.types';
 export { PERCENTILE_FUNCTIONS, REPORT_AGGREGATE_FUNCTIONS } from './relationship.types';
 export type { ReportAggregateFunction } from './relationship.types';
 
-const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+// .finite() mirrors the backend schema: Infinity/NaN would render invalid SQL
+// server-side, so a config carrying them must not validate as clean here.
+const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
+// Mirror of the backend IN_LIST_MAX_VALUES (filter-config.schema.ts) — the single
+// web-side copy; the schema and the picker's value editor both read this.
+export const IN_LIST_MAX_VALUES = 500;
+
+// Mirror of the backend preset set (filter-config.schema.ts): ISO weeks (Monday),
+// calendar quarters, and next_n_days including today (like last_n_days).
 const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('today') }),
   z.object({ kind: z.literal('yesterday') }),
+  z.object({ kind: z.literal('this_week') }),
+  z.object({ kind: z.literal('last_week') }),
   z.object({ kind: z.literal('this_month') }),
   z.object({ kind: z.literal('last_month') }),
+  z.object({ kind: z.literal('this_quarter') }),
+  z.object({ kind: z.literal('last_quarter') }),
   z.object({ kind: z.literal('this_year') }),
   z.object({ kind: z.literal('last_n_days'), n: z.number().int().positive().max(3650) }),
   z.object({ kind: z.literal('last_n_months'), n: z.number().int().positive().max(3650) }),
+  z.object({ kind: z.literal('next_n_days'), n: z.number().int().positive().max(3650) }),
 ]);
 
 const ScalarOperatorEnum = z.enum([
@@ -50,10 +63,34 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
     column: z.string().min(1),
     operator: NoValueOperatorEnum,
   }),
+  // Mirror of the backend in/not_in branch (filter-config.schema.ts). Offered in the
+  // picker as "is any of" / "is none of"; MCP/API-created rules parse through here too.
+  z.object({
+    column: z.string().min(1),
+    operator: z.enum(['in', 'not_in']),
+    // Strings or numbers, same-type only — mirror of the backend refines (booleans
+    // and mixed lists fail at query time on param-binding storages).
+    value: z
+      .array(ScalarValueSchema)
+      .min(1)
+      .max(IN_LIST_MAX_VALUES)
+      .refine((list): boolean => list.every(v => typeof v !== 'boolean'), {
+        message:
+          'in/not_in values must be strings or numbers — for boolean conditions use is_true/is_false',
+      })
+      .refine((list): boolean => list.every(v => typeof v === typeof list[0]), {
+        message: 'in/not_in values must all be the same type (all strings or all numbers)',
+      }),
+  }),
   z.object({
     column: z.string().min(1),
     operator: z.literal('between'),
-    value: z.object({ from: ScalarValueSchema, to: ScalarValueSchema }),
+    // Same-type bounds — mirror of the backend refine.
+    value: z
+      .object({ from: ScalarValueSchema, to: ScalarValueSchema })
+      .refine((v): boolean => typeof v.from === typeof v.to, {
+        message: "'between' bounds must be the same type (both strings or both numbers)",
+      }),
   }),
   z.object({
     column: z.string().min(1),

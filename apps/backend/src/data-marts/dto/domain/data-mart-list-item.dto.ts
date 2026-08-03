@@ -4,6 +4,7 @@ import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.en
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { SourceDataLastUpdatedSummary } from '../schemas/source-data-last-updated.schema';
 
 export class DataMartListItemDto {
   constructor(
@@ -15,7 +16,7 @@ export class DataMartListItemDto {
     public readonly createdAt: Date,
     public readonly modifiedAt: Date,
     public readonly description: string | null = null,
-    public readonly definitionType?: DataMartDefinitionType,
+    public readonly definitionType?: DataMartDefinitionType | null,
     public readonly definition?: DataMartDefinition,
     public readonly triggersCount: number = 0,
     public readonly reportsCount: number = 0,
@@ -24,6 +25,7 @@ export class DataMartListItemDto {
     public readonly technicalOwnerUsers: UserProjectionDto[] = [],
     public readonly contexts: ContextSummary[] = [],
     public readonly availableForReporting: boolean = true,
-    public readonly availableForMaintenance: boolean = false
+    public readonly availableForMaintenance: boolean = false,
+    public readonly dataLastUpdated: SourceDataLastUpdatedSummary | null = null
   ) {}
 }

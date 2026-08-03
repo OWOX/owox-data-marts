@@ -2,6 +2,7 @@ import type { DataMartState, DataMartAction } from './types';
 import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import { updateDataMartWithValidationHelper } from '../helpers';
 import { isDataMartRunFinalStatus } from '../../../shared/utils/status.utils';
+import { DataMartRunType } from '../../../shared';
 import type { DataMartRunItem } from '../types';
 
 // Initial state
@@ -12,6 +13,7 @@ export const initialState: DataMartState = {
   error: null,
   runs: [],
   isManualRunTriggered: false,
+  manualRunId: null,
   hasMoreRunsToLoad: true,
   hasActiveRuns: false,
 };
@@ -38,6 +40,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
         isLoading: true,
         error: null,
         isManualRunTriggered: isManualRun ? true : state.isManualRunTriggered,
+        manualRunId: isManualRun ? null : state.manualRunId,
         hasActiveRuns: isManualRun ? true : state.hasActiveRuns,
       };
     }
@@ -124,7 +127,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
       return { ...state, isLoading: false, error: null, dataMart: null };
 
     case 'RUN_DATA_MART_SUCCESS':
-      return { ...state, isLoading: false, error: null };
+      return { ...state, isLoading: false, error: null, manualRunId: action.payload };
 
     case 'FETCH_DATA_MART_RUNS_SUCCESS': {
       // Smart merge: start with fresh data from payload (newest runs first)
@@ -204,9 +207,13 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
       return { ...state, isLoadingMoreRuns: false, error: action.payload };
 
     case 'RESET_MANUAL_RUN_TRIGGERED': {
-      // Recalculate hasActiveRuns after resetting manual trigger
       const hasActiveRuns = calculateHasActiveRuns(false, state.runs);
-      return { ...state, isManualRunTriggered: false, hasActiveRuns };
+      return {
+        ...state,
+        isManualRunTriggered: false,
+        manualRunId: null,
+        hasActiveRuns,
+      };
     }
 
     case 'RESET':
@@ -224,5 +231,10 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
  * @returns true if there are active runs or manual run was triggered
  */
 function calculateHasActiveRuns(isManualRunTriggered: boolean, runs: DataMartRunItem[]): boolean {
-  return isManualRunTriggered || runs.some(run => !isDataMartRunFinalStatus(run.status));
+  return (
+    isManualRunTriggered ||
+    runs.some(
+      run => run.type !== DataMartRunType.DATA_QUALITY && !isDataMartRunFinalStatus(run.status)
+    )
+  );
 }

@@ -1,4 +1,4 @@
-import type { JsonRequester } from './data-marts.js';
+import type { JsonRequester } from './traversal.js';
 import { OWOXApiError } from './errors.js';
 
 export type OWOXStorage = Record<string, unknown> & {

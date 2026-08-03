@@ -32,7 +32,8 @@ export class ProjectScheduledConnectorRunConfigResponseApiDto {
 
 export type ProjectScheduledTriggerConfigResponseApiDto =
   | ProjectScheduledReportRunConfigResponseApiDto
-  | ProjectScheduledConnectorRunConfigResponseApiDto;
+  | ProjectScheduledConnectorRunConfigResponseApiDto
+  | null;
 
 export class ProjectScheduledTriggerDataMartRefResponseApiDto {
   @ApiProperty({ example: 'a5c9b1d2-3456-7890-abcd-ef0123456789' })

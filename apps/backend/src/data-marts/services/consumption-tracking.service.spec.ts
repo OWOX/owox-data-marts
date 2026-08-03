@@ -73,3 +73,70 @@ describe('ConsumptionTrackingService.registerHttpDataRunConsumption', () => {
     expect((PubSubService as unknown as jest.Mock).mock.calls).toHaveLength(0);
   });
 });
+
+describe('ConsumptionTrackingService.registerDataQualityRunConsumption', () => {
+  beforeEach(() => {
+    mockPublish.mockReset();
+    (PubSubService as unknown as jest.Mock).mockClear();
+  });
+
+  it('publishes a minimal process-run command to the dedicated DQ topic', async () => {
+    mockPublish.mockResolvedValue('message-1');
+    const service = buildService({
+      CONSUMPTION_PUBSUB_PROJECT_ID: 'consumption-project',
+      CONSUMPTION_DATA_QUALITY_RUN_TOPIC: 'data-quality-run-topic',
+    });
+
+    await expect(
+      service.registerDataQualityRunConsumption(fakeDataMart(), 'dq-run-1')
+    ).resolves.toBeUndefined();
+
+    expect(mockPublish).toHaveBeenCalledTimes(1);
+    const [topic, command] = mockPublish.mock.calls[0];
+    expect(topic).toBe('data-quality-run-topic');
+    expect(command).toMatchObject({
+      projectId: 'proj-1',
+      dataMartId: 'dm-1',
+      dataStorageId: 'storage-1',
+      dataStorageType: 'GOOGLE_BIGQUERY',
+      processRunId: 'dq-run-1',
+      runTime: expect.any(String),
+    });
+    expect(command).not.toHaveProperty('inputSource');
+  });
+
+  it('skips without publishing in self-managed mode', async () => {
+    const service = buildService({});
+
+    await expect(
+      service.registerDataQualityRunConsumption(fakeDataMart(), 'dq-run-1')
+    ).resolves.toBeUndefined();
+
+    expect(mockPublish).not.toHaveBeenCalled();
+  });
+
+  it('does not publish DQ consumption to the connector-run topic', async () => {
+    const service = buildService({
+      CONSUMPTION_PUBSUB_PROJECT_ID: 'consumption-project',
+      CONSUMPTION_CONNECTOR_RUN_TOPIC: 'connector-run-topic',
+    });
+
+    await expect(
+      service.registerDataQualityRunConsumption(fakeDataMart(), 'dq-run-1')
+    ).resolves.toBeUndefined();
+
+    expect(mockPublish).not.toHaveBeenCalled();
+  });
+
+  it('propagates configured publication failures to the caller', async () => {
+    mockPublish.mockRejectedValue(new Error('pubsub unavailable'));
+    const service = buildService({
+      CONSUMPTION_PUBSUB_PROJECT_ID: 'consumption-project',
+      CONSUMPTION_DATA_QUALITY_RUN_TOPIC: 'data-quality-run-topic',
+    });
+
+    await expect(
+      service.registerDataQualityRunConsumption(fakeDataMart(), 'dq-run-1')
+    ).rejects.toThrow('pubsub unavailable');
+  });
+});

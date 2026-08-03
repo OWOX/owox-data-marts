@@ -41,8 +41,6 @@ function renderItems(
           configuration={configuration}
           onValueChange={onValueChange}
           isEditingExisting={isEditingExisting}
-          isSecretEditing={isSecretEditing}
-          onSecretEditToggle={onSecretEditToggle}
           connectorName={connectorName}
         />
       );

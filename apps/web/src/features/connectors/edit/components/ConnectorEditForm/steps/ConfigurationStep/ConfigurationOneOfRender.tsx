@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { type ConnectorSpecificationResponseApiDto } from '../../../../../shared/api/types';
-import { AppWizardStepItemOneOf, AppWizardStepLabel } from '@owox/ui/components/common/wizard';
-import { configurationFieldRender } from './ConfigurationFieldRender';
+import { AppWizardStepItemOneOf } from '@owox/ui/components/common/wizard';
 import { TabsContent } from '@owox/ui/components/tabs';
-import { Button } from '@owox/ui/components/button';
 import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
+import { NestedConfigurationField } from './NestedConfigurationField';
 import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
 
 interface ConfigurationOneOfRenderProps {
@@ -12,8 +11,6 @@ interface ConfigurationOneOfRenderProps {
   configuration: Record<string, unknown>;
   onValueChange: (name: string, value: unknown) => void;
   isEditingExisting: boolean;
-  isSecretEditing: boolean;
-  onSecretEditToggle: (name: string, enable: boolean) => void;
   connectorName: string;
 }
 
@@ -22,8 +19,6 @@ export function ConfigurationOneOfRender({
   configuration,
   onValueChange,
   isEditingExisting,
-  isSecretEditing,
-  onSecretEditToggle,
   connectorName,
 }: ConfigurationOneOfRenderProps) {
   const detectSelectedOption = useMemo(() => {
@@ -112,23 +107,10 @@ export function ConfigurationOneOfRender({
                 configuration={configuration}
                 onValueChange={onValueChange}
                 connectorName={connectorName}
-                onSecretEditToggle={onSecretEditToggle}
-                secretEditing={{ [specification.name]: isSecretEditing }}
                 isEditingExisting={isEditingExisting}
               />
             ) : (
               Object.entries(option.items).map(([itemName, itemSpec]) => {
-                const currentObjectValue = (
-                  configuration[specification.name] &&
-                  typeof configuration[specification.name] === 'object'
-                    ? configuration[specification.name]
-                    : {}
-                ) as Record<string, unknown>;
-                const isSecret =
-                  Array.isArray(itemSpec.attributes) &&
-                  itemSpec.attributes.includes('SECRET') &&
-                  Object.keys(currentObjectValue)[0] === option.value;
-                const isFieldSecretEditing = fieldSecretEditing[itemName] ?? false;
                 const optionConfiguration =
                   typeof configuration[specification.name] === 'object' &&
                   configuration[specification.name] !== null
@@ -140,47 +122,21 @@ export function ConfigurationOneOfRender({
                     ? (optionConfiguration[option.value] as Record<string, unknown>)
                     : {};
                 return (
-                  <div key={itemName} className='mb-4'>
-                    <div className='flex items-center justify-between'>
-                      <AppWizardStepLabel
-                        htmlFor={itemName}
-                        required={itemSpec.required}
-                        tooltip={itemSpec.description}
-                        className='mb-2 justify-start'
-                      >
-                        {itemName}
-                      </AppWizardStepLabel>
-                      {isSecret && isEditingExisting && (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          type='button'
-                          onClick={() => {
-                            handleFieldSecretEditToggle(
-                              option.value,
-                              itemName,
-                              !isFieldSecretEditing
-                            );
-                          }}
-                        >
-                          {isFieldSecretEditing ? 'Cancel' : 'Edit'}
-                        </Button>
-                      )}
-                    </div>
-                    {configurationFieldRender({
-                      specification: { ...itemSpec, name: itemName },
-                      configuration: nestedConfiguration,
-                      onValueChange: (name, value) => {
-                        handleNestedValueChange(option.value, name, value);
-                      },
-                      flags: {
-                        isEditingExisting: isEditingExisting,
-                        isSecret: isSecret,
-                        isSecretEditing: isFieldSecretEditing,
-                      },
-                      connectorName: connectorName,
-                    })}
-                  </div>
+                  <NestedConfigurationField
+                    key={itemName}
+                    itemName={itemName}
+                    itemSpec={itemSpec}
+                    nestedConfiguration={nestedConfiguration}
+                    isEditingExisting={isEditingExisting}
+                    isSecretEditing={fieldSecretEditing[itemName] ?? false}
+                    onSecretEditToggle={(name, enable) => {
+                      handleFieldSecretEditToggle(option.value, name, enable);
+                    }}
+                    onValueChange={(name, value) => {
+                      handleNestedValueChange(option.value, name, value);
+                    }}
+                    connectorName={connectorName}
+                  />
                 );
               })
             )}

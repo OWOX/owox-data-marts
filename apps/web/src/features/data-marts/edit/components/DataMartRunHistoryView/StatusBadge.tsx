@@ -1,11 +1,30 @@
 import { Badge } from '@owox/ui/components/badge';
+import { cn } from '@owox/ui/lib/utils';
 import { DataMartRunStatus } from '../../../shared';
+import type { DataQualityCompactSummary } from '../../../shared/types';
+import {
+  DATA_QUALITY_STATUS_TEXT_CLASSES,
+  getDataQualityStatusVisual,
+} from '../../../shared/utils/data-quality-status';
 
 interface StatusBadgeProps {
   status: DataMartRunStatus;
+  qualitySummary?: DataQualityCompactSummary | null;
 }
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ status, qualitySummary }: StatusBadgeProps) {
+  if (qualitySummary) {
+    const visual = getDataQualityStatusVisual(qualitySummary);
+    return (
+      <Badge
+        variant='secondary'
+        className={cn('bg-muted/60', DATA_QUALITY_STATUS_TEXT_CLASSES[visual.tone])}
+      >
+        {visual.label}
+      </Badge>
+    );
+  }
+
   switch (status) {
     case DataMartRunStatus.RUNNING:
       return (

@@ -164,7 +164,13 @@ Use this tool when you need to confirm which project is active, or when the assi
 
 ### `list_data_marts`
 
-Lists all data marts visible to you in the current project.
+Lists data marts visible to you in the current project. By default, it returns published data marts. You can explicitly request draft data mart metadata, but drafts cannot be inspected or queried through other MCP data mart tools.
+
+**Input:**
+
+| Field    | Description                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `status` | Optional: `published` (default) returns queryable data marts; `draft` returns draft metadata for catalog browsing only. |
 
 **Returns** an array of data mart objects:
 
@@ -174,10 +180,12 @@ Lists all data marts visible to you in the current project.
 | `title`       | Data mart name                                |
 | `description` | Data mart description                         |
 | `url`         | Link to open the data mart in OWOX Data Marts |
-| `status`      | Current status                                |
+| `status`      | Current status: `PUBLISHED` or `DRAFT`. Response values are uppercase and differ from the lowercase input filter values. |
 | `updated_at`  | Last update timestamp                         |
 
 Use this tool to discover available data marts before running queries or building reports.
+
+The response also includes `project.id` and `project.title`, so the assistant can state which project its discovery results belong to.
 
 The list reflects your access: it includes only the data marts your [project role](../../project/roles-and-permissions.md) permits you to see. If a data mart you expect is missing, check your role in that project.
 
@@ -202,6 +210,8 @@ Finds the data marts most relevant to a natural-language question, ranked by rel
 | `url`             | Link to open the data mart in OWOX Data Marts   |
 | `relevance_score` | How closely the data mart matches your question |
 
+The response also includes `project.id` and `project.title`.
+
 Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned.
 
 ### `get_data_mart_details_by_id`
@@ -210,21 +220,25 @@ Returns field-level metadata for one data mart visible to you in the current pro
 
 **Input:**
 
-| Field          | Description                                                                               |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt` |
+| Field          | Description                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_mart_id` | Data mart identifier returned by `list_data_marts` or `get_relevant_data_marts_by_prompt`                                                                           |
+| `detail_level` | Optional: `native` (default) returns only the data mart's own fields; `with_joined_fields` additionally returns joined fields when the question truly requires them |
 
 **Returns:**
 
-| Field           | Description                                                                                                                                                                                |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`            | Data mart identifier                                                                                                                                                                       |
-| `name`          | Data mart name                                                                                                                                                                             |
-| `description`   | Data mart description                                                                                                                                                                      |
-| `fields`        | The data mart's own (native) output fields with names, types, descriptions, and business names when available                                                                              |
-| `joined_fields` | Fields contributed by blended/joined data marts (empty when the data mart has no joins), each with its qualified `<alias>__<field>` name, source data mart, type, and allowed aggregations |
+| Field                    | Description                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                     | Data mart identifier                                                                                                                                                       |
+| `name`                   | Data mart name                                                                                                                                                             |
+| `url`                    | Link to open the data mart in OWOX Data Marts                                                                                                                              |
+| `description`            | Data mart description                                                                                                                                                      |
+| `fields`                 | The data mart's own (native) output fields with query `name`, presentation `displayName`, types, descriptions, and business names when available                           |
+| `joined_fields_included` | Whether joined fields were requested and evaluated. When `false`, `joined_fields` was intentionally omitted rather than evaluated as empty.                                |
+| `joined_fields`          | Fields contributed by blended/joined data marts when requested, each with exact query `name`, presentation `displayName`, source data mart, type, and allowed aggregations |
+| `operators_by_category` | For each field-type category present in the data mart (`number`/`string`/`date`/`time`/`boolean`/`other`), the `query_data_mart` filter/slice operators its fields accept                                                          |
 
-Use this tool when you need to understand the fields available in a specific data mart — both its native fields and any joined fields you can then query with `query_data_mart`. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
+Use this tool when you need to understand the fields available in a specific data mart. It returns native fields by default; request `detail_level=with_joined_fields` before concluding that the native schema cannot answer a question or after a `field_not_found` error. A field's `allowedAggregations` and its category's entry in `operators_by_category` tell the assistant which aggregations and operators the field supports. The assistant can build queries without trial and error. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
 
 ### `query_data_mart` (requires `mcp:read` and `mcp:write`)
 
@@ -236,24 +250,52 @@ Runs a query against one data mart and returns its data rows, plus server-side t
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `data_mart_id` | Data mart to query                                                                                                                                                                                                                                                           |
 | `fields`       | Exact field names to return, copied from `get_data_mart_details_by_id`. Must include every field used in `aggregations`, `date_buckets`, and `sort`. Reference blended fields by their qualified `<alias>__<field>` name                                                     |
-| `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Each data mart's output controls decide which functions a field allows, so some may be rejected. Group-by is implied by the non-aggregated fields |
-| `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`                                                                                                                                                                                                       |
+| `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Which of these a field allows depends on its type and per-field settings — use the `allowedAggregations` returned by `get_data_mart_details_by_id`. Group-by is implied by the non-aggregated fields |
+| `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`. Only date-category fields can be bucketed; `time_zone` applies only to types with a time component (not pure `DATE`)                                                                                  |
 | `sort`         | Order the result rows: each rule is `{ field, direction }` with direction `asc` or `desc`; rules apply in order (the first is the primary key). Each sorted field must also appear in `fields`                                                                               |
 | `slices`       | Pre-join filters — narrow a joined data mart before it is blended in (joined fields only)                                                                                                                                                                                    |
-| `filters`      | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total                                                                                              |
+| `filters`      | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total. Which operators a field accepts depends on its type — see `operators_by_category` from `get_data_mart_details_by_id`; several filters combine with AND. `in`/`not_in` take an array of values (match any of / none of). The negative operators `neq`, `not_contains`, `not_regex`, and `not_in` are NULL-inclusive — they keep rows where the field is NULL, treating a missing value as "not equal to"; add an `is not null` filter on the same field to exclude NULLs |
 | `limit`        | Maximum rows to return (1–1000, default 20). There is no pagination                                                                                                                                                                                                          |
+
+For a “how many” question, use `COUNT` or `COUNT_DISTINCT` (when the user means unique entities) rather than returning raw rows and counting them in the assistant. Include only the dimensions needed for the requested breakdown.
 
 **Returns:**
 
-| Field           | Description                                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `columns`       | Column names in the result. When `aggregations` are used, an extra `Row Count` column (the number of underlying rows per group) is appended |
-| `rows`          | The data rows, as a compact header-once table                                                                                               |
-| `returned_rows` | Number of rows in the response                                                                                                              |
-| `truncated`     | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
-| `totals`        | Server-side totals over all matching rows, ignoring the row limit                                                                           |
+| Field                | Description                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `columns`            | Business-friendly headers matching the header row in `rows`. When `aggregations` are used, an extra `Row Count` column is appended        |
+| `column_metadata`    | Exact technical query `name` plus business-friendly `display_name`, type, and description when available                                  |
+| `rows`               | The data rows, as a compact header-once table                                                                                               |
+| `returned_rows`      | Number of rows in the response                                                                                                              |
+| `truncated`          | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
+| `truncation`         | Present only when truncated; `reasons` is `row_limit`, `payload_byte_cap`, or both                                                         |
+| `totals`             | Server-side totals over all matching rows, ignoring the row limit                                                                           |
+| `data_last_updated`  | When the source tables behind this result last changed in the warehouse — see below                                                        |
+| `source`             | The id, title, and OWOX link of the Data Mart that supplied the response                                                                    |
+| `calculation_origin` | Marks rows as taken from OWOX, and totals and `data_last_updated` as produced by OWOX when available                                        |
 
 Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable. For more on how aggregations and totals are computed, see [Report Aggregations and Totals](./report-aggregations.md); for why a given aggregation may be rejected on a field, see [Report Output Controls](./output-controls.md).
+
+When presenting results, the assistant must name the source Data Mart. It must distinguish OWOX-provided values from any arithmetic it performs itself. If `truncated` is true, it must explicitly tell the user that returned rows are incomplete; server-provided totals remain valid for all matching rows, but any number calculated from returned rows can be incomplete.
+
+#### Data last updated
+
+`data_last_updated` answers "how current is what I am looking at?". Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call's own credits cover it. The same value appears across the OWOX UI — see [Data Last Updated](./data-last-updated.md).
+
+| Field                  | Description                                                                                                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_last_updated_at` | ISO-8601 UTC time when the newest source table last changed, or `null` when the warehouse does not report it                                                          |
+| `computed_at`          | When this measurement was taken                                                                                                                                       |
+| `coverage`             | `complete`, `partial` (some sources unreadable — the real time can only be more recent), or `unavailable` (nothing could be determined)                               |
+| `sources`              | Per-table detail, each with its own time and an optional `note` explaining a gap                                                                                       |
+
+Read the value precisely. It is a **storage** timestamp, not a statement about the data's content:
+
+- It says when something last **wrote to** the source tables. A backfill can rewrite a table today with figures from 2021, so "updated today" does not mean "covers today". For this reason the field is *data last updated*, not *freshness*.
+- `null` means **unknown** — neither fresh nor stale. The assistant should say OWOX could not determine it, without implying either.
+- With `coverage: "partial"`, treat the timestamp as "at least as recent as" and say the picture is incomplete.
+
+Coverage is best effort per storage. Google BigQuery works first, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data.
 
 ### `list_destinations`
 
@@ -264,6 +306,7 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | Field                    | Description                                                                                               |
 | ------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `id`                     | Destination identifier                                                                                    |
+| `url`                    | Link to open this destination in OWOX                                                                    |
 | `name`                   | Destination name                                                                                          |
 | `type`                   | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
 | `owner`                  | The user who created the destination, or `null` when unavailable                                          |
@@ -290,6 +333,7 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `authorization_url` | For `google_sheets`, a link to the OWOX "Connect Google Sheets" page where the user completes Google OAuth                 |
 | `destination_id`    | New destination identifier. Returned for `looker_studio`, `email`, `slack`, `teams`, and `google_chat`; absent for Google Sheets until setup is completed |
+| `destination_url`   | Link to open the created destination; absent for Google Sheets until OAuth creates it                   |
 | `instructions`      | Human-readable next steps for finishing setup or using the new destination                                                  |
 
 For `google_sheets`, this tool does not create the destination immediately. It returns a project-scoped setup link; the user opens it, signs in to OWOX if needed, clicks **Connect with Google**, and approves Google access. After the user confirms setup is complete, call `list_destinations` and match the new Google Sheets destination by `connectedGoogleAccount`. The created destination is usable by the person who connected it, but it starts unshared for other project members until someone shares it in the UI.
@@ -311,9 +355,11 @@ Lists the reports tied to a data mart, including each report's destination, its 
 | Field              | Description                                                            |
 | ------------------ | ----------------------------------------------------------------------- |
 | `report_id`         | Report identifier                                                      |
+| `report_url`        | Link to the report's Data Mart reports page in OWOX                   |
 | `data_mart_id`      | Data mart identifier                                                   |
 | `name`              | Report name                                                            |
 | `destination_id`    | Destination the report exports to                                      |
+| `destination_url`   | Link to the destination in OWOX                                        |
 | `destination_type`  | Destination type (for example `google_sheets`)                        |
 | `owner`             | The user who created the report                                       |
 | `schedules`         | Array of run schedules — `trigger_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`, `last_run_at` |
@@ -378,8 +424,9 @@ Lists every scheduled report-run trigger in the current project that you can see
 | Field             | Description                                                          |
 | ------------------ | ---------------------------------------------------------------------- |
 | `trigger_id`        | Schedule identifier — pass to `update_report_run_schedule` or `delete_report_run_schedule` |
-| `report`            | The report this schedule belongs to (`id`, `title`)                  |
-| `data_mart`         | The data mart the report is built on (`id`, `title`)                 |
+| `report`            | The report this schedule belongs to (`id`, `title`, `url`)           |
+| `data_mart`         | The data mart the report is built on (`id`, `title`, `url`)          |
+| `schedules_url`     | Link to the report schedules page in OWOX                            |
 | `cron_expression`   | Schedule in 5-field cron syntax                                      |
 | `time_zone`         | IANA timezone the cron expression is evaluated in                    |
 | `is_active`         | Whether the schedule is currently enabled                            |
@@ -524,9 +571,25 @@ Permanently deletes a report. The report stops running and disappears from the p
 | `report_id` | Report identifier  |
 | `status`    | `deleted`          |
 
+## What costs credits
+
+Most of what you ask costs nothing. Only two tools consume [credits](../billing/consumption-units.md):
+
+- **`query_data_mart`** — reads actual data rows. Each successful call counts as one Report Run, billed as an **MCP Query Run**.
+- **`run_report`** — starts a Report Run that delivers data to a destination.
+
+Everything else is free. Listing data marts, inspecting fields, browsing destinations, reading reports and schedules, and checking run status only read metadata. Creating a destination, report, or schedule is also free. You pay when the report runs, not when you set it up.
+
+Four things to expect:
+
+- **Cost does not depend on size.** One call costs the same whether it returns 20 rows or 1,000. Ask one broad question rather than several narrow ones.
+- **One question can cost several credits.** The assistant may run several queries to answer you — for example, one per month you asked about. Ask it to plan the queries first if you want to keep the count down.
+- **Failed queries are free.** If a query fails, times out, or you cancel it, you pay nothing. A wrong guess about a field name costs nothing either.
+- **Running out of credits blocks queries only.** The metadata tools keep working, so the assistant can still explore your catalog.
+
 ## How to use it: example prompts
 
-Once the OWOX server is connected, just ask your assistant in plain language. You do not need to name the tools — the assistant calls them for you. Try prompts like:
+Once the OWOX server is connected, just ask your assistant in plain language. You do not need to name the tools — the assistant calls them for you. Prompts marked **(costs credits)** read or deliver actual data — see [What costs credits](#what-costs-credits). Try prompts like:
 
 - "Which OWOX project am I connected to, and what is my role in it?"
 - "What data is available in this project, and what should I ask next?"
@@ -535,13 +598,13 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Do I have any data marts about Facebook Ads? Show their descriptions."
 - "What fields are available in the Facebook Ads data mart?"
 - "Give me a one-line summary of each data mart and what it is for."
-- "What's the total revenue by month in the Sales data mart?"
-- "Show the top campaigns by spend in the Ads data mart."
+- "What's the total revenue by month in the Sales data mart?" **(costs credits)**
+- "Show the top campaigns by spend in the Ads data mart." **(costs credits)**
 - "Which destinations can I send a report to?"
 - "Connect a Google Sheets destination for my account."
 - "Create an email destination for `analytics-alerts@example.com`."
 - "What reports and schedules already exist for the Sales data mart?"
-- "Run the Weekly Ads Report now and tell me when it finishes."
+- "Run the Weekly Ads Report now and tell me when it finishes." **(costs credits)**
 - "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report'."
 - "Create a Looker Studio report from the Sales data mart with all fields."
 - "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'."
@@ -578,6 +641,8 @@ The token does not include the write scope required for tools that create, chang
 Project selection is fixed at authorization time. See [Switch projects or disconnect](#switch-projects-or-disconnect) for how to reconnect and choose a different project or use another project-specific URL.
 
 ### A `query_data_mart` call fails
+
+A failed query costs nothing — OWOX bills a call only after it succeeds. This covers queries that time out, queries you cancel, and queries the credit limit blocks.
 
 If the assistant reports that the project is out of credits, `query_data_mart` has hit its credit limit — upgrade the plan to keep querying (the read-only tools keep working). If it says a field wasn't found, it likely guessed a field name; ask it to check the data mart's fields first with `get_data_mart_details_by_id`, then re-run the query.
 

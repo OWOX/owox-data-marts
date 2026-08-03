@@ -88,6 +88,7 @@ export interface HttpDataRunRecord {
   status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED;
   metadata: HttpDataRunMetadata;
   errors?: string[];
+  reportId?: string;
 }
 
 // Terminal-only MCP_QUERY run: written once at the end (success, failure, or client-abort), no
@@ -260,6 +261,19 @@ export class DataMartRunService {
     return this.dataMartRunRepository.findOne({
       where: { id: runId, dataMartId },
     });
+  }
+
+  public async getDataQualityDetailsByIdAndDataMartId(
+    runId: string,
+    dataMartId: string
+  ): Promise<DataMartRun | null> {
+    return this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .addSelect('run.dataQualitySnapshot')
+      .addSelect('run.dataQualityResults')
+      .where('run.id = :runId', { runId })
+      .andWhere('run.dataMartId = :dataMartId', { dataMartId })
+      .getOne();
   }
 
   public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
@@ -570,6 +584,7 @@ export class DataMartRunService {
       runType: RunType.manual,
       status: record.status,
       createdById: record.createdById,
+      reportId: record.reportId ?? null,
       definitionRun: record.dataMart.definition,
       additionalParams: { [HTTP_DATA_PARAMS_KEY]: record.metadata },
       startedAt: record.startedAt,

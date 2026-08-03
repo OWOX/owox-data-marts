@@ -45,7 +45,7 @@ interface ScheduleItem {
 function isReportRunConfig(
   config: ScheduledTriggerResponseApiDto['triggerConfig']
 ): config is ScheduledReportRunConfig {
-  return config.type === TRIGGER_CONFIG_TYPES.SCHEDULED_REPORT_RUN;
+  return config?.type === TRIGGER_CONFIG_TYPES.SCHEDULED_REPORT_RUN;
 }
 
 function isEqualSchedules(a: ScheduleItem[], b: ScheduleItem[]) {

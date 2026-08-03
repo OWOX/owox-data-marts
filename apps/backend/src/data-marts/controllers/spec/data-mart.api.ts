@@ -22,13 +22,15 @@ import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-m
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
-import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunDetailResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-request-api.dto';
 import { UpdateDataMartAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { UpdateEntityContextsRequestApiDto } from '../../dto/presentation/context-api.dto';
-import { OwnerFilter } from '../../enums/owner-filter.enum';
+import { DATA_MARTS_PAGE_SIZE } from '../../use-cases/list-data-marts.service';
+import { BatchDataMartDataLastUpdatedResponseApiDto } from '../../dto/presentation/data-mart-data-last-updated-response-api.dto';
+import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -40,22 +42,16 @@ export function CreateDataMartSpec() {
 
 export function ListDataMartsSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'List all DataMarts' }),
-    ApiQuery({
-      name: 'offset',
-      required: false,
-      type: Number,
-      example: 0,
-      description: 'Number of DataMarts to skip before returning results',
+    ApiOperation({
+      summary: 'List visible Data Marts',
+      description:
+        'Returns Data Marts visible to the current project member. Viewer access is required. ' +
+        `Each response page contains at most ${DATA_MARTS_PAGE_SIZE} items.`,
     }),
-    ApiQuery({
-      name: 'ownerFilter',
-      required: false,
-      enum: OwnerFilter,
-      example: OwnerFilter.HAS_OWNERS,
-      description: 'Filter DataMarts by whether they have technical or business owners',
-    }),
-    ApiResponse({ status: 200, type: PaginatedDataMartsResponseApiDto })
+    ApiOkResponse({
+      description: 'A page of visible Data Marts with the next offset when more items exist.',
+      type: PaginatedDataMartsResponseApiDto,
+    })
   );
 }
 
@@ -64,6 +60,18 @@ export function GetDataMartSpec() {
     ApiOperation({ summary: 'Get a DataMart by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiResponse({ status: 200, type: DataMartResponseApiDto })
+  );
+}
+
+export function RefreshDataMartDataLastUpdatedSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Refresh the Data Last Updated snapshot for one or more DataMarts',
+      description:
+        'Measures live, against the warehouse, when the source tables behind each DataMart last changed, and persists what resolves as the last-known value. Ids sharing a storage are measured together, so that storage’s client is built once. Free of consumption; best effort — ids that could not be measured are simply absent from the response and keep their previous value.',
+    }),
+    ApiBody({ type: RefreshDataMartDataLastUpdatedRequestApiDto }),
+    ApiOkResponse({ type: BatchDataMartDataLastUpdatedResponseApiDto })
   );
 }
 
@@ -229,7 +237,7 @@ export function GetDataMartRunByIdSpec() {
     ApiOperation({ summary: 'Get DataMart run by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
-    ApiOkResponse({ type: DataMartRunResponseApiDto })
+    ApiOkResponse({ type: DataMartRunDetailResponseApiDto })
   );
 }
 

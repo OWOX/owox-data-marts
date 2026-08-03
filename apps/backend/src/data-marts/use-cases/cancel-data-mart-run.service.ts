@@ -14,6 +14,7 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { ConnectorRunTriggerService } from '../services/connector/connector-run-trigger.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
+import { DataQualityRunService } from '../services/data-quality-run.service';
 import { ReportService } from '../services/report.service';
 import {
   isCancellableDataMartRunStatus,
@@ -27,6 +28,7 @@ export class CancelDataMartRunService {
     private readonly dataMartRunService: DataMartRunService,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
     private readonly reportRunTriggerService: ReportRunTriggerService,
+    private readonly dataQualityRunService: DataQualityRunService,
     private readonly reportService: ReportService,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
@@ -60,11 +62,18 @@ export class CancelDataMartRunService {
     }
 
     if (!this.isSupportedRunType(run.type)) {
-      throw new BadRequestException('Only connector and standard report runs can be cancelled');
+      throw new BadRequestException(
+        'Only connector, standard report, and Data Quality runs can be cancelled'
+      );
     }
 
     if (!isCancellableDataMartRunStatus(run.status)) {
       throw new ConflictException(`Cannot cancel data mart run in ${run.status} status`);
+    }
+
+    if (run.type === DataMartRunType.DATA_QUALITY) {
+      await this.dataQualityRunService.cancelActiveRun(run.id, command.id);
+      return;
     }
 
     if (run.type === DataMartRunType.CONNECTOR) {
@@ -80,7 +89,11 @@ export class CancelDataMartRunService {
   }
 
   private isSupportedRunType(type: DataMartRunType): boolean {
-    return type === DataMartRunType.CONNECTOR || this.isStandardReportRun(type);
+    return (
+      type === DataMartRunType.CONNECTOR ||
+      type === DataMartRunType.DATA_QUALITY ||
+      this.isStandardReportRun(type)
+    );
   }
 
   private isStandardReportRun(type: DataMartRunType): boolean {

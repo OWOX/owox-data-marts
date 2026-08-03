@@ -519,8 +519,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           context: request.id,
         });
 
-        await dataMartService.runDataMart(request.id, request.payload);
-        dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
+        const response = await dataMartService.runDataMart(request.id, request.payload);
+        dispatch({ type: 'RUN_DATA_MART_SUCCESS', payload: response.runId });
+        return response.runId;
       } catch (error) {
         toast.dismiss(toastId);
         const apiError = extractApiError(error);
@@ -537,6 +538,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           context: request.id,
           error: apiError.message,
         });
+        return null;
       }
     },
     [state.dataMart?.storage.id]
@@ -583,22 +585,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     },
     [getDataMartRuns]
   );
-
-  // Get a data mart run by ID
-  const getDataMartRunById = useCallback(async (dataMartId: string, runId: string) => {
-    try {
-      return await dataMartService.getDataMartRunById(dataMartId, runId);
-    } catch (error) {
-      const apiError = extractApiError(error);
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'FetchRunDetailsError',
-        error: apiError.message,
-      });
-      throw error;
-    }
-  }, []);
 
   // Actualize data mart schema
   const actualizeDataMartSchema = useCallback(async (id: string) => {
@@ -706,7 +692,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     actualizeDataMartSchema,
     updateDataMartSchema,
     getDataMartRuns,
-    getDataMartRunById,
     loadMoreDataMartRuns,
     getErrorMessage,
     resetManualRunTriggered,

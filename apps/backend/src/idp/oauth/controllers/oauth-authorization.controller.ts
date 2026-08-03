@@ -11,6 +11,8 @@ import {
 import type { Request, Response } from 'express';
 import {
   AuthorizationError,
+  isViewOnlyPayload,
+  ViewOnlyModeError,
   type AuthResult,
   type McpOAuthProjectMemberContext,
   type Payload,
@@ -49,6 +51,12 @@ export class OAuthAuthorizationController {
     const authorization = await this.resolveAuthorizationContext(provider, request, response);
     if (!authorization) {
       return;
+    }
+
+    // View-only sessions must not mint MCP tokens: write tools would otherwise
+    // bypass IdpGuard and mutate project state under the impersonated user.
+    if (authorization.context.viewOnly === true) {
+      throw new ViewOnlyModeError('MCP authorization is not allowed in view-only mode');
     }
 
     await this.clientRegistry.attachUserIfMissing(
@@ -266,6 +274,8 @@ export class OAuthAuthorizationController {
       projectTitle: payload.projectTitle,
       authFlow: payload.authFlow,
       apiKeyId: payload.apiKeyId,
+      // Propagate only when true so normal sessions stay free of the flag.
+      viewOnly: isViewOnlyPayload(payload) || undefined,
     };
   }
 }

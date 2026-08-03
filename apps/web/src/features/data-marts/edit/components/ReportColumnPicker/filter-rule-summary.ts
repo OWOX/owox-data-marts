@@ -16,6 +16,9 @@ export function summarizeFilterRule(rule: FilterRule): string {
       return '';
     case 'between':
       return `${String(rule.value.from)} … ${String(rule.value.to)}`;
+    case 'in':
+    case 'not_in':
+      return rule.value.map(String).join(', ');
     case 'relative_date': {
       const v = rule.value;
       if ('n' in v) return v.kind.replace('_n_', ` ${String(v.n)} `);

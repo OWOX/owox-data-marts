@@ -106,8 +106,11 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${lit(rule.value)}`, params: [] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} <> ${lit(rule.value)}`, params: [] };
+        return { sql: `(${col} IS NULL OR ${col} <> ${lit(rule.value)})`, params: [] };
       case 'gt':
         return { sql: `${col} > ${lit(rule.value)}`, params: [] };
       case 'lt':
@@ -121,7 +124,11 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
       case 'contains':
         return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) > 0`, params: [] };
       case 'not_contains':
-        return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) = 0`, params: [] };
+        // STRPOS(NULL, …) is NULL, so bare `= 0` drops NULL rows; keep them.
+        return {
+          sql: `(${col} IS NULL OR STRPOS(${col}, ${lit(String(rule.value))}) = 0)`,
+          params: [],
+        };
       case 'starts_with':
         return { sql: `STRPOS(${col}, ${lit(String(rule.value))}) = 1`, params: [] };
       case 'ends_with': {
@@ -131,7 +138,10 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
       case 'regex':
         return { sql: `${col} ~ ${lit(String(rule.value))}`, params: [] };
       case 'not_regex':
-        return { sql: `${col} !~ ${lit(String(rule.value))}`, params: [] };
+        return {
+          sql: `(${col} IS NULL OR ${col} !~ ${lit(String(rule.value))})`,
+          params: [],
+        };
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':
@@ -149,6 +159,9 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           sql: `${col} BETWEEN ${lit(rule.value.from)} AND ${lit(rule.value.to)}`,
           params: [],
         };
+      case 'in':
+      case 'not_in':
+        return this.renderInListWithLiterals(rule, col, lit);
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }
@@ -181,6 +194,22 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           `${col} >= DATEADD(month, -${preset.n}, CURRENT_DATE)` +
           ` AND ${col} < DATEADD(day, 1, CURRENT_DATE)`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return (
+          `${col} >= CURRENT_DATE` + ` AND ${col} < DATEADD(day, ${preset.n + 1}, CURRENT_DATE)`
+        );
+      // Redshift DATE_TRUNC('week') is fixed to Monday (PostgreSQL semantics) — ISO.
+      case 'this_week':
+        return (
+          `${col} >= DATE_TRUNC('week', CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(day, 7, DATE_TRUNC('week', CURRENT_DATE))`
+        );
+      case 'last_week':
+        return (
+          `${col} >= DATEADD(day, -7, DATE_TRUNC('week', CURRENT_DATE))` +
+          ` AND ${col} < DATE_TRUNC('week', CURRENT_DATE)`
+        );
       case 'this_month':
         return (
           `${col} >= DATE_TRUNC('month', CURRENT_DATE)` +
@@ -190,6 +219,16 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
         return (
           `${col} >= DATE_TRUNC('month', DATEADD(month, -1, CURRENT_DATE))` +
           ` AND ${col} < DATE_TRUNC('month', CURRENT_DATE)`
+        );
+      case 'this_quarter':
+        return (
+          `${col} >= DATE_TRUNC('quarter', CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(month, 3, DATE_TRUNC('quarter', CURRENT_DATE))`
+        );
+      case 'last_quarter':
+        return (
+          `${col} >= DATEADD(month, -3, DATE_TRUNC('quarter', CURRENT_DATE))` +
+          ` AND ${col} < DATE_TRUNC('quarter', CURRENT_DATE)`
         );
       case 'this_year':
         return (

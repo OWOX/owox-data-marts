@@ -606,8 +606,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * @return {boolean} True if the error should trigger a retry, false otherwise
    */
   isValidToRetry(error) {
-    console.log(`isValidToRetry() called`);
-    console.log(`error.statusCode = ${error.statusCode}`);
+    // One structured entry rather than raw console writes, which the backend
+    // splits into a separate run-log entry per line
+    this.config.logMessage(`X Ads retry check: statusCode=${error.statusCode}`);
 
     // Retry on server errors (5xx)
     if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {

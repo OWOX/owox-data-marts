@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS } from '../ai-insights/ai-insights.constants';
 import { prepareSchema } from '../ai-insights/utils/prepare-schema';
 import type {
@@ -10,8 +10,10 @@ import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { SummarizeMcpDataCatalogCommand } from '../dto/domain/summarize-mcp-data-catalog.command';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
+import { formatBlendedFieldDisplayName } from '../services/blended-field-display-name';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
 import { QueryDataMartCommand, QueryDataMartService } from '../use-cases/query-data-mart.service';
@@ -44,25 +46,37 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
   ) {}
 
   async listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse> {
+    const status = request.status === 'draft' ? DataMartStatus.DRAFT : DataMartStatus.PUBLISHED;
     const result = await this.listDataMartsService.run(
-      new ListDataMartsCommand(request.projectId, request.userId, request.roles)
+      new ListDataMartsCommand(
+        request.projectId,
+        request.userId,
+        request.roles,
+        undefined,
+        undefined,
+        status
+      )
     );
 
     return {
-      dataMarts: result.items.map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        updatedAt: item.modifiedAt.toISOString(),
-      })),
+      dataMarts: result.items
+        // Keep this gate at the facade boundary: the underlying list use case is allowed to
+        // return a mixed result, but MCP must return only the explicitly requested state.
+        .filter(item => item.status === status)
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          status: item.status,
+          updatedAt: item.modifiedAt.toISOString(),
+        })),
     };
   }
 
   async getDataMartDetails(
     request: McpGetDataMartDetailsRequest
   ): Promise<McpDataMartDetailsResponse> {
-    await this.ensureDataMartAccessible(request);
+    await this.ensurePublishedDataMartAccessible(request);
 
     const dataMart = await this.dataMartService.actualizeSchemaIfExpired(
       request.dataMartId,
@@ -80,8 +94,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       id: dataMart.id,
       name: dataMart.title,
       description: dataMart.description ?? '',
-      fields: schema?.fields ?? [],
-      joinedFields: await this.resolveJoinedFields(request),
+      fields: this.withDisplayNames(schema?.fields ?? []),
+      joinedFields: request.includeJoinedFields ? await this.resolveJoinedFields(request) : [],
     };
   }
 
@@ -122,6 +136,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
         .map(f => ({
           name: f.name,
+          displayName: formatBlendedFieldDisplayName(f),
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,
@@ -129,9 +144,11 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           ...(f.sourceFieldType && f.sourceFieldType !== f.type
             ? { sliceType: f.sourceFieldType }
             : {}),
-          ...(f.postJoinAggregations?.length
-            ? { allowedAggregations: f.postJoinAggregations }
-            : {}),
+          // Forward an EMPTY override too: [] means "no aggregations allowed" (the
+          // validator enforces it via `postJoinAggregations ?? …`, where [] is not
+          // nullish). Dropping it would make consumers fall back to type defaults
+          // and advertise aggregations every query would then reject.
+          ...(f.postJoinAggregations ? { allowedAggregations: f.postJoinAggregations } : {}),
         }));
     } catch (err) {
       this.logger.warn(
@@ -156,10 +173,35 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     );
   }
 
-  private async ensureDataMartAccessible(request: McpGetDataMartDetailsRequest): Promise<void> {
-    await this.getDataMartService.run(
+  private async ensurePublishedDataMartAccessible(
+    request: McpGetDataMartDetailsRequest
+  ): Promise<void> {
+    const dataMart = await this.getDataMartService.run(
       new GetDataMartCommand(request.dataMartId, request.projectId, request.userId, request.roles)
     );
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      // Do not reveal whether a non-published Data Mart exists.
+      throw new NotFoundException('Data Mart not found');
+    }
+  }
+
+  private withDisplayNames(fields: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+    return fields.map(field => {
+      const name = typeof field['name'] === 'string' ? field['name'] : undefined;
+      const businessName =
+        typeof field['businessName'] === 'string' && field['businessName'].trim()
+          ? field['businessName'].trim()
+          : undefined;
+      const nestedFields = Array.isArray(field['fields'])
+        ? this.withDisplayNames(field['fields'] as Array<Record<string, unknown>>)
+        : undefined;
+
+      return {
+        ...field,
+        ...(name ? { displayName: businessName ?? name } : {}),
+        ...(nestedFields ? { fields: nestedFields } : {}),
+      };
+    });
   }
 
   private filterAvailableFields(fields: DataMartSchemaField[]): DataMartSchemaField[] {

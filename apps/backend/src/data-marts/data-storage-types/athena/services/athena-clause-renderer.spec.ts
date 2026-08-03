@@ -12,7 +12,9 @@ describe('AthenaClauseRenderer', () => {
       expect(out.params).toEqual([{ name: 'p0', value: 'X' }]);
     });
     it('neq/gt/lt/gte/lte', () => {
-      expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toContain('!=');
+      expect(r.renderWhere([{ column: 'a', operator: 'neq', value: 1 }]).sql).toBe(
+        '\nWHERE ("a" IS NULL OR "a" <> ?)'
+      );
       expect(r.renderWhere([{ column: 'a', operator: 'gt', value: 1 }]).sql).toContain('>');
       expect(r.renderWhere([{ column: 'a', operator: 'lt', value: 1 }]).sql).toContain('<');
       expect(r.renderWhere([{ column: 'a', operator: 'gte', value: 1 }]).sql).toContain('>=');
@@ -23,7 +25,7 @@ describe('AthenaClauseRenderer', () => {
         '\nWHERE strpos("a", ?) > 0'
       );
       expect(r.renderWhere([{ column: 'a', operator: 'not_contains', value: 'X' }]).sql).toBe(
-        '\nWHERE strpos("a", ?) = 0'
+        '\nWHERE ("a" IS NULL OR strpos("a", ?) = 0)'
       );
     });
     it('starts_with uses strpos = 1', () => {
@@ -48,7 +50,7 @@ describe('AthenaClauseRenderer', () => {
         '\nWHERE regexp_like("a", ?)'
       );
       expect(r.renderWhere([{ column: 'a', operator: 'not_regex', value: '^x' }]).sql).toBe(
-        '\nWHERE NOT regexp_like("a", ?)'
+        '\nWHERE ("a" IS NULL OR NOT regexp_like("a", ?))'
       );
     });
   });
@@ -73,6 +75,41 @@ describe('AthenaClauseRenderer', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'is_false' }]).sql).toBe(
         '\nWHERE "a" = FALSE'
       );
+    });
+  });
+
+  describe('in / not_in', () => {
+    it('renders IN with one positional param per value, in order', () => {
+      const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', 'google'] }]);
+      expect(out.sql).toBe('\nWHERE "channel" IN (?, ?)');
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+      ]);
+    });
+    it('renders NOT IN and keeps later params aligned', () => {
+      const out = r.renderWhere([
+        { column: 'channel', operator: 'not_in', value: ['fb', 'google'] },
+        { column: 'name', operator: 'eq', value: 'X' },
+      ]);
+      expect(out.sql).toBe(
+        '\nWHERE ("channel" IS NULL OR "channel" NOT IN (?, ?))\n  AND "name" = ?'
+      );
+      expect(out.params).toEqual([
+        { name: 'p0', value: 'fb' },
+        { name: 'p1', value: 'google' },
+        { name: 'p2', value: 'X' },
+      ]);
+    });
+    it('casts each placeholder for a DATE column', () => {
+      const out = r.renderWhere(
+        [{ column: 'day', operator: 'in', value: ['2026-01-01', '2026-01-02'] }],
+        undefined,
+        'p',
+        () => 'DATE'
+      );
+      expect(out.sql).toBe('\nWHERE "day" IN (CAST(? AS DATE), CAST(? AS DATE))');
+      expect(out.params).toHaveLength(2);
     });
   });
 
@@ -167,6 +204,41 @@ describe('AthenaClauseRenderer', () => {
   });
 
   describe('relative_date (Trino date functions)', () => {
+    it('next_n_days includes today and n days ahead', () => {
+      expect(
+        r.renderWhere([
+          { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } },
+        ]).sql
+      ).toBe(`\nWHERE "d" >= current_date AND "d" < date_add('day', 8, current_date)`);
+    });
+    it('this_week / last_week are ISO (Monday) weeks', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_week' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_trunc('week', current_date) AND "d" < date_add('week', 1, date_trunc('week', current_date))`
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_week' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_add('week', -1, date_trunc('week', current_date)) AND "d" < date_trunc('week', current_date)`
+      );
+    });
+    it('this_quarter / last_quarter are calendar quarters', () => {
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_trunc('quarter', current_date) AND "d" < date_add('month', 3, date_trunc('quarter', current_date))`
+      );
+      expect(
+        r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } }])
+          .sql
+      ).toBe(
+        `\nWHERE "d" >= date_add('month', -3, date_trunc('quarter', current_date)) AND "d" < date_trunc('quarter', current_date)`
+      );
+    });
     // Half-open ranges (not equality) so the whole day matches on TIMESTAMP columns.
     it('today', () => {
       expect(

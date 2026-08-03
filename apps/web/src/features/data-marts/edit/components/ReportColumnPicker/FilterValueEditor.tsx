@@ -8,7 +8,11 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
-import type { FilterRule, RelativeDatePreset } from '../../../shared/types/output-config';
+import {
+  IN_LIST_MAX_VALUES,
+  type FilterRule,
+  type RelativeDatePreset,
+} from '../../../shared/types/output-config';
 import {
   type FilterOperator,
   operatorsForType,
@@ -28,6 +32,15 @@ export interface FilterValueEditorProps {
 interface EditorState {
   op: FilterOperator;
   scalar: string;
+  /** Raw comma-separated text for in/not_in; split/parsed in buildRule. */
+  list: string;
+  /**
+   * The untouched value array of an existing in/not_in rule. The comma-text display
+   * is lossy (a value containing a comma splits; numbers/booleans stringify), so as
+   * long as the user has not edited the text, buildRule returns THIS array verbatim
+   * instead of re-parsing the display string. Cleared to null on the first edit.
+   */
+  listValues: (string | number | boolean)[] | null;
   betweenFrom: string;
   betweenTo: string;
   relativeKind: RelativeDatePreset['kind'];
@@ -38,12 +51,28 @@ interface EditorState {
 const RELATIVE_KINDS: { value: RelativeDatePreset['kind']; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
+  { value: 'this_week', label: 'This week' },
+  { value: 'last_week', label: 'Last week' },
   { value: 'this_month', label: 'This month' },
   { value: 'last_month', label: 'Last month' },
+  { value: 'this_quarter', label: 'This quarter' },
+  { value: 'last_quarter', label: 'Last quarter' },
   { value: 'this_year', label: 'This year' },
   { value: 'last_n_days', label: 'Last N days' },
   { value: 'last_n_months', label: 'Last N months' },
+  { value: 'next_n_days', label: 'Next N days' },
 ];
+
+/** Presets that take the numeric N input. */
+type NKind = 'last_n_days' | 'last_n_months' | 'next_n_days';
+const N_KINDS = new Set<RelativeDatePreset['kind']>([
+  'last_n_days',
+  'last_n_months',
+  'next_n_days',
+]);
+function isNKind(kind: RelativeDatePreset['kind']): kind is NKind {
+  return N_KINDS.has(kind);
+}
 
 const NO_VALUE_OPS = new Set<FilterOperator>([
   'is_empty',
@@ -58,6 +87,8 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
   const state: EditorState = {
     op: fallbackOp,
     scalar: '',
+    list: '',
+    listValues: null,
     betweenFrom: '',
     betweenTo: '',
     relativeKind: 'today',
@@ -68,6 +99,9 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
   if (rule.operator === 'between') {
     state.betweenFrom = String(rule.value.from);
     state.betweenTo = String(rule.value.to);
+  } else if (rule.operator === 'in' || rule.operator === 'not_in') {
+    state.list = rule.value.map(formatListValue).join(', ');
+    state.listValues = [...rule.value];
   } else if (rule.operator === 'relative_date') {
     state.relativeKind = rule.value.kind;
     if ('n' in rule.value) state.relativeN = String(rule.value.n);
@@ -85,6 +119,97 @@ function parseScalar(raw: string, fieldType: string): string | number | boolean 
     return n;
   }
   return raw;
+}
+
+/**
+ * Validates one in/not_in list entry for date/time columns. The single-value path
+ * gets this for free from the native date/time inputs; the list is a free-text
+ * field, so a typo like 2026-13-45 would otherwise save clean and only fail in
+ * the warehouse. Mirrors the single-value formats: YYYY-MM-DD and HH:MM(:SS).
+ */
+function assertValidListEntry(entry: string, fieldType: string): void {
+  if (isDateType(fieldType)) {
+    // Component round-trip, not Date parsing: V8 rolls '2026-02-30' over to Mar 2
+    // instead of rejecting it, so a rolled-over date means the input was invalid.
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(entry);
+    const [y, m, d] = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : [0, 0, 0];
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const isRealDate =
+      match !== null &&
+      dt.getUTCFullYear() === y &&
+      dt.getUTCMonth() === m - 1 &&
+      dt.getUTCDate() === d;
+    if (!isRealDate) {
+      throw new Error(`Invalid date value: ${entry} (expected YYYY-MM-DD)`);
+    }
+  } else if (isTimeType(fieldType)) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(entry)) {
+      throw new Error(`Invalid time value: ${entry} (expected HH:MM or HH:MM:SS)`);
+    }
+  }
+}
+
+/**
+ * Serializes one in/not_in value for the comma-separated text input. A value that
+ * contains a comma, a double quote, a newline, or edge whitespace is wrapped in
+ * double quotes with `""` escaping the quote — the CSV-style grammar parseListText
+ * understands — so such values round-trip through create and edit.
+ */
+function formatListValue(value: string | number | boolean): string {
+  const s = String(value);
+  return /[",\n]|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Splits the comma-separated list text into values. Double-quoted sections keep
+ * commas/newlines AND edge whitespace literal (`""` escapes a quote); unquoted
+ * content is split on commas/newlines and trimmed. Stray whitespace around a
+ * quoted token (` "a" `) is dropped; whitespace inside quotes (`" a "`) is kept.
+ */
+function parseListText(text: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  let sawQuoted = false;
+  /** Length of the current run of unquoted whitespace at the token's tail. */
+  let trailingWs = 0;
+  const append = (ch: string, quoted: boolean) => {
+    current += ch;
+    trailingWs = !quoted && (ch === ' ' || ch === '\t') ? trailingWs + 1 : 0;
+  };
+  const push = () => {
+    const token = sawQuoted ? current.slice(0, current.length - trailingWs) : current.trim();
+    if (token !== '') values.push(token);
+    current = '';
+    sawQuoted = false;
+    trailingWs = 0;
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          append('"', true);
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        append(ch, true);
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+      sawQuoted = true;
+    } else if (ch === ',' || ch === '\n') {
+      push();
+    } else if (current === '' && (ch === ' ' || ch === '\t')) {
+      // Leading unquoted whitespace before the token starts — skip.
+    } else {
+      append(ch, false);
+    }
+  }
+  push();
+  return values;
 }
 
 function buildRule(args: { column: string; fieldType: string; state: EditorState }): FilterRule {
@@ -109,20 +234,37 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     return { column, operator: 'between', value: { from, to } };
   }
 
+  if (op === 'in' || op === 'not_in') {
+    // Untouched existing rule: return the original array verbatim — the comma-text
+    // display cannot round-trip values containing commas or non-string types.
+    if (state.listValues !== null && state.listValues.length > 0) {
+      return { column, operator: op, value: state.listValues };
+    }
+    // CSV-style grammar: double quotes keep commas literal ("" escapes a quote);
+    // unquoted entries are trimmed and empties dropped. Mirrors the backend
+    // schema bounds (1..IN_LIST_MAX_VALUES values).
+    const entries = parseListText(state.list);
+    if (entries.length === 0) {
+      throw new Error('At least one value is required');
+    }
+    if (entries.length > IN_LIST_MAX_VALUES) {
+      throw new Error(`At most ${IN_LIST_MAX_VALUES} values are allowed`);
+    }
+    for (const entry of entries) assertValidListEntry(entry, fieldType);
+    return { column, operator: op, value: entries.map(e => parseScalar(e, fieldType)) };
+  }
+
   if (op === 'relative_date') {
-    if (state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') {
+    const kind = state.relativeKind;
+    if (isNKind(kind)) {
       const trimmed = state.relativeN.trim();
       const n = Number(trimmed);
       if (trimmed === '' || !Number.isInteger(n) || n <= 0 || n > 3650) {
         throw new Error('N must be between 1 and 3650');
       }
-      return {
-        column,
-        operator: 'relative_date',
-        value: { kind: state.relativeKind, n },
-      };
+      return { column, operator: 'relative_date', value: { kind, n } };
     }
-    return { column, operator: 'relative_date', value: { kind: state.relativeKind } };
+    return { column, operator: 'relative_date', value: { kind } };
   }
 
   if (NO_VALUE_OPS.has(op)) {
@@ -239,6 +381,31 @@ export function FilterValueEditor({
         </div>
       )}
 
+      {(state.op === 'in' || state.op === 'not_in') && (
+        <div className='space-y-1'>
+          <Label>
+            Values (comma-separated; wrap a value in "double quotes" if it contains a comma)
+          </Label>
+          {/* Plain text even for number/date columns — the field holds a comma list, not one value. */}
+          <Input
+            type='text'
+            value={state.list}
+            onChange={e => {
+              // First edit invalidates the pristine array — from here on the (lossy)
+              // text is the source of truth.
+              setState(s => ({ ...s, list: e.target.value, listValues: null }));
+            }}
+            placeholder={
+              isNumberType(fieldType)
+                ? '10, 20, 30'
+                : dateField
+                  ? '2026-01-01, 2026-01-15'
+                  : 'value1, value2'
+            }
+          />
+        </div>
+      )}
+
       {state.op === 'relative_date' && (
         <div className='space-y-2'>
           <Label>Preset</Label>
@@ -259,7 +426,7 @@ export function FilterValueEditor({
               ))}
             </SelectContent>
           </Select>
-          {(state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') && (
+          {N_KINDS.has(state.relativeKind) && (
             <Input
               type='number'
               min={1}
@@ -273,19 +440,23 @@ export function FilterValueEditor({
         </div>
       )}
 
-      {!NO_VALUE_OPS.has(state.op) && state.op !== 'between' && state.op !== 'relative_date' && (
-        <div className='space-y-1'>
-          <Label>Value</Label>
-          <Input
-            type={inputType}
-            value={state.scalar}
-            onChange={e => {
-              setState(s => ({ ...s, scalar: e.target.value }));
-            }}
-            placeholder={state.op === 'regex' ? 'pattern' : ''}
-          />
-        </div>
-      )}
+      {!NO_VALUE_OPS.has(state.op) &&
+        state.op !== 'between' &&
+        state.op !== 'relative_date' &&
+        state.op !== 'in' &&
+        state.op !== 'not_in' && (
+          <div className='space-y-1'>
+            <Label>Value</Label>
+            <Input
+              type={inputType}
+              value={state.scalar}
+              onChange={e => {
+                setState(s => ({ ...s, scalar: e.target.value }));
+              }}
+              placeholder={state.op === 'regex' ? 'pattern' : ''}
+            />
+          </div>
+        )}
     </>
   );
 }

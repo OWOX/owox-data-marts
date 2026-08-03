@@ -1,5 +1,9 @@
 import { ScheduledTriggerType } from '../enums';
-import type { ScheduledConnectorRunConfig, ScheduledReportRunConfig } from './trigger-config.types';
+import type {
+  ScheduledConnectorRunConfig,
+  ScheduledDataQualityRunConfig,
+  ScheduledReportRunConfig,
+} from './trigger-config.types';
 import type { UserProjection } from '../../../../shared/types';
 
 /**
@@ -84,4 +88,5 @@ export interface ProjectScheduledTrigger extends ScheduledTrigger {
 export interface TriggerConfigByType {
   [ScheduledTriggerType.REPORT_RUN]: ScheduledReportRunConfig;
   [ScheduledTriggerType.CONNECTOR_RUN]: ScheduledConnectorRunConfig;
+  [ScheduledTriggerType.DATA_QUALITY_RUN]: ScheduledDataQualityRunConfig;
 }

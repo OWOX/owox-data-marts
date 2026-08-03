@@ -83,9 +83,19 @@ export class ConnectorRunService {
 
     for (const run of interruptedRuns) {
       try {
-        await this.dataMartRunRepository.update(run.id, {
-          status: DataMartRunStatus.PENDING,
-        });
+        const claimed = await this.dataMartRunRepository.update(
+          { id: run.id, status: DataMartRunStatus.INTERRUPTED },
+          { status: DataMartRunStatus.PENDING }
+        );
+
+        if (!claimed.affected) {
+          this.logger.log(`Skipping resumption of run ${run.id}: no longer INTERRUPTED`, {
+            dataMartId: run.dataMartId,
+            projectId: run.dataMart.projectId,
+            runId: run.id,
+          });
+          continue;
+        }
 
         await this.connectorRunTriggerService.createTrigger({
           dataMartId: run.dataMartId,

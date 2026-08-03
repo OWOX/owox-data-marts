@@ -77,8 +77,14 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${ph}`, params: [{ name: paramName, value: rule.value }] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} != ${ph}`, params: [{ name: paramName, value: rule.value }] };
+        return {
+          sql: `(${col} IS NULL OR ${col} <> ${ph})`,
+          params: [{ name: paramName, value: rule.value }],
+        };
       case 'gt':
         return { sql: `${col} > ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'lt':
@@ -97,8 +103,9 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'not_contains':
+        // STRPOS(NULL, …) is NULL, so bare `= 0` drops NULL rows; keep them.
         return {
-          sql: `STRPOS(${col}, @${paramName}) = 0`,
+          sql: `(${col} IS NULL OR STRPOS(${col}, @${paramName}) = 0)`,
           params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'starts_with':
@@ -118,7 +125,7 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         };
       case 'not_regex':
         return {
-          sql: `NOT REGEXP_CONTAINS(${col}, @${paramName})`,
+          sql: `(${col} IS NULL OR NOT REGEXP_CONTAINS(${col}, @${paramName}))`,
           params: [{ name: paramName, value: rule.value }],
         };
       case 'is_empty':
@@ -144,6 +151,11 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           ],
         };
       }
+      case 'in':
+      case 'not_in':
+        return this.renderInListWithParams(rule, col, paramName, name =>
+          this.placeholder(name, columnType)
+        );
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value, columnType), params: [] };
     }
@@ -154,6 +166,12 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     preset: Extract<FilterRule, { operator: 'relative_date' }>['value'],
     columnType?: string
   ): string {
+    // `n` is inlined into SQL below; re-assert the integer locally so the injection
+    // barrier does not live solely in the zod schema on the request path (the other
+    // renderers carry the same guard).
+    if ('n' in preset && (!Number.isInteger(preset.n) || preset.n < 0)) {
+      throw new Error(`Invalid relative_date n: ${String(preset.n)}`);
+    }
     // Compare the DATE part of a sub-day column so the whole day matches and the
     // DATE-typed bounds don't raise a type mismatch. DATE columns compare directly.
     const lhs =
@@ -173,6 +191,24 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} MONTH)` +
           ` AND ${lhs} <= CURRENT_DATE()`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return (
+          `${lhs} >= CURRENT_DATE()` +
+          ` AND ${lhs} <= DATE_ADD(CURRENT_DATE(), INTERVAL ${preset.n} DAY)`
+        );
+      // ISOWEEK, not WEEK: BigQuery's plain WEEK starts on Sunday, while every other
+      // storage truncates weeks to Monday — ISOWEEK keeps the boundary consistent.
+      case 'this_week':
+        return (
+          `${lhs} >= DATE_TRUNC(CURRENT_DATE(), ISOWEEK)` +
+          ` AND ${lhs} < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY)`
+        );
+      case 'last_week':
+        return (
+          `${lhs} >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 7 DAY)` +
+          ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), ISOWEEK)`
+        );
       case 'this_month':
         return (
           `${lhs} >= DATE_TRUNC(CURRENT_DATE(), MONTH)` +
@@ -182,6 +218,16 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         return (
           `${lhs} >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)` +
           ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), MONTH)`
+        );
+      case 'this_quarter':
+        return (
+          `${lhs} >= DATE_TRUNC(CURRENT_DATE(), QUARTER)` +
+          ` AND ${lhs} < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH)`
+        );
+      case 'last_quarter':
+        return (
+          `${lhs} >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), QUARTER), INTERVAL 3 MONTH)` +
+          ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), QUARTER)`
         );
       case 'this_year':
         return (

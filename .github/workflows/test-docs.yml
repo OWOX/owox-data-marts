@@ -2,8 +2,18 @@ name: Test and Build @owox/docs
 
 on:
   pull_request:
+    # The docs site is assembled from markdown spread across the monorepo, so a build can break
+    # from files far outside apps/docs. Keep this list in sync with the search patterns in
+    # findMarkdownFiles() / findManifestFiles() in apps/docs/scripts/sync-docs.js.
     paths:
       - 'apps/docs/**'
+      - 'apps/owox/CHANGELOG.md'
+      - '*.md'
+      - 'apps/**/*.md'
+      - 'docs/**/*.md'
+      - 'packages/**/*.md'
+      - 'licenses/**/*.md'
+      - 'packages/connectors/**/manifest.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

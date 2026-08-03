@@ -14,6 +14,15 @@ describe('SnowflakeClauseRenderer', () => {
     expect(out.params).toEqual([]);
   });
 
+  it('renders IN / NOT IN with inlined escaped literals and no params', () => {
+    const out = r.renderWhere([{ column: 'channel', operator: 'in', value: ['fb', "O'Brien", 5] }]);
+    expect(out.sql).toBe(`\nWHERE "channel" IN ('fb', 'O''Brien', 5)`);
+    expect(out.params).toEqual([]);
+    expect(where(r, { column: 'channel', operator: 'not_in', value: ['fb', 'google'] })).toBe(
+      `\nWHERE ("channel" IS NULL OR "channel" NOT IN ('fb', 'google'))`
+    );
+  });
+
   it('escapes single quotes AND backslashes in string literals (Snowflake treats \\ as escape)', () => {
     expect(where(r, { column: 'name', operator: 'eq', value: "O'Brien" })).toBe(
       `\nWHERE "name" = 'O''Brien'`
@@ -34,13 +43,13 @@ describe('SnowflakeClauseRenderer', () => {
       `\nWHERE ENDSWITH("name", 'z')`
     );
     expect(where(r, { column: 'name', operator: 'not_contains', value: 'x' })).toBe(
-      `\nWHERE NOT CONTAINS("name", 'x')`
+      `\nWHERE ("name" IS NULL OR NOT CONTAINS("name", 'x'))`
     );
     expect(where(r, { column: 'name', operator: 'regex', value: '^a.*' })).toBe(
       `\nWHERE REGEXP_INSTR("name", '^a.*') > 0`
     );
     expect(where(r, { column: 'name', operator: 'not_regex', value: '^a.*' })).toBe(
-      `\nWHERE REGEXP_INSTR("name", '^a.*') = 0`
+      `\nWHERE ("name" IS NULL OR REGEXP_INSTR("name", '^a.*') = 0)`
     );
     // `^alp` is the semantically meaningful case: Snowflake RLIKE/REGEXP_LIKE would
     // full-anchor it and NOT match `alpha`; REGEXP_INSTR>0 is partial (live-verified).
@@ -90,7 +99,32 @@ describe('SnowflakeClauseRenderer', () => {
     expect(where(r, { column: 's', operator: 'is_not_empty' })).toBe(
       `\nWHERE ("s" IS NOT NULL AND "s" <> '')`
     );
-    expect(where(r, { column: 'n', operator: 'neq', value: 1 })).toBe(`\nWHERE "n" <> 1`);
+    expect(where(r, { column: 'n', operator: 'neq', value: 1 })).toBe(
+      `\nWHERE ("n" IS NULL OR "n" <> 1)`
+    );
+  });
+
+  it('renders the week/quarter/next_n_days presets (ISO Monday weeks via DAYOFWEEKISO)', () => {
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } })
+    ).toBe('\nWHERE "d" >= CURRENT_DATE AND "d" < DATEADD(day, 8, CURRENT_DATE)');
+    // DAYOFWEEKISO is session-parameter-independent — DATE_TRUNC('week') would follow WEEK_START.
+    expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'this_week' } })).toBe(
+      '\nWHERE "d" >= DATEADD(day, 1 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE) AND "d" < DATEADD(day, 8 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE)'
+    );
+    expect(where(r, { column: 'd', operator: 'relative_date', value: { kind: 'last_week' } })).toBe(
+      '\nWHERE "d" >= DATEADD(day, -6 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE) AND "d" < DATEADD(day, 1 - DAYOFWEEKISO(CURRENT_DATE), CURRENT_DATE)'
+    );
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'this_quarter' } })
+    ).toBe(
+      `\nWHERE "d" >= DATE_TRUNC('quarter', CURRENT_DATE) AND "d" < DATEADD(month, 3, DATE_TRUNC('quarter', CURRENT_DATE))`
+    );
+    expect(
+      where(r, { column: 'd', operator: 'relative_date', value: { kind: 'last_quarter' } })
+    ).toBe(
+      `\nWHERE "d" >= DATEADD(month, -3, DATE_TRUNC('quarter', CURRENT_DATE)) AND "d" < DATE_TRUNC('quarter', CURRENT_DATE)`
+    );
   });
 
   it('renders relative_date presets as half-open ranges with upper bounds', () => {

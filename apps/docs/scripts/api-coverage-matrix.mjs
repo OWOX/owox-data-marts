@@ -25,6 +25,20 @@ const COVERED_TARGETS = new Map([
     },
   ],
   [
+    'GET /api/data-marts',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list',
+      'API client': './api-client/#list-data-marts',
+    },
+  ],
+  [
+    'GET /api/external/http-data/data-marts/{dataMartId}.ndjson',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream',
+      'API client': './api-client/#stream-data-mart-rows',
+    },
+  ],
+  [
     'GET /api/model-canvas/data-marts',
     {
       OpenAPI:
@@ -76,6 +90,13 @@ const COVERED_TARGETS = new Map([
     {
       OpenAPI: 'https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml',
       'API client': './api-client/#convert-markdown-to-html',
+    },
+  ],
+  [
+    'GET /api/search',
+    {
+      OpenAPI: 'https://app.owox.com/api/swagger-ui#/Search/SearchController_search',
+      'API client': './api-client/#search-project-entities',
     },
   ],
 ]);

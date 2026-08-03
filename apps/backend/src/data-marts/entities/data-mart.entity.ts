@@ -25,6 +25,14 @@ import {
   BlendedFieldsConfig,
   BlendedFieldsConfigSchema,
 } from '../dto/schemas/blended-fields-config.schema';
+import {
+  DataQualityConfig,
+  DataQualityConfigSchema,
+} from '../dto/schemas/data-quality/data-quality-config.schema';
+import {
+  SourceDataLastUpdated,
+  SourceDataLastUpdatedSchema,
+} from '../dto/schemas/source-data-last-updated.schema';
 
 @Entity()
 export class DataMart implements CreatorAwareEntity {
@@ -51,8 +59,8 @@ export class DataMart implements CreatorAwareEntity {
   @Column({ type: 'datetime', nullable: true })
   schemaActualizedAt?: Date;
 
-  @Column({ nullable: true })
-  definitionType?: DataMartDefinitionType;
+  @Column({ type: 'varchar', nullable: true })
+  definitionType?: DataMartDefinitionType | null;
 
   @Column({ type: 'json', nullable: true })
   definition?: DataMartDefinition;
@@ -85,8 +93,29 @@ export class DataMart implements CreatorAwareEntity {
   })
   blendedFieldsConfig?: BlendedFieldsConfig;
 
+  @Column({
+    type: 'json',
+    transformer: createZodTransformer<DataQualityConfig>(DataQualityConfigSchema, false),
+    nullable: true,
+  })
+  dataQualityConfig?: DataQualityConfig | null;
+
   @OneToMany(() => DataMartContext, ctx => ctx.dataMart)
   contexts: DataMartContext[];
+
+  /**
+   * Last-known `Data Last Updated` snapshot for THIS Data Mart's own sources, refreshed as a
+   * side effect of every user-triggered computation (Data Mart page / canvas refresh). Lists
+   * read it for free instead of querying the warehouse per row; `computedAt` inside the block
+   * tells the viewer how old the reading is. It is a journal of the last successful lookup —
+   * never a cache consulted by the MCP/data paths, which always measure live.
+   */
+  @Column({
+    type: 'json',
+    transformer: createZodTransformer<SourceDataLastUpdated>(SourceDataLastUpdatedSchema, false),
+    nullable: true,
+  })
+  dataLastUpdated?: SourceDataLastUpdated | null;
 
   @Column()
   createdById: string;

@@ -209,7 +209,7 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
         ],
       })
     );
-    expect(sql).toContain('WHERE main.a = ?\n  AND main.a != ?');
+    expect(sql).toContain('WHERE main.a = ?\n  AND (main.a IS NULL OR main.a <> ?)');
     expect(params.map(p => p.value)).toEqual(['x', 'y']);
   });
 

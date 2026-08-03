@@ -89,21 +89,45 @@ for (const [step, state] of Object.entries(setupProgress.steps)) {
 
 ## Read project run history
 
-Use `runs.getHistory()` to inspect historical Data Mart executions visible to the current
-project member. Pass optional `limit` and `offset` values to page through the project-wide history;
-the API defaults to at most 100 runs.
+Use `runs.list()` to inspect historical Data Mart executions visible to the current
+project member. The API key must resolve to a member with viewer access. Administrators can see
+runs for every non-deleted Data Mart in the project. Owners see their owned Data Marts. Editors
+can also see shared Data Marts available for reporting or maintenance, subject to configured
+context access; viewers can see shared Data Marts available for reporting, subject to the same
+context-access filter.
+
+Pass optional `limit` and `offset` values to page through the newest-first history. `limit` defaults
+to 100, floors finite fractions, falls back to 100 for non-finite or non-positive values, and caps
+at 100. `offset` defaults to 0, floors finite fractions, falls back to 0 for non-finite or
+non-positive values, and caps at 100,000. The response has no total or next-page marker. Prefer a
+`limit` from 1 through 100, increment `offset` by the number of returned runs, and stop when a page
+contains fewer runs than the server-normalized effective limit or the next offset would exceed
+100,000. Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate
+by `run.id` when walking multiple pages.
 
 ```ts
-const history = await client.runs.getHistory({ limit: 50, offset: 0 });
+const history = await client.runs.list({ limit: 50, offset: 0 });
 
 for (const run of history.runs) {
-  console.log(run.dataMart.title, run.type, run.status, run.finishedAt);
+  const author =
+    run.createdByUser?.fullName ?? run.createdByUser?.email ?? 'System or unavailable author';
+
+  console.log(run.dataMart.title, run.type, run.status, author, run.finishedAt);
 }
 ```
 
-Each run includes its Data Mart ID and title, creator metadata when available, execution and trigger
-types, status, timestamps, and available logs, errors, metadata, and totals. This makes the method
-suitable for monitoring and automation without calling the HTTP endpoint directly.
+`createdByUser` is the run author field. It is always present, but can be `null` when the run has no
+creator ID or the corresponding user projection is unavailable. When an author is available,
+`createdByUser.userId` is required; `fullName`, `email`, and `avatar` are optional and can also be
+`null`.
+
+`definitionRun` is always present but can be `null` when a historical definition snapshot is
+unavailable.
+
+`@owox/api-client` validates the response shape, enum values, nested references and author data,
+nullable fields, logs and errors, totals, and the backend's RFC3339 timestamp profile: uppercase
+`T`/`Z`, seconds from `00` through `59`, optional fractional seconds, and valid numeric offsets. It
+throws `OWOXApiError` when the endpoint returns an incompatible payload.
 
 ## List project insight templates
 
@@ -128,6 +152,32 @@ from 1 through 100, increment `offset` by the number of returned templates, and 
 contains fewer items than that limit or the next offset would exceed 100,000. The endpoint cannot
 page beyond that maximum offset.
 
+## Search project entities
+
+Use `search.query()` to find Data Marts, data storages, and data destinations visible to the
+current project member. The server trims surrounding query whitespace and enforces its configured
+minimum and maximum query lengths. Pass an optional result limit from 1 through 50, restrict the
+search to specific entity types, or exclude draft Data Marts. When omitted, the server's result
+limit is used, all supported entity types are searched, and draft Data Marts may be included. Pass
+an empty `entityTypes` array to preserve an explicit no-types filter and return no matches.
+
+```ts
+const results = await client.search.query('monthly revenue', {
+  limit: 25,
+  entityTypes: ['DATA_MART', 'DATA_STORAGE'],
+  excludeDrafts: true,
+});
+
+for (const result of results) {
+  console.log(result.entityType, result.title, result.description, result.finalScore);
+}
+```
+
+Each result includes the entity type and ID, title, nullable description, combined relevance
+score, keyword score, and a vector score when semantic matching contributed. Search returns an
+empty array when no visible entity matches. When prompt embeddings are unavailable, Search falls
+back to keyword matching.
+
 ## Convert Markdown to HTML
 
 Use `markdown.parseToHtml()` to render Markdown with the same pipeline and styling wrapper used by
@@ -146,9 +196,50 @@ the same trust and embedding rules as Markdown rendered in the application.
 
 ## List data marts
 
+Use `dataMarts.list()` to read every Data Mart visible to the current project member. Viewer
+access is required. The client follows each server `nextOffset` until it is `null` and returns one
+flattened `OWOXDataMart[]`; individual HTTP pages contain at most 1,000 items.
+
 ```ts
 const dataMarts = await client.dataMarts.list();
+
+for (const dataMart of dataMarts) {
+  console.log(dataMart.id, dataMart.title, dataMart.status, dataMart.storage.title);
+}
 ```
+
+Start from a non-negative integer offset or keep only Data Marts with or without business or
+technical owners:
+
+```ts
+const unownedDataMarts = await client.dataMarts.list({
+  offset: 0,
+  ownerFilter: 'no_owners',
+});
+```
+
+Use the exported `OWOXDataMartListOptions` and `OWOXDataMartOwnerFilter` types when options are
+assembled outside the call.
+
+Each `OWOXDataMart` contains:
+
+- `id`, `title`, and `status` (`DRAFT` or `PUBLISHED`);
+- `storage.type` and `storage.title`;
+- required nullable `description`, optional nullable `definitionType`, and optional
+  `connectorSourceName`;
+- non-negative `triggersCount` and `reportsCount`;
+- nullable `createdByUser`, owner-user arrays, and `contexts` with `id` and `name`;
+- RFC 3339 `createdAt` and `modifiedAt` strings; and
+- `availableForReporting` and `availableForMaintenance` flags.
+
+The package also exports the nested `OWOXDataMartStatus`, `OWOXDataMartDefinitionType`,
+`OWOXDataMartStorage`, `OWOXDataMartStorageType`, `OWOXDataMartUser`, and `OWOXDataMartContext`
+types.
+
+The client validates the complete page and nested item shapes before returning data. It rejects an
+unknown enum value, malformed user, storage, or context, invalid timestamp, missing required
+field, or invalid pagination value with `OWOXApiError`. Invalid list options are rejected before
+authentication or any network request.
 
 ## Read the Models canvas
 
@@ -181,8 +272,7 @@ The method returns stream metadata and exposes `rowChunks()` as the traversal pr
 
 ```ts
 const data = await client.dataMarts.traverseData('dm_123', {
-  columns: '*',
-  column: ['Revenue: net = USD'],
+  column: ['Event Date (local)', 'Revenue: net = USD'],
   filter: [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }],
   sort: [{ column: 'Event Date (local)', direction: 'asc' }],
   aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
@@ -198,6 +288,10 @@ for await (const rows of data.rowChunks()) {
 ```
 
 Call `await data.cancel()` if you open a traversal and decide not to iterate `rowChunks()`.
+The client rejects a successful response whose media type is not `application/x-ndjson` instead of
+attempting to interpret it as row data.
+The exported `TraverseDataOptions` and traversal rule types provide compile-time shape validation
+of these controls.
 
 Column selection uses two separate fields:
 
@@ -208,7 +302,9 @@ Column selection uses two separate fields:
 
 Do not pass comma-separated column lists. Column names are opaque strings and may contain commas, equals signs, spaces, quotes, or other symbols.
 
-Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` with `aliasPath` only when filtering a joined source before it is joined into the result.
+Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` only with a resolved blended column name; the rule's `column` identifies the joined source to filter before it is joined into the result.
+
+To filter an aggregated value after grouping, set the filter rule's `function` to the same aggregate function used for that `column` in `aggregation`. For example, `{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }` applies a `HAVING SUM(revenue) > 1000` condition. The `(column, function)` pair must match an aggregation rule, and a filter with `function` cannot use `placement: 'pre-join'`.
 
 Use `aggregation` and `dateTrunc` arrays to group the streamed rows, with the same rule shapes as report output controls. `aggregation` takes `{ column, function }` rules; `function` is any report aggregate function — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE`, or a percentile (`P25`, `P50`, `P75`, `P95`). `dateTrunc` takes `{ column, unit, timeZone? }` rules that bucket a date/timestamp dimension by `DAY`, `WEEK`, `MONTH`, `QUARTER`, or `YEAR`. Any selected column without an aggregation rule becomes a grouping key. Aggregation and `dateTrunc` require an explicit `column` list — they cannot combine with `columns: '*'` or `columns: '**'` (a wildcard would group by every column). The streamed row keys are the resolved labels: an aggregated column becomes `"<column> | <TOKEN>"` (plus a `"Row Count"` column), where `<TOKEN>` is an uppercase spreadsheet-style token — most match the function name, but `COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes `STRINGAGG`, and `ANY_VALUE` becomes `ANYVALUE`.
 

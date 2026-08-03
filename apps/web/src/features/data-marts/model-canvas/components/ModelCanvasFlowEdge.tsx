@@ -1,26 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
-import { getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { useId } from 'react';
+import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
 import {
   DIMMED_OPACITY,
-  EDGE_COLOR,
+  EDGE_NEUTRAL_COLOR,
+  EDGE_SELECTED_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
   EDGE_WARNING_DASH,
+  OWOX_BLUE,
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
+import { EdgeArrowMarkers } from '../../shared/canvas/edge-arrow';
+import { edgeMarkerId } from '../../shared/canvas/edge-marker-id';
 import type { CanvasDirection } from '../model/graph/canvas-direction';
-import { PARALLEL_EDGE_SPACING } from '../model/graph/parallel-edge-offsets';
-import { buildRoundedPath, type PathPoint } from '../model/graph/rounded-path';
-
-const EDGE_CORNER_RADIUS = 10;
 
 export interface ModelCanvasFlowEdgeData {
-  route: PathPoint[];
   bowOffset: number;
   warning: boolean;
   joinLabel: string[];
   dimmed: boolean;
-  labelPosition?: PathPoint;
   direction: CanvasDirection;
+  bidirectional: boolean;
 }
 
 export type ModelCanvasFlowEdgeType = Edge<
@@ -30,75 +29,104 @@ export type ModelCanvasFlowEdgeType = Edge<
   data: ModelCanvasFlowEdgeData;
 };
 
+interface BezierGeometry {
+  path: string;
+  labelX: number;
+  labelY: number;
+}
+
+/**
+ * Parallel edges between the same node pair share identical endpoints, so the
+ * default bezier would draw them on top of each other. A non-zero bowOffset
+ * bows the curve sideways (perpendicular to the layout direction) to keep each
+ * edge — and its label — visually distinct.
+ */
+function getBowedBezier(
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+  bowOffset: number,
+  direction: CanvasDirection
+): BezierGeometry {
+  let c1x: number, c1y: number, c2x: number, c2y: number;
+  if (direction === 'vertical') {
+    const c = Math.max(40, Math.abs(targetY - sourceY) * 0.3);
+    c1x = sourceX + bowOffset;
+    c1y = sourceY + c;
+    c2x = targetX + bowOffset;
+    c2y = targetY - c;
+  } else {
+    const c = Math.max(40, Math.abs(targetX - sourceX) * 0.3);
+    c1x = sourceX + c;
+    c1y = sourceY + bowOffset;
+    c2x = targetX - c;
+    c2y = targetY + bowOffset;
+  }
+  return {
+    path: `M ${sourceX} ${sourceY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${targetX} ${targetY}`,
+    // Cubic bezier midpoint (t = 0.5): (S + 3·C1 + 3·C2 + T) / 8.
+    labelX: (sourceX + 3 * c1x + 3 * c2x + targetX) / 8,
+    labelY: (sourceY + 3 * c1y + 3 * c2y + targetY) / 8,
+  };
+}
+
 export default function ModelCanvasFlowEdge({
+  id,
   sourceX,
   sourceY,
   targetX,
   targetY,
   sourcePosition,
   targetPosition,
-  markerStart,
-  markerEnd,
+  selected,
   data,
 }: EdgeProps<ModelCanvasFlowEdgeType>) {
-  const pathRef = useRef<SVGPathElement>(null);
-  const [midpoint, setMidpoint] = useState<{ x: number; y: number } | null>(null);
+  const { bowOffset, warning, joinLabel, dimmed, direction, bidirectional } = data;
 
-  const { route, bowOffset, warning, joinLabel, dimmed, labelPosition, direction } = data;
-
-  let path: string;
-  if (route.length > 0) {
-    path = buildRoundedPath(
-      [{ x: sourceX, y: sourceY }, ...route, { x: targetX, y: targetY }],
-      EDGE_CORNER_RADIUS
-    );
-  } else if (bowOffset !== 0) {
-    if (direction === 'vertical') {
-      const c = Math.max(40, Math.abs(targetY - sourceY) * 0.3);
-      path = `M ${sourceX} ${sourceY} C ${sourceX + bowOffset} ${sourceY + c}, ${targetX + bowOffset} ${targetY - c}, ${targetX} ${targetY}`;
-    } else {
-      const c = Math.max(40, Math.abs(targetX - sourceX) * 0.3);
-      path = `M ${sourceX} ${sourceY} C ${sourceX + c} ${sourceY + bowOffset}, ${targetX - c} ${targetY + bowOffset}, ${targetX} ${targetY}`;
-    }
+  let geometry: BezierGeometry;
+  if (bowOffset !== 0) {
+    geometry = getBowedBezier(sourceX, sourceY, targetX, targetY, bowOffset, direction);
   } else {
-    [path] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+    const [path, labelX, labelY] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+    });
+    geometry = { path, labelX, labelY };
   }
 
-  const t = 0.5 + Math.max(-0.18, Math.min(0.18, (bowOffset / PARALLEL_EDGE_SPACING) * 0.24));
-  const color = warning ? WARNING_COLOR : EDGE_COLOR;
-
-  useEffect(() => {
-    if (labelPosition || joinLabel.length === 0) return;
-    const el = pathRef.current;
-    if (!el) {
-      setMidpoint(null);
-      return;
-    }
-    const len = el.getTotalLength();
-    const pt = el.getPointAtLength(len * t);
-    setMidpoint({ x: pt.x, y: pt.y });
-  }, [path, t, labelPosition, joinLabel]);
-
-  const labelPoint = labelPosition ?? midpoint;
+  const color = warning ? WARNING_COLOR : selected ? OWOX_BLUE : EDGE_NEUTRAL_COLOR;
+  // useId is unique per rendered edge element, so two mounted canvases (e.g.
+  // inline + fullscreen) can never emit duplicate SVG marker ids — a duplicate
+  // would make url(#…) resolve to the *other* instance's marker and freeze the
+  // arrowhead color there.
+  const instanceId = useId();
+  const markerId = edgeMarkerId('mc-arrow', instanceId);
 
   return (
     <>
-      <path
-        ref={pathRef}
-        d={path}
-        fill='none'
-        strokeWidth={EDGE_STROKE_WIDTH}
-        stroke={color}
-        strokeDasharray={warning ? EDGE_WARNING_DASH : undefined}
-        opacity={dimmed ? DIMMED_OPACITY : 1}
-        markerEnd={markerEnd}
-        markerStart={markerStart}
-        style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
+      <EdgeArrowMarkers markerId={markerId} color={color} withStart={bidirectional} />
+      <BaseEdge
+        id={id}
+        path={geometry.path}
+        markerEnd={`url(#${markerId}-end)`}
+        markerStart={bidirectional ? `url(#${markerId}-start)` : undefined}
+        style={{
+          stroke: color,
+          strokeWidth: selected ? EDGE_SELECTED_STROKE_WIDTH : EDGE_STROKE_WIDTH,
+          strokeDasharray: warning ? EDGE_WARNING_DASH : undefined,
+          opacity: dimmed ? DIMMED_OPACITY : 1,
+          transition: 'opacity 0.2s, stroke 0.2s',
+        }}
       />
-      {joinLabel.length > 0 && labelPoint && (
+      {joinLabel.length > 0 && (
         <foreignObject
-          x={labelPoint.x}
-          y={labelPoint.y}
+          x={geometry.labelX}
+          y={geometry.labelY}
           width={1}
           height={1}
           style={{ overflow: 'visible' }}
@@ -108,7 +136,7 @@ export default function ModelCanvasFlowEdge({
               transform: 'translate(-50%, -50%)',
               width: 'max-content',
               background: 'var(--background)',
-              border: '1px solid var(--border)',
+              border: `1px solid ${selected ? 'var(--primary)' : 'var(--border)'}`,
               borderRadius: 8,
               padding: '3px 8px',
               fontSize: 11,

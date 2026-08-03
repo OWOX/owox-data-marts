@@ -98,6 +98,7 @@ export class ConnectorStorageConfigService {
         );
       }
       const refreshToken = oauthCredentials.oauth2Client.credentials.refresh_token;
+      const accessTokenExpiry = oauthCredentials.oauth2Client.credentials.expiry_date;
 
       return new StorageConfigDto({
         name: DataStorageType.GOOGLE_BIGQUERY,
@@ -107,6 +108,10 @@ export class ConnectorStorageConfigService {
           OAuthRefreshToken: refreshToken ?? '',
           OAuthClientId: this.googleOAuthConfigService.getStorageClientId(),
           OAuthClientSecret: this.googleOAuthConfigService.getStorageClientSecret(),
+          // Lets the connector detect real token expiry mid-run (e.g. during a
+          // long backfill) and refresh via the refresh token, instead of
+          // resending a stale access token until BigQuery rejects it with 401.
+          OAuthAccessTokenExpiry: accessTokenExpiry ?? null,
         },
       });
     }

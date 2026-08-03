@@ -1,4 +1,5 @@
 import type { McpScheduledTriggersFacade } from '../../../data-marts/facades/mcp-scheduled-triggers.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { UpdateReportRunScheduleTool } from './update-report-run-schedule.tool';
 
@@ -12,6 +13,9 @@ describe('UpdateReportRunScheduleTool', () => {
     scopes: ['mcp:read', 'mcp:write'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   const facadeResult = {
     triggerId: 'trigger-1',
@@ -26,11 +30,12 @@ describe('UpdateReportRunScheduleTool', () => {
     const facade = {
       updateReportRunSchedule: jest.fn().mockResolvedValue(facadeResult),
     } as unknown as jest.Mocked<McpScheduledTriggersFacade>;
-    const tool = new UpdateReportRunScheduleTool(facade);
+    const tool = new UpdateReportRunScheduleTool(facade, publicOrigin);
 
     const expected = {
       trigger_id: 'trigger-1',
       report_id: 'report-1',
+      schedules_url: 'https://app.owox.com/ui/project-1/data-marts/schedules',
       cron_expression: '0 10 * * 1',
       time_zone: 'Europe/Kyiv',
       is_active: false,
@@ -67,7 +72,7 @@ describe('UpdateReportRunScheduleTool', () => {
     const facade = {
       updateReportRunSchedule: jest.fn().mockResolvedValue(facadeResult),
     } as unknown as jest.Mocked<McpScheduledTriggersFacade>;
-    const tool = new UpdateReportRunScheduleTool(facade);
+    const tool = new UpdateReportRunScheduleTool(facade, publicOrigin);
 
     await tool.handler({ trigger_id: 'trigger-1', cron_expression: '0 9 * * 1' }, context);
 
@@ -78,7 +83,7 @@ describe('UpdateReportRunScheduleTool', () => {
   });
 
   it('rejects missing required fields and unknown fields', () => {
-    const tool = new UpdateReportRunScheduleTool({} as McpScheduledTriggersFacade);
+    const tool = new UpdateReportRunScheduleTool({} as McpScheduledTriggersFacade, publicOrigin);
 
     expect(() => tool.parseInput({})).toThrow();
     expect(() => tool.parseInput({ trigger_id: 'trigger-1' })).toThrow();
@@ -89,7 +94,7 @@ describe('UpdateReportRunScheduleTool', () => {
   });
 
   it('has update-only metadata', () => {
-    const tool = new UpdateReportRunScheduleTool({} as McpScheduledTriggersFacade);
+    const tool = new UpdateReportRunScheduleTool({} as McpScheduledTriggersFacade, publicOrigin);
 
     expect(tool).toMatchObject({
       name: 'update_report_run_schedule',

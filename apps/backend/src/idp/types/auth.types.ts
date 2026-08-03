@@ -13,4 +13,9 @@ export interface AuthorizationContext {
   projectTitle?: string;
   authFlow?: string;
   apiKeyId?: string;
+  /**
+   * True when the session is in view-only mode.
+   * Used by web/analytics and other clients that need session restrictions.
+   */
+  viewOnly?: boolean;
 }

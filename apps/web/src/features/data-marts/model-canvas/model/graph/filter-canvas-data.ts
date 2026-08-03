@@ -1,14 +1,14 @@
 import { DataMartStatus } from '../../../shared/enums/data-mart-status.enum';
-import type { ModelCanvasData } from '../types';
+import type { ModelCanvasEdge, ModelCanvasTopologyNode } from '../types';
 
 export type CanvasStatusFilter = 'published' | 'draft' | 'all';
 export type CanvasRelFilter = 'connected' | 'all';
 
-export function filterCanvasData(
-  data: ModelCanvasData,
+export function filterCanvasData<TNode extends ModelCanvasTopologyNode>(
+  data: { nodes: TNode[]; edges: ModelCanvasEdge[] },
   status: CanvasStatusFilter,
   rel: CanvasRelFilter
-): ModelCanvasData {
+): { nodes: TNode[]; edges: ModelCanvasEdge[] } {
   const nodes = data.nodes.filter(node => {
     if (status === 'all') return true;
     return status === 'draft'

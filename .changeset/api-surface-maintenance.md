@@ -4,58 +4,45 @@
 
 # API surface maintenance
 
-## Add project settings API contracts and client support
+## Add project search API contract and client support
 
-The project settings endpoints now publish explicit OpenAPI request and response contracts.
-`@owox/api-client` adds `project.getSettings()` and `project.updateDescription()` with the
-same authenticated retry and error behavior as existing client requests.
+`GET /api/search` now publishes the integer range and comma-separated serialization of its
+optional filters in OpenAPI. `@owox/api-client` adds `search.query(query, options)` and exports
+`OWOXSearchResult`, `OWOXSearchEntityType`, and `OWOXSearchOptions` for discovering visible Data
+Marts, data storages, and data destinations with validated response data. Existing viewer access
+and search behavior are unchanged, and consumers can adopt the client method without a migration.
 
-## Add Models canvas API client support
+## Reconcile the project run history contract
 
-`@owox/api-client` now exposes paginated Models canvas data marts through
-`models.getDataMarts()` and their visible relationship edges through `models.getEdges()`.
+`GET /api/data-marts/runs` now publishes the complete project-wide run-history contract, including
+viewer visibility, pagination normalization, enums, field presence and nullability, and the
+backend's RFC3339 timestamp profile. `createdByUser` is the nullable run-author field; when present
+it includes `userId` and may include nullable `fullName`, `email`, and `avatar` values.
+`definitionRun` remains present but can be `null` when a historical definition snapshot is
+unavailable.
 
-## Add project setup progress API contract and client support
+`@owox/api-client` validates this contract and exposes it as `runs.list({ limit, offset })`.
+Consumers using the previously released `runs.getHistory(...)` method must rename those calls to
+`runs.list(...)`; the response and option type exports remain available.
 
-`GET /api/project-setup-progress` now publishes an explicit OpenAPI response contract.
-`@owox/api-client` adds `project.getSetupProgress()` and exports
-`OWOXProjectSetupProgress`, `OWOXProjectSetupProgressSteps`, and
-`OWOXProjectSetupStepState` for inspecting versioned, member-aware setup state. Existing
-authenticated viewer access is unchanged, and consumers can adopt the client method without a
-migration.
+## Strengthen HTTP Data streaming contracts
 
-## Add project run history API client support
+`GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column
+projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier,
+and failure contract in OpenAPI. `@owox/api-client` now provides typed filter, sort, aggregation,
+and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media
+type before traversal. Consumers passing controls through `unknown[]` or widened variables must
+adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline
+calls remain unchanged.
 
-`@owox/api-client` adds `runs.getHistory({ limit, offset })` for authenticated,
-project-wide Data Mart execution monitoring. It exports `OWOXProjectDataMartRunsResponse`,
-`OWOXProjectDataMartRun`, `OWOXProjectDataMartRunRef`, `OWOXProjectDataMartRunUser`,
-`OWOXProjectDataMartRunStatus`, `OWOXProjectDataMartRunType`,
-`OWOXProjectDataMartRunTriggerType`, and `OWOXProjectRunHistoryOptions`. Existing viewer access
-and HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
+## Actualize the Data Mart list contract
 
-## Add project insight-template discovery API client support
-
-`@owox/api-client` adds `insights.getTemplates({ limit, offset })` for authenticated,
-project-wide discovery of reusable insight definitions across accessible Data Marts. It exports
-`OWOXProjectInsightTemplatesResponse`, `OWOXProjectInsightTemplate`,
-`OWOXProjectInsightTemplateDataMartRef`, `OWOXProjectInsightTemplateUser`, and
-`OWOXProjectInsightTemplateListOptions`. Each result includes its Data Mart reference, creator
-metadata when available, and the current member's `canDelete` state. Existing viewer access and
-HTTP behavior are unchanged, and consumers can adopt the client method without a migration.
-
-## Add Markdown rendering API contract and client support
-
-`POST /api/markdown/parse-to-html` now publishes an explicit OpenAPI contract for its Markdown
-request and raw HTML response. `@owox/api-client` adds
-`markdown.parseToHtml({ markdown })` and exports `OWOXMarkdownParseRequest` and
-`OWOXMarkdownParseResponse` for rendering with the same pipeline as the OWOX Data Marts web
-interface. Existing viewer access and HTTP behavior are unchanged, and consumers can adopt the
-client method without a migration.
-
-## Add auth context introspection
-
-`GET /api/auth/context` now publishes an explicit OpenAPI response contract for the current
-API-key-derived project and member context. `@owox/api-client` exposes `auth.getContext()` and
-`OWOXAuthContext` for validating a configured API key and reading that context without exposing
-the API key secret. Existing authentication and authorization behavior are unchanged, and
-consumers can adopt the client method without a migration.
+`GET /api/data-marts` now publishes viewer visibility, non-negative integer offset validation,
+owner-presence filtering, 1,000-item pages, and the complete nested list-item response contract,
+including nullable draft definition types and optional nullable user metadata strings.
+`@owox/api-client` validates every returned page and exposes the full `OWOXDataMart` shape;
+`dataMarts.list({ offset, ownerFilter })` can start from an offset, filter by
+`has_owners` or `no_owners`, and follows subsequent pages automatically. The package exports
+`OWOXDataMartListOptions`, `OWOXDataMartOwnerFilter`, and the nested Data Mart enum and object
+types, and rejects invalid list options before sending a request. Existing `dataMarts.list()`
+calls remain compatible and require no migration.

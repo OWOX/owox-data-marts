@@ -138,30 +138,24 @@ describe('UpdateReportTool', () => {
     );
   });
 
-  it('rejects an unsupported filter operator before touching the facade', async () => {
+  it('passes an in filter through to the facade (natively supported)', async () => {
     const facade = {
-      updateReport: jest.fn(),
+      updateReport: jest.fn().mockResolvedValue({ report_id: 'report-1', status: 'updated' }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new UpdateReportTool(facade);
 
-    await expect(
-      tool.handler(
-        {
-          report_id: 'report-1',
-          filters: [{ field: 'channel', operator: 'in', value: ['ads'] }],
-        },
-        context
-      )
-    ).rejects.toThrow(/not supported yet.*Supported operators/);
-    // Regression: filters combine with AND, so the error must NOT steer the
-    // agent into emulating 'in' with repeated eq filters (that matches nothing).
-    await expect(
-      tool.handler(
-        { report_id: 'report-1', filters: [{ field: 'channel', operator: 'in', value: ['ads'] }] },
-        context
-      )
-    ).rejects.toThrow(/cannot be expressed.*do not emulate it with repeated 'eq'/);
-    expect(facade.updateReport).not.toHaveBeenCalled();
+    await tool.handler(
+      { report_id: 'report-1', filters: [{ field: 'channel', operator: 'in', value: ['ads'] }] },
+      context
+    );
+
+    expect(facade.updateReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postJoinFilters: [
+          { column: 'channel', operator: 'in', value: ['ads'], placement: 'post-join' },
+        ],
+      })
+    );
   });
 
   it('accepts filters alone as a valid change', () => {

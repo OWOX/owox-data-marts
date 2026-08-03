@@ -25,7 +25,12 @@ export interface RawTableListing {
  * NOTE: `(.+)` is greedy so the regex consumes the longest possible prefix; the
  * digits group anchors to `$` so we always pull the trailing shard suffix.
  */
-export const GBQ_SHARDED_TABLE_SUFFIX_RE = /^(.+)_(\d{4,8})$/;
+export const GBQ_SHARD_SUFFIX_MIN_DIGITS = 4;
+export const GBQ_SHARD_SUFFIX_MAX_DIGITS = 8;
+
+export const GBQ_SHARDED_TABLE_SUFFIX_RE = new RegExp(
+  `^(.+)_(\\d{${GBQ_SHARD_SUFFIX_MIN_DIGITS},${GBQ_SHARD_SUFFIX_MAX_DIGITS}})$`
+);
 
 /** A wildcard rollup must merge at least this many shards before we surface it. */
 export const GBQ_MIN_SHARDS_FOR_WILDCARD = 2;

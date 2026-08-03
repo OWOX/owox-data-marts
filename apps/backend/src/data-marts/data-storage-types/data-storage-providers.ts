@@ -1,5 +1,9 @@
 import { ModuleRef } from '@nestjs/core';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import {
+  DATA_QUALITY_SQL_DIALECTS,
+  DataQualitySqlDialect,
+} from '../data-quality/data-quality-sql-dialect';
 import { AthenaApiAdapterFactory } from './athena/adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from './athena/adapters/s3-api-adapter.factory';
 import { AthenaAccessValidator } from './athena/services/athena-access.validator';
@@ -49,6 +53,7 @@ import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy/legacy-
 import { LegacyBigQueryStorageErrorMapper } from './bigquery/services/legacy/legacy-bigquery-storage-error.mapper';
 import { LegacyBigQueryBlendedQueryBuilder } from './bigquery/services/legacy/legacy-bigquery-blended-query-builder';
 import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
+import { BigQuerySourceDataLastUpdatedResolver } from './bigquery/services/bigquery-source-data-last-updated.resolver';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
@@ -84,6 +89,7 @@ import { DataStorageAccessValidator } from './interfaces/data-storage-access-val
 import { DataStorageErrorMapper } from './interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from './interfaces/data-storage-report-reader.interface';
 import { ReportHeadersGenerator } from './interfaces/report-headers-generator.interface';
+import { SourceDataLastUpdatedResolver } from './interfaces/source-data-last-updated-resolver.interface';
 import { SqlDryRunExecutor } from './interfaces/sql-dry-run-executor.interface';
 import { SqlRunExecutor } from './interfaces/sql-run-executor.interface';
 import { RedshiftApiAdapterFactory } from './redshift/adapters/redshift-api-adapter.factory';
@@ -136,6 +142,8 @@ export const SQL_DRY_RUN_EXECUTOR_RESOLVER = Symbol('SQL_DRY_RUN_EXECUTOR_RESOLV
 export const SQL_RUN_EXECUTOR_RESOLVER = Symbol('SQL_RUN_EXECUTOR_RESOLVER');
 export const CREATE_VIEW_EXECUTOR_RESOLVER = Symbol('CREATE_VIEW_EXECUTOR_RESOLVER');
 export const IDENTIFIER_ESCAPER_RESOLVER = Symbol('IDENTIFIER_ESCAPER_RESOLVER');
+export const DATA_QUALITY_SQL_DIALECT_RESOLVER = Symbol('DATA_QUALITY_SQL_DIALECT_RESOLVER');
+export const SOURCE_DATA_LAST_UPDATED_RESOLVER = Symbol('SOURCE_DATA_LAST_UPDATED_RESOLVER');
 
 const accessValidatorProviders = [
   BigQueryAccessValidator,
@@ -249,6 +257,9 @@ const identifierEscaperProviders = [
   RedshiftIdentifierEscaper,
   DatabricksIdentifierEscaper,
 ];
+// Best-effort family: a storage with no entry here resolves to nothing and the caller reports
+// `unavailable`, so storages can be added one at a time without a placeholder implementation.
+const sourceDataLastUpdatedProviders = [BigQuerySourceDataLastUpdatedResolver];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
   DataStorageCredentialsUtils,
@@ -288,6 +299,20 @@ export const dataStorageResolverProviders = [
   ...legacyBigQueryProviders,
   ...blendedQueryBuilderProviders,
   ...storageResourceBrowserProviders,
+  ...DATA_QUALITY_SQL_DIALECTS,
+  {
+    provide: DATA_QUALITY_SQL_DIALECT_RESOLVER,
+    useFactory: (...dialects: DataQualitySqlDialect[]) =>
+      new TypeResolver<DataStorageType, DataQualitySqlDialect>(dialects),
+    inject: [...DATA_QUALITY_SQL_DIALECTS],
+  },
+  ...sourceDataLastUpdatedProviders,
+  {
+    provide: SOURCE_DATA_LAST_UPDATED_RESOLVER,
+    useFactory: (...resolvers: SourceDataLastUpdatedResolver[]) =>
+      new TypeResolver<DataStorageType, SourceDataLastUpdatedResolver>(resolvers),
+    inject: sourceDataLastUpdatedProviders,
+  },
   {
     provide: STORAGE_RESOURCE_BROWSER_RESOLVER,
     useFactory: (...providers: IStorageResourceBrowserProvider[]) =>

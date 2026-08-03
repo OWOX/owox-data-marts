@@ -10,6 +10,30 @@ import type { DataMartDefinitionConfig } from '../../model/types/data-mart-defin
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
 
+// Mirrors ConnectorMessageType.WARNING ('addWarningToCurrentStatus') from the backend enum —
+// the web app has no shared reference to it, since logs/errors arrive as raw JSON strings.
+const WARNING_MESSAGE_TYPE = 'addWarningToCurrentStatus';
+
+/**
+ * Whether a persisted entry from the run's `errors` array is a classified warning
+ * rather than a genuine failure. Both share that array, so any view rendering it has
+ * to partition them or it will present warnings as errors.
+ */
+export const isPersistedWarning = (raw: string): boolean => {
+  try {
+    return (JSON.parse(raw) as { type?: unknown }).type === WARNING_MESSAGE_TYPE;
+  } catch {
+    return false;
+  }
+};
+
+const resolveLogLevel = (isError: boolean, messageType?: string | null): LogLevel => {
+  if (messageType === WARNING_MESSAGE_TYPE) {
+    return LogLevel.WARNING;
+  }
+  return isError ? LogLevel.ERROR : LogLevel.INFO;
+};
+
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
   const lines = log.split('\n').filter(line => line.trim() !== '');
@@ -28,7 +52,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
       return {
         id: `log-${index.toString()}`,
         timestamp: formatTimestamp(timestamp),
-        level: isError ? LogLevel.ERROR : LogLevel.INFO,
+        level: resolveLogLevel(isError, processedMessage.metadata?.type as string | undefined),
         message: processedMessage.message,
         metadata: {
           at: processedMessage.metadata?.at
@@ -47,7 +71,12 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
     return {
       id: `log-${index.toString()}`,
       timestamp: formatTimestamp(structuredMatch[1]),
-      level: isError ? LogLevel.ERROR : (structuredMatch[2] as LogLevel),
+      level:
+        processedMessage.metadata?.type === WARNING_MESSAGE_TYPE
+          ? LogLevel.WARNING
+          : isError
+            ? LogLevel.ERROR
+            : (structuredMatch[2] as LogLevel),
       message: processedMessage.message,
       metadata: processedMessage.metadata?.at
         ? {
@@ -63,7 +92,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   return {
     id: `log-${index.toString()}`,
     timestamp: 'N/A',
-    level: isError ? LogLevel.ERROR : LogLevel.INFO,
+    level: resolveLogLevel(isError, processedMessage.metadata?.type as string | undefined),
     message: processedMessage.message,
     metadata: processedMessage.metadata?.at
       ? {
@@ -120,6 +149,9 @@ export const processJSONMessage = (
 };
 
 export const getDisplayType = (logEntry: LogEntry): string => {
+  if (logEntry.metadata?.type === WARNING_MESSAGE_TYPE) {
+    return 'Warning';
+  }
   if (logEntry.metadata?.type) {
     return logEntry.metadata.type as string;
   }
@@ -167,6 +199,10 @@ export const getRunSummaryParts = (
     case DataMartRunType.MCP_QUERY:
       runType = 'MCP query';
       break;
+    case DataMartRunType.DATA_QUALITY:
+      runType = 'data quality';
+      title = getDataQualitySummaryLabel(run);
+      break;
     default:
       break;
   }
@@ -175,6 +211,39 @@ export const getRunSummaryParts = (
 
   return [runDescription, title];
 };
+
+function getDataQualitySummaryLabel(run: DataMartRunItem): string {
+  const summary = run.qualitySummary;
+  if (!summary) return '';
+  if (summary.totalChecks > 0 && summary.notApplicableChecks === summary.totalChecks) {
+    return 'Nothing to check · all not applicable';
+  }
+
+  const findingCount = summary.errorFindings + summary.warningFindings + summary.noticeFindings;
+  if (findingCount > 0) {
+    return `${String(findingCount)} finding${findingCount === 1 ? '' : 's'}`;
+  }
+  switch (summary.state) {
+    case 'PASSED':
+      return summary.totalChecks > 0
+        ? `${String(summary.passedChecks)} of ${String(summary.totalChecks)} checks`
+        : 'All checks passed';
+    case 'QUEUED':
+      return 'Queued';
+    case 'RUNNING':
+      return 'Running';
+    case 'EXECUTION_FAILED':
+      return 'Partial results';
+    case 'CANCELLED':
+      return 'Partial results kept';
+    case 'ALL_DISABLED':
+      return 'Nothing to check · all checks disabled';
+    case 'NEVER_RUN':
+      return 'Never run';
+    default:
+      return '';
+  }
+}
 
 export const downloadLogs = (run: {
   id: string;

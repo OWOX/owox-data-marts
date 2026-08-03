@@ -11,6 +11,7 @@ import { BusinessViolationException } from '../../../common/exceptions/business-
 import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../data-marts/enums/project-blocked-reason.enum';
 import { ClsContextService } from '../../../common/logger/cls-context.service';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import { MCP_TOOL_DIAGNOSTICS_KEY } from '../observability/mcp-tool-diagnostics';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
@@ -22,14 +23,23 @@ import {
   mapMcpDateBuckets,
   mapMcpSort,
   UnsupportedOperatorError,
+  InvalidFilterValueError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
   unsupportedOperatorMessage,
   DEFAULT_LIMIT,
 } from './query-data-mart.input';
-import { serializeTsvWithByteCap, ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
+import {
+  formatTsvColumnLabels,
+  serializeTsvWithByteCap,
+  ROWS_PAYLOAD_BYTE_CAP,
+} from './tabular-serializer';
 import { translateOutputControlsError } from './output-controls-error.mapper';
 import { toStructuredToolError } from '../mappers/mcp-error.mapper';
+import { buildDataMartUiPath } from './data-mart-ui-path';
+import { joinPublicOrigin } from './mcp-public-url.util';
+import { buildFieldTypeMatrixSection } from './field-type-matrix';
+import { unavailableSourceDataLastUpdated } from '../../../data-marts/dto/schemas/source-data-last-updated.schema';
 
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
@@ -41,8 +51,13 @@ Call get_data_mart_details_by_id first to get the data mart's exact field names 
 When building the query:
 - Request only the fields relevant to the user's question — never request all fields.
 - Use limit to control how many rows come back (1–1000, default 20). There is no offset/pagination: the tool returns a bounded subset.
-- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — but each data mart's output controls decide which functions a given field allows, so some may be rejected (pick another, or ask an admin to enable it). Group-by is implied by the non-aggregated fields you select.
-- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month").
+- aggregations: SUM, COUNT, COUNT_DISTINCT, AVG, MIN, MAX, and percentiles P25/P50/P75/P95 — which of them a given field allows depends on the field's type and the data mart's per-field settings (see the matrix below). Group-by is implied by the non-aggregated fields you select.
+- For “how many” questions, use COUNT or COUNT_DISTINCT (when the business meaning is unique entities) instead of returning raw rows and counting them yourself. Keep only dimensions the user asked to break the count by.
+- date_buckets: bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR (e.g. "revenue by month"). Only date-category fields can be bucketed; time_zone applies only to types with a time-of-day component (TIMESTAMP/DATETIME — not pure DATE).
+
+Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
+${buildFieldTypeMatrixSection()}
+A data mart can narrow a field's aggregations further ("only where enabled on the field") — get_data_mart_details_by_id returns each field's effective allowedAggregations; trust that over this table. Note COUNT/COUNT_DISTINCT are NOT available on number fields — to count rows per group, rely on the automatic "Row Count" column instead.
 - sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
@@ -56,16 +71,80 @@ Choosing between slices and filters (both are row-level predicates applied to ra
 Using the results:
 - Use metrics and totals from the response directly — never recompute a value already present (totals are computed server-side over all matching rows, so they stay correct even when rows are truncated).
 - The totals block is separate from the rows.
+- Totals keys are technical output column names. Match a totals key to column_metadata[].name, not to a business-friendly columns label.
 - When you use aggregations, the rows include an extra "Row Count" column — the number of underlying rows in each group. It is grouping metadata, not one of your requested fields; ignore it unless the user asked how many rows a group contains.
+- data_last_updated answers "how current is what I am looking at?". Read it carefully before repeating it:
+  - data_last_updated_at is when the SOURCE TABLES last changed in the data warehouse. It is NOT a statement about which time period the data covers: a table rewritten today may have only backfilled figures for 2021. Say "the source tables were last updated on X", never "the data is fresh as of X".
+  - null means unknown, not old and not fresh. Say the warehouse does not report it, and do not infer staleness from it.
+  - coverage "partial" means some sources could not be read, so the real time can only be MORE recent than the one reported — present it as "at least as recent as X" and mention that the picture is incomplete. "unavailable" means nothing could be determined.
+  - Mention it unprompted when the user's question depends on recency (today's numbers, "latest", trends up to now) or when they are about to act on the result.
 
-If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000).`;
+If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000). Always use the source metadata in the response: name the Data Mart the answer came from, distinguish numbers calculated by OWOX from arithmetic you perform yourself, and clearly warn the user when rows were truncated.`;
   readonly zodSchema = queryDataMartInputSchema.shape;
   readonly outputSchema = {
-    columns: z.array(z.string()),
+    columns: z.array(z.string()).describe('Business-friendly result headers, in rows order.'),
+    column_metadata: z.array(
+      z.object({
+        name: z.string().describe('Exact output column name.'),
+        display_name: z.string().describe('Business-friendly label for presentation.'),
+        description: z.string().optional(),
+        type: z.string().optional(),
+      })
+    ),
     rows: z.string(),
     returned_rows: z.number(),
     truncated: z.boolean(),
-    totals: z.record(z.string(), z.unknown()).nullable(),
+    truncation: z
+      .object({
+        reasons: z.array(z.enum(['row_limit', 'payload_byte_cap'])).min(1),
+      })
+      .optional(),
+    totals: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .describe(
+        'Server-side totals keyed by technical output column name. Match each key to column_metadata[].name.'
+      ),
+    // Fresh object literals, never a shared schema instance: a reused instance serialises as a
+    // JSON-Schema $ref, which some clients degrade to an untyped value.
+    data_last_updated: z.object({
+      data_last_updated_at: z
+        .string()
+        .nullable()
+        .describe(
+          'When the SOURCE TABLES last changed in the warehouse (ISO-8601 UTC), not a claim about which period the data covers. null = the warehouse does not report it; treat as unknown, never as stale or fresh.'
+        ),
+      computed_at: z
+        .string()
+        .describe('When this was measured. Computed live for this query; never cached.'),
+      coverage: z
+        .enum(['complete', 'partial', 'unavailable'])
+        .describe(
+          'complete = every source table resolved. partial = some could not be read, so the true time is at least as recent as reported. unavailable = nothing could be determined.'
+        ),
+      sources: z
+        .array(
+          z.object({
+            table: z.string(),
+            data_last_updated_at: z.string().nullable(),
+            note: z.string().optional(),
+          })
+        )
+        .describe('Per-table detail behind the value. Views are excluded deliberately.'),
+    }),
+    source: z.object({
+      data_mart: z.object({
+        id: z.string(),
+        title: z.string(),
+        url: z.string(),
+      }),
+    }),
+    calculation_origin: z.object({
+      rows: z.literal('taken_from_owox'),
+      totals: z.enum(['calculated_by_owox', 'not_available']),
+      data_last_updated: z.enum(['measured_by_owox', 'not_available']),
+    }),
+    _instruction: z.string(),
   };
   readonly annotations = {
     title: 'Query Data Mart',
@@ -79,7 +158,8 @@ If truncated is true, not all matching rows were returned: narrow the query (few
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
     private readonly dataMarts: McpDataMartsFacade,
-    private readonly cls: ClsContextService
+    private readonly cls: ClsContextService,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   // The SDK already validates against zodSchema before handler(); this strict re-parse guards
@@ -124,17 +204,75 @@ If truncated is true, not all matching rows were returned: narrow the query (few
         }
       }
 
-      const { tsv, rowCount, capped } = serializeTsvWithByteCap(
-        res.columns,
+      const displayColumns = formatTsvColumnLabels(res.columnMetadata);
+      const { tsv, headerColumns, rowCount, capped } = serializeTsvWithByteCap(
+        displayColumns,
         res.rows,
         ROWS_PAYLOAD_BYTE_CAP
       );
+      const truncationReasons = [
+        ...(res.truncated ? (['row_limit'] as const) : []),
+        ...(capped ? (['payload_byte_cap'] as const) : []),
+      ];
+      const isTruncated = truncationReasons.length > 0;
+      const totalsKeyInstruction = res.totals
+        ? ' Totals keys are technical output names; match them to column_metadata[].name, not to display labels.'
+        : '';
+      // This block is auxiliary metadata: a query that produced rows must still answer even if it
+      // is missing, so an absent block degrades to "unavailable" rather than failing the call.
+      const dataLastUpdated = res.dataLastUpdated ?? unavailableSourceDataLastUpdated();
+      // Repeated per response because the failure mode is specific and costly: relaying a source
+      // modification time as if it were the recency of the data itself.
+      const dataLastUpdatedInstruction = dataLastUpdated.dataLastUpdatedAt
+        ? ` If you mention how current the data is, say the SOURCE TABLES were last updated at ${dataLastUpdated.dataLastUpdatedAt} — do not restate it as the data being fresh or complete up to then.${
+            dataLastUpdated.coverage === 'partial'
+              ? ' Coverage is partial, so treat that as "at least as recent as" and say the picture is incomplete.'
+              : ''
+          }`
+        : ' The source last-updated time is unknown here; if asked how current the data is, say OWOX could not determine it rather than implying it is fresh or stale.';
       const structuredContent = {
-        columns: res.columns,
+        columns: headerColumns,
+        column_metadata: res.columnMetadata.map((column, index) => ({
+          name: column.name,
+          display_name: headerColumns[index],
+          ...(column.description ? { description: column.description } : {}),
+          ...(column.type ? { type: column.type } : {}),
+        })),
         rows: tsv,
         returned_rows: rowCount, // actual rows in the payload (post-cap)
-        truncated: res.truncated || capped, // row-limit OR byte-cap truncation
+        truncated: isTruncated,
+        ...(isTruncated ? { truncation: { reasons: truncationReasons } } : {}),
         totals: res.totals,
+        data_last_updated: {
+          data_last_updated_at: dataLastUpdated.dataLastUpdatedAt,
+          computed_at: dataLastUpdated.computedAt,
+          coverage: dataLastUpdated.coverage,
+          sources: dataLastUpdated.sources.map(source => ({
+            table: source.table,
+            data_last_updated_at: source.dataLastUpdatedAt,
+            ...(source.note ? { note: source.note } : {}),
+          })),
+        },
+        source: {
+          data_mart: {
+            id: res.dataMart.id,
+            title: res.dataMart.title,
+            url: joinPublicOrigin(
+              this.publicOriginService.getPublicOrigin(),
+              buildDataMartUiPath(context.projectId, res.dataMart.id)
+            ),
+          },
+        },
+        calculation_origin: {
+          rows: 'taken_from_owox' as const,
+          totals: res.totals ? ('calculated_by_owox' as const) : ('not_available' as const),
+          data_last_updated: dataLastUpdated.dataLastUpdatedAt
+            ? ('measured_by_owox' as const)
+            : ('not_available' as const),
+        },
+        _instruction: isTruncated
+          ? `IMPORTANT: Rows are incomplete. Tell the user explicitly that the result was truncated and that any conclusion based on rows may be incomplete. State the Data Mart source. Server-provided totals still cover all matching rows; do not describe a value you calculate from returned rows as an OWOX-calculated total.${totalsKeyInstruction}${dataLastUpdatedInstruction}`
+          : `State which Data Mart supplied the data. Identify server-provided rows and totals as taken from or calculated by OWOX. If you perform arithmetic from those values yourself, label it as an AI-side calculation.${totalsKeyInstruction}${dataLastUpdatedInstruction}`,
       };
 
       return {
@@ -178,6 +316,13 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       return toStructuredToolError(
         'unsupported_operator',
         unsupportedOperatorMessage(err.operator)
+      );
+    }
+
+    if (err instanceof InvalidFilterValueError) {
+      return toStructuredToolError(
+        'invalid_filter_value',
+        `${err.message}. The operator is supported — fix the value shape and retry.`
       );
     }
 

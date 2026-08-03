@@ -18,7 +18,16 @@ describe('IdpOwoxPayloadSchema', () => {
     expect(() => IdpOwoxPayloadSchema.parse(payload({ roles: undefined }))).toThrow();
   });
 
-  function payload(overrides: { roles?: unknown }) {
+  it('accepts the optional viewOnly claim', () => {
+    expect(IdpOwoxPayloadSchema.parse(payload({ viewOnly: true })).viewOnly).toBe(true);
+    expect(IdpOwoxPayloadSchema.parse(payload({})).viewOnly).toBeUndefined();
+  });
+
+  it('rejects a non-boolean viewOnly claim', () => {
+    expect(() => IdpOwoxPayloadSchema.parse(payload({ viewOnly: 'true' }))).toThrow();
+  });
+
+  function payload(overrides: { roles?: unknown; viewOnly?: unknown }) {
     const base: Record<string, unknown> = {
       userId: 'user-1',
       projectId: 'project-1',
@@ -36,6 +45,9 @@ describe('IdpOwoxPayloadSchema', () => {
       } else {
         base.roles = overrides.roles;
       }
+    }
+    if (Object.prototype.hasOwnProperty.call(overrides, 'viewOnly')) {
+      base.viewOnly = overrides.viewOnly;
     }
 
     return base;

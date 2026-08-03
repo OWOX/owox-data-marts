@@ -42,6 +42,32 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
+    it('accepts in/not_in on STRING, INTEGER, and TIMESTAMP', () => {
+      const errors = svc.validateFilters(
+        [
+          { column: 'name', operator: 'in', value: ['a', 'b'], placement: 'post-join' },
+          { column: 'amount', operator: 'not_in', value: [1, 2], placement: 'post-join' },
+          { column: 'created_at', operator: 'in', value: ['2026-01-01'], placement: 'post-join' },
+        ],
+        fieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects in on BOOLEAN and RECORD', () => {
+      const errors = svc.validateFilters(
+        [
+          { column: 'flag', operator: 'in', value: [true], placement: 'post-join' },
+          { column: 'nested', operator: 'in', value: ['x'], placement: 'post-join' },
+        ],
+        fieldTypes
+      );
+      expect(errors.map(e => e.code)).toEqual([
+        'INVALID_OPERATOR_FOR_TYPE',
+        'INVALID_OPERATOR_FOR_TYPE',
+      ]);
+    });
+
     it('rejects regex on INTEGER', () => {
       const errors = svc.validateFilters(
         [{ column: 'amount', operator: 'regex', value: '^1', placement: 'post-join' }],

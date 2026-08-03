@@ -1,3 +1,4 @@
+import { ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE, isViewOnlyPayload } from '@owox/idp-protocol';
 import { sendSecureHtml } from '@owox/internal-helpers';
 import type { Express, Request, Response } from 'express';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
@@ -22,11 +23,16 @@ export class OnboardingController {
   /**
    * GET /auth/onboarding — renders the questionnaire page.
    * Requires a valid refreshToken cookie and the user must meet onboarding criteria.
+   * View-only sessions are redirected home (they cannot submit answers).
    */
   async onboardingPage(req: Request, res: Response): Promise<void> {
     const ctx = await this.resolveUserContext(req, res);
     if (!ctx.userId) {
       return res.redirect(`${AUTH_BASE_PATH}/sign-in`);
+    }
+
+    if (ctx.viewOnly) {
+      return res.redirect('/');
     }
 
     const eligible = await this.isEligible(ctx.userId, ctx.projectId);
@@ -47,12 +53,26 @@ export class OnboardingController {
 
   /**
    * POST /auth/onboarding — saves answers and returns redirect URL.
+   * Express route (outside Nest IdpGuard) — enforces view-only here.
    */
   async submitAnswers(req: Request, res: Response): Promise<void> {
     try {
-      const { userId, projectId, biUserId, userRole } = await this.resolveUserContext(req, res);
+      const { userId, projectId, biUserId, userRole, viewOnly } = await this.resolveUserContext(
+        req,
+        res
+      );
       if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      if (viewOnly) {
+        res.status(403).json({
+          statusCode: 403,
+          code: ACTION_NOT_ALLOWED_IN_VIEW_ONLY_MODE,
+          message: 'Action not allowed in view-only mode',
+          error: 'Action not allowed in view-only mode',
+        });
         return;
       }
 
@@ -102,16 +122,22 @@ export class OnboardingController {
   }
 
   /**
-   * Resolves userId, projectId, biUserId, and role from the refresh token cookie.
+   * Resolves userId, projectId, biUserId, role, and viewOnly from the refresh token cookie.
    * Refreshes the token and updates the cookie following the standard auth pattern.
    */
   private async resolveUserContext(
     req: Request,
     res: Response
-  ): Promise<{ userId: string; projectId: string; biUserId: string; userRole: string }> {
+  ): Promise<{
+    userId: string;
+    projectId: string;
+    biUserId: string;
+    userRole: string;
+    viewOnly: boolean;
+  }> {
     const refreshToken = req.cookies?.[CORE_REFRESH_TOKEN_COOKIE];
     if (!refreshToken) {
-      return { userId: '', projectId: '', biUserId: '', userRole: 'viewer' };
+      return { userId: '', projectId: '', biUserId: '', userRole: 'viewer', viewOnly: false };
     }
 
     try {
@@ -128,6 +154,7 @@ export class OnboardingController {
           // biUserId is the same as userId in the refresh token payload
           biUserId: payload.userId,
           userRole: role,
+          viewOnly: isViewOnlyPayload(payload),
         };
       }
     } catch (error) {
@@ -137,9 +164,8 @@ export class OnboardingController {
         error instanceof Error ? error : undefined
       );
     }
-    return { userId: '', projectId: '', biUserId: '', userRole: 'viewer' };
+    return { userId: '', projectId: '', biUserId: '', userRole: 'viewer', viewOnly: false };
   }
-
   /**
    * Validates redirect is a safe relative path. Returns '/' for any suspicious value.
    */

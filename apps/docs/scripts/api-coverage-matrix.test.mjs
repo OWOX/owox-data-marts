@@ -10,6 +10,10 @@ const checkedInMatrix = fs.readFileSync(
   new URL('../../../docs/api/coverage.md', import.meta.url),
   'utf8'
 );
+const checkedInApiClientGuide = fs.readFileSync(
+  new URL('../../../docs/api/api-client.md', import.meta.url),
+  'utf8'
+);
 
 const validMatrix = `# Support Matrix
 
@@ -87,6 +91,95 @@ test('accepts the exact Markdown parser coverage targets', () => {
       target: './api-client/#convert-markdown-to-html',
     }
   );
+});
+
+test('accepts the exact Search coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/Search/SearchController_search) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/search'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/Search/SearchController_search',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#search-project-entities) · 2026-07-23',
+      'API client',
+      'GET /api/search'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#search-project-entities',
+    }
+  );
+});
+
+test('accepts the exact Data Mart list coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/data-marts'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#list-data-marts) · 2026-07-23',
+      'API client',
+      'GET /api/data-marts'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#list-data-marts',
+    }
+  );
+});
+
+test('resolves the Data Mart list API client coverage target to the checked-in guide', () => {
+  assert.match(checkedInApiClientGuide, /^## List data marts$/m);
+});
+
+test('accepts the exact HTTP Data coverage targets', () => {
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream) · 2026-07-23',
+      'OpenAPI',
+      'GET /api/external/http-data/data-marts/{dataMartId}.ndjson'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: 'https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream',
+    }
+  );
+  assert.deepEqual(
+    matrixModule.parseCoverageCell(
+      '[Covered](./api-client/#stream-data-mart-rows) · 2026-07-23',
+      'API client',
+      'GET /api/external/http-data/data-marts/{dataMartId}.ndjson'
+    ),
+    {
+      status: 'Covered',
+      coveredSince: '2026-07-23',
+      target: './api-client/#stream-data-mart-rows',
+    }
+  );
+});
+
+test('resolves the HTTP Data API client coverage target to the checked-in guide', () => {
+  assert.match(checkedInApiClientGuide, /^## Stream Data Mart rows$/m);
 });
 
 test('accepts a summary that matches calculated totals', () => {
@@ -257,4 +350,35 @@ test('includes the API-key-compatible markdown parser endpoint', () => {
 
 test('checked-in matrix uses the public Support Matrix title', () => {
   assert.equal(checkedInMatrix.split('\n', 1)[0], '# Support Matrix');
+});
+
+test('checked-in matrix excludes OAuth-flow-only business routes', () => {
+  // Keep this scope inventory semantically aligned with the independently maintained
+  // controller behavior inventory in oauth-flow-only.controller.spec.ts.
+  const oauthFlowOnlyEndpoints = [
+    'GET /api/connectors/{connectorName}/oauth/settings',
+    'POST /api/connectors/{connectorName}/oauth/exchange',
+    'GET /api/connectors/{connectorName}/oauth/status/{credentialId}',
+    'POST /api/data-destinations/connect/google-sheets',
+    'GET /api/data-destinations/oauth/settings',
+    'GET /api/data-destinations/oauth/credential-status/{credentialId}',
+    'POST /api/data-destinations/oauth/authorize',
+    'POST /api/data-destinations/oauth/exchange',
+    'POST /api/data-destinations/{id}/oauth/authorize',
+    'GET /api/data-destinations/{id}/oauth/status',
+    'DELETE /api/data-destinations/{id}/oauth',
+    'GET /api/data-storages/oauth/settings',
+    'POST /api/data-storages/oauth/exchange',
+    'POST /api/data-storages/{id}/oauth/authorize',
+    'GET /api/data-storages/{id}/oauth/status',
+    'DELETE /api/data-storages/{id}/oauth',
+  ];
+  const checkedInEndpoints = new Set(
+    parseCoverageMatrix(checkedInMatrix).rows.map(row => row.endpoint)
+  );
+
+  assert.deepEqual(
+    oauthFlowOnlyEndpoints.filter(endpoint => checkedInEndpoints.has(endpoint)),
+    []
+  );
 });

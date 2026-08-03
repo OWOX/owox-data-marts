@@ -88,8 +88,11 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = ${lit(rule.value)}`, params: [] };
+      // Null-inclusive: SQL `<>` drops NULLs (UNKNOWN). BI expectation is that
+      // "is not X" keeps rows where the column is missing — keep them explicitly.
+      // Portable form: Redshift has no IS DISTINCT FROM, so all engines share this.
       case 'neq':
-        return { sql: `${col} <> ${lit(rule.value)}`, params: [] };
+        return { sql: `(${col} IS NULL OR ${col} <> ${lit(rule.value)})`, params: [] };
       case 'gt':
         return { sql: `${col} > ${lit(rule.value)}`, params: [] };
       case 'lt':
@@ -101,7 +104,11 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
       case 'contains':
         return { sql: `contains(${col}, ${text(rule.value)})`, params: [] };
       case 'not_contains':
-        return { sql: `NOT contains(${col}, ${text(rule.value)})`, params: [] };
+        // contains(NULL, …) is NULL, so bare NOT drops NULL rows; keep them.
+        return {
+          sql: `(${col} IS NULL OR NOT contains(${col}, ${text(rule.value)}))`,
+          params: [],
+        };
       case 'starts_with':
         return { sql: `startswith(${col}, ${text(rule.value)})`, params: [] };
       case 'ends_with':
@@ -111,7 +118,10 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
         // full-anchored RLIKE — so `^prefix` works like the other storages. Live-verified.
         return { sql: `${col} RLIKE ${text(rule.value)}`, params: [] };
       case 'not_regex':
-        return { sql: `NOT (${col} RLIKE ${text(rule.value)})`, params: [] };
+        return {
+          sql: `(${col} IS NULL OR NOT (${col} RLIKE ${text(rule.value)}))`,
+          params: [],
+        };
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':
@@ -129,6 +139,9 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
           sql: `${col} BETWEEN ${lit(rule.value.from)} AND ${lit(rule.value.to)}`,
           params: [],
         };
+      case 'in':
+      case 'not_in':
+        return this.renderInListWithLiterals(rule, col, lit);
       case 'relative_date':
         return { sql: this.renderRelativeDate(col, rule.value), params: [] };
     }
@@ -158,6 +171,20 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
           `${col} >= add_months(CURRENT_DATE, -${preset.n})` +
           ` AND ${col} < date_add(CURRENT_DATE, 1)`
         );
+      // Includes today, mirroring last_n_days (both cover today plus n days out/back).
+      case 'next_n_days':
+        return `${col} >= CURRENT_DATE` + ` AND ${col} < date_add(CURRENT_DATE, ${preset.n + 1})`;
+      // Spark trunc(date, 'WEEK') is fixed to Monday — ISO.
+      case 'this_week':
+        return (
+          `${col} >= trunc(CURRENT_DATE, 'WEEK')` +
+          ` AND ${col} < date_add(trunc(CURRENT_DATE, 'WEEK'), 7)`
+        );
+      case 'last_week':
+        return (
+          `${col} >= date_add(trunc(CURRENT_DATE, 'WEEK'), -7)` +
+          ` AND ${col} < trunc(CURRENT_DATE, 'WEEK')`
+        );
       case 'this_month':
         return (
           `${col} >= trunc(CURRENT_DATE, 'MONTH')` +
@@ -167,6 +194,16 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
         return (
           `${col} >= add_months(trunc(CURRENT_DATE, 'MONTH'), -1)` +
           ` AND ${col} < trunc(CURRENT_DATE, 'MONTH')`
+        );
+      case 'this_quarter':
+        return (
+          `${col} >= trunc(CURRENT_DATE, 'QUARTER')` +
+          ` AND ${col} < add_months(trunc(CURRENT_DATE, 'QUARTER'), 3)`
+        );
+      case 'last_quarter':
+        return (
+          `${col} >= add_months(trunc(CURRENT_DATE, 'QUARTER'), -3)` +
+          ` AND ${col} < trunc(CURRENT_DATE, 'QUARTER')`
         );
       case 'this_year':
         return (

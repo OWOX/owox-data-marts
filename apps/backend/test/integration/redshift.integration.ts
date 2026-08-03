@@ -237,7 +237,10 @@ describeIfCredentials(
             CURRENT_DATE,
             DATEADD(minute, 825, CAST(CURRENT_DATE AS TIMESTAMP)),
             CAST(DATEADD(minute, 825, CAST(CURRENT_DATE AS TIMESTAMP)) AS TIMESTAMPTZ),
-            '13:45:00', '13:45:00+00')
+            '13:45:00', '13:45:00+00'),
+          -- Row 7 is the all-NULL row: it proves negative operators (neq, not_in, not_contains,
+          -- not_regex, is_empty, is_null) keep NULL rows on the real engine.
+          (7, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
       `);
     }, 120000);
 
@@ -456,11 +459,18 @@ describeIfCredentials(
       expect(ids(rows)).toEqual(['1']);
     });
 
-    it('neq on status: not "active" → rows 2,4 (inactive)', async () => {
+    it('neq on status: not "active" → rows 2,4,7 (inactive + NULL row kept)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'status', operator: 'neq', value: 'active' }],
       });
-      expect(ids(rows)).toEqual(['2', '4']);
+      expect(ids(rows)).toEqual(['2', '4', '7']);
+    });
+
+    it('not_in on name: not in (alpha, beta) → rows 3,4,5,6,7 (null-inclusive: NULL row 7 kept)', async () => {
+      const rows = await runFilter({
+        filters: [{ column: 'name', operator: 'not_in', value: ['alpha', 'beta'] }],
+      });
+      expect(ids(rows)).toEqual(['3', '4', '5', '6', '7']);
     });
 
     it('gt: amount > 20 → rows 3,4,5 (30,40,50)', async () => {
@@ -498,12 +508,12 @@ describeIfCredentials(
       expect(ids(rows)).toEqual(['1']);
     });
 
-    it('not_contains "eta" on name → rows 1,3,4,5,6 (all except beta)', async () => {
-      // beta(2) contains 'eta'; others do not
+    it('not_contains "eta" on name → rows 1,3,4,5,6,7 (all except beta + NULL row kept)', async () => {
+      // beta(2) contains 'eta'; others do not; row 7 (NULL name) is kept by the negative operator
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'not_contains', value: 'eta' }],
       });
-      expect(ids(rows)).toEqual(['1', '3', '4', '5', '6']);
+      expect(ids(rows)).toEqual(['1', '3', '4', '5', '6', '7']);
     });
 
     it('starts_with "al" on name → row 1 (alpha)', async () => {
@@ -527,18 +537,18 @@ describeIfCredentials(
       expect(ids(rows)).toEqual(['1']);
     });
 
-    it('not_regex: name !~ "^alp" → rows 2,3,4,5,6', async () => {
+    it('not_regex: name !~ "^alp" → rows 2,3,4,5,6,7 (NULL row kept)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'not_regex', value: '^alp' }],
       });
-      expect(ids(rows)).toEqual(['2', '3', '4', '5', '6']);
+      expect(ids(rows)).toEqual(['2', '3', '4', '5', '6', '7']);
     });
 
-    it('is_empty: no empty-name rows → 0 rows', async () => {
+    it("is_empty on name → row 7 (NULL; is_empty is null-inclusive: col IS NULL OR col = '')", async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_empty' }],
       });
-      expect(rows).toHaveLength(0);
+      expect(ids(rows)).toEqual(['7']);
     });
 
     it('is_not_empty: all 6 rows have non-empty names', async () => {
@@ -548,11 +558,11 @@ describeIfCredentials(
       expect(rows).toHaveLength(6);
     });
 
-    it('is_null: no NULLs in seed → 0 rows', async () => {
+    it('is_null on name → row 7 (the NULL-seeded row)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_null' }],
       });
-      expect(rows).toHaveLength(0);
+      expect(ids(rows)).toEqual(['7']);
     });
 
     it('is_not_null: all 6 rows', async () => {
@@ -615,12 +625,14 @@ describeIfCredentials(
     // Sort + limit
     // -------------------------------------------------------------------------
 
-    it('sort by amount DESC + limit 2 → rows 5,4 (amounts 50,40)', async () => {
+    it('sort by amount DESC + limit 2 → rows 7,5 (NULL amount first, then 50)', async () => {
+      // Seed row 7 has amount=NULL. Redshift follows PostgreSQL NULL ordering:
+      // DESC sorts NULLs first, so the all-NULL row leads before amount 50 (id 5).
       const rows = await runFilter({
         sort: [{ column: 'amount', direction: 'desc' }],
         limit: 2,
       });
-      expect(rows.map(r => r.id)).toEqual(['5', '4']);
+      expect(rows.map(r => r.id)).toEqual(['7', '5']);
     });
 
     // -------------------------------------------------------------------------
@@ -660,7 +672,8 @@ describeIfCredentials(
           ],
         });
 
-        expect(rows).toHaveLength(2);
+        // 3 groups: active, inactive, and the NULL-status row 7.
+        expect(rows).toHaveLength(3);
         const byStatus = new Map(rows.map(r => [r.status, r]));
 
         // active → ids 1,3,5,6; amounts 10+30+50+0=90; COUNT=4
@@ -730,7 +743,8 @@ describeIfCredentials(
           aggregations: [{ column: 'name', function: 'STRING_AGG' }],
         });
 
-        expect(rows).toHaveLength(2);
+        // 3 groups: active, inactive, and the NULL-status row 7.
+        expect(rows).toHaveLength(3);
         const byStatus = new Map(rows.map(r => [r.status, r]));
 
         const splitSorted = (v: string | null): string[] =>
@@ -807,11 +821,11 @@ describeIfCredentials(
 
         expect(rows).toHaveLength(1);
         const row = rows[0];
-        // All 6 amounts: 10+20+30+40+50+0 = 150
+        // Non-NULL amounts: 10+20+30+40+50+0 = 150 (row 7 amount is NULL)
         expect(Number(row['amount | sum'])).toBeCloseTo(150, 5);
-        // 6 distinct ids
-        expect(Number(row['id | countunique'])).toBe(6);
-        expect(Number(row['row count'])).toBe(6);
+        // 7 distinct ids including the all-NULL seed row
+        expect(Number(row['id | countunique'])).toBe(7);
+        expect(Number(row['row count'])).toBe(7);
       }, 60000);
 
       it('totals with WHERE filter: grand SUM + Row Count cover only active rows', async () => {
@@ -848,19 +862,26 @@ describeIfCredentials(
         expect(Number(row['row count'])).toBe(2);
       }, 60000);
 
-      it('ORDER BY aggregated alias (SUM desc) + limit 1 returns only the larger group', async () => {
+      it('ORDER BY aggregated alias (SUM desc): NULL-status group first, then active (90)', async () => {
+        // Three groups after the all-NULL seed row: active SUM=90, inactive SUM=60,
+        // NULL-status SUM=NULL. Redshift DESC puts NULLs first, so limit 1 alone would
+        // return the NULL-status bucket — pull all groups and assert full order.
         const rows = await runFilter({
           columns: ['status', 'amount'],
           aggregations: [{ column: 'amount', function: 'SUM' }],
           sort: [{ column: 'amount', direction: 'desc' }],
-          limit: 1,
         });
 
-        expect(rows).toHaveLength(1);
-        const row = rows[0];
-        // active SUM=90 > inactive SUM=60
-        expect(row.status).toBe('active');
-        expect(Number(row['amount | sum'])).toBeCloseTo(90, 5);
+        expect(rows).toHaveLength(3);
+        // 1) NULL-status bucket (SUM of NULL amount → NULL) leads under DESC NULLS FIRST
+        expect(rows[0].status).toBeNull();
+        expect(rows[0]['amount | sum']).toBeNull();
+        // 2) active SUM=90 is the highest non-NULL aggregate
+        expect(rows[1].status).toBe('active');
+        expect(Number(rows[1]['amount | sum'])).toBeCloseTo(90, 5);
+        // 3) inactive SUM=60
+        expect(rows[2].status).toBe('inactive');
+        expect(Number(rows[2]['amount | sum'])).toBeCloseTo(60, 5);
       }, 60000);
     });
   }

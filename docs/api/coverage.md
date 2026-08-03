@@ -18,7 +18,7 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               155 |     9/155 (6%) |       9/155 (6%) |         9/155 (6%) |        146 |
+|               139 |    12/139 (9%) |      12/139 (9%) |        12/139 (9%) |        127 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
@@ -35,9 +35,6 @@ percentages use the complete endpoint inventory below as their denominator.
 | --- | --- | --- |
 | `GET /api/connectors` | Unassessed | Unassessed |
 | `GET /api/connectors/{connectorName}/fields` | Unassessed | Unassessed |
-| `POST /api/connectors/{connectorName}/oauth/exchange` | Unassessed | Unassessed |
-| `GET /api/connectors/{connectorName}/oauth/settings` | Unassessed | Unassessed |
-| `GET /api/connectors/{connectorName}/oauth/status/{credentialId}` | Unassessed | Unassessed |
 | `GET /api/connectors/{connectorName}/specification` | Unassessed | Unassessed |
 
 ## Contexts
@@ -73,27 +70,19 @@ percentages use the complete endpoint inventory below as their denominator.
 | `GET /api/data-destinations` | Unassessed | Unassessed |
 | `POST /api/data-destinations` | Unassessed | Unassessed |
 | `GET /api/data-destinations/by-type/{type}` | Unassessed | Unassessed |
-| `POST /api/data-destinations/connect/google-sheets` | Unassessed | Unassessed |
-| `POST /api/data-destinations/oauth/authorize` | Unassessed | Unassessed |
-| `GET /api/data-destinations/oauth/credential-status/{credentialId}` | Unassessed | Unassessed |
-| `POST /api/data-destinations/oauth/exchange` | Unassessed | Unassessed |
-| `GET /api/data-destinations/oauth/settings` | Unassessed | Unassessed |
 | `DELETE /api/data-destinations/{id}` | Unassessed | Unassessed |
 | `GET /api/data-destinations/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-destinations/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-destinations/{id}/availability` | Unassessed | Unassessed |
 | `POST /api/data-destinations/{id}/google-sheets/documents` | Unassessed | Unassessed |
 | `GET /api/data-destinations/{id}/impact` | Unassessed | Unassessed |
-| `DELETE /api/data-destinations/{id}/oauth` | Unassessed | Unassessed |
-| `POST /api/data-destinations/{id}/oauth/authorize` | Unassessed | Unassessed |
-| `GET /api/data-destinations/{id}/oauth/status` | Unassessed | Unassessed |
 | `POST /api/data-destinations/{id}/rotate-secret-key` | Unassessed | Unassessed |
 
 ## Data Marts
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/data-marts` | Unassessed | Unassessed |
+| `GET /api/data-marts` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list) · 2026-07-23 | [Covered](./api-client/#list-data-marts) · 2026-07-23 |
 | `POST /api/data-marts` | Unassessed | Unassessed |
 | `GET /api/data-marts/ai-helper/availability` | Unassessed | Unassessed |
 | `GET /api/data-marts/by-connector/{connectorName}` | Unassessed | Unassessed |
@@ -136,8 +125,6 @@ percentages use the complete endpoint inventory below as their denominator.
 | `GET /api/data-storages` | Unassessed | Unassessed |
 | `POST /api/data-storages` | Unassessed | Unassessed |
 | `GET /api/data-storages/by-type/{type}` | Unassessed | Unassessed |
-| `POST /api/data-storages/oauth/exchange` | Unassessed | Unassessed |
-| `GET /api/data-storages/oauth/settings` | Unassessed | Unassessed |
 | `POST /api/data-storages/{dataStorageId}/publish-drafts-triggers` | Unassessed | Unassessed |
 | `DELETE /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}` | Unassessed | Unassessed |
 | `GET /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}` | Unassessed | Unassessed |
@@ -146,9 +133,6 @@ percentages use the complete endpoint inventory below as their denominator.
 | `GET /api/data-storages/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-storages/{id}` | Unassessed | Unassessed |
 | `PUT /api/data-storages/{id}/availability` | Unassessed | Unassessed |
-| `DELETE /api/data-storages/{id}/oauth` | Unassessed | Unassessed |
-| `POST /api/data-storages/{id}/oauth/authorize` | Unassessed | Unassessed |
-| `GET /api/data-storages/{id}/oauth/status` | Unassessed | Unassessed |
 | `GET /api/data-storages/{id}/resources` | Unassessed | Unassessed |
 | `POST /api/data-storages/{id}/validate-access` | Unassessed | Unassessed |
 
@@ -156,7 +140,7 @@ percentages use the complete endpoint inventory below as their denominator.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` | Unassessed | Unassessed |
+| `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` | [Covered](https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream) · 2026-07-23 | [Covered](./api-client/#stream-data-mart-rows) · 2026-07-23 |
 
 ## Insights
 
@@ -245,7 +229,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/data-marts/runs` | [Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-21 | [Covered](./api-client/#read-project-run-history) · 2026-07-21 |
+| `GET /api/data-marts/runs` | [Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-23 | [Covered](./api-client/#read-project-run-history) · 2026-07-23 |
 
 ## Scheduled triggers
 
@@ -262,7 +246,7 @@ whose UI is reachable only through direct links is excluded.
 
 | Endpoint | OpenAPI | API client |
 | --- | --- | --- |
-| `GET /api/search` | Unassessed | Unassessed |
+| `GET /api/search` | [Covered](https://app.owox.com/api/swagger-ui#/Search/SearchController_search) · 2026-07-23 | [Covered](./api-client/#search-project-entities) · 2026-07-23 |
 
 ## Project setup progress
 

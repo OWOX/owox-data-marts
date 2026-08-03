@@ -12,6 +12,8 @@ import {
   QueryAbortedError,
   QueryTimeoutError,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
+import { ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
 
 const AUTH_CTX = {
   projectId: 'p1',
@@ -22,7 +24,10 @@ const AUTH_CTX = {
 describe('QueryDataMartTool', () => {
   const facade = { queryDataMart: jest.fn(), listDataMarts: jest.fn() };
   const cls = { update: jest.fn(), get: jest.fn(), set: jest.fn(), runWithContext: jest.fn() };
-  const tool = new QueryDataMartTool(facade as never, cls as never);
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
+  const tool = new QueryDataMartTool(facade as never, cls as never, publicOrigin);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -30,6 +35,18 @@ describe('QueryDataMartTool', () => {
     expect(tool.name).toBe('query_data_mart');
     expect(tool.requiredScopes).toEqual(['mcp:read', 'mcp:write']);
     expect(tool.annotations).toMatchObject({ title: 'Query Data Mart', openWorldHint: false });
+  });
+
+  it('embeds the generated field-type matrix in the description', () => {
+    // One line per category, generated from the validator's own constants.
+    expect(tool.description).toContain('- number (');
+    expect(tool.description).toContain('- string (');
+    expect(tool.description).toContain('- date (');
+    expect(tool.description).toContain('- boolean (');
+    expect(tool.description).toContain('- other (');
+    // The two footguns the matrix exists to prevent.
+    expect(tool.description).toContain('only where enabled on the field');
+    expect(tool.description).toContain('NOT available on number fields');
   });
 
   it('rejects input missing required fields', () => {
@@ -40,6 +57,10 @@ describe('QueryDataMartTool', () => {
     it('returns returned_rows from serializer and truncated from facade when cap is not hit', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['name', 'value'],
+        columnMetadata: [
+          { name: 'name', displayName: 'Customer name' },
+          { name: 'value', displayName: 'Revenue' },
+        ],
         rows: [
           ['alpha', '1'],
           ['beta', '2'],
@@ -47,6 +68,7 @@ describe('QueryDataMartTool', () => {
         returnedRows: 2,
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
 
       const result = await tool.handler(
@@ -64,31 +86,268 @@ describe('QueryDataMartTool', () => {
       };
       expect(sc.returned_rows).toBe(2);
       expect(sc.truncated).toBe(false);
-      expect(sc.columns).toEqual(['name', 'value']);
+      expect(sc.columns).toEqual(['Customer name', 'Revenue']);
+      expect(sc.rows.split('\n')[0]).toBe(sc.columns.join('\t'));
+      expect(result.structuredContent).toMatchObject({
+        column_metadata: [
+          { name: 'name', display_name: 'Customer name' },
+          { name: 'value', display_name: 'Revenue' },
+        ],
+        source: {
+          data_mart: {
+            id: 'dm1',
+            title: 'Orders',
+            url: 'https://app.owox.com/ui/p1/data-marts/dm1/data-setup',
+          },
+        },
+        calculation_origin: { rows: 'taken_from_owox', totals: 'not_available' },
+      });
+    });
+
+    it('keeps result headers non-empty, unique, and TSV-safe when aliases are malformed', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['created_at', 'updated_at', 'event_date', 'notes'],
+        columnMetadata: [
+          { name: 'created_at', displayName: '  ' },
+          { name: 'updated_at', displayName: 'Date' },
+          { name: 'event_date', displayName: 'Date' },
+          { name: 'notes', displayName: 'Notes\tand\ncomments' },
+        ],
+        rows: [['2026-01-01', '2026-01-02', '2026-01-03', 'hello']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['created_at', 'updated_at', 'event_date', 'notes'] },
+        AUTH_CTX as never
+      );
+
+      const structuredContent = result.structuredContent as {
+        columns: string[];
+        column_metadata: Array<{ name: string; display_name: string }>;
+        rows: string;
+      };
+      expect(structuredContent.columns).toEqual([
+        'created_at',
+        'Date (updated_at)',
+        'Date (event_date)',
+        'Notes\\tand\\ncomments',
+      ]);
+      expect(structuredContent.rows.split('\n')[0]).toBe(structuredContent.columns.join('\t'));
+      expect(structuredContent.column_metadata).toEqual([
+        { name: 'created_at', display_name: 'created_at' },
+        { name: 'updated_at', display_name: 'Date (updated_at)' },
+        { name: 'event_date', display_name: 'Date (event_date)' },
+        { name: 'notes', display_name: 'Notes\\tand\\ncomments' },
+      ]);
+    });
+
+    it('explains how technical totals keys map to display columns', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['revenue | SUM'],
+        columnMetadata: [{ name: 'revenue | SUM', displayName: 'Revenue' }],
+        rows: [['42']],
+        truncated: false,
+        totals: { 'revenue | SUM': 42 },
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['revenue'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.structuredContent).toMatchObject({
+        columns: ['Revenue'],
+        column_metadata: [{ name: 'revenue | SUM', display_name: 'Revenue' }],
+        totals: { 'revenue | SUM': 42 },
+      });
+      expect((result.structuredContent as { _instruction: string })._instruction).toContain(
+        'column_metadata[].name'
+      );
+    });
+
+    describe('data_last_updated', () => {
+      const baseResponse = {
+        columns: ['revenue'],
+        columnMetadata: [{ name: 'revenue', displayName: 'Revenue' }],
+        rows: [['42']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      };
+
+      const callTool = () =>
+        tool.handler({ data_mart_id: 'dm1', fields: ['revenue'] }, AUTH_CTX as never);
+
+      it('serialises the measured block and marks it as measured by OWOX', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'complete',
+            sources: [
+              { table: 'my-project.ds.orders', dataLastUpdatedAt: '2026-07-25T08:30:00.000Z' },
+            ],
+          },
+        });
+
+        const result = await callTool();
+
+        expect(result.structuredContent).toMatchObject({
+          data_last_updated: {
+            data_last_updated_at: '2026-07-25T08:30:00.000Z',
+            computed_at: '2026-07-28T00:00:00.000Z',
+            coverage: 'complete',
+            sources: [
+              {
+                table: 'my-project.ds.orders',
+                data_last_updated_at: '2026-07-25T08:30:00.000Z',
+              },
+            ],
+          },
+          calculation_origin: { data_last_updated: 'measured_by_owox' },
+        });
+      });
+
+      it('tells the model to attribute the time to the source tables, not to the data', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'complete',
+            sources: [],
+          },
+        });
+
+        const instruction = (await callTool()).structuredContent as { _instruction: string };
+
+        expect(instruction._instruction).toContain('SOURCE TABLES');
+        expect(instruction._instruction).toContain('2026-07-25T08:30:00.000Z');
+      });
+
+      it('flags partial coverage as a lower bound', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'partial',
+            sources: [
+              {
+                table: 'my-project.ds.sheet_feed',
+                dataLastUpdatedAt: null,
+                note: 'external table — data lives outside BigQuery, modification time not tracked',
+              },
+            ],
+          },
+        });
+
+        const result = await callTool();
+        const sc = result.structuredContent as {
+          _instruction: string;
+          data_last_updated: { sources: { note?: string }[] };
+        };
+
+        expect(sc._instruction).toContain('at least as recent as');
+        expect(sc.data_last_updated.sources[0].note).toContain('external table');
+      });
+
+      it('tells the model to say "not determined" rather than imply freshness when unknown', async () => {
+        facade.queryDataMart.mockResolvedValue({
+          ...baseResponse,
+          dataLastUpdated: {
+            dataLastUpdatedAt: null,
+            computedAt: '2026-07-28T00:00:00.000Z',
+            coverage: 'unavailable',
+            sources: [],
+          },
+        });
+
+        const result = await callTool();
+        const sc = result.structuredContent as {
+          _instruction: string;
+          calculation_origin: { data_last_updated: string };
+        };
+
+        expect(sc.calculation_origin.data_last_updated).toBe('not_available');
+        expect(sc._instruction).toContain('could not determine it');
+      });
+
+      it('still answers when the block is missing entirely — it must never fail a paid query', async () => {
+        facade.queryDataMart.mockResolvedValue(baseResponse);
+
+        const result = await callTool();
+
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({
+          data_last_updated: { data_last_updated_at: null, coverage: 'unavailable' },
+          calculation_origin: { data_last_updated: 'not_available' },
+        });
+      });
     });
 
     it('sets truncated: true when the facade signals truncation', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],
+        columnMetadata: [{ name: 'id', displayName: 'Order ID' }],
         rows: [['1'], ['2'], ['3']],
         returnedRows: 3,
         truncated: true,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
 
       const result = await tool.handler({ data_mart_id: 'dm1', fields: ['id'] }, AUTH_CTX as never);
 
       expect(result.isError).toBeFalsy();
-      const sc = result.structuredContent as { truncated: boolean };
+      const sc = result.structuredContent as {
+        truncated: boolean;
+        truncation?: { reasons: string[] };
+        _instruction: string;
+      };
       expect(sc.truncated).toBe(true);
+      expect(sc.truncation).toEqual({ reasons: ['row_limit'] });
+      expect(sc._instruction).toContain('Rows are incomplete');
+    });
+
+    it('reports the payload byte cap separately from a row-limit truncation', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['notes'],
+        columnMetadata: [{ name: 'notes', displayName: 'Notes' }],
+        rows: [['x'.repeat(ROWS_PAYLOAD_BYTE_CAP)]],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['notes'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.structuredContent).toMatchObject({
+        returned_rows: 0,
+        truncated: true,
+        truncation: { reasons: ['payload_byte_cap'] },
+      });
     });
 
     it('maps sort rules to the facade sortConfig (field → column)', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['date', 'revenue'],
+        columnMetadata: [
+          { name: 'date', displayName: 'Order date' },
+          { name: 'revenue', displayName: 'Revenue' },
+        ],
         rows: [['2026-05-01', '10']],
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
 
       await tool.handler(
@@ -111,9 +370,11 @@ describe('QueryDataMartTool', () => {
     it('forwards the request AbortSignal to the facade', async () => {
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],
+        columnMetadata: [{ name: 'id', displayName: 'Order ID' }],
         rows: [['1']],
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
       });
       const controller = new AbortController();
 
@@ -131,9 +392,11 @@ describe('QueryDataMartTool', () => {
       cls.update.mockClear();
       facade.queryDataMart.mockResolvedValue({
         columns: ['id'],
+        columnMetadata: [{ name: 'id', displayName: 'Order ID' }],
         rows: [['1']],
         truncated: false,
         totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
         executedSql: 'SELECT id FROM t',
       });
       await tool.handler({ data_mart_id: 'dm1', fields: ['id'] }, AUTH_CTX as never);
@@ -182,22 +445,62 @@ describe('QueryDataMartTool', () => {
       expect(JSON.stringify(result)).not.toContain('projectId p1');
     });
 
-    it('maps UnsupportedOperatorError → unsupported_operator', async () => {
-      const result = await tool.handler(
-        {
-          data_mart_id: 'dm1',
-          fields: ['f1'],
-          filters: [{ field: 'f1', operator: 'in' as never }],
-        },
-        AUTH_CTX as never
-      );
+    it('maps UnsupportedOperatorError → unsupported_operator (defensive path — every current operator maps)', async () => {
+      // No enum operator triggers this today; keep the mapping honest for a future
+      // operator that ships in the schema ahead of its internal support.
+      facade.queryDataMart.mockRejectedValue(new UnsupportedOperatorError('future_op'));
+
+      const result = await tool.handler({ data_mart_id: 'dm1', fields: ['f1'] }, AUTH_CTX as never);
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'unsupported_operator' });
       const msg = (result.structuredContent as { message?: string }).message ?? '';
-      expect(msg).toContain("'in'");
-      expect(msg).toContain('eq');
+      expect(msg).toContain("'future_op'");
       expect(msg).toContain('Supported operators:');
+    });
+
+    it('passes the calendar presets through to the facade as relative_date rules', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['d'],
+        columnMetadata: [{ name: 'd', displayName: 'Date' }],
+        rows: [['2026-07-20']],
+        returnedRows: 1,
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['d'],
+          filters: [
+            { field: 'd', operator: 'this_week' },
+            { field: 'd', operator: 'in_next_n_days', value: 7 },
+          ],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          filterConfig: [
+            {
+              column: 'd',
+              operator: 'relative_date',
+              value: { kind: 'this_week' },
+              placement: 'post-join',
+            },
+            {
+              column: 'd',
+              operator: 'relative_date',
+              value: { kind: 'next_n_days', n: 7 },
+              placement: 'post-join',
+            },
+          ],
+        })
+      );
     });
 
     it('invalid aggregation function fails at schema parse (ZodError) → invalid_input', async () => {
@@ -277,6 +580,281 @@ describe('QueryDataMartTool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
+    });
+
+    it('maps INVALID_OPERATOR_FOR_TYPE → invalid_operator listing the operators that fit', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'revenue',
+              type: 'FLOAT',
+              operator: 'contains',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['revenue'],
+          filters: [{ field: 'revenue', operator: 'contains', value: '1' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'contains'");
+      expect(msg).toContain("'revenue'");
+      expect(msg).toContain('FLOAT');
+      // Lists the operators a number field DOES accept…
+      expect(msg).toContain('between');
+      expect(msg).toContain('gte');
+      // …and steers away from a schema re-fetch loop.
+      expect(msg).toContain('do not re-fetch the schema');
+      expect(msg).not.toContain('contains, ');
+    });
+
+    it('reports ALL validation-error families in one response (no round-trip per class)', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'revenue',
+              type: 'FLOAT',
+              operator: 'contains',
+            },
+            { code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD', column: 'name', function: 'SUM' },
+            { code: 'SORT_COLUMN_NOT_SELECTED', column: 'ts' },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['revenue'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      // error_code = highest-priority family (shared-mapper order), message carries every family.
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_selected' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'contains'");
+      expect(msg).toContain('SUM(name)');
+      expect(msg).toContain('missing from "fields"');
+      expect(msg).toContain('ts');
+    });
+
+    it('translates internal relative_date back to the MCP preset names in the error', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'session_time',
+              type: 'TIME',
+              operator: 'relative_date',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['session_time'],
+          filters: [{ field: 'session_time', operator: 'this_week' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      // The caller's vocabulary, not the internal operator name.
+      expect(msg).not.toContain("'relative_date'");
+      expect(msg).toContain('this_week');
+      expect(msg).toContain('in_last_n_days');
+      expect(msg).toContain("'session_time'");
+    });
+
+    it('explains a boolean VALUE on a non-boolean field instead of naming is_true', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'utm_source',
+              type: 'STRING',
+              operator: 'is_true',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['utm_source'],
+          filters: [{ field: 'utm_source', operator: 'eq', value: true }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      // Points at the VALUE (the real problem), not at an operator the caller never sent.
+      expect(msg).toContain('boolean true/false value');
+      expect(msg).toContain("'utm_source'");
+      expect(msg).not.toContain("operator 'is_true'");
+    });
+
+    it('maps boolean eq with a non-boolean value → value guidance, not an operator list', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'active',
+              type: 'BOOLEAN',
+              operator: 'eq',
+            },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['active'],
+          filters: [{ field: 'active', operator: 'eq', value: 'true' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_operator' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'active'");
+      expect(msg).toContain('boolean true or false');
+    });
+
+    it('maps DATE_TRUNC_REQUIRES_DATE_COLUMN and TIMEZONE_REQUIRES_TIMESTAMP → invalid_date_bucket', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'channel', type: 'STRING' },
+            { code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP', column: 'day', type: 'DATE' },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['channel', 'day'],
+          date_buckets: [
+            { field: 'channel', unit: 'MONTH' },
+            { field: 'day', unit: 'DAY', time_zone: 'Europe/Kyiv' },
+          ],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_date_bucket' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'channel'");
+      expect(msg).toContain('not a date/timestamp');
+      expect(msg).toContain("'day'");
+      expect(msg).toContain('remove time_zone');
+      expect(msg).toContain('do not re-fetch the schema');
+    });
+
+    it('maps DATE_TRUNC_INVALID_TIMEZONE and COLUMN_IS_AGGREGATED → invalid_date_bucket', async () => {
+      const err = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            { code: 'DATE_TRUNC_INVALID_TIMEZONE', column: 'ts', timeZone: 'Kyiv' },
+            { code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED', column: 'ts2' },
+          ],
+        },
+      });
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['ts', 'ts2'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_date_bucket' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain("'Kyiv' is not a valid IANA time zone");
+      expect(msg).toContain('both aggregated and date-bucketed');
+    });
+
+    it('passes an in filter through to the facade (natively supported)', async () => {
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['channel'],
+        columnMetadata: [{ name: 'channel', displayName: 'Channel' }],
+        rows: [['fb']],
+        returnedRows: 1,
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['channel'],
+          filters: [{ field: 'channel', operator: 'in', value: ['fb', 'google'] }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          filterConfig: [
+            { column: 'channel', operator: 'in', value: ['fb', 'google'], placement: 'post-join' },
+          ],
+        })
+      );
+    });
+
+    it('rejects an in filter with an empty array via a clear invalid_input-style error', async () => {
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['channel'],
+          filters: [{ field: 'channel', operator: 'in', value: [] }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('non-empty array');
     });
 
     it('maps PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART → slices_not_applicable (move to filters)', async () => {

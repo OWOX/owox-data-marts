@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, FileText, Info } from 'lucide-react';
+import { Database, FileText, Info, ShieldCheck } from 'lucide-react';
 import { RawBase64Icon } from '../../../../../shared';
 import { ConnectorHoverCard, ConnectorNameDisplay } from '../../../../connectors/shared/components';
 import { useConnector } from '../../../../connectors/shared/model/hooks/useConnector';
@@ -78,6 +78,15 @@ function renderConnectorRunTarget(trigger: ScheduledTrigger, connectors: Connect
   );
 }
 
+function renderDataQualityRunTarget() {
+  return (
+    <div className='text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-2 overflow-hidden text-sm whitespace-nowrap'>
+      <ShieldCheck className='h-4 w-4 shrink-0' size={16} />
+      <span className='max-w-full flex-1 truncate'>Data Quality checks</span>
+    </div>
+  );
+}
+
 /**
  * Main component that renders the appropriate target based on trigger type
  */
@@ -90,6 +99,8 @@ export const ScheduledTriggerRunTarget = React.memo(
         return renderReportRunTarget(trigger);
       case ScheduledTriggerType.CONNECTOR_RUN:
         return renderConnectorRunTarget(trigger, connectors);
+      case ScheduledTriggerType.DATA_QUALITY_RUN:
+        return renderDataQualityRunTarget();
       default:
         return <div className='text-muted-foreground text-sm'>—</div>;
     }

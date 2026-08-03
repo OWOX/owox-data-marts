@@ -47,9 +47,9 @@ describe('McpDataMartsFacadeImpl', () => {
       actualizeSchemaIfExpired: jest.fn().mockResolvedValue(dataMart),
     }) as unknown as jest.Mocked<DataMartService>;
 
-  const createGetDataMartService = () =>
+  const createGetDataMartService = (status = DataMartStatus.PUBLISHED) =>
     ({
-      run: jest.fn().mockResolvedValue({ id: 'dm_1' }),
+      run: jest.fn().mockResolvedValue({ id: 'dm_1', status }),
     }) as unknown as jest.Mocked<GetDataMartService>;
 
   const createQueryDataMartService = () =>
@@ -85,7 +85,7 @@ describe('McpDataMartsFacadeImpl', () => {
       }),
     }) as unknown as jest.Mocked<SummarizeMcpDataCatalogService>;
 
-  it('lists data marts using project-member context', async () => {
+  it('lists only published data marts by default using project-member context', async () => {
     const listDataMartsService = createListDataMartsService([
       new DataMartListItemDto(
         'dm_1',
@@ -96,6 +96,16 @@ describe('McpDataMartsFacadeImpl', () => {
         new Date('2026-06-01T10:00:00.000Z'),
         new Date('2026-06-10T10:00:00.000Z'),
         'Mock Description'
+      ),
+      new DataMartListItemDto(
+        'dm_draft',
+        'Draft Orders',
+        DataMartStatus.DRAFT,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Must not be exposed through MCP'
       ),
     ]);
     const dataMartService = createDataMartService();
@@ -123,6 +133,7 @@ describe('McpDataMartsFacadeImpl', () => {
         projectId: 'project-1',
         userId: 'user-1',
         roles: ['viewer'],
+        status: DataMartStatus.PUBLISHED,
       })
     );
     expect(result).toEqual({
@@ -133,6 +144,62 @@ describe('McpDataMartsFacadeImpl', () => {
           description: 'Mock Description',
           status: DataMartStatus.PUBLISHED,
           updatedAt: '2026-06-10T10:00:00.000Z',
+        },
+      ],
+    });
+  });
+
+  it('lists only draft data marts when drafts are explicitly requested', async () => {
+    const listDataMartsService = createListDataMartsService([
+      new DataMartListItemDto(
+        'dm_1',
+        'Orders',
+        DataMartStatus.PUBLISHED,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-10T10:00:00.000Z'),
+        'Published data mart'
+      ),
+      new DataMartListItemDto(
+        'dm_draft',
+        'Draft Orders',
+        DataMartStatus.DRAFT,
+        DataStorageType.GOOGLE_BIGQUERY,
+        'BigQuery',
+        new Date('2026-06-01T10:00:00.000Z'),
+        new Date('2026-06-11T10:00:00.000Z'),
+        'Draft data mart'
+      ),
+    ]);
+    const facade = new McpDataMartsFacadeImpl(
+      listDataMartsService,
+      createGetDataMartService(),
+      createDataMartService(),
+      createQueryDataMartService(),
+      createBlendableSchemaService(),
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.listDataMarts({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      status: 'draft',
+    });
+
+    expect(listDataMartsService.run).toHaveBeenCalledWith(
+      expect.objectContaining({ status: DataMartStatus.DRAFT })
+    );
+    expect(result).toEqual({
+      dataMarts: [
+        {
+          id: 'dm_draft',
+          title: 'Draft Orders',
+          description: 'Draft data mart',
+          status: DataMartStatus.DRAFT,
+          updatedAt: '2026-06-11T10:00:00.000Z',
         },
       ],
     });
@@ -247,12 +314,14 @@ describe('McpDataMartsFacadeImpl', () => {
       fields: [
         {
           name: 'order_date',
+          displayName: 'order_date',
           type: BigQueryFieldType.DATE,
           mode: BigQueryFieldMode.NULLABLE,
           description: 'Order date',
         },
         {
           name: 'utm_source',
+          displayName: 'Traffic source',
           type: BigQueryFieldType.STRING,
           mode: BigQueryFieldMode.NULLABLE,
           businessName: 'Traffic source',
@@ -260,12 +329,14 @@ describe('McpDataMartsFacadeImpl', () => {
         },
         {
           name: 'customer',
+          displayName: 'customer',
           type: BigQueryFieldType.RECORD,
           mode: BigQueryFieldMode.NULLABLE,
           description: 'Customer record',
           fields: [
             {
               name: 'id',
+              displayName: 'id',
               type: BigQueryFieldType.STRING,
               mode: BigQueryFieldMode.NULLABLE,
               description: 'Customer id',
@@ -312,6 +383,29 @@ describe('McpDataMartsFacadeImpl', () => {
         userId: 'user-1',
         roles: ['viewer'],
         dataMartId: 'dm_hidden',
+      })
+    ).rejects.toThrow(NotFoundException);
+    expect(dataMartService.actualizeSchemaIfExpired).not.toHaveBeenCalled();
+  });
+
+  it('does not load details for a draft data mart', async () => {
+    const dataMartService = createDataMartService();
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(DataMartStatus.DRAFT),
+      dataMartService,
+      createQueryDataMartService(),
+      createBlendableSchemaService(),
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    await expect(
+      facade.getDataMartDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        dataMartId: 'dm_draft',
       })
     ).rejects.toThrow(NotFoundException);
     expect(dataMartService.actualizeSchemaIfExpired).not.toHaveBeenCalled();
@@ -382,6 +476,17 @@ describe('McpDataMartsFacadeImpl', () => {
           postJoinAggregations: ['COUNT'],
         },
         {
+          // Explicit [] = "no aggregations allowed" — must be forwarded, not dropped,
+          // or consumers fall back to type defaults the validator will reject.
+          name: 'blended_users__lockedMetric',
+          type: 'FLOAT',
+          description: '',
+          sourceDataMartTitle: 'blended_users',
+          aliasPath: 'blended_users',
+          isHidden: false,
+          postJoinAggregations: [],
+        },
+        {
           name: 'blended_users__secret',
           type: 'STRING',
           description: '',
@@ -422,6 +527,7 @@ describe('McpDataMartsFacadeImpl', () => {
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
+      includeJoinedFields: true,
     });
 
     // Hidden fields and fields from sources the caller cannot report on are dropped; governance
@@ -429,6 +535,7 @@ describe('McpDataMartsFacadeImpl', () => {
     expect(result.joinedFields).toEqual([
       {
         name: 'blended_org__orgName',
+        displayName: 'blended_org__orgName',
         type: 'STRING',
         description: 'Organization name',
         sourceDataMart: 'blended_org',
@@ -436,10 +543,19 @@ describe('McpDataMartsFacadeImpl', () => {
       },
       {
         name: 'blended_users__userId',
+        displayName: 'blended_users__userId',
         type: 'STRING',
         description: '',
         sourceDataMart: 'blended_users',
         allowedAggregations: ['COUNT'],
+      },
+      {
+        name: 'blended_users__lockedMetric',
+        displayName: 'blended_users__lockedMetric',
+        type: 'FLOAT',
+        description: '',
+        sourceDataMart: 'blended_users',
+        allowedAggregations: [],
       },
     ]);
     expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
@@ -499,6 +615,7 @@ describe('McpDataMartsFacadeImpl', () => {
       userId: 'user-1',
       roles: ['viewer'],
       dataMartId: 'dm_1',
+      includeJoinedFields: true,
     });
 
     const byName = new Map(result.joinedFields.map(f => [f.name, f]));
@@ -551,7 +668,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createDataMartService(),
       queryDataMartService,
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
     const request = {
       projectId: 'project-1',
@@ -580,7 +698,8 @@ describe('McpDataMartsFacadeImpl', () => {
       createDataMartService(),
       queryDataMartService,
       createBlendableSchemaService(),
-      createRelationshipService()
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
     );
     const request = {
       projectId: 'project-1',

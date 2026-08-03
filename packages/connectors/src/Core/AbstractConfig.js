@@ -262,8 +262,27 @@ class AbstractConfig {
     //----------------------------------------------------------------
 
   //---- addWarningToCurrentStatus -----------------------------------
-    addWarningToCurrentStatus() {
+    /**
+     * @param {string} [message] - What the warning is about. Surfaced to the user in
+     *   run history, so pass the detail rather than relying on the default.
+     */
+    addWarningToCurrentStatus(message) {
       throw new Error("addWarningToCurrentStatus must be implemented in subclass of AbstractConfig");
+    }
+    //----------------------------------------------------------------
+
+  //---- logError ----------------------------------------------------
+    /**
+     * Report a failure that did not stop execution.
+     *
+     * Unlike logMessage, which is informational, this is recorded in the run's errors
+     * and alerted on. Use it for failures that are swallowed so the run can continue —
+     * otherwise they leave no trace beyond an INFO line.
+     *
+     * @param {string} message - What failed, including a stack where one is available
+     */
+    logError(message) {
+      throw new Error("logError must be implemented in subclass of AbstractConfig");
     }
     //----------------------------------------------------------------
 

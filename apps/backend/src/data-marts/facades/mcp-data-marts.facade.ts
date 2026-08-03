@@ -2,13 +2,21 @@ import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema';
 import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { SortConfig } from '../dto/schemas/sort-config.schema';
+import type { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
+
+export type McpDataMartCatalogStatus = 'published' | 'draft';
 
 export interface McpListDataMartsRequest {
   projectId: string;
   userId: string;
   roles: string[];
+  /**
+   * Published is the default state for the reporting catalog. Drafts are discoverable only when
+   * explicitly requested; all other MCP Data Mart operations still require published state.
+   */
+  status?: McpDataMartCatalogStatus;
 }
 
 export interface McpSummarizeDataCatalogRequest {
@@ -17,8 +25,12 @@ export interface McpSummarizeDataCatalogRequest {
   roles: string[];
 }
 
-export interface McpGetDataMartDetailsRequest extends McpListDataMartsRequest {
+export interface McpGetDataMartDetailsRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
   dataMartId: string;
+  includeJoinedFields?: boolean;
 }
 
 export interface McpDataMartListItem {
@@ -35,6 +47,7 @@ export interface McpListDataMartsResponse {
 
 export interface McpJoinedFieldDto {
   name: string;
+  displayName: string;
   type: string;
   description: string;
   sourceDataMart: string;
@@ -70,9 +83,24 @@ export interface McpQueryDataMartRequest {
 
 export interface McpQueryDataMartResponse {
   columns: string[];
+  columnMetadata: Array<{
+    name: string;
+    displayName: string;
+    description?: string;
+    type?: string;
+  }>;
   rows: unknown[][];
   truncated: boolean;
   totals: Record<string, number | string | boolean | null> | null;
+  /**
+   * When the source tables behind this result last changed at the warehouse. Best effort —
+   * `coverage: 'unavailable'` with a null timestamp is a normal outcome, not a failure.
+   */
+  dataLastUpdated: SourceDataLastUpdated;
+  dataMart: {
+    id: string;
+    title: string;
+  };
   executedSql?: string;
 }
 

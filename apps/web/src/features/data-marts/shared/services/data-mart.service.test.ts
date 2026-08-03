@@ -140,6 +140,21 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('runDataMart', () => {
+    it('returns the exact run id created by the manual-run endpoint', async () => {
+      (apiClient.post as any).mockResolvedValueOnce({ data: { runId: 'manual-run-1' } });
+
+      const result = await service.runDataMart(mockDataMartId, { mode: 'incremental' });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/manual-run`,
+        { payload: { mode: 'incremental' } },
+        undefined
+      );
+      expect(result.runId).toBe('manual-run-1');
+    });
+  });
+
   describe('cancelDataMartRun', () => {
     it('should suppress the global error toast so the run history button can show the specific message', async () => {
       await service.cancelDataMartRun(mockDataMartId, 'run-1');

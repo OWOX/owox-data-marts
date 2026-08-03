@@ -23,6 +23,8 @@ vi.mock('react-hot-toast', () => ({
   default: {
     success: vi.fn(),
     error: vi.fn(),
+    loading: vi.fn(() => 'toast-id'),
+    dismiss: vi.fn(),
   },
 }));
 
@@ -34,6 +36,7 @@ vi.mock('../../../shared', async () => {
     dataMartService: {
       cancelDataMartRun: vi.fn(),
       getDataMartRuns: vi.fn(),
+      runDataMart: vi.fn(),
     },
   };
 });
@@ -109,5 +112,63 @@ describe('DataMartProvider cancelDataMartRun', () => {
 
     expect(dataMartService.cancelDataMartRun).toHaveBeenCalledWith('dm-1', 'run-1');
     expect(dataMartService.getDataMartRuns).toHaveBeenCalledWith('dm-1', 5, 0, undefined);
+  });
+});
+
+describe('DataMartProvider runDataMart', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function renderRunConsumer() {
+    let runPromise: Promise<string | null> | undefined;
+
+    function Consumer() {
+      const context = useContext(DataMartContext)!;
+      return (
+        <>
+          <button
+            type='button'
+            onClick={() => {
+              runPromise = context.runDataMart({
+                id: 'dm-1',
+                payload: { mode: 'incremental' },
+              });
+            }}
+          >
+            Run
+          </button>
+          <output data-testid='manual-run-triggered'>{String(context.isManualRunTriggered)}</output>
+          <output data-testid='manual-run-id'>{context.manualRunId ?? 'none'}</output>
+        </>
+      );
+    }
+
+    render(
+      <DataMartProvider>
+        <Consumer />
+      </DataMartProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+
+    return {
+      get runPromise() {
+        return runPromise;
+      },
+    };
+  }
+
+  it('returns and stores the exact run id from the manual-run response', async () => {
+    vi.mocked(dataMartService.runDataMart).mockResolvedValue({ runId: 'manual-run-1' });
+    const result = renderRunConsumer();
+
+    await act(async () => {
+      await expect(result.runPromise).resolves.toBe('manual-run-1');
+    });
+
+    expect(dataMartService.runDataMart).toHaveBeenCalledWith('dm-1', { mode: 'incremental' });
+    expect(screen.getByTestId('manual-run-triggered')).toHaveTextContent('true');
+    expect(screen.getByTestId('manual-run-id')).toHaveTextContent('manual-run-1');
   });
 });

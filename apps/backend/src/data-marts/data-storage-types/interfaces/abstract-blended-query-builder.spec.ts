@@ -1560,7 +1560,6 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
 
     it.each([
       ['eq', '=', 'admin' as string | number],
-      ['neq', '!=', 'admin'],
       ['gt', '>', 5],
       ['lt', '<', 5],
       ['gte', '>=', 5],
@@ -1580,11 +1579,24 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       expect(params.find(p => p.name === 's_users_0')?.value).toBe(value);
     });
 
+    // neq is null-inclusive: `(attr IS NULL OR attr <> @p)`, not bare `!=`.
+    it('neq keeps NULL rows with 1 param @s_users_0', () => {
+      const { sql, params } = runWithRule({
+        column: 'attr',
+        operator: 'neq',
+        value: 'admin',
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toMatch(/attr\s+IS NULL\s+OR\s+attr\s*<>\s*@s_users_0/);
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(1);
+      expect(params.find(p => p.name === 's_users_0')?.value).toBe('admin');
+    });
+
     // ── Substring / affix matchers use BigQuery built-ins, not LIKE ────────
 
     it.each([
       ['contains', 'STRPOS(name, @s_users_0) > 0'],
-      ['not_contains', 'STRPOS(name, @s_users_0) = 0'],
+      ['not_contains', '(name IS NULL OR STRPOS(name, @s_users_0) = 0)'],
       ['starts_with', 'STARTS_WITH(name, @s_users_0)'],
       ['ends_with', 'ENDS_WITH(name, @s_users_0)'],
     ] as const)('%s renders as `%s` with 1 param', (op, fragment) => {
@@ -1621,7 +1633,7 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
 
     it.each([
       ['regex', 'REGEXP_CONTAINS'],
-      ['not_regex', 'NOT REGEXP_CONTAINS'],
+      ['not_regex', 'IS NULL OR NOT REGEXP_CONTAINS'],
     ] as const)('%s renders via %s with 1 param @s_users_0', (op, fragment) => {
       const { sql, params } = runWithRule({
         column: 'name',

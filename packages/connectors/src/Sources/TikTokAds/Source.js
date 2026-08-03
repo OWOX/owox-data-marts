@@ -595,11 +595,14 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
             }
           }
         } catch (parseError) {
-          console.error("Error parsing valid fields from error message: " + parseError);
+          // logMessage, not console.error: this is a recoverable parsing hiccup, and raw
+          // stderr would be recorded as a run ERROR entry
+          this.config.logMessage(`Error parsing valid fields from error message: ${parseError}`);
         }
       }
 
-      console.error(`Error fetching data from TikTok Ads API: ${error.message}`);
+      // No console.error here: the caller logs the message via config.logMessage,
+      // and raw stderr writes get captured as separate ERROR entries in run logs
       throw error;
     }
   }
@@ -762,7 +765,11 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               break;
           }
         } catch (error) {
-          console.error(`Error processing field ${field} with value ${value}: ${error.message}`);
+          // The value is replaced with a placeholder and the import continues, so this
+          // is a log rather than a run error
+          this.config.logMessage(
+            `Error processing field ${field} with value ${value}: ${error.message}`
+          );
           processedRecord[field] = "[Error processing value]";
         }
       } else if (field !== 'rowIndex') {

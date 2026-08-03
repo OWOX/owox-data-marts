@@ -28,7 +28,21 @@ describe('getAuthorizationContext', () => {
       projectTitle: 'Project One',
       authFlow: 'api_key',
       apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      viewOnly: undefined,
     });
+  });
+
+  it('propagates viewOnly flag from the authenticated request', () => {
+    const request = {
+      idpContext: {
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['admin'],
+        viewOnly: true,
+      },
+    } as AuthenticatedRequest;
+
+    expect(getAuthorizationContext(request).viewOnly).toBe(true);
   });
 
   it('throws when the request has no IDP context', () => {

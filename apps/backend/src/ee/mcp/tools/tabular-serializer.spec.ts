@@ -1,4 +1,16 @@
-import { serializeTsv, serializeTsvWithByteCap } from './tabular-serializer';
+import { formatTsvColumnLabels, serializeTsv, serializeTsvWithByteCap } from './tabular-serializer';
+
+describe('formatTsvColumnLabels', () => {
+  it('falls back for blank aliases and disambiguates duplicate business labels', () => {
+    expect(
+      formatTsvColumnLabels([
+        { name: 'created_at', displayName: '  ' },
+        { name: 'updated_at', displayName: 'Date' },
+        { name: 'event_date', displayName: 'Date' },
+      ])
+    ).toEqual(['created_at', 'Date (updated_at)', 'Date (event_date)']);
+  });
+});
 
 describe('serializeTsv', () => {
   it('serializes header-once TSV', () => {
@@ -42,6 +54,17 @@ describe('serializeTsv', () => {
     expect(serializeTsv(['a', 'b'], [['hello\tworld', 'line1\nline2']])).toBe(
       'a\tb\nhello\\tworld\tline1\\nline2'
     );
+  });
+
+  it('escapes control characters in header labels as well as cells', () => {
+    const { tsv, headerColumns } = serializeTsvWithByteCap(
+      ['A\tB', 'C\nD'],
+      [['1', '2']],
+      Infinity
+    );
+
+    expect(headerColumns).toEqual(['A\\tB', 'C\\nD']);
+    expect(tsv).toBe('A\\tB\tC\\nD\n1\t2');
   });
 
   it('escapes backslash before other control chars', () => {

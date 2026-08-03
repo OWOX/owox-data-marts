@@ -9,7 +9,9 @@ import { InsightsApi } from './insight-templates.js';
 import { MarkdownApi } from './markdown.js';
 import { ModelCanvasApi } from './model-canvas.js';
 import { ProjectApi } from './project.js';
+import { ReportsApi } from './reports.js';
 import { RunsApi } from './runs.js';
+import { SearchApi } from './search.js';
 import { StoragesApi } from './storages.js';
 import { requestApi } from './transport.js';
 
@@ -39,7 +41,9 @@ export class OWOXApiClient {
   readonly markdown: MarkdownApi;
   readonly models: ModelCanvasApi;
   readonly project: ProjectApi;
+  readonly reports: ReportsApi;
   readonly runs: RunsApi;
+  readonly search: SearchApi;
 
   private readonly apiOrigin: string;
   private readonly apiKeyId: string;
@@ -62,7 +66,9 @@ export class OWOXApiClient {
     this.markdown = new MarkdownApi(this);
     this.models = new ModelCanvasApi(this);
     this.project = new ProjectApi(this);
+    this.reports = new ReportsApi(this);
     this.runs = new RunsApi(this);
+    this.search = new SearchApi(this);
   }
 
   async authenticate(): Promise<void> {

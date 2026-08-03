@@ -14,8 +14,8 @@ import type {
   OAuthSettingsResponseDto,
 } from '../../../../../../shared/api/types/response/oauth.response.dto';
 import { Button } from '@owox/ui/components/button';
-import { configurationFieldRender } from '../ConfigurationFieldRender';
-import { AppWizardStepLabel } from '@owox/ui/components/common/wizard';
+import { NestedConfigurationField } from '../NestedConfigurationField';
+import { SECRET_MASK } from '../../../../../../../../shared/constants/secrets';
 
 const SOURCE_CREDENTIAL_KEY = '_source_credential_id';
 
@@ -25,8 +25,6 @@ interface OauthRenderFactoryProps {
   configuration: Record<string, unknown>;
   onValueChange: (name: string, value: unknown) => void;
   connectorName: string;
-  onSecretEditToggle?: (name: string, enable: boolean) => void;
-  secretEditing?: Record<string, boolean>;
   isEditingExisting?: boolean;
 }
 
@@ -48,11 +46,10 @@ export function OauthRenderFactory({
   configuration,
   onValueChange,
   connectorName,
-  onSecretEditToggle,
-  secretEditing = {},
   isEditingExisting = false,
 }: OauthRenderFactoryProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<OAuthStatusResponseDto | null>(null);
   const [settings, setSettings] = useState<OAuthSettingsResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +147,14 @@ export function OauthRenderFactory({
     });
   };
 
+  // Must go through handleNestedValueChange: the parent's onSecretEditToggle keys
+  // off the oneOf container name, so it would overwrite the entire credentials
+  // object with a scalar instead of clearing the one field being edited.
+  const handleFieldSecretEditToggle = (itemName: string, enable: boolean) => {
+    setFieldSecretEditing(prev => ({ ...prev, [itemName]: enable }));
+    handleNestedValueChange(itemName, enable ? '' : SECRET_MASK);
+  };
+
   const { checkStatus, getSettings, exchangeCredentials } = useOAuth();
 
   const handleOAuthSuccess = async (credentials: Record<string, unknown>) => {
@@ -234,52 +239,19 @@ export function OauthRenderFactory({
   if ((isManualMode || !isOAuthEnabled) && option?.items) {
     return (
       <div className='space-y-4'>
-        {Object.entries(option.items).map(([itemName, itemSpec]) => {
-          const isSecret = Array.isArray(itemSpec.attributes)
-            ? itemSpec.attributes.includes('SECRET') && nestedConfiguration[itemName] !== undefined
-            : false;
-          const isSecretEditing = secretEditing[specification.name] ?? false;
-
-          return (
-            <div key={itemName} className='mb-4'>
-              <div className='flex items-center justify-between'>
-                <AppWizardStepLabel
-                  htmlFor={itemName}
-                  required={itemSpec.required}
-                  tooltip={itemSpec.description}
-                  className='mb-2 justify-start'
-                >
-                  {itemSpec.title ?? itemName}
-                </AppWizardStepLabel>
-                {isSecret && isEditingExisting && onSecretEditToggle && (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    type='button'
-                    onClick={() => {
-                      onSecretEditToggle(specification.name, !isSecretEditing);
-                    }}
-                  >
-                    {isSecretEditing ? 'Cancel' : 'Edit'}
-                  </Button>
-                )}
-              </div>
-              {configurationFieldRender({
-                specification: { ...itemSpec, name: itemName },
-                configuration: nestedConfiguration,
-                onValueChange: (name, value) => {
-                  handleNestedValueChange(name, value);
-                },
-                flags: {
-                  isEditingExisting: isEditingExisting,
-                  isSecret: isSecret,
-                  isSecretEditing: isSecretEditing,
-                },
-                connectorName: connectorName,
-              })}
-            </div>
-          );
-        })}
+        {Object.entries(option.items).map(([itemName, itemSpec]) => (
+          <NestedConfigurationField
+            key={itemName}
+            itemName={itemName}
+            itemSpec={itemSpec}
+            nestedConfiguration={nestedConfiguration}
+            isEditingExisting={isEditingExisting}
+            isSecretEditing={fieldSecretEditing[itemName] ?? false}
+            onSecretEditToggle={handleFieldSecretEditToggle}
+            onValueChange={handleNestedValueChange}
+            connectorName={connectorName}
+          />
+        ))}
         {isOAuthEnabled && (
           <Button
             variant='link'

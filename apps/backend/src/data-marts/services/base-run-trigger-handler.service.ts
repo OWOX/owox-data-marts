@@ -49,6 +49,14 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
    */
   protected abstract getTriggerRunIdField(): string;
 
+  protected async failOrphanedRun(run: DataMartRun): Promise<void> {
+    run.status = DataMartRunStatus.FAILED;
+    run.errors = [
+      'The run was not started because the maximum number of concurrent runs for this project was reached. Please wait for the current runs to finish and try again.',
+    ];
+    await this.dataMartRunRepository.save(run);
+  }
+
   protected async cancelTriggerIfRunAlreadyCancelled(trigger: T): Promise<boolean> {
     const dataMartRunId = this.getTriggerDataMartRunId(trigger);
     const existingRun = await this.dataMartRunService.findById(dataMartRunId);
@@ -145,11 +153,7 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
         .getMany();
 
       for (const run of orphanedRuns) {
-        run.status = DataMartRunStatus.FAILED;
-        run.errors = [
-          'The run was not started because the maximum number of concurrent runs for this project was reached. Please wait for the current runs to finish and try again.',
-        ];
-        await this.dataMartRunRepository.save(run);
+        await this.failOrphanedRun(run);
         this.logger.warn(`Orphaned PENDING run ${run.id} marked as FAILED`);
       }
     } catch (error) {

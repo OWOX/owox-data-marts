@@ -23,6 +23,8 @@ export interface CurrentUserResponse {
   projectTitle?: string;
   onboarding?: OnboardingAnswer[];
   mcpServerUrl?: string;
+  /** True when the session is in view-only mode. */
+  viewOnly?: boolean;
 }
 
 /**

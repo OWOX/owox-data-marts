@@ -7,6 +7,7 @@ import { DataMartRunInsightTemplateDefinition } from '../schemas/data-mart-run/d
 import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
+import { DataQualityRunDetailsDto, DataQualitySummaryDto } from './data-quality.dto';
 
 export class DataMartRunDto {
   constructor(
@@ -15,7 +16,7 @@ export class DataMartRunDto {
     public readonly type: DataMartRunType,
     public readonly runType: RunType,
     public readonly dataMartId: string,
-    public readonly definitionRun: DataMartDefinition,
+    public readonly definitionRun: DataMartDefinition | null,
     public readonly reportId: string | null,
     public readonly reportDefinition: DataMartRunReportDefinition | null,
     public readonly insightId: string | null,
@@ -29,6 +30,8 @@ export class DataMartRunDto {
     public readonly startedAt: Date | null,
     public readonly finishedAt: Date | null,
     public readonly createdByUser: UserProjectionDto | null,
-    public readonly additionalParams: Record<string, unknown> | null
+    public readonly additionalParams: Record<string, unknown> | null,
+    public readonly qualitySummary: DataQualitySummaryDto | null = null,
+    public readonly dataQuality: DataQualityRunDetailsDto | null = null
   ) {}
 }

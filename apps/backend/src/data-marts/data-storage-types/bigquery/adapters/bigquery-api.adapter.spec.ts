@@ -1,7 +1,41 @@
 import { BigQuery } from '@google-cloud/bigquery';
 import { BigQueryApiAdapter } from './bigquery-api.adapter';
+
 import { BIGQUERY_AUTODETECT_LOCATION } from '../schemas/bigquery-config.schema';
 import { BIGQUERY_OAUTH_TYPE } from '../schemas/bigquery-credentials.schema';
+
+describe('BigQueryApiAdapter.getMaxShardLastModified', () => {
+  const createAdapter = (query: jest.Mock) => {
+    const adapter = Object.create(BigQueryApiAdapter.prototype) as BigQueryApiAdapter;
+    Object.assign(adapter, { bigQuery: { query }, location: 'US' });
+    return adapter;
+  };
+
+  it('counts only date-suffixed shards, not neighbours sharing the prefix', async () => {
+    const query = jest.fn().mockResolvedValue([[{ last_modified_time: '1769337000000' }]]);
+
+    await createAdapter(query).getMaxShardLastModified('my-project', 'ds', 'events_');
+
+    const [config] = query.mock.calls[0];
+    // Prefix match alone would let `events_backup` — written today — set the maximum and
+    // overstate how recent the shard set is.
+    expect(config.query).toContain('REGEXP_CONTAINS');
+    expect(config.params).toMatchObject({
+      tablePrefix: 'events\\_%',
+      shardSuffixStart: 'events_'.length + 1,
+      shardSuffixPattern: '^[0-9]{4,8}$',
+    });
+  });
+
+  it('rejects an identifier it would have to interpolate unescaped', async () => {
+    const query = jest.fn();
+
+    await expect(
+      createAdapter(query).getMaxShardLastModified('my-project', 'ds`; DROP', 'events_')
+    ).rejects.toThrow('Unsafe BigQuery identifier');
+    expect(query).not.toHaveBeenCalled();
+  });
+});
 
 // Mock only the BigQuery constructor — the adapter uses it as the single value import;
 // everything else it imports from the SDK is type-only and erased at compile time.

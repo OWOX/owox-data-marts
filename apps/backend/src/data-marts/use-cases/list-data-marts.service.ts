@@ -12,7 +12,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
-const DATA_MARTS_PAGE_SIZE = 1000;
+export const DATA_MARTS_PAGE_SIZE = 1000;
 
 @Injectable()
 export class ListDataMartsService {
@@ -43,6 +43,7 @@ export class ListDataMartsService {
         userId: command.userId,
         roles: command.roles,
         roleScope,
+        ...(command.status ? { status: command.status } : {}),
       }
     );
 

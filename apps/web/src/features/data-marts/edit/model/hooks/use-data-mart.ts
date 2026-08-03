@@ -30,6 +30,7 @@ export function useDataMart(id?: string) {
     getErrorMessage,
     runs,
     isManualRunTriggered,
+    manualRunId,
     resetManualRunTriggered,
   } = useDataMartContext();
 
@@ -68,6 +69,7 @@ export function useDataMart(id?: string) {
     runs,
     getDataMart,
     isManualRunTriggered,
+    manualRunId,
     resetManualRunTriggered,
   };
 }

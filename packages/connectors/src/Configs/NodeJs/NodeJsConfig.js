@@ -173,23 +173,46 @@ class NodeJsConfig extends AbstractConfig {
      * Logs warning status for non-fatal issues that occurred during execution.
      * Warnings indicate problems that didn't stop execution but may require attention.
      */
-    addWarningToCurrentStatus() {
+    addWarningToCurrentStatus(message = 'Completed with warnings') {
       const at = new Date();
       console.log(
         JSON.stringify({
           type: 'addWarningToCurrentStatus',
           at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
-          status: 'warning',
+          // The field must be `warning`: the backend schema for this message type requires
+          // it, and an envelope without it is discarded as unknown instead of surfacing
+          // as a warning.
+          warning: message,
         })
       );
     }
   
     /**
+     * Report a failure that did not stop execution
+     *
+     * Recorded in the run's errors and alerted on, unlike logMessage which is
+     * informational. Use it for failures swallowed to let the run continue, which
+     * would otherwise leave no trace beyond an INFO line.
+     *
+     * @param {string} message - What failed, including a stack where one is available
+     */
+    logError(message) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'error',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          error: message,
+        })
+      );
+    }
+
+    /**
      * Log a custom message with timestamp
-     * 
+     *
      * Provides structured logging for custom messages during connector execution.
      * All log entries use consistent JSON format for easy parsing by log aggregators.
-     * 
+     *
      * @param {string} message - The message to log
      */
     logMessage(message) {
