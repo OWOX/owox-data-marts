@@ -105,15 +105,33 @@ describe('Output controls API (e2e)', () => {
     });
   });
 
-  it('PUT rejects sort on existing non-selected column with SORT_COLUMN_NOT_SELECTED', async () => {
+  it('PUT accepts sort on a known column that is not in columnConfig (#6768)', async () => {
+    // Non-aggregated report: ORDER BY resolves against the source row, so sorting by a
+    // known-but-unselected column is valid SQL — symmetric with filters.
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
       .send({
-        title: 'Bad sort',
+        title: 'Sort by unselected',
         dataDestinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
         columnConfig: ['col_a'],
+        sortConfig: [{ column: 'col_b', direction: 'asc' }],
+      });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('PUT rejects sort on a non-projected column in an AGGREGATED report', async () => {
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Bad aggregated sort',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        aggregationConfig: [{ column: 'col_a', function: 'COUNT' }],
         sortConfig: [{ column: 'col_b', direction: 'asc' }],
       });
 
