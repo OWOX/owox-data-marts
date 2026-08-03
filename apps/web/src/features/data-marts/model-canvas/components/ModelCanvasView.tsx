@@ -277,6 +277,7 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
               navigate(`/data-marts/${dataMartId}/quality`);
             }}
             onRunQuality={runQuality}
+            isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
             topLeftControls={
               <DataMartBulkActions
                 onCheckDataLastUpdated={() => {

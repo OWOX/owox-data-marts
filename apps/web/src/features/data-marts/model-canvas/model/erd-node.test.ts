@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CARD_META_ROW_HEIGHT,
+  CARD_STATUS_ROW_HEIGHT,
   COMPACT_NODE_HEIGHT,
   ERD_COLLAPSED_ROWS,
   ERD_EXPAND_ROW_HEIGHT,
@@ -64,6 +65,16 @@ describe('computeNodeHeight', () => {
     const fields = [field('a')];
     expect(computeNodeHeight({ fields }, 'erd', true)).toBe(
       ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT + ERD_ROW_HEIGHT
+    );
+  });
+
+  it('also shrinks by the status icons row in title-only mode', () => {
+    expect(computeNodeHeight({ fields: [] }, 'compact', true, true)).toBe(
+      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT
+    );
+    const fields = [field('a')];
+    expect(computeNodeHeight({ fields }, 'erd', true, true)).toBe(
+      ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + ERD_ROW_HEIGHT
     );
   });
 

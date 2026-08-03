@@ -6,7 +6,7 @@
 
 You can now see when the source tables behind a Data Mart last changed in the warehouse — in the UI and through MCP.
 
-**In the UI.** The Data Mart page shows a **Data Last Updated** tile with a Check now button; the Data Marts list gains a sortable **Data Last Updated** column; and the model canvas shows the value on every node, with an **Actions → Data Last Updated** entry that measures everything currently visible in one go. Checking is free: it reads warehouse metadata only, registers no consumption, and records no run.
+**In the UI.** The Data Mart page shows a **Data Last Updated** tile with a Check now button; the Data Marts list gains a sortable **Data Last Updated** column; and the model canvas shows the value on every node, with an **Actions → Check Data Last Updated** entry that measures everything currently visible in one go. Checking is free: it reads warehouse metadata only, registers no consumption, and records no run.
 
 **In MCP.** The `query_data_mart` tool returns a `data_last_updated` block alongside the rows and totals, so an assistant can answer "how current is this data?" instead of guessing. It reports when the source tables behind the result last changed, which tables were checked, and how complete that picture is. The value is measured live, as part of the same call that reads the data — never cached and never charged separately. Because it is measured against the fully composed query, a blended result covers every joined Data Mart's tables, not just the primary one. Each MCP query run also records the block in Run History.
 

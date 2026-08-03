@@ -30,7 +30,7 @@ The list and the canvas show the **last-known** value — the result of the most
 Two manual checks measure the value live and save the result:
 
 - **Check now** (⟳) on the Data Mart page measures that one Data Mart.
-- **Actions → Data Last Updated** on the canvas measures every Data Mart currently visible on the canvas, in one pass.
+- **Actions → Check Data Last Updated** on the canvas measures every Data Mart currently visible on the canvas, in one pass.
 
 Checking is free. It reads storage metadata only, consumes no [credits](../billing/consumption-units.md), and records no run. Any project member who can see the Data Mart can run the check.
 
@@ -43,7 +43,7 @@ A check that cannot determine the time reports Unknown and **keeps the previousl
 | Trigger | Effect |
 | --- | --- |
 | *Check now* on the Data Mart page | Measures and **saves** the value |
-| *Actions → Data Last Updated* on the canvas | Measures and **saves** the value for all visible Data Marts |
+| *Actions → Check Data Last Updated* on the canvas | Measures and **saves** the value for all visible Data Marts |
 | Report run — manual or scheduled | Measures during the run and records the result in the run's history entry. When the report reads only the Data Mart's own sources, it also **saves** the value |
 | HTTP Data request | Same as a report run: records in history, **saves** when the request reads only the Data Mart's own sources |
 | MCP `query_data_mart` call | Measures live for that response and records it in the run's history entry. **Saves** the value when the query reads only the Data Mart's own sources (no joined fields) |

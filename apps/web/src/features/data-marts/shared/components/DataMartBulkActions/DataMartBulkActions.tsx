@@ -200,7 +200,9 @@ export function DataMartBulkActions({
               data-testid='check-data-last-updated'
             >
               <History aria-hidden='true' />
-              {isCheckingDataLastUpdated ? 'Checking Data Last Updated…' : 'Data Last Updated'}
+              {isCheckingDataLastUpdated
+                ? 'Checking Data Last Updated…'
+                : 'Check Data Last Updated'}
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
