@@ -34,10 +34,11 @@ export function DataStorageConfigSheet({
 
   useIntercomLauncher(isOpen);
 
-  const { scope } = useProjectRoute();
-  const storageLink = dataStorage
-    ? `${window.location.origin}${scope(`/data-storages?id=${dataStorage.id}`)}`
-    : null;
+  const { scope, projectId } = useProjectRoute();
+  const storageLink =
+    dataStorage && projectId
+      ? `${window.location.origin}${scope(`/data-storages?id=${dataStorage.id}`)}`
+      : null;
 
   const {
     showUnsavedDialog,

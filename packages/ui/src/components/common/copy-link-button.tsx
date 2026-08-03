@@ -10,9 +10,15 @@ export function CopyLinkButton({ link, ariaLabel }: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    void navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to copy link: ', err);
+      });
   };
 
   return (

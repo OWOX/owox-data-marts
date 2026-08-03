@@ -48,10 +48,11 @@ export function DataDestinationConfigSheet({
 
   useIntercomLauncher(isOpen);
 
-  const { scope } = useProjectRoute();
-  const destinationLink = dataDestination
-    ? `${window.location.origin}${scope(`/data-destinations?id=${dataDestination.id}`)}`
-    : null;
+  const { scope, projectId } = useProjectRoute();
+  const destinationLink =
+    dataDestination && projectId
+      ? `${window.location.origin}${scope(`/data-destinations?id=${dataDestination.id}`)}`
+      : null;
 
   const onSave = async (
     data: DataDestinationFormData,
