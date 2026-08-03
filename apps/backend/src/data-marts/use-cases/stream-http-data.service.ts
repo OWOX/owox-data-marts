@@ -319,7 +319,7 @@ export class StreamHttpDataService {
         sqlOverrideParams,
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
-        aggregationConfig: readPlan.aggregationConfig ?? undefined,
+        aggregationConfig: decision.aggregations ?? readPlan.aggregationConfig ?? undefined,
         uniqueCount: readPlan.uniqueCountConfig ?? undefined,
       });
 

@@ -33,7 +33,6 @@ import {
 } from '../dto/schemas/field-type-category';
 import {
   resolveFieldGovernance,
-  withoutCountBesideSleevedCountDistinct,
   AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
 import {
@@ -793,13 +792,9 @@ export class OutputControlsValidatorService {
       // schema assembled without that service.
       allowedByColumn.set(
         blended.name,
-        // Same rule Totals applies: a joined column must not offer both COUNT and
-        // COUNT_DISTINCT, which are computed at different grains and can invert.
-        withoutCountBesideSleevedCountDistinct(
-          resolveFieldGovernance(blended.type, {
-            allowedAggregations: blended.postJoinAggregations,
-          }).allowedAggregations
-        )
+        resolveFieldGovernance(blended.type, {
+          allowedAggregations: blended.postJoinAggregations,
+        }).allowedAggregations
       );
     }
     return allowedByColumn;

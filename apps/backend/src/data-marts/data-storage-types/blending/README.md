@@ -30,14 +30,16 @@ different question than the report asked:
 - `AVG` becomes an unweighted average of averages.
 - A percentile is weighted by how many times the join repeated each value.
 
-`MIN` and `MAX` are unaffected (idempotent), and `COUNT` deliberately counts the rows that survive
-the join — which is why the routed set is `COUNT_DISTINCT`, `SUM`, `AVG` and the percentiles
-(`SLEEVE_ROUTING`, which also states the SQL SHAPE each one's sleeve takes).
+`COUNT` deliberately counts the rows that survive the join, and `ANY_VALUE` is indifferent to how
+often a value repeats — everything else is routed (`SLEEVE_ROUTING`, which also states the SQL
+SHAPE each one's sleeve takes).
 
-One consequence worth knowing: `MIN`/`MAX` read the dedup CTE while `SUM`/`AVG`/percentiles read
-the raw rows, so for a field whose pre-join roll-up is a raw passthrough the four are computed at
-different grains and `MIN <= AVG <= MAX` can fail to hold. Reconciling them is a product decision,
-not just a code change.
+`MIN`/`MAX` are idempotent under repetition, so they are routed for a different reason: a joined
+field's pre-join roll-up collapses several raw rows into ONE value per join key, so off the sleeve
+they would read that collapsed value while `SUM`/`AVG`/percentiles read the raw rows — the same
+column measured at two grains, where `MIN <= AVG <= MAX` stops holding (raw `[10, 20]` gives
+`MIN = 20`, `AVG = 15`, `MAX = 20`). Routing them puts every metric on a joined column at one
+grain.
 
 A **metric sleeve** is a separate CTE for one such metric that re-joins the RAW path — bypassing
 the dedup — and recomputes the metric at the REPORT's own dimension grain. The outer query then

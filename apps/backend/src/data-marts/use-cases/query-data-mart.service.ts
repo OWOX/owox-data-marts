@@ -263,7 +263,7 @@ export class QueryDataMartService {
             columnFilter: r.fields,
             // A joined column is absent from the native schema, so only these carry its type.
             blendedDataHeaders: composed.blendedDataHeaders,
-            aggregationConfig: readPlan.aggregationConfig ?? undefined,
+            aggregationConfig: composed.aggregations ?? readPlan.aggregationConfig ?? undefined,
             queryTimeoutMs,
             signal: workController.signal,
           });
@@ -343,6 +343,8 @@ export class QueryDataMartService {
             // Journalled so Run History can later show what the sources looked like at run time.
             // This is a record of a past run, never a cache to answer a future request from.
             dataLastUpdated,
+            // The caller only gets a generic sentence, so this is the only place the reason survives.
+            ...(totalsError ? { totalsError } : {}),
           },
         });
         runRecorded = true;

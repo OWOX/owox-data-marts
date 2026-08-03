@@ -1025,4 +1025,7 @@ describe('ReportSqlComposerService', () => {
       expect(sql).toBe('SELECT * FROM t');
     });
   });
+
+  // A joined COUNT_DISTINCT reads the raw pre-join rows while COUNT counts the rows surviving the
+  // join, so the pair can invert COUNT DISTINCT <= COUNT.
 });

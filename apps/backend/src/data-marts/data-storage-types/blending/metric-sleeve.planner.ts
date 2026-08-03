@@ -143,16 +143,15 @@ export function isIdentityPreJoinField(
 }
 
 /**
- * `groupValueSleeveMetrics` merges purely by (owner, dimensions) — it has no notion
- * of a field's pre-join aggregate. Two metrics that share an owner + dims CAN still need
- * DIFFERENT value-sleeve shapes if one field is an identity (`ANY_VALUE`) passthrough and the
- * other is a real pre-join aggregate ( funnel shape): merging them into ONE dedup pass
- * would read the non-identity value off the SAME row set the identity metric dedups by raw
- * row, silently multiplying the non-identity metric's value once per raw row of the identity
- * metric's fan-out. Split any such mixed group back into an identity sub-group and a
- * non-identity sub-group so `buildValueSleeveGroupCte` only ever builds ONE shape per CTE.
- * Groups that are already uniform (the common case — including every group before R2, when
- * every value-sleeve field was necessarily an identity passthrough) pass through unchanged.
+ * Splits any value-sleeve group mixing an identity (`ANY_VALUE`) passthrough field with a real
+ * pre-join aggregate ( funnel shape) into an identity and a non-identity sub-group, so
+ * `buildValueSleeveGroupCte` only ever builds ONE shape per CTE: merging the two into one dedup
+ * pass would read the non-identity value off the SAME row set the identity metric dedups by raw
+ * row, silently multiplying it once per raw row of that fan-out.
+ *
+ * A guard rather than a routing step — `groupValueSleeveMetrics` keys on the metric column and
+ * the classification is a property of that column, so every group it produces is already
+ * uniform and passes through unchanged.
  */
 export function splitValueSleeveGroupsByIdentity(
   groups: ReadonlyArray<ValueSleeveGroup>,
@@ -262,21 +261,6 @@ export function disambiguateSleeveCteNames(
   });
 }
 
-// A short, stable fingerprint of a dimension list, folded into a multi-column value-sleeve
-// group's CTE name (1 review FIX 3, defense-in-depth) so two multi-column groups on
-// the SAME owner but DIFFERENT dimensions don't both resolve to `sleeve_<owner>_values`.
-// Order-sensitive by design: the dimension order is part of the group's identity. Empty for
-// a dimensionless (grand-total) group.
-export function dimensionsFingerprint(dimensions: readonly string[]): string {
-  if (dimensions.length === 0) return '';
-  let hash = 5381;
-  const joined = dimensions.join('␟');
-  for (let i = 0; i < joined.length; i++) {
-    hash = ((hash << 5) + hash + joined.charCodeAt(i)) >>> 0; // djb2, unsigned
-  }
-  return hash.toString(36);
-}
-
 /**
  * groups COUNT_DISTINCT sleeve metrics by their OWNER CHAIN.
  *
@@ -285,9 +269,10 @@ export function dimensionsFingerprint(dimensions: readonly string[]): string {
  * Without it a Totals report over five joined text columns (COUNT_DISTINCT is a default for
  * string fields) emitted five CTEs, each re-scanning the same sources.
  *
- * Dimensions are report-wide for this shape, so the owner chain is the whole key — unlike a
- * value-sleeve group, whose key also carries its dimensions. Insertion order is preserved so
- * the emitted WITH clause stays deterministic.
+ * Dimensions are report-wide for this shape and the counted column is an argument rather than a
+ * deduped tuple slot, so the owner chain is the whole key — unlike a value-sleeve group, whose
+ * key also carries its column and its dimensions. Insertion order is preserved so the emitted
+ * WITH clause stays deterministic.
  *
  * Lives here, beside its value-sleeve counterpart, because this module is meant to be the single
  * answer to "which sleeves exist, who owns each, and what is it called". It was inline in
@@ -325,15 +310,20 @@ export function resolveCountDistinctGroupCteName(group: CountDistinctSleeveGroup
 }
 
 /**
- * groups SUM/AVG value-sleeve metrics by `(ownerCte, dimensions)`. Two metrics
- * that share BOTH resolve to the exact same `DISTINCT (dims, owner __owox_rid, value)` dedup set
- * — deduping it twice (one sleeve CTE per metric) would be redundant work, so they're
- * merged into one CTE with one dedup pass and multiple outer aggregates (see
- * `buildValueSleeveGroupCte`). Each entry carries its OWN `dimensions` (rather than a single
- * shared array) so two metrics that need different dimension sets never merge even if they
- * share an owner — in practice `buildBlendedQuery` passes the SAME report-wide `dimensions`
- * to every entry, but the grouping key stays entry-scoped for correctness if that ever
- * changes.
+ * groups value-sleeve metrics by `(ownerCte, column, dimensions)`. Metrics sharing all three
+ * resolve to the exact same `DISTINCT (dims, owner identity, value)` dedup set, so SUM + AVG +
+ * percentile + STRING_AGG on ONE column share a single dedup pass with several outer aggregates
+ * (see `buildValueSleeveGroupCte`) instead of one CTE each.
+ *
+ * The COLUMN is part of the key because `DISTINCT` spans the whole projected tuple: with two
+ * metric columns in one pass, a difference in either is a difference in the dedup set — so under
+ * a declared-primary-key identity, where duplicate raw rows are meant to collapse, a second
+ * column's variation keeps them apart and inflates the first column's aggregate.
+ *
+ * Each entry carries its OWN `dimensions` (rather than a single shared array) so two metrics
+ * that need different dimension sets never merge even if they share an owner — in practice
+ * `buildBlendedQuery` passes the SAME report-wide `dimensions` to every entry, but the grouping
+ * key stays entry-scoped for correctness if that ever changes.
  */
 export function groupValueSleeveMetrics(
   entries: ReadonlyArray<{ metric: AggregationRule; dimensions: readonly string[] }>,
@@ -359,7 +349,7 @@ export function groupValueSleeveMetrics(
       );
     }
     const dims = Array.from(dimensions);
-    const key = `${entry.cteName}\u241F${dims.join('\u241F')}`;
+    const key = `${entry.cteName}\u241F${metric.column}\u241F${dims.join('\u241F')}`;
     const existing = groups.get(key);
     if (existing) {
       existing.metrics.push(metric);
@@ -371,21 +361,20 @@ export function groupValueSleeveMetrics(
 }
 
 /**
- * deterministic CTE name for a merged value-sleeve group. A group whose metrics
- * ALL target the SAME value column (e.g. a Totals report's auto SUM + AVG on one numeric
- * joined field) keeps the existing bare `sleeve_<col>` shape — the single-metric-per-column
- * convention `buildSleeveCte`'s own tests pin. A group spanning MULTIPLE distinct columns of
- * the same owner (e.g. two different SUM metrics) has no single column to key on, so it's
- * named after its owner chain plus a short dimensions fingerprint — the fingerprint keeps two
- * multi-column groups on the same owner but different dimensions from colliding (defense-in-
- * depth: `buildBlendedQuery` passes one shared dimensions array today, and the collision
- * guard in `disambiguateSleeveCteNames` would catch any residual clash regardless).
+ * deterministic CTE name for a value-sleeve group. Every group targets exactly ONE value column
+ * (`groupValueSleeveMetrics` keys on it), so the bare `sleeve_<col>` shape names it — the
+ * single-metric-per-column convention `buildSleeveCte`'s own tests pin. Two groups on the same
+ * column but different dimensions therefore want the same name; `disambiguateSleeveCteNames`
+ * is what keeps them apart.
  */
 export function resolveValueSleeveGroupCteName(group: ValueSleeveGroup): string {
   const distinctColumns = Array.from(new Set(group.metrics.map(m => m.column)));
-  if (distinctColumns.length === 1) {
-    return sleeveCteNameForColumn(distinctColumns[0]);
+  if (distinctColumns.length !== 1) {
+    throw new Error(
+      `resolveValueSleeveGroupCteName: value-sleeve group for owner cteName=` +
+        `'${group.ownerCteName}' carries column(s) [${distinctColumns.join(', ')}] — a group ` +
+        `holds exactly one, so any name derived from it would misname the rest`
+    );
   }
-  const fp = dimensionsFingerprint(group.dimensions);
-  return `sleeve_${sanitizeSleeveNamePart(group.ownerCteName)}_values${fp ? `_${fp}` : ''}`;
+  return sleeveCteNameForColumn(distinctColumns[0]);
 }

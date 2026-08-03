@@ -61,6 +61,8 @@ export class ReportSqlComposerService {
     params?: SqlParameter[];
     /** Types for the JOINED columns, which the reader cannot resolve from the native schema. */
     blendedDataHeaders?: ReportDataHeader[];
+    /** Set when a joined COUNT was dropped beside a COUNT_DISTINCT — headers must follow it. */
+    aggregations?: AggregationRule[];
   }> {
     const decision =
       precomputedDecision ??
@@ -77,6 +79,7 @@ export class ReportSqlComposerService {
         sql: decision.blendedSql,
         params: decision.params,
         blendedDataHeaders: decision.blendedDataHeaders,
+        aggregations: decision.aggregations,
       };
     }
 

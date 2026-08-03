@@ -139,6 +139,13 @@ describe('showApiErrorToast', () => {
     expect(mockedToastError).toHaveBeenCalledWith('Rejected. same reason');
   });
 
+  it('reuses the given toast id so repeated failures do not stack', () => {
+    showApiErrorToast(axiosError({ message: 'Server exploded' }), undefined, {
+      id: 'server-error:500',
+    });
+    expect(mockedToastError).toHaveBeenCalledWith('Server exploded', { id: 'server-error:500' });
+  });
+
   describe('persistent option', () => {
     it('creates a never-expiring toast deduped by message', () => {
       showApiErrorToast(axiosError({ message: 'Denied' }), undefined, { persistent: true });

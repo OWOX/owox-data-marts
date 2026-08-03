@@ -87,7 +87,7 @@ export class MetricSleeveBuilder {
     const countDistinctSleeveMetrics = sleeveMetrics.filter(
       m => sleeveShapeFor(m.function) === 'count-distinct'
     );
-    // Value sleeves sharing the SAME owner chain + dimensions merge into ONE dedup pass.
+    // Value sleeves on the SAME owner chain + column + dimensions merge into ONE dedup pass.
     const valueSleeveMetrics = sleeveMetrics.filter(m => sleeveShapeFor(m.function) === 'value');
     // A metric with no shape would vanish silently: excluded from the aggregated SELECT, yet no
     // sleeve CTE built for it, so its header binds to nothing.
@@ -101,9 +101,8 @@ export class MetricSleeveBuilder {
           `there (and a branch here, if it needs a new one) before routing it through a sleeve`
       );
     }
-    // split any owner+dims group that mixes an identity (ANY_VALUE) field with a
-    // non-identity pre-join aggregate field back into single-shape sub-groups — see
-    // `splitValueSleeveGroupsByIdentity`.
+    // split any group that mixes an identity (ANY_VALUE) field with a non-identity pre-join
+    // aggregate field back into single-shape sub-groups — see `splitValueSleeveGroupsByIdentity`.
     const valueSleeveGroups = splitValueSleeveGroupsByIdentity(
       groupValueSleeveMetrics(
         valueSleeveMetrics.map(m => ({ metric: m, dimensions })),
@@ -338,9 +337,11 @@ export class MetricSleeveBuilder {
    * over its own value slot. Metrics that target the SAME underlying column (SUM + AVG of one
    * field) share ONE value slot (`_val`) — the dedup set is identical for both, so deduping it
    * twice would be wasted work, which is the concrete case this merge exists for. Metrics on
-   * DIFFERENT columns of the same owner+dims get their own slot (`_val_0`, `_val_1`, ...)
-   * inside the SAME dedup pass. Structurally mirrors `buildSleeveCte`'s SUM/AVG branch (which
-   * delegates here for the common singleton-metric case) generalized to N metrics/columns.
+   * DIFFERENT columns would get their own slot (`_val_0`, `_val_1`, ...) inside the same pass,
+   * but the planner no longer forms such a group: `DISTINCT` spans the whole tuple, so a second
+   * column's variation would keep rows apart that the first column's identity means to collapse.
+   * Structurally mirrors `buildSleeveCte`'s SUM/AVG branch (which delegates here for the common
+   * singleton-metric case) generalized to N metrics.
    *
    * (C3): the "owner identity" and "value" legs branch on whether the owner's OWN
    * pre-join `aggregateFunction` is a raw passthrough or a real aggregate

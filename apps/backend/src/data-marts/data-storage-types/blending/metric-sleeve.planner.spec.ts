@@ -16,7 +16,6 @@ import type { SleeveFilterOptions, ValueSleeveGroup } from './blended-query.type
 import {
   collectReportDimensions,
   collectSleeveMetrics,
-  dimensionsFingerprint,
   disambiguateSleeveCteNames,
   groupCountDistinctMetrics,
   groupValueSleeveMetrics,
@@ -110,12 +109,23 @@ describe('metric-sleeve planner', () => {
       expect(collectSleeveMetrics(aggs, outputAliasToRoot)).toEqual([]);
     });
 
-    it('collectSleeveMetrics still excludes MIN/MAX/COUNT on a blended column (dedup branch)', () => {
+    // MIN/MAX are routed so every metric on a joined column reads the SAME grain: off the
+    // sleeve they read the pre-join roll-up's single collapsed value while SUM/AVG read the raw
+    // rows, and `MIN <= AVG <= MAX` stops holding.
+    it('collectSleeveMetrics picks joined MIN and MAX too', () => {
       const outputAliasToRoot = new Map([['organizations__orgId', 'organizations']]);
       const aggs = [
         { column: 'organizations__orgId', function: 'MIN' },
         { column: 'organizations__orgId', function: 'MAX' },
+      ] as AggregationRule[];
+      expect(collectSleeveMetrics(aggs, outputAliasToRoot)).toEqual(aggs);
+    });
+
+    it('collectSleeveMetrics still excludes COUNT and ANY_VALUE on a blended column (dedup branch)', () => {
+      const outputAliasToRoot = new Map([['organizations__orgId', 'organizations']]);
+      const aggs = [
         { column: 'organizations__orgId', function: 'COUNT' },
+        { column: 'organizations__orgId', function: 'ANY_VALUE' },
       ] as AggregationRule[];
       expect(collectSleeveMetrics(aggs, outputAliasToRoot)).toEqual([]);
     });
@@ -129,12 +139,12 @@ describe('metric-sleeve planner', () => {
       expect(collectReportDimensions(columns, aggs)).toEqual(['users__country']);
     });
   });
-  // the grouping primitive `buildBlendedQuery` uses to merge same-owner/
-  // same-dims value sleeves. Tested directly (not just through buildBlendedQuery) so the
+  // the grouping primitive `buildBlendedQuery` uses to merge value sleeves that share an owner,
+  // a column and dimensions. Tested directly (not just through buildBlendedQuery) so the
   // "different dimensions never merge" case can be exercised even though, in practice,
   // buildBlendedQuery always passes the SAME report-wide `dimensions` to every metric.
   describe('groupValueSleeveMetrics', () => {
-    it('groups two metrics with the SAME owner + SAME dimensions into one group', () => {
+    it('groups two functions on the SAME owner + column + dimensions into one group', () => {
       const { context } = fixtureEventsUsersOrgs();
       const sum = { column: 'organizations__orgId', function: 'SUM' } as AggregationRule;
       const avg = { column: 'organizations__orgId', function: 'AVG' } as AggregationRule;
@@ -151,6 +161,28 @@ describe('metric-sleeve planner', () => {
       expect(groups[0].ownerCteName).toBe('organizations');
       expect(groups[0].dimensions).toEqual(['users__country']);
       expect(groups[0].metrics).toEqual([sum, avg]);
+    });
+
+    // One dedup pass projects every merged metric's column, and `DISTINCT` spans the whole
+    // tuple — so with a declared primary key as the identity, two raw rows that are duplicates
+    // by that key but differ in the OTHER column survive as two rows and inflate the first
+    // column's SUM.
+    it('does NOT group two metrics on DIFFERENT columns of the same owner + dimensions', () => {
+      const { context } = fixtureEventsUsersOrgs();
+      const sumOrgId = { column: 'organizations__orgId', function: 'SUM' } as AggregationRule;
+      const sumOrgName = { column: 'organizations__name', function: 'SUM' } as AggregationRule;
+
+      const groups = groupValueSleeveMetrics(
+        [
+          { metric: sumOrgId, dimensions: ['users__country'] },
+          { metric: sumOrgName, dimensions: ['users__country'] },
+        ],
+        context.fieldIndex
+      );
+
+      expect(groups).toHaveLength(2);
+      expect(groups.map(g => g.ownerCteName)).toEqual(['organizations', 'organizations']);
+      expect(groups.map(g => g.metrics)).toEqual([[sumOrgId], [sumOrgName]]);
     });
 
     it('does NOT group two metrics with the SAME owner but DIFFERENT dimensions', () => {
@@ -281,10 +313,10 @@ describe('metric-sleeve planner', () => {
     });
   });
 
-  // `groupValueSleeveMetrics` merges by (owner, dimensions) only, so a group can
-  // still mix shapes. A missed split is silent — `buildValueSleeveGroupCte` would read the
-  // non-identity value off the identity metric's per-raw-row dedup set, multiplying it once per
-  // raw row of that fan-out.
+  // A guard the column-keyed grouping already satisfies (identity is a property of the column),
+  // exercised directly on a hand-built mixed group. A missed split is silent —
+  // `buildValueSleeveGroupCte` would read the non-identity value off the identity metric's
+  // per-raw-row dedup set, multiplying it once per raw row of that fan-out.
   describe('splitValueSleeveGroupsByIdentity', () => {
     const sumHits = { column: 'hits__hitId', function: 'SUM' } as AggregationRule;
     const avgHits = { column: 'hits__hitId', function: 'AVG' } as AggregationRule;
@@ -459,19 +491,7 @@ describe('metric-sleeve planner', () => {
       expect(sleeveCteNameForColumn('users.address.city')).toBe('sleeve_users_address_city');
     });
 
-    it('dimensionsFingerprint is empty for a grand total, stable, order-sensitive and identifier-safe', () => {
-      expect(dimensionsFingerprint([])).toBe('');
-      // Pinned to a literal, not to a second call of the same function: this value is baked into
-      // a CTE NAME, so changing the hash changes emitted SQL for every multi-column value sleeve.
-      // Computed independently from the djb2/base36 definition, so it fails if the algorithm
-      // drifts — which comparing the function against itself never would.
-      expect(dimensionsFingerprint(['users__country'])).toBe('x1l2h');
-      // Order is part of the group's identity, so the two must not fold together.
-      expect(dimensionsFingerprint(['a', 'b'])).not.toBe(dimensionsFingerprint(['b', 'a']));
-      expect(dimensionsFingerprint(['users__country', 'campaign'])).toMatch(/^[0-9a-z]+$/);
-    });
-
-    it('resolveValueSleeveGroupCteName keeps the bare per-column name for a single-column group', () => {
+    it('resolveValueSleeveGroupCteName keeps the bare per-column name for a group of functions', () => {
       const group: ValueSleeveGroup = {
         ownerCteName: 'organizations',
         dimensions: ['users__country'],
@@ -484,30 +504,20 @@ describe('metric-sleeve planner', () => {
       expect(resolveValueSleeveGroupCteName(group)).toBe('sleeve_organizations__orgId');
     });
 
-    it('resolveValueSleeveGroupCteName names a multi-column group after its owner + dimensions fingerprint', () => {
-      const metrics = [
-        { column: 'organizations__orgId', function: 'SUM' } as AggregationRule,
-        { column: 'organizations__name', function: 'SUM' } as AggregationRule,
-      ];
-      const byCountry: ValueSleeveGroup = {
+    // Naming a two-column group after one of its columns would be a silent lie in the emitted
+    // SQL; the grouping key makes it unreachable, so say so rather than pick a winner.
+    it('resolveValueSleeveGroupCteName refuses a group spanning more than one column', () => {
+      const multiColumn: ValueSleeveGroup = {
         ownerCteName: 'organizations',
         dimensions: ['users__country'],
-        metrics,
-      };
-      const grandTotal: ValueSleeveGroup = {
-        ownerCteName: 'organizations',
-        dimensions: [],
-        metrics,
+        metrics: [
+          { column: 'organizations__orgId', function: 'SUM' } as AggregationRule,
+          { column: 'organizations__name', function: 'SUM' } as AggregationRule,
+        ],
       };
 
-      expect(resolveValueSleeveGroupCteName(byCountry)).toBe(
-        `sleeve_organizations_values_${dimensionsFingerprint(['users__country'])}`
-      );
-      // No dimensions: no fingerprint, and no dangling separator either.
-      expect(resolveValueSleeveGroupCteName(grandTotal)).toBe('sleeve_organizations_values');
-      // Same owner, different dimensions → different CTE (the reason the fingerprint exists).
-      expect(resolveValueSleeveGroupCteName(byCountry)).not.toBe(
-        resolveValueSleeveGroupCteName(grandTotal)
+      expect(() => resolveValueSleeveGroupCteName(multiColumn)).toThrow(
+        /carries column\(s\) \[organizations__orgId, organizations__name\]/
       );
     });
   });

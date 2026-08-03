@@ -1711,6 +1711,120 @@ describe('OutputControlsValidatorService', () => {
         })
       ).resolves.toBeUndefined();
     });
+
+    // The offered menu drops COUNT beside a joined COUNT_DISTINCT, but COUNT alone answers a
+    // different question rather than a distorted one — a report that saved it must keep running.
+    it('accepts a COUNT on a joined field — only the pair with COUNT_DISTINCT is contradictory', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__name', function: 'COUNT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('still enforces an explicit per-field menu that excludes COUNT', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+              postJoinAggregations: ['COUNT_DISTINCT'],
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__name', function: 'COUNT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('keeps both COUNT and COUNT_DISTINCT on a NATIVE string field', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [
+            { column: 'channel', function: 'COUNT' },
+            { column: 'channel', function: 'COUNT_DISTINCT' },
+          ],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
   });
 
   describe('validateFilters — Athena column types (regression: VARCHAR/INTEGER/BOOLEAN/TIMESTAMP)', () => {
@@ -3995,8 +4109,19 @@ describe('OutputControlsValidatorService', () => {
         expect(errors).toEqual([]);
       });
 
-      it.each(['MIN', 'MAX', 'COUNT'] as const)(
-        'does not block a HAVING %s rule on a BLENDED column (not sleeve-routed)',
+      it('does not block a HAVING COUNT rule on a BLENDED column (not sleeve-routed)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__amount', function: 'COUNT', operator: 'gt', value: 1 }],
+          [{ column: 'orders__amount', function: 'COUNT' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([]);
+      });
+
+      it.each(['MIN', 'MAX'] as const)(
+        'blocks a HAVING %s rule on a BLENDED column, which is sleeve-routed too',
         function_ => {
           const errors = svc.validateHavingFilters(
             [{ column: 'orders__amount', function: function_, operator: 'gt', value: 1 }],
@@ -4005,7 +4130,14 @@ describe('OutputControlsValidatorService', () => {
             DataStorageType.GOOGLE_BIGQUERY,
             blendedFieldIndex
           );
-          expect(errors).toEqual([]);
+          expect(errors).toEqual([
+            {
+              code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+              column: 'orders__amount',
+              function: function_,
+              message: expect.stringContaining('orders__amount'),
+            },
+          ]);
         }
       );
 

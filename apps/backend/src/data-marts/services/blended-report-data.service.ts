@@ -6,6 +6,9 @@ import { DataMartTableReferenceService } from './data-mart-table-reference.servi
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { ReportLike, shouldIncludeRowCount } from '../dto/domain/report-like-read-plan';
+import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
+import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import { withoutCountBesideSleevedCountDistinct } from '../dto/schemas/field-aggregation-governance';
 import {
   BlendedColumnTypes,
   ResolvedRelationshipChain,
@@ -207,6 +210,10 @@ export class BlendedReportDataService {
 
     const schemaFields = dataMart.schema?.fields ?? [];
     const pkFields = getPrimaryKeyFields(schemaFields);
+    const normalizedAggregations = this.withoutJoinedCountBesideCountDistinct(
+      report.aggregationConfig ?? [],
+      new Set(blendableSchema.blendedFields.map(f => f.name))
+    );
     const blendedResult = await this.blendedQueryBuilderFacade.buildBlendedQuery(
       dataMart.storage.type,
       {
@@ -218,7 +225,7 @@ export class BlendedReportDataService {
         filters: report.filterConfig ?? undefined,
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
-        aggregations: report.aggregationConfig ?? undefined,
+        aggregations: normalizedAggregations ?? report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
         rowCount: shouldIncludeRowCount(report),
         uniqueCount: report.uniqueCountConfig === true,
@@ -238,7 +245,37 @@ export class BlendedReportDataService {
       columnFilter: columnConfig,
       blendedDataHeaders,
       chains,
+      aggregations: normalizedAggregations,
     };
+  }
+
+  /**
+   * A saved COUNT beside a joined COUNT_DISTINCT is dropped rather than rejected: the two are
+   * computed at different grains and can invert, but the report was valid when it was saved.
+   * Returns undefined when nothing changed, so callers keep their own list.
+   */
+  private withoutJoinedCountBesideCountDistinct(
+    aggregations: AggregationRule[],
+    joinedColumns: ReadonlySet<string>
+  ): AggregationRule[] | undefined {
+    const functionsByJoinedColumn = new Map<string, ReportAggregateFunction[]>();
+    for (const rule of aggregations) {
+      if (!joinedColumns.has(rule.column)) continue;
+      functionsByJoinedColumn.set(rule.column, [
+        ...(functionsByJoinedColumn.get(rule.column) ?? []),
+        rule.function,
+      ]);
+    }
+
+    const dropped = new Set<string>();
+    for (const [column, functions] of functionsByJoinedColumn) {
+      const kept = new Set(withoutCountBesideSleevedCountDistinct(functions));
+      for (const fn of functions) {
+        if (!kept.has(fn)) dropped.add(`${column}\u0000${fn}`);
+      }
+    }
+    if (dropped.size === 0) return undefined;
+    return aggregations.filter(rule => !dropped.has(`${rule.column}\u0000${rule.function}`));
   }
 
   private buildBlendedColumnTypes(blendableSchema: BlendableSchemaDto): BlendedColumnTypes {

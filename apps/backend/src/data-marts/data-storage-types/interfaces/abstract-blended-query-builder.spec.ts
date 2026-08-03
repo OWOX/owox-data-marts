@@ -2558,7 +2558,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
       expect(sql).not.toContain('`spend__cost | MAX` DESC');
     });
 
-    it('resolves to the FIRST rule when that rule is the non-sleeve one', () => {
+    it('resolves to the FIRST rule whichever function it carries', () => {
       const { sql } = builder.buildBlendedQuery({
         ...buildContext([spendChain()], ['channel', 'spend__cost']),
         fieldIndex: spendFieldIndex,
@@ -3311,24 +3311,25 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
   describe('H5 — exhaustive sleeve-function split', () => {
     afterEach(() => {
       // Undo the simulated future-function mutation regardless of test outcome so it can
-      // never leak into another test file sharing this module instance.
-      (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).delete('MIN');
+      // never leak into another test file sharing this module instance. It must name a function
+      // SLEEVE_ROUTING genuinely leaves unrouted, or this deletes a real member.
+      (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).delete('COUNT');
     });
 
     it('throws a clear error for a routed function SLEEVE_ROUTING gives no shape', () => {
       const builder = new TestBlendedWithRenderer();
       const { chain, fieldIndex } = organizationsFixture();
 
-      (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).add('MIN');
+      (SLEEVE_ROUTED_FUNCTIONS as unknown as Set<ReportAggregateFunction>).add('COUNT');
 
       const ctx: BlendedQueryContext = {
         ...buildContext([chain], ['organizations__orgId']),
         fieldIndex,
-        aggregations: [{ column: 'organizations__orgId', function: 'MIN' } as AggregationRule],
+        aggregations: [{ column: 'organizations__orgId', function: 'COUNT' } as AggregationRule],
       };
 
       expect(() => builder.buildBlendedQuery(ctx)).toThrow(
-        /\[organizations__orgId:MIN\].*carry no sleeve shape in SLEEVE_ROUTING/
+        /\[organizations__orgId:COUNT\].*carry no sleeve shape in SLEEVE_ROUTING/
       );
     });
 
@@ -3731,16 +3732,12 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
       ).toHaveLength(1);
     });
 
-    it('a joined MIN/MAX/COUNT still uses the dedup branch (unchanged) — no sleeve CTE', () => {
+    it('a joined COUNT still uses the dedup branch — it counts the rows the join keeps', () => {
       const builder = new TestBlendedWithRenderer();
       const { context } = fixtureEventsUsersOrgs();
       const ctx: BlendedQueryContext = {
         ...context,
-        aggregations: [
-          { column: 'organizations__orgId', function: 'MIN' } as AggregationRule,
-          { column: 'organizations__orgId', function: 'MAX' } as AggregationRule,
-          { column: 'organizations__orgId', function: 'COUNT' } as AggregationRule,
-        ],
+        aggregations: [{ column: 'organizations__orgId', function: 'COUNT' } as AggregationRule],
       };
 
       const { sql } = builder.buildBlendedQuery(ctx);
@@ -3748,14 +3745,32 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
 
       expect(s).not.toContain('sleeve_organizations__orgId');
       expect(s).toContain(
-        'MIN(organizations.organizations__orgId) AS `organizations__orgId | MIN`'
-      );
-      expect(s).toContain(
-        'MAX(organizations.organizations__orgId) AS `organizations__orgId | MAX`'
-      );
-      expect(s).toContain(
         'COUNT(organizations.organizations__orgId) AS `organizations__orgId | COUNT`'
       );
+    });
+
+    it('a joined MIN/MAX reads the same raw grain as AVG, so the three stay comparable', () => {
+      const builder = new TestBlendedWithRenderer();
+      const { context } = fixtureEventsUsersOrgs();
+      const ctx: BlendedQueryContext = {
+        ...context,
+        aggregations: [
+          { column: 'organizations__orgId', function: 'MIN' } as AggregationRule,
+          { column: 'organizations__orgId', function: 'MAX' } as AggregationRule,
+          { column: 'organizations__orgId', function: 'AVG' } as AggregationRule,
+        ],
+      };
+
+      const { sql } = builder.buildBlendedQuery(ctx);
+      const s = normalizeSql(sql);
+
+      // Reading MIN/MAX off the dedup CTE measured a value the pre-join roll-up had already
+      // collapsed, so MIN <= AVG <= MAX could fail against a sleeve-routed AVG.
+      expect(s).toContain('MIN(_val) AS `organizations__orgId | MIN`');
+      expect(s).toContain('MAX(_val) AS `organizations__orgId | MAX`');
+      expect(s).toContain('AVG(_val) AS `organizations__orgId | AVG`');
+      expect(s).not.toContain('MIN(organizations.organizations__orgId)');
+      expect(s.match(/SELECT DISTINCT/g)).toHaveLength(1);
     });
 
     it('a main-native (non-blended) SUM stays on the normal aggregated path — no sleeve', () => {
@@ -3774,14 +3789,14 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
       expect(s).toContain('SUM(main.revenue) AS `revenue | SUM`');
     });
 
-    it('a column carrying both a sleeve function (SUM) and a non-sleeve one (MAX) emits both — no loss', () => {
+    it('a column carrying both a sleeve function (SUM) and a non-sleeve one (COUNT) emits both — no loss', () => {
       const builder = new TestBlendedWithRenderer();
       const { context } = fixtureEventsUsersOrgs();
       const ctx: BlendedQueryContext = {
         ...context,
         aggregations: [
           { column: 'organizations__orgId', function: 'SUM' } as AggregationRule,
-          { column: 'organizations__orgId', function: 'MAX' } as AggregationRule,
+          { column: 'organizations__orgId', function: 'COUNT' } as AggregationRule,
         ],
       };
 
@@ -3794,9 +3809,9 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
         'ANY_VALUE(sleeve_organizations__orgId.`organizations__orgId | SUM`) ' +
           'AS `organizations__orgId | SUM`'
       );
-      // MAX still on the dedup branch, unaffected:
+      // COUNT still on the dedup branch, unaffected:
       expect(s).toContain(
-        'MAX(organizations.organizations__orgId) AS `organizations__orgId | MAX`'
+        'COUNT(organizations.organizations__orgId) AS `organizations__orgId | COUNT`'
       );
     });
 
@@ -3928,7 +3943,7 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
       return { context };
     }
 
-    it('merges two SUM metrics on DIFFERENT columns of the SAME owner into ONE sleeve CTE', () => {
+    it('keeps two SUM metrics on DIFFERENT columns of the SAME owner in SEPARATE dedup passes', () => {
       const builder = new TestBlendedWithRenderer();
       const { context } = fixtureOrgTwoFields();
       const ctx: BlendedQueryContext = {
@@ -3942,25 +3957,20 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
       const { sql } = builder.buildBlendedQuery(ctx);
       const s = normalizeSql(sql);
 
-      // ONE merged CTE named after the shared owner (no single column to key on) plus a
-      // short dimensions fingerprint — `sleeve_organizations_values_<fp>`.
-      const cteName = s.match(/sleeve_organizations_values_[a-z0-9]+/)?.[0];
-      expect(cteName).toBeDefined();
-      expect(s.match(new RegExp(`${cteName} AS \\(`, 'g'))).toHaveLength(1);
-      expect(s.match(/SELECT DISTINCT/g)).toHaveLength(1);
-      // Two distinct value slots inside the ONE dedup pass, one per column.
-      expect(s).toContain('organizations_raw.orgId AS _val_0');
-      expect(s).toContain('organizations_raw.name AS _val_1');
-      expect(s).toContain('SUM(_val_0) AS `organizations__orgId | SUM`');
-      expect(s).toContain('SUM(_val_1) AS `organizations__name | SUM`');
-      expect(s).toContain(
-        `ANY_VALUE(${cteName}.\`organizations__orgId | SUM\`) AS \`organizations__orgId | SUM\``
-      );
-      expect(s).toContain(
-        `ANY_VALUE(${cteName}.\`organizations__name | SUM\`) AS \`organizations__name | SUM\``
-      );
-      // ONE join-back feeds both metrics.
-      expect(s.match(new RegExp(`LEFT JOIN ${cteName} ON`, 'g'))).toHaveLength(1);
+      // DISTINCT spans the whole tuple, so two value columns in one pass let a difference in
+      // either keep rows apart that the owner identity is meant to collapse.
+      expect(s).toContain('sleeve_organizations__orgId AS (');
+      expect(s).toContain('sleeve_organizations__name AS (');
+      expect(s.match(/SELECT DISTINCT/g)).toHaveLength(2);
+      expect(s).not.toContain('_val_0');
+      expect(s).toContain('SUM(_val) AS `organizations__orgId | SUM`');
+      expect(s).toContain('SUM(_val) AS `organizations__name | SUM`');
+      expect(
+        s.match(/ANY_VALUE\(sleeve_organizations__orgId\.`organizations__orgId \| SUM`\)/g)
+      ).toHaveLength(1);
+      expect(
+        s.match(/ANY_VALUE\(sleeve_organizations__name\.`organizations__name \| SUM`\)/g)
+      ).toHaveLength(1);
     });
 
     // covers WHERE forwarding through the SINGLETON `buildSleeveCte` path (which
@@ -3968,7 +3978,7 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
     // forwarding for the MERGED multi-metric group path, exercised only via
     // `buildBlendedQuery` end-to-end (there is no direct unit-level call to
     // `buildValueSleeveGroupCte` with >1 metric elsewhere in this file).
-    it('the merged multi-metric group forwards a post-join filter rule into its ONE shared WHERE', () => {
+    it('forwards a post-join filter into EVERY value sleeve, each with its own param prefix', () => {
       const builder = new TestBlendedWithRenderer();
       const { context } = fixtureOrgTwoFields();
       const ctx: BlendedQueryContext = {
@@ -3983,17 +3993,20 @@ describe('AbstractBlendedQueryBuilder — sleeve wiring (full query)', () => {
       };
 
       const { sql, params } = builder.buildBlendedQuery(ctx);
-      const s = normalizeSql(sql);
 
-      // Exactly ONE merged sleeve CTE, and the WHERE appears exactly once inside it,
-      // before the `_dedup` closing alias — filtering the ONE shared dedup pass that
-      // BOTH SUM metrics read from.
-      const cteName = s.match(/sleeve_organizations_values_[a-z0-9]+/)?.[0];
-      expect(cteName).toBeDefined();
-      const sleeveBody = normalizeSql(extractCteBody(sql, cteName!));
-      expect(sleeveBody).toContain('WHERE main.main_region = @slv0p0');
-      expect(sleeveBody.indexOf('WHERE')).toBeLessThan(sleeveBody.indexOf('_dedup'));
-      expect(params[0]).toEqual({ name: 'slv0p0', value: 'US' });
+      for (const [cteName, param] of [
+        ['sleeve_organizations__orgId', '@slv0p0'],
+        ['sleeve_organizations__name', '@slv1p0'],
+      ]) {
+        const sleeveBody = normalizeSql(extractCteBody(sql, cteName));
+        expect(sleeveBody).toContain(`WHERE main.main_region = ${param}`);
+        expect(sleeveBody.indexOf('WHERE')).toBeLessThan(sleeveBody.indexOf('_dedup'));
+      }
+      // A unique prefix per sleeve is what keeps positional (Athena) binding aligned.
+      expect(params.slice(0, 2)).toEqual([
+        { name: 'slv0p0', value: 'US' },
+        { name: 'slv1p0', value: 'US' },
+      ]);
     });
 
     it('does NOT merge a value sleeve with a COUNT_DISTINCT sleeve on the SAME owner (different dedup shapes)', () => {

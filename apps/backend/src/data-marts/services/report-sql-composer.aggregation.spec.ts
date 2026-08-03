@@ -782,15 +782,21 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(fns).not.toContain('STRING_AGG');
 
       // The generated SQL must be executable: the bottom-up CTE rolls the STRING column up with
-      // ANY_VALUE (never SUM over text), and the ungrouped outer SELECT applies the post-join
-      // totals functions — COUNT / COUNT_DISTINCT / MIN / MAX — over the joined column.
+      // ANY_VALUE (never SUM over text), and the ungrouped outer SELECT pulls each post-join
+      // total off its sleeve. MIN/MAX share one value sleeve; COUNT_DISTINCT keeps its own, and
+      // the name collision between the two shapes is what `_2` resolves.
       const splitAt = result!.sql.lastIndexOf('\n\nSELECT');
       const cte = result!.sql.slice(0, splitAt);
       const finalSelect = result!.sql.slice(splitAt);
       expect(cte).toContain('ANY_VALUE(country) AS partner__country');
       expect(result!.sql).not.toMatch(/SUM\(/); // no SUM over a text column anywhere
-      expect(finalSelect).toContain('MIN(partner.partner__country)');
-      expect(finalSelect).toContain('MAX(partner.partner__country)');
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__country_2.`partner__country | MIN`)'
+      );
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__country_2.`partner__country | MAX`)'
+      );
+      expect(finalSelect).not.toContain('MIN(partner.partner__country)');
       // No `COUNT(...)` over the dedup CTE beside the sleeve's COUNT DISTINCT — see above.
       expect(finalSelect).not.toContain('COUNT(partner.partner__country)');
       // COUNT_DISTINCT on a JOINED column routes through a dimensionless "sleeve" CTE (correct

@@ -79,7 +79,11 @@ describe('apiClient — server-error toast', () => {
       onRejected({ response: { status: 500, data: { requestId: 'req-42' } }, config: {} })
     ).rejects.toBeDefined();
 
-    expect(showApiErrorToast).toHaveBeenCalledWith(undefined, expect.stringContaining('req-42'));
+    expect(showApiErrorToast).toHaveBeenCalledWith(
+      undefined,
+      expect.stringContaining('req-42'),
+      expect.anything()
+    );
   });
 
   it('still reports a 5xx that carries no request id', async () => {
@@ -90,7 +94,31 @@ describe('apiClient — server-error toast', () => {
       onRejected({ response: { status: 503, data: {} }, config: {} })
     ).rejects.toBeDefined();
 
-    expect(showApiErrorToast).toHaveBeenCalledWith(undefined, expect.stringContaining('try again'));
+    expect(showApiErrorToast).toHaveBeenCalledWith(
+      undefined,
+      expect.stringContaining('try again'),
+      expect.anything()
+    );
+  });
+
+  // Each 5xx carries a fresh request id, so keying the toast on its message would still stack.
+  it('collapses repeated server errors onto one stable toast id', async () => {
+    const { showApiErrorToast } = await import('../../shared/utils');
+    const onRejected = await rejectionHandler();
+
+    await expect(
+      onRejected({ response: { status: 500, data: { requestId: 'req-1' } }, config: {} })
+    ).rejects.toBeDefined();
+    await expect(
+      onRejected({ response: { status: 500, data: { requestId: 'req-2' } }, config: {} })
+    ).rejects.toBeDefined();
+
+    expect(showApiErrorToast).toHaveBeenNthCalledWith(1, undefined, expect.any(String), {
+      id: 'server-error:500',
+    });
+    expect(showApiErrorToast).toHaveBeenNthCalledWith(2, undefined, expect.any(String), {
+      id: 'server-error:500',
+    });
   });
 
   it('honours skipErrorToast, so a caller rendering its own error is not double-reported', async () => {

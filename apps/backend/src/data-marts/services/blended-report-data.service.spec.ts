@@ -483,6 +483,96 @@ describe('BlendedReportDataService', () => {
       expect(context?.chains[0].parentAlias).toBe('main');
     });
 
+    describe('COUNT beside a joined COUNT_DISTINCT', () => {
+      const joinedReport = (aggregationConfig: NonNullable<Report['aggregationConfig']>) =>
+        makeReport({ columnConfig: ['blended_field'], aggregationConfig });
+
+      const withJoinedStringField = () => {
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_field';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target';
+        blendedField.sourceDataMartTitle = 'Target';
+        blendedField.targetAlias = 'alias_1';
+        blendedField.originalFieldName = 'field';
+        blendedField.type = 'STRING';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'ANY_VALUE';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'alias_1';
+        blendedField.outputPrefix = 'alias_1';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'alias_1',
+              title: 'Target',
+              defaultAlias: 'alias_1',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'alias_1',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target', title: 'Target' },
+            joinConditions: [{ sourceFieldName: 'a', targetFieldName: 'b' }],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+      };
+
+      it('drops the COUNT from the built query and reports the normalised list', async () => {
+        withJoinedStringField();
+        const aggregationConfig: NonNullable<Report['aggregationConfig']> = [
+          { column: 'blended_field', function: 'COUNT' },
+          { column: 'blended_field', function: 'COUNT_DISTINCT' },
+        ];
+        const report = joinedReport(aggregationConfig);
+
+        const decision = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context?.aggregations).toEqual([
+          { column: 'blended_field', function: 'COUNT_DISTINCT' },
+        ]);
+        // Readers emit one header per (column, function); without this they would emit a
+        // `| COUNT` header the SQL no longer has.
+        expect(decision.aggregations).toEqual([
+          { column: 'blended_field', function: 'COUNT_DISTINCT' },
+        ]);
+        expect(report.aggregationConfig).toBe(aggregationConfig);
+      });
+
+      it('leaves a lone joined COUNT alone', async () => {
+        withJoinedStringField();
+        const report = joinedReport([{ column: 'blended_field', function: 'COUNT' }]);
+
+        const decision = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context?.aggregations).toEqual([{ column: 'blended_field', function: 'COUNT' }]);
+        expect(decision.aggregations).toBeUndefined();
+      });
+    });
+
     it("carries the joined Data Mart's declared primary key onto its chain", async () => {
       const columnConfig = ['blended_field'];
       const report = makeReport({ columnConfig });

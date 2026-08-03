@@ -638,6 +638,94 @@ describe('MetricSleeveBuilder', () => {
       expect(sleeves[0].pulls.map(p => p.metric.function)).toEqual(['SUM', 'P75']);
     });
 
+    // The dedup pass projects every merged metric's value column and `SELECT DISTINCT` spans
+    // the whole tuple, so two columns in one pass make a difference in EITHER one a difference
+    // in the dedup set. With a declared primary key as the identity, two raw rows that are
+    // duplicates by that key but differ in the second column then survive as two rows and
+    // inflate the first column's SUM.
+    describe('one dedup pass per metric column', () => {
+      const declaredPkFixture = (): {
+        context: BlendedQueryContext;
+        outputAliasToRoot: ReadonlyMap<string, string>;
+      } => {
+        const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+        return {
+          outputAliasToRoot,
+          context: {
+            ...context,
+            columns: ['users__country', 'organizations__orgId', 'organizations__name'],
+            chains: context.chains.map(c =>
+              c.cteName === 'organizations' ? { ...c, targetPrimaryKeyFields: ['orgKey'] } : c
+            ),
+          },
+        };
+      };
+
+      const buildAllFor = (metrics: AggregationRule[]) => {
+        const { context, outputAliasToRoot } = declaredPkFixture();
+        const ctx = { ...context, aggregations: metrics };
+        const opts = { outputAliasToRoot, filters: [] };
+        return new TestBlendedWithRenderer().sleeves().buildAll(metrics, ctx, opts);
+      };
+
+      it('gives two metrics on DIFFERENT columns of one owner their own dedup pass', () => {
+        const sleeves = buildAllFor([
+          { column: 'organizations__orgId', function: 'SUM' },
+          { column: 'organizations__name', function: 'SUM' },
+        ] as AggregationRule[]);
+        const combined = normalizeSql(sleeves.map(s => s.sql).join('\n'));
+
+        expect(sleeves.map(s => s.cteName)).toEqual([
+          'sleeve_organizations__orgId',
+          'sleeve_organizations__name',
+        ]);
+        expect(combined.match(/SELECT DISTINCT/g)).toHaveLength(2);
+        // Each pass carries ONE value slot — its own column, never the other's.
+        expect(combined).not.toContain('_val_0');
+        expect(normalizeSql(sleeves[0].sql)).toContain('organizations_raw.orgId AS _val');
+        expect(normalizeSql(sleeves[0].sql)).not.toContain('organizations_raw.name');
+        expect(normalizeSql(sleeves[1].sql)).toContain('organizations_raw.name AS _val');
+      });
+
+      it('still merges every function on the SAME column into one dedup pass', () => {
+        const sleeves = buildAllFor([
+          { column: 'organizations__orgId', function: 'SUM' },
+          { column: 'organizations__orgId', function: 'AVG' },
+          { column: 'organizations__orgId', function: 'P75' },
+        ] as AggregationRule[]);
+
+        expect(sleeves).toHaveLength(1);
+        const sql = normalizeSql(sleeves[0].sql);
+        expect(sql.match(/SELECT DISTINCT/g)).toHaveLength(1);
+        expect(sql.match(/AS _val/g)).toHaveLength(1);
+        expect(sleeves[0].pulls.map(p => p.metric.function)).toEqual(['SUM', 'AVG', 'P75']);
+      });
+    });
+
+    // MIN/MAX read the joined column through the SAME dedup pass as SUM/AVG, so all three are
+    // measured at one grain; off the sleeve MIN/MAX read the pre-join roll-up's single collapsed
+    // value and `MIN <= AVG <= MAX` can fail.
+    it('MIN/MAX: aggregate the same deduped value slot as AVG on that column', () => {
+      const builder = new TestBlendedWithRenderer();
+      const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();
+      const metrics = [
+        { column: 'organizations__orgId', function: 'MIN' },
+        { column: 'organizations__orgId', function: 'MAX' },
+        { column: 'organizations__orgId', function: 'AVG' },
+      ] as AggregationRule[];
+
+      const ctx = { ...context, aggregations: metrics };
+      const sleeves = builder.sleeves().buildAll(metrics, ctx, { outputAliasToRoot, filters: [] });
+
+      expect(sleeves).toHaveLength(1);
+      const sql = normalizeSql(sleeves[0].sql);
+      expect(sql.match(/SELECT DISTINCT/g)).toHaveLength(1);
+      expect(sql).toContain('organizations_raw.orgId AS _val');
+      expect(sql).toContain('MIN(_val) AS `organizations__orgId | MIN`');
+      expect(sql).toContain('MAX(_val) AS `organizations__orgId | MAX`');
+      expect(sql).toContain('AVG(_val) AS `organizations__orgId | AVG`');
+    });
+
     it('keeps equal values from DIFFERENT owner rows, which is what a percentile weighs', () => {
       const builder = new TestBlendedWithRenderer();
       const { context, outputAliasToRoot } = fixtureEventsUsersOrgs();

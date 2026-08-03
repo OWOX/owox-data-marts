@@ -265,7 +265,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
             ...(source.note ? { note: source.note } : {}),
           })),
         },
-        // The fact of the failure is what the caller acts on; the reason stays in Run History.
+        // The fact of the failure is what the caller acts on; the reason goes to the run metadata.
         ...(res.totalsError ? { totals_error: TOTALS_UNAVAILABLE_MESSAGE } : {}),
         source: {
           data_mart: {
@@ -412,7 +412,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       }
     }
 
-    // Never forward the raw message — it can carry SQL/identifiers/PII. Full error stays in Run History.
+    // Never forward the raw message — it can carry SQL/identifiers/PII.
     return toStructuredToolError(
       'query_failed',
       'The query could not be completed. Verify the field names, filters, and aggregations against get_data_mart_details_by_id, then retry.'

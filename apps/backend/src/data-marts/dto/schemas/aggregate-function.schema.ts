@@ -60,11 +60,15 @@ const SLEEVE_ROUTING: Record<ReportAggregateFunction, SleeveShape | null> = {
   // Same `value` shape: a joined roll-up read once per fanned main row is repeated verbatim
   // ("paid, shipped, paid, shipped"), which is not a different question the way COUNT's is.
   STRING_AGG: 'value',
-  // COUNT deliberately counts the rows that SURVIVE the join, and MIN/MAX/ANY_VALUE are
-  // indifferent to how often a value repeats.
+  // Not because repetition changes them — it doesn't — but because a joined field's pre-join
+  // roll-up collapses several raw rows into ONE value per join key. Off the sleeve, MIN/MAX
+  // would read that collapsed value while SUM/AVG/percentiles read the raw rows, measuring one
+  // column at two grains: `MIN <= AVG <= MAX` then fails (raw [10, 20] gives MIN=20, AVG=15).
+  MIN: 'value',
+  MAX: 'value',
+  // COUNT deliberately counts the rows that SURVIVE the join, and ANY_VALUE is indifferent to
+  // how often a value repeats.
   COUNT: null,
-  MIN: null,
-  MAX: null,
   ANY_VALUE: null,
 };
 

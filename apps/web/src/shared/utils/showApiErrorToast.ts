@@ -59,7 +59,7 @@ function formatValidationErrors(errors: ApiValidationError[] | undefined): strin
 export function showApiErrorToast(
   error: unknown,
   fallbackMessage = 'Something went wrong',
-  options?: { persistent?: boolean }
+  options?: { persistent?: boolean; id?: string }
 ) {
   const apiError = extractApiError(error) as ApiError | undefined;
 
@@ -116,6 +116,11 @@ export function showApiErrorToast(
         ),
       { duration: Infinity, id: `persistent-error:${message}` }
     );
+    return;
+  }
+
+  if (options?.id) {
+    toast.error(message, { id: options.id });
     return;
   }
 

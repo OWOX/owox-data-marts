@@ -68,7 +68,7 @@ export class ReportDataCacheService {
         sqlOverrideParams,
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
-        aggregationConfig: report.aggregationConfig ?? undefined,
+        aggregationConfig: decision.aggregations ?? report.aggregationConfig ?? undefined,
         uniqueCount: report.uniqueCountConfig ?? undefined,
       },
       decision,

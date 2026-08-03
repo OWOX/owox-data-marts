@@ -132,11 +132,13 @@ apiClient.interceptors.response.use(
       const requestId = (error.response?.data as { requestId?: string } | undefined)?.requestId;
       // Passing `undefined` rather than the error on purpose: the server body carries no usable
       // message for a 5xx, and forwarding it risks surfacing an internal one if that ever changes.
+      // Toast id keys on the status, not the message: every 5xx carries a fresh request id.
       showApiErrorToast(
         undefined,
         requestId
           ? `Something went wrong on our side. Request id: ${requestId}`
-          : 'Something went wrong on our side. Please try again'
+          : 'Something went wrong on our side. Please try again',
+        { id: `server-error:${status}` }
       );
     }
     return Promise.reject(error);
