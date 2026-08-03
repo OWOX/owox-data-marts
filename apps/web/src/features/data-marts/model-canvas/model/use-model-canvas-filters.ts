@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { storageService } from '../../../../services/localstorage.service';
 import { useUrlParam } from '../../../../shared/hooks/useUrlParam';
 import type { CanvasRelFilter, CanvasStatusFilter } from './graph/filter-canvas-data';

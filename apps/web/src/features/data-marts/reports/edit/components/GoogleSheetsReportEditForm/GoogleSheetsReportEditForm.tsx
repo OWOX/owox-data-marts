@@ -36,7 +36,7 @@ import {
   useDataDestination,
   dataDestinationService,
 } from '../../../../../data-destination';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useProjectRoute } from '../../../../../../shared/hooks';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';

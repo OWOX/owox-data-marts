@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router-dom';
+import type { RouteObject } from 'react-router';
 import DataMartOverviewContent from '../../pages/data-marts/edit/DataMartOverviewContent.tsx';
 import DataMartDataSetupContent from '../../pages/data-marts/edit/DataMartDataSetupContent.tsx';
 import DataMartQualityContent from '../../pages/data-marts/edit/DataMartQualityContent.tsx';

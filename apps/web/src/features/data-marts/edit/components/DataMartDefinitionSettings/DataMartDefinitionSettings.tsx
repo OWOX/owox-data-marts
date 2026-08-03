@@ -10,7 +10,7 @@ import {
   type DataMartDefinitionFormData,
 } from '../../model/schema/data-mart-definition.schema.ts';
 import { Button } from '@owox/ui/components/button';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';

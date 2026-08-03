@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams, type SetURLSearchParams } from 'react-router-dom';
+import { useSearchParams, type SetURLSearchParams } from 'react-router';
 import { storageService } from '../../services/localstorage.service';
 import {
   DEFAULT_FILTERS_STATE,

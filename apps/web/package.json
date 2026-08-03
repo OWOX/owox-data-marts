@@ -9,7 +9,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.22.0"
   },
   "keywords": ["owox", "data-marts", "web-app", "react", "typescript", "tailwind"],
   "homepage": "https://github.com/OWOX/owox-data-marts",
@@ -51,11 +51,11 @@
     "@tanstack/react-query": "^5.66.0",
     "@xyflow/react": "^12.11.2",
     "axios": "^1.11.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-hook-form": "^7.58.0",
     "react-hot-toast": "^2.5.2",
-    "react-router-dom": "^7.6.2",
+    "react-router": "^8.3.0",
     "tailwindcss": "^4.1.8"
   },
   "devDependencies": {

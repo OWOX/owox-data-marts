@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import type { AxiosRequestConfig } from '../../../../app/api';
 import { dataMartService } from '../../shared/services/data-mart.service';
 import type { DataMartSchema } from '../../shared/types/data-mart-schema.types';

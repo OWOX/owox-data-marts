@@ -1,4 +1,4 @@
-import { Navigate, type RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router';
 import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';

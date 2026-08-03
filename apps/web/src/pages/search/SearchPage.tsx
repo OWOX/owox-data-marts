@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router';
 import { ArchiveRestore, Box, ChevronRight, DatabaseIcon, Loader2, Search } from 'lucide-react';
 import { Input } from '@owox/ui/components/input';
 import { useProjectRoute } from '../../shared/hooks';

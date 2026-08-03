@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Search } from 'lucide-react';
 import { useProjectRoute } from '../../../shared/hooks';
 import { getActiveMenuItemClassName, isSameOrNestedPath } from '../menu-item-active';

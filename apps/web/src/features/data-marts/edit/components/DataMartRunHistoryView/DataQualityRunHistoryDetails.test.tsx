@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { DataQualityRunHistoryDetails } from './DataQualityRunHistoryDetails';
 import { useDataQualityRun } from '../../../data-quality/model/use-data-quality-workspace';

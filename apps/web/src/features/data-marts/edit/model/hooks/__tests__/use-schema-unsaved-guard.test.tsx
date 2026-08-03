@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { render as rtlRender, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMemoryRouter, RouterProvider, Outlet } from 'react-router-dom';
+import { createMemoryRouter, Outlet } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import {
   useSchemaUnsavedGuard,
   type SchemaGuardRegistration,

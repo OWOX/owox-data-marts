@@ -11,8 +11,8 @@ const serviceMocks = vi.hoisted(() => ({
   getDataMartById: vi.fn(),
 }));
 
-vi.mock('react-router-dom', async importOriginal => ({
-  ...(await importOriginal<typeof import('react-router-dom')>()),
+vi.mock('react-router', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ projectId: 'project-1' }),
 }));
 

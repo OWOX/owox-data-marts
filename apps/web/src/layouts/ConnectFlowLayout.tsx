@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { ProjectAuthGuards } from './ProjectAuthGuards';
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../../data-marts/edit/model/context/types';
 import { useReport } from '../../../../data-marts/reports/shared/model/hooks';
 import { useDataDestination } from './useDataDestination';

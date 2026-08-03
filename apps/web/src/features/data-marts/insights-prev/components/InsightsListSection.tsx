@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Sparkles, Plus, ChevronDown } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';

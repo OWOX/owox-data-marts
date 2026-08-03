@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 
 export default function DataMartNextInsightsContent() {
   const ref = useRef<HTMLDivElement>(null);

@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { DataMartOverview } from '../../../features/data-marts/edit';

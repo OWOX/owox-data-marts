@@ -8,7 +8,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { useProjectRoute } from '../../../../../../shared/hooks';
 import { DataStorageType } from '../../../../../data-storage';

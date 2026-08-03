@@ -2,7 +2,7 @@ import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { Import, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import { BulkCreateFromStorageDialog } from '../BulkCreateFromStorageDialog';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import {

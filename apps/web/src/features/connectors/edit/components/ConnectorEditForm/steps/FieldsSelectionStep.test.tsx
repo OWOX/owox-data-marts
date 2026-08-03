@@ -1,6 +1,6 @@
 import { FieldsSelectionStep } from './FieldsSelectionStep.tsx';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import type { ComponentProps } from 'react';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';

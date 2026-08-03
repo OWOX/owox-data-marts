@@ -1,7 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ExternalLinkIcon } from 'lucide-react';
 import { type UseFormReturn } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useFlags } from '../../../../../app/store/hooks';
 import { checkIsCommunityEdition } from '../../../../../utils';
 import { type DataDestinationFormData, DataDestinationType } from '../../../shared';

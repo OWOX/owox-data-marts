@@ -12,7 +12,7 @@ import {
   type ConnectorSourceConfig,
   type ConnectorStorageConfig,
 } from '../../../model/types/connector-definition-config';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../model/context/types';
 import { DataMartStatus, DataMartDefinitionType } from '../../../../shared/enums';
 import { getEmptyDefinition } from '../../../utils/definition-helpers';

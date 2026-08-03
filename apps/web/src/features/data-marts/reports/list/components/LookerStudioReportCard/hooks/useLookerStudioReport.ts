@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useReport } from '../../../../shared';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../../../edit/model/context/types';
 import type { DataDestination } from '../../../../../../data-destination/shared/model/types';
 import { DataDestinationType } from '../../../../../../data-destination/shared/enums';

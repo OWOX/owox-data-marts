@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
 } from '@owox/ui/components/dropdown-menu';
 import type { MouseEvent } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router';
 import { useFlags } from '../../../app/store/hooks';
 import { useProjectId } from '../../../shared/hooks';
 import { checkVisible } from '../../../utils';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'react-hot-toast';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';

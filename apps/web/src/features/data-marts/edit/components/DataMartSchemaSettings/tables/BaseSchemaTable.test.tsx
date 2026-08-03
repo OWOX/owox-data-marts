@@ -9,8 +9,8 @@ import { AthenaSchemaTable } from './AthenaSchemaTable';
 import type { SchemaToolbar } from '../types/schema-toolbar';
 
 // SchemaTable uses useOutletContext for schema-actualization loading state
-vi.mock('react-router-dom', async importOriginal => {
-  const actual = await importOriginal<typeof import('react-router-dom')>();
+vi.mock('react-router', async importOriginal => {
+  const actual = await importOriginal<typeof import('react-router')>();
   return {
     ...actual,
     useOutletContext: vi.fn(() => ({ isSchemaActualizationLoading: false })),

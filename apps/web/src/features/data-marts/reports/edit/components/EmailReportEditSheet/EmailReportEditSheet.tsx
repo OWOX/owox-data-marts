@@ -14,7 +14,7 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { EmailReportEditForm } from '../EmailReportEditForm';
 import type { DataDestinationType } from '../../../../../data-destination';
 import { toast } from 'sonner';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
 

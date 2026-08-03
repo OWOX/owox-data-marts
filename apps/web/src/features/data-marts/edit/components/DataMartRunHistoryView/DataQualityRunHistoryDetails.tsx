@@ -4,7 +4,7 @@ import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { cn } from '@owox/ui/lib/utils';
 import { ChevronDown, Clock3, FileJson2, Play, RotateCw } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button } from '../../../../../shared/components/Button';
 import { formatDateShort, formatDuration } from '../../../../../utils/date-formatters';
 import { DataQualityResultCard } from '../../../data-quality/components/DataQualityResultCard';
