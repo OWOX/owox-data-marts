@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DataMartDefinitionTypeSelector } from './form/DataMartDefinitionTypeSelector.tsx';
 import { DataMartDefinitionForm } from './form/DataMartDefinitionForm.tsx';
 import { DataMartDefinitionType } from '../../../shared';
+import { DataStorageType } from '../../../../data-storage';
 import { useDataMartPreset } from '../../../shared/utils/useDataMartPreset.ts';
 import {
   createDataMartDefinitionSchema,
@@ -15,6 +16,8 @@ import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
 import type { DataMartDefinitionConfig, SqlDefinitionConfig } from '../../model';
+import { ChangeInputSourceTypeDialog } from './ChangeInputSourceTypeDialog.tsx';
+import { useInputSourceChangeImpact } from './useInputSourceChangeImpact.ts';
 
 interface DataMartDefinitionSettingsProps {
   definitionType: DataMartDefinitionType | null;
@@ -50,6 +53,8 @@ const getSqlQueryFromDefinition = (
 const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfig =>
   getEmptyDefinition(type) as DataMartDefinitionConfig;
 
+const EMPTY_EXCLUDED_TYPES: DataMartDefinitionType[] = [];
+
 export function DataMartDefinitionSettings({
   definitionType,
   initialDefinitionType,
@@ -66,11 +71,36 @@ export function DataMartDefinitionSettings({
   const {
     definition: initialDefinition,
     id: dataMartId,
+    reportsCount,
     storage: { id: storageId, type: storageType, config: storageConfig },
   } = dataMart;
 
   const [, setSqlValidationState] = useState<SqlValidationState>(initialSqlValidationState);
   const [shouldActualizeSchema, setShouldActualizeSchema] = useState(false);
+  const [pendingTypeChange, setPendingTypeChange] = useState<DataMartDefinitionFormData | null>(
+    null
+  );
+
+  // A staged type change: the user picked another type but has not saved it yet. Until they do,
+  // the Data Mart still runs on `initialDefinitionType`.
+  const isTypeChangeStaged = Boolean(
+    initialDefinitionType && definitionType && definitionType !== initialDefinitionType
+  );
+
+  // The selector is shown while setting a Data Mart up, and afterwards so the source can be
+  // repointed. Two exclusions: a connector owns a write target, stored secrets and its own run
+  // triggers, so its type stays fixed; and legacy BigQuery storages only ever accept SQL, so
+  // there is nothing to switch between.
+  const canChangeDefinitionType =
+    storageType !== DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
+    (!initialDefinitionType || initialDefinitionType !== DataMartDefinitionType.CONNECTOR);
+
+  const { impact, isLoading: isLoadingImpact } = useInputSourceChangeImpact(
+    dataMartId,
+    storageId,
+    reportsCount,
+    pendingTypeChange !== null
+  );
 
   const getInitialFormValues = useCallback((): DataMartDefinitionFormData | undefined => {
     if (!definitionType) return undefined;
@@ -80,13 +110,18 @@ export function DataMartDefinitionSettings({
       definition: getEmptyDefinition(definitionType),
     };
 
-    if (!initialDefinition) return emptyValues as DataMartDefinitionFormData;
+    // The saved definition only fits the saved type. Once another type is staged the user has to
+    // pick a new source, so we start that form empty rather than carrying over a shape it cannot
+    // interpret.
+    if (!initialDefinition || (initialDefinitionType && definitionType !== initialDefinitionType)) {
+      return emptyValues as DataMartDefinitionFormData;
+    }
 
     return {
       definitionType,
       definition: initialDefinition,
     } as DataMartDefinitionFormData;
-  }, [definitionType, initialDefinition]);
+  }, [definitionType, initialDefinition, initialDefinitionType]);
 
   const currentResolver = useCallback((): Resolver<DataMartDefinitionFormData> | undefined => {
     if (!definitionType) return undefined;
@@ -174,8 +209,8 @@ export function DataMartDefinitionSettings({
     }
   }, [shouldActualizeSchema, runSchemaActualization]);
 
-  const guardedSubmit = useCallback<SubmitHandler<DataMartDefinitionFormData>>(
-    data => {
+  const runSubmitGuarded = useCallback(
+    (data: DataMartDefinitionFormData) => {
       const runSubmit = () => {
         void onSubmit(data);
       };
@@ -187,6 +222,26 @@ export function DataMartDefinitionSettings({
     },
     [onSubmit, runGuarded]
   );
+
+  const guardedSubmit = useCallback<SubmitHandler<DataMartDefinitionFormData>>(
+    data => {
+      // Repointing a Data Mart at another type of source can disconnect fields that reports and
+      // relationships rely on, so it is confirmed explicitly. A same-type edit saves directly.
+      if (isTypeChangeStaged) {
+        setPendingTypeChange(data);
+        return;
+      }
+      runSubmitGuarded(data);
+    },
+    [isTypeChangeStaged, runSubmitGuarded]
+  );
+
+  const handleConfirmTypeChange = useCallback(() => {
+    if (!pendingTypeChange) return;
+    const data = pendingTypeChange;
+    setPendingTypeChange(null);
+    runSubmitGuarded(data);
+  }, [pendingTypeChange, runSubmitGuarded]);
 
   const handleFormSubmit = useCallback(
     (e?: React.SyntheticEvent<HTMLFormElement>) => {
@@ -200,8 +255,14 @@ export function DataMartDefinitionSettings({
   );
 
   const handleReset = useCallback(() => {
+    // Discarding a staged type change must also put the selector back on the saved type; the form
+    // values then follow from the `definitionType` effect below.
+    if (isTypeChangeStaged && initialDefinitionType) {
+      setDefinitionType(initialDefinitionType);
+      return;
+    }
     reset(getInitialFormValues());
-  }, [reset, getInitialFormValues]);
+  }, [isTypeChangeStaged, initialDefinitionType, setDefinitionType, reset, getInitialFormValues]);
 
   const renderDefinitionForm = () => {
     if (!definitionType) return null;
@@ -222,7 +283,12 @@ export function DataMartDefinitionSettings({
             <Button variant={'default'} type='submit' disabled={!isValid || !isDirty}>
               Save
             </Button>
-            <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
+            <Button
+              type='button'
+              variant='ghost'
+              onClick={handleReset}
+              disabled={!isDirty && !isTypeChangeStaged}
+            >
               Discard
             </Button>
 
@@ -249,13 +315,40 @@ export function DataMartDefinitionSettings({
   return (
     <FormProvider {...methods}>
       <div className='space-y-4'>
-        {!initialDefinitionType && (
+        {canChangeDefinitionType && (
           <DataMartDefinitionTypeSelector
             initialType={definitionType}
             onTypeSelect={handleTypeSelect}
+            excludedTypes={
+              initialDefinitionType ? [DataMartDefinitionType.CONNECTOR] : EMPTY_EXCLUDED_TYPES
+            }
+            savedType={initialDefinitionType}
           />
         )}
+        {isTypeChangeStaged && (
+          <div
+            role='status'
+            className='text-muted-foreground rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm'
+          >
+            Pick a new source and save to apply the change. Relationships, reports and field
+            metadata are kept. Fields that are missing from the new source will be marked as
+            disconnected.
+          </div>
+        )}
         {renderDefinitionForm()}
+        {pendingTypeChange && initialDefinitionType && (
+          <ChangeInputSourceTypeDialog
+            open
+            fromType={initialDefinitionType}
+            toType={pendingTypeChange.definitionType}
+            impact={impact}
+            isLoadingImpact={isLoadingImpact}
+            onConfirm={handleConfirmTypeChange}
+            onCancel={() => {
+              setPendingTypeChange(null);
+            }}
+          />
+        )}
       </div>
     </FormProvider>
   );

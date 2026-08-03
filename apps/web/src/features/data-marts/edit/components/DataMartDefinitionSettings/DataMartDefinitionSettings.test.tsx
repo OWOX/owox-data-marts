@@ -1,0 +1,247 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
+import { DataMartDefinitionType } from '../../../shared';
+import type { DataMartContextType } from '../../model/context/types';
+import { DataMartDefinitionSettings } from './DataMartDefinitionSettings';
+
+const testState = vi.hoisted(() => ({
+  outletContext: null as unknown,
+  updateDataMartDefinition: vi.fn(),
+  runSchemaActualization: vi.fn(),
+  getEdges: vi.fn(),
+}));
+
+vi.mock('react-router-dom', async importOriginal => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return {
+    ...actual,
+    useOutletContext: () => testState.outletContext,
+  };
+});
+
+vi.mock('../../../shared/utils/useDataMartPreset.ts', () => ({
+  useDataMartPreset: () => undefined,
+}));
+
+vi.mock('../../../model-canvas/api/model-canvas.service', () => ({
+  modelCanvasService: {
+    getEdges: (...args: unknown[]) => testState.getEdges(...args),
+  },
+}));
+
+// Radix Select renders its options in a portal driven by pointer events. Swap in a native select
+// so the available options are directly assertable.
+vi.mock('@owox/ui/components/select', () => ({
+  Select: ({ value, onValueChange, children }: any) => (
+    <select
+      aria-label='Definition Type'
+      value={value}
+      onChange={e => {
+        onValueChange?.(e.target.value);
+      }}
+    >
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: any) => <>{children}</>,
+  SelectValue: () => null,
+  SelectContent: ({ children }: any) => <>{children}</>,
+  SelectGroup: ({ children }: any) => <>{children}</>,
+  SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
+}));
+
+// The SQL validator dry-runs the query against the backend, which is out of scope here.
+vi.mock('../SqlValidator/SqlValidator.tsx', () => ({
+  default: () => null,
+}));
+
+// The real definition fields pull the storage resource tree, which the type-change flow under
+// test does not depend on. We register a plain SQL input on the same form path instead, so the
+// form still becomes valid and dirty exactly as it would in the app.
+vi.mock('./form/DataMartDefinitionForm.tsx', async () => {
+  const { useFormContext } = await import('react-hook-form');
+  return {
+    DataMartDefinitionForm: ({ definitionType }: { definitionType: DataMartDefinitionType }) => {
+      const { register } = useFormContext();
+      return (
+        <div data-testid='definition-form'>
+          <span>{definitionType}</span>
+          <input aria-label='SQL query' {...register('definition.sqlQuery')} />
+        </div>
+      );
+    },
+  };
+});
+
+const buildDataMart = (
+  definitionType: DataMartDefinitionType | null,
+  storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY
+) => ({
+  id: 'dm-1',
+  title: 'Orders',
+  reportsCount: 2,
+  definitionType,
+  definition: definitionType ? { fullyQualifiedName: 'project.dataset.orders' } : null,
+  storage: {
+    id: 'storage-1',
+    type: storageType,
+    config: null,
+  },
+});
+
+const renderSettings = (
+  definitionType: DataMartDefinitionType | null,
+  initialDefinitionType: DataMartDefinitionType | null,
+  setDefinitionType = vi.fn(),
+  storageType: DataStorageType = DataStorageType.GOOGLE_BIGQUERY
+) => {
+  testState.outletContext = {
+    dataMart: buildDataMart(initialDefinitionType, storageType),
+    updateDataMartDefinition: testState.updateDataMartDefinition,
+    runSchemaActualization: testState.runSchemaActualization,
+  } as unknown as DataMartContextType;
+
+  render(
+    <DataMartDefinitionSettings
+      definitionType={definitionType}
+      initialDefinitionType={initialDefinitionType}
+      setDefinitionType={setDefinitionType}
+    />
+  );
+
+  return { setDefinitionType };
+};
+
+/** Validation runs on change, so the Save button only enables once it settles. */
+const clickSaveWhenEnabled = async () => {
+  const save = screen.getByRole('button', { name: 'Save' });
+  await waitFor(() => {
+    expect(save).toBeEnabled();
+  });
+  fireEvent.click(save);
+};
+
+const optionLabels = () =>
+  Array.from(screen.getByLabelText('Definition Type').querySelectorAll('option')).map(
+    option => option.textContent
+  );
+
+describe('DataMartDefinitionSettings — changing the input source type', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    testState.getEdges.mockResolvedValue([]);
+    testState.updateDataMartDefinition.mockResolvedValue(undefined);
+  });
+
+  it('shows the type selector for an existing Data Mart so its source can be repointed', () => {
+    renderSettings(DataMartDefinitionType.VIEW, DataMartDefinitionType.VIEW);
+
+    expect(screen.getByLabelText('Definition Type')).toBeInTheDocument();
+  });
+
+  it('hides the type selector for a connector Data Mart', () => {
+    renderSettings(DataMartDefinitionType.CONNECTOR, DataMartDefinitionType.CONNECTOR);
+
+    expect(screen.queryByLabelText('Definition Type')).not.toBeInTheDocument();
+  });
+
+  it('hides the type selector on a legacy BigQuery storage, which only accepts SQL', () => {
+    renderSettings(
+      DataMartDefinitionType.SQL,
+      DataMartDefinitionType.SQL,
+      vi.fn(),
+      DataStorageType.LEGACY_GOOGLE_BIGQUERY
+    );
+
+    expect(screen.queryByLabelText('Definition Type')).not.toBeInTheDocument();
+  });
+
+  it('does not offer connector as a switch target for an existing Data Mart', () => {
+    renderSettings(DataMartDefinitionType.TABLE, DataMartDefinitionType.TABLE);
+
+    const labels = optionLabels();
+    expect(labels.some(label => label.includes('View'))).toBe(true);
+    expect(labels.some(label => label.includes('Connector'))).toBe(false);
+  });
+
+  it('marks the saved type in the list', () => {
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.TABLE);
+
+    const current = optionLabels().find(label => label.includes('(current)'));
+    expect(current).toContain('Table');
+  });
+
+  it('offers connector while the Data Mart is still being set up', () => {
+    renderSettings(null, null);
+
+    expect(optionLabels().some(label => label.includes('Connector'))).toBe(true);
+  });
+
+  it('warns that the change is staged once another type is picked', () => {
+    renderSettings(DataMartDefinitionType.TABLE, DataMartDefinitionType.VIEW);
+
+    expect(screen.getByRole('status')).toHaveTextContent(/Pick a new source and save/);
+  });
+
+  it('shows no staged warning while the picked type still matches the saved one', () => {
+    renderSettings(DataMartDefinitionType.VIEW, DataMartDefinitionType.VIEW);
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('returns to the saved type when a staged change is discarded', () => {
+    const { setDefinitionType } = renderSettings(
+      DataMartDefinitionType.TABLE,
+      DataMartDefinitionType.VIEW
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+    expect(setDefinitionType).toHaveBeenCalledWith(DataMartDefinitionType.VIEW);
+    expect(testState.updateDataMartDefinition).not.toHaveBeenCalled();
+  });
+
+  it('confirms before saving a type change, and reports what depends on the Data Mart', async () => {
+    testState.getEdges.mockResolvedValue([
+      { sourceDataMartId: 'dm-1', targetDataMartId: 'dm-2' },
+      { sourceDataMartId: 'dm-3', targetDataMartId: 'dm-1' },
+      { sourceDataMartId: 'dm-4', targetDataMartId: 'dm-5' },
+    ]);
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.VIEW);
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
+    await clickSaveWhenEnabled();
+
+    expect(await screen.findByText('Change input source from View to SQL?')).toBeInTheDocument();
+    // Nothing is written until the user confirms.
+    expect(testState.updateDataMartDefinition).not.toHaveBeenCalled();
+
+    // Two edges touch dm-1 (one outbound, one inbound); reportsCount is 2.
+    expect(
+      await screen.findByText('2 relationships and 2 reports depend on this Data Mart.')
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change input source' }));
+
+    await waitFor(() => {
+      expect(testState.updateDataMartDefinition).toHaveBeenCalledWith(
+        'dm-1',
+        DataMartDefinitionType.SQL,
+        expect.objectContaining({ sqlQuery: 'select 1' })
+      );
+    });
+  });
+
+  it('saves a same-type edit without a confirmation dialog', async () => {
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.SQL);
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 2' } });
+    await clickSaveWhenEnabled();
+
+    await waitFor(() => {
+      expect(testState.updateDataMartDefinition).toHaveBeenCalled();
+    });
+    expect(screen.queryByText(/Change input source from/)).not.toBeInTheDocument();
+  });
+});

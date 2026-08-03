@@ -1,4 +1,5 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -8,6 +9,7 @@ import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartDefinitionSetEvent } from '../events/data-mart-definition-set.event';
+import { DataMartDefinitionTypeChangedEvent } from '../events/data-mart-definition-type-changed.event';
 import { DataMartDefinitionTypeSetEvent } from '../events/data-mart-definition-type-set.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
@@ -29,6 +31,7 @@ export class UpdateDataMartDefinitionService {
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
+  @Transactional()
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
@@ -46,11 +49,14 @@ export class UpdateDataMartDefinitionService {
       }
     }
 
-    const definitionTypeWasEmpty = !dataMart.definitionType;
+    const previousDefinitionType = dataMart.definitionType;
+    const definitionTypeWasEmpty = !previousDefinitionType;
     const definitionWasEmpty = !dataMart.definition;
+    let definitionTypeChanged = false;
 
-    if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
-      throw new BusinessViolationException('DataMart already has definition');
+    if (previousDefinitionType && previousDefinitionType !== command.definitionType) {
+      this.assertDefinitionTypeChangeAllowed(previousDefinitionType, command.definitionType);
+      definitionTypeChanged = true;
     }
 
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
@@ -153,6 +159,18 @@ export class UpdateDataMartDefinitionService {
       );
     }
 
+    if (definitionTypeChanged && previousDefinitionType) {
+      await this.eventDispatcher.publishExternal(
+        new DataMartDefinitionTypeChangedEvent(
+          dataMart.id,
+          command.projectId,
+          previousDefinitionType,
+          dataMart.definitionType,
+          dataMart.createdById
+        )
+      );
+    }
+
     await this.advancedSearchIndexSync?.scheduleReindex(
       SearchableEntityType.DATA_MART,
       dataMart.id,
@@ -160,5 +178,25 @@ export class UpdateDataMartDefinitionService {
     );
 
     return this.mapper.toDomainDto(dataMart);
+  }
+
+  /**
+   * A Data Mart may be repointed at another input source, keeping its id and therefore its
+   * relationships, reports and field metadata. Connector-backed Data Marts are excluded in both
+   * directions: a connector owns a write target, stored secrets, an incremental cursor and its own
+   * run triggers, none of which can be handed over to (or picked up from) a plain source.
+   */
+  private assertDefinitionTypeChangeAllowed(
+    currentType: DataMartDefinitionType,
+    nextType: DataMartDefinitionType
+  ): void {
+    if (
+      currentType === DataMartDefinitionType.CONNECTOR ||
+      nextType === DataMartDefinitionType.CONNECTOR
+    ) {
+      throw new BusinessViolationException(
+        'Input source type cannot be changed to or from a connector. Create a separate Data Mart instead.'
+      );
+    }
   }
 }

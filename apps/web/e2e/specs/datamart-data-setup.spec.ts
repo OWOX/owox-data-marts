@@ -290,3 +290,67 @@ test.describe('Data Setup - Connector Definition', () => {
     expect(dmData.definition?.connector?.source?.name).toBe('BankOfCanada');
   });
 });
+
+// ---------------------------------------------------------------------------
+// DSET-08: Repointing a Data Mart at another input source type keeps everything
+// that was built on top of it. Driven through the API because the assertions are
+// about persisted relationships and reports, not about the form.
+// ---------------------------------------------------------------------------
+test.describe('Data Setup - Change input source type', () => {
+  test('keeps relationships and reports when the input source type changes (DSET-08)', async ({
+    apiHelpers,
+  }) => {
+    const storage = await apiHelpers.createStorage();
+
+    const subject = await apiHelpers.createDataMart(storage.id, `Subject DM ${Date.now()}`);
+    const neighbour = await apiHelpers.createDataMart(storage.id, `Neighbour DM ${Date.now()}`);
+    await apiHelpers.setDefinition(subject.id);
+    await apiHelpers.setDefinition(neighbour.id);
+
+    // Outbound: subject -> neighbour. Inbound: neighbour -> subject.
+    await apiHelpers.createRelationship(subject.id, neighbour.id, 'neighbour', [
+      { sourceFieldName: 'id', targetFieldName: 'id' },
+    ]);
+    await apiHelpers.createRelationship(neighbour.id, subject.id, 'subject', [
+      { sourceFieldName: 'id', targetFieldName: 'id' },
+    ]);
+    const { reportId } = await apiHelpers.setupDestinationWithReport(subject.id);
+
+    // SQL -> TABLE: the change that used to be rejected outright.
+    const changed = await apiHelpers.updateDefinition(subject.id, 'TABLE', {
+      fullyQualifiedName: 'test_dataset.subject_table',
+    });
+    expect(changed.ok).toBeTruthy();
+
+    const dm = await apiHelpers.getDataMart(subject.id);
+    expect(dm.definitionType).toBe('TABLE');
+    expect(dm.definition?.fullyQualifiedName).toBe('test_dataset.subject_table');
+
+    // Both directions of the relationship survive.
+    const outbound = await apiHelpers.getRelationshipGraph(subject.id);
+    expect(outbound.nodes.length).toBeGreaterThan(0);
+    const inbound = await apiHelpers.getRelationshipGraph(neighbour.id);
+    expect(inbound.nodes.length).toBeGreaterThan(0);
+
+    // The report still exists and still points at the same Data Mart.
+    const report = await apiHelpers.getReport(reportId);
+    expect(report.dataMart?.id).toBe(subject.id);
+  });
+
+  test('rejects switching a connector Data Mart to another input source type (DSET-08)', async ({
+    apiHelpers,
+  }) => {
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart(
+      `Connector DM ${Date.now()}`
+    );
+
+    const changed = await apiHelpers.updateDefinition(datamart.id, 'TABLE', {
+      fullyQualifiedName: 'test_dataset.some_table',
+    });
+
+    expect(changed.ok).toBeFalsy();
+
+    const dm = await apiHelpers.getDataMart(datamart.id);
+    expect(dm.definitionType).toBe('CONNECTOR');
+  });
+});

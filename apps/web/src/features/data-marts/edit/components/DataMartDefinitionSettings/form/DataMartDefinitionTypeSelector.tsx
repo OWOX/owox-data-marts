@@ -13,6 +13,16 @@ import { Label } from '@owox/ui/components/label';
 interface DataMartDefinitionTypeSelectorProps {
   initialType?: DataMartDefinitionType | null;
   onTypeSelect: (type: DataMartDefinitionType) => void;
+  /**
+   * Types that cannot be picked here. Used when repointing an existing Data Mart, where a
+   * connector is not an option in either direction.
+   */
+  excludedTypes?: DataMartDefinitionType[];
+  /**
+   * The type currently saved on the Data Mart. Marked in the list so the user can tell an
+   * unsaved pick apart from what the Data Mart actually uses.
+   */
+  savedType?: DataMartDefinitionType | null;
 }
 
 interface TypeOption {
@@ -24,6 +34,8 @@ interface TypeOption {
 export function DataMartDefinitionTypeSelector({
   initialType,
   onTypeSelect,
+  excludedTypes,
+  savedType,
 }: DataMartDefinitionTypeSelectorProps) {
   const [selectedType, setSelectedType] = useState<DataMartDefinitionType | null>(
     initialType ?? null
@@ -40,7 +52,7 @@ export function DataMartDefinitionTypeSelector({
     onTypeSelect(type);
   };
 
-  const typeOptions: TypeOption[] = [
+  const allTypeOptions: TypeOption[] = [
     {
       type: DataMartDefinitionType.SQL,
       label: 'SQL',
@@ -68,6 +80,8 @@ export function DataMartDefinitionTypeSelector({
     },
   ];
 
+  const typeOptions = allTypeOptions.filter(option => !excludedTypes?.includes(option.type));
+
   return (
     <div className='dm-card-block'>
       <Label className='text-foreground'>Definition Type</Label>
@@ -80,7 +94,7 @@ export function DataMartDefinitionTypeSelector({
         >
           <SelectTrigger className='dm-card-formcontrol w-full' aria-label='Definition Type'>
             <SelectValue placeholder='Select definition type'>
-              {selectedType && typeOptions.find(opt => opt.type === selectedType)?.label}
+              {selectedType && allTypeOptions.find(opt => opt.type === selectedType)?.label}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -89,6 +103,9 @@ export function DataMartDefinitionTypeSelector({
                 <SelectItem key={option.type} value={option.type}>
                   {option.label}
                   <span className='text-muted-foreground/80 ml-2'>{option.description}</span>
+                  {savedType === option.type && (
+                    <span className='text-muted-foreground/60 ml-2'>(current)</span>
+                  )}
                 </SelectItem>
               ))}
             </SelectGroup>

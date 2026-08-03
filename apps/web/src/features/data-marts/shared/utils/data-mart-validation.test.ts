@@ -19,6 +19,7 @@ describe('data-mart-validation', () => {
     id: 'test-id',
     title: 'Test Data Mart',
     dataLastUpdated: null,
+    reportsCount: 0,
     description: 'Test description',
     status: {
       code: DataMartStatus.DRAFT,
