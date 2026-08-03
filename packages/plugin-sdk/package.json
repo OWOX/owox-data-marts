@@ -20,6 +20,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "prebuild": "npm run build:dep",
+    "build:dep": "npm run build -w @owox/api-client --prefix ../..",
     "clean": "shx rm -rf dist",
     "test": "vitest run",
     "lint": "eslint . --config ./eslint.config.js",

@@ -3,13 +3,13 @@ import type {
   PluginHostContext,
   PluginRequest,
   PluginResponse,
-} from '@owox/plugin-sdk/protocol';
+} from './protocol';
 import {
   OPAQUE_ORIGIN,
   PLUGIN_PROTOCOL_VERSION,
   isPluginHello,
   isPluginReady,
-} from '@owox/plugin-sdk/protocol';
+} from './protocol';
 
 /** Supplied by the runtime authorization track. There is deliberately no default. */
 export type FetchRuntimeToken = () => Promise<{ runtimeToken: string; expiresIn: number }>;

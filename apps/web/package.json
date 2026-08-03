@@ -46,7 +46,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.1.1",
     "@monaco-editor/react": "^4.7.0",
-    "@owox/plugin-sdk": "*",
     "@owox/ui": "../packages/ui",
     "@tailwindcss/vite": "^4.1.8",
     "@tanstack/react-query": "^5.66.0",

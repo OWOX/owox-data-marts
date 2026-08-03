@@ -1,5 +1,5 @@
-import type { PluginRequest, PluginRequestInput, PluginResponse } from '@owox/plugin-sdk/protocol';
-import { PLUGIN_PROTOCOL_VERSION } from '@owox/plugin-sdk/protocol';
+import type { PluginRequest, PluginRequestInput, PluginResponse } from './protocol';
+import { PLUGIN_PROTOCOL_VERSION } from './protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPluginHostBridge, type PluginHostBridge } from './pluginHostBridge';
 
