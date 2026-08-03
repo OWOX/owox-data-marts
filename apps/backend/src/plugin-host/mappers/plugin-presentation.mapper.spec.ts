@@ -87,6 +87,14 @@ describe('PluginPresentationMapper', () => {
       expect(view.displayName).toBe('example-plugin');
       expect(view.description).toBe('');
     });
+
+    // The name fallback must not hand back what `source` withholds one field above.
+    it('falls back to the owner rather than the repository name for a private repository', () => {
+      const view = memberView(plugin({ currentVersionId: null, isPrivateRepo: true }), null);
+
+      expect(view.displayName).toBe('OWOX');
+      expect(view.displayName).not.toBe('example-plugin');
+    });
   });
 
   // Publisher diagnostics reach a publisher through the diagnostics block on a

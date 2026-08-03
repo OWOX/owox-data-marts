@@ -156,9 +156,11 @@ export class PluginPresentationMapper {
   ): PluginGalleryEntryDto {
     return {
       pluginId: plugin.id,
-      // Falling back to the repository name keeps a plugin with no eligible release
-      // recognisable rather than blank.
-      displayName: version?.displayName ?? plugin.repoName,
+      // Falling back keeps a plugin with no eligible release recognisable rather than
+      // blank, but the repository name is exactly what `toSource` withholds for a private
+      // repository -- so that case falls back to the owner, which `toSource` discloses anyway.
+      displayName:
+        version?.displayName ?? (plugin.isPrivateRepo ? plugin.repoOwner : plugin.repoName),
       description: version?.description ?? '',
       currentSemver: version?.semver ?? null,
       currentVersionId: version?.id ?? null,
