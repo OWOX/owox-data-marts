@@ -64,6 +64,11 @@ describe('getDataQualityStatusVisual', () => {
       { icon: ShieldX, isActive: false, label: 'Run failed', tone: 'error' },
     ],
     [
+      'restricted',
+      { state: 'RESTRICTED' as const },
+      { icon: ShieldBan, isActive: false, label: 'Restricted', tone: 'warning' },
+    ],
+    [
       'cancelled',
       { state: 'CANCELLED' as const, errorFindings: 1 },
       { icon: ShieldBan, isActive: false, label: 'Cancelled', tone: 'neutral' },

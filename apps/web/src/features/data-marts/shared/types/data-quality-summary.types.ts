@@ -7,6 +7,7 @@ export type DataQualitySummaryState =
   | 'PASSED'
   | 'ISSUES'
   | 'EXECUTION_FAILED'
+  | 'RESTRICTED'
   | 'CANCELLED'
   | 'ALL_DISABLED';
 

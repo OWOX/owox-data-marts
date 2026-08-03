@@ -1037,7 +1037,7 @@ describe('RunDataQualityService', () => {
     expect(dataMartRun.status).toBe(DataMartRunStatus.SUCCESS);
   });
 
-  it('does not execute Data Quality queries when project balance blocks operations', async () => {
+  it('marks the run as restricted without rule errors when project balance blocks operations', async () => {
     projectBalance.verifyCanPerformOperations.mockRejectedValue(
       new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
     );
@@ -1049,7 +1049,13 @@ describe('RunDataQualityService', () => {
     expect(compiler.compile).not.toHaveBeenCalled();
     expect(executor.executeChecks).not.toHaveBeenCalled();
     expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
-    expect(dataMartRun.status).toBe(DataMartRunStatus.FAILED);
+    expect(dataMartRun).toMatchObject({
+      status: DataMartRunStatus.RESTRICTED,
+      dataQualitySummary: expect.objectContaining({ state: DataQualitySummaryState.RESTRICTED }),
+      dataQualityResults: [],
+      errors: [expect.stringContaining('credit limit')],
+      finishedAt,
+    });
   });
 
   it('publishes consumption only after final SUCCESS is persisted', async () => {
@@ -1200,19 +1206,21 @@ describe('RunDataQualityService', () => {
     expect(dataMartRun.dataQualitySummary?.totalChecks).toBe(1);
   });
 
-  it.each([DataMartRunStatus.SUCCESS, DataMartRunStatus.FAILED, DataMartRunStatus.CANCELLED])(
-    'does not execute an already terminal %s run',
-    async status => {
-      dataMartRun.status = status;
+  it.each([
+    DataMartRunStatus.SUCCESS,
+    DataMartRunStatus.FAILED,
+    DataMartRunStatus.CANCELLED,
+    DataMartRunStatus.RESTRICTED,
+  ])('does not execute an already terminal %s run', async status => {
+    dataMartRun.status = status;
 
-      await service.executeExistingRun('run-1', 'project-1');
+    await service.executeExistingRun('run-1', 'project-1');
 
-      expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
-      expect(snapshotTableReference.resolve).not.toHaveBeenCalled();
-      expect(compiler.compile).not.toHaveBeenCalled();
-      expect(executor.executeChecks).not.toHaveBeenCalled();
-    }
-  );
+    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(snapshotTableReference.resolve).not.toHaveBeenCalled();
+    expect(compiler.compile).not.toHaveBeenCalled();
+    expect(executor.executeChecks).not.toHaveBeenCalled();
+  });
 
   it.each([
     [DataMartRunStatus.SUCCESS, DataQualitySummaryState.PASSED, []],
@@ -1220,6 +1228,11 @@ describe('RunDataQualityService', () => {
       DataMartRunStatus.FAILED,
       DataQualitySummaryState.EXECUTION_FAILED,
       ['Data Quality run failed during execution'],
+    ],
+    [
+      DataMartRunStatus.RESTRICTED,
+      DataQualitySummaryState.RESTRICTED,
+      ['Project operations are restricted'],
     ],
   ])(
     'does not append or overwrite an externally terminal %s run',
