@@ -3,7 +3,8 @@ import { BaseException } from './base.exception';
 export class BusinessViolationException extends Error implements BaseException {
   constructor(
     readonly message: string,
-    readonly errorDetails?: Record<string, unknown>
+    readonly errorDetails?: Record<string, unknown>,
+    readonly code?: string
   ) {
     super(message);
   }

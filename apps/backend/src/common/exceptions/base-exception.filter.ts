@@ -15,6 +15,8 @@ export class BaseExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       message: exception.message,
+      // Spread so exceptions that carry no code keep their existing response shape.
+      ...(exception.code ? { code: exception.code } : {}),
       errorDetails: exception.errorDetails,
     });
   }
