@@ -47,11 +47,16 @@ export function shouldIncludeRowCount(report: ReportLike): boolean {
  *
  * A read plan carries no destination — the totals query, the HTTP data endpoint and MCP all build
  * one — so those reads keep the prefix.
+ *
+ * The relation is checked by VALUE, not by key: a `DataDestination` is soft-deletable, and TypeORM's
+ * eager join silently drops a soft-deleted row, leaving the property present but holding undefined
+ * (the same trap {@link BlendableSchemaService} guards against for `targetDataMart`). An `in` check
+ * alone would pass and then throw on `.type`, breaking reads that never needed the destination —
+ * the generated-SQL preview among them.
  */
 export function usesSuffixedJoinedFieldNames(report: ReportLike): boolean {
-  return (
-    'dataDestination' in report && usesSuffixedJoinedFieldNamesFor(report.dataDestination.type)
-  );
+  const destination = 'dataDestination' in report ? report.dataDestination : undefined;
+  return destination != null && usesSuffixedJoinedFieldNamesFor(destination.type);
 }
 
 /**
