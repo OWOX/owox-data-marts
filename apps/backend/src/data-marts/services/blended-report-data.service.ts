@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
-import { formatBlendedFieldDisplayName } from './blended-field-display-name';
+import { BlendedFieldNameStyle, formatBlendedFieldDisplayName } from './blended-field-display-name';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
-import { ReportLike, shouldIncludeRowCount } from '../dto/domain/report-like-read-plan';
+import {
+  ReportLike,
+  shouldIncludeRowCount,
+  usesSuffixedJoinedFieldNames,
+} from '../dto/domain/report-like-read-plan';
 import {
   BlendedColumnTypes,
   ResolvedRelationshipChain,
@@ -146,7 +150,8 @@ export class BlendedReportDataService {
     const blendedDataHeaders = this.buildBlendedDataHeaders(
       columnConfig,
       blendedFieldsByName,
-      dataMart.storage.type
+      dataMart.storage.type,
+      usesSuffixedJoinedFieldNames(report) ? 'suffix' : 'prefix'
     );
 
     if (!hasBlendedColumns && !hasPreJoinFilters) {
@@ -234,10 +239,17 @@ export class BlendedReportDataService {
     return { postJoin };
   }
 
+  /**
+   * `nameStyle` is the destination's joined-field naming convention. The resulting alias IS the
+   * string the destination renders — the Google Sheets writer both writes it into row 1 and
+   * persists it into `OWOX_COLUMNS`, so the two must come from here rather than being recomposed
+   * downstream.
+   */
   private buildBlendedDataHeaders(
     columnConfig: string[],
     blendedFieldsByName: Map<string, BlendedFieldDto>,
-    storageType: DataStorageType
+    storageType: DataStorageType,
+    nameStyle: BlendedFieldNameStyle
   ): ReportDataHeader[] {
     const headers: ReportDataHeader[] = [];
     for (const col of columnConfig) {
@@ -251,7 +263,7 @@ export class BlendedReportDataService {
         headers.push(
           new ReportDataHeader(
             blendedField.name,
-            formatBlendedFieldDisplayName(blendedField),
+            formatBlendedFieldDisplayName(blendedField, nameStyle),
             blendedField.description || undefined,
             effectiveType,
             blendedField.aggregateFunction

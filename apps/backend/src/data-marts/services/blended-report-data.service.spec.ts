@@ -11,6 +11,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import {
   AvailableSourceDto,
   BlendableSchemaDto,
@@ -272,70 +273,94 @@ describe('BlendedReportDataService', () => {
       );
     });
 
-    it('populates blendedDataHeaders for blended columns only (native cols are reader-resolved)', async () => {
-      const columnConfig = ['native_col', 'my_alias__blended_col'];
-      const report = makeReport({ columnConfig });
+    // The joined-field label convention is per destination: Google Sheets writes it into a narrow
+    // header cell and puts the data mart name last, everything else keeps it as a prefix. A read
+    // plan (totals / HTTP data / MCP) carries no destination and therefore keeps the prefix too.
+    it.each([
+      {
+        case: 'a Google Sheets destination',
+        destinationType: DataDestinationType.GOOGLE_SHEETS,
+        expectedAlias: 'Blended Display (my_alias)',
+      },
+      {
+        case: 'a Looker Studio destination',
+        destinationType: DataDestinationType.LOOKER_STUDIO,
+        expectedAlias: 'my_alias Blended Display',
+      },
+      {
+        case: 'no destination at all',
+        destinationType: undefined,
+        expectedAlias: 'my_alias Blended Display',
+      },
+    ])(
+      'populates blendedDataHeaders for blended columns only, with $case (native cols are reader-resolved)',
+      async ({ destinationType, expectedAlias }) => {
+        const columnConfig = ['native_col', 'my_alias__blended_col'];
+        const report = makeReport({
+          columnConfig,
+          ...(destinationType ? { dataDestination: { type: destinationType } } : {}),
+        } as Partial<Report>);
 
-      const blendedField = new BlendedFieldDto();
-      blendedField.name = 'my_alias__blended_col';
-      blendedField.sourceRelationshipId = 'rel-1';
-      blendedField.sourceDataMartId = 'dm-target';
-      blendedField.sourceDataMartTitle = 'Target';
-      blendedField.targetAlias = 'alias_1';
-      blendedField.originalFieldName = 'blended_col';
-      blendedField.type = 'STRING';
-      blendedField.alias = 'Blended Display';
-      blendedField.description = 'Blended field description';
-      blendedField.isHidden = false;
-      blendedField.aggregateFunction = 'STRING_AGG';
-      blendedField.transitiveDepth = 1;
-      blendedField.aliasPath = 'alias_1';
-      blendedField.outputPrefix = 'my_alias';
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'my_alias__blended_col';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target';
+        blendedField.sourceDataMartTitle = 'Target';
+        blendedField.targetAlias = 'alias_1';
+        blendedField.originalFieldName = 'blended_col';
+        blendedField.type = 'STRING';
+        blendedField.alias = 'Blended Display';
+        blendedField.description = 'Blended field description';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'STRING_AGG';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'alias_1';
+        blendedField.outputPrefix = 'my_alias';
 
-      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
-        nativeFields: [],
-        availableSources: [
-          {
-            aliasPath: 'alias_1',
-            title: 'Target',
-            defaultAlias: 'my_alias',
-            depth: 1,
-            fieldCount: 1,
-            isIncluded: true,
-            isAccessibleForReporting: true,
-            relationshipId: 'rel-1',
-            dataMartId: 'dm-target',
-          },
-        ],
-        blendedFields: [blendedField],
-      });
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'alias_1',
+              title: 'Target',
+              defaultAlias: 'my_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
 
-      const mockRel = {
-        id: 'rel-1',
-        targetAlias: 'alias_1',
-        sourceDataMart: { id: 'dm-1' },
-        targetDataMart: { id: 'dm-target' },
-        joinConditions: [],
-      } as unknown as DataMartRelationship;
+        const mockRel = {
+          id: 'rel-1',
+          targetAlias: 'alias_1',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
 
-      relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
-      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
-      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      const result = await service.resolveBlendingDecision(report, {
-        userId: 'user-1',
-        roles: ['admin'],
-      });
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
 
-      // Only the blended column gets a header; native columns are resolved
-      // by the reader's own headers generator.
-      expect(result.blendedDataHeaders).toHaveLength(1);
-      expect(result.blendedDataHeaders?.[0].name).toBe('my_alias__blended_col');
-      // Exported header: "<outputPrefix> <fieldAlias|originalFieldName>".
-      expect(result.blendedDataHeaders?.[0].alias).toBe('my_alias Blended Display');
-      expect(result.blendedDataHeaders?.[0].description).toBe('Blended field description');
-      expect(result.columnFilter).toEqual(columnConfig);
-    });
+        // Only the blended column gets a header; native columns are resolved
+        // by the reader's own headers generator.
+        expect(result.blendedDataHeaders).toHaveLength(1);
+        expect(result.blendedDataHeaders?.[0].name).toBe('my_alias__blended_col');
+        expect(result.blendedDataHeaders?.[0].alias).toBe(expectedAlias);
+        expect(result.blendedDataHeaders?.[0].description).toBe('Blended field description');
+        expect(result.columnFilter).toEqual(columnConfig);
+      }
+    );
 
     describe('blendedDataHeaders carry effective type and aggregateFunction', () => {
       function makeSimpleSchema(

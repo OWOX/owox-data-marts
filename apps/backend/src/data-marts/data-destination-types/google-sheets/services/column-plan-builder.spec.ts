@@ -285,6 +285,38 @@ describe('ColumnPlanBuilder', () => {
     });
   });
 
+  describe('joined-field label convention change', () => {
+    it('rewrites headers in place when joined labels move the data mart name to the end', () => {
+      // A sheet last refreshed under the old convention holds `Orders revenue` / `Orders cost` in
+      // row 1, and its OWOX_COLUMNS snapshot still maps those strings to the canonical names. The
+      // next refresh asks for the same columns under the new `revenue (Orders)` labels. The diff
+      // must resolve row 1 through the OLD snapshot and emit nothing structural — otherwise every
+      // joined column would be deleted and re-inserted, shifting user content to its right.
+      const plan = builder.build(
+        ['date', 'Orders revenue', 'Orders cost'],
+        prevAliased('date', 'orders__revenue|Orders revenue', 'orders__cost|Orders cost'),
+        aliased('date', 'orders__revenue|revenue (Orders)', 'orders__cost|cost (Orders)')
+      );
+
+      expect(plan.ops).toEqual([]);
+      expect(plan.finalImportedNames).toEqual(['date', 'orders__revenue', 'orders__cost']);
+      expect(plan.nameToFinalIndex.get('orders__revenue')).toBe(1);
+      expect(plan.nameToFinalIndex.get('orders__cost')).toBe(2);
+    });
+
+    it('keeps a user reorder across the label change', () => {
+      // Same migration, but the user had dragged the joined columns around. Their layout survives.
+      const plan = builder.build(
+        ['Orders cost', 'date', 'Orders revenue'],
+        prevAliased('date', 'orders__revenue|Orders revenue', 'orders__cost|Orders cost'),
+        aliased('date', 'orders__revenue|revenue (Orders)', 'orders__cost|cost (Orders)')
+      );
+
+      expect(plan.ops).toEqual([]);
+      expect(plan.finalImportedNames).toEqual(['orders__cost', 'date', 'orders__revenue']);
+    });
+  });
+
   describe('alias↔name collision (C6)', () => {
     it('logs a warning, ignores the second mapping, and does not crash on a collision', () => {
       // Pathological-but-allowed shape: one column named `revenue` exposed

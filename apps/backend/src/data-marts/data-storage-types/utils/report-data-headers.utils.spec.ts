@@ -221,6 +221,29 @@ describe('resolveReportDataHeaders', () => {
       expect(aggregated?.storageFieldType).toBe(BigQueryFieldType.FLOAT);
     });
 
+    it('appends the function token after a Google Sheets joined-field label, not inside it', () => {
+      // A Google Sheets report labels joined fields `Field name (Data Mart name)`. Aggregating one
+      // must read `Cost (Partners) | SUM` — the data mart name stays glued to the field it
+      // qualifies, and the function token lands last, as it does for every other column.
+      const blendedHeader = new ReportDataHeader(
+        'partner__cost',
+        'Cost (Partners)',
+        undefined,
+        BigQueryFieldType.FLOAT
+      );
+      const out = resolveReportDataHeaders(
+        [],
+        {
+          columnFilter: ['partner__cost'],
+          aggregationConfig: [{ column: 'partner__cost', function: 'SUM' }],
+          blendedDataHeaders: [blendedHeader],
+          rowCount: false,
+        },
+        BQ
+      );
+      expect(out.find(h => h.aggregateFunction === 'SUM')?.alias).toBe('Cost (Partners) | SUM');
+    });
+
     it('an aliased aggregated column suffixes the DISPLAY alias too (sheet header keeps `| <FUNC>`)', () => {
       // Regression: the sheet writer renders `alias || name`. If only the name gets the
       // suffix, an aliased metric shows a bare `<alias>` and drops `| <FUNC>`; with two
