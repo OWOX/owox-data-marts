@@ -1,4 +1,5 @@
 import { OWOXApiError } from './errors.js';
+import { isRecord } from './validation.js';
 
 /**
  * Authority level a plugin was published at. The three are independent and combine into
@@ -91,8 +92,14 @@ type PluginsRequester = {
 
 const BASE = '/api/plugins';
 
-function asPublication(value: unknown, operation: string): OWOXPluginPublication {
-  if (typeof value !== 'object' || value === null || !('publicationId' in value)) {
+/**
+ * Accepts a response only when it carries the field that identifies its shape.
+ *
+ * `isRecord` rather than a local object test: it also excludes arrays, which the two
+ * hand-rolled guards this replaces did not.
+ */
+function asShape<T>(value: unknown, marker: string, operation: string): T {
+  if (!isRecord(value) || !(marker in value)) {
     throw new OWOXApiError(
       `OWOX Plugins API returned an unexpected response shape for ${operation}`,
       {
@@ -101,21 +108,14 @@ function asPublication(value: unknown, operation: string): OWOXPluginPublication
     );
   }
 
-  return value as OWOXPluginPublication;
+  return value as T;
 }
 
-function asUpdateResult(value: unknown, operation: string): OWOXPluginUpdateResult {
-  if (typeof value !== 'object' || value === null || !('pluginId' in value)) {
-    throw new OWOXApiError(
-      `OWOX Plugins API returned an unexpected response shape for ${operation}`,
-      {
-        details: value,
-      }
-    );
-  }
+const asPublication = (value: unknown, operation: string) =>
+  asShape<OWOXPluginPublication>(value, 'publicationId', operation);
 
-  return value as OWOXPluginUpdateResult;
-}
+const asUpdateResult = (value: unknown, operation: string) =>
+  asShape<OWOXPluginUpdateResult>(value, 'pluginId', operation);
 
 /**
  * Publisher-facing plugin catalog operations.

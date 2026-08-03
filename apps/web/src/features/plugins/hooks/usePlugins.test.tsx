@@ -171,4 +171,26 @@ describe('usePluginActions', () => {
       'Updated to v2.0.0. Everyone using this plugin now has this version.'
     );
   });
+
+  // The browser can be the newer half of a rolling deploy and talk to a backend that
+  // sends no outcome at all. Falling back to `updated` keeps the message true rather
+  // than reporting every such check as a failure.
+  it.each([
+    [
+      true,
+      'success' as const,
+      'Updated to v3.0.0. Everyone using this plugin now has this version.',
+    ],
+    [false, 'plain' as const, "You're up to date — v3.0.0"],
+  ])('reads a response with no outcome field (updated=%s)', async (updated, channel, expected) => {
+    service.checkNow.mockResolvedValue({ updated, currentSemver: '3.0.0' });
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await act(async () => {
+      await result.current.checkNow('p1');
+    });
+
+    expect(channel === 'success' ? toast.success : toast).toHaveBeenCalledWith(expected);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
 });

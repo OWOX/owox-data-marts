@@ -115,7 +115,7 @@ export class GithubAuthService {
     }
 
     const body = (await response.json()) as { token: string; expires_at: string };
-    // ponytail: in-process cache, so each instance mints its own. Wasteful across a
+    // NOTE: in-process cache, so each instance mints its own. Wasteful across a
     // multi-instance deployment, not incorrect; share it only if GitHub's App rate
     // limit is ever actually hit.
     this.tokenCache.set(installationId, {

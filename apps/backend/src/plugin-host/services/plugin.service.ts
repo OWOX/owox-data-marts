@@ -76,11 +76,11 @@ export class PluginService {
    * timestamp the publisher view wants anyway. There is no Redis in this codebase and
    * this needs none.
    *
-   * ponytail: a rate limiter, not a mutex -- a sync that outlives the interval can
-   * overlap the next one, which is why version inserts treat a unique violation as a
-   * rejection rather than an error. Upgrade path is a nullable syncStartedAt lease with
-   * staleness reclaim, not Redis.
-   * ponytail: a crashed sync holds the slot for the full interval before a retry is allowed.
+   * NOTE: a rate limiter, not a mutex -- a sync that outlives the interval can overlap
+   * the next one, which is why version inserts treat a unique violation as a rejection
+   * rather than an error. Upgrade path is a nullable syncStartedAt lease with staleness
+   * reclaim, not Redis. A crashed sync likewise holds the slot for the full interval
+   * before a retry is allowed.
    */
   async tryClaimSyncSlot(pluginId: string, minIntervalMs: number): Promise<boolean> {
     const result = await this.repository

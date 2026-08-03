@@ -6,7 +6,12 @@ import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
 import type { InstalledPlugin, PluginGalleryEntry, PluginUpdateResult } from '../types';
 
-const GALLERY_KEY = 'plugin-gallery';
+/**
+ * Exported because publishing invalidates the Gallery too, from the other hook module.
+ * Two copies of this string would drift silently: the queries would simply stop being
+ * invalidated, and the member would read a stale list with nothing failing anywhere.
+ */
+export const GALLERY_KEY = 'plugin-gallery';
 const INSTALLATIONS_KEY = 'plugin-installations';
 
 const EMPTY_GALLERY: PluginGalleryEntry[] = [];

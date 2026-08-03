@@ -5,9 +5,9 @@ import { useIsAdmin } from '../../idp/hooks/useRole';
 import { useProjectId } from '../../../shared/hooks';
 import { pluginsService } from '../services/plugins.service';
 import type { PluginPublication, PluginPublicationScope } from '../types';
+import { GALLERY_KEY } from './usePlugins';
 
 const PUBLICATIONS_KEY = 'plugin-publications';
-const GALLERY_KEY = 'plugin-gallery';
 
 const EMPTY: PluginPublication[] = [];
 

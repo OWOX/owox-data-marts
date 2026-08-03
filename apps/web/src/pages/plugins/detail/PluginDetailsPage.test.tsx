@@ -137,6 +137,30 @@ describe('PluginDetailsPage', () => {
     expect(checkNow).toHaveBeenCalledWith('p1');
   });
 
+  // The member never chose this version and cannot pin it, so the page has to say that
+  // maintenance is automatic and shared -- in plain sight, not behind a help icon.
+  it('states the daily cadence, the next check and who an update reaches', () => {
+    plugin = entry({ nextCheckAt: '2026-08-04T03:15:00.000Z' });
+    renderPage();
+
+    const copy = screen.getByText(/Updates are checked daily/);
+
+    expect(copy.textContent).toContain('Next check:');
+    expect(copy.textContent).toContain('applied automatically to everyone using this plugin');
+  });
+
+  // A plugin nothing publishes and nobody has installed carries no next check. The
+  // sentence has to survive that rather than render "Next check: —".
+  it('drops only the next-check sentence when the plugin is off daily maintenance', () => {
+    plugin = entry({ nextCheckAt: null });
+    renderPage();
+
+    const copy = screen.getByText(/Updates are checked daily/);
+
+    expect(copy.textContent).not.toContain('Next check:');
+    expect(copy.textContent).toContain('applied automatically to everyone using this plugin');
+  });
+
   it('reports who installed it and when', () => {
     plugin = entry({ installationState: 'installed' });
     installations = [
