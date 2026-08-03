@@ -20,7 +20,7 @@ describe('GetReportGeneratedSqlService', () => {
     dataDestination: { id: 'dest-1' },
   };
 
-  const createService = (canEditDataMart = true) => {
+  const createService = ({ canSee = true, canEdit = true } = {}) => {
     const reportRepository = {
       findOne: jest.fn().mockResolvedValue(report),
     };
@@ -28,7 +28,11 @@ describe('GetReportGeneratedSqlService', () => {
       composeStatic: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
     };
     const accessDecisionService = {
-      canAccess: jest.fn().mockResolvedValue(canEditDataMart),
+      canAccess: jest
+        .fn()
+        .mockImplementation((_userId, _roles, _entityType, _entityId, action) =>
+          Promise.resolve(action === Action.EDIT ? canEdit : canSee)
+        ),
     };
 
     const service = new GetReportGeneratedSqlService(
@@ -42,8 +46,11 @@ describe('GetReportGeneratedSqlService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns generated SQL when user has EDIT on source data mart', async () => {
-    const { service, accessDecisionService, reportSqlComposerService } = createService(true);
+  it('returns generated SQL when user has SEE on source data mart', async () => {
+    const { service, accessDecisionService, reportSqlComposerService } = createService({
+      canSee: true,
+      canEdit: true,
+    });
 
     const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor']);
 
@@ -54,18 +61,29 @@ describe('GetReportGeneratedSqlService', () => {
       ['editor'],
       EntityType.DATA_MART,
       'dm-1',
-      Action.EDIT,
+      Action.SEE,
       'proj-1'
     );
     expect(reportSqlComposerService.composeStatic).toHaveBeenCalledWith(report, {
       userId: 'user-1',
       roles: ['editor'],
     });
-    expect(result).toEqual({ sql: 'SELECT 1' });
+    expect(result).toEqual({ sql: 'SELECT 1', canModifySource: true });
+  });
+
+  it('returns generated SQL with canModifySource false for a viewer who only has SEE', async () => {
+    const { service, reportSqlComposerService } = createService({ canSee: true, canEdit: false });
+
+    const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['viewer']);
+
+    const result = await service.run(command);
+
+    expect(reportSqlComposerService.composeStatic).toHaveBeenCalled();
+    expect(result).toEqual({ sql: 'SELECT 1', canModifySource: false });
   });
 
   it('throws UnauthorizedException when userId is empty', async () => {
-    const { service, accessDecisionService, reportRepository } = createService(true);
+    const { service, accessDecisionService, reportRepository } = createService();
 
     const command = new GetReportGeneratedSqlCommand('report-1', '', 'proj-1', []);
 
@@ -75,7 +93,7 @@ describe('GetReportGeneratedSqlService', () => {
   });
 
   it('throws NotFoundException when report is not found', async () => {
-    const { service, reportRepository } = createService(true);
+    const { service, reportRepository } = createService();
     reportRepository.findOne = jest.fn().mockResolvedValue(null);
 
     const command = new GetReportGeneratedSqlCommand('missing', 'user-1', 'proj-1', ['editor']);
@@ -83,8 +101,8 @@ describe('GetReportGeneratedSqlService', () => {
     await expect(service.run(command)).rejects.toThrow(NotFoundException);
   });
 
-  it('throws ForbiddenException when user lacks EDIT on source data mart', async () => {
-    const { service, reportSqlComposerService } = createService(false);
+  it('throws ForbiddenException when user lacks SEE on source data mart', async () => {
+    const { service, reportSqlComposerService } = createService({ canSee: false, canEdit: false });
 
     const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['viewer']);
 
@@ -93,7 +111,7 @@ describe('GetReportGeneratedSqlService', () => {
   });
 
   it('throws BadRequestException for TABLE_PATTERN on unsupported storages', async () => {
-    const { service, reportRepository, reportSqlComposerService } = createService(true);
+    const { service, reportRepository, reportSqlComposerService } = createService();
     reportRepository.findOne = jest.fn().mockResolvedValue({
       id: 'report-1',
       dataMart: {
@@ -111,7 +129,7 @@ describe('GetReportGeneratedSqlService', () => {
   });
 
   it('allows TABLE_PATTERN on GOOGLE_BIGQUERY', async () => {
-    const { service, reportRepository, reportSqlComposerService } = createService(true);
+    const { service, reportRepository, reportSqlComposerService } = createService();
     reportRepository.findOne = jest.fn().mockResolvedValue({
       id: 'report-1',
       dataMart: {
@@ -126,6 +144,6 @@ describe('GetReportGeneratedSqlService', () => {
 
     const result = await service.run(command);
     expect(reportSqlComposerService.composeStatic).toHaveBeenCalled();
-    expect(result).toEqual({ sql: 'SELECT 1' });
+    expect(result).toEqual({ sql: 'SELECT 1', canModifySource: true });
   });
 });

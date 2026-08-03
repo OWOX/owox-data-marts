@@ -130,10 +130,11 @@ export class ReportService extends ApiService {
   /**
    * Get the generated SQL for a report
    * @param id Report ID
-   * @returns Object containing the generated SQL string
+   * @returns The generated SQL plus whether the caller has maintenance access to the
+   *          source data mart (drives the dry-run validator / "Copy as Data Mart" actions)
    */
-  async getGeneratedSql(id: string): Promise<{ sql: string }> {
-    return this.get<{ sql: string }>(`/${id}/generated-sql`);
+  async getGeneratedSql(id: string): Promise<{ sql: string; canModifySource: boolean }> {
+    return this.get<{ sql: string; canModifySource: boolean }>(`/${id}/generated-sql`);
   }
 
   /**
