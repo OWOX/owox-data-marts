@@ -523,6 +523,18 @@ for (const testCase of cloneStorageCases) {
   });
 }
 
+test('Snowflake initializes staged columns before loading snapshot rows', async () => {
+  const snowflakeCase = cloneStorageCases.find(testCase => testCase.name === 'Snowflake');
+  const { storage } = cloneStorage(snowflakeCase);
+  const stagedColumns = { id: { type: 'BIGINT' } };
+  storage.createTableIfItDoesntExist = async () => stagedColumns;
+  storage.saveData = async () => {
+    assert.equal(storage.existingColumns, stagedColumns);
+  };
+
+  await storage.replaceData([{ id: 1 }]);
+});
+
 for (const testCase of cloneStorageCases) {
   test(`${testCase.name} publishes only after staging is loaded and validated`, async () => {
     const { storage, events } = cloneStorage(testCase);
@@ -737,6 +749,34 @@ test('Redshift generates grants for the staging table', async () => {
     'GRANT SELECT ON TABLE "analytics"."events__owox_stage_run" TO ROLE "reader role" WITH GRANT OPTION',
     'GRANT INSERT ON TABLE "analytics"."events__owox_stage_run" TO "loader"',
   ]);
+});
+
+test('Redshift finds grants when configured identifiers are folded to lowercase', async () => {
+  const storage = Object.create(AwsRedshiftStorage.prototype);
+  storage.config = { Schema: value('Analytics') };
+  const queries = [];
+  storage.executeQueryWithResults = async sql => {
+    queries.push(sql);
+    return queries.length === 1
+      ? []
+      : [
+          {
+            identity_name: 'reader',
+            identity_type: 'role',
+            privilege_type: 'select',
+            admin_option: false,
+          },
+        ];
+  };
+
+  assert.deepEqual(await storage.getTableGrantStatements('Events', 'Events_stage'), [
+    'GRANT SELECT ON TABLE "Analytics"."Events_stage" TO ROLE "reader"',
+  ]);
+  assert.equal(queries.length, 2);
+  assert.match(queries[0], /namespace_name = 'Analytics'/);
+  assert.match(queries[0], /relation_name = 'Events'/);
+  assert.match(queries[1], /LOWER\(namespace_name\) = LOWER\('Analytics'\)/);
+  assert.match(queries[1], /LOWER\(relation_name\) = LOWER\('Events'\)/);
 });
 
 test('Redshift uses the Data API transactional batch for publication', async () => {

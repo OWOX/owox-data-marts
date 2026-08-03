@@ -439,7 +439,9 @@ export function ConnectorEditForm({
         if (mode === 'fields-only') {
           setFieldsOnlyPreviewError(message);
         }
-        if (!apiError) {
+        const status = (error as { response?: { status?: number } }).response?.status;
+        const handledByGlobalInterceptor = status === 400 || status === 403 || status === 404;
+        if (mode !== 'fields-only' && !handledByGlobalInterceptor) {
           toast.error(message);
         }
         return false;

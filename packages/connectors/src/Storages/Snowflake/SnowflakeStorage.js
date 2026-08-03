@@ -378,6 +378,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
         this.existingColumns = {};
         this.updatedRecordsBuffer = {};
         const stagedColumns = await this.createTableIfItDoesntExist();
+        this.existingColumns = stagedColumns;
 
         if (data.length) {
           await this.saveData(data);

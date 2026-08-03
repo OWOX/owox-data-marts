@@ -21,6 +21,8 @@ class HttpRequestException extends Error {
   }
 }
 
+class ConnectorConfigurationException extends Error {}
+
 const HttpUtils = {
   async fetch() {
     throw new Error('Unexpected HTTP request');
@@ -46,6 +48,7 @@ const GoogleSheetsSource = loadScript(
       SERVER_ERROR_MIN: 500,
     },
     HttpRequestException,
+    ConnectorConfigurationException,
     HttpUtils,
     CONFIG_ATTRIBUTES: {
       SECRET: 'SECRET',
@@ -158,6 +161,50 @@ test('does not allow Range to override the selected sheet tab', () => {
 
   const otherSheetSource = createSource({ range: "'Other'!A:D" });
   assert.throws(() => otherSheetSource._buildA1Range(), /Range must use the selected sheet 'Data'/);
+});
+
+test('rejects configured ranges that are not supported A1 notation', () => {
+  const source = createSource({ range: 'R5C2:R10C4' });
+
+  assert.throws(
+    () => source._buildA1Range(),
+    error =>
+      error instanceof ConnectorConfigurationException &&
+      error.message === 'Range must use A1 notation, for example A:D or B5:D20'
+  );
+});
+
+test('extracts and validates spreadsheet IDs before building provider requests', () => {
+  const source = createSource();
+
+  assert.equal(source._extractSpreadsheetId(' spreadsheet-id_123 '), 'spreadsheet-id_123');
+  assert.equal(
+    source._extractSpreadsheetId(
+      'https://docs.google.com/spreadsheets/d/spreadsheet-id_123/edit#gid=0'
+    ),
+    'spreadsheet-id_123'
+  );
+  assert.throws(
+    () => source._extractSpreadsheetId('spreadsheet-id/values?unexpected=true'),
+    error =>
+      error instanceof ConnectorConfigurationException &&
+      error.message === 'Spreadsheet ID or URL is invalid'
+  );
+});
+
+test('preserves configuration errors wrapped by the Google Sheets request', async () => {
+  const source = createSource();
+  source.getAccessToken = async () => 'token';
+  source._fetchSheetResponse = async () => ({
+    getHeaders: () => ({ 'content-length': String(50 * 1024 * 1024 + 1) }),
+  });
+
+  await assert.rejects(
+    source._fetchSheetValues(),
+    error =>
+      error instanceof HttpRequestException &&
+      error.cause instanceof ConnectorConfigurationException
+  );
 });
 
 test('falls back to STRING for numeric values outside JavaScript safe precision', () => {

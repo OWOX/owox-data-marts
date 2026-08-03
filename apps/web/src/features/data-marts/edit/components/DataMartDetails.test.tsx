@@ -44,6 +44,7 @@ vi.mock('../../shared/hooks/useSchemaActualizeTrigger', () => ({
 vi.mock('../model', () => ({
   useAiHelper: () => ({ generateTitle: vi.fn(), pendingScope: null }),
   useAiHelperAvailability: () => ({ enabled: false }),
+  useRefreshDataMartAfterConnectorRun: vi.fn(),
   useSchemaUnsavedGuard: () => ({
     registerSchemaGuard: mocks.registerSchemaGuard,
     runGuarded: vi.fn(),

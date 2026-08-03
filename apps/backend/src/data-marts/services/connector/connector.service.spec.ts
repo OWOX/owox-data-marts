@@ -53,6 +53,9 @@ jest.mock('@owox/connectors', () => ({
         description: 'A test connector',
         logo: 'https://logo.url',
         docUrl: 'https://docs.url',
+        capabilities: {
+          singleConfiguration: true,
+        },
       },
     },
   },
@@ -95,6 +98,17 @@ describe('ConnectorService', () => {
         name: 'TestConnector',
         title: 'Test Connector',
         description: 'A test connector',
+      });
+    });
+  });
+
+  describe('getConnectorCapabilities', () => {
+    it('reads enabled capabilities and defaults missing ones to false', () => {
+      const { service } = createService();
+
+      expect(service.getConnectorCapabilities('TestConnector')).toEqual({
+        singleConfiguration: true,
+        copySecretsByValue: false,
       });
     });
   });

@@ -20,6 +20,8 @@ jest.mock('@owox/connectors', () => {
     }
   }
 
+  class ConnectorConfigurationException extends Error {}
+
   class GoogleSheetsSource {
     constructor(public readonly config: AbstractConfig) {}
 
@@ -32,7 +34,7 @@ jest.mock('@owox/connectors', () => {
     Connectors: {
       GoogleSheets: { GoogleSheetsSource },
     },
-    Core: { AbstractConfig, SourceConfigDto },
+    Core: { AbstractConfig, SourceConfigDto, ConnectorConfigurationException },
   };
 });
 
@@ -132,6 +134,28 @@ describe(ConnectorFieldsPreviewService.name, () => {
     fetchFieldsSchemaMock.mockRejectedValue(providerError);
 
     await expect(service.run(context, 'GoogleSheets', {})).rejects.toThrow(BadGatewayException);
+  });
+
+  it('maps structured connector configuration failures to Bad Request', async () => {
+    const { service } = createService();
+    const { Core } = jest.requireMock('@owox/connectors') as {
+      Core: { ConnectorConfigurationException: new (message: string) => Error };
+    };
+    const configurationError = new Core.ConnectorConfigurationException(
+      "Range must use the selected sheet 'Data'"
+    );
+    const wrappedError = Object.assign(
+      new Error(`Google Sheets request failed: ${configurationError.message}`),
+      {
+        name: 'HttpRequestException',
+        cause: configurationError,
+      }
+    );
+    fetchFieldsSchemaMock.mockRejectedValue(wrappedError);
+
+    const preview = service.run(context, 'GoogleSheets', {});
+    await expect(preview).rejects.toBeInstanceOf(BadRequestException);
+    await expect(preview).rejects.toThrow(configurationError.message);
   });
 
   it('does not expose provider authentication failures as an application 401', async () => {

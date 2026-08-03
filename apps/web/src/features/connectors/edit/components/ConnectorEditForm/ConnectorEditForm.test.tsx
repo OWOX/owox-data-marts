@@ -18,11 +18,18 @@ interface RecordedNavigationProps {
   onNext: () => void;
 }
 
-const { connectorHook, recorded, recordedFields, recordedNavigation } = vi.hoisted(() => ({
-  connectorHook: { current: {} as Record<string, unknown> },
-  recorded: [] as RecordedProps[],
-  recordedFields: [] as RecordedFieldsProps[],
-  recordedNavigation: [] as RecordedNavigationProps[],
+const { connectorHook, recorded, recordedFields, recordedNavigation, toastError } = vi.hoisted(
+  () => ({
+    connectorHook: { current: {} as Record<string, unknown> },
+    recorded: [] as RecordedProps[],
+    recordedFields: [] as RecordedFieldsProps[],
+    recordedNavigation: [] as RecordedNavigationProps[],
+    toastError: vi.fn(),
+  })
+);
+
+vi.mock('react-hot-toast', () => ({
+  toast: { error: toastError },
 }));
 
 vi.mock('./steps', () => ({
@@ -135,6 +142,7 @@ describe('ConnectorEditForm configuration echo', () => {
     recorded.length = 0;
     recordedFields.length = 0;
     recordedNavigation.length = 0;
+    toastError.mockReset();
   });
 
   // ConfigurationStep tells its own echo apart from a genuine outside change by
@@ -194,5 +202,24 @@ describe('ConnectorEditForm configuration echo', () => {
 
     expect(recordedFields.at(-1)?.selectedFields).not.toContain('Spend');
     expect(recordedNavigation.at(-1)?.canGoNext).toBe(true);
+  });
+
+  it('shows Google Sheets preview server errors in the configuration wizard', async () => {
+    const hook = createGoogleSheetsConnectorHook();
+    hook.previewConnectorFields.mockRejectedValue({
+      response: {
+        status: 502,
+        data: { message: 'Connector provider is temporarily unavailable' },
+      },
+    });
+    connectorHook.current = hook;
+    renderForm();
+    renderForm();
+
+    await act(async () => {
+      recordedNavigation.at(-1)?.onNext();
+    });
+
+    expect(toastError).toHaveBeenCalledWith('Connector provider is temporarily unavailable');
   });
 });

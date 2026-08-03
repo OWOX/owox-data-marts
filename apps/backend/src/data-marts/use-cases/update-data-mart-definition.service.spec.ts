@@ -41,13 +41,20 @@ describe('UpdateDataMartDefinitionService', () => {
     const eventDispatcher = {
       publishExternal: jest.fn(),
     };
+    const connectorService = {
+      getConnectorCapabilities: jest.fn().mockReturnValue({
+        singleConfiguration: false,
+        copySecretsByValue: false,
+      }),
+    };
     const service = new UpdateDataMartDefinitionService(
       dataMartService as any,
       mapper as any,
       connectorSecretService as any,
       legacyDataMartsService as any,
       accessDecisionService as any,
-      eventDispatcher as any
+      eventDispatcher as any,
+      connectorService as any
     );
 
     return {
@@ -55,6 +62,7 @@ describe('UpdateDataMartDefinitionService', () => {
       dataMartService,
       connectorSecretService,
       accessDecisionService,
+      connectorService,
       dataMart,
     };
   };
@@ -113,8 +121,12 @@ describe('UpdateDataMartDefinitionService', () => {
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
   });
 
-  it('rejects multiple GoogleSheets source configurations before processing secrets', async () => {
-    const { service, dataMartService } = createService();
+  it('rejects multiple configurations when the connector requires exactly one', async () => {
+    const { service, dataMartService, connectorService } = createService();
+    connectorService.getConnectorCapabilities.mockReturnValue({
+      singleConfiguration: true,
+      copySecretsByValue: false,
+    });
     const command = new UpdateDataMartDefinitionCommand(
       'dm-1',
       'proj-1',
@@ -122,7 +134,7 @@ describe('UpdateDataMartDefinitionService', () => {
       {
         connector: {
           source: {
-            name: 'GoogleSheets',
+            name: 'SingleConfigurationConnector',
             node: 'sheet',
             fields: ['name'],
             configuration: [{ _id: 'config-1' }, { _id: 'config-2' }],
@@ -140,7 +152,7 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(dataMartService.save).not.toHaveBeenCalled();
   });
 
-  it('keeps multiple configurations available for connectors other than GoogleSheets', async () => {
+  it('keeps multiple configurations available when the connector allows them', async () => {
     const { service, dataMartService, dataMart } = createService();
     const definition = {
       connector: {
@@ -173,13 +185,18 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
   });
 
-  it('requires edit access to copy Google Sheets credentials from another Data Mart', async () => {
-    const { service, accessDecisionService, connectorSecretService } = createService();
+  it('requires edit access when connector secrets are copied by value', async () => {
+    const { service, accessDecisionService, connectorSecretService, connectorService } =
+      createService();
+    connectorService.getConnectorCapabilities.mockReturnValue({
+      singleConfiguration: false,
+      copySecretsByValue: true,
+    });
     accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     const definition = {
       connector: {
         source: {
-          name: 'GoogleSheets',
+          name: 'CopyByValueConnector',
           node: 'sheet',
           fields: ['name'],
           configuration: [{ _id: 'config-1' }],
@@ -199,7 +216,7 @@ describe('UpdateDataMartDefinitionService', () => {
     );
 
     await expect(service.run(command)).rejects.toThrow(
-      'You do not have permission to copy Google Sheets credentials from the source DataMart'
+      'You do not have permission to copy connector credentials from the source DataMart'
     );
     expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
       2,
@@ -213,12 +230,16 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
   });
 
-  it('rejects an unowned Google Sheets secret reference but preserves an existing one', async () => {
-    const { service, dataMart, connectorSecretService } = createService();
+  it('rejects an unowned secret reference for connectors that copy secrets by value', async () => {
+    const { service, dataMart, connectorSecretService, connectorService } = createService();
+    connectorService.getConnectorCapabilities.mockReturnValue({
+      singleConfiguration: false,
+      copySecretsByValue: true,
+    });
     const definition = {
       connector: {
         source: {
-          name: 'GoogleSheets',
+          name: 'CopyByValueConnector',
           node: 'sheet',
           fields: ['name'],
           configuration: [{ _id: 'config-1', _secrets_id: 'foreign-secret' }],
@@ -238,7 +259,7 @@ describe('UpdateDataMartDefinitionService', () => {
     );
 
     await expect(service.run(command)).rejects.toThrow(
-      'The selected Google Sheets credentials cannot be used for this DataMart'
+      'The selected connector credentials cannot be used for this DataMart'
     );
     expect(connectorSecretService.mergeDefinitionSecrets).not.toHaveBeenCalled();
     expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
@@ -250,12 +271,17 @@ describe('UpdateDataMartDefinitionService', () => {
     await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
   });
 
-  it('allows a Google Sheets secret reference from an authorized copy source', async () => {
-    const { service, dataMartService, connectorSecretService, dataMart } = createService();
+  it('allows a secret reference from an authorized copy source', async () => {
+    const { service, dataMartService, connectorSecretService, connectorService, dataMart } =
+      createService();
+    connectorService.getConnectorCapabilities.mockReturnValue({
+      singleConfiguration: false,
+      copySecretsByValue: true,
+    });
     const definition = {
       connector: {
         source: {
-          name: 'GoogleSheets',
+          name: 'CopyByValueConnector',
           node: 'sheet',
           fields: ['name'],
           configuration: [
@@ -271,7 +297,7 @@ describe('UpdateDataMartDefinitionService', () => {
     const sourceDefinition = {
       connector: {
         source: {
-          name: 'GoogleSheets',
+          name: 'CopyByValueConnector',
           node: 'sheet',
           fields: ['name'],
           configuration: [{ _id: 'source-config', _secrets_id: 'source-secret' }],

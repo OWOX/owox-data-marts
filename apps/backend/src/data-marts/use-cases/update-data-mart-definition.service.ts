@@ -16,7 +16,8 @@ import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-dat
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
-import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../services/connector/connector.constants';
+import { ConnectorService } from '../services/connector/connector.service';
+import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -27,6 +28,7 @@ export class UpdateDataMartDefinitionService {
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly connectorService: ConnectorService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -54,7 +56,8 @@ export class UpdateDataMartDefinitionService {
       throw new BusinessViolationException('DataMart already has definition');
     }
 
-    this.validateConnectorConfigurationCount(command);
+    const connectorCapabilities = this.getConnectorCapabilities(command);
+    this.validateConnectorConfigurationCount(command, connectorCapabilities);
 
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       if (command.definitionType !== DataMartDefinitionType.SQL) {
@@ -78,7 +81,7 @@ export class UpdateDataMartDefinitionService {
       let mergedDefinition: ConnectorDefinition;
 
       if (command.sourceDataMartId) {
-        await this.validateGoogleSheetsCredentialCopyAccess(command, connectorDefinition);
+        await this.validateCredentialCopyAccess(command, connectorCapabilities);
 
         const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
           command.sourceDataMartId,
@@ -97,10 +100,11 @@ export class UpdateDataMartDefinitionService {
         sourceDefinition = sourceDataMart.definition as ConnectorDefinition;
       }
 
-      this.validateGoogleSheetsSecretReferences(
+      this.validateSecretReferences(
         connectorDefinition,
         previousDefinition,
-        sourceDefinition
+        sourceDefinition,
+        connectorCapabilities
       );
 
       if (sourceDefinition) {
@@ -176,27 +180,40 @@ export class UpdateDataMartDefinitionService {
     return this.mapper.toDomainDto(dataMart);
   }
 
-  private validateConnectorConfigurationCount(command: UpdateDataMartDefinitionCommand): void {
+  private getConnectorCapabilities(
+    command: UpdateDataMartDefinitionCommand
+  ): ConnectorCapabilities | undefined {
     if (command.definitionType !== DataMartDefinitionType.CONNECTOR) {
+      return undefined;
+    }
+
+    const definition = command.definition as ConnectorDefinition;
+    const source = definition?.connector?.source;
+    return source?.name ? this.connectorService.getConnectorCapabilities(source.name) : undefined;
+  }
+
+  private validateConnectorConfigurationCount(
+    command: UpdateDataMartDefinitionCommand,
+    capabilities: ConnectorCapabilities | undefined
+  ): void {
+    if (!capabilities?.singleConfiguration) {
       return;
     }
 
     const definition = command.definition as ConnectorDefinition;
     const source = definition?.connector?.source;
-    if (source?.name === GOOGLE_SHEETS_CONNECTOR_NAME && source.configuration?.length !== 1) {
-      throw new BadRequestException('GoogleSheets requires exactly one source configuration');
+    if (source?.configuration?.length !== 1) {
+      throw new BadRequestException(
+        `Connector '${source?.name}' requires exactly one source configuration`
+      );
     }
   }
 
-  private async validateGoogleSheetsCredentialCopyAccess(
+  private async validateCredentialCopyAccess(
     command: UpdateDataMartDefinitionCommand,
-    definition: ConnectorDefinition
+    capabilities: ConnectorCapabilities | undefined
   ): Promise<void> {
-    if (
-      !command.userId ||
-      !command.sourceDataMartId ||
-      definition.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME
-    ) {
+    if (!command.userId || !command.sourceDataMartId || !capabilities?.copySecretsByValue) {
       return;
     }
 
@@ -210,17 +227,18 @@ export class UpdateDataMartDefinitionService {
     );
     if (!canCopyCredentials) {
       throw new ForbiddenException(
-        'You do not have permission to copy Google Sheets credentials from the source DataMart'
+        'You do not have permission to copy connector credentials from the source DataMart'
       );
     }
   }
 
-  private validateGoogleSheetsSecretReferences(
+  private validateSecretReferences(
     incoming: ConnectorDefinition,
     previous: ConnectorDefinition | undefined,
-    copySource: ConnectorDefinition | undefined
+    copySource: ConnectorDefinition | undefined,
+    capabilities: ConnectorCapabilities | undefined
   ): void {
-    if (incoming.connector.source.name !== GOOGLE_SHEETS_CONNECTOR_NAME) {
+    if (!capabilities?.copySecretsByValue) {
       return;
     }
 
@@ -251,7 +269,7 @@ export class UpdateDataMartDefinitionService {
 
       if (!matchesPrevious && !matchesCopySource) {
         throw new ForbiddenException(
-          'The selected Google Sheets credentials cannot be used for this DataMart'
+          'The selected connector credentials cannot be used for this DataMart'
         );
       }
     }

@@ -119,7 +119,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     const authType = this.config.AuthType?.value;
     if (!authType) {
-      throw new Error('AuthType not configured');
+      throw new ConnectorConfigurationException('AuthType not configured');
     }
 
     const authConfig = this.config.AuthType.items;
@@ -131,7 +131,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
       });
     } else {
-      throw new Error(`Unsupported Google Sheets authentication type: ${authType}`);
+      throw new ConnectorConfigurationException(
+        `Unsupported Google Sheets authentication type: ${authType}`
+      );
     }
     this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000;
 
@@ -159,10 +161,11 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
   async _fetchSheetValues({ preview = false, signal } = {}) {
     const spreadsheetId = this._extractSpreadsheetId(this.config.SpreadsheetId.value);
+    const encodedSpreadsheetId = encodeURIComponent(spreadsheetId);
     const range = this._buildA1Range({ preview });
     const encodedRange = encodeURIComponent(range);
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}` +
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodedSpreadsheetId}/values/${encodedRange}` +
       '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
 
     for (let authorizationAttempt = 0; authorizationAttempt < 2; authorizationAttempt += 1) {
@@ -174,7 +177,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         const response = await this._fetchSheetResponse(url, accessToken, signal);
         const contentLength = Number(response.getHeaders?.()['content-length']);
         if (Number.isFinite(contentLength) && contentLength > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
-          throw new Error(
+          throw new ConnectorConfigurationException(
             'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
           );
         }
@@ -184,7 +187,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
             ? responseText.length
             : Buffer.byteLength(responseText, 'utf8');
         if (responseBytes > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
-          throw new Error(
+          throw new ConnectorConfigurationException(
             'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
           );
         }
@@ -202,11 +205,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           continue;
         }
 
-        throw new HttpRequestException({
+        const requestError = new HttpRequestException({
           message: this._buildSheetRequestErrorMessage(error),
           statusCode: error?.statusCode,
           payload: error?.payload,
         });
+        requestError.cause = error;
+        throw requestError;
       }
     }
 
@@ -293,12 +298,12 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     const rangeBounds = this._getConfiguredRangeBounds();
     if (headerRowNumber < rangeBounds.startRow) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Header Row ${headerRowNumber} is before the configured range, which starts at row ${rangeBounds.startRow}`
       );
     }
     if (rangeBounds.endRow !== null && headerRowNumber > rangeBounds.endRow) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Header Row ${headerRowNumber} is after the configured range, which ends at row ${rangeBounds.endRow}`
       );
     }
@@ -312,7 +317,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     const detectedColumns = this._buildColumnDefinitions(headerRow, columnCount);
 
     if (detectedColumns.length === 0) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `No columns found at header row ${headerRowNumber} of '${this.config.SheetName.value}'. ` +
           'Check the sheet tab name, optional range, and header row.'
       );
@@ -322,7 +327,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       ? this._filterColumnsBySelectedFields(detectedColumns)
       : detectedColumns;
     if (columns.length === 0) {
-      throw new Error('No columns selected for import');
+      throw new ConnectorConfigurationException('No columns selected for import');
     }
     this._assertImportColumnCount(columns);
 
@@ -334,7 +339,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
   _assertImportSize(dataRows) {
     if (dataRows.length > GOOGLE_SHEETS_MAX_IMPORT_ROWS) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Google Sheets imports currently support up to ${GOOGLE_SHEETS_MAX_IMPORT_ROWS.toLocaleString('en-US')} data rows per sheet. ` +
           `The selected range contains ${dataRows.length.toLocaleString('en-US')} rows. Narrow the Range and try again.`
       );
@@ -343,7 +348,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
   _assertImportColumnCount(columns) {
     if (columns.length > GOOGLE_SHEETS_MAX_IMPORT_COLUMNS) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Google Sheets imports currently support up to ${GOOGLE_SHEETS_MAX_IMPORT_COLUMNS.toLocaleString('en-US')} sheet columns. ` +
           `The selected range contains ${columns.length.toLocaleString('en-US')} columns. Narrow the Range or select fewer columns and try again.`
       );
@@ -448,26 +453,21 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
   _extractSpreadsheetId(value) {
     const rawValue = String(value || '').trim();
-    const match = rawValue.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    return match ? match[1] : rawValue;
+    const match = rawValue.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+    const spreadsheetId = match ? match[1] : rawValue;
+
+    if (!/^[A-Za-z0-9_-]+$/.test(spreadsheetId)) {
+      throw new ConnectorConfigurationException('Spreadsheet ID or URL is invalid');
+    }
+
+    return spreadsheetId;
   }
 
   _buildA1Range({ preview = false } = {}) {
     const configuredRange = String(this.config.Range?.value || '').trim();
     const gridRange = this._getConfiguredGridRange(configuredRange);
     const sheetPrefix = `${this._quoteSheetName(this.config.SheetName.value)}!`;
-
-    const parsedBounds = this._parseA1GridRange(gridRange);
-    if (gridRange && !parsedBounds) {
-      return `${sheetPrefix}${gridRange}`;
-    }
-
-    const bounds = parsedBounds || {
-      startColumn: 1,
-      endColumn: null,
-      startRow: 1,
-      endRow: null,
-    };
+    const bounds = this._getRangeBounds(gridRange);
     const headerRow = this._getHeaderRowNumber();
     this._validateHeaderWithinRange(headerRow, bounds);
 
@@ -504,7 +504,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   _getHeaderRowNumber() {
     const headerRowNumber = Number(this.config.HeaderRow.value);
     if (!Number.isInteger(headerRowNumber) || headerRowNumber < 1) {
-      throw new Error('Header Row must be a whole number greater than or equal to 1');
+      throw new ConnectorConfigurationException(
+        'Header Row must be a whole number greater than or equal to 1'
+      );
     }
     return headerRowNumber;
   }
@@ -513,8 +515,19 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     const configuredRange = String(this.config.Range?.value || '').trim();
     const gridRange = this._getConfiguredGridRange(configuredRange);
 
+    return this._getRangeBounds(gridRange);
+  }
+
+  _getRangeBounds(gridRange) {
+    const bounds = this._parseA1GridRange(gridRange);
+    if (gridRange && !bounds) {
+      throw new ConnectorConfigurationException(
+        'Range must use A1 notation, for example A:D or B5:D20'
+      );
+    }
+
     return (
-      this._parseA1GridRange(gridRange) || {
+      bounds || {
         startColumn: 1,
         endColumn: null,
         startRow: 1,
@@ -535,7 +548,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       .replace(/''/g, "'");
     const selectedSheetName = String(this.config.SheetName.value);
     if (rangeSheetName !== selectedSheetName) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Range must use the selected sheet '${selectedSheetName}', not '${rangeSheetName}'`
       );
     }
@@ -599,12 +612,12 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
   _validateHeaderWithinRange(headerRow, bounds) {
     if (headerRow < bounds.startRow) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Header Row ${headerRow} is before the configured range, which starts at row ${bounds.startRow}`
       );
     }
     if (bounds.endRow !== null && headerRow > bounds.endRow) {
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `Header Row ${headerRow} is after the configured range, which ends at row ${bounds.endRow}`
       );
     }
@@ -647,7 +660,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     const selectedFields = this._getSelectedSheetFieldNames();
 
     if (selectedFields.length === 0) {
-      throw new Error('No columns selected for import');
+      throw new ConnectorConfigurationException('No columns selected for import');
     }
 
     const matchedColumnNames = new Set();
@@ -677,7 +690,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     if (matchedColumns.length === 0) {
       const availableColumns = this._formatAvailableColumns(columns);
-      throw new Error(
+      throw new ConnectorConfigurationException(
         `None of the selected columns were found in the sheet: ${selectedFields.join(', ')}. ` +
           `Available columns: ${availableColumns}`
       );

@@ -30,6 +30,10 @@ describe('ConnectorSecretService', () => {
 
     const specService = {
       getConnectorSpecification: jest.fn().mockResolvedValue([...baseFields, ...fieldsWithOneOf]),
+      getConnectorCapabilities: jest.fn().mockReturnValue({
+        singleConfiguration: false,
+        copySecretsByValue: false,
+      }),
     } as unknown as ConnectorService;
 
     const credentialsService = {
@@ -539,8 +543,12 @@ describe('ConnectorSecretService', () => {
       expect(cfg[1]._id).not.toBe('source-id-3');
     });
 
-    it('copies Google Sheets secrets without retaining the source secret record', async () => {
-      const { service, credentialsService } = createService(['ServiceAccountKey']);
+    it('copies secrets by value without retaining the source secret record', async () => {
+      const { service, specService, credentialsService } = createService(['ServiceAccountKey']);
+      (specService.getConnectorCapabilities as jest.Mock).mockReturnValue({
+        singleConfiguration: false,
+        copySecretsByValue: true,
+      });
 
       (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
         new Map([
@@ -558,7 +566,7 @@ describe('ConnectorSecretService', () => {
 
       const sourceDefinition = makeDefinition(
         [{ _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { service_account: {} } }],
-        'GoogleSheets'
+        'CopyByValueConnector'
       );
 
       const incoming = makeDefinition(
@@ -569,7 +577,7 @@ describe('ConnectorSecretService', () => {
             _copiedFrom: { configId: 'source-id-1' },
           },
         ],
-        'GoogleSheets'
+        'CopyByValueConnector'
       );
 
       const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);

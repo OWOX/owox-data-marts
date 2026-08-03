@@ -152,7 +152,12 @@ export class ConnectorFieldsPreviewService {
     if (status === 403) {
       return new ForbiddenException(message);
     }
-    if (status === 400 || status === 404 || this.looksLikeConfigurationFailure(normalizedMessage)) {
+    if (
+      status === 400 ||
+      status === 404 ||
+      this.isConnectorConfigurationError(error) ||
+      this.looksLikeConfigurationFailure(normalizedMessage)
+    ) {
       return new BadRequestException({ message });
     }
     if (
@@ -191,6 +196,16 @@ export class ConnectorFieldsPreviewService {
 
   private isProviderRequestError(error: unknown): boolean {
     return error instanceof Error && error.name === 'HttpRequestException';
+  }
+
+  private isConnectorConfigurationError(error: unknown): boolean {
+    if (error instanceof Core.ConnectorConfigurationException) {
+      return true;
+    }
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+    return this.isConnectorConfigurationError((error as Record<string, unknown>).cause);
   }
 
   private looksLikeAuthenticationFailure(message: string): boolean {

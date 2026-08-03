@@ -687,13 +687,25 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- getTableGrantStatements -------------------------------------
   async getTableGrantStatements(sourceTableName, targetTableName) {
     const schemaName = stripQuotes(this.config.Schema.value);
-    const rows = await this.executeQueryWithResults(`
+    const escapedSchemaName = escapeSqlLiteral(schemaName);
+    const escapedSourceTableName = escapeSqlLiteral(sourceTableName);
+    const selectPrivileges = `
       SELECT identity_name, identity_type, privilege_type, admin_option
-      FROM svv_relation_privileges
-      WHERE namespace_name = '${escapeSqlLiteral(schemaName)}'
-        AND relation_name = '${escapeSqlLiteral(sourceTableName)}'
-      ORDER BY identity_type, identity_name, privilege_type
-    `);
+      FROM svv_relation_privileges`;
+    const orderPrivileges = 'ORDER BY identity_type, identity_name, privilege_type';
+    const exactSql = `${selectPrivileges}
+      WHERE namespace_name = '${escapedSchemaName}'
+        AND relation_name = '${escapedSourceTableName}'
+      ${orderPrivileges}`;
+    const fallbackSql = `${selectPrivileges}
+      WHERE LOWER(namespace_name) = LOWER('${escapedSchemaName}')
+        AND LOWER(relation_name) = LOWER('${escapedSourceTableName}')
+      ${orderPrivileges}`;
+
+    let rows = await this.executeQueryWithResults(exactSql);
+    if (rows.length === 0) {
+      rows = await this.executeQueryWithResults(fallbackSql);
+    }
     const targetTable = `${quoteIdentifier(schemaName)}.${quoteIdentifier(targetTableName)}`;
 
     return rows.map(row => {

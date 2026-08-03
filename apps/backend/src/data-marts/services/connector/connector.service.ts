@@ -16,6 +16,7 @@ import {
   mapConnectorFieldsSchema,
   type SourceFieldsSchema,
 } from './connector-fields-schema.mapper';
+import type { ConnectorCapabilities } from '../../connector-types/connector-capabilities';
 
 interface ConnectorSpecificationOneOf {
   label: string;
@@ -64,6 +65,16 @@ export class ConnectorService {
         docUrl: manifest.docUrl,
       };
     });
+  }
+
+  getConnectorCapabilities(connectorName: string): ConnectorCapabilities {
+    this.validateConnectorExists(connectorName);
+    const capabilities = this.getConnectorManifest(connectorName)?.capabilities;
+
+    return {
+      singleConfiguration: capabilities?.singleConfiguration === true,
+      copySecretsByValue: capabilities?.copySecretsByValue === true,
+    };
   }
 
   /**
