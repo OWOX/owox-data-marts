@@ -9,7 +9,7 @@ import { RecipientsDisplay } from './RecipientsDisplay.tsx';
 const baseDestination = {
   id: 'destination-1',
   title: 'Google Chat',
-  type: DataDestinationType.GOOGLE_CHAT,
+  type: DataDestinationType.GOOGLE_CHAT as const,
   projectId: 'project-1',
   createdAt: new Date('2026-07-17T12:00:00Z'),
   modifiedAt: new Date('2026-07-17T12:00:00Z'),

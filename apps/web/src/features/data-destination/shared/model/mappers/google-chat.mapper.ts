@@ -61,7 +61,10 @@ export class GoogleChatMapper implements DestinationMapper {
       throw new Error('Invalid form data for Google Chat destination');
     }
 
-    let credentials: CreateDataDestinationRequestDto['credentials'];
+    let credentials: Extract<
+      CreateDataDestinationRequestDto,
+      { type: DataDestinationType.GOOGLE_CHAT }
+    >['credentials'];
     if (formData.credentials.deliveryMethod === 'email') {
       credentials = {
         type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
