@@ -242,6 +242,8 @@ describe('GithubApiService', () => {
       await expect(service().getFileAtCommit(REF, 'plugin.json', 'abc123')).resolves.toBeNull();
     });
 
+    // Null, not a throw: the caller turns it into MANIFEST_MISSING for this one release
+    // rather than losing every other candidate in the same sync.
     it('refuses an implausibly large manifest instead of buffering it', async () => {
       route({
         '/contents/plugin.json': () =>
@@ -251,9 +253,24 @@ describe('GithubApiService', () => {
           }),
       });
 
-      await expect(service().getFileAtCommit(REF, 'plugin.json', 'abc123')).rejects.toBeInstanceOf(
-        GithubApiError
-      );
+      await expect(service().getFileAtCommit(REF, 'plugin.json', 'abc123')).resolves.toBeNull();
+    });
+
+    it('refuses an oversized body that declares no content-length', async () => {
+      const oversized = 'x'.repeat(1024 * 1024 + 1);
+      route({
+        '/contents/plugin.json': () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(oversized));
+                controller.close();
+              },
+            })
+          ),
+      });
+
+      await expect(service().getFileAtCommit(REF, 'plugin.json', 'abc123')).resolves.toBeNull();
     });
   });
 });

@@ -147,12 +147,9 @@ export class GithubApiService {
     }
     this.assertOk(response, requestPath, access.mode);
 
-    const declaredLength = Number(response.headers.get('content-length') ?? 0);
-    if (declaredLength > MAX_MANIFEST_BYTES) {
-      throw new GithubApiError(response.status, requestPath);
-    }
-
-    return response.text();
+    // Null rather than a throw: `parsePluginManifest` maps it to MANIFEST_MISSING, which
+    // keeps one oversized manifest a rejection of its own release instead of an aborted sync.
+    return readCapped(response, MAX_MANIFEST_BYTES);
   }
 
   private request(access: GithubAccess, path: string, init: RequestInit = {}): Promise<Response> {
@@ -181,4 +178,42 @@ export class GithubApiService {
 
     throw new GithubApiError(response.status, path);
   }
+}
+
+/**
+ * Null when the body exceeds `limit`.
+ *
+ * A raw-content response can arrive chunked with no `Content-Length`, so trusting that
+ * header alone leaves `text()` buffering whatever the repository serves. Reading through
+ * the stream keeps the cap true either way.
+ */
+async function readCapped(response: Response, limit: number): Promise<string | null> {
+  if (Number(response.headers.get('content-length') ?? 0) > limit) {
+    return null;
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return '';
+  }
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    size += value.length;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+
+    chunks.push(value);
+  }
+
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }
