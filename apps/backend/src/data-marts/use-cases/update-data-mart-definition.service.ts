@@ -2,6 +2,7 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
+import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
@@ -27,6 +28,7 @@ export class UpdateDataMartDefinitionService {
     private readonly connectorSecretService: ConnectorSecretService,
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
@@ -133,6 +135,15 @@ export class UpdateDataMartDefinitionService {
       );
     } else {
       dataMart.definition = command.definition;
+    }
+
+    // A type change repoints the Data Mart at a different kind of source, so the new definition is
+    // checked against the storage before it lands. Same-type edits keep their existing behaviour:
+    // they are validated on publish and on schema actualization, not on every save.
+    // SQL is exempt for the same reason publishing exempts it — a SQL definition is dry-run from
+    // the editor, and re-running it here would duplicate that round trip on every switch.
+    if (definitionTypeChanged && command.definitionType !== DataMartDefinitionType.SQL) {
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
     await this.dataMartService.save(dataMart);

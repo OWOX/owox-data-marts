@@ -8,6 +8,7 @@ import { UpdateDataMartDefinitionService } from './update-data-mart-definition.s
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 describe('UpdateDataMartDefinitionService', () => {
   const createService = (
@@ -51,12 +52,16 @@ describe('UpdateDataMartDefinitionService', () => {
     const eventDispatcher = {
       publishExternal: jest.fn(),
     };
+    const definitionValidatorFacade = {
+      checkIsValid: jest.fn().mockResolvedValue(undefined),
+    };
     const service = new UpdateDataMartDefinitionService(
       dataMartService as any,
       mapper as any,
       connectorSecretService as any,
       legacyDataMartsService as any,
       accessDecisionService as any,
+      definitionValidatorFacade as any,
       eventDispatcher as any
     );
 
@@ -65,6 +70,7 @@ describe('UpdateDataMartDefinitionService', () => {
       dataMartService,
       accessDecisionService,
       connectorSecretService,
+      definitionValidatorFacade,
       eventDispatcher,
       dataMart,
     };
@@ -262,6 +268,51 @@ describe('UpdateDataMartDefinitionService', () => {
       const events = eventDispatcher.publishExternal.mock.calls.map(([event]) => event.name);
       expect(events).toContain('data-mart.definition-type.changed');
       expect(events).not.toContain('data-mart.definition-type.set');
+    });
+
+    it('refuses a new definition the storage cannot resolve, leaving the data mart untouched', async () => {
+      const { service, dataMartService, definitionValidatorFacade } = createService({
+        definitionType: DataMartDefinitionType.VIEW,
+        definition: { fullyQualifiedName: 'project.dataset.view' },
+      });
+      definitionValidatorFacade.checkIsValid.mockRejectedValue(
+        new BusinessViolationException('Table not found: project.dataset.missing')
+      );
+
+      await expect(
+        service.run(
+          commandFor(DataMartDefinitionType.TABLE, {
+            fullyQualifiedName: 'project.dataset.missing',
+          })
+        )
+      ).rejects.toThrow(/Table not found/);
+
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('leaves a SQL target to the editor dry-run, as publishing does', async () => {
+      const { service, dataMartService, definitionValidatorFacade } = createService({
+        definitionType: DataMartDefinitionType.TABLE,
+        definition: { fullyQualifiedName: 'project.dataset.orders' },
+      });
+
+      await service.run(commandFor(DataMartDefinitionType.SQL, { sqlQuery: 'select 1' }));
+
+      expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+      expect(dataMartService.save).toHaveBeenCalled();
+    });
+
+    it('does not re-validate a same-type edit', async () => {
+      const { service, definitionValidatorFacade } = createService({
+        definitionType: DataMartDefinitionType.TABLE,
+        definition: { fullyQualifiedName: 'project.dataset.a' },
+      });
+
+      await service.run(
+        commandFor(DataMartDefinitionType.TABLE, { fullyQualifiedName: 'project.dataset.b' })
+      );
+
+      expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
     });
 
     it('does not publish a definition type changed event on a same-type edit', async () => {

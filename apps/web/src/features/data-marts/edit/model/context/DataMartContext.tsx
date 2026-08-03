@@ -42,6 +42,10 @@ import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
 import { isStorageOAuthRefreshError } from '../../../shared/utils/storage-oauth-refresh-error.utils';
+import {
+  describeSchemaFieldSummary,
+  summarizeSchemaFields,
+} from '../../../shared/utils/schema-field-summary';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -593,7 +597,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const response = await dataMartService.actualizeDataMartSchema(id);
       const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
-      toast.success('Output schema actualized');
+      // Report what the refreshed schema looks like, not just that it ran. After an input source
+      // change this is how the user learns which fields the new source no longer provides.
+      toast.success(describeSchemaFieldSummary(summarizeSchemaFields(dataMart.schema)));
       trackEvent({
         event: 'data_mart_schema_actualized',
         category: 'DataMart',
