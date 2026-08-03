@@ -1026,6 +1026,17 @@ describe('RunDataQualityService', () => {
     expect(runQueryBuilder.innerJoinAndSelect).toHaveBeenCalledWith('dataMart.storage', 'storage');
   });
 
+  it('finishes a fully persisted resumed run without rechecking project balance', async () => {
+    dataMartRun.status = DataMartRunStatus.RUNNING;
+    dataMartRun.startedAt = startedAt;
+    dataMartRun.dataQualityResults = [stored('empty-1')];
+
+    await service.executeExistingRun('run-1', 'project-1');
+
+    expect(projectBalance.verifyCanPerformOperations).not.toHaveBeenCalled();
+    expect(dataMartRun.status).toBe(DataMartRunStatus.SUCCESS);
+  });
+
   it('does not execute Data Quality queries when project balance blocks operations', async () => {
     projectBalance.verifyCanPerformOperations.mockRejectedValue(
       new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
