@@ -4208,7 +4208,7 @@ describeIfCredentials(
 
     function context(
       primaryKeyFields: string[],
-      fn: 'SUM' | 'P50' | 'STRING_AGG' = 'SUM'
+      fn: 'SUM' | 'P50' | 'STRING_AGG' | 'MIN' | 'MAX' = 'SUM'
     ): BlendedQueryContext {
       const fieldIndex = buildBlendedFieldIndex({
         blendedFields: [
@@ -4373,6 +4373,17 @@ describeIfCredentials(
 
     // Post-join STRING_AGG read the dedup CTE once per fanned main row, repeating the joined
     // value verbatim. EU has two carts on two orders, so the list is one entry per order.
+    // US holds one order with two raw rows, 40 and 41. Reading MIN/MAX off the dedup CTE saw only
+    // the value the pre-join roll-up kept, so MIN came back 41 — above the 40.5 average of the
+    // very same column.
+    it('MIN and MAX read the same rows as AVG: US MIN 40, MAX 41', async () => {
+      const min = await runBlend(context(['orderId'], 'MIN'));
+      const max = await runBlend(context(['orderId'], 'MAX'));
+
+      expect(byRegionOf(min, 'orders__revenue | MIN').get('US')).toBe(40);
+      expect(byRegionOf(max, 'orders__revenue | MAX').get('US')).toBe(41);
+    }, 120000);
+
     it('STRING_AGG lists each joined row once, not once per fanned main row', async () => {
       const rows = await runBlend(context(['orderId'], 'STRING_AGG'));
       const eu = rows.find(r => r.region === 'EU')!;
