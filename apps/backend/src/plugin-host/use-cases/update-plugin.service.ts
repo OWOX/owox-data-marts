@@ -1,0 +1,97 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PluginPublisherDiagnosticsDto } from '../dto/domain/plugin-publication.dto';
+import { PluginUpdateResultDto, UpdatePluginCommand } from '../dto/domain/update-plugin.command';
+import { Plugin } from '../entities/plugin.entity';
+import { PluginService } from '../services/plugin.service';
+import { PluginUpdateScheduleService } from '../services/plugin-update-schedule.service';
+import { PluginVersionService } from '../services/plugin-version.service';
+import { PublicationAuthorizationService } from '../services/publication-authorization.service';
+import { parseGithubRepoLocator } from '../utils/github-repo-locator.util';
+import { buildPublisherDiagnostics } from './plugin-publisher-diagnostics';
+import { RunPluginUpdateCheckService } from './run-plugin-update-check.service';
+
+/**
+ * **Check now**: a member asking for the deployment's next update check to happen at once.
+ *
+ * It accelerates maintenance that is already scheduled and inevitable; it does not choose
+ * a version, decide whether an update happens, or move the plugin's daily slot. Whatever
+ * it finds becomes current for every installation of that plugin across the deployment --
+ * that is the deployment's single current version, not this member's preference.
+ *
+ * Any project member who can reach the plugin page may ask. Requiring an installation
+ * would only make the same inevitable check happen later, for a plugin the member is
+ * standing in front of.
+ */
+@Injectable()
+export class UpdatePluginService {
+  constructor(
+    private readonly pluginService: PluginService,
+    private readonly authorization: PublicationAuthorizationService,
+    private readonly schedule: PluginUpdateScheduleService,
+    private readonly check: RunPluginUpdateCheckService,
+    private readonly versionService: PluginVersionService
+  ) {}
+
+  async run(command: UpdatePluginCommand): Promise<PluginUpdateResultDto> {
+    const plugin = await this.resolvePlugin(command);
+
+    // A plugin off daily maintenance is exactly the one whose recorded release may be
+    // stale, and asking about it is a reason to put it back on the schedule.
+    await this.schedule.ensureScheduled(plugin.id);
+
+    const result = await this.check.run(plugin, 'member', {
+      projectId: command.context.projectId,
+      userId: command.context.userId,
+      apiKeyId: command.context.apiKeyId ?? null,
+    });
+
+    // Diagnostics only for deployment publishers: rejection detail is a source
+    // diagnostic and must not reach ordinary members on the same operation (§6.2 / §16).
+    let diagnostics: PluginPublisherDiagnosticsDto | null = null;
+    if (this.authorization.isDeploymentPublisher(command.context)) {
+      const version = result.currentVersionId
+        ? await this.versionService.findById(result.currentVersionId)
+        : null;
+      const refreshed = await this.pluginService.findById(plugin.id);
+      diagnostics = buildPublisherDiagnostics(refreshed, version, result.report);
+    }
+
+    const scheduled = await this.pluginService.findById(plugin.id);
+
+    return {
+      pluginId: result.pluginId,
+      repository: result.repository,
+      currentVersionId: result.currentVersionId,
+      currentSemver: result.currentSemver,
+      outcome: result.outcome,
+      updated: result.outcome === 'updated',
+      nextCheckAt: scheduled?.nextUpdateCheckAt?.toISOString() ?? null,
+      diagnostics,
+    };
+  }
+
+  private async resolvePlugin(command: UpdatePluginCommand): Promise<Plugin> {
+    if (command.pluginId) {
+      const plugin = await this.pluginService.findById(command.pluginId);
+      if (!plugin) {
+        throw new NotFoundException(`Plugin ${command.pluginId} was not found`);
+      }
+      return plugin;
+    }
+
+    if (command.repoLocator) {
+      const ref = parseGithubRepoLocator(command.repoLocator);
+      // Cache-first: CLI update addresses a plugin this deployment already knows. A
+      // repository never seen here has nothing to update.
+      const plugin = await this.pluginService.findByRepoName(ref.owner, ref.name);
+      if (!plugin) {
+        throw new NotFoundException(
+          `Plugin ${ref.owner}/${ref.name} was not found on this deployment`
+        );
+      }
+      return plugin;
+    }
+
+    throw new NotFoundException('A plugin id or repository is required');
+  }
+}
