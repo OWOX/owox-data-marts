@@ -32,7 +32,7 @@ const configSchema = z
     // strings: they are optional and mode-dependent, and PluginHostConfigService already
     // treats a blank or malformed value as absent.
     PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC: z.coerce.number().int().min(0).max(86_400).default(300),
-    PLUGIN_HOST_MAX_RELEASE_PAGES: z.coerce.number().int().min(1).max(10).default(3),
+    PLUGIN_HOST_MAX_RELEASE_PAGES: z.coerce.number().int().min(1).max(10).default(1),
     PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS: z.coerce
       .number()
       .int()

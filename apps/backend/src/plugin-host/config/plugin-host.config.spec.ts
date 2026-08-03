@@ -75,7 +75,7 @@ describe('PluginHostConfigService', () => {
       const defaults = config({});
 
       expect(defaults.syncMinIntervalMs).toBe(300_000);
-      expect(defaults.maxReleasePages).toBe(3);
+      expect(defaults.maxReleasePages).toBe(1);
       expect(defaults.remoteProbeTimeoutMs).toBe(8_000);
       expect(defaults.maxRedirectHops).toBe(5);
     });
@@ -83,12 +83,12 @@ describe('PluginHostConfigService', () => {
     it('reads validated values from the environment', () => {
       const tuned = config({
         PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC: '60',
-        PLUGIN_HOST_MAX_RELEASE_PAGES: '1',
+        PLUGIN_HOST_MAX_RELEASE_PAGES: '2',
         PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS: '2000',
       });
 
       expect(tuned.syncMinIntervalMs).toBe(60_000);
-      expect(tuned.maxReleasePages).toBe(1);
+      expect(tuned.maxReleasePages).toBe(2);
       expect(tuned.remoteProbeTimeoutMs).toBe(2_000);
     });
 
@@ -106,7 +106,7 @@ describe('PluginHostConfigService', () => {
       const validated = config(validateConfig(env));
 
       expect(validated.syncMinIntervalMs).toBe(expected);
-      expect(validated.maxReleasePages).toBe(3);
+      expect(validated.maxReleasePages).toBe(1);
       expect(validated.remoteProbeTimeoutMs).toBe(8_000);
     });
   });

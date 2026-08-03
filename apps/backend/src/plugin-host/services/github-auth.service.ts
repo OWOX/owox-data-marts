@@ -44,6 +44,13 @@ interface CachedToken {
 export class GithubAuthService {
   private readonly logger = new Logger(GithubAuthService.name);
   private readonly tokenCache = new Map<number, CachedToken>();
+  /**
+   * Keyed by owner/name. `getRepoAccess` runs at the top of every GithubApiService method,
+   * so without this a single sync re-asks GitHub which installation owns the repository
+   * once per call -- against the very limit GithubRateLimitedError models. The id is
+   * stable per repository; uninstalling the App is a restart-level change.
+   */
+  private readonly installationCache = new Map<string, number>();
 
   constructor(private readonly config: PluginHostConfigService) {}
 
@@ -79,6 +86,12 @@ export class GithubAuthService {
 
   /** Null when the App is not installed on this repository. */
   private async findInstallationId(ref: GithubRepoRef): Promise<number | null> {
+    const key = `${ref.owner}/${ref.name}`.toLowerCase();
+    const cached = this.installationCache.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+
     const response = await fetchWithBackoff(
       `${this.config.githubApiBaseUrl}/repos/${ref.owner}/${ref.name}/installation`,
       { headers: { ...BASE_HEADERS, Authorization: `Bearer ${this.signAppJwt()}` } }
@@ -96,7 +109,14 @@ export class GithubAuthService {
     }
 
     const body = (await response.json()) as { id?: number };
-    return typeof body.id === 'number' ? body.id : null;
+    if (typeof body.id !== 'number') {
+      return null;
+    }
+
+    // Only a positive answer is cached: "not installed" is what a publisher fixes between
+    // two attempts, so remembering it would outlive the problem.
+    this.installationCache.set(key, body.id);
+    return body.id;
   }
 
   private async mintInstallationToken(installationId: number): Promise<string> {

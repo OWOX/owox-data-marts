@@ -58,8 +58,20 @@ export class SyncPluginReleasesService {
 
     const accepted: string[] = [];
     const unchanged: string[] = [];
+    // Newest first, stopping at the first release that settles. Nothing pins an
+    // installation to a version -- the runtime resolves `currentVersionId` on every load
+    // -- so an older release can never become current, and the GitHub calls to record it
+    // buy nothing. Everything newer than the winner is still reported, which is the part
+    // a publisher needs to see.
     for (const candidate of candidates) {
-      await this.processCandidate(plugin.id, ref, candidate, { accepted, unchanged, rejections });
+      const settled = await this.processCandidate(plugin.id, ref, candidate, {
+        accepted,
+        unchanged,
+        rejections,
+      });
+      if (settled) {
+        break;
+      }
     }
 
     return this.finish(plugin, repo, { accepted, unchanged, rejections });
@@ -120,16 +132,18 @@ export class SyncPluginReleasesService {
       candidates.push({ release, semver: formatSemver(parsed.parts) });
     }
 
-    // Ascending, so version history is written oldest-first and reads chronologically.
-    return candidates.sort((a, b) => compareSemver(a.semver, b.semver));
+    // Descending: the run stops at the first release that settles, so the highest SemVer
+    // has to be the one it reaches first.
+    return candidates.sort((a, b) => compareSemver(b.semver, a.semver));
   }
 
+  /** True when this release is usable as the current version, so the run can stop here. */
   private async processCandidate(
     pluginId: string,
     ref: GithubRepoRef,
     candidate: Candidate,
     into: { accepted: string[]; unchanged: string[]; rejections: ReleaseRejectionDto[] }
-  ): Promise<void> {
+  ): Promise<boolean> {
     const { release, semver } = candidate;
 
     const commitSha = await this.githubApi.resolveCommitSha(ref, release.tagName);
@@ -141,7 +155,7 @@ export class SyncPluginReleasesService {
           `Tag ${release.tagName} does not resolve to a commit`
         )
       );
-      return;
+      return false;
     }
 
     const recorded = await this.versionService.findBySemver(pluginId, semver);
@@ -153,7 +167,7 @@ export class SyncPluginReleasesService {
         recorded.githubReleaseId === release.githubReleaseId
       ) {
         into.unchanged.push(semver);
-        return;
+        return true;
       }
 
       into.rejections.push(
@@ -163,20 +177,20 @@ export class SyncPluginReleasesService {
           `Version ${semver} is already recorded from commit ${recorded.commitSha} (release ${recorded.githubReleaseId}); refusing to replace it with commit ${commitSha} (release ${release.githubReleaseId})`
         )
       );
-      return;
+      return false;
     }
 
     const manifestSource = await this.githubApi.getFileAtCommit(ref, 'plugin.json', commitSha);
     const manifest = parsePluginManifest(manifestSource);
     if (!manifest.ok) {
       into.rejections.push(this.rejection(release, manifest.code, manifest.detail));
-      return;
+      return false;
     }
 
     const delivery = await this.remoteUrlValidator.validate(manifest.manifest.delivery.url);
     if (!delivery.ok) {
       into.rejections.push(this.rejection(release, delivery.code, delivery.detail));
-      return;
+      return false;
     }
 
     try {
@@ -192,6 +206,7 @@ export class SyncPluginReleasesService {
         releasePublishedAt: release.publishedAt,
       });
       into.accepted.push(semver);
+      return true;
     } catch (error) {
       // A concurrent sync recorded this SemVer first. Losing that race is not a reason
       // to fail the whole run -- see the rate-limiter caveat on tryClaimSyncSlot.
@@ -205,6 +220,8 @@ export class SyncPluginReleasesService {
           `Version ${semver} was recorded concurrently by another synchronization`
         )
       );
+      // The other run recorded this same SemVer, so it is settled either way.
+      return true;
     }
   }
 

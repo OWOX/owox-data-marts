@@ -208,6 +208,40 @@ describe('SyncPluginReleasesService', () => {
       expect(s.pluginService.saveSyncOutcome).toHaveBeenCalledWith('p1', 'c', expect.anything());
     });
 
+    // Nothing pins an installation to a version, so recording anything below the newest
+    // valid release spends GitHub calls on a row that can never become current.
+    it('stops at the newest valid release instead of walking the rest', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([
+        release('v1.0.0'),
+        release('v1.1.0'),
+        release('v2.0.0'),
+      ]);
+
+      const result = await run(s);
+
+      expect(result.report.acceptedSemvers).toEqual(['2.0.0']);
+      expect(s.versionService.insertVersion).toHaveBeenCalledTimes(1);
+      expect(s.githubApi.resolveCommitSha).toHaveBeenCalledTimes(1);
+      expect(s.githubApi.resolveCommitSha).toHaveBeenCalledWith(expect.anything(), 'v2.0.0');
+    });
+
+    // A broken newest release must not hide the one below it.
+    it('falls through to the next release down when the newest is rejected', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0'), release('v2.0.0')]);
+      s.githubApi.getFileAtCommit.mockImplementation(() =>
+        s.githubApi.getFileAtCommit.mock.calls.length === 1
+          ? Promise.resolve('not json')
+          : Promise.resolve(MANIFEST)
+      );
+
+      const result = await run(s);
+
+      expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
+      expect(result.report.rejections.map(r => r.tagName)).toContain('v2.0.0');
+    });
+
     // Guards against a lexical sort sneaking back in.
     it('orders 1.10.0 above 1.9.0', async () => {
       const s = setup();

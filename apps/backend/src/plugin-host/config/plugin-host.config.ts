@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 
 const DEFAULT_GITHUB_API_BASE_URL = 'https://api.github.com';
 const DEFAULT_SYNC_MIN_INTERVAL_SEC = 300;
-const DEFAULT_MAX_RELEASE_PAGES = 3;
+/**
+ * One page of 100. A sync stops at the newest release that validates, so pages beyond the
+ * first can only hold versions that could never become current.
+ */
+const DEFAULT_MAX_RELEASE_PAGES = 1;
 const DEFAULT_REMOTE_PROBE_TIMEOUT_MS = 8_000;
 
 /** Redirect hops followed while validating a delivery URL. Not configurable. */
