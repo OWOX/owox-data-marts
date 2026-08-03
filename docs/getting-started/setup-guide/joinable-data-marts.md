@@ -81,7 +81,7 @@ The **Output Alias** at the top of the tab controls how the joined Data Mart is 
   - `revenue (orders)` in **Google Sheets**, so the field name stays readable in a narrow header cell;
   - `orders revenue` in **Data Studio**, **email-based destinations** and the **HTTP data endpoint**.
 
-The position follows the surface that renders the label, not the report. Reading a Google Sheets report through the HTTP data endpoint therefore returns `orders revenue`, even though its sheet shows `revenue (orders)` — match columns on the technical field name, which is identical everywhere, rather than on the label.
+The position follows the surface that renders the label, not the report. Reading a Google Sheets report through the HTTP data endpoint therefore returns `orders revenue`, even though its sheet shows `revenue (orders)`. Match columns on the technical field name — it is identical everywhere.
 
 Rename it to anything that reads well in reports — by default it inherits the target Data Mart title.
 
@@ -91,7 +91,7 @@ Each row in the fields table lets you override:
 
 | Setting                | What it does                                                                                                                                                                                                                                                            |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Alias**              | Per-field rename — replaces the original field name in the report output. The Data Mart-level Output Alias still applies (e.g., with Output Alias `orders` and field alias `total`, the column becomes `total (orders)` in Google Sheets and `orders total` elsewhere). |
+| **Alias**              | Per-field rename — replaces the original field name in the report output. The Data Mart-level Output Alias still applies. With Output Alias `orders` and field alias `total`, the column becomes `total (orders)` in Google Sheets and `orders total` elsewhere. |
 | **Aggregate Function** | How the field is collapsed when the relationship is 1-to-many. See the table below.                                                                                                                                                                                     |
 
 To hide a field from reports, open its **⋯** action menu and click **Hide from reports**. Hidden fields stay configurable in this tab but no longer appear in the Report Columns picker on any report. Use it for fields business users don't need.

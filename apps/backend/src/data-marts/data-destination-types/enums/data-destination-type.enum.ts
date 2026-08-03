@@ -48,7 +48,12 @@ export function isPullBasedDataDestinationType(type: DataDestinationType): boole
  * Google Sheets writes the label into a spreadsheet header cell, which is narrow and not resizable
  * per column by the reader — a leading Data Mart name pushes the field name out of view on every
  * column at once. The other destinations render the label with enough room that the prefix reads
- * fine, and changing them would break naming continuity for their existing consumers.
+ * fine, so they keep it.
+ *
+ * What this pins is the POSITION of the Data Mart name, not a byte-exact label: every surface
+ * still normalizes whitespace (see `formatBlendedFieldDisplayName`), and no consumer keys on the
+ * label anyway — Looker Studio matches its schema fields by `SchemaField.name`, MCP selects by
+ * exact field name, and the HTTP data endpoint pairs each `title` with a `name`.
  *
  * New destination types default to the prefix; opt in here deliberately.
  */
