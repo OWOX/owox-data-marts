@@ -5,7 +5,7 @@ test.describe('Notification Settings', () => {
   test('page renders with notification settings table', async ({ page }) => {
     await page.goto('/ui/0/notifications');
     await expect(page.getByTestId(TESTIDS.notifPage)).toBeVisible();
-    await expect(page.getByText('Notification settings')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Notification settings' })).toBeVisible();
     await expect(page.getByTestId(TESTIDS.notifSettingsTable)).toBeVisible();
   });
 
