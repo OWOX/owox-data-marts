@@ -300,23 +300,25 @@ export class DataMartService {
    * across the SQLite/MySQL drivers; the remaining race window is milliseconds against the
    * minutes-wide gap this closes.
    */
+  /** @returns true when the block was written; false when the guard kept a newer saved value. */
   async updateDataLastUpdated(
     id: string,
     projectId: string,
     block: SourceDataLastUpdated
-  ): Promise<void> {
+  ): Promise<boolean> {
     const current = await this.dataMartRepository.findOne({
       where: { id, projectId },
       select: { id: true, dataLastUpdated: true },
     });
     if (!current) {
-      return;
+      return false;
     }
     const savedComputedAt = current.dataLastUpdated?.computedAt;
     if (savedComputedAt && new Date(savedComputedAt) >= new Date(block.computedAt)) {
-      return;
+      return false;
     }
     await this.dataMartRepository.update({ id, projectId }, { dataLastUpdated: block });
+    return true;
   }
 
   async findIdsByStorage(storage: DataStorage, withDeleted = false): Promise<string[]> {

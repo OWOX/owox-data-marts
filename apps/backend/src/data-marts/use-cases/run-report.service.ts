@@ -461,16 +461,19 @@ export class RunReportService {
       dataMartRun.reportDefinition.dataLastUpdated = dataLastUpdated;
     }
     if (!needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
-      // Also refresh the in-memory entity: `dataMart` is the same instance as
-      // `report.dataMart` (cascade: true), and Report is fully re-saved when the run
-      // finishes — a stale in-memory snapshot would cascade over the value written below.
-      dataMart.dataLastUpdated = dataLastUpdated;
       try {
-        await this.dataMartService.updateDataLastUpdated(
+        const written = await this.dataMartService.updateDataLastUpdated(
           dataMart.id,
           dataMart.projectId,
           dataLastUpdated
         );
+        // Mirror onto the in-memory entity ONLY what the DB accepted: `dataMart` is the same
+        // instance as `report.dataMart` (cascade: true), so any future full save would write
+        // this value back — bypassing the monotonicity guard. Assigning a measurement the
+        // guard rejected would turn that defence into the very regression it exists to stop.
+        if (written) {
+          dataMart.dataLastUpdated = dataLastUpdated;
+        }
       } catch (error) {
         this.logger.warn(
           `Failed to persist data last updated for data mart ${dataMart.id}: ${

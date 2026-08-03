@@ -27,8 +27,10 @@ const REFRESH_IDS_PER_REQUEST = 200;
  * Data Marts the backend could not measure are simply absent from the response and keep their
  * previous value. Progress shows on the nodes themselves — every Data Last Updated icon spins
  * while `isRefreshing` is true, the same affordance a RUNNING quality run gets — so success
- * needs no toast: the icons settle into the fresh values. Only failure speaks up, and honestly:
- * a partially-failed sweep reports how much it actually covered.
+ * needs no toast: the icons settle into the fresh values. A sweep that changes nothing does
+ * speak up, though: on a storage without a resolver "measured nothing" is the guaranteed
+ * outcome, and spinning icons that stop with no visible change would read as broken. Failure
+ * stays honest too — a partially-failed sweep reports how much it actually covered.
  */
 export function useRefreshDataLastUpdated(storageId: string | null) {
   const { projectId = '' } = useParams<{ projectId: string }>();
@@ -59,9 +61,13 @@ export function useRefreshDataLastUpdated(storageId: string | null) {
         }
 
         if (measured.size === 0) {
-          if (anyRequestFailed) {
-            toast.error('Failed to check Data Last Updated');
-          }
+          // Without this the no-resolver storages (anything but BigQuery today) would spin
+          // every icon and then change nothing, every time — indistinguishable from a bug.
+          toast.error(
+            anyRequestFailed
+              ? 'Failed to check Data Last Updated'
+              : "Couldn't measure any of the selected Data Marts — their storage may not support Data Last Updated yet"
+          );
           return;
         }
 

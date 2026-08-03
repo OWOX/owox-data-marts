@@ -49,7 +49,7 @@ A check that cannot determine the time reports Unknown and **keeps the previousl
 | MCP `query_data_mart` call | Measures live for that response and records it in the run's history entry. **Saves** the value when the query reads only the Data Mart's own sources (no joined fields) |
 | In the background, on its own | Never. OWOX only measures when someone checks manually or a run delivers data — a scheduled report run counts as a run |
 
-A run that spans several joined Data Marts records the measurement in its history entry only. It does not overwrite any single Data Mart's saved value, because a blended reading covers other Data Marts' tables too and would overstate the one it is saved on.
+A blended run records the measurement in its history entry only. Its reading covers other Data Marts' tables too, so saving it on one Data Mart would overstate that value.
 
 ## How OWOX determines the value
 

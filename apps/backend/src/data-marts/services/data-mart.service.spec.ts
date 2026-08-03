@@ -330,7 +330,7 @@ describe('DataMartService data last updated persistence', () => {
     repository.findOne.mockResolvedValue({ id: 'dm-1', dataLastUpdated: null });
     const fresh = block('2026-07-31T10:00:00.000Z');
 
-    await service.updateDataLastUpdated('dm-1', 'proj-1', fresh);
+    await expect(service.updateDataLastUpdated('dm-1', 'proj-1', fresh)).resolves.toBe(true);
 
     expect(repository.update).toHaveBeenCalledWith(
       { id: 'dm-1', projectId: 'proj-1' },
@@ -363,7 +363,9 @@ describe('DataMartService data last updated persistence', () => {
       dataLastUpdated: block('2026-07-31T10:00:00.000Z'),
     });
 
-    await service.updateDataLastUpdated('dm-1', 'proj-1', block('2026-07-31T09:00:00.000Z'));
+    await expect(
+      service.updateDataLastUpdated('dm-1', 'proj-1', block('2026-07-31T09:00:00.000Z'))
+    ).resolves.toBe(false);
 
     expect(repository.update).not.toHaveBeenCalled();
   });
@@ -372,7 +374,9 @@ describe('DataMartService data last updated persistence', () => {
     const { service, repository } = createService();
     repository.findOne.mockResolvedValue(null);
 
-    await service.updateDataLastUpdated('dm-1', 'other-project', block('2026-07-31T10:00:00.000Z'));
+    await expect(
+      service.updateDataLastUpdated('dm-1', 'other-project', block('2026-07-31T10:00:00.000Z'))
+    ).resolves.toBe(false);
 
     expect(repository.update).not.toHaveBeenCalled();
   });

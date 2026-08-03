@@ -54,7 +54,7 @@ describe('RunReportService', () => {
       actualizeSchemaInEntity: jest.fn().mockResolvedValue(undefined),
       saveActualizedSchema: jest.fn().mockResolvedValue(undefined),
       save: jest.fn().mockResolvedValue(undefined),
-      updateDataLastUpdated: jest.fn().mockResolvedValue(undefined),
+      updateDataLastUpdated: jest.fn().mockResolvedValue(true),
     };
     const sourceDataLastUpdatedService = {
       resolveForSql: jest.fn().mockResolvedValue({
@@ -684,6 +684,51 @@ describe('RunReportService', () => {
     // The in-memory entity must carry the fresh value too: Report.dataMart is saved with
     // cascade when the run finishes, and a stale snapshot would overwrite the persisted column.
     expect(report.dataMart.dataLastUpdated).toEqual(measured);
+  });
+
+  it('keeps the in-memory entity untouched when the monotonicity guard rejects the write', async () => {
+    // If the DB already holds a newer measurement (saved mid-run by Check now or an MCP
+    // query), mirroring the rejected block in memory would let a future cascade save write
+    // the OLDER value back, bypassing the guard.
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      sourceDataLastUpdatedService,
+      dataMartService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({ needsBlending: false });
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete' as const,
+      sources: [{ table: 'p.d.t', dataLastUpdatedAt: '2026-07-30T08:00:00.000Z' }],
+    };
+    sourceDataLastUpdatedService.resolveForDefinition.mockResolvedValue(measured);
+    dataMartService.updateDataLastUpdated.mockResolvedValue(false);
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
+
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalled();
+    expect(report.dataMart.dataLastUpdated).toBeUndefined();
   });
 
   it('measures the blended SQL and journals WITHOUT persisting for a blended run', async () => {
