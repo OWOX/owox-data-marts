@@ -41,6 +41,24 @@ describe('toPayload', () => {
     expect(actual.viewOnly).toBe(true);
   });
 
+  it('maps plugin runtime identity claims', () => {
+    const actual = toPayload(
+      basePayload({
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      })
+    );
+
+    expect(actual).toEqual(
+      expect.objectContaining({
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      })
+    );
+  });
+
   function basePayload(overrides: Record<string, unknown> = {}) {
     return {
       userId: 'user-1',

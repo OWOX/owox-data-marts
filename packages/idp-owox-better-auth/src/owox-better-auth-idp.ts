@@ -716,6 +716,25 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     };
   }
 
+  async issueAccessTokenForPluginRuntime(
+    pluginId: string,
+    installationId: string,
+    userId: string,
+    projectId: string
+  ): Promise<AuthResult> {
+    const response = await this.identityClient.issueAccessTokenForPluginRuntime({
+      pluginId,
+      installationId,
+      userId,
+      projectId,
+    });
+
+    return {
+      accessToken: response.accessToken,
+      accessTokenExpiresIn: response.accessTokenExpiresIn,
+    };
+  }
+
   createMcpOAuthAuthorizationCode(
     request: OAuthAuthorizationRequest,
     projectMember: McpOAuthProjectMemberContext

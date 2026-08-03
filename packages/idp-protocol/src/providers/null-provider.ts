@@ -76,6 +76,26 @@ export class NullIdpProvider implements IdpProvider {
     return { accessToken };
   }
 
+  async issueAccessTokenForPluginRuntime(
+    pluginId: string,
+    installationId: string,
+    userId: string,
+    projectId: string
+  ): Promise<AuthResult> {
+    const accessToken = `pluginRuntimeAccessToken:${installationId}`;
+    this.issuedAccessTokens.set(accessToken, {
+      ...this.defaultPayload,
+      userId,
+      projectId,
+      roles: this.defaultPayload.roles,
+      authFlow: 'plugin',
+      pluginId,
+      installationId,
+    });
+
+    return { accessToken, accessTokenExpiresIn: 15 * 60 };
+  }
+
   async createMcpOAuthAuthorizationCode(
     _request: OAuthAuthorizationRequest,
     _projectMember: McpOAuthProjectMemberContext

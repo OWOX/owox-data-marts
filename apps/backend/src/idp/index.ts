@@ -10,3 +10,6 @@ export * from './decorators/index';
 
 // Types
 export * from './types/index';
+
+// Ports
+export * from './ports/plugin-runtime-authorizer.port';
