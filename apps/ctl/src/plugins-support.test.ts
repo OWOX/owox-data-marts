@@ -108,15 +108,8 @@ describe('update', () => {
     expect(calls).toEqual(['OWOX/example']);
   });
 
-  // Every outcome states the daily cadence, because the point of the summary is that the
-  // member did not have to ask at all -- and a failed check must not read as up to date.
-  it.each([
-    ['updated', 'Updated to v2.0.0. It is now current for everyone using OWOX/example.'],
-    ['up_to_date', 'Already on the highest eligible release, v2.0.0.'],
-    ['already_running', 'A check for OWOX/example is already running; its result stands.'],
-    ['failed', 'The check could not reach GitHub. v2.0.0 stays active.'],
-  ])('states what %s means', (outcome, expected) => {
-    const summary = updateSummary({
+  const summaryOf = (outcome: string) =>
+    updateSummary({
       pluginId: 'p1',
       repository: 'OWOX/example',
       currentVersionId: 'v1',
@@ -127,9 +120,29 @@ describe('update', () => {
       diagnostics: null,
     });
 
-    expect(summary.split('\n')[0]).toBe(expected);
-    expect(summary).toContain('Updates are checked daily');
+  // A failed check must not read as up to date, and an accelerated check must not read
+  // as the member's own decision.
+  it.each([
+    ['updated', 'OWOX/example — Updated to v2.0.0.'],
+    ['up_to_date', 'OWOX/example — Already on the highest eligible release.'],
+    ['already_running', 'OWOX/example — A check is already running; its result stands.'],
+    ['failed', "OWOX/example — Couldn't check for updates. The current version remains active."],
+  ])('states what %s means', (outcome, expected) => {
+    expect(summaryOf(outcome).split('\n')[0]).toBe(expected);
   });
+
+  // All four facts §11 asks for, on every outcome rather than only the interesting one.
+  it.each([['updated'], ['up_to_date'], ['already_running'], ['failed']])(
+    'repeats version, cadence, next check and reach on %s',
+    outcome => {
+      const summary = summaryOf(outcome);
+
+      expect(summary).toContain('Current version: v2.0.0');
+      expect(summary).toContain('Updates are checked daily');
+      expect(summary).toContain('next automatic check');
+      expect(summary).toContain('A valid update applies to everyone using this plugin.');
+    }
+  );
 });
 
 describe('installationHint', () => {

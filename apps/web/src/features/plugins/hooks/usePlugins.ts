@@ -187,6 +187,11 @@ export function usePluginActions() {
 /**
  * Plain language for each outcome, in the member's terms rather than the API's.
  *
+ * Success says who else is affected, because a member who pressed Check now has no other
+ * way to learn that the version they just activated is now everyone's. Failure names no
+ * source: which host could not be reached is a publisher diagnostic, and the member can
+ * act on none of it.
+ *
  * Falls back to `updated` when the response predates the outcome field, so the older
  * half of a rolling deploy still says something true.
  */
@@ -195,21 +200,22 @@ function reportOutcome(result: PluginUpdateResult): void {
   const version = result.currentSemver ? `v${result.currentSemver}` : 'the current version';
 
   if (outcome === 'updated') {
-    toast.success(
-      `Updated to ${result.currentSemver ? `v${result.currentSemver}` : 'a newer version'}`
-    );
+    const activated = result.currentSemver ? `v${result.currentSemver}` : 'a newer version';
+    toast.success(`Updated to ${activated}. Everyone using this plugin now has this version.`);
     return;
   }
 
   if (outcome === 'failed') {
-    toast.error(`Could not reach GitHub. ${version} stays active and OWOX checks again tomorrow.`);
+    toast.error(
+      `Couldn't check for updates. ${version} remains active and OWOX will try again automatically.`
+    );
     return;
   }
 
   toast(
     outcome === 'already_running'
       ? 'An update check is already running'
-      : `Already on the latest release, ${version}`
+      : `You're up to date — ${version}`
   );
 }
 

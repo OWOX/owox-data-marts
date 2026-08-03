@@ -119,7 +119,7 @@ describe('usePluginActions', () => {
       await result.current.checkNow('p1');
     });
 
-    expect(toast).toHaveBeenCalledWith('Already on the latest release, v1.0.0');
+    expect(toast).toHaveBeenCalledWith("You're up to date — v1.0.0");
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -138,8 +138,11 @@ describe('usePluginActions', () => {
     });
 
     expect(toast.error).toHaveBeenCalledWith(
-      'Could not reach GitHub. v1.0.0 stays active and OWOX checks again tomorrow.'
+      "Couldn't check for updates. v1.0.0 remains active and OWOX will try again automatically."
     );
+    // The member cannot act on which host was unreachable, and it is a publisher
+    // diagnostic besides.
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).not.toContain('GitHub');
   });
 
   it('says when another check is already running', async () => {
@@ -164,6 +167,8 @@ describe('usePluginActions', () => {
       await result.current.checkNow('p1');
     });
 
-    expect(toast.success).toHaveBeenCalledWith('Updated to v2.0.0');
+    expect(toast.success).toHaveBeenCalledWith(
+      'Updated to v2.0.0. Everyone using this plugin now has this version.'
+    );
   });
 });

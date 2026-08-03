@@ -45,7 +45,7 @@ import {
 import { UserAvatar, UserAvatarSize } from '../../../shared/components/UserAvatar';
 import { GitHubIcon } from '../../../shared/icons';
 import { useProjectRoute } from '../../../shared/hooks';
-import { formatDateOnly } from '../../../utils/date-formatters';
+import { formatDateOnly, formatDateShort } from '../../../utils/date-formatters';
 import { generateInitials } from '../../../shared/utils';
 
 const UNPUBLISH_LABELS: Record<string, string> = {
@@ -333,7 +333,7 @@ export default function PluginDetailsPage() {
 
                 <InfoCard
                   label='Version'
-                  hint='Updates are checked daily. The highest eligible release becomes current for everyone using this plugin; versions cannot be pinned.'
+                  hint='The highest eligible release. Versions cannot be pinned.'
                 >
                   <Pill icon={<Tag className='text-muted-foreground size-3.5 shrink-0' />}>
                     {plugin.currentSemver ? `v${plugin.currentSemver}` : 'No eligible release'}
@@ -368,6 +368,21 @@ export default function PluginDetailsPage() {
                   </Tooltip>
                 </InfoCard>
               </div>
+
+              {/*
+                Stated in plain sight rather than behind the card's help icon: a member
+                should not have to hover to learn that a version they did not choose can
+                become current, and that the next check happens whether or not they ask.
+                The time is rendered in the member's own timezone.
+              */}
+              <p className='text-muted-foreground mt-4 text-sm'>
+                Updates are checked daily.
+                {plugin.nextCheckAt
+                  ? ` Next check: ${formatDateShort(plugin.nextCheckAt)}.`
+                  : ''}{' '}
+                If a newer valid version is found, it will be applied automatically to everyone
+                using this plugin.
+              </p>
             </CollapsibleCardContent>
 
             <CollapsibleCardFooter

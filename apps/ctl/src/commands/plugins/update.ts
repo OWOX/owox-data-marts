@@ -17,21 +17,28 @@ export function updatePlugin(
  * command prints and `| jq` keeps working.
  */
 export function updateSummary(result: OWOXPluginUpdateResult): string {
-  const version = result.currentSemver ? `v${result.currentSemver}` : 'the current version';
+  const version = result.currentSemver ? `v${result.currentSemver}` : 'no eligible release';
   const outcome =
     result.outcome === 'updated'
-      ? `Updated to ${version}. It is now current for everyone using ${result.repository}.`
+      ? `Updated to ${version}.`
       : result.outcome === 'already_running'
-        ? `A check for ${result.repository} is already running; its result stands.`
+        ? 'A check is already running; its result stands.'
         : result.outcome === 'failed'
-          ? `The check could not reach GitHub. ${version} stays active.`
-          : `Already on the highest eligible release, ${version}.`;
+          ? "Couldn't check for updates. The current version remains active."
+          : 'Already on the highest eligible release.';
 
+  // Every outcome repeats all four facts §11 asks for -- current version, the daily
+  // cadence, the next automatic check, and who an update reaches. A member reading only
+  // the line their run produced still learns that none of this was their decision.
   const next = result.nextCheckAt
-    ? `Updates are checked daily; the next automatic check is ${new Date(result.nextCheckAt).toLocaleString()}.`
-    : 'Updates are checked daily.';
+    ? `next automatic check ${new Date(result.nextCheckAt).toLocaleString()}`
+    : 'checked daily';
 
-  return `${outcome}\n${next}`;
+  return [
+    `${result.repository} — ${outcome}`,
+    `Current version: ${version}. Updates are checked daily (${next}).`,
+    'A valid update applies to everyone using this plugin.',
+  ].join('\n');
 }
 
 /**
