@@ -1,4 +1,4 @@
-import { Buffer } from 'node:buffer';
+import { encodeBase64Url } from './base64url.js';
 
 import { OWOXApiError } from './errors.js';
 import {
@@ -260,7 +260,7 @@ function parsePage(response: unknown): DataMartsPage {
 }
 
 function encodeBase64UrlJson(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+  return encodeBase64Url(JSON.stringify(value));
 }
 
 function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams | undefined {

@@ -526,7 +526,10 @@ describe('OWOXApiClient', () => {
     });
   });
 
-  it('configures default stream requests without standard Undici streaming timeouts', async () => {
+  // The no-timeout dispatcher now comes from the consumer instead of being baked in:
+  // naming undici here would put a Node-only import into a package that has to build
+  // for a plugin iframe. owox-ctl supplies one; see BaseCommand.createClient.
+  it('passes a caller-supplied stream dispatcher through to the stream request', async () => {
     let streamRequestInit: RequestInit | undefined;
     const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const request = new Request(input, init);
@@ -551,15 +554,14 @@ describe('OWOXApiClient', () => {
     });
 
     try {
-      const client = new OWOXApiClient({
-        apiKey,
-      });
+      const streamDispatcher = { marker: 'caller-supplied' };
+      const client = new OWOXApiClient({ apiKey, streamDispatcher });
 
       await client.dataMarts.traverseData('dm-1');
 
-      expect(
-        (streamRequestInit as RequestInit & { dispatcher?: unknown }).dispatcher
-      ).toBeDefined();
+      expect((streamRequestInit as RequestInit & { dispatcher?: unknown }).dispatcher).toBe(
+        streamDispatcher
+      );
     } finally {
       fetchSpy.mockRestore();
     }

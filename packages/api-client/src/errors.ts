@@ -38,11 +38,23 @@ export function createNetworkError(apiOrigin: string, cause: unknown): OWOXApiEr
   );
 }
 
+/**
+ * The backend serializes errors through two different filters, with two different
+ * payload keys. Both are live, so both are read here:
+ *
+ * - `HttpException` with a structured body -> GlobalExceptionFilter spreads it as-is,
+ *   producing `{ code, message, details, ... }`. See createStorageReadError().
+ * - `BusinessViolationException` -> BaseExceptionFilter, producing
+ *   `{ statusCode, timestamp, path, message, code?, errorDetails }`.
+ *
+ * Unifying them is a backend-wide change and does not belong in this client.
+ */
 type ErrorResponseBody = {
   code?: unknown;
   error?: unknown;
   message?: unknown;
   details?: unknown;
+  errorDetails?: unknown;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,8 +92,19 @@ function readErrorDetails(body: unknown): unknown {
     return body;
   }
 
-  const { details } = body as ErrorResponseBody;
-  return details === undefined ? body : details;
+  const { details, errorDetails } = body as ErrorResponseBody;
+  if (details !== undefined) {
+    return details;
+  }
+
+  // Unwrap the BaseExceptionFilter envelope so callers read
+  // `error.details.installationUrl`, not `error.details.errorDetails.installationUrl`.
+  if (errorDetails !== undefined) {
+    return errorDetails;
+  }
+
+  // IdpExceptionFilter sends neither key; callers already rely on the whole body.
+  return body;
 }
 
 export function createHttpError(

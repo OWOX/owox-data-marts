@@ -1,41 +1,39 @@
-import { Agent, type Dispatcher } from 'undici';
-
-import { parseOWOXApiKey } from './api-key.js';
-import { AuthApi, exchangeAccessToken, normalizeApiOrigin, readResponseBody } from './auth.js';
+import { AuthApi } from './auth.js';
 import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
-import { createHttpError } from './errors.js';
 import { InsightsApi } from './insight-templates.js';
 import { MarkdownApi } from './markdown.js';
 import { ModelCanvasApi } from './model-canvas.js';
+import { PluginsApi } from './plugins.js';
 import { ProjectApi } from './project.js';
 import { ReportsApi } from './reports.js';
 import { RunsApi } from './runs.js';
 import { SearchApi } from './search.js';
 import { StoragesApi } from './storages.js';
-import { requestApi } from './transport.js';
+import { ApiKeyTransport } from './transports/api-key-transport.js';
+import type { OWOXTransport } from './transport.js';
 
-export type OWOXApiClientOptions = {
-  apiKey: string;
-  fetchImpl?: typeof fetch;
-};
+export type OWOXApiClientOptions =
+  | {
+      apiKey: string;
+      fetchImpl?: typeof fetch;
+      /** Long NDJSON reads need a dispatcher with no body timeout; `owox-ctl` supplies one. */
+      streamDispatcher?: unknown;
+    }
+  /**
+   * An externally supplied transport, for callers that hold no OWOX credential.
+   *
+   * This is how a plugin gets `ctx.owox`: the SDK owns a transport that forwards over a
+   * MessagePort to the trusted host, which attaches the credential. Plugin code never
+   * constructs one and never sees a token.
+   */
+  | { transport: OWOXTransport };
 
-type QueryParams = Record<string, string> | URLSearchParams;
-type FetchInit = RequestInit & { dispatcher?: Dispatcher };
-type AuthenticatedRequestOptions = {
-  method: 'GET' | 'POST' | 'PUT';
-  query?: QueryParams;
-  accept?: string;
-  jsonBody?: unknown;
-  fetchInit?: FetchInit;
-};
-
-const streamFetchDispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 });
-
-export class OWOXApiClient {
+export class OWOXApiClient implements OWOXTransport {
   readonly auth: AuthApi;
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
+  readonly plugins: PluginsApi;
   readonly destinations: DestinationsApi;
   readonly insights: InsightsApi;
   readonly markdown: MarkdownApi;
@@ -45,22 +43,17 @@ export class OWOXApiClient {
   readonly runs: RunsApi;
   readonly search: SearchApi;
 
-  private readonly apiOrigin: string;
-  private readonly apiKeyId: string;
-  private readonly apiKeySecret: string;
-  private readonly fetchImpl: typeof fetch;
-  private accessToken: string | undefined;
+  private readonly transport: OWOXTransport;
 
   constructor(options: OWOXApiClientOptions) {
-    const parsedApiKey = parseOWOXApiKey(options.apiKey);
-    this.apiOrigin = normalizeApiOrigin(parsedApiKey.apiOrigin);
-    this.apiKeyId = parsedApiKey.apiKeyId;
-    this.apiKeySecret = parsedApiKey.apiKeySecret;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.transport = 'transport' in options ? options.transport : new ApiKeyTransport(options);
 
+    // Every resource takes the transport structurally, so none of them can tell which
+    // one it got -- which is what lets the same resource code serve a plugin iframe.
     this.auth = new AuthApi(this);
     this.dataMarts = new DataMartsApi(this);
     this.storages = new StoragesApi(this);
+    this.plugins = new PluginsApi(this);
     this.destinations = new DestinationsApi(this);
     this.insights = new InsightsApi(this);
     this.markdown = new MarkdownApi(this);
@@ -71,87 +64,24 @@ export class OWOXApiClient {
     this.search = new SearchApi(this);
   }
 
+  /** No-op for transports that carry no credential of their own. */
   async authenticate(): Promise<void> {
-    await this.getAccessToken();
+    await this.transport.authenticate?.();
   }
 
   async getJson<T>(path: string, query?: Record<string, string>): Promise<T> {
-    return this.requestJsonWithAuth<T>(path, { method: 'GET', query });
+    return this.transport.getJson<T>(path, query);
   }
 
   async putJson<T>(path: string, jsonBody: unknown): Promise<T> {
-    return this.requestJsonWithAuth<T>(path, { method: 'PUT', jsonBody });
+    return this.transport.putJson<T>(path, jsonBody);
   }
 
   async postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T> {
-    return this.requestJsonWithAuth<T>(path, { method: 'POST', jsonBody, accept });
+    return this.transport.postJson<T>(path, jsonBody, accept);
   }
 
   async getStream(path: string, query?: URLSearchParams): Promise<Response> {
-    const response = await this.requestWithAuth(path, {
-      method: 'GET',
-      query,
-      accept: 'application/x-ndjson',
-      fetchInit: { dispatcher: streamFetchDispatcher },
-    });
-    if (!response.ok) {
-      const body = await readResponseBody(response);
-      throw createHttpError(response, body);
-    }
-
-    return response;
-  }
-
-  private async requestJsonWithAuth<T>(
-    path: string,
-    options: AuthenticatedRequestOptions
-  ): Promise<T> {
-    const response = await this.requestWithAuth(path, options);
-    const body = await readResponseBody(response);
-
-    if (!response.ok) {
-      throw createHttpError(response, body);
-    }
-
-    return body as T;
-  }
-
-  private async requestWithAuth(
-    path: string,
-    options: AuthenticatedRequestOptions,
-    retryOnUnauthorized = true
-  ): Promise<Response> {
-    const response = await requestApi({
-      apiOrigin: this.apiOrigin,
-      fetchImpl: this.fetchImpl,
-      path,
-      method: options.method,
-      apiKeyId: this.apiKeyId,
-      accessToken: await this.getAccessToken(),
-      query: options.query,
-      accept: options.accept,
-      jsonBody: options.jsonBody,
-      fetchInit: options.fetchInit,
-    });
-
-    if (response.status === 401 && retryOnUnauthorized) {
-      this.accessToken = undefined;
-      return this.requestWithAuth(path, options, false);
-    }
-
-    return response;
-  }
-
-  private async getAccessToken(): Promise<string> {
-    if (!this.accessToken) {
-      this.accessToken = await exchangeAccessToken({
-        apiOrigin: this.apiOrigin,
-        apiKeyId: this.apiKeyId,
-        apiKeySecret: this.apiKeySecret,
-        fetchImpl: this.fetchImpl,
-      });
-    }
-
-    return this.accessToken;
+    return this.transport.getStream(path, query);
   }
 }
