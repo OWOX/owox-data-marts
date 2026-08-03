@@ -368,7 +368,11 @@ export class QueryDataMartService {
       // queries span several Data Marts and only journal into their run record above.
       if (!needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
         try {
-          await this.dataMartService.updateDataLastUpdated(dataMart.id, dataLastUpdated);
+          await this.dataMartService.updateDataLastUpdated(
+            dataMart.id,
+            dataMart.projectId,
+            dataLastUpdated
+          );
         } catch (persistError) {
           this.logger.warn(
             `Failed to persist data last updated for data mart ${dataMart.id}: ${

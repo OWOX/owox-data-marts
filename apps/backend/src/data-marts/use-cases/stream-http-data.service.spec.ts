@@ -424,7 +424,7 @@ describe('StreamHttpDataService', () => {
       })
     );
     // Non-blended stream reads exactly this Data Mart's own sources → safe to save.
-    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm-1', measured);
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm-1', 'proj-1', measured);
   });
 
   it('journals but does NOT persist data last updated for a blended stream', async () => {

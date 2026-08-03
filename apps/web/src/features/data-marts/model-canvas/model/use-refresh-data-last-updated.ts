@@ -25,7 +25,9 @@ const REFRESH_IDS_PER_REQUEST = 200;
  * (and re-runs fitView) once rather than flickering per chunk.
  *
  * Data Marts the backend could not measure are simply absent from the response and keep their
- * previous value; a toast appears only when the sweep produced nothing at all.
+ * previous value. A loading toast covers the whole sweep (the dropdown that launches it closes
+ * immediately, so this is the only progress affordance), and the outcome toast is honest about
+ * partial failure: success only when every chunk went through.
  */
 export function useRefreshDataLastUpdated(storageId: string | null) {
   const { projectId = '' } = useParams<{ projectId: string }>();
@@ -36,6 +38,7 @@ export function useRefreshDataLastUpdated(storageId: string | null) {
     async (dataMartIds: string[]) => {
       if (dataMartIds.length === 0 || !storageId) return;
       setIsRefreshing(true);
+      const loadingToastId = toast.loading('Checking Data Last Updated…');
       try {
         const measured = new Map<string, DataLastUpdatedDto>();
         let anyRequestFailed = false;
@@ -56,15 +59,25 @@ export function useRefreshDataLastUpdated(storageId: string | null) {
         }
 
         if (measured.size === 0) {
-          if (anyRequestFailed) {
-            toast.error('Failed to check Data Last Updated');
-          }
+          toast.error(
+            anyRequestFailed
+              ? 'Failed to check Data Last Updated'
+              : 'None of the visible Data Marts could be measured'
+          );
           return;
         }
 
-        toast.success(
-          `Data Last Updated checked for ${String(measured.size)} data mart${measured.size === 1 ? '' : 's'}`
-        );
+        if (anyRequestFailed) {
+          // Part of the sweep failed — a green toast here would misreport the nodes that
+          // silently kept their previous value.
+          toast.error(
+            `Data Last Updated checked for ${String(measured.size)} of ${String(dataMartIds.length)} data marts — some requests failed`
+          );
+        } else {
+          toast.success(
+            `Data Last Updated checked for ${String(measured.size)} data mart${measured.size === 1 ? '' : 's'}`
+          );
+        }
         queryClient.setQueryData<ModelCanvasTopologyData>(
           ['model-canvas', projectId, storageId],
           previous =>
@@ -77,6 +90,7 @@ export function useRefreshDataLastUpdated(storageId: string | null) {
             }
         );
       } finally {
+        toast.dismiss(loadingToastId);
         setIsRefreshing(false);
       }
     },

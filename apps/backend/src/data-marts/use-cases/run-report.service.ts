@@ -43,7 +43,10 @@ import {
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
-import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
+import {
+  SourceDataLastUpdated,
+  unavailableSourceDataLastUpdated,
+} from '../dto/schemas/source-data-last-updated.schema';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 
@@ -251,14 +254,18 @@ export class RunReportService {
 
       // Data Last Updated rides along with the run (meeting decision: measure when data is
       // delivered anyway). Started here so it overlaps the read/write below; the service never
-      // rejects and caps itself, so it cannot fail or stall the run.
+      // rejects and self-caps at its soft timeout, so it cannot fail the run. A blending
+      // decision with no blended SQL is an error surfaced by the read path below — don't send
+      // an empty query to the warehouse for it, just report unavailable.
       const dataLastUpdatedPromise = blendingDecision.needsBlending
-        ? this.sourceDataLastUpdatedService.resolveForSql({
-            storage: dataMart.storage,
-            sql: blendingDecision.blendedSql ?? '',
-            params: blendingDecision.params,
-            signal,
-          })
+        ? blendingDecision.blendedSql
+          ? this.sourceDataLastUpdatedService.resolveForSql({
+              storage: dataMart.storage,
+              sql: blendingDecision.blendedSql,
+              params: blendingDecision.params,
+              signal,
+            })
+          : Promise.resolve(unavailableSourceDataLastUpdated())
         : this.sourceDataLastUpdatedService.resolveForDefinition({ dataMart, signal });
 
       reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
@@ -459,7 +466,11 @@ export class RunReportService {
       // finishes — a stale in-memory snapshot would cascade over the value written below.
       dataMart.dataLastUpdated = dataLastUpdated;
       try {
-        await this.dataMartService.updateDataLastUpdated(dataMart.id, dataLastUpdated);
+        await this.dataMartService.updateDataLastUpdated(
+          dataMart.id,
+          dataMart.projectId,
+          dataLastUpdated
+        );
       } catch (error) {
         this.logger.warn(
           `Failed to persist data last updated for data mart ${dataMart.id}: ${

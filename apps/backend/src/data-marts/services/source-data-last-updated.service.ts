@@ -8,6 +8,7 @@ import {
   SourceDataLastUpdatedResolver,
 } from '../data-storage-types/interfaces/source-data-last-updated-resolver.interface';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import {
   SourceDataLastUpdated,
@@ -52,12 +53,7 @@ export class SourceDataLastUpdatedService {
    * like any other miss.
    */
   async resolveForDefinition(input: {
-    dataMart: {
-      id: string;
-      storage: DataStorage;
-      definitionType?: unknown;
-      definition?: unknown;
-    };
+    dataMart: Pick<DataMart, 'id' | 'storage' | 'definitionType' | 'definition'>;
     signal?: AbortSignal;
     softTimeoutMs?: number;
   }): Promise<SourceDataLastUpdated> {
@@ -71,7 +67,7 @@ export class SourceDataLastUpdatedService {
     try {
       const built = await this.queryBuilderFacade.buildQuery(
         dataMart.storage.type,
-        dataMart.definition as never
+        dataMart.definition
       );
       sql = typeof built === 'string' ? built : built.sql;
       params = typeof built === 'string' ? undefined : built.params;

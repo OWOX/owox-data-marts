@@ -838,7 +838,7 @@ describe('QueryDataMartService', () => {
 
       // Non-blended composed SQL reads exactly this Data Mart's own sources — same meaning as
       // the manual Check now, so the value becomes the Data Mart's last-known snapshot.
-      expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', measured);
+      expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', 'p1', measured);
     });
 
     it('journals but does NOT persist for a blended query', async () => {

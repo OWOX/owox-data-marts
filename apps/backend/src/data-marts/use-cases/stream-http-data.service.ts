@@ -300,7 +300,8 @@ export class StreamHttpDataService {
       }
 
       // Data Last Updated rides along with the stream (meeting decision: measure when data is
-      // delivered anyway). Never rejects, self-capped — cannot fail or stall the stream.
+      // delivered anyway). Never rejects and self-caps at its soft timeout, so it cannot fail
+      // the stream — worst case it delays the first byte by up to that cap.
       const dataLastUpdatedPromise = decision.needsBlending
         ? this.sourceDataLastUpdatedService.resolveForSql({
             storage: dataMart.storage,
@@ -346,7 +347,11 @@ export class StreamHttpDataService {
       baseMetadata.dataLastUpdated = dataLastUpdated;
       if (!decision.needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
         try {
-          await this.dataMartService.updateDataLastUpdated(dataMart.id, dataLastUpdated);
+          await this.dataMartService.updateDataLastUpdated(
+            dataMart.id,
+            dataMart.projectId,
+            dataLastUpdated
+          );
         } catch (persistError) {
           this.logger.warn(
             `Failed to persist data last updated for data mart ${dataMart.id}: ${

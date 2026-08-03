@@ -678,6 +678,7 @@ describe('RunReportService', () => {
     expect(dataMartRun.reportDefinition!.dataLastUpdated).toEqual(measured);
     expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith(
       report.dataMart.id,
+      report.dataMart.projectId,
       measured
     );
     // The in-memory entity must carry the fresh value too: Report.dataMart is saved with
