@@ -7,16 +7,16 @@ Use the MCP server to explore your [data marts](../core-concepts.md) in plain la
 ## Prerequisites
 
 - An active OWOX Data Marts project with at least one data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart.
-- One of the supported clients: Claude Desktop, Claude web (claude.ai), or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
+- One of the supported clients: Claude Desktop or Claude web (claude.ai) — the recommended way to connect — or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
 - A client plan that allows MCP connectors. Adding an MCP server like OWOX may require a paid plan in Claude or ChatGPT. Check your client's current plan requirements.
 
 ## Step 1: Connect your AI assistant
 
-Set up whichever assistant you use — you only need one. Connect to the shared MCP server, `https://mcp.owox.com/mcp`: the client discovers its OAuth endpoints and registers itself automatically, so there is no client ID, secret, or token to copy. You select your project during authorization — see [Step 2](#step-2-authorize-access).
+Set up whichever assistant you use — you only need one. We recommend Claude Desktop or Claude web as the default client. Connect to the shared MCP server, `https://mcp.owox.com/mcp`: the client discovers its OAuth endpoints and registers itself automatically, so there is no client ID, secret, or token to copy. You select your project during authorization — see [Step 2](#step-2-authorize-access).
 
 > **Note:** Connecting to multiple projects, or scripting the setup from a URL your OWOX UI or API already gave you? See [Use a project-specific URL](#use-a-project-specific-url) below.
 
-### Claude Desktop
+### Claude Desktop (recommended)
 
 1. Open Claude and go to **Settings → Connectors**.
 2. Click **Add → Browse connectors**.
