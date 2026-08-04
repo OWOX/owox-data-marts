@@ -1,4 +1,6 @@
+import ipaddr from 'ipaddr.js';
 import dns from 'node:dns/promises';
+import { withGuardedDispatcher } from './guarded-dispatcher';
 
 export type UnsafeUrlReason =
   | 'invalid-url'
@@ -120,7 +122,10 @@ export async function fetchPublicUrl(
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
     await assertPublicHttpUrl(currentUrl, options);
 
-    const response = await fetch(currentUrl, { ...init, redirect: 'manual' });
+    const response = await fetch(
+      currentUrl,
+      withGuardedDispatcher({ ...init, redirect: 'manual' })
+    );
     const location = response.headers.get('location');
     if (!REDIRECT_STATUSES.has(response.status) || !location) {
       return response;
@@ -134,13 +139,20 @@ export async function fetchPublicUrl(
 
 /** No-op for anything that is not an IPv4 literal. @throws {UnsafeUrlError} */
 export function assertNotPrivateIpv4(hostname: string, sourceUrl: string): void {
+  if (isPrivateIpv4(hostname)) {
+    throw new UnsafeUrlError('private-ipv4', sourceUrl);
+  }
+}
+
+/** False for anything that is not an IPv4 literal, so callers can pass any hostname. */
+export function isPrivateIpv4(hostname: string): boolean {
   const ipv4 = hostname.match(IPV4_LITERAL);
   if (!ipv4) {
-    return;
+    return false;
   }
 
   const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-  const isPrivate =
+  return (
     a === 0 || // 0.0.0.0/8
     a === 10 || // 10.0.0.0/8
     a === 127 || // 127.0.0.0/8 loopback
@@ -148,21 +160,40 @@ export function assertNotPrivateIpv4(hostname: string, sourceUrl: string): void 
     (a === 169 && b === 254) || // 169.254.0.0/16 link-local / cloud metadata
     (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
     (a === 192 && b === 168) || // 192.168.0.0/16
-    a >= 240; // 240.0.0.0/4 reserved
-
-  if (isPrivate) {
-    throw new UnsafeUrlError('private-ipv4', sourceUrl);
-  }
+    a >= 240 // 240.0.0.0/4 reserved
+  );
 }
 
-/** True for ::1, ::, fe80::/10 and fc00::/7. */
+/**
+ * True for every IPv6 form an outbound request must not reach.
+ *
+ * Classified rather than prefix-matched: `fe80::/10` runs to `febf:`, so testing for the
+ * literal `fe80:` let `fe81::1` through, and `::ffff:127.0.0.1` reaches loopback through
+ * the IPv4 stack while matching no prefix at all. Anything ipaddr.js does not call plain
+ * `unicast` is refused, which also covers multicast, 6to4, Teredo and reserved space --
+ * all of which can name an internal destination.
+ */
 export function isPrivateIpv6(address: string): boolean {
-  const normalized = address.toLowerCase();
-  return (
-    normalized === '::1' ||
-    normalized === '::' ||
-    normalized.startsWith('fe80:') ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd')
-  );
+  let parsed: ipaddr.IPv4 | ipaddr.IPv6;
+  try {
+    parsed = ipaddr.parse(address);
+  } catch {
+    // Deprecated forms such as `::127.0.0.1` do not parse. Unclassifiable is not
+    // provably public, and this guard exists to fail closed.
+    return true;
+  }
+
+  if (parsed.kind() === 'ipv4') {
+    return isPrivateIpv4(address);
+  }
+
+  const ipv6 = parsed as ipaddr.IPv6;
+  const range = ipv6.range();
+  if (range === 'ipv4Mapped') {
+    // The wrapped address decides, so `::ffff:8.8.8.8` stays usable while
+    // `::ffff:127.0.0.1` and its hex spelling `::ffff:7f00:1` do not.
+    return isPrivateIpv4(ipv6.toIPv4Address().toString());
+  }
+
+  return range !== 'unicast';
 }

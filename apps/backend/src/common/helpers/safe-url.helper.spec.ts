@@ -42,6 +42,11 @@ describe('assertPublicHttpUrl', () => {
     ['http://192.168.1.1', 'private-ipv4'],
     ['http://100.64.0.1', 'private-ipv4'],
     ['http://240.0.0.1', 'private-ipv4'],
+    // The forms the prefix-matching classifier used to pass straight through.
+    ['https://[fe81::1]/', 'private-ipv6'],
+    ['https://[febf::1]/', 'private-ipv6'],
+    ['https://[::ffff:127.0.0.1]/', 'private-ipv6'],
+    ['https://[::ffff:169.254.169.254]/', 'private-ipv6'],
   ])('rejects %s as %s', async (rawUrl, reason) => {
     await expect(assertPublicHttpUrl(rawUrl)).rejects.toMatchObject({ reason });
   });
@@ -174,11 +179,40 @@ describe('fetchPublicUrl', () => {
 });
 
 describe('isPrivateIpv6', () => {
-  it.each(['::1', '::', 'fe80::1', 'fc00::1', 'fd00::1', 'FD00::1'])('flags %s', address => {
+  it.each([
+    '::1',
+    '::',
+    'fe80::1',
+    // The whole of fe80::/10, not just the first block -- a prefix test on `fe80:`
+    // let every one of these through.
+    'fe81::1',
+    'fe90::1',
+    'feaf::1',
+    'febf::1',
+    'fc00::1',
+    'fd00::1',
+    'FD00::1',
+    // Reaches the IPv4 stack, so it matches no IPv6 prefix at all.
+    '::ffff:127.0.0.1',
+    '::ffff:10.0.0.1',
+    '::ffff:169.254.169.254',
+    '::ffff:192.168.1.1',
+    // Same address, hex spelling.
+    '::ffff:7f00:1',
+    // Deprecated IPv4-compatible form: unparseable, so refused rather than assumed public.
+    '::127.0.0.1',
+    'ff02::1',
+    // Embeds 127.0.0.1 in the 6to4 prefix.
+    '2002:7f00:1::',
+    'not-an-address',
+  ])('flags %s', address => {
     expect(isPrivateIpv6(address)).toBe(true);
   });
 
-  it.each(['2001:4860:4860::8888', '2606:4700:4700::1111'])('allows %s', address => {
-    expect(isPrivateIpv6(address)).toBe(false);
-  });
+  it.each(['2001:4860:4860::8888', '2606:4700:4700::1111', '::ffff:8.8.8.8'])(
+    'allows %s',
+    address => {
+      expect(isPrivateIpv6(address)).toBe(false);
+    }
+  );
 });

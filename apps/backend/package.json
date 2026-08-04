@@ -97,6 +97,7 @@
     "env-paths": "^3.0.0",
     "googleapis": "^150.0.1",
     "handlebars": "^4.7.9",
+    "ipaddr.js": "^1.9.1",
     "jsonwebtoken": "^9.0.0",
     "juice": "^11.0.3",
     "luxon": "^3.6.1",
@@ -115,6 +116,7 @@
     "swagger-ui-express": "^5.0.1",
     "typeorm": "0.3.30",
     "typeorm-transactional": "^0.5.0",
+    "undici": "^6.27.0",
     "zod": "^3.25.64",
     "zod-to-json-schema": "^3.25.0"
   },

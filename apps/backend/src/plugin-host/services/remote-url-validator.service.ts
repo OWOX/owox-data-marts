@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { fetchWithBackoff } from '@owox/internal-helpers';
+import { withGuardedDispatcher } from '../../common/helpers/guarded-dispatcher';
 import { assertPublicHttpUrl, UnsafeUrlError } from '../../common/helpers/safe-url.helper';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
@@ -150,10 +151,17 @@ export class RemoteUrlValidatorService {
     return { ok: true, finalUrl: candidate };
   }
 
+  /**
+   * The only way this service reaches the network, so the guarded dispatcher here covers
+   * every redirect hop and the descriptor request without either having to ask for it.
+   */
   private probe(url: string): Promise<Response> {
     return fetchWithBackoff(
       url,
-      { redirect: 'manual', headers: { 'User-Agent': 'owox-data-marts' } },
+      withGuardedDispatcher({
+        redirect: 'manual',
+        headers: { 'User-Agent': 'owox-data-marts' },
+      }),
       this.config.remoteProbeTimeoutMs,
       PROBE_ATTEMPTS
     );
