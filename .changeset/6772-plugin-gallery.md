@@ -4,7 +4,7 @@
 
 # Plugin Gallery: publish, install and run plugins described by GitHub releases
 
-Plugins are web apps hosted elsewhere, described by a GitHub repository's releases, listed in a per-member Gallery and opened inside OWOX in a sandboxed cross-origin iframe. A plugin holds no credential of its own: it can only ask the host page to make calls the host has already decided are allowed, acting with the authority of the member who installed it.
+Plugins are web apps hosted elsewhere, described by a GitHub repository's releases, listed in a per-member Gallery and opened inside OWOX Data Marts in a sandboxed cross-origin iframe. A plugin holds no credential of its own: it can only ask the host page to make calls the host has already decided are allowed, acting with the authority of the member who installed it.
 
 **Publishing and installing are separate.** A publication controls what a member sees in the Gallery, at three independent levels — deployment, project and member — which combine into one deduplicated list with no precedence between them. Installing is each member's own decision, uninstalling is soft, and a previous installer can restore from history even after the plugin stops being published to them. Unpublishing removes a listing without uninstalling anyone.
 
@@ -14,9 +14,9 @@ Plugins are web apps hosted elsewhere, described by a GitHub repository's releas
 
 **Emergency control.** An allowlisted publisher key can suspend a plugin across the deployment. Suspension blocks opening, installing and restoring while leaving uninstalling and update checking available, so a corrective version can still become current before the plugin is resumed. It changes no publication or installation record.
 
-Plugin authors build against the new `@owox/plugin-sdk`, which owns the host handshake and hands the plugin a working OWOX API client. `owox-ctl` gains `plugins publish`, `unpublish`, `publications list`, `update`, `suspend` and `resume`.
+Plugin authors build against the new `@owox/plugin-sdk`, which owns the host handshake and hands the plugin a working OWOX Data Marts API client. `owox-ctl` gains `plugins publish`, `unpublish`, `publications list`, `update`, `suspend` and `resume`.
 
-New deployment variables: `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`, `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_API_BASE_URL`, `PLUGIN_HOST_PUBLIC_ORIGIN`, `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`, `PLUGIN_HOST_MAX_RELEASE_PAGES`, `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`.
+New deployment variables: `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`, `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_API_BASE_URL`, `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`, `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`. The origin a vendor may name in `frame-ancestors` is the existing `PUBLIC_ORIGIN`, not a plugin-specific setting beside it.
 
 **Behaviour change in `@owox/api-client`.** The package no longer depends on `undici`, so it can build for a browser and back a plugin's `ctx.owox`. As a result it no longer supplies a no-timeout dispatcher for streaming reads by default — pass one via the new `streamDispatcher` option if you call `traverseData` and need reads to run unbounded:
 
