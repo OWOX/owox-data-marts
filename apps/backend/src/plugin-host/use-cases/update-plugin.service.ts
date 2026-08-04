@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PluginPublisherDiagnosticsDto } from '../dto/domain/plugin-publication.dto';
 import { PluginUpdateResultDto, UpdatePluginCommand } from '../dto/domain/update-plugin.command';
 import { Plugin } from '../entities/plugin.entity';
+import { AuthorizationContext } from '../../idp/types/auth.types';
 import { PluginService } from '../services/plugin.service';
+import { PluginInstallationService } from '../services/plugin-installation.service';
+import { PluginPublicationService } from '../services/plugin-publication.service';
 import { PluginUpdateScheduleService } from '../services/plugin-update-schedule.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PublicationAuthorizationService } from '../services/publication-authorization.service';
@@ -21,6 +24,10 @@ import { RunPluginUpdateCheckService } from './run-plugin-update-check.service';
  * Any project member who can reach the plugin page may ask. Requiring an installation
  * would only make the same inevitable check happen later, for a plugin the member is
  * standing in front of.
+ *
+ * "Can reach" is carried by the plugin id, which is a random uuid nobody guesses. The
+ * by-repository form has no such protection -- `owner/name` is guessable -- so that form
+ * is narrowed to callers the plugin is already reachable by.
  */
 @Injectable()
 export class UpdatePluginService {
@@ -29,7 +36,9 @@ export class UpdatePluginService {
     private readonly authorization: PublicationAuthorizationService,
     private readonly schedule: PluginUpdateScheduleService,
     private readonly check: RunPluginUpdateCheckService,
-    private readonly versionService: PluginVersionService
+    private readonly versionService: PluginVersionService,
+    private readonly publications: PluginPublicationService,
+    private readonly installations: PluginInstallationService
   ) {}
 
   async run(command: UpdatePluginCommand): Promise<PluginUpdateResultDto> {
@@ -85,7 +94,12 @@ export class UpdatePluginService {
       // Cache-first: CLI update addresses a plugin this deployment already knows. A
       // repository never seen here has nothing to update.
       const plugin = await this.pluginService.findByRepoName(ref.owner, ref.name);
-      if (!plugin) {
+
+      // One answer for "no such plugin" and "not yours to reach". A repository name is
+      // guessable in a way a plugin id is not, so distinguishing the two would let any
+      // member of any project probe which repositories this deployment hosts -- and a
+      // member-scope publication is meant to be nobody else's business.
+      if (!plugin || !(await this.mayReach(plugin.id, command.context))) {
         throw new NotFoundException(
           `Plugin ${ref.owner}/${ref.name} was not found on this deployment`
         );
@@ -94,6 +108,32 @@ export class UpdatePluginService {
     }
 
     throw new NotFoundException('A plugin id or repository is required');
+  }
+
+  /**
+   * Whether this plugin is already reachable by the caller without guessing.
+   *
+   * A visible publication or the caller's own installation -- including a soft-uninstalled
+   * one, which is what the history page restores from. Deployment publishers manage every
+   * plugin by definition, which is how `owox-ctl plugins update` keeps working.
+   */
+  private async mayReach(pluginId: string, context: AuthorizationContext): Promise<boolean> {
+    if (this.authorization.isDeploymentPublisher(context)) {
+      return true;
+    }
+
+    const visible = await this.publications.findVisibleTo(context.projectId, context.userId);
+    if (visible.some(row => row.pluginId === pluginId)) {
+      return true;
+    }
+
+    const installation = await this.installations.findOne(
+      pluginId,
+      context.projectId,
+      context.userId
+    );
+
+    return installation !== null;
   }
 }
 

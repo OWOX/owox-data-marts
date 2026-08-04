@@ -2,6 +2,8 @@ import { NotFoundException } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { UpdatePluginCommand } from '../dto/domain/update-plugin.command';
 import { PluginUpdateScheduleService } from '../services/plugin-update-schedule.service';
+import { PluginInstallationService } from '../services/plugin-installation.service';
+import { PluginPublicationService } from '../services/plugin-publication.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { PluginService } from '../services/plugin.service';
 import { PublicationAuthorizationService } from '../services/publication-authorization.service';
@@ -69,12 +71,30 @@ function setup(
     }),
   } as unknown as jest.Mocked<PluginVersionService>;
 
+  const publications = {
+    findVisibleTo: jest.fn().mockResolvedValue([{ pluginId: 'p1' }]),
+  } as unknown as jest.Mocked<PluginPublicationService>;
+
+  const installations = {
+    findOne: jest.fn().mockResolvedValue(null),
+  } as unknown as jest.Mocked<PluginInstallationService>;
+
   return {
-    service: new UpdatePluginService(pluginService, authorization, schedule, check, versionService),
+    service: new UpdatePluginService(
+      pluginService,
+      authorization,
+      schedule,
+      check,
+      versionService,
+      publications,
+      installations
+    ),
     pluginService,
     authorization,
     schedule,
     check,
+    publications,
+    installations,
   };
 }
 
@@ -234,5 +254,61 @@ describe('UpdatePluginService', () => {
 
     expect(s.pluginService.findByRepoName).toHaveBeenCalledWith('OWOX', 'example');
     expect(s.check.run).toHaveBeenCalled();
+  });
+
+  /**
+   * The by-id form is protected by the id itself, which is a random uuid. `owner/name` is
+   * not, so without this the by-repository form answers "does this deployment host X?" to
+   * any member of any project -- and then hands over the id that opens the plugin page and
+   * the install route. A member-scope publication is meant to be nobody else's business.
+   */
+  describe('the by-repository form', () => {
+    const byRepo = (s: ReturnType<typeof setup>, context = MEMBER) =>
+      s.service.run(new UpdatePluginCommand(context, undefined, 'OWOX/example'));
+
+    it('admits a caller the plugin is published to', async () => {
+      const s = setup();
+
+      await expect(byRepo(s)).resolves.toMatchObject({ outcome: 'updated' });
+    });
+
+    it('admits a caller who installed it, with no publication of their own', async () => {
+      const s = setup();
+      s.publications.findVisibleTo.mockResolvedValue([]);
+      s.installations.findOne.mockResolvedValue({ id: 'i1', uninstalledAt: null } as never);
+
+      await expect(byRepo(s)).resolves.toMatchObject({ outcome: 'updated' });
+    });
+
+    it('admits a deployment publisher, so owox-ctl keeps working', async () => {
+      const s = setup();
+      s.publications.findVisibleTo.mockResolvedValue([]);
+      s.authorization.isDeploymentPublisher.mockReturnValue(true);
+
+      await expect(byRepo(s, PUBLISHER)).resolves.toMatchObject({ outcome: 'updated' });
+    });
+
+    it('refuses someone else’s member-scope plugin', async () => {
+      const s = setup();
+      s.publications.findVisibleTo.mockResolvedValue([]);
+      s.installations.findOne.mockResolvedValue(null);
+
+      await expect(byRepo(s)).rejects.toBeInstanceOf(NotFoundException);
+      expect(s.check.run).not.toHaveBeenCalled();
+    });
+
+    // The refusal must not be distinguishable from "no such repository", or it is still an
+    // oracle -- just one that costs an extra request to read.
+    it('refuses it exactly as it refuses an unknown repository', async () => {
+      const hidden = setup();
+      hidden.publications.findVisibleTo.mockResolvedValue([]);
+      hidden.installations.findOne.mockResolvedValue(null);
+      const unknown = setup({ plugin: null });
+
+      const hiddenError = await byRepo(hidden).catch((error: Error) => error);
+      const unknownError = await byRepo(unknown).catch((error: Error) => error);
+
+      expect(hiddenError.message).toBe(unknownError.message);
+    });
   });
 });
