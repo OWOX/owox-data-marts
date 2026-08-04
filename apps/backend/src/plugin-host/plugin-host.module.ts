@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IdpModule } from '../idp/idp.module';
+import { CommonModule } from '../common/common.module';
 import { PLUGIN_RUNTIME_AUTHORIZER } from '../idp/ports/plugin-runtime-authorizer.port';
 import { PluginHostConfigService } from './config/plugin-host.config';
 import { PluginAuditEvent } from './entities/plugin-audit-event.entity';
@@ -62,6 +63,9 @@ import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
     ]),
     // Controllers here use @Auth, and IdpGuard resolves its dependencies from this module.
     IdpModule,
+    // PluginHostConfigService reads the deployment's public origin from here rather than
+    // keeping a second copy of it.
+    CommonModule,
   ],
   // Order is load-bearing. Every controller here mounts on 'plugins', and Nest matches
   // routes in registration order, so PluginGalleryController's catch-all GET ':pluginId'

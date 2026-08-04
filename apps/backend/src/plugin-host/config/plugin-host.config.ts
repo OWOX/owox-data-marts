@@ -1,21 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 
 const DEFAULT_GITHUB_API_BASE_URL = 'https://api.github.com';
 const DEFAULT_SYNC_MIN_INTERVAL_SEC = 300;
-/**
- * One page of 100. A sync stops at the newest release that validates, so pages beyond the
- * first can only hold versions that could never become current.
- */
-const DEFAULT_MAX_RELEASE_PAGES = 1;
 const DEFAULT_REMOTE_PROBE_TIMEOUT_MS = 8_000;
 
 /** Redirect hops followed while validating a delivery URL. Not configurable. */
 const MAX_REDIRECT_HOPS = 5;
 
+/**
+ * One page of 100 releases. Not configurable: a sync walks releases newest first and stops
+ * at the first that validates, so a second page could only ever hold versions that cannot
+ * become current. Needing one would mean the newest hundred releases are all broken, which
+ * is the publisher's problem to fix rather than the deployment's to tune around.
+ */
+const MAX_RELEASE_PAGES = 1;
+
 @Injectable()
 export class PluginHostConfigService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly publicOriginService: PublicOriginService
+  ) {}
 
   /**
    * API key IDs allowed to publish, unpublish, suspend and resume at deployment scope.
@@ -63,7 +70,7 @@ export class PluginHostConfigService {
   }
 
   get maxReleasePages(): number {
-    return this.numeric('PLUGIN_HOST_MAX_RELEASE_PAGES', DEFAULT_MAX_RELEASE_PAGES);
+    return MAX_RELEASE_PAGES;
   }
 
   get remoteProbeTimeoutMs(): number {
@@ -77,20 +84,17 @@ export class PluginHostConfigService {
   /**
    * Origin a plugin vendor may name in `frame-ancestors` for us to accept it.
    *
-   * Undefined means we cannot know our own deployment origin, so a vendor allowlisting
-   * a specific host is rejected rather than wrongly accepted.
+   * The deployment's own public origin, not a second setting beside it. A separate
+   * variable would have to mean "PUBLIC_ORIGIN is right for everything except plugins",
+   * and the page that embeds the iframe is served from that same origin -- so two values
+   * could only ever drift into validating against something that is not the real embedder.
    */
   get publicOrigin(): string | undefined {
-    const raw = this.trimmed('PLUGIN_HOST_PUBLIC_ORIGIN');
-    if (!raw) {
-      return undefined;
-    }
-
     try {
-      return new URL(raw).origin;
+      return new URL(this.publicOriginService.getPublicOrigin()).origin;
     } catch {
-      // A malformed value must not stop the server from booting; the effect is the
-      // same as leaving it unset, which is the safe direction.
+      // getPublicOrigin falls back to localhost and validates before returning, so this
+      // is unreachable in practice; refusing beats booting on an origin we cannot parse.
       return undefined;
     }
   }

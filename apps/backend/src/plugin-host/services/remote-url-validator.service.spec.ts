@@ -7,6 +7,7 @@ jest.mock('node:dns/promises', () => ({
 import { ConfigService } from '@nestjs/config';
 import { fetchWithBackoff } from '@owox/internal-helpers';
 import dns from 'node:dns/promises';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import { RemoteUrlValidatorService } from './remote-url-validator.service';
@@ -18,8 +19,9 @@ const resolve6 = dns.resolve6 as jest.Mock;
 const PLUGIN_URL = 'https://plugin.example.com';
 
 function service(env: Record<string, string | undefined> = {}): RemoteUrlValidatorService {
+  const configService = { get: <T>(key: string) => env[key] as T } as ConfigService;
   return new RemoteUrlValidatorService(
-    new PluginHostConfigService({ get: <T>(key: string) => env[key] as T } as ConfigService)
+    new PluginHostConfigService(configService, new PublicOriginService(configService))
   );
 }
 
@@ -185,13 +187,13 @@ describe('RemoteUrlValidatorService', () => {
       });
 
       await expect(
-        service({ PLUGIN_HOST_PUBLIC_ORIGIN: 'https://app.owox.com' }).validate(PLUGIN_URL)
+        service({ PUBLIC_ORIGIN: 'https://app.owox.com' }).validate(PLUGIN_URL)
       ).resolves.toMatchObject({ ok: true });
     });
 
-    // Without a configured origin we cannot know whether a host allowlist names us, and
-    // guessing wrong in the permissive direction would ship a plugin that never loads.
-    it('rejects a host allowlist when this deployment does not know its own origin', async () => {
+    // A deployment that never set PUBLIC_ORIGIN falls back to localhost, which no real
+    // vendor names -- so the refusal still happens, without a second variable to set.
+    it('rejects a host allowlist that names a different origin', async () => {
       route({
         'plugin.example.com': () =>
           page({ 'content-security-policy': 'frame-ancestors https://app.owox.com' }),
