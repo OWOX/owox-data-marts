@@ -98,14 +98,12 @@ export default function PluginRuntimePage() {
         pluginId: data.pluginId,
         installationId: resolvedId,
         projectId,
-        locale: 'en',
+        userId: user.id,
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-        member: { userId: user.id },
       },
       fetchRuntimeToken: fetchRuntimeToken(resolvedId),
       onOpenExternal: openExternal,
       onNavigate: navigateInApp,
-      onResize: () => undefined,
       onBroken: () => {
         setBroken(true);
       },

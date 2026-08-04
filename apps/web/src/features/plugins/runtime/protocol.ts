@@ -57,13 +57,15 @@ export interface PluginHostContext {
   readonly pluginId: string;
   readonly installationId: string;
   readonly projectId: string;
-  readonly locale: string;
+  /**
+   * The member this plugin is running for.
+   *
+   * Their name and avatar are deliberately not here: `GET /api/auth/context` already
+   * serves both to a plugin that needs them, and a second copy in the handshake would
+   * only be one that goes stale.
+   */
+  readonly userId: string;
   readonly theme: 'light' | 'dark';
-  readonly member: {
-    readonly userId: string;
-    readonly fullName?: string;
-    readonly avatar?: string;
-  };
 }
 
 /**
@@ -100,8 +102,7 @@ export type PluginRequest =
    * leaves the app in a new tab, the other replaces the page the plugin is running on,
    * and the host validates them by different rules.
    */
-  | { id: string; kind: 'navigate'; path: string }
-  | { id: string; kind: 'resize'; height: number };
+  | { id: string; kind: 'navigate'; path: string };
 
 /**
  * A request before the transport stamps its correlation id.

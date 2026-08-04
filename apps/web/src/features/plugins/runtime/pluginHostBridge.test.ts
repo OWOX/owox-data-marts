@@ -10,9 +10,8 @@ const CONTEXT = {
   pluginId: 'p1',
   installationId: 'i1',
   projectId: 'j1',
-  locale: 'en',
+  userId: 'u1',
   theme: 'light' as const,
-  member: { userId: 'u1', fullName: 'A Member' },
 };
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -80,7 +79,6 @@ async function harness(
     fetchRuntimeToken: () => Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 }),
     onOpenExternal,
     onNavigate,
-    onResize: vi.fn(),
     onBroken,
   });
 
@@ -108,7 +106,7 @@ async function harness(
       port.postMessage({ ...request, id } as PluginRequest);
     });
 
-  // openExternal and resize are fire-and-forget: the host acts, and there is nothing
+  // openExternal and navigate are fire-and-forget: the host acts, and there is nothing
   // meaningful to answer. Waiting for a reply would hang.
   const tell = (request: PluginRequestInput) => {
     port.start();
@@ -271,7 +269,6 @@ describe('plugin host bridge', () => {
         fetchRuntimeToken: () => Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 }),
         onOpenExternal: vi.fn(),
         onNavigate: vi.fn(),
-        onResize: vi.fn(),
       });
 
       // A declarative src would already have loaded by now, and a fast plugin's single
@@ -292,7 +289,6 @@ describe('plugin host bridge', () => {
         fetchRuntimeToken: () => Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 }),
         onOpenExternal: vi.fn(),
         onNavigate: vi.fn(),
-        onResize: vi.fn(),
       });
 
       announceReady({ nowhere: true });

@@ -19,7 +19,6 @@ export interface PluginHostBridgeOptions {
   onOpenExternal: (url: string) => void;
   /** A page inside OWOX the plugin asks to go to. The host decides whether it may. */
   onNavigate: (path: string) => void;
-  onResize: (px: number) => void;
   /**
    * The bridge closed the channel on its own, and the frame is now inert.
    *
@@ -209,11 +208,6 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
     if (request.kind === 'navigate') {
       options.onNavigate(request.path);
-      return;
-    }
-
-    if (request.kind === 'resize') {
-      options.onResize(request.height);
       return;
     }
 

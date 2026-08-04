@@ -15,6 +15,21 @@ const HANDSHAKE_TIMEOUT_MS = 10_000;
 /** The host may not be listening yet when we first announce, so keep announcing. */
 const READY_RETRY_MS = 250;
 
+/** Host-mediated actions. Each is a request; the host validates and decides. */
+export interface PluginUi {
+  /** Opens an external URL in a new tab, because the sandbox denies you popups. */
+  openExternal(url: string): Promise<void>;
+
+  /**
+   * Goes to a page inside OWOX Data Marts, in place of this plugin.
+   *
+   * `path` is absolute within the app, e.g. `/ui/${ctx.projectId}/data-marts/${id}`. The
+   * host refuses anything that resolves off its own origin, so this cannot become a way
+   * out of the app -- and your frame is unmounted when it does navigate.
+   */
+  navigate(path: string): void;
+}
+
 export interface PluginContext extends PluginHostContext {
   /**
    * A real OWOX API client whose transport is owned by this SDK.
@@ -24,20 +39,13 @@ export interface PluginContext extends PluginHostContext {
    */
   readonly owox: OWOXApiClient;
 
-  /** Asks the host to open an external URL in a new tab. The host validates and decides. */
-  openExternal(url: string): Promise<void>;
-
   /**
-   * Asks the host to go to a page inside OWOX, in place of this plugin.
+   * Things the sandbox forbids you, which the host will do on your behalf if it agrees.
    *
-   * `path` is absolute within the app, e.g. `/ui/${ctx.projectId}/data-marts/${id}`. The
-   * host refuses anything that resolves off its own origin, so this cannot become a way
-   * out of the app -- and your frame is unmounted when it does navigate.
+   * Grouped rather than spread across the context: each one is a request the host is free
+   * to refuse, which is a different relationship from `owox`, where you are the one acting.
    */
-  navigate(path: string): void;
-
-  /** Reports content height so the host can size the frame. */
-  setHeight(px: number): void;
+  readonly ui: PluginUi;
 
   /** Aborts when the host tears this plugin down. */
   readonly signal: AbortSignal;
@@ -153,15 +161,14 @@ function bind(
   return {
     ...init.context,
     owox,
-    openExternal: (url: string) => {
-      port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });
-      return Promise.resolve();
-    },
-    navigate: (path: string) => {
-      port.postMessage({ id: crypto.randomUUID(), kind: 'navigate', path });
-    },
-    setHeight: (px: number) => {
-      port.postMessage({ id: crypto.randomUUID(), kind: 'resize', height: px });
+    ui: {
+      openExternal: (url: string) => {
+        port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });
+        return Promise.resolve();
+      },
+      navigate: (path: string) => {
+        port.postMessage({ id: crypto.randomUUID(), kind: 'navigate', path });
+      },
     },
     signal: teardown.signal,
   };

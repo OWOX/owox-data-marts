@@ -26,9 +26,8 @@ function hostInit(nonce = 'nonce-1') {
       pluginId: 'p1',
       installationId: 'i1',
       projectId: 'j1',
-      locale: 'en',
+      userId: 'u1',
       theme: 'light' as const,
-      member: { userId: 'u1' },
     },
   };
 }
@@ -104,7 +103,7 @@ describe('connect', () => {
 
     const context = await pending;
     expect(context.pluginId).toBe('p1');
-    expect(context.member.userId).toBe('u1');
+    expect(context.userId).toBe('u1');
 
     await vi.advanceTimersByTimeAsync(0);
     expect(hostSide).toContainEqual({
@@ -207,8 +206,8 @@ describe('connect', () => {
     deliverFromParent(parent, hostInit(), [channel.port2]);
 
     const context = await pending;
-    await context.openExternal('https://docs.example.test');
-    context.navigate('/ui/j1/data-marts/dm-1');
+    await context.ui.openExternal('https://docs.example.test');
+    context.ui.navigate('/ui/j1/data-marts/dm-1');
     await vi.advanceTimersByTimeAsync(0);
 
     expect(hostSide).toContainEqual(
@@ -243,6 +242,11 @@ describe('connect', () => {
     const keys = Object.keys(context);
     expect(keys).not.toContain('port');
     expect(keys).not.toContain('token');
-    expect(JSON.stringify(context.member)).not.toContain('token');
+
+    // The ambient fields are the ones that travel as plain data in the handshake, so they
+    // are the ones a credential could ride along in. `owox` is excluded deliberately: it
+    // holds the transport, which is the object this whole design keeps out of reach.
+    const { owox: _owox, signal: _signal, ui: _ui, ...ambient } = context;
+    expect(JSON.stringify(ambient)).not.toContain('token');
   });
 });
