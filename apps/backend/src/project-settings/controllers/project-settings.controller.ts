@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, type AuthorizationContext } from '../../idp';
+import { AllowPluginAuth, Auth, AuthContext, type AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { ProjectSettingsMapper } from '../mappers/project-settings.mapper';
 import { ProjectSettingsResponseApiDto } from '../dto/presentation/project-settings-response-api.dto';
@@ -18,6 +18,7 @@ export class ProjectSettingsController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get()
   @ApiOperation({ summary: 'Get project settings' })
   @ApiOkResponse({

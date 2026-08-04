@@ -5,6 +5,7 @@ jest.mock('../../idp', () => {
   return {
     Auth: noopDecorator,
     AuthContext: noopDecorator,
+    AllowPluginAuth: noopDecorator,
     ViewOnlySafe: noopDecorator,
     ...rejectApiKeyAuth,
   };

@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext } from '../decorators';
+import { AllowPluginAuth, Auth, AuthContext } from '../decorators';
 import { AuthContextResponseApiDto } from '../dto/presentation/auth-context-response-api.dto';
 import { AuthorizationContext, Role, Strategy } from '../types';
 
@@ -8,6 +8,7 @@ import { AuthorizationContext, Role, Strategy } from '../types';
 @ApiTags('Authentication')
 export class AuthContextController {
   @Auth(Role.viewer(Strategy.INTROSPECT))
+  @AllowPluginAuth()
   @Get()
   @ApiOperation({ summary: 'Get the current auth context' })
   @ApiOkResponse({

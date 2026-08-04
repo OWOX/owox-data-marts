@@ -12,7 +12,14 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, RejectApiKeyAuth, ViewOnlySafe } from '../../idp';
+import {
+  AllowPluginAuth,
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  ViewOnlySafe,
+} from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
@@ -107,6 +114,7 @@ export class DataStorageController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get()
   @ListDataStoragesSpec()
   async getAll(

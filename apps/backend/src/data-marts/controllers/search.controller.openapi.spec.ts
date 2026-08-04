@@ -6,6 +6,7 @@ jest.mock('../../idp', () => ({
   __esModule: true,
   Auth: () => () => undefined,
   AuthContext: () => () => undefined,
+  AllowPluginAuth: () => () => undefined,
   Role: { viewer: jest.fn() },
   Strategy: { PARSE: 'parse' },
 }));

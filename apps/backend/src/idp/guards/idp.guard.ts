@@ -15,7 +15,7 @@ import { ModuleRef, Reflector } from '@nestjs/core';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { ClsService } from 'nestjs-cls';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
-import { REJECT_PLUGIN_AUTH_METADATA } from '../decorators/reject-plugin-auth.decorator';
+import { ALLOW_PLUGIN_AUTH_METADATA } from '../decorators/allow-plugin-auth.decorator';
 import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import {
   PLUGIN_RUNTIME_AUTHORIZER,
@@ -66,10 +66,10 @@ export class IdpGuard implements CanActivate {
       REJECT_API_KEY_AUTH_METADATA,
       [context.getHandler(), context.getClass()]
     );
-    const rejectPluginAuth = this.reflector.getAllAndOverride<boolean>(
-      REJECT_PLUGIN_AUTH_METADATA,
-      [context.getHandler(), context.getClass()]
-    );
+    const allowPluginAuth = this.reflector.getAllAndOverride<boolean>(ALLOW_PLUGIN_AUTH_METADATA, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     const viewOnlySafe = this.reflector.getAllAndOverride<boolean>(VIEW_ONLY_SAFE_METADATA, [
       context.getHandler(),
     ]);
@@ -92,7 +92,7 @@ export class IdpGuard implements CanActivate {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
       this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
       this.checkApiKeyHeaderBinding(request, tokenPayload);
-      await this.checkPluginRuntimeAuthorization(tokenPayload, Boolean(rejectPluginAuth));
+      await this.checkPluginRuntimeAuthorization(tokenPayload, Boolean(allowPluginAuth));
       this.checkViewOnlyRestrictions(request, tokenPayload, Boolean(viewOnlySafe));
 
       // Propagate only when true so normal sessions stay free of the flag.
@@ -224,15 +224,23 @@ export class IdpGuard implements CanActivate {
     }
   }
 
+  /**
+   * Default-deny: a plugin reaches only what `@AllowPluginAuth()` names.
+   *
+   * The reverse -- refusing on an opt-out decorator -- meant a plugin could call every
+   * `@Auth` route in the app, including `POST /api/project-member-api-keys`, whose answer
+   * is an API-key secret that outlives both the runtime token and the installation. It
+   * also made every endpoint added later plugin-reachable by default.
+   */
   private async checkPluginRuntimeAuthorization(
     tokenPayload: Payload,
-    rejectPluginAuth: boolean
+    allowPluginAuth: boolean
   ): Promise<void> {
     if (tokenPayload.authFlow !== 'plugin') {
       return;
     }
 
-    if (rejectPluginAuth) {
+    if (!allowPluginAuth) {
       throw new AuthorizationError(
         'Plugin runtime authentication is not allowed for this endpoint'
       );

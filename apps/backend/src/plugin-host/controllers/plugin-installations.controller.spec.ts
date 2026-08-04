@@ -6,13 +6,13 @@ jest.mock('../../idp', () => ({
   AuthContext: () => () => undefined,
   RejectApiKeyAuth: jest.requireActual('../../idp/decorators/reject-api-key-auth.decorator')
     .RejectApiKeyAuth,
-  RejectPluginAuth: jest.requireActual('../../idp/decorators/reject-plugin-auth.decorator')
-    .RejectPluginAuth,
+  AllowPluginAuth: jest.requireActual('../../idp/decorators/allow-plugin-auth.decorator')
+    .AllowPluginAuth,
   Role: { viewer: jest.fn() },
   Strategy: { INTROSPECT: 'introspect', PARSE: 'parse' },
 }));
 
-import { REJECT_PLUGIN_AUTH_METADATA } from '../../idp/decorators/reject-plugin-auth.decorator';
+import { ALLOW_PLUGIN_AUTH_METADATA } from '../../idp/decorators/allow-plugin-auth.decorator';
 import { PluginInstallationsController } from './plugin-installations.controller';
 
 /**
@@ -22,21 +22,23 @@ import { PluginInstallationsController } from './plugin-installations.controller
 describe('PluginInstallationsController plugin runtime authority', () => {
   const reflector = new Reflector();
 
-  const rejectsPluginAuth = (handler: keyof PluginInstallationsController): boolean =>
-    reflector.getAllAndOverride<boolean>(REJECT_PLUGIN_AUTH_METADATA, [
+  const allowsPluginAuth = (handler: keyof PluginInstallationsController): boolean =>
+    reflector.getAllAndOverride<boolean>(ALLOW_PLUGIN_AUTH_METADATA, [
       PluginInstallationsController.prototype[handler],
       PluginInstallationsController,
     ]) === true;
 
+  // Silence, not an opt-out decorator: the guard denies whatever it is not told to allow,
+  // so a lifecycle route added later is closed before anyone remembers to close it.
   it.each(['install', 'uninstall', 'update', 'updateByRepository', 'runtimeToken'] as const)(
     'refuses a plugin runtime token on %s',
     handler => {
-      expect(rejectsPluginAuth(handler)).toBe(true);
+      expect(allowsPluginAuth(handler)).toBe(false);
     }
   );
 
   // Reads stay open: this is the authority ctx.owox exists to carry.
   it.each(['list', 'entry'] as const)('leaves %s open to a plugin runtime token', handler => {
-    expect(rejectsPluginAuth(handler)).toBe(false);
+    expect(allowsPluginAuth(handler)).toBe(true);
   });
 });

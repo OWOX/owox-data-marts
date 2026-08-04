@@ -12,6 +12,7 @@ jest.mock('../../../use-cases/stream-http-data.service', () => ({
 
 jest.mock('../../../../idp', () => ({
   ...jest.requireActual('../../../../idp/decorators/auth.decorator'),
+  ...jest.requireActual('../../../../idp/decorators/allow-plugin-auth.decorator'),
   ...jest.requireActual('../../../../idp/decorators/auth-context.decorator'),
   ...jest.requireActual('../../../../idp/types/role-config.types'),
 }));

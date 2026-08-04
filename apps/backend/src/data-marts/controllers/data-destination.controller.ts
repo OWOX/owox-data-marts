@@ -25,7 +25,13 @@ import { ListDataDestinationsByTypeService } from '../use-cases/list-data-destin
 import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
 import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import { Auth, AuthContext, AuthorizationContext, RejectApiKeyAuth } from '../../idp';
+import {
+  AllowPluginAuth,
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+} from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { GenerateAuthorizationUrlResponseDto } from '../dto/presentation/google-oauth/generate-authorization-url-response.dto';
@@ -166,6 +172,7 @@ export class DataDestinationController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get()
   @ListDataDestinationsSpec()
   async getAll(

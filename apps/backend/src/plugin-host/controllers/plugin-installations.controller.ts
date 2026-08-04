@@ -17,10 +17,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  AllowPluginAuth,
   Auth,
   AuthContext,
   RejectApiKeyAuth,
-  RejectPluginAuth,
   type AuthorizationContext,
 } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -71,6 +71,7 @@ export class PluginInstallationsController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get('installations')
   @ApiOperation({
     summary: "The caller's installations in this project",
@@ -90,6 +91,7 @@ export class PluginInstallationsController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get('installations/:installationId/entry')
   @ApiOperation({
     summary: 'Where to point the iframe for one active installation',
@@ -109,7 +111,6 @@ export class PluginInstallationsController {
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @RejectApiKeyAuth()
-  @RejectPluginAuth()
   @Post('installations/:installationId/runtime-token')
   @HttpCode(200)
   @ApiOperation({ summary: 'Issue a runtime access token for one active installation' })
@@ -122,7 +123,6 @@ export class PluginInstallationsController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectPluginAuth()
   @Post(':pluginId/installation')
   @HttpCode(200)
   @ApiOperation({
@@ -143,7 +143,6 @@ export class PluginInstallationsController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectPluginAuth()
   @Post('update')
   @HttpCode(200)
   @ApiOperation({
@@ -163,7 +162,6 @@ export class PluginInstallationsController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectPluginAuth()
   @Post(':pluginId/update')
   @HttpCode(200)
   @ApiOperation({
@@ -183,7 +181,6 @@ export class PluginInstallationsController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectPluginAuth()
   @Delete(':pluginId/installation')
   @HttpCode(204)
   @ApiOperation({

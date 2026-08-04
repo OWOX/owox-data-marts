@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, Role, Strategy } from '../../idp';
+import { AllowPluginAuth, Auth, AuthContext, Role, Strategy } from '../../idp';
 import type { AuthorizationContext } from '../../idp/types/auth.types';
 import { SEARCH_FACADE, SearchFacade } from '../../common/search/search.facade';
 import { SearchQueryDto } from '../dto/presentation/search-query.dto';
@@ -17,6 +17,7 @@ export class SearchController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get()
   @SearchSpec()
   async search(

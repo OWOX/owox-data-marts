@@ -1,6 +1,13 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  AllowPluginAuth,
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  Role,
+  Strategy,
+} from '../../idp';
 import { ListProjectDataMartRunsCommand } from '../dto/domain/list-project-data-mart-runs.command';
 import { ProjectDataMartRunsResponseApiDto } from '../dto/presentation/project-data-mart-runs-response-api.dto';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
@@ -17,6 +24,7 @@ export class ProjectDataMartRunsController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @AllowPluginAuth()
   @Get()
   @GetProjectDataMartRunsSpec()
   async list(
