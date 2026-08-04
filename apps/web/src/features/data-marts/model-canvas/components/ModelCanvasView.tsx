@@ -14,7 +14,11 @@ import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
 import { dataQualityService } from '../../data-quality/api/data-quality.service';
 import { dataMartService } from '../../shared';
-import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
+import {
+  DataMartBulkActions,
+  type DataMartCanvasExportFormat,
+} from '../../shared/components/DataMartBulkActions';
+import type { ModelCanvasExportHandle } from '../export';
 import { trackEvent } from '../../../../utils/data-layer';
 import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
 import { useDataQualitySummaries } from '../../data-quality/model/use-data-quality-workspace';
@@ -150,6 +154,24 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
 
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
 
+  const canvasExportRef = useRef<ModelCanvasExportHandle>(null);
+  const handleExport = useCallback((format: DataMartCanvasExportFormat) => {
+    void (async () => {
+      try {
+        await canvasExportRef.current?.exportCanvas(format);
+        trackEvent({
+          event: 'model_canvas_exported',
+          category: 'DataMart',
+          action: 'CanvasExport',
+          label: format,
+        });
+      } catch (caught) {
+        console.error('Canvas export failed:', caught);
+        toast.error("Couldn't export the model — please try again.");
+      }
+    })();
+  }, []);
+
   const runQuality = useCallback(
     async (dataMartId: string) => {
       try {
@@ -278,8 +300,11 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
             }}
             onRunQuality={runQuality}
             isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
+            storageTitle={dataStorages.find(storage => storage.id === filters.storageId)?.title}
+            exportApiRef={canvasExportRef}
             topLeftControls={
               <DataMartBulkActions
+                onExport={handleExport}
                 onCheckDataLastUpdated={() => {
                   // Meeting decision: the check covers what the user actually sees — the same
                   // filtered set the other bulk actions target.

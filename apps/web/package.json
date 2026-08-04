@@ -51,6 +51,8 @@
     "@tanstack/react-query": "^5.66.0",
     "@xyflow/react": "^12.11.2",
     "axios": "^1.11.0",
+    "fflate": "^0.8.3",
+    "html-to-image": "^1.11.13",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.58.0",

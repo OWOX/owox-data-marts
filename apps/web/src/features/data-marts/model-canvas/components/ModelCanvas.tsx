@@ -1,5 +1,14 @@
 import { Check, Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -53,6 +62,7 @@ import {
   type ObjectLabelPart,
   type ObjectLabelsHidden,
 } from '../model/object-labels';
+import type { ModelCanvasExportHandle } from '../export';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -67,6 +77,10 @@ interface ModelCanvasProps {
   isCheckingDataLastUpdated?: boolean;
   /** Scopes the persisted node positions — each storage keeps its own layout. */
   storageId?: string;
+  /** Human-readable storage title — names the export files and OKF bundle. */
+  storageTitle?: string;
+  /** Receives the export API — the Actions menu lives outside the flow provider. */
+  exportApiRef?: Ref<ModelCanvasExportHandle>;
   topLeftControls?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
@@ -269,6 +283,8 @@ interface ModelCanvasInnerProps {
   onRunQuality: (dataMartId: string) => Promise<void>;
   isCheckingDataLastUpdated?: boolean;
   storageId?: string;
+  storageTitle?: string;
+  exportApiRef?: Ref<ModelCanvasExportHandle>;
 }
 
 function ModelCanvasInner({
@@ -280,10 +296,13 @@ function ModelCanvasInner({
   onRunQuality,
   isCheckingDataLastUpdated = false,
   storageId,
+  storageTitle,
+  exportApiRef,
 }: ModelCanvasInnerProps) {
   const reactFlow = useReactFlow<ModelCanvasFlowNodeType, ModelCanvasFlowEdgeType>();
   const paneWidth = useStore(state => state.width);
   const paneHeight = useStore(state => state.height);
+  const flowDomNode = useStore(state => state.domNode);
 
   const onOpenDataMartRef = useRef(onOpenDataMart);
   onOpenDataMartRef.current = onOpenDataMart;
@@ -328,6 +347,25 @@ function ModelCanvasInner({
   const graphBounds = useMemo(() => getCanvasGraphBounds(flowNodes), [flowNodes]);
   const topologyNodes = useStableValue(nodes, getNodeTopologySignature);
   const topologyEdges = useStableValue(edges, getEdgeTopologySignature);
+
+  // The export deps (html-to-image, fflate) load on first use, so the canvas
+  // chunk itself stays lean.
+  useImperativeHandle(
+    exportApiRef,
+    () => ({
+      exportCanvas: async format => {
+        const { exportModelCanvas } = await import('../export');
+        await exportModelCanvas(format, {
+          viewport: flowDomNode?.querySelector<HTMLElement>('.react-flow__viewport') ?? null,
+          flowNodes,
+          nodes,
+          edges,
+          storageTitle,
+        });
+      },
+    }),
+    [flowDomNode, flowNodes, nodes, edges, storageTitle]
+  );
 
   useEffect(() => {
     const hasIncoming = new Set(topologyEdges.map(e => e.targetId));
@@ -877,6 +915,8 @@ export default function ModelCanvas({
   onRunQuality,
   isCheckingDataLastUpdated,
   storageId,
+  storageTitle,
+  exportApiRef,
   topLeftControls,
   className,
   style,
@@ -900,6 +940,8 @@ export default function ModelCanvas({
           onRunQuality={onRunQuality}
           isCheckingDataLastUpdated={isCheckingDataLastUpdated}
           storageId={storageId}
+          storageTitle={storageTitle}
+          exportApiRef={exportApiRef}
         />
       </ReactFlowProvider>
     </div>
