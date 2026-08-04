@@ -171,6 +171,62 @@ describe('UpdatePluginService', () => {
     });
   });
 
+  /**
+   * The plugin page hides a private repository's name, and Check now sits on that page,
+   * open to any viewer with no installation -- so answering with `owner/name` would hand
+   * back over one request exactly what the view withholds.
+   */
+  describe('a private repository', () => {
+    const privatePlugin = {
+      id: 'p1',
+      repoOwner: 'OWOX',
+      repoName: 'secret-plugin',
+      isPrivateRepo: true,
+      suspendedAt: null,
+      currentVersionId: 'v1',
+      lastSyncReport: null,
+      nextUpdateCheckAt: NEXT_CHECK,
+    };
+
+    it('withholds its name from an ordinary member', async () => {
+      const s = setup({ plugin: privatePlugin });
+      s.check.run.mockResolvedValue({
+        pluginId: 'p1',
+        repository: 'OWOX/secret-plugin',
+        outcome: 'up_to_date',
+        currentVersionId: 'v1',
+        currentSemver: '1.0.0',
+        report: { rejections: [] },
+      } as never);
+
+      const result = await update(s);
+
+      expect(result.repository).not.toContain('secret-plugin');
+      expect(result.repository).toBe('OWOX/***');
+    });
+
+    it('gives the canonical repository to an allowlisted publisher', async () => {
+      const s = setup({ plugin: privatePlugin });
+      s.authorization.isDeploymentPublisher.mockReturnValue(true);
+      s.check.run.mockResolvedValue({
+        pluginId: 'p1',
+        repository: 'OWOX/secret-plugin',
+        outcome: 'up_to_date',
+        currentVersionId: 'v1',
+        currentSemver: '1.0.0',
+        report: { rejections: [] },
+      } as never);
+
+      await expect(update(s, PUBLISHER)).resolves.toMatchObject({
+        repository: 'OWOX/secret-plugin',
+      });
+    });
+
+    it('leaves a public repository untouched for everyone', async () => {
+      await expect(update(setup())).resolves.toMatchObject({ repository: 'OWOX/example' });
+    });
+  });
+
   it('resolves a repository locator from cache for the CLI form', async () => {
     const s = setup();
 

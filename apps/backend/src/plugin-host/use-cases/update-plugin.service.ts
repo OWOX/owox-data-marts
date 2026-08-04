@@ -47,8 +47,9 @@ export class UpdatePluginService {
 
     // Diagnostics only for deployment publishers: rejection detail is a source
     // diagnostic and must not reach ordinary members on the same operation (§6.2 / §16).
+    const isPublisher = this.authorization.isDeploymentPublisher(command.context);
     let diagnostics: PluginPublisherDiagnosticsDto | null = null;
-    if (this.authorization.isDeploymentPublisher(command.context)) {
+    if (isPublisher) {
       const version = result.currentVersionId
         ? await this.versionService.findById(result.currentVersionId)
         : null;
@@ -60,7 +61,7 @@ export class UpdatePluginService {
 
     return {
       pluginId: result.pluginId,
-      repository: result.repository,
+      repository: visibleRepository(scheduled ?? plugin, result.repository, isPublisher),
       currentVersionId: result.currentVersionId,
       currentSemver: result.currentSemver,
       outcome: result.outcome,
@@ -94,4 +95,16 @@ export class UpdatePluginService {
 
     throw new NotFoundException('A plugin id or repository is required');
   }
+}
+
+/**
+ * Withholds a private repository's name from anyone but a deployment publisher.
+ *
+ * `PluginPresentationMapper.toSource` hides that name on the plugin view precisely because
+ * it "would confirm to a member that one specific private repository exists" -- and
+ * **Check now** sits on that same page, available to any viewer with no installation. The
+ * owner stays, matching what `toSource` does disclose.
+ */
+function visibleRepository(plugin: Plugin, repository: string, isPublisher: boolean): string {
+  return plugin.isPrivateRepo && !isPublisher ? `${plugin.repoOwner}/***` : repository;
 }

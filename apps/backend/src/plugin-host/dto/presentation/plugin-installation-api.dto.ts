@@ -63,7 +63,8 @@ export class PluginUpdateResultApiDto {
   @ApiProperty() pluginId: string;
 
   @ApiProperty({
-    description: 'Canonical owner/name after resolution.',
+    description:
+      'Canonical owner/name after resolution. For a private repository the name is withheld from anyone but a deployment publisher, as `owner/***`, matching what the plugin view discloses.',
   })
   repository: string;
 
