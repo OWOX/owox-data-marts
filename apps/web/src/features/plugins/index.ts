@@ -1,8 +1,8 @@
-export { InstallPluginDialog, PluginCard, PublishPluginSheet } from './components';
+export { AudienceIcon, InstallPluginDialog, PluginCard, PublishPluginSheet } from './components';
 export { pluginsService } from './services/plugins.service';
 export { repositoryPath } from './repository';
 export { safeHttpsUrl } from './safeHttpsUrl';
-export { describeVisibility, type GalleryVisibility } from './visibility';
+export { describeVisibility, type GalleryVisibility, type PluginAudience } from './visibility';
 export { createPluginHostBridge, type FetchRuntimeToken } from './runtime/pluginHostBridge';
 export { fetchRuntimeToken } from './runtime/fetchRuntimeToken';
 export {

@@ -41,6 +41,7 @@ vi.mock('../../../features/plugins', () => ({
   describeVisibility: actualDescribeVisibility,
   repositoryPath: actualRepositoryPath,
   safeHttpsUrl: actualSafeHttpsUrl,
+  AudienceIcon: () => null,
   InstallPluginDialog: () => null,
 }));
 vi.mock('../../../shared/hooks', () => ({
@@ -51,6 +52,7 @@ vi.mock('../../../features/idp', () => ({
 }));
 
 import PluginDetailsPage from './PluginDetailsPage';
+import { versionHint } from './versionHint';
 
 const entry = (over: Partial<PluginGalleryEntry> = {}): PluginGalleryEntry => ({
   pluginId: 'p1',
@@ -137,28 +139,23 @@ describe('PluginDetailsPage', () => {
     expect(checkNow).toHaveBeenCalledWith('p1');
   });
 
-  // The member never chose this version and cannot pin it, so the page has to say that
-  // maintenance is automatic and shared -- in plain sight, not behind a help icon.
-  it('states the daily cadence, the next check and who an update reaches', () => {
-    plugin = entry({ nextCheckAt: '2026-08-04T03:15:00.000Z' });
-    renderPage();
+  // The member never chose this version and cannot pin it, so the Version tooltip has to
+  // say maintenance is automatic and shared, and when the next check falls.
+  it('builds the version hint with the daily cadence, the next check and who it reaches', () => {
+    const hint = versionHint('2026-08-04T03:15:00.000Z');
 
-    const copy = screen.getByText(/Updates are checked daily/);
-
-    expect(copy.textContent).toContain('Next check:');
-    expect(copy.textContent).toContain('applied automatically to everyone using this plugin');
+    expect(hint).toContain('Updates are checked daily');
+    expect(hint).toContain('Next check:');
+    expect(hint).toContain('applied automatically to everyone using this plugin');
   });
 
-  // A plugin nothing publishes and nobody has installed carries no next check. The
-  // sentence has to survive that rather than render "Next check: —".
-  it('drops only the next-check sentence when the plugin is off daily maintenance', () => {
-    plugin = entry({ nextCheckAt: null });
-    renderPage();
+  // A plugin nothing publishes and nobody has installed carries no next check. The hint has
+  // to survive that rather than render "Next check: —".
+  it('drops only the next-check clause when the plugin is off daily maintenance', () => {
+    const hint = versionHint(null);
 
-    const copy = screen.getByText(/Updates are checked daily/);
-
-    expect(copy.textContent).not.toContain('Next check:');
-    expect(copy.textContent).toContain('applied automatically to everyone using this plugin');
+    expect(hint).not.toContain('Next check:');
+    expect(hint).toContain('applied automatically to everyone using this plugin');
   });
 
   it('reports who installed it and when', () => {

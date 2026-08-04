@@ -23,6 +23,7 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../../features/idp';
 import {
+  AudienceIcon,
   InstallPluginDialog,
   usePlugin,
   usePluginActions,
@@ -45,7 +46,8 @@ import {
 import { UserAvatar, UserAvatarSize } from '../../../shared/components/UserAvatar';
 import { GitHubIcon } from '../../../shared/icons';
 import { useProjectRoute } from '../../../shared/hooks';
-import { formatDateOnly, formatDateShort } from '../../../utils/date-formatters';
+import { formatDateOnly } from '../../../utils/date-formatters';
+import { versionHint } from './versionHint';
 import { generateInitials } from '../../../shared/utils';
 
 const UNPUBLISH_LABELS: Record<string, string> = {
@@ -331,10 +333,13 @@ export default function PluginDetailsPage() {
                   )}
                 </InfoCard>
 
-                <InfoCard
-                  label='Version'
-                  hint='The highest eligible release. Versions cannot be pinned.'
-                >
+                {/*
+                  The daily-cadence sentence lives in this tooltip rather than as a line
+                  under the card: it belongs to the version, and a member reads it when they
+                  ask what the version is, not as standing body text. The time is rendered in
+                  the member's own timezone.
+                */}
+                <InfoCard label='Version' hint={versionHint(plugin.nextCheckAt)}>
                   <Pill icon={<Tag className='text-muted-foreground size-3.5 shrink-0' />}>
                     {plugin.currentSemver ? `v${plugin.currentSemver}` : 'No eligible release'}
                   </Pill>
@@ -368,28 +373,17 @@ export default function PluginDetailsPage() {
                   </Tooltip>
                 </InfoCard>
               </div>
-
-              {/*
-                Stated in plain sight rather than behind the card's help icon: a member
-                should not have to hover to learn that a version they did not choose can
-                become current, and that the next check happens whether or not they ask.
-                The time is rendered in the member's own timezone.
-              */}
-              <p className='text-muted-foreground mt-4 text-sm'>
-                Updates are checked daily.
-                {plugin.nextCheckAt
-                  ? ` Next check: ${formatDateShort(plugin.nextCheckAt)}.`
-                  : ''}{' '}
-                If a newer valid version is found, it will be applied automatically to everyone
-                using this plugin.
-              </p>
             </CollapsibleCardContent>
 
             <CollapsibleCardFooter
               left={
-                /* Plain language, not scope names. Deployment listings read as verified. */
+                /* Icon then plain language, matching the Gallery card so the two read as one
+                   product. The audience mark is the same glyph the card uses. */
                 visibility ? (
-                  <span className='text-muted-foreground text-sm'>{visibility.detail}</span>
+                  <span className='text-muted-foreground flex items-center gap-2 text-sm'>
+                    <AudienceIcon audience={visibility.audience} className='size-4 shrink-0' />
+                    {visibility.detail}
+                  </span>
                 ) : undefined
               }
             />
