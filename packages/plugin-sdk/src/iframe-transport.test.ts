@@ -194,13 +194,49 @@ describe('iframe transport', () => {
       await expect(pending).rejects.toMatchObject({ payload: { code: 'PROTOCOL_ERROR' } });
     });
 
-    it('flattens query parameters the host can read back', async () => {
+    it('sends query parameters as pairs the host can read back', async () => {
       const host = hostSide();
 
       void host.transport.getStream('/api/x', new URLSearchParams({ limit: '10' }));
       await flush();
 
-      expect(host.received[0]).toMatchObject({ stream: true, query: { limit: '10' } });
+      expect(host.received[0]).toMatchObject({ stream: true, query: [['limit', '10']] });
+    });
+
+    // `?column=a&column=b` is how the API client asks for two columns. Flattening to an
+    // object kept only the last one, so a plugin silently traversed a narrower dataset
+    // than the identical call makes outside the iframe.
+    it('keeps every value of a repeated query key', async () => {
+      const host = hostSide();
+      const query = new URLSearchParams();
+      query.append('column', 'Event Date');
+      query.append('column', 'Revenue');
+      query.append('limit', '5');
+
+      void host.transport.getStream('/api/x', query);
+      await flush();
+
+      expect(host.received[0]).toMatchObject({
+        query: [
+          ['column', 'Event Date'],
+          ['column', 'Revenue'],
+          ['limit', '5'],
+        ],
+      });
+    });
+
+    it('sends a plain record as pairs too, so the host reads one shape', async () => {
+      const host = hostSide();
+
+      void host.transport.getJson('/api/x', { limit: '10', offset: '25' });
+      await flush();
+
+      expect(host.received[0]).toMatchObject({
+        query: [
+          ['limit', '10'],
+          ['offset', '25'],
+        ],
+      });
     });
   });
 });

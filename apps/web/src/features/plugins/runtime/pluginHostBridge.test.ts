@@ -181,6 +181,28 @@ describe('plugin host bridge', () => {
       expect(response).toMatchObject({ ok: true });
       expect(String(h.fetchMock.mock.calls[0][0])).toBe(`${API_ORIGIN}/api/data-marts`);
     });
+
+    // `?column=a&column=b` is how the API client asks for two columns. Assigning with
+    // `set` kept only the last, so a plugin traversed a narrower dataset than the same
+    // call makes outside the iframe -- wrong data rather than an error.
+    it('appends every value of a repeated query key', async () => {
+      const h = await harness();
+
+      await h.send({
+        kind: 'api',
+        method: 'GET',
+        path: '/api/external/http-data/data-marts/dm-1.ndjson',
+        query: [
+          ['column', 'Event Date'],
+          ['column', 'Revenue'],
+          ['limit', '5'],
+        ],
+      });
+
+      const url = new URL(String(h.fetchMock.mock.calls[0][0]));
+      expect(url.searchParams.getAll('column')).toEqual(['Event Date', 'Revenue']);
+      expect(url.searchParams.get('limit')).toBe('5');
+    });
   });
 
   describe('credential containment', () => {

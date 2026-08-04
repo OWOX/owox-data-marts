@@ -102,8 +102,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       throw forbidden(`${request.method} is not allowed from a plugin`);
     }
 
-    for (const [key, value] of Object.entries(request.query ?? {})) {
-      url.searchParams.set(key, value);
+    // append, not set: the pairs arrive ordered and may repeat a key, which is how the
+    // API client expresses a multi-column selection.
+    for (const [key, value] of request.query ?? []) {
+      url.searchParams.append(key, value);
     }
 
     return url;

@@ -66,13 +66,22 @@ export interface PluginHostContext {
   };
 }
 
+/**
+ * Query parameters as ordered pairs rather than an object.
+ *
+ * A `Record` collapses repeated keys, and repeats are meaningful here: the API client
+ * builds `?column=a&column=b` with `URLSearchParams.append`, so flattening would quietly
+ * hand a plugin a different dataset than the same call makes outside the iframe.
+ */
+export type PluginQuery = readonly (readonly [string, string])[];
+
 export type PluginRequest =
   | {
       id: string;
       kind: 'api';
       method: 'GET' | 'POST' | 'PUT';
       path: string;
-      query?: Record<string, string>;
+      query?: PluginQuery;
       body?: unknown;
       accept?: string;
       stream?: false;
@@ -82,7 +91,7 @@ export type PluginRequest =
       kind: 'api';
       method: 'GET';
       path: string;
-      query?: Record<string, string>;
+      query?: PluginQuery;
       stream: true;
     }
   | { id: string; kind: 'openExternal'; url: string }

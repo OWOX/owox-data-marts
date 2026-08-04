@@ -89,7 +89,7 @@ export function createIframeTransport(port: MessagePort): OWOXTransport {
 
   return {
     getJson: <T>(path: string, query?: Record<string, string>) =>
-      json<T>({ kind: 'api', method: 'GET', path, query }),
+      json<T>({ kind: 'api', method: 'GET', path, query: query && Object.entries(query) }),
 
     postJson: <T>(path: string, jsonBody: unknown, accept?: string) =>
       json<T>({ kind: 'api', method: 'POST', path, body: jsonBody, accept }),
@@ -102,7 +102,9 @@ export function createIframeTransport(port: MessagePort): OWOXTransport {
         kind: 'api',
         method: 'GET',
         path,
-        query: query ? Object.fromEntries(query) : undefined,
+        // Pairs, not an object: `?column=a&column=b` is how the API client asks for two
+        // columns, and `Object.fromEntries` would keep only the last one.
+        query: query && [...query],
         stream: true,
       });
 
