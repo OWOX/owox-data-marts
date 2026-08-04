@@ -97,4 +97,17 @@ describe('serializeOkfBundle', () => {
     expect(files['data-marts/index.md']).toContain('[Customers \\| VIP]');
     expect(files['data-marts/customers-vip.md']).toContain('Customer \\| ID');
   });
+
+  it('escapes square brackets so titles cannot terminate their links early', () => {
+    const { files } = serializeOkfBundle({
+      ...GRAPH,
+      nodes: GRAPH.nodes.map(node =>
+        node.key === 'customers' ? { ...node, title: 'Customers [EU]' } : node
+      ),
+    });
+    expect(files['data-marts/index.md']).toContain('[Customers \\[EU\\]](./customers-eu.md)');
+    expect(files['data-marts/orders.md']).toContain(
+      '- [Customers \\[EU\\]](./customers-eu.md) — `customer_id = id`'
+    );
+  });
 });

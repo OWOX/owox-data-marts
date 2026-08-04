@@ -7,6 +7,11 @@ function escapeTableCell(value: string): string {
   return value.replace(/\|/g, '\\|');
 }
 
+/** Keep a title from terminating its `[text](./slug.md)` link early. */
+function escapeLinkText(value: string): string {
+  return value.replace(/([[\]])/g, '\\$1');
+}
+
 // OKF (Open Knowledge Format) bundle: one Markdown document per data mart plus
 // an index, matching the format model.owox.com produces and imports. Joins are
 // rendered as `- [Title](./slug.md) — \`left = right\`` — the link target slug
@@ -46,7 +51,7 @@ export function serializeOkfBundle(graph: ModelGraph, bundleTitle = 'Data Marts'
   const rows = graph.nodes
     .map(
       node =>
-        `| [${escapeTableCell(node.title)}](./${slugByKey.get(node.key) ?? node.key}.md) | ${node.inputSource} | ${escapeTableCell(graph.storageId ?? '—')} |`
+        `| [${escapeLinkText(escapeTableCell(node.title))}](./${slugByKey.get(node.key) ?? node.key}.md) | ${node.inputSource} | ${escapeTableCell(graph.storageId ?? '—')} |`
     )
     .join('\n');
   files[`${folder}/index.md`] = `---\n${renderFrontmatter({
@@ -121,7 +126,7 @@ function renderNode(
           const parts: string[] = [];
           if (field.pk) parts.push('PK.');
           const ref = fk.get(field.name);
-          if (ref) parts.push(`FK to [${ref.title}](./${ref.slug}.md)`);
+          if (ref) parts.push(`FK to [${escapeLinkText(ref.title)}](./${ref.slug}.md)`);
           const cells = withAlias
             ? [`\`${field.name}\``, field.type, field.alias ?? '', parts.join(' ').trim()]
             : [`\`${field.name}\``, field.type, parts.join(' ').trim()];
@@ -147,7 +152,7 @@ function renderNode(
             ? edge.keys
             : edge.keys.map(key => ({ left: key.right, right: key.left }));
           const condition = keys.map(key => `\`${key.left} = ${key.right}\``).join(', ');
-          return `- [${other.title}](./${slug}.md) — ${condition}`;
+          return `- [${escapeLinkText(other.title)}](./${slug}.md) — ${condition}`;
         })
         .filter(Boolean)
         .join('\n') +
