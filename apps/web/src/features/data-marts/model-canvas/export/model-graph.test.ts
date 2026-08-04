@@ -102,7 +102,6 @@ describe('canvasToModelGraph', () => {
         ],
         position: { x: 10, y: 20 },
         status: 'created',
-        owoxId: 'id-orders',
       },
       {
         key: 'customers',
@@ -112,7 +111,6 @@ describe('canvasToModelGraph', () => {
         schema: [],
         position: { x: 0, y: 0 },
         status: 'pending',
-        owoxId: 'id-customers',
       },
     ]);
     expect(graph.edges).toEqual([
@@ -149,6 +147,7 @@ describe('sanitizeModelGraph', () => {
     });
     const sanitized = sanitizeModelGraph(graph);
     expect(sanitized).not.toHaveProperty('storageId');
-    expect(sanitized.nodes[0]).toMatchObject({ status: 'pending', owoxId: null });
+    expect(sanitized.nodes[0]).toMatchObject({ status: 'pending' });
+    expect(sanitized.nodes[0]).not.toHaveProperty('owoxId');
   });
 });

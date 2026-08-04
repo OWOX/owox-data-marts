@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildExportFileName, downloadBlob, slugifyFileName } from './download';
+import { buildExportFileName, downloadBlob } from './download';
+import { slugify } from './slug';
 
-describe('slugifyFileName', () => {
+describe('slugify', () => {
   it('slugifies titles and falls back when nothing survives', () => {
-    expect(slugifyFileName('BigQuery (Common)', 'model')).toBe('bigquery-common');
-    expect(slugifyFileName('***', 'model')).toBe('model');
+    expect(slugify('BigQuery (Common)', 'model')).toBe('bigquery-common');
+    expect(slugify('***', 'model')).toBe('model');
   });
 });
 

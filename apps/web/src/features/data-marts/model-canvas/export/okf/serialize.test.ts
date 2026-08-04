@@ -16,7 +16,6 @@ const GRAPH: ModelGraph = {
       ],
       position: { x: 0, y: 0 },
       status: 'created',
-      owoxId: 'id-orders',
     },
     {
       key: 'customers',
@@ -25,7 +24,6 @@ const GRAPH: ModelGraph = {
       schema: [{ name: 'id', type: 'STRING', pk: true, alias: 'Customer ID' }],
       position: { x: 100, y: 0 },
       status: 'pending',
-      owoxId: 'id-customers',
     },
   ],
   edges: [
@@ -75,5 +73,28 @@ describe('serializeOkfBundle', () => {
     expect(index).toContain('Generated with [OWOX Data Marts]');
     expect(files['my-storage/orders.md']).toContain('- **Status:** PUBLISHED');
     expect(files['my-storage/customers.md']).toContain('- **Status:** DRAFT');
+  });
+
+  it('emits no data mart identifiers, matching the sanitized JSON export', () => {
+    const { files } = serializeOkfBundle(GRAPH);
+    expect(files['data-marts/orders.md']).not.toContain('**ID:**');
+    expect(files['data-marts/orders.md']).not.toContain('id-orders');
+  });
+
+  it('escapes pipes so titles and aliases cannot break the tables', () => {
+    const { files } = serializeOkfBundle({
+      ...GRAPH,
+      nodes: GRAPH.nodes.map(node =>
+        node.key === 'customers'
+          ? {
+              ...node,
+              title: 'Customers | VIP',
+              schema: [{ name: 'id', type: 'STRING', pk: true, alias: 'Customer | ID' }],
+            }
+          : node
+      ),
+    });
+    expect(files['data-marts/index.md']).toContain('[Customers \\| VIP]');
+    expect(files['data-marts/customers-vip.md']).toContain('Customer \\| ID');
   });
 });

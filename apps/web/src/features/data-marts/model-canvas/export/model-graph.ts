@@ -3,6 +3,7 @@ import { DataMartStatus } from '../../shared/enums/data-mart-status.enum';
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
 import type { PathPoint } from '../model/graph/path-point';
 import type { ModelCanvasNode } from '../model/types';
+import { slugify } from './slug';
 
 // The model graph interchange shape used by model.owox.com (Model Canvas).
 // Exported JSON must stay compatible with it, so these types mirror that
@@ -23,6 +24,9 @@ export interface ModelGraphJoinKey {
   right: string;
 }
 
+// No `owoxId` on nodes: data mart identifiers carry no meaning outside this
+// project (the LLM/documentation use case reads titles, schemas and joins),
+// so no export format emits them.
 export interface ModelGraphNode {
   key: string;
   title: string;
@@ -31,7 +35,6 @@ export interface ModelGraphNode {
   schema: ModelGraphSchemaField[];
   position: { x: number; y: number };
   status: ModelGraphNodeStatus;
-  owoxId?: string | null;
 }
 
 export interface ModelGraphEdge {
@@ -57,14 +60,6 @@ const INPUT_SOURCE_BY_DEFINITION_TYPE: Record<DataMartDefinitionType, ModelGraph
   [DataMartDefinitionType.CONNECTOR]: 'CONNECTOR',
 };
 
-function slugifyKey(text: string, fallback: string): string {
-  const slug = text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || fallback;
-}
-
 export interface CanvasModelGraphInput {
   nodes: ModelCanvasNode[];
   edges: CanvasRenderEdge[];
@@ -79,7 +74,7 @@ export function canvasToModelGraph(input: CanvasModelGraphInput): ModelGraph {
   const keyById = new Map<string, string>();
   const taken = new Set<string>();
   for (const node of input.nodes) {
-    const base = slugifyKey(node.title, node.id);
+    const base = slugify(node.title, node.id);
     let unique = base;
     let suffix = 2;
     while (taken.has(unique)) unique = `${base}-${String(suffix++)}`;
@@ -102,7 +97,6 @@ export function canvasToModelGraph(input: CanvasModelGraphInput): ModelGraph {
     })),
     position: input.positions.get(node.id) ?? { x: 0, y: 0 },
     status: node.status === DataMartStatus.PUBLISHED ? 'created' : 'pending',
-    owoxId: node.id,
   }));
 
   const edges: ModelGraphEdge[] = input.edges.flatMap(edge => {
@@ -145,7 +139,6 @@ export function sanitizeModelGraph(graph: ModelGraph): SanitizedModelGraph {
       schema: node.schema,
       position: node.position,
       status: 'pending',
-      owoxId: null,
     })),
     edges: graph.edges.map(edge => ({
       id: edge.id,

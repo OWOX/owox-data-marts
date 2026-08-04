@@ -155,7 +155,12 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
 
   const canvasExportRef = useRef<ModelCanvasExportHandle>(null);
+  // Image capture can take seconds on a large model — swallow repeat clicks
+  // instead of kicking off parallel captures and duplicate downloads.
+  const isExportingRef = useRef(false);
   const handleExport = useCallback((format: DataMartCanvasExportFormat) => {
+    if (isExportingRef.current) return;
+    isExportingRef.current = true;
     void (async () => {
       try {
         await canvasExportRef.current?.exportCanvas(format);
@@ -168,6 +173,8 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
       } catch (caught) {
         console.error('Canvas export failed:', caught);
         toast.error("Couldn't export the model — please try again.");
+      } finally {
+        isExportingRef.current = false;
       }
     })();
   }, []);

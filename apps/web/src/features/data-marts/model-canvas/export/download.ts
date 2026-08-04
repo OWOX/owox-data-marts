@@ -1,3 +1,5 @@
+import { slugify } from './slug';
+
 /** Trigger a browser download of a Blob under the given filename. */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -11,17 +13,9 @@ export function downloadBlob(blob: Blob, filename: string): void {
   }, 1000);
 }
 
-export function slugifyFileName(text: string, fallback: string): string {
-  const slug = text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || fallback;
-}
-
 /** `<storage-slug>-YYYY-MM-DD`, shared by every export format. */
 export function buildExportFileName(storageTitle: string | undefined): string {
-  const base = slugifyFileName(storageTitle ?? '', 'data-marts-model');
+  const base = slugify(storageTitle ?? '', 'data-marts-model');
   const date = new Date().toISOString().slice(0, 10);
   return `${base}-${date}`;
 }

@@ -10,8 +10,17 @@ import { toCanvas, toSvg } from 'html-to-image';
 
 const PAD = 60; // px of breathing room around the model
 const PNG_PIXEL_RATIO = 2;
+// Browsers cap canvas dimensions and total area (Safari is the strictest);
+// past the cap toBlob silently yields null. Large models trade resolution for
+// a canvas that stays comfortably inside those limits.
+const MAX_PNG_AREA = 67_108_864; // output pixels, an 8192×8192 equivalent
 const WM_SIZE = 24;
 const WM_INSET = 14;
+
+function pngPixelRatio(width: number, height: number): number {
+  const maxRatio = Math.sqrt(MAX_PNG_AREA / (width * height));
+  return Math.max(1, Math.min(PNG_PIXEL_RATIO, maxRatio));
+}
 
 // OWOX logo paths (512 viewBox), scaled down inside the watermark.
 const LOGO_P0 =
@@ -94,27 +103,28 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Export the model as a PNG at {@link PNG_PIXEL_RATIO}x scale. */
+/** Export the model as a PNG at up to {@link PNG_PIXEL_RATIO}x scale. */
 export async function exportCanvasPng(
   viewport: HTMLElement,
   rfNodes: Node[],
   background: string
 ): Promise<Blob> {
   const { width, height, style } = captureOptions(rfNodes);
+  const pixelRatio = pngPixelRatio(width, height);
   const captured = await toCanvas(viewport, {
     width,
     height,
     style,
     skipFonts: true,
-    pixelRatio: PNG_PIXEL_RATIO,
+    pixelRatio,
   });
 
   // Composite onto a fresh canvas: background fill first (see the SVG note on
   // why html-to-image's own backgroundColor option cannot be used), then the
   // capture, then the watermark rendered from a standalone SVG.
   const output = document.createElement('canvas');
-  output.width = width * PNG_PIXEL_RATIO;
-  output.height = height * PNG_PIXEL_RATIO;
+  output.width = Math.round(width * pixelRatio);
+  output.height = Math.round(height * pixelRatio);
   const context = output.getContext('2d');
   if (!context) throw new Error('Canvas 2D context is unavailable');
   context.fillStyle = background;
@@ -127,11 +137,11 @@ export async function exportCanvasPng(
   const watermarkImage = await loadImage(
     `data:image/svg+xml;charset=utf-8,${encodeURIComponent(watermarkSvg)}`
   );
-  const wmScaled = WM_SIZE * PNG_PIXEL_RATIO;
+  const wmScaled = WM_SIZE * pixelRatio;
   context.drawImage(
     watermarkImage,
-    output.width - wmScaled - WM_INSET * PNG_PIXEL_RATIO,
-    output.height - wmScaled - WM_INSET * PNG_PIXEL_RATIO,
+    output.width - wmScaled - WM_INSET * pixelRatio,
+    output.height - wmScaled - WM_INSET * pixelRatio,
     wmScaled,
     wmScaled
   );

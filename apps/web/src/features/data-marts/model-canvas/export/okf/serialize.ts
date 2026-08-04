@@ -1,5 +1,11 @@
 import type { ModelGraph, ModelGraphNode } from '../model-graph';
-import { renderFrontmatter, slugify } from './frontmatter';
+import { slugify } from '../slug';
+import { renderFrontmatter } from './frontmatter';
+
+/** Keep a value from breaking out of its Markdown table cell. */
+function escapeTableCell(value: string): string {
+  return value.replace(/\|/g, '\\|');
+}
 
 // OKF (Open Knowledge Format) bundle: one Markdown document per data mart plus
 // an index, matching the format model.owox.com produces and imports. Joins are
@@ -40,7 +46,7 @@ export function serializeOkfBundle(graph: ModelGraph, bundleTitle = 'Data Marts'
   const rows = graph.nodes
     .map(
       node =>
-        `| [${node.title}](./${slugByKey.get(node.key) ?? node.key}.md) | ${node.inputSource} | ${graph.storageId ?? '—'} |`
+        `| [${escapeTableCell(node.title)}](./${slugByKey.get(node.key) ?? node.key}.md) | ${node.inputSource} | ${escapeTableCell(graph.storageId ?? '—')} |`
     )
     .join('\n');
   files[`${folder}/index.md`] = `---\n${renderFrontmatter({
@@ -94,7 +100,6 @@ function renderNode(
   const overview = [
     '## Overview',
     '',
-    `- **ID:** \`${node.owoxId ?? '—'}\``,
     `- **Status:** ${node.status === 'created' ? 'PUBLISHED' : 'DRAFT'}`,
     `- **Definition type:** ${node.inputSource}`,
     `- **Storage:** ${graph.storageId ?? '—'}`,
@@ -120,7 +125,7 @@ function renderNode(
           const cells = withAlias
             ? [`\`${field.name}\``, field.type, field.alias ?? '', parts.join(' ').trim()]
             : [`\`${field.name}\``, field.type, parts.join(' ').trim()];
-          return `| ${cells.join(' | ')} |`;
+          return `| ${cells.map(escapeTableCell).join(' | ')} |`;
         })
         .join('\n') +
       '\n\n'

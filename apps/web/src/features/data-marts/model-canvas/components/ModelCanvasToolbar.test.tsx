@@ -1,11 +1,13 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataStorageType } from '../../../data-storage/shared/model/types/data-storage-type.enum';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
 
-function renderToolbar() {
+function renderToolbar(actions?: ReactNode) {
   return render(
     <ModelCanvasToolbar
+      actions={actions}
       storages={[
         {
           id: 'storage-1',
@@ -36,6 +38,13 @@ describe('ModelCanvasToolbar', () => {
     expect(screen.getByRole('combobox', { name: 'Storage' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Relationships' })).toBeInTheDocument();
+  });
+
+  it('renders the actions slot at the start of the row', () => {
+    const { container } = renderToolbar(<button type='button'>Actions</button>);
+
+    const row = container.firstElementChild;
+    expect(row?.firstElementChild).toBe(screen.getByRole('button', { name: 'Actions' }));
   });
 
   it('keeps the controls on one row and constrains the search width', () => {

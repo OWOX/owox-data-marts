@@ -1,11 +1,3 @@
-export function slugify(text: string, fallback = ''): string {
-  const slug = (text || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || fallback;
-}
-
 /** Render a flat object as OKF YAML frontmatter lines (scalars and string arrays only). */
 export function renderFrontmatter(values: Record<string, unknown>): string {
   const lines: string[] = [];
