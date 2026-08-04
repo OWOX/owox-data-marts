@@ -219,13 +219,13 @@ See also: mysql2 official SSL documentation — <https://sidorares.github.io/nod
 ## Plugins
 
 Plugins are third-party web apps embedded in a sandboxed iframe. These variables control
-who may publish them and how OWOX reads their GitHub sources.
+who may publish them and how OWOX Data Marts reads their GitHub sources.
 
 | Variable                                                     | Purpose                                                                                                                                                                                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`               | Comma-separated API key IDs allowed to publish, suspend and resume plugins for the whole deployment.                                                                                        |
 | `GITHUB_TOKEN`                                               | Read-only, fine-grained PAT for reading private plugin repositories. Self-managed deployments.                                                                                              |
-| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY` | OWOX GitHub App credentials, for reading private repositories in the cloud. Required together.                                                                                              |
+| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY` | [OWOX Data Marts GitHub App](https://github.com/apps/owox-data-marts) credentials, for reading private repositories in the cloud. Required together.                                        |
 | `GITHUB_API_BASE_URL`                                        | GitHub REST base URL. Override only for GitHub Enterprise.                                                                                                                                  |
 | `PLUGIN_HOST_PUBLIC_ORIGIN`                                  | This deployment's public origin, so a vendor allowlisting it in `frame-ancestors` is accepted.                                                                                              |
 | `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`                          | Minimum seconds between two synchronizations of the same plugin. Default `300`.                                                                                                             |

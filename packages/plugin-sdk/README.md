@@ -28,15 +28,8 @@ GitHub Pages sends the header; a plain static server usually does not.
 Your entry page must **not** send `X-Frame-Options` or a restrictive
 `Content-Security-Policy: frame-ancestors`, or OWOX will refuse to publish it.
 
-You must also serve a descriptor next to your entry page, or publication is refused:
-
-```jsonc
-// https://plugin.example.com/.well-known/owox-plugin.json
-{ "sdk": "owox-plugin-sdk", "sdkVersion": "1" }
-```
-
-It is how OWOX recognises an SDK-based plugin before any browser has loaded it. Serve it
-as static JSON with `Access-Control-Allow-Origin: *`.
+`connect()` and the host agree on a protocol version during the handshake, so a page built
+against an SDK the deployment cannot speak fails to start rather than misbehaving.
 
 Your plugin never holds a credential. `ctx.owox` calls are brokered by the host page,
 which attaches the token — so requests act with **the authority of the member who
@@ -44,13 +37,12 @@ installed your plugin**, and never more. Do not assume you are trusted beyond th
 
 ## Context
 
-|                                                          |                                                                     |
-| -------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ctx.owox`                                               | OWOX API client. The SDK owns its transport; you cannot replace it. |
-| `ctx.openExternal(url)`                                  | Ask the host to open an external https URL in a new tab.            |
-| `ctx.navigate(path)`                                     | Ask the host to go to a page inside OWOX, in place of your frame.   |
-| `ctx.setHeight(px)`                                      | Report content height so the host can size the frame.               |
-| `ctx.signal`                                             | Aborts when the host tears your plugin down.                        |
-| `ctx.member`, `ctx.projectId`, `ctx.theme`, `ctx.locale` | Display context. No tokens.                                         |
+|                                            |                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it. |
+| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.            |
+| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.   |
+| `ctx.signal`                               | Aborts when the host tears your plugin down.                        |
+| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                         |
 
 Requests time out after 30 seconds; streamed reads do not. At most 32 may be in flight.
