@@ -97,7 +97,8 @@ vi.mock('../../data-quality/api/data-quality.service', () => ({
 }));
 
 vi.mock('./ModelCanvasToolbar', () => ({
-  ModelCanvasToolbar: () => null,
+  // The Actions menu renders through the toolbar's `actions` slot.
+  ModelCanvasToolbar: ({ actions }: { actions?: React.ReactNode }) => <>{actions}</>,
 }));
 
 vi.mock('./ModelCanvas', () => ({
@@ -107,17 +108,14 @@ vi.mock('./ModelCanvas', () => ({
     onOpenDataMart,
     onOpenQuality,
     onRunQuality,
-    topLeftControls,
   }: {
     nodes: { id: string }[];
     edges: { id: string }[];
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
-    topLeftControls?: React.ReactNode;
   }) => (
     <>
-      {topLeftControls}
       <span data-testid='canvas-node-ids'>{nodes.map(node => node.id).join(',')}</span>
       <span data-testid='canvas-edge-ids'>{edges.map(edge => edge.id).join(',')}</span>
       <button

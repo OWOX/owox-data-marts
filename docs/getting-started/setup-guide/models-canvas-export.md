@@ -4,7 +4,7 @@ The **Models** canvas shows your Data Marts as an entity-relationship diagram: e
 
 ## Where to find it
 
-Open **Data Marts → Models**, pick a storage, and open the **Actions** menu in the top-left corner of the canvas. The **Export** submenu lists the available formats.
+Open **Data Marts → Models**, pick a storage, and open the **Actions** menu in the toolbar above the canvas. The **Export** submenu lists the available formats.
 
 The export always covers **what the canvas currently shows**: the same filtered set of Data Marts the other Actions target. Narrow the canvas with the storage, status, relationship, or search filters first if you want to export a subset. When the canvas is empty, there is nothing to export and the menu is not shown.
 

@@ -148,7 +148,7 @@ describe('sanitizeModelGraph', () => {
       storageLabel: 'BigQuery (Common)',
     });
     const sanitized = sanitizeModelGraph(graph);
-    expect(sanitized.storageId).toBeNull();
+    expect(sanitized).not.toHaveProperty('storageId');
     expect(sanitized.nodes[0]).toMatchObject({ status: 'pending', owoxId: null });
   });
 });

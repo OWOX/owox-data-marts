@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
   type Ref,
 } from 'react';
 import {
@@ -81,7 +80,6 @@ interface ModelCanvasProps {
   storageTitle?: string;
   /** Receives the export API — the Actions menu lives outside the flow provider. */
   exportApiRef?: Ref<ModelCanvasExportHandle>;
-  topLeftControls?: ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -112,24 +110,20 @@ function loadSavedPositions(storageId: string | undefined): SavedPositions {
   return positions;
 }
 
-const OBJECT_LABEL_META: Record<ObjectLabelPart, { glyph: string; label: string; helper: string }> =
-  {
-    source: {
-      glyph: '⬚',
-      label: 'Input source',
-      helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
-    },
-    fields: {
-      glyph: '#',
-      label: 'Field count',
-      helper: 'The field-count line under each object',
-    },
-    status: {
-      glyph: '•',
-      label: 'Status dot',
-      helper: 'The published/draft status dot in the card header',
-    },
-  };
+const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string }> = {
+  source: {
+    label: 'Input source',
+    helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
+  },
+  fields: {
+    label: 'Field count',
+    helper: 'The field count shown on each object',
+  },
+  status: {
+    label: 'Status dot',
+    helper: 'The published/draft status dot in the card header',
+  },
+};
 const VIEW_MODE_OPTIONS: { value: CanvasViewMode; label: string }[] = [
   { value: 'compact', label: 'Compact' },
   { value: 'erd', label: 'Detailed' },
@@ -199,8 +193,10 @@ interface FlowNodeParams {
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
   const { node, highlight, viewMode, objectLabels } = params;
-  const metaRowHidden = objectLabels.source && objectLabels.fields;
-  const statusRowHidden = metaRowHidden && objectLabels.status;
+  // The field count lives in the status icons row, so the meta row only holds
+  // the source badge — hiding the badge drops the whole row.
+  const metaRowHidden = objectLabels.source;
+  const statusRowHidden = objectLabels.source && objectLabels.fields && objectLabels.status;
   return {
     id: node.id,
     type: 'modelCanvasNode',
@@ -378,7 +374,7 @@ function ModelCanvasInner({
       n => n.title
     );
 
-    const metaRowHidden = objectLabels.source && objectLabels.fields;
+    const metaRowHidden = objectLabels.source;
     const dagreNodes: DagreLayoutNode[] = topologyNodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
@@ -818,7 +814,6 @@ function ModelCanvasInner({
                       <span
                         className={`text-sm font-medium ${shown ? 'text-foreground' : 'text-muted-foreground'}`}
                       >
-                        <span className='text-muted-foreground mr-1 font-bold'>{meta.glyph}</span>
                         {meta.label}
                       </span>
                       <span className='text-muted-foreground text-xs leading-snug'>
@@ -917,7 +912,6 @@ export default function ModelCanvas({
   storageId,
   storageTitle,
   exportApiRef,
-  topLeftControls,
   className,
   style,
 }: ModelCanvasProps) {
@@ -929,7 +923,6 @@ export default function ModelCanvas({
       style={style ?? { height: 480 }}
     >
       <style>{NODE_PULSE_KEYFRAMES}</style>
-      {topLeftControls && <div className='absolute top-3 left-3 z-10'>{topLeftControls}</div>}
       <ReactFlowProvider>
         <ModelCanvasInner
           nodes={nodes}

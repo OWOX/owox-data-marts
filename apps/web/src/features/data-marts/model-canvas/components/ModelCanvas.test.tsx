@@ -348,32 +348,6 @@ describe('ModelCanvas', () => {
     expect(localStorage.getItem('model-canvas-positions:storage-1')).toBeNull();
   });
 
-  it('renders supplied controls in the top-left canvas overlay', () => {
-    render(
-      <ModelCanvas
-        nodes={[
-          {
-            id: 'orders',
-            title: 'Orders',
-            status: DataMartStatus.PUBLISHED,
-            description: null,
-            fieldCount: 3,
-            qualitySummary: buildQualitySummary(),
-            dataLastUpdated: null,
-          },
-        ]}
-        edges={[]}
-        searchQuery=''
-        onOpenDataMart={vi.fn()}
-        onOpenQuality={vi.fn()}
-        onRunQuality={vi.fn().mockResolvedValue(undefined)}
-        topLeftControls={<button type='button'>Actions 1</button>}
-      />
-    );
-
-    expect(screen.getByRole('button', { name: 'Actions 1' })).toBeVisible();
-  });
-
   it('updates quality status without rerunning layout or fitting the viewport', async () => {
     const node = {
       id: 'orders',

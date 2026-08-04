@@ -126,13 +126,17 @@ export function canvasToModelGraph(input: CanvasModelGraphInput): ModelGraph {
   return { storageId: input.storageLabel ?? null, nodes, edges };
 }
 
+/** The JSON-file shape: {@link ModelGraph} without the push-flow-only storage field. */
+export type SanitizedModelGraph = Omit<ModelGraph, 'storageId'>;
+
 /**
  * Strip everything project-specific before the graph leaves the product as a
- * JSON file — the same rules model.owox.com applies to its share links.
+ * JSON file — the same rules model.owox.com applies to its share links. The
+ * `storageId` field is dropped entirely: it only carries meaning in the Model
+ * Canvas push flow, and its import tolerates the field being absent.
  */
-export function sanitizeModelGraph(graph: ModelGraph): ModelGraph {
+export function sanitizeModelGraph(graph: ModelGraph): SanitizedModelGraph {
   return {
-    storageId: null,
     nodes: graph.nodes.map(node => ({
       key: node.key,
       title: node.title,

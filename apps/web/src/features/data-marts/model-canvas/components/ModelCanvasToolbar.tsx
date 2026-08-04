@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { SearchInput } from '@owox/ui/components/common/search-input';
 import {
   Select,
@@ -22,6 +22,8 @@ interface ModelCanvasToolbarProps {
   onRelChange: (rel: CanvasRelFilter) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  /** The Actions menu — rendered at the row start, mirroring the list page. */
+  actions?: ReactNode;
 }
 
 export function ModelCanvasToolbar(props: ModelCanvasToolbarProps) {
@@ -37,6 +39,7 @@ export function ModelCanvasToolbar(props: ModelCanvasToolbarProps) {
 
   return (
     <div className='flex min-w-0 flex-nowrap items-center gap-2 pb-4'>
+      {props.actions}
       <label className='contents' aria-label='Storage'>
         <Combobox
           options={storageOptions}

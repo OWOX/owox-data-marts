@@ -247,6 +247,23 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
         onRelChange={filters.setRel}
         searchQuery={filters.searchQuery}
         onSearchChange={filters.setSearchQuery}
+        actions={
+          <DataMartBulkActions
+            onExport={handleExport}
+            onCheckDataLastUpdated={() => {
+              // Meeting decision: the check covers what the user actually sees — the same
+              // filtered set the other bulk actions target.
+              void refreshDataLastUpdated(bulkActionDataMarts.map(dataMart => dataMart.id));
+            }}
+            isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
+            dataMarts={bulkActionDataMarts}
+            projectId={projectId ?? ''}
+            deleteDataMart={deleteDataMart}
+            publishDataMart={publishDataMart}
+            onCompleted={refreshCanvas}
+            targetScope='canvas'
+          />
+        }
       />
       {storageLoadError ? (
         <CanvasMessage role='alert'>
@@ -302,23 +319,6 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
             isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
             storageTitle={dataStorages.find(storage => storage.id === filters.storageId)?.title}
             exportApiRef={canvasExportRef}
-            topLeftControls={
-              <DataMartBulkActions
-                onExport={handleExport}
-                onCheckDataLastUpdated={() => {
-                  // Meeting decision: the check covers what the user actually sees — the same
-                  // filtered set the other bulk actions target.
-                  void refreshDataLastUpdated(filtered.nodes.map(node => node.id));
-                }}
-                isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
-                dataMarts={bulkActionDataMarts}
-                projectId={projectId ?? ''}
-                deleteDataMart={deleteDataMart}
-                publishDataMart={publishDataMart}
-                onCompleted={refreshCanvas}
-                targetScope='canvas'
-              />
-            }
             style={canvasStyle}
           />
         </Suspense>
