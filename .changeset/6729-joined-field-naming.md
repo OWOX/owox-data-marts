@@ -13,3 +13,5 @@ Existing sheets pick the new headers up on their next refresh. Row 1 is rewritte
 Data Studio, email-based destinations, the HTTP data endpoint and MCP field metadata keep the Data Mart name as a prefix — the position follows the surface that renders the label, not the report, so reading a Google Sheets report through the HTTP data endpoint still returns the prefixed form. Match columns on the technical field name, which is identical everywhere.
 
 Labels are also no longer padded: an Output Alias or field alias typed with a leading or trailing space used to leak that space into the column name, and a whitespace-only alias produced a column that looked unnamed.
+
+A Google Sheets report that would write two columns under the same header now fails with a clear message naming the header, instead of writing the duplicate. Previously the duplicate went in silently and the refresh after it blanked one column, inserted a spare, and pushed your own content further right. Rename one of the two columns, or the Output Alias of the joined Data Mart one of them comes from.

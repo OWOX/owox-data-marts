@@ -339,6 +339,65 @@ describe('GoogleSheetsReportWriter — pre-clears imported rectangle before writ
   });
 });
 
+describe('GoogleSheetsReportWriter — rejects columns that would render the same header', () => {
+  // Row 1 holds `alias || name`, and OWOX_COLUMNS persists that same string as the key the next
+  // refresh resolves back to a canonical name. Two columns rendering identically make that
+  // resolution ambiguous and corrupt the NEXT refresh's layout (see the two-refresh test in
+  // column-plan-builder.spec.ts), so the writer has to refuse before touching the sheet.
+  const aliased = (...specs: string[]): ReportDataHeader[] =>
+    specs.map(spec => {
+      const [name, alias] = spec.split('|');
+      return new ReportDataHeader(name, alias);
+    });
+
+  it('refuses a native alias that collides with a joined field label, before any mutation', async () => {
+    // A native column aliased `Revenue (Orders)` and a joined `revenue` from the Data Mart whose
+    // Output Alias is `Orders` — distinct names, identical rendered header.
+    const { writer, adapter, report } = buildWriter({ availableRowsCount: 11 });
+
+    await expect(
+      writer.prepareToWriteReport(
+        report as never,
+        new ReportDataDescription(
+          aliased('revenue|Revenue (Orders)', 'orders__revenue|Revenue (Orders)'),
+          1
+        )
+      )
+    ).rejects.toThrow(/Duplicate column headers in report output: Revenue \(Orders\)/);
+
+    // Nothing was written: the sheet is left exactly as it was.
+    expect(adapter.updateValues).not.toHaveBeenCalled();
+    expect(adapter.clearValuesInRange).not.toHaveBeenCalled();
+  });
+
+  it('refuses regardless of which naming convention produced the collision', async () => {
+    // The prefix form collides just as readily — the guard is about the rendered string, not
+    // about the suffix convention.
+    const { writer, report } = buildWriter({ availableRowsCount: 11 });
+
+    await expect(
+      writer.prepareToWriteReport(
+        report as never,
+        new ReportDataDescription(
+          aliased('revenue|Orders Revenue', 'orders__revenue|Orders Revenue'),
+          1
+        )
+      )
+    ).rejects.toThrow(/Duplicate column headers in report output: Orders Revenue/);
+  });
+
+  it('allows a column with no alias to fall back to its name without a false positive', async () => {
+    const { writer, report } = buildWriter({ availableRowsCount: 11 });
+
+    await expect(
+      writer.prepareToWriteReport(
+        report as never,
+        new ReportDataDescription(aliased('date', 'revenue|Revenue', 'orders__revenue|Cost'), 1)
+      )
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe('GoogleSheetsReportWriter — pre-clear range invariants', () => {
   it('pre-clear starts from row 2 so freshly-written headers (row 1) are preserved', async () => {
     const { writer, adapter, report, finalImportedNames } = buildWriter({

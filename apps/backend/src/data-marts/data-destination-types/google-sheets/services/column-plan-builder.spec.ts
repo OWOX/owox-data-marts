@@ -344,6 +344,31 @@ describe('ColumnPlanBuilder', () => {
       );
       warn.mockRestore();
     });
+
+    // Pins the damage a duplicate rendered header does on the refresh AFTER the one that wrote it,
+    // which is why GoogleSheetsReportWriter refuses such a report up front (C5b). Refresh 1 writes
+    // `Revenue (Orders)` into two cells and persists both in OWOX_COLUMNS; refresh 2 is this call.
+    // The builder cannot recover: it is handed two identical keys and one canonical name.
+    it('a duplicate rendered header corrupts the next refresh — blank cell, extra column, user content shifted', () => {
+      const warn = jest.spyOn(builder['logger'], 'warn').mockImplementation(() => undefined);
+
+      const plan = builder.build(
+        ['Revenue (Orders)', 'Revenue (Orders)', 'user stuff'],
+        prevAliased('revenue|Revenue (Orders)', 'orders__revenue|Revenue (Orders)'),
+        aliased('revenue|Revenue (Orders)', 'orders__revenue|Revenue (Orders)')
+      );
+
+      // Both cells resolve to the FIRST canonical name, so the plan carries `revenue` twice.
+      expect(plan.finalImportedNames).toEqual(['revenue', 'revenue', 'orders__revenue']);
+      // `orders__revenue` looks new, so the imported range grows — pushing `user stuff` right.
+      expect(opsTuples(plan)).toEqual([['insert', 2, 'orders__revenue']]);
+      // Only the LAST `revenue` slot is addressable, so index 0 never receives a header and is
+      // written blank, taking its column's data with it.
+      expect(plan.nameToFinalIndex.get('revenue')).toBe(1);
+      expect(plan.nameToFinalIndex.get('orders__revenue')).toBe(2);
+
+      warn.mockRestore();
+    });
   });
 
   describe('empty cell in row 1 (H1)', () => {
