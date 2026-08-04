@@ -80,7 +80,7 @@ export class SyncPluginReleasesService {
   private async findOrCreatePlugin(repo: GithubRepoDto): Promise<Plugin> {
     const existing = await this.pluginService.findByGithubRepoId(repo.githubRepoId);
     if (!existing) {
-      return this.pluginService.createForRepo(repo);
+      return this.pluginService.createOrFindForRepo(repo);
     }
 
     // A rename or transfer resolves here, to the same plugin. Only the cached

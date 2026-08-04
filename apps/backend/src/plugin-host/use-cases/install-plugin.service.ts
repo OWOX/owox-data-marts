@@ -78,19 +78,30 @@ export class InstallPluginService {
       command.context.userId
     );
 
-    const installation = existing
-      ? await this.restore(existing)
-      : await this.installations.install(
-          plugin.id,
-          command.context.projectId,
-          command.context.userId
-        );
+    // Losing the insert race lands here as `wonRace: false`, and is then treated exactly
+    // as a repeat install: restore() no-ops on an active row, so a double-click answers
+    // the same as the sequential second request would have.
+    let firstInstall = false;
+    let installation: PluginInstallation;
+    if (existing) {
+      installation = await this.restore(existing);
+    } else {
+      const claimed = await this.installations.installOrFind(
+        plugin.id,
+        command.context.projectId,
+        command.context.userId
+      );
+      firstInstall = claimed.wonRace;
+      installation = claimed.wonRace
+        ? claimed.installation
+        : await this.restore(claimed.installation);
+    }
 
     await this.audit.record({
       pluginId: plugin.id,
       // Distinguished on purpose: a member returning to a plugin they had removed is a
       // different event from a first grant of their authority to a third party.
-      action: existing ? PluginAuditAction.RESTORE : PluginAuditAction.INSTALL,
+      action: firstInstall ? PluginAuditAction.INSTALL : PluginAuditAction.RESTORE,
       authorityScope: PluginPublicationScope.MEMBER,
       projectId: command.context.projectId,
       userId: command.context.userId,

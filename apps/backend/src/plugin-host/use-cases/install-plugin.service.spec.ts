@@ -43,6 +43,16 @@ function setup(overrides: { plugin?: unknown; installation?: unknown; wasDormant
       installedAt: new Date('2026-01-01'),
       uninstalledAt: null,
     }),
+    installOrFind: jest.fn().mockResolvedValue({
+      installation: {
+        id: 'i1',
+        pluginId: 'p1',
+        createdAt: new Date('2026-01-01'),
+        installedAt: new Date('2026-01-01'),
+        uninstalledAt: null,
+      },
+      wonRace: true,
+    }),
     restore: jest.fn().mockResolvedValue(undefined),
     findById: jest.fn().mockResolvedValue({
       id: 'i1',
@@ -99,9 +109,50 @@ describe('InstallPluginService', () => {
 
     const result = await install(s);
 
-    expect(s.installations.install).toHaveBeenCalledWith('p1', 'j1', 'u1');
+    expect(s.installations.installOrFind).toHaveBeenCalledWith('p1', 'j1', 'u1');
     expect(result.installedAt).toEqual(result.createdAt);
     expect(result.uninstalledAt).toBeNull();
+  });
+
+  /**
+   * A double-click sends two firsts: both read no installation and both insert, and
+   * UQ_plugin_installation refuses the second. Installing is documented as idempotent, so
+   * the loser has to answer with the winner's row rather than a 500.
+   */
+  it('answers with the winner’s row when it loses the insert race', async () => {
+    const s = setup();
+    const winner = {
+      id: 'i-winner',
+      pluginId: 'p1',
+      createdAt: new Date('2026-01-01'),
+      installedAt: new Date('2026-01-01'),
+      uninstalledAt: null,
+    };
+    (s.installations.installOrFind as jest.Mock).mockResolvedValue({
+      installation: winner,
+      wonRace: false,
+    });
+
+    const result = await install(s);
+
+    expect(result.installationId).toBe('i-winner');
+    expect(result.uninstalledAt).toBeNull();
+  });
+
+  // The winner already recorded INSTALL; a second one would double-count a first grant of
+  // authority to a third party, which is exactly what that event is for.
+  it('does not record a second INSTALL for the request that lost the race', async () => {
+    const s = setup();
+    (s.installations.installOrFind as jest.Mock).mockResolvedValue({
+      installation: { id: 'i-winner', pluginId: 'p1', uninstalledAt: null },
+      wonRace: false,
+    });
+
+    await install(s);
+
+    expect(s.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: PluginAuditAction.RESTORE })
+    );
   });
 
   // createdAt means "first ever installation" and must survive any number of cycles,

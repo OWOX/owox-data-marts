@@ -54,6 +54,7 @@ function setup() {
       .fn()
       .mockResolvedValue({ id: 'p1', repoOwner: 'OWOX', repoName: 'example-plugin' }),
     createForRepo: jest.fn(),
+    createOrFindForRepo: jest.fn(),
     syncRepoNaming: jest.fn().mockResolvedValue(undefined),
     tryClaimSyncSlot: jest.fn().mockResolvedValue(true),
     saveSyncOutcome: jest.fn().mockResolvedValue(undefined),
@@ -89,7 +90,7 @@ describe('SyncPluginReleasesService', () => {
 
       await run(s);
 
-      expect(s.pluginService.createForRepo).not.toHaveBeenCalled();
+      expect(s.pluginService.createOrFindForRepo).not.toHaveBeenCalled();
       expect(s.pluginService.syncRepoNaming).toHaveBeenCalledWith(
         'p1',
         expect.objectContaining({ owner: 'NewOrg', name: 'renamed' })
@@ -99,7 +100,7 @@ describe('SyncPluginReleasesService', () => {
     it('creates a plugin the first time a repository is seen', async () => {
       const s = setup();
       s.pluginService.findByGithubRepoId.mockResolvedValue(null);
-      s.pluginService.createForRepo.mockResolvedValue({ id: 'p-new' } as never);
+      s.pluginService.createOrFindForRepo.mockResolvedValue({ id: 'p-new' } as never);
 
       const result = await run(s);
 

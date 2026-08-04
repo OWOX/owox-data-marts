@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { PluginInstallation } from '../entities/plugin-installation.entity';
 
 /**
@@ -36,6 +37,35 @@ export class PluginInstallationService {
     return this.repository.save(
       this.repository.create({ pluginId, projectId, userId, installedAt: new Date() })
     );
+  }
+
+  /**
+   * Installs, or returns the row a concurrent request wrote first.
+   *
+   * A double-click sends two firsts: both read no installation, both insert, and
+   * UQ_plugin_installation refuses the second. The refusal means the member is installed
+   * -- which is what they asked for -- so re-reading is the answer, not a 500.
+   */
+  async installOrFind(
+    pluginId: string,
+    projectId: string,
+    userId: string
+  ): Promise<{ installation: PluginInstallation; wonRace: boolean }> {
+    try {
+      return { installation: await this.install(pluginId, projectId, userId), wonRace: true };
+    } catch (error) {
+      if (!isUniqueConstraintViolation(error)) {
+        throw error;
+      }
+
+      const existing = await this.findOne(pluginId, projectId, userId);
+      if (!existing) {
+        // Some other constraint that merely looks like this one; the caller should see it.
+        throw error;
+      }
+
+      return { installation: existing, wonRace: false };
+    }
   }
 
   async restore(installationId: string): Promise<void> {

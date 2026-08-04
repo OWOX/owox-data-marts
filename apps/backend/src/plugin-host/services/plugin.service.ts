@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
 import { SyncReport } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
@@ -50,6 +51,30 @@ export class PluginService {
       suspendedByApiKeyId: suspendedAt ? apiKeyId : null,
       suspensionNote: note,
     });
+  }
+
+  /**
+   * Creates, or returns the row a concurrent publish wrote first.
+   *
+   * Two first publishes of the same repository both read nothing and both insert;
+   * UQ_plugin_github_repo_id refuses the second. Since identity is the repository id, the
+   * winner's row *is* the answer -- re-reading keeps publish idempotent as documented.
+   */
+  async createOrFindForRepo(repo: GithubRepoDto): Promise<Plugin> {
+    try {
+      return await this.createForRepo(repo);
+    } catch (error) {
+      if (!isUniqueConstraintViolation(error)) {
+        throw error;
+      }
+
+      const existing = await this.findByGithubRepoId(repo.githubRepoId);
+      if (!existing) {
+        throw error;
+      }
+
+      return existing;
+    }
   }
 
   createForRepo(repo: GithubRepoDto): Promise<Plugin> {
