@@ -45,6 +45,13 @@ describe('DataQualityCompactStatusLink', () => {
     expect(screen.queryByText(/Last checked|Started|Queued/)).not.toBeInTheDocument();
   });
 
+  it('shows a restricted run', () => {
+    const client = createClient();
+    renderStatus(client, buildSummary({ state: 'RESTRICTED' }));
+
+    expect(screen.getByText('Data Quality run restricted')).toBeInTheDocument();
+  });
+
   it('reacts to the dedicated summary cache without reloading Data Mart context', async () => {
     const client = createClient();
     renderStatus(client);

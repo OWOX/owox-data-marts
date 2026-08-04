@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, CircleCheckBig, ShieldCheck, Trash2 } from 'lucide-react';
+import { ChevronDown, CircleCheckBig, History, ShieldCheck, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { DataStorageType } from '../../../../data-storage';
@@ -38,6 +38,13 @@ interface DataMartBulkActionsProps {
   onCompleted: () => void | Promise<void>;
   onClearDataMarts?: () => void;
   targetScope?: 'selection' | 'canvas';
+  /**
+   * When provided, adds a "Data Last Updated" item that measures, for every targeted Data Mart,
+   * when its source tables last changed in the storage. Free of consumption — safe to run on
+   * the whole set without a confirmation dialog.
+   */
+  onCheckDataLastUpdated?: () => void;
+  isCheckingDataLastUpdated?: boolean;
 }
 
 export function DataMartBulkActions({
@@ -48,6 +55,8 @@ export function DataMartBulkActions({
   onCompleted,
   onClearDataMarts,
   targetScope = 'selection',
+  onCheckDataLastUpdated,
+  isCheckingDataLastUpdated = false,
 }: DataMartBulkActionsProps) {
   const [actionDataMarts, setActionDataMarts] = useState<DataMartBulkActionTarget[]>([]);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -184,6 +193,18 @@ export function DataMartBulkActions({
             <ShieldCheck aria-hidden='true' />
             Check Quality
           </DropdownMenuItem>
+          {onCheckDataLastUpdated && (
+            <DropdownMenuItem
+              disabled={isCheckingDataLastUpdated}
+              onSelect={onCheckDataLastUpdated}
+              data-testid='check-data-last-updated'
+            >
+              <History aria-hidden='true' />
+              {isCheckingDataLastUpdated
+                ? 'Checking Data Last Updated…'
+                : 'Check Data Last Updated'}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant='destructive'

@@ -23,6 +23,8 @@ interface ReactFlowStubProps {
       onOpenQuality?: () => void;
       onRunQuality?: () => Promise<void>;
       qualitySummary?: { state: string };
+      dataLastUpdated?: unknown;
+      isCheckingDataLastUpdated?: boolean;
     };
   }[];
   edges?: {
@@ -432,6 +434,82 @@ describe('ModelCanvas', () => {
       expect(layout.runDagreLayout).toHaveBeenCalledTimes(2);
     });
     expect(reactFlow.latestProps?.nodes?.[0].data?.qualitySummary?.state).toBe('PASSED');
+  });
+
+  it('applies a fresh Data Last Updated value to nodes without rerunning layout', async () => {
+    // Regression: the layout effect only reacts to TOPOLOGY changes, so a finished check
+    // (which changes node data only) must flow in through the data-sync effect — before this,
+    // the sweep's results were invisible until a page reload.
+    const node = {
+      id: 'orders',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      description: null,
+      fieldCount: 3,
+      qualitySummary: buildQualitySummary(),
+      dataLastUpdated: null,
+    };
+    const commonProps = {
+      edges: [],
+      searchQuery: '',
+      onOpenDataMart: vi.fn(),
+      onOpenQuality: vi.fn(),
+      onRunQuality: vi.fn().mockResolvedValue(undefined),
+    };
+    const { rerender } = render(<ModelCanvas nodes={[node]} {...commonProps} />);
+
+    await waitFor(() => {
+      expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+    });
+
+    const fresh = {
+      dataLastUpdatedAt: '2026-07-31T12:22:27.477Z',
+      computedAt: '2026-07-31T12:24:00.973Z',
+      coverage: 'complete' as const,
+      sources: [],
+    };
+    rerender(<ModelCanvas nodes={[{ ...node, dataLastUpdated: fresh }]} {...commonProps} />);
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes?.[0].data?.dataLastUpdated).toEqual(fresh);
+    });
+    expect(layout.runDagreLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it('flips the checking flag on every node while the Data Last Updated sweep runs', async () => {
+    const node = {
+      id: 'orders',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      description: null,
+      fieldCount: 3,
+      qualitySummary: buildQualitySummary(),
+      dataLastUpdated: null,
+    };
+    const commonProps = {
+      edges: [],
+      searchQuery: '',
+      onOpenDataMart: vi.fn(),
+      onOpenQuality: vi.fn(),
+      onRunQuality: vi.fn().mockResolvedValue(undefined),
+    };
+    const { rerender } = render(
+      <ModelCanvas nodes={[node]} {...commonProps} isCheckingDataLastUpdated={false} />
+    );
+
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes?.[0].data?.isCheckingDataLastUpdated).toBe(false);
+    });
+
+    rerender(<ModelCanvas nodes={[node]} {...commonProps} isCheckingDataLastUpdated />);
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes?.[0].data?.isCheckingDataLastUpdated).toBe(true);
+    });
+
+    rerender(<ModelCanvas nodes={[node]} {...commonProps} isCheckingDataLastUpdated={false} />);
+    await waitFor(() => {
+      expect(reactFlow.latestProps?.nodes?.[0].data?.isCheckingDataLastUpdated).toBe(false);
+    });
   });
 });
 

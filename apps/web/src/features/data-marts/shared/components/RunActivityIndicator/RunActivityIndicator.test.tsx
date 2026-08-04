@@ -62,6 +62,7 @@ describe('Data Quality run activity helpers', () => {
       'PASSED',
       'ISSUES',
       'EXECUTION_FAILED',
+      'RESTRICTED',
       'CANCELLED',
       'ALL_DISABLED',
       undefined,

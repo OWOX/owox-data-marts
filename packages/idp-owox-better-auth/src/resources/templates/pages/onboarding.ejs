@@ -33,12 +33,11 @@ const storageIcons = {
     transition: border-color 0.15s ease, background-color 0.15s ease;
   }
   .option-card:hover {
-    border-color: oklch(var(--primary));
-    background-color: oklch(var(--muted));
+    background-color: #F5F5F5;
   }
   .option-card.selected {
-    border-color: oklch(var(--primary));
-    background-color: oklch(var(--primary) / 0.08);
+    border-color: #1E88E5;
+    background-color: #1E88E514;
   }
   .other-text-input {
     transition: max-height 0.25s ease, opacity 0.25s ease, margin-top 0.25s ease;
@@ -52,9 +51,33 @@ const storageIcons = {
     opacity: 1;
     margin-top: 0.5rem;
   }
+  @keyframes onboarding-fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .storage-preview-visible .storage-preview-item {
+    animation: onboarding-fade-up 550ms cubic-bezier(.22, 1, .36, 1) forwards;
+  }
+  .storage-preview-visible .storage-preview-item:nth-child(2) { animation-delay: 45ms; }
+  .storage-preview-visible .storage-preview-item:nth-child(3) { animation-delay: 90ms; }
+  .storage-preview-visible .storage-preview-item:nth-child(4) { animation-delay: 135ms; }
+  .storage-preview-visible .storage-preview-item:nth-child(5) { animation-delay: 180ms; }
+  .onboarding-container {
+    min-width: 18.75rem;
+    max-width: 32rem;
+  }
+  .onboarding-container.onboarding-container--wide {
+    max-width: 72rem;
+  }
+  .onboarding-warehouse-card {
+    max-width: 21.25rem;
+  }
+  .owox-cloud-modal-card {
+    max-width: 28rem;
+  }
 </style>
 
-<div id="onboarding-container" class="relative min-w-[300px] max-w-lg w-full transition-all duration-300">
+<div id="onboarding-container" class="onboarding-container relative w-full transition-all duration-300">
   <!-- Header -->
   <h1 class="text-2xl font-bold text-foreground mb-1">Help us personalize your experience</h1>
   <p class="text-sm text-muted-foreground mb-8">Answer 4 quick questions so we can tailor Data Marts to your workflow.</p>
@@ -138,15 +161,15 @@ const storageIcons = {
         <div>
           <h2 class="text-xl font-semibold text-foreground mb-1">Which data warehouse is used in the organization?</h2>
           <p class="text-sm text-muted-foreground mb-5">Pick your Data Warehouse — or let OWOX host it for you</p>
-          <div class="space-y-2" id="q-primary-storage">
+          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap" id="q-primary-storage">
             <% primaryStorageOptions.forEach(function(opt) { %>
-            <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
+            <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground sm:basis-[calc(50%-0.25rem)]">
               <input type="radio" name="primary_storage" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="storage-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
               <% if (storageIcons[opt.value]) { %><%- storageIcons[opt.value] %><% } %>
               <span><%= opt.label %></span>
             </label>
             <% }); %>
-            <div class="other-text-input" id="storage-other-wrap">
+            <div class="other-text-input lg:basis-full" id="storage-other-wrap">
               <input
                 type="text"
                 id="storage-other-text"
@@ -160,9 +183,9 @@ const storageIcons = {
       </div>
 
       <!-- Right Column: DWH Visualization -->
-      <div class="lg:col-span-6 hidden lg:flex flex-col justify-center bg-slate-50/30 border border-border/60 rounded-2xl p-6 min-h-[350px] shadow-sm relative overflow-hidden">
+      <div id="legacy-storage-preview-icons" class="hidden">
         <div class="text-center mb-6">
-          <span class="text-xs font-semibold tracking-wider text-primary uppercase bg-primary/10 px-2.5 py-1 rounded-full">Role of a Data Warehouse</span>
+          <span class="text-muted-foreground/50 rounded-full px-2.5 py-1 text-xs font-bold tracking-wider uppercase">Preview</span>
         </div>
         
         <div class="relative flex flex-col gap-6 items-center">
@@ -217,7 +240,7 @@ const storageIcons = {
             <span class="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-1">Processed by OWOX</span>
           </div>
           <!-- Row 2: Data Warehouse (Central Storage with SQL Tables) -->
-          <div class="w-full max-w-[340px] bg-white text-slate-900 rounded-xl p-4 border border-border shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02] duration-300">
+          <div class="onboarding-warehouse-card w-full bg-white text-slate-900 rounded-xl p-4 border border-border shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02] duration-300">
             <!-- Background glowing effect -->
             <div class="absolute -right-12 -top-12 w-28 h-28 bg-primary/5 rounded-full blur-xl pointer-events-none"></div>
             
@@ -334,6 +357,56 @@ const storageIcons = {
           </div>
         </div>
       </div>
+
+      <!-- Right Column: DWH visualization -->
+      <div class="hidden select-none lg:col-span-6 lg:flex">
+        <div id="storage-preview" class="w-full flex flex-col justify-center overflow-hidden rounded-md border-b border-[#E5E7EB] bg-[#F5F5F5]/50 px-8 py-12 dark:border-white/4 dark:bg-white/4">
+        <div id="storage-preview-placeholder" class="flex min-h-80 items-center justify-center text-center text-sm text-[#74747F]" aria-live="polite">
+          Select a Data Warehouse to see your Data Mart setup.
+        </div>
+        <div id="storage-preview-details" class="hidden">
+        <h4 class="storage-preview-item mb-8 text-center text-lg font-semibold tracking-tight opacity-0">
+          Data Mart setup with <span id="storage-preview-name" class="text-[#1E88E5] text-nowrap"></span>
+        </h4>
+
+        <div class="flex flex-col items-center gap-3">
+          <div class="storage-preview-item text-center text-xs font-bold uppercase tracking-wider text-[#74747F]/50 opacity-0">You choose the Input Source</div>
+          <div class="storage-preview-item flex flex-wrap items-center gap-2 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-4 py-1 text-center text-sm opacity-0">
+            <span id="storage-preview-input-facebook"></span>
+            <span id="storage-preview-input-tiktok"></span>
+            <span id="storage-preview-input-linkedin"></span>
+            <span id="storage-preview-input-microsoft"></span>
+            <span>/</span><span>SQL Query</span><span>/</span><span>Table or View name</span>
+          </div>
+          <svg class="storage-preview-item my-1 h-4 w-4 text-[#74747F]/60 opacity-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+          <div class="storage-preview-item flex flex-col items-center gap-3 opacity-0">
+            <div class="text-center text-xs font-bold uppercase tracking-wider text-[#74747F]/50">OWOX processes your data in the Data Warehouse</div>
+            <div class="rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-6 py-2 text-center">
+              <div class="flex flex-wrap items-center gap-3 text-base" title="Selected data warehouse">
+                <span id="storage-preview-icon" class="[&_img]:h-8 [&_img]:w-auto [&_svg]:size-8"></span>
+                <span id="storage-preview-label" class="font-medium"></span>
+              </div>
+            </div>
+          </div>
+          <svg class="storage-preview-item my-1 h-4 w-4 text-[#74747F]/60 opacity-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+          <div class="storage-preview-item flex flex-col items-center gap-3 opacity-0">
+            <div class="text-center text-xs font-bold uppercase tracking-wider text-[#74747F]/50">You choose the Output Destinations</div>
+            <div class="flex w-full flex-wrap items-center justify-center gap-1">
+              <span class="flex items-center gap-1 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-3 py-1 text-sm"><span id="storage-preview-output-sheets"></span>Sheets</span>
+              <span class="flex items-center gap-1 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-3 py-1 text-sm"><span id="storage-preview-output-excel"></span>Excel</span>
+              <span class="flex items-center gap-1 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-3 py-1 text-sm"><span id="storage-preview-output-email"></span>Email</span>
+              <span class="flex items-center gap-1 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-3 py-1 text-sm"><span id="storage-preview-output-slack"></span>Slack</span>
+              <span class="flex items-center gap-1 rounded-full border border-[#EBEBEB] bg-[#FFFFFF] px-3 py-1 text-sm"><span id="storage-preview-output-looker"></span>Looker Studio</span>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
     </div>
   </div>
 
@@ -369,7 +442,7 @@ const storageIcons = {
   aria-labelledby="owox-cloud-modal-title"
   aria-hidden="true"
 >
-  <div class="bg-background border border-border rounded-lg shadow-lg max-w-md w-full p-6">
+  <div class="owox-cloud-modal-card bg-background border border-border rounded-lg shadow-lg w-full p-6">
     <div class="flex gap-3">
       <svg class="shrink-0 w-8 h-8 mt-0.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <circle cx="12" cy="12" r="10" stroke="#199EE3" stroke-width="1.75" />
@@ -472,13 +545,7 @@ const storageIcons = {
   function showStep(step) {
     const container = document.getElementById('onboarding-container');
     if (container) {
-      if (step === 3) {
-        container.classList.remove('max-w-lg');
-        container.classList.add('max-w-4xl');
-      } else {
-        container.classList.remove('max-w-4xl');
-        container.classList.add('max-w-lg');
-      }
+      container.classList.toggle('onboarding-container--wide', step === 3);
     }
 
     slides.forEach((slide, i) => {
@@ -584,11 +651,47 @@ const storageIcons = {
     });
     document.querySelectorAll('.option-card input[type="radio"]').forEach(rb => {
       rb.addEventListener('change', () => {
-        const group = rb.closest('.space-y-2');
-        group.querySelectorAll('.option-card').forEach(card => card.classList.remove('selected'));
+        document.querySelectorAll('input[name="' + rb.name + '"]').forEach(input => {
+          input.closest('.option-card').classList.remove('selected');
+        });
         rb.closest('.option-card').classList.add('selected');
       });
     });
+  }
+
+  function updateStoragePreview() {
+    const preview = document.getElementById('storage-preview');
+    const placeholder = document.getElementById('storage-preview-placeholder');
+    const details = document.getElementById('storage-preview-details');
+    const selected = document.querySelector('#q-primary-storage input[type="radio"]:checked');
+    if (!preview || !placeholder || !details) return;
+
+    const shouldShowDetails = selected && selected.value !== 'other' && selected.value !== 'dont_know';
+    placeholder.classList.toggle('hidden', shouldShowDetails);
+    details.classList.toggle('hidden', !shouldShowDetails);
+    if (!shouldShowDetails) {
+      placeholder.textContent = selected
+        ? 'Choose a supported Data Warehouse to preview the setup.'
+        : 'Select a Data Warehouse to see your Data Mart setup.';
+      return;
+    }
+
+    const card = selected.closest('.option-card');
+    const label = card.querySelector('span:last-child').textContent.trim();
+    const icon = card.querySelector('svg, img');
+    document.getElementById('storage-preview-name').textContent = label;
+    document.getElementById('storage-preview-label').textContent = label;
+    document.getElementById('storage-preview-icon').innerHTML = icon ? icon.outerHTML : '';
+
+    preview.classList.remove('storage-preview-visible');
+    void preview.offsetWidth;
+    preview.classList.add('storage-preview-visible');
+  }
+
+  function copyLegacyStoragePreviewIcon(targetId, iconIndex) {
+    const source = document.querySelectorAll('#legacy-storage-preview-icons svg')[iconIndex];
+    const target = document.getElementById(targetId);
+    if (source && target) target.appendChild(source.cloneNode(true));
   }
 
   // "Other" text field toggle
@@ -838,6 +941,21 @@ const storageIcons = {
 
   setupOptionCards();
   setupOtherToggles();
+  [
+    ['storage-preview-input-facebook', 0],
+    ['storage-preview-input-tiktok', 1],
+    ['storage-preview-input-linkedin', 2],
+    ['storage-preview-input-microsoft', 3],
+    ['storage-preview-output-sheets', 15],
+    ['storage-preview-output-excel', 16],
+    ['storage-preview-output-email', 17],
+    ['storage-preview-output-slack', 18],
+    ['storage-preview-output-looker', 19],
+  ].forEach(([targetId, iconIndex]) => copyLegacyStoragePreviewIcon(targetId, iconIndex));
+  document.querySelectorAll('#q-primary-storage input[type="radio"]').forEach(input => {
+    input.addEventListener('change', updateStoragePreview);
+  });
+  updateStoragePreview();
 
   const orgDomainEl = document.getElementById('org-domain');
   if (orgDomainEl) {

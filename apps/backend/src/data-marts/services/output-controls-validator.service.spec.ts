@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import type { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { AthenaFieldType } from '../data-storage-types/athena/enums/athena-field-type.enum';
@@ -311,7 +312,7 @@ describe('OutputControlsValidatorService', () => {
       // A STRING `hitId` deduped COUNT_DISTINCT has effective type INTEGER but a RAW type of
       // STRING. The pre-join slice runs on the raw column BEFORE dedup, so a string operator
       // (`contains`) must be accepted against the raw STRING type — not rejected as an
-      // INVALID_OPERATOR_FOR_TYPE against the effective INTEGER type (the #6733 regression).
+      // INVALID_OPERATOR_FOR_TYPE against the effective INTEGER type (the regression).
       const indexCountDistinct = buildBlendedFieldIndex({
         blendedFields: [
           {
@@ -468,6 +469,9 @@ describe('OutputControlsValidatorService', () => {
           originalFieldName?: string;
           type: string;
           isHidden?: boolean;
+          // The per-field aggregation menu a Data Mart can store; several tests set it, so the
+          // helper has to carry it rather than make each call site an `as never`.
+          postJoinAggregations?: ReportAggregateFunction[];
         }[];
         availableSources?: { aliasPath: string; isIncluded?: boolean }[];
       } = {}
@@ -501,6 +505,53 @@ describe('OutputControlsValidatorService', () => {
       ).resolves.toBeUndefined();
 
       expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
+    });
+
+    it('rejects a case-only duplicate in a projection that carries NO output control', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: unsupportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['country', 'Country'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
+      expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    it('accepts a projection with no output control and no collision', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: unsupportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['country', 'revenue'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
     });
 
     it('throws BadRequestException when storage type is not supported', async () => {
@@ -1570,6 +1621,60 @@ describe('OutputControlsValidatorService', () => {
       ).toBe(true);
     });
 
+    // A stored blended-field config could authorize a function the TYPE cannot run. The type
+    // floor catches the obvious ones (SUM/AVG on a non-number, COUNT_DISTINCT/STRING_AGG on a
+    // non-scalar) but NOT percentiles — so `P50` on a text field used to pass save-time
+    // validation and fail only at the warehouse. The menu is now clamped to the supported set.
+    it('clamps postJoinAggregations to the type-supported set (percentile on a STRING)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+              // P50 is not supported for a STRING field — the override must not authorize it,
+              // and no type-floor rule covers percentiles.
+              postJoinAggregations: ['COUNT', 'P50'],
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__name', function: 'P50' as const }],
+          dateTruncConfig: null,
+          uniqueCountConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD')
+      ).toBe(true);
+    });
+
     it('accepts a function within postJoinAggregations for a blended STRING field', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService(
@@ -1602,6 +1707,120 @@ describe('OutputControlsValidatorService', () => {
           sortConfig: null,
           limitConfig: null,
           aggregationConfig: [{ column: 'partner__name', function: 'COUNT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    // The offered menu drops COUNT beside a joined COUNT_DISTINCT, but COUNT alone answers a
+    // different question rather than a distorted one — a report that saved it must keep running.
+    it('accepts a COUNT on a joined field — only the pair with COUNT_DISTINCT is contradictory', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__name', function: 'COUNT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('still enforces an explicit per-field menu that excludes COUNT', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+              postJoinAggregations: ['COUNT_DISTINCT'],
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__name', function: 'COUNT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('keeps both COUNT and COUNT_DISTINCT on a NATIVE string field', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [
+            { column: 'channel', function: 'COUNT' },
+            { column: 'channel', function: 'COUNT_DISTINCT' },
+          ],
           accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
@@ -2772,6 +2991,36 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Unique Count' }]);
     });
 
+    // Only Snowflake quotes every identifier; the other dialects leave a safe one unquoted and
+    // the engine folds it (Athena, Redshift) or resolves it case-insensitively (Spark). Two
+    // output names differing only in case are then ONE column: the metric sleeve's join back on
+    // them is ambiguous, and a reader binding by name cannot tell them apart.
+    it('rejects two selected columns that differ only in letter case', () => {
+      const errors = svc.validateOutputColumnNames(['Country', 'country'], [], false, false);
+
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'country' }]);
+    });
+
+    it('rejects a case-only collision between a column and a synthetic label', () => {
+      const errors = svc.validateOutputColumnNames(['row count'], [], true, false);
+
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Row Count' }]);
+    });
+
+    it('rejects a case-only collision between two aggregated labels', () => {
+      const errors = svc.validateOutputColumnNames(
+        ['Revenue', 'revenue'],
+        [
+          { column: 'Revenue', function: 'SUM' },
+          { column: 'revenue', function: 'SUM' },
+        ],
+        false,
+        false
+      );
+
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'revenue | SUM' }]);
+    });
+
     it('passes a normal aggregated report with no collisions', () => {
       const errors = svc.validateOutputColumnNames(
         ['channel', 'revenue'],
@@ -3498,6 +3747,178 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
+  describe('validateForReport — HAVING on a blended sleeve metric ( sleeve gate, wiring)', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+
+    const makeCapabilityService = (supported: boolean) => ({
+      isSupported: jest.fn().mockReturnValue(supported),
+    });
+
+    const makeBlendableSchemaService = (
+      nativeFields: { name: string; type: string }[],
+      blendedFields: {
+        name: string;
+        type: string;
+        aliasPath?: string;
+        originalFieldName?: string;
+        isHidden?: boolean;
+      }[]
+    ) => ({
+      computeBlendableSchema: jest.fn().mockResolvedValue({
+        nativeFields,
+        blendedFields,
+        availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+      }),
+    });
+
+    const orderIdBlendedField = {
+      name: 'orders__orderId',
+      type: 'STRING',
+      aliasPath: 'orders',
+      originalFieldName: 'orderId',
+    };
+
+    const orderAmountBlendedField = {
+      name: 'orders__amount',
+      type: 'INTEGER',
+      aliasPath: 'orders',
+      originalFieldName: 'amount',
+    };
+
+    it('end-to-end: rejects a stored HAVING COUNT_DISTINCT rule on a joined (blended) column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], [orderIdBlendedField]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['orders__orderId'],
+          filterConfig: [
+            { column: 'orders__orderId', function: 'COUNT_DISTINCT', operator: 'gt', value: 5 },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'orders__orderId', function: 'COUNT_DISTINCT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; column?: string }[] };
+      };
+      expect(
+        response.details.errors.some(
+          e =>
+            e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED' &&
+            e.column === 'orders__orderId'
+        )
+      ).toBe(true);
+    });
+
+    it('end-to-end: rejects a stored HAVING SUM rule on a joined (blended) column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], [orderAmountBlendedField]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['orders__amount'],
+          filterConfig: [{ column: 'orders__amount', function: 'SUM', operator: 'gt', value: 100 }],
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'orders__amount', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; column?: string; function?: string }[] };
+      };
+      expect(
+        response.details.errors.some(
+          e =>
+            e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED' &&
+            e.column === 'orders__amount' &&
+            e.function === 'SUM'
+        )
+      ).toBe(true);
+    });
+
+    it('end-to-end: allows a stored HAVING SUM rule on a MAIN (native) column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'revenue', type: 'INTEGER' }],
+        [orderAmountBlendedField]
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['revenue'],
+          filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 100 }],
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('end-to-end: allows a stored HAVING COUNT_DISTINCT rule on a MAIN (native) column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'name', type: 'STRING' }],
+        [orderIdBlendedField]
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['name'],
+          filterConfig: [{ column: 'name', function: 'COUNT_DISTINCT', operator: 'gt', value: 5 }],
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'name', function: 'COUNT_DISTINCT' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+  });
+
   describe('validateHavingFilters (post-aggregation)', () => {
     const aggregations = [
       { column: 'amount', function: 'SUM' as const },
@@ -3511,7 +3932,8 @@ describe('OutputControlsValidatorService', () => {
         [{ column: 'amount', function: 'SUM', operator: 'gt', value: 1000 }],
         aggregations,
         resolveType,
-        DataStorageType.GOOGLE_BIGQUERY
+        DataStorageType.GOOGLE_BIGQUERY,
+        new Map()
       );
       expect(errors).toEqual([]);
     });
@@ -3521,7 +3943,8 @@ describe('OutputControlsValidatorService', () => {
         [{ column: 'amount', function: 'AVG', operator: 'gt', value: 1 }],
         aggregations,
         resolveType,
-        DataStorageType.GOOGLE_BIGQUERY
+        DataStorageType.GOOGLE_BIGQUERY,
+        new Map()
       );
       expect(errors).toEqual([
         { code: 'HAVING_FILTER_NOT_AGGREGATED', column: 'amount', function: 'AVG' },
@@ -3533,7 +3956,8 @@ describe('OutputControlsValidatorService', () => {
         [{ column: 'name', function: 'COUNT', operator: 'gt', value: 5 }],
         aggregations,
         resolveType,
-        DataStorageType.GOOGLE_BIGQUERY
+        DataStorageType.GOOGLE_BIGQUERY,
+        new Map()
       );
       // COUNT(name) is INTEGER, so a numeric comparison is valid even though `name` is STRING.
       expect(errors).toEqual([]);
@@ -3544,7 +3968,8 @@ describe('OutputControlsValidatorService', () => {
         [{ column: 'amount', function: 'SUM', operator: 'contains', value: 'x' }],
         aggregations,
         resolveType,
-        DataStorageType.GOOGLE_BIGQUERY
+        DataStorageType.GOOGLE_BIGQUERY,
+        new Map()
       );
       // SUM(amount) keeps the raw INTEGER type; `contains` is a string-only operator,
       // so it is invalid for the aggregate's effective numeric type.
@@ -3563,7 +3988,8 @@ describe('OutputControlsValidatorService', () => {
         [{ column: 'amount', operator: 'gt', value: 1 }],
         aggregations,
         resolveType,
-        DataStorageType.GOOGLE_BIGQUERY
+        DataStorageType.GOOGLE_BIGQUERY,
+        new Map()
       );
       expect(errors).toEqual([]);
     });
@@ -3581,11 +4007,213 @@ describe('OutputControlsValidatorService', () => {
         ],
         aggregations,
         resolveType,
-        DataStorageType.GOOGLE_BIGQUERY
+        DataStorageType.GOOGLE_BIGQUERY,
+        new Map()
       );
       expect(errors).toEqual([
         { code: 'HAVING_FILTER_INVALID_PLACEMENT', column: 'amount', function: 'SUM' },
       ]);
+    });
+
+    // sleeve gate: a joined COUNT_DISTINCT/SUM/AVG (SLEEVE_ROUTED_FUNCTIONS) is
+    // rendered in SELECT via a "sleeve" CTE (computed at the report's dimension grain) to
+    // avoid join-fanout over/under-counting, but HAVING is not yet routed through that
+    // sleeve — it would silently filter on the OLD, wrong dedup-CTE value. Block the
+    // combination until sleeve-routed HAVING lands. MIN/MAX/COUNT are NOT sleeve-routed
+    // (no fan-out correction needed) and stay unaffected even on a blended column.
+    describe('HAVING sleeve-routed metric (COUNT_DISTINCT/SUM/AVG) on a BLENDED column ( sleeve gate)', () => {
+      const blendedEntry = {
+        aliasPath: 'orders',
+        cteName: 'orders',
+        originalFieldName: 'orderId',
+        type: 'STRING',
+        sourceFieldType: 'STRING',
+        isIncluded: true,
+      };
+      const blendedAmountEntry = {
+        aliasPath: 'orders',
+        cteName: 'orders',
+        originalFieldName: 'amount',
+        type: 'INTEGER',
+        sourceFieldType: 'INTEGER',
+        isIncluded: true,
+      };
+      const blendedFieldIndex = new Map([
+        ['orders__orderId', blendedEntry],
+        ['orders__amount', blendedAmountEntry],
+      ]);
+      const blendedAggregations = [
+        { column: 'orders__orderId', function: 'COUNT_DISTINCT' as const },
+      ];
+      const blendedResolveType = () => 'STRING';
+
+      // The gate is only ever armed because `blendedFieldIndex` is a REQUIRED parameter: giving
+      // it a `= new Map()` default would disable the gate for every existing caller while still
+      // compiling and still passing every test below. `Function.length` stops counting at the
+      // first parameter with a default, so this pins the arity — and therefore the absence of
+      // that default.
+      it('keeps blendedFieldIndex a required parameter (no default that would disable the gate)', () => {
+        expect(svc.validateHavingFilters.length).toBe(5);
+      });
+
+      it('rejects a HAVING COUNT_DISTINCT rule whose column is BLENDED (joined)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__orderId', function: 'COUNT_DISTINCT', operator: 'gt', value: 5 }],
+          blendedAggregations,
+          blendedResolveType,
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([
+          {
+            code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+            column: 'orders__orderId',
+            function: 'COUNT_DISTINCT',
+            message: expect.stringContaining('orders__orderId'),
+          },
+        ]);
+      });
+
+      it('rejects a HAVING SUM rule whose column is BLENDED (joined)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__amount', function: 'SUM', operator: 'gt', value: 100 }],
+          [{ column: 'orders__amount', function: 'SUM' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([
+          {
+            code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+            column: 'orders__amount',
+            function: 'SUM',
+            message: expect.stringContaining('orders__amount'),
+          },
+        ]);
+      });
+
+      it('rejects a HAVING AVG rule whose column is BLENDED (joined)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__amount', function: 'AVG', operator: 'gt', value: 10 }],
+          [{ column: 'orders__amount', function: 'AVG' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([
+          {
+            code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+            column: 'orders__amount',
+            function: 'AVG',
+            message: expect.stringContaining('orders__amount'),
+          },
+        ]);
+      });
+
+      it('rejects a HAVING percentile rule whose column is BLENDED (joined)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__amount', function: 'P95', operator: 'gt', value: 10 }],
+          [{ column: 'orders__amount', function: 'P95' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([
+          {
+            code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+            column: 'orders__amount',
+            function: 'P95',
+            message: expect.stringContaining('orders__amount'),
+          },
+        ]);
+      });
+
+      it('allows a HAVING percentile rule whose column is MAIN (no sleeve involved)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'revenue', function: 'P95', operator: 'gt', value: 10 }],
+          [{ column: 'revenue', function: 'P95' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex // 'revenue' is not a key in this index
+        );
+        expect(errors).toEqual([]);
+      });
+
+      it('allows a HAVING COUNT_DISTINCT rule whose column is MAIN (native, not in the blended index)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'name', function: 'COUNT_DISTINCT', operator: 'gt', value: 5 }],
+          [{ column: 'name', function: 'COUNT_DISTINCT' }],
+          () => 'STRING',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex // 'name' is not a key in this index
+        );
+        expect(errors).toEqual([]);
+      });
+
+      it('allows a HAVING SUM rule whose column is MAIN (native, not in the blended index)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 100 }],
+          [{ column: 'revenue', function: 'SUM' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex // 'revenue' is not a key in this index
+        );
+        expect(errors).toEqual([]);
+      });
+
+      it('allows a HAVING AVG rule whose column is MAIN (native, not in the blended index)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'revenue', function: 'AVG', operator: 'gt', value: 10 }],
+          [{ column: 'revenue', function: 'AVG' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex // 'revenue' is not a key in this index
+        );
+        expect(errors).toEqual([]);
+      });
+
+      it('does not block a HAVING COUNT rule on a BLENDED column (not sleeve-routed)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__amount', function: 'COUNT', operator: 'gt', value: 1 }],
+          [{ column: 'orders__amount', function: 'COUNT' }],
+          () => 'INTEGER',
+          DataStorageType.GOOGLE_BIGQUERY,
+          blendedFieldIndex
+        );
+        expect(errors).toEqual([]);
+      });
+
+      it.each(['MIN', 'MAX'] as const)(
+        'blocks a HAVING %s rule on a BLENDED column, which is sleeve-routed too',
+        function_ => {
+          const errors = svc.validateHavingFilters(
+            [{ column: 'orders__amount', function: function_, operator: 'gt', value: 1 }],
+            [{ column: 'orders__amount', function: function_ }],
+            () => 'INTEGER',
+            DataStorageType.GOOGLE_BIGQUERY,
+            blendedFieldIndex
+          );
+          expect(errors).toEqual([
+            {
+              code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+              column: 'orders__amount',
+              function: function_,
+              message: expect.stringContaining('orders__amount'),
+            },
+          ]);
+        }
+      );
+
+      it('an explicit empty blended index blocks nothing ( Mediums: blendedFieldIndex is a REQUIRED param — no silently-disabling default)', () => {
+        const errors = svc.validateHavingFilters(
+          [{ column: 'orders__orderId', function: 'COUNT_DISTINCT', operator: 'gt', value: 5 }],
+          blendedAggregations,
+          blendedResolveType,
+          DataStorageType.GOOGLE_BIGQUERY,
+          new Map()
+        );
+        expect(errors).toEqual([]);
+      });
     });
   });
 });

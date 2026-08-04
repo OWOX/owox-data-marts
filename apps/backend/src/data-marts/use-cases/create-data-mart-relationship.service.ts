@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
@@ -12,6 +12,8 @@ import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class CreateDataMartRelationshipService {
+  private readonly logger = new Logger(CreateDataMartRelationshipService.name);
+
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService,
@@ -71,11 +73,20 @@ export class CreateDataMartRelationshipService {
       command.targetAlias
     );
 
-    this.relationshipService.validateJoinFieldTypes(
+    // A join field absent from the schema is only a WARNING — the schema may simply be stale, so
+    // refusing the save would block legitimate edits. It must not vanish, though: it is the one
+    // early signal that the relationship will fail at the warehouse.
+    const { warnings } = this.relationshipService.validateJoinFieldTypes(
       sourceDataMart.schema,
       targetDataMart.schema,
       command.joinConditions
     );
+    if (warnings.length > 0) {
+      this.logger.warn(
+        `Relationship on Data Mart ${command.sourceDataMartId} saved with unverifiable join ` +
+          `field(s): ${warnings.join('; ')}`
+      );
+    }
 
     const relationship = await this.relationshipService.create(
       command,

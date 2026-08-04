@@ -34,7 +34,9 @@ describe('CreateDataMartRelationshipService', () => {
       validateNoSelfReference: jest.fn(),
       validateSameStorage: jest.fn(),
       validateUniqueAlias: jest.fn().mockResolvedValue(undefined),
-      validateJoinFieldTypes: jest.fn(),
+      // Returns the real shape: the service reads `warnings` off it to log what the schema
+      // could not confirm, so a bare jest.fn() would make the call site throw.
+      validateJoinFieldTypes: jest.fn().mockReturnValue({ warnings: [] }),
       create: jest.fn().mockResolvedValue(relationship),
     };
     const dataMartService = {

@@ -1,6 +1,7 @@
 import {
   resolveFieldGovernance,
   supportedAggregationsForType,
+  withoutCountBesideSleevedCountDistinct,
 } from './field-aggregation-governance';
 
 describe('resolveFieldGovernance — default allowed aggregations (no explicit overrides)', () => {
@@ -195,5 +196,21 @@ describe('resolveFieldGovernance — explicit overrides', () => {
     expect(
       resolveFieldGovernance('INTEGER', { allowedAggregations: [] }).allowedAggregations
     ).toEqual([]);
+  });
+});
+
+// The menu rule and its validation counterpart: the offered set must not carry both functions
+// (they are computed at different grains on a joined column), but a selection saved while both
+// were offered must still validate.
+describe('COUNT beside a sleeve-routed COUNT_DISTINCT', () => {
+  it('drops COUNT from an offered menu that also carries COUNT_DISTINCT', () => {
+    expect(withoutCountBesideSleevedCountDistinct(['COUNT', 'COUNT_DISTINCT', 'MIN'])).toEqual([
+      'COUNT_DISTINCT',
+      'MIN',
+    ]);
+  });
+
+  it('leaves a menu without COUNT_DISTINCT untouched', () => {
+    expect(withoutCountBesideSleevedCountDistinct(['COUNT', 'MIN'])).toEqual(['COUNT', 'MIN']);
   });
 });

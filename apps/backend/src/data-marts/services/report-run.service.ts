@@ -98,8 +98,9 @@ export class ReportRunService {
   /**
    * Finalizes report run by persisting final state to database.
    *
-   * Saves both Report and DataMartRun entities in single transaction.
-   * Report contains runStatus and lastRunAt, DataMartRun contains full execution details.
+   * Persists the Report's run outcome (targeted column update — a full entity save would
+   * cascade the run-start DataMart snapshot over columns written during the run) and the
+   * DataMartRun with full execution details, in a single transaction.
    *
    * @param reportRun - Completed report run (SUCCESS/FAILED/CANCELLED)
    * @param context - Optional context to append execution artifacts:
@@ -111,7 +112,7 @@ export class ReportRunService {
     reportRun: ReportRun,
     context?: { logs?: string[]; errors?: string[] }
   ): Promise<void> {
-    await this.reportService.saveReport(reportRun.getReport());
+    await this.reportService.updateLastRunOutcome(reportRun.getReport());
     if (context?.logs?.length) {
       const dmRun = reportRun.getDataMartRun();
       dmRun.logs = [...(dmRun.logs || []), ...context.logs];

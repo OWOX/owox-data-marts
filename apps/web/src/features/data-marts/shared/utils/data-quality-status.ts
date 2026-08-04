@@ -31,6 +31,7 @@ export type DataQualityStatusLabel =
   | 'Passed'
   | 'Issues found'
   | 'Run failed'
+  | 'Restricted'
   | 'Cancelled';
 
 interface DataQualityVisualSummary {
@@ -105,6 +106,8 @@ export function getDataQualityStatusVisual(
       return { icon: ShieldCheck, isActive: false, label: 'Passed', tone: 'success' };
     case 'EXECUTION_FAILED':
       return { icon: ShieldX, isActive: false, label: 'Run failed', tone: 'error' };
+    case 'RESTRICTED':
+      return { icon: ShieldBan, isActive: false, label: 'Restricted', tone: 'warning' };
     case 'ISSUES': {
       const severity = getHighestSeverity(summary);
       return {

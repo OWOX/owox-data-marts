@@ -43,6 +43,7 @@ import { AbstractBlendedQueryBuilder } from './abstract-blended-query-builder';
 import { BlendedQueryContext } from './blended-query-builder.interface';
 import { SqlClauseRenderer } from '../utils/sql-clause-renderer';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
+import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 
 class TestBlendedWithRenderer extends AbstractBlendedQueryBuilder {
   readonly type = DataStorageType.GOOGLE_BIGQUERY;
@@ -93,10 +94,22 @@ function makePlainCtx(): BlendedQueryContext {
   );
 }
 
+// `events__events` is a JOINED column — since 3, a report-level SUM/AVG on it
+// (uniform routing, regardless of this composite-key join being provably 1-to-1) routes
+// through its value sleeve, which needs a populated field index to resolve the raw source
+// (same as the real BlendedReportDataService caller always supplies).
+const eventsFieldIndex = buildBlendedFieldIndex({
+  blendedFields: [
+    { name: 'events__events', aliasPath: 'events', originalFieldName: 'events', type: 'INTEGER' },
+  ],
+  availableSources: [{ aliasPath: 'events', isIncluded: true }],
+} as never);
+
 /** Context with post-join aggregation on both metrics. */
 function makeAggCtx(): BlendedQueryContext {
   return {
     ...makePlainCtx(),
+    fieldIndex: eventsFieldIndex,
     aggregations: [
       { column: 'sessions', function: 'SUM' },
       { column: 'events__events', function: 'SUM' },
@@ -171,10 +184,20 @@ describe('AbstractBlendedQueryBuilder — composite-key funnel (sessions × even
       expect(sql).toContain('SUM(main.sessions) AS `sessions | SUM`');
     });
 
-    it('outer SELECT emits SUM(events.events__events) via the events CTE with aggregated-by alias', () => {
+    // uniform routing sends EVERY joined SUM/AVG through its value sleeve,
+    // deliberately without detecting "this join happens to be 1-to-1" (the composite key
+    // here guarantees no fan-out, but the routing rule doesn't special-case that — see the
+    // C2 plan's "do NOT try to detect bridge vs 1-to-many" decision). The old dedup+SUM
+    // path (`SUM(events.events__events)`) is gone; the value is pulled from the sleeve.
+    it('outer SELECT pulls events__events from its value sleeve, not dedup+SUM', () => {
       const { sql } = builder.buildBlendedQuery(makeAggCtx());
 
-      expect(sql).toContain('SUM(events.events__events) AS `events__events | SUM`');
+      expect(sql).toContain('sleeve_events__events AS (');
+      expect(sql).toContain('SUM(_val) AS `events__events | SUM`');
+      expect(sql).toContain(
+        'ANY_VALUE(sleeve_events__events.`events__events | SUM`) AS `events__events | SUM`'
+      );
+      expect(sql).not.toContain('SUM(events.events__events)');
     });
 
     it('the composite-key ON clause and subsidiary GROUP BY are unchanged under post-join agg', () => {
@@ -186,10 +209,17 @@ describe('AbstractBlendedQueryBuilder — composite-key funnel (sessions × even
       );
       // Inner structure: subsidiary still aggregated to composite grain
       expect(sql).toContain('GROUP BY date, source, medium');
-      // Outer aggregation lands after the final LEFT JOIN
-      expect(sql.indexOf('LEFT JOIN events')).toBeLessThan(
-        sql.indexOf('GROUP BY\n  main.date,\n  main.source,\n  main.medium')
-      );
+      // Outer aggregation lands after the final LEFT JOIN. NOTE: anchor on the FULL outer
+      // join-condition text, not the bare `LEFT JOIN events` prefix — now that events__events
+      // is sleeve-routed, `sleeve_events__events` emits its own `LEFT JOIN events_raw ON ...`
+      // INSIDE the WITH clause, and `'LEFT JOIN events'` is a prefix of `'LEFT JOIN
+      // events_raw'`, so the bare prefix would false-match the sleeve-internal join and make
+      // this ordering check tautological.
+      expect(
+        sql.indexOf(
+          'LEFT JOIN events ON main.date = events.date AND main.source = events.source AND main.medium = events.medium'
+        )
+      ).toBeLessThan(sql.indexOf('GROUP BY\n  main.date,\n  main.source,\n  main.medium'));
     });
   });
 
@@ -204,10 +234,15 @@ describe('AbstractBlendedQueryBuilder — composite-key funnel (sessions × even
     );
     // 2. Subsidiary GROUP BY full grain (no multiplication)
     expect(sql).toContain('GROUP BY date, source, medium');
-    // 3a. Outer sessions aggregation
+    // 3a. Outer sessions aggregation (main-native, unaffected by value-sleeve routing)
     expect(sql).toContain('SUM(main.sessions) AS `sessions | SUM`');
-    // 3b. Outer events aggregation
-    expect(sql).toContain('SUM(events.events__events) AS `events__events | SUM`');
+    // 3b. Outer events aggregation — a JOINED metric, routed through its value sleeve
+    // rather than dedup+SUM.
+    expect(sql).toContain('sleeve_events__events AS (');
+    expect(sql).toContain(
+      'ANY_VALUE(sleeve_events__events.`events__events | SUM`) AS `events__events | SUM`'
+    );
+    expect(sql).not.toContain('SUM(events.events__events)');
     // 3c. Outer GROUP BY dimensions
     expect(sql).toContain('GROUP BY\n  main.date,\n  main.source,\n  main.medium');
     // 4. CTE scaffold

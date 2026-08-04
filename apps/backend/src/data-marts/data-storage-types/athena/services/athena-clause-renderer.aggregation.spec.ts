@@ -10,7 +10,9 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
       ['channel', 'price'],
       [{ column: 'price', function: 'P50' }]
     );
-    expect(out.selectSql).toBe('"channel",\n  APPROX_PERCENTILE("price", 0.5) AS "price | MEDIAN"');
+    expect(out.selectSql).toBe(
+      '"channel",\n  APPROX_PERCENTILE(CAST("price" AS DOUBLE), 0.5) AS "price | MEDIAN"'
+    );
     expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
   });
 
@@ -22,7 +24,7 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
     ] as const) {
       const out = r.renderAggregatedSelect(['col'], [{ column: 'col', function: fn }]);
       expect(out.selectSql).toBe(
-        `APPROX_PERCENTILE("col", ${fraction}) AS "col | ${REPORT_AGGREGATE_FUNCTION_TOKENS[fn]}"`
+        `APPROX_PERCENTILE(CAST("col" AS DOUBLE), ${fraction}) AS "col | ${REPORT_AGGREGATE_FUNCTION_TOKENS[fn]}"`
       );
     }
   });
@@ -161,7 +163,7 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
 
     it('reuses APPROX_PERCENTILE for a percentile (P50) HAVING LHS', () => {
       const out = r.renderHaving([{ column: 'price', function: 'P50', operator: 'gt', value: 42 }]);
-      expect(out.sql).toBe('\nHAVING APPROX_PERCENTILE("price", 0.5) > ?');
+      expect(out.sql).toBe('\nHAVING APPROX_PERCENTILE(CAST("price" AS DOUBLE), 0.5) > ?');
       expect(out.params).toEqual([{ name: 'h0', value: 42 }]);
     });
   });

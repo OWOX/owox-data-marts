@@ -60,6 +60,11 @@ const STATUS_PRESENTATIONS: Record<DataQualitySummaryState, DataQualityStatusPre
     title: 'Execution failed',
     description: 'Some checks could not execute. Completed results are still available below.',
   },
+  RESTRICTED: {
+    title: 'Run restricted',
+    description:
+      'Project operations are currently restricted. Check the project status or available credits and try again.',
+  },
   CANCELLED: {
     title: 'Run cancelled',
     description: 'Results completed before cancellation are preserved.',

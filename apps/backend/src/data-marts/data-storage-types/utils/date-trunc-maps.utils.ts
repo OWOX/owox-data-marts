@@ -8,6 +8,17 @@ export function buildDateTruncUnitMap(
 }
 
 /**
+ * Same as `buildDateTruncUnitMap`, but `undefined` when there is nothing to truncate — the
+ * blended builder passes that straight through so the no-trunc SQL path stays byte-identical.
+ */
+export function buildOptionalDateTruncUnitMap(
+  dateTruncs: readonly DateTruncRule[] | undefined
+): ReadonlyMap<string, DateTruncUnit> | undefined {
+  if (!dateTruncs?.length) return undefined;
+  return buildDateTruncUnitMap(dateTruncs);
+}
+
+/**
  * column → IANA time zone, only for rules that carry one. Returns undefined when no
  * rule has a time zone so the no-tz SQL path (and its byte-identical output) is hit.
  */

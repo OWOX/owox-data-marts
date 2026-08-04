@@ -49,10 +49,30 @@ describe('translateOutputControlsError', () => {
     expect(translated?.message).toContain('filters: []');
   });
 
+  it('translates HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED naming the rule and both ways out', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        {
+          code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+          column: 'hitId',
+          function: 'COUNT_DISTINCT',
+        },
+      ])
+    );
+    expect(translated).toMatchObject({ code: 'having_on_joined_metric_not_supported' });
+    expect(translated?.message).toContain('COUNT_DISTINCT(hitId)');
+    expect(translated?.message).toMatch(/joined data mart/i);
+    // The rule may be stored on the report and invisible over MCP — name both recoveries.
+    expect(translated?.message).toContain('a different metric');
+    expect(translated?.message).toContain('filters: []');
+    // The code is in RECOGNIZED_CODES, so the generic fallback must not repeat it.
+    expect(translated?.message).not.toContain('HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED');
+  });
+
   it('falls back to an informative translation naming unrecognized codes and columns', () => {
     const translated = translateOutputControlsError(
       validatorError([
-        { code: 'OUTPUT_COLUMN_NAME_COLLISION', column: 'channel' },
+        { code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'channel' },
         { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' },
       ])
     );

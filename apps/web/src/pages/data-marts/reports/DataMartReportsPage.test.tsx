@@ -552,9 +552,33 @@ describe('DataMartReportsPage', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     await waitFor(() => {
-      expect(reportService.getReportById).toHaveBeenCalledWith('report-1');
+      expect(reportService.getReportById).toHaveBeenCalledWith('report-1', expect.anything());
     });
     expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
+  // Polling never gives up while a row reads RUNNING, so a failing poll has to stay silent.
+  it('opts silent polling out of the global error toast', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      buildReportResponse({
+        lastRunStatus: ReportStatusEnum.RUNNING,
+      }),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText('Daily Sales Report')).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await waitFor(() => {
+      expect(reportService.getReportById).toHaveBeenCalledWith('report-1', {
+        skipErrorToast: true,
+      });
+    });
 
     vi.useRealTimers();
   });
@@ -647,7 +671,7 @@ describe('DataMartReportsPage', () => {
     expect(await screen.findByText('Report 16')).toBeInTheDocument();
     expect(reportService.getReportsByProject).toHaveBeenCalledWith();
     expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
-    expect(reportService.getReportById).toHaveBeenCalledWith('report-1');
+    expect(reportService.getReportById).toHaveBeenCalledWith('report-1', expect.anything());
 
     vi.useRealTimers();
   });
@@ -685,7 +709,7 @@ describe('DataMartReportsPage', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     await waitFor(() => {
-      expect(reportService.getReportById).toHaveBeenCalledWith('report-105');
+      expect(reportService.getReportById).toHaveBeenCalledWith('report-105', expect.anything());
     });
     expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole('img', { name: 'Success' })).toBeInTheDocument();

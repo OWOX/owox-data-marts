@@ -31,6 +31,7 @@ export interface ModelCanvasFlowNodeData {
   viewMode: CanvasViewMode;
   objectLabels?: ObjectLabelsHidden;
   dataLastUpdated: DataLastUpdatedDto | null;
+  isCheckingDataLastUpdated?: boolean;
   hasIncoming: boolean;
   hasOutgoing: boolean;
   highlighted: boolean;
@@ -87,6 +88,9 @@ export default function ModelCanvasFlowNode({
   const withSource = !labels.source;
   const withFieldCount = !labels.fields;
   const withStatus = !labels.status;
+  // "Uncheck all — title only" strips the card down to its name: the quality
+  // indicators (Data Quality shield + Data Last Updated clock) go too.
+  const titleOnly = labels.source && labels.fields && labels.status;
 
   const ordered = orderFields(fields);
   const collapsed = collapsedRowCount(fields);
@@ -136,7 +140,7 @@ export default function ModelCanvasFlowNode({
       )}
 
       {/* Header: accent stripe + title + status + actions */}
-      <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
+      <div className={`flex items-center gap-2 px-3.5 pt-3 ${titleOnly ? 'pb-3' : 'pb-1'}`}>
         {withSource && (
           <span
             className='h-4 w-1 shrink-0 rounded-sm'
@@ -196,15 +200,21 @@ export default function ModelCanvasFlowNode({
         </div>
       )}
       {/* Status icons row: quality shield + data-last-updated clock */}
-      <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
-        <DataQualityCanvasStatusIcon
-          dataMartTitle={data.title}
-          summary={data.qualitySummary}
-          onOpenQuality={data.onOpenQuality}
-          onRunQuality={data.onRunQuality}
-        />
-        <DataLastUpdatedCanvasIcon dataMartTitle={data.title} block={data.dataLastUpdated} />
-      </div>
+      {!titleOnly && (
+        <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
+          <DataQualityCanvasStatusIcon
+            dataMartTitle={data.title}
+            summary={data.qualitySummary}
+            onOpenQuality={data.onOpenQuality}
+            onRunQuality={data.onRunQuality}
+          />
+          <DataLastUpdatedCanvasIcon
+            dataMartTitle={data.title}
+            block={data.dataLastUpdated}
+            isChecking={data.isCheckingDataLastUpdated}
+          />
+        </div>
+      )}
 
       {/* ERD body: field rows (only in ERD view) */}
       {showBody && (

@@ -292,9 +292,33 @@ export class DataMartService {
    * Persists the last-known `Data Last Updated` snapshot. A targeted column update, not a full
    * entity save: the refresh may race with someone editing the Data Mart, and this write must
    * never clobber their definition or schema.
+   *
+   * Writers are unordered (manual check, report run, HTTP Data, MCP query) and a report run's
+   * measure→write gap can span the whole run, so the write is guarded by `computedAt`: a
+   * measurement older than the one already saved is dropped instead of moving the value
+   * backwards. Read-compare-write rather than a SQL json_extract predicate to stay portable
+   * across the SQLite/MySQL drivers; the remaining race window is milliseconds against the
+   * minutes-wide gap this closes.
    */
-  async updateDataLastUpdated(id: string, block: SourceDataLastUpdated): Promise<void> {
-    await this.dataMartRepository.update({ id }, { dataLastUpdated: block });
+  /** @returns true when the block was written; false when the guard kept a newer saved value. */
+  async updateDataLastUpdated(
+    id: string,
+    projectId: string,
+    block: SourceDataLastUpdated
+  ): Promise<boolean> {
+    const current = await this.dataMartRepository.findOne({
+      where: { id, projectId },
+      select: { id: true, dataLastUpdated: true },
+    });
+    if (!current) {
+      return false;
+    }
+    const savedComputedAt = current.dataLastUpdated?.computedAt;
+    if (savedComputedAt && new Date(savedComputedAt) >= new Date(block.computedAt)) {
+      return false;
+    }
+    await this.dataMartRepository.update({ id, projectId }, { dataLastUpdated: block });
+    return true;
   }
 
   async findIdsByStorage(storage: DataStorage, withDeleted = false): Promise<string[]> {

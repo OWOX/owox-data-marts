@@ -1,7 +1,6 @@
 import {
   IsString,
   IsArray,
-  ArrayMinSize,
   ValidateNested,
   MinLength,
   MaxLength,
@@ -32,8 +31,11 @@ export class UpdateRelationshipRequestApiDto {
     description: 'Conditions used to join the data marts',
     required: false,
   })
+  // Deliberately NOT @ArrayMinSize(1), matching the create endpoint: an empty array is a
+  // supported DRAFT state (see join-condition.schema.spec). Requiring one here meant a draft
+  // could be created but never returned to. A relationship with no conditions is refused where
+  // it is USED — the blend builder names it and says what to fix — not where it is saved.
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => JoinConditionApiDto)
   @IsOptional()

@@ -35,9 +35,13 @@ import {
   resolveFieldGovernance,
   AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
-import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import {
+  ReportAggregateFunction,
+  SLEEVE_ROUTED_FUNCTIONS,
+} from '../dto/schemas/aggregate-function.schema';
 import { computeEffectiveType } from '../data-storage-types/field-aggregation';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
+import { truncateIdentifierToByteLimit } from '../data-storage-types/utils/identifier-limits.utils';
 import {
   ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
@@ -90,6 +94,18 @@ export type ValidationError =
   // pushed pre-join: the blended builder routes a pre-join rule to a CTE where
   // function-carrying rules are dropped, so the constraint would apply NOWHERE.
   | { code: 'HAVING_FILTER_INVALID_PLACEMENT'; column: string; function: string }
+  // a joined (blended) COUNT_DISTINCT/SUM/AVG (SLEEVE_ROUTED_FUNCTIONS) is rendered in
+  // SELECT via a "sleeve" CTE (the report-dimension-grain computation that avoids join-fanout
+  // over/under-counting), but renderHaving still derives its aggregate expression from the
+  // dedup CTE — the OLD, wrong value. Until HAVING is sleeve-routed, block the combination
+  // outright. A MAIN (native) column, or a joined MIN/MAX/COUNT (not sleeve-routed), has no
+  // sleeve involved and is unaffected.
+  | {
+      code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED';
+      column: string;
+      function: string;
+      message: string;
+    }
   // An aggregated / date-trunc report needs an explicit column projection: the SELECT
   // builder only emits a metric/date-trunc column when it is listed in columnConfig, so a
   // null/empty columnConfig would silently drop every metric (and produce a header set that
@@ -97,8 +113,9 @@ export type ValidationError =
   | { code: 'AGGREGATION_REQUIRES_COLUMN_CONFIG' }
   // Two projected output columns resolve to the SAME output name — a dimension whose name
   // equals a synthetic label (Row Count / Unique Count / "<col> | TOKEN"), or any
-  // two projected columns colliding. Duplicate alias error on BigQuery / silent clobber on
-  // name-keyed readers. `label` is the colliding output name.
+  // two projected columns colliding, INCLUDING a pair that differs only in letter case.
+  // Duplicate alias error on BigQuery / silent clobber on name-keyed readers. `label` is the
+  // colliding output name.
   | { code: 'OUTPUT_COLUMN_NAME_COLLISION'; label: string };
 
 function operatorAllowed(fieldType: string, operator: string): boolean {
@@ -160,12 +177,25 @@ export class OutputControlsValidatorService {
    * aggregationConfig), and its operator is checked against the aggregate's EFFECTIVE
    * result type (COUNT→integer, AVG/percentile→float, STRING_AGG→string), not the
    * column's raw type — so `COUNT(name) > 5` is valid even though `name` is a string.
+   *
+   * `blendedFieldIndex` (the same index `validateFilters` uses to resolve pre-join slices)
+   * doubles as the "is this column blended?" lookup: a HAVING whose function is
+   * SLEEVE_ROUTED_FUNCTIONS (COUNT_DISTINCT, SUM, or AVG) AND whose column resolves in that
+   * index targets a joined field, which is rejected -- see sleeve gate.
+   *
+   * `blendedFieldIndex` is REQUIRED (no `= new Map` default, Mediums): a
+   * default silently disables the sleeve gate above for any caller that forgets to pass it,
+   * letting a HAVING on a joined COUNT_DISTINCT/SUM/AVG through to filter on the wrong
+   * (dedup-CTE) value with no error at all. Every real caller already has the index
+   * (`validateForReport` builds it via `buildBlendedFieldIndex`) — pass an empty `Map()`
+   * explicitly for the "no blended fields" case instead of relying on a default.
    */
   validateHavingFilters(
     filters: FilterRule[],
     aggregations: AggregationRule[],
     resolveType: (column: string) => string | undefined,
-    storageType: DataStorageType
+    storageType: DataStorageType,
+    blendedFieldIndex: ReadonlyMap<string, BlendedFieldEntry>
   ): ValidationError[] {
     const errors: ValidationError[] = [];
     const aggregatedPairs = new Set(aggregations.map(a => `${a.column}\u241F${a.function}`));
@@ -187,6 +217,30 @@ export class OutputControlsValidatorService {
           code: 'HAVING_FILTER_NOT_AGGREGATED',
           column: rule.column,
           function: rule.function,
+        });
+        continue;
+      }
+      // a joined (blended) COUNT_DISTINCT/SUM/AVG is rendered in SELECT via a "sleeve"
+      // CTE computed at the report's dimension grain, to avoid the over/under-counting a plain
+      // dedup-then-re-aggregate produces across a join fan-out (see collectSleeveMetrics /
+      // SLEEVE_ROUTED_FUNCTIONS (blending/metric-sleeve.planner.ts), which this gate MUST stay
+      // in lockstep with). HAVING is NOT (yet) routed through that sleeve -- it re-derives its
+      // aggregate expression from the dedup CTE, i.e. the OLD, wrong value (see
+      // the builder throws for it too). Reject outright rather than
+      // silently filtering on a value that doesn't match what SELECT displays. A MAIN (native)
+      // column, or a joined MIN/MAX/COUNT (not sleeve-routed), is unaffected -- only fires when
+      // both the function is sleeve-routed AND the column resolves as blended.
+      if (SLEEVE_ROUTED_FUNCTIONS.has(rule.function) && blendedFieldIndex.has(rule.column)) {
+        errors.push({
+          code: 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
+          column: rule.column,
+          function: rule.function,
+          message:
+            `HAVING filter on a joined (blended) ${rule.function} column ("${rule.column}") ` +
+            'is not yet supported: the post-join filter cannot be routed through the same ' +
+            'dedup-safe computation used for the SELECT value, so it would filter on a ' +
+            'different, incorrect value. Remove this HAVING condition, or filter on a MAIN ' +
+            '(non-blended) column instead.',
         });
         continue;
       }
@@ -271,6 +325,19 @@ export class OutputControlsValidatorService {
         continue;
       }
       seenPairs.add(pairKey);
+      // An unresolvable type disables BOTH gates below, and the governance map skips the same
+      // columns the type map does (a hidden blended field is absent from both), so anything at
+      // all would pass — percentiles included, which have no type floor. `validateDateTruncs`
+      // rejects this case; be symmetric.
+      if (resolveType(rule.column) === undefined) {
+        errors.push({
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+          column: rule.column,
+          function: rule.function,
+          type: 'unknown',
+        });
+        continue;
+      }
       // Type floor: a hard SQL-validity rule (SUM/AVG only make sense on numbers) that
       // fires regardless of data-mart governance, so a bad override can't smuggle invalid SQL.
       if (rule.function === 'SUM' || rule.function === 'AVG') {
@@ -408,11 +475,24 @@ export class OutputControlsValidatorService {
     const seen = new Set<string>();
     const reported = new Set<string>();
     for (const name of names) {
-      if (seen.has(name) && !reported.has(name)) {
+      // Compared case-INSENSITIVELY: two output names differing only in case are not two
+      // columns on most warehouses. Only Snowflake quotes every identifier; the other dialects
+      // leave a safe one unquoted, and the engine then folds it (Athena, Redshift) or resolves
+      // it case-insensitively (Spark) — the query projects both under one name, a metric
+      // sleeve's join back on them is ambiguous, and a reader binding by name cannot tell them
+      // apart. Applied to every storage rather than only the folding ones: the alternative is a
+      // report that works on one warehouse and fails on the next.
+      // Also cut to the tightest warehouse identifier limit before comparing. Redshift TRUNCATES
+      // an over-long alias instead of rejecting it, so two long columns sharing a prefix come back
+      // as ONE result column — and since the reader now binds by NAME it refuses the read rather
+      // than mis-assigning values. Catching it here turns that 500 into a 400 that names the
+      // column, on every warehouse, so the same report does not depend on which one runs it.
+      const key = truncateIdentifierToByteLimit(name).toLowerCase();
+      if (seen.has(key) && !reported.has(key)) {
         errors.push({ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: name });
-        reported.add(name);
+        reported.add(key);
       }
-      seen.add(name);
+      seen.add(key);
     }
     return errors;
   }
@@ -439,7 +519,16 @@ export class OutputControlsValidatorService {
       (args.aggregationConfig?.length ?? 0) > 0 ||
       (args.dateTruncConfig?.length ?? 0) > 0 ||
       args.uniqueCountConfig === true;
-    if (!hasOutputControls) return;
+
+    if (!hasOutputControls) {
+      // Output-name uniqueness is a property of the projection alone, so it is checked even
+      // though a plain selection carries no output control — Redshift folds identifiers at read
+      // time, and a case-only pair used to persist and fail there.
+      if ((args.columnConfig?.length ?? 0) > 0) {
+        this.throwIfInvalid(this.validateOutputColumnNames(args.columnConfig!, [], false, false));
+      }
+      return;
+    }
 
     if (!this.capabilityService.isSupported(args.storageType)) {
       throw new BadRequestException({
@@ -569,13 +658,16 @@ export class OutputControlsValidatorService {
           const fieldIndex = buildBlendedFieldIndex(blendableSchema);
           errors.push(...this.validateFilters(parsedFilters, homeFieldTypes, fieldIndex));
           // HAVING rules (filters carrying a `function`) are validated against the
-          // configured aggregations + the aggregate's effective result type.
+          // configured aggregations + the aggregate's effective result type. `fieldIndex`
+          // is reused here too — it also tells validateHavingFilters which columns are
+          // BLENDED, to gate a HAVING COUNT_DISTINCT/SUM/AVG on a joined field ( sleeve gate).
           errors.push(
             ...this.validateHavingFilters(
               parsedFilters,
               parsedAggregations,
               col => homeFieldTypes.get(col),
-              args.storageType
+              args.storageType,
+              fieldIndex
             )
           );
         }
@@ -666,6 +758,10 @@ export class OutputControlsValidatorService {
       }
     }
 
+    this.throwIfInvalid(errors);
+  }
+
+  private throwIfInvalid(errors: ValidationError[]): void {
     if (errors.length > 0) {
       throw new BadRequestException({
         message: 'Output controls validation failed',
@@ -703,9 +799,14 @@ export class OutputControlsValidatorService {
     }
     for (const blended of blendableSchema.blendedFields) {
       if (blended.isHidden) continue;
+      // `blendable-schema.service` already clamps a stored override to the effective type's
+      // supported set, so this menu is legal by the time it arrives; keep the fallback for a
+      // schema assembled without that service.
       allowedByColumn.set(
         blended.name,
-        blended.postJoinAggregations ?? resolveFieldGovernance(blended.type).allowedAggregations
+        resolveFieldGovernance(blended.type, {
+          allowedAggregations: blended.postJoinAggregations,
+        }).allowedAggregations
       );
     }
     return allowedByColumn;
