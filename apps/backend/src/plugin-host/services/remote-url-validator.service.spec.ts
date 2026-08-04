@@ -23,7 +23,7 @@ function service(env: Record<string, string | undefined> = {}): RemoteUrlValidat
   );
 }
 
-/** Longest matching fragment wins, so `.well-known` beats the page it hangs off. */
+/** Longest matching fragment wins, so a specific path beats the host it hangs off. */
 function route(routes: Record<string, () => Response>) {
   fetchMock.mockImplementation((url: string) => {
     const match = Object.keys(routes)
@@ -38,11 +38,7 @@ function route(routes: Record<string, () => Response>) {
 
 const page = (headers: Record<string, string> = {}) => new Response('<html></html>', { headers });
 const redirect = (location: string) => new Response(null, { status: 302, headers: { location } });
-const descriptor = (body: unknown = { sdk: 'owox-plugin-sdk', sdkVersion: '1' }) =>
-  new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
-
 const okPlugin = {
-  '/.well-known/owox-plugin.json': () => descriptor(),
   'plugin.example.com': () => page(),
 };
 
@@ -53,7 +49,7 @@ describe('RemoteUrlValidatorService', () => {
     resolve6.mockResolvedValue([]);
   });
 
-  it('accepts a plain embeddable page that serves the sdk descriptor', async () => {
+  it('accepts a plain embeddable page', async () => {
     route(okPlugin);
 
     await expect(service().validate(PLUGIN_URL)).resolves.toEqual({
@@ -144,10 +140,7 @@ describe('RemoteUrlValidatorService', () => {
 
     it('follows a relative redirect location', async () => {
       let hop = 0;
-      route({
-        '/.well-known/owox-plugin.json': () => descriptor(),
-        'plugin.example.com': () => (hop++ === 0 ? redirect('/app/') : page()),
-      });
+      route({ 'plugin.example.com': () => (hop++ === 0 ? redirect('/app/') : page()) });
 
       await expect(service().validate(PLUGIN_URL)).resolves.toEqual({
         ok: true,
@@ -206,59 +199,6 @@ describe('RemoteUrlValidatorService', () => {
 
       await expect(service().validate(PLUGIN_URL)).resolves.toMatchObject({
         code: ReleaseRejectionCode.IFRAME_BLOCKED,
-      });
-    });
-  });
-
-  describe('sdk descriptor', () => {
-    it.each([
-      ['missing', () => new Response(null, { status: 404 })],
-      ['not json', () => new Response('<html>')],
-      ['wrong sdk', () => descriptor({ sdk: 'other', sdkVersion: '1' })],
-      ['unsupported version', () => descriptor({ sdk: 'owox-plugin-sdk', sdkVersion: '99' })],
-      ['no version', () => descriptor({ sdk: 'owox-plugin-sdk' })],
-    ])('rejects a descriptor that is %s', async (_label, responder) => {
-      route({ '/.well-known/owox-plugin.json': responder, 'plugin.example.com': () => page() });
-
-      await expect(service().validate(PLUGIN_URL)).resolves.toMatchObject({
-        code: ReleaseRejectionCode.SDK_HANDSHAKE_FAILED,
-      });
-    });
-
-    it('looks for the descriptor beside the plugin, not at the host root', async () => {
-      route({
-        '/app/.well-known/owox-plugin.json': () => descriptor(),
-        'plugin.example.com': () => page(),
-      });
-
-      await expect(service().validate('https://plugin.example.com/app/')).resolves.toMatchObject({
-        ok: true,
-      });
-    });
-
-    // The delivery URL is allowed five guarded hops; rejecting the descriptor for one
-    // would fail a vendor over ordinary CDN or trailing-slash behaviour.
-    it('follows a redirect to the descriptor, as the delivery URL is allowed to', async () => {
-      route({
-        '/.well-known/owox-plugin.json': () => redirect('https://cdn.example.com/owox-plugin.json'),
-        'cdn.example.com/owox-plugin.json': () => descriptor(),
-        'plugin.example.com': () => page(),
-      });
-
-      await expect(service().validate(PLUGIN_URL)).resolves.toMatchObject({ ok: true });
-    });
-
-    it('still guards every descriptor hop', async () => {
-      route({
-        '/.well-known/owox-plugin.json': () => redirect('https://internal.example/descriptor.json'),
-        'plugin.example.com': () => page(),
-      });
-      resolve4.mockImplementation((host: string) =>
-        Promise.resolve(host === 'internal.example' ? ['10.0.0.5'] : ['93.184.216.34'])
-      );
-
-      await expect(service().validate(PLUGIN_URL)).resolves.toMatchObject({
-        code: ReleaseRejectionCode.URL_PRIVATE_NETWORK,
       });
     });
   });

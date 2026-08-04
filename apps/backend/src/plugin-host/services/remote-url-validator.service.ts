@@ -9,7 +9,6 @@ export type RemoteUrlCheckResult =
   | { readonly ok: true; readonly finalUrl: string }
   | { readonly ok: false; readonly code: ReleaseRejectionCode; readonly detail: string };
 
-const SDK_DESCRIPTOR_PATH = '.well-known/owox-plugin.json';
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /**
@@ -17,11 +16,6 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
  * retrying five redirect hops three times each turns one publish into fifteen requests.
  */
 const PROBE_ATTEMPTS = 1;
-
-interface DescriptorBody {
-  sdk?: unknown;
-  sdkVersion?: unknown;
-}
 
 /** What a guarded redirect walk ends on: the first non-redirect response, or why it stopped. */
 type WalkResult =
@@ -65,16 +59,15 @@ export class RemoteUrlValidatorService {
       return this.reject(ReleaseRejectionCode.IFRAME_BLOCKED, blocked);
     }
 
-    return this.checkDescriptor(walked.finalUrl);
+    return { ok: true, finalUrl: walked.finalUrl };
   }
 
   /**
    * Follows redirects with `guard()` on every hop, because `probe()` is deliberately manual.
    *
-   * Shared by the delivery URL and the descriptor beside it: leaving the descriptor on a
-   * bare probe rejected a vendor for hosting behaviour -- trailing-slash normalisation, an
-   * http→https upgrade, a CDN hop -- that the delivery URL is allowed to redirect through.
-   * `code` names what an unusable redirect means for each caller.
+   * Trailing-slash normalisation, an http→https upgrade and a CDN hop are ordinary hosting
+   * behaviour, so a delivery URL is allowed to arrive through them -- as long as every hop
+   * is re-checked. `code` names what an unusable redirect means to the caller.
    */
   private async walk(rawUrl: string, code: ReleaseRejectionCode): Promise<WalkResult> {
     let currentUrl = rawUrl;
@@ -153,7 +146,7 @@ export class RemoteUrlValidatorService {
 
   /**
    * The only way this service reaches the network, so the guarded dispatcher here covers
-   * every redirect hop and the descriptor request without either having to ask for it.
+   * every redirect hop without any caller having to ask for it.
    */
   private probe(url: string): Promise<Response> {
     return fetchWithBackoff(
@@ -215,59 +208,6 @@ export class RemoteUrlValidatorService {
     } catch {
       return false;
     }
-  }
-
-  /**
-   * Publish-time stand-in for the real in-iframe handshake.
-   *
-   * Verifying the live postMessage bootstrap server-side would need a headless browser;
-   * a descriptor is the publisher declaring intent, and a live handshake failure shows
-   * up as a plugin-load error rather than as corrupted data.
-   */
-  private async checkDescriptor(finalUrl: string): Promise<RemoteUrlCheckResult> {
-    // Resolved beside the plugin rather than at the host root, so a vendor on shared
-    // hosting can serve it without owning the domain apex.
-    const base = finalUrl.endsWith('/') ? finalUrl : `${finalUrl}/`;
-    const descriptorUrl = new URL(SDK_DESCRIPTOR_PATH, base).toString();
-
-    const walked = await this.walk(descriptorUrl, ReleaseRejectionCode.SDK_HANDSHAKE_FAILED);
-    if (!walked.ok) {
-      return walked.rejection;
-    }
-
-    const response = walked.response;
-    if (!response.ok) {
-      return this.reject(
-        ReleaseRejectionCode.SDK_HANDSHAKE_FAILED,
-        `${descriptorUrl} returned HTTP ${response.status}`
-      );
-    }
-
-    let body: DescriptorBody;
-    try {
-      body = (await response.json()) as DescriptorBody;
-    } catch {
-      return this.reject(ReleaseRejectionCode.SDK_HANDSHAKE_FAILED, `${descriptorUrl} is not JSON`);
-    }
-
-    if (body?.sdk !== 'owox-plugin-sdk') {
-      return this.reject(
-        ReleaseRejectionCode.SDK_HANDSHAKE_FAILED,
-        `${descriptorUrl} does not identify an OWOX plugin`
-      );
-    }
-
-    if (
-      typeof body.sdkVersion !== 'string' ||
-      !this.config.supportedSdkVersions.includes(body.sdkVersion)
-    ) {
-      return this.reject(
-        ReleaseRejectionCode.SDK_HANDSHAKE_FAILED,
-        `SDK version ${String(body.sdkVersion)} is not supported by this deployment`
-      );
-    }
-
-    return { ok: true, finalUrl };
   }
 
   private reject(code: ReleaseRejectionCode, detail: string): RemoteUrlCheckResult {

@@ -24,7 +24,6 @@ export enum ReleaseRejectionCode {
   URL_PRIVATE_NETWORK = 'URL_PRIVATE_NETWORK',
   URL_UNREACHABLE = 'URL_UNREACHABLE',
   IFRAME_BLOCKED = 'IFRAME_BLOCKED',
-  SDK_HANDSHAKE_FAILED = 'SDK_HANDSHAKE_FAILED',
   /** This SemVer is already recorded against a different Release or commit. */
   VERSION_CONFLICT = 'VERSION_CONFLICT',
 }

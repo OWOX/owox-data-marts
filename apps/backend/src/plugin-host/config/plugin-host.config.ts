@@ -13,9 +13,6 @@ const DEFAULT_REMOTE_PROBE_TIMEOUT_MS = 8_000;
 /** Redirect hops followed while validating a delivery URL. Not configurable. */
 const MAX_REDIRECT_HOPS = 5;
 
-/** Plugin SDK descriptor versions this deployment can host. */
-const SUPPORTED_SDK_VERSIONS = ['1'] as const;
-
 @Injectable()
 export class PluginHostConfigService {
   constructor(private readonly config: ConfigService) {}
@@ -75,10 +72,6 @@ export class PluginHostConfigService {
 
   get maxRedirectHops(): number {
     return MAX_REDIRECT_HOPS;
-  }
-
-  get supportedSdkVersions(): readonly string[] {
-    return SUPPORTED_SDK_VERSIONS;
   }
 
   /**
