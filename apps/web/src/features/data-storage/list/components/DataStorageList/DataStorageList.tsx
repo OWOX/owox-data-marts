@@ -7,7 +7,7 @@ import { DataStorageConfigSheet } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
-import { usePublishDraftsTrigger } from '../../../shared/hooks/usePublishDraftsTrigger.ts';
+import { usePublishDraftsTrigger } from '../../../shared/hooks/usePublishDraftsTrigger.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import {
   DataStorageTable,
@@ -51,6 +51,7 @@ export const DataStorageList = ({
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [storageToPublish, setStorageToPublish] = useState<{
     id: string;
+    title: string;
     draftDataMartsCount: number;
   } | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
@@ -166,7 +167,11 @@ export const DataStorageList = ({
       return;
     }
 
-    setStorageToPublish({ id: storage.id, draftDataMartsCount: storage.draftDataMartsCount });
+    setStorageToPublish({
+      id: storage.id,
+      title: storage.title,
+      draftDataMartsCount: storage.draftDataMartsCount,
+    });
     setPublishDialogOpen(true);
   };
 
@@ -184,11 +189,12 @@ export const DataStorageList = ({
     }
 
     const storageId = storageToPublish.id;
+    const storageTitle = storageToPublish.title;
     setPublishDialogOpen(false);
     setStorageToPublish(null);
 
     void (async () => {
-      await runPublishDraftsTrigger(storageId);
+      await runPublishDraftsTrigger(storageId, storageTitle);
     })();
   };
 

@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { Request } from 'express';
 import {
   AuthenticationError,
@@ -49,6 +55,8 @@ const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 @Injectable()
 export class IdpGuard implements CanActivate {
+  private readonly logger = new Logger(IdpGuard.name);
+
   constructor(
     private reflector: Reflector,
     private idpProviderService: IdpProviderService,
@@ -136,6 +144,10 @@ export class IdpGuard implements CanActivate {
       if (error instanceof UnauthorizedException || error instanceof AuthorizationError) {
         throw error;
       }
+      this.logger.warn(
+        `Authentication failed for ${request.method} ${request.originalUrl ?? request.url}: ` +
+          (error instanceof Error ? (error.stack ?? error.message) : String(error))
+      );
       throw new AuthenticationError('Authentication failed');
     }
 

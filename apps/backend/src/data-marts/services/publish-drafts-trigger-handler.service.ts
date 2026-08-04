@@ -40,6 +40,7 @@ export class PublishDraftsTriggerHandlerService
       trigger.uiResponse = {
         successCount: result.successCount,
         failedCount: result.failedCount,
+        failures: result.failures,
       };
       trigger.onSuccess();
       await this.repository.save(trigger);

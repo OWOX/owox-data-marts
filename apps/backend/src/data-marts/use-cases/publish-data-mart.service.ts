@@ -42,16 +42,16 @@ export class PublishDataMartService {
         command.projectId
       );
       if (!canEdit) {
-        throw new ForbiddenException('You do not have permission to publish this DataMart');
+        throw new ForbiddenException('You do not have permission to publish this Data Mart');
       }
     }
 
     if (dataMart.status !== DataMartStatus.DRAFT) {
-      throw new BusinessViolationException(`DataMart is not in ${DataMartStatus.DRAFT} status`);
+      throw new BusinessViolationException('Data Mart is already published');
     }
 
     if (!dataMart.definition || !dataMart.definitionType) {
-      throw new BusinessViolationException('DataMart has no definition');
+      throw new BusinessViolationException('Data Mart has no definition');
     }
 
     if (dataMart.definitionType !== DataMartDefinitionType.SQL) {

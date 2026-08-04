@@ -332,13 +332,11 @@ export class DataMartService {
       .then(dms => dms.map(dm => dm.id));
   }
 
-  async findDraftIdsByStorage(storage: DataStorage): Promise<string[]> {
-    return this.dataMartRepository
-      .find({
-        where: { storage: { id: storage.id }, status: DataMartStatus.DRAFT },
-        select: ['id'],
-      })
-      .then(dms => dms.map(dm => dm.id));
+  async findDraftsByStorage(storage: DataStorage): Promise<Pick<DataMart, 'id' | 'title'>[]> {
+    return this.dataMartRepository.find({
+      where: { storage: { id: storage.id }, status: DataMartStatus.DRAFT },
+      select: ['id', 'title'],
+    });
   }
 
   async softDeleteByIdAndProjectId(id: string, projectId: string): Promise<void> {

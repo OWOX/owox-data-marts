@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
+import { PublishDraftFailureDto } from '../dto/domain/publish-draft-failure.dto';
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
@@ -19,7 +21,8 @@ export class PublishDataStorageDraftsService {
     private readonly dataMartService: DataMartService,
     private readonly publishDataMartService: PublishDataMartService,
     private readonly schemaActualizeTriggerService: SchemaActualizeTriggerService,
-    private readonly validateDataStorageAccessService: ValidateDataStorageAccessService
+    private readonly validateDataStorageAccessService: ValidateDataStorageAccessService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   async run(command: PublishDataStorageDraftsCommand): Promise<PublishDataStorageDraftsResultDto> {
@@ -42,27 +45,48 @@ export class PublishDataStorageDraftsService {
       );
     }
 
-    const draftIds = await this.dataMartService.findDraftIdsByStorage(dataStorage);
+    const drafts = await this.dataMartService.findDraftsByStorage(dataStorage);
+
+    // The trigger is processed asynchronously with no live request/JWT, so the
+    // publisher's roles (needed for the per-draft EDIT check) must be resolved
+    // fresh here rather than reused from trigger-creation time.
+    const roles = command.userId
+      ? ((await this.idpProjectionsFacade.getProjectForUser(command.userId, command.projectId))
+          .roles ?? [])
+      : [];
 
     let successCount = 0;
     let failedCount = 0;
+    const failures: PublishDraftFailureDto[] = [];
 
-    for (const draftId of draftIds) {
+    for (const draft of drafts) {
       try {
         await this.publishDataMartService.run(
-          new PublishDataMartCommand(draftId, command.projectId, command.userId, [], command.userId)
+          new PublishDataMartCommand(
+            draft.id,
+            command.projectId,
+            command.userId,
+            roles,
+            command.userId
+          )
         );
         await this.schemaActualizeTriggerService.createTrigger(
           command.userId,
           command.projectId,
-          draftId
+          draft.id
         );
         ++successCount;
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Failed to publish draft ${draft.id}: ` +
+            (error instanceof Error ? (error.stack ?? error.message) : String(error))
+        );
+        failures.push(new PublishDraftFailureDto(draft.id, draft.title, message));
         ++failedCount;
       }
     }
 
-    return new PublishDataStorageDraftsResultDto(successCount, failedCount);
+    return new PublishDataStorageDraftsResultDto(successCount, failedCount, failures);
   }
 }
