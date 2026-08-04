@@ -182,14 +182,16 @@ describe('GithubApiService', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('never pages past the configured cap', async () => {
+    // One page, and not configurable: a sync stops at the newest release that validates,
+    // so a second page could only hold versions that cannot become current.
+    it('never pages past the cap', async () => {
       const full = Array.from({ length: 100 }, (_, i) => release(i, `v1.0.${i}`));
       route({ '/releases': () => json(full) });
 
-      const releases = await service({ PLUGIN_HOST_MAX_RELEASE_PAGES: '2' }).listReleases(REF);
+      const releases = await service().listReleases(REF);
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(releases).toHaveLength(200);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(releases).toHaveLength(100);
     });
   });
 

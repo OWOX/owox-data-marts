@@ -221,25 +221,24 @@ See also: mysql2 official SSL documentation — <https://sidorares.github.io/nod
 Plugins are third-party web apps embedded in a sandboxed iframe. These variables control
 who may publish them and how OWOX Data Marts reads their GitHub sources.
 
-| Variable                                                     | Purpose                                                                                                                                                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`               | Comma-separated API key IDs allowed to publish, suspend and resume plugins for the whole deployment.                                                                                        |
-| `GITHUB_TOKEN`                                               | Read-only, fine-grained PAT for reading private plugin repositories. Self-managed deployments.                                                                                              |
-| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY` | [OWOX Data Marts GitHub App](https://github.com/apps/owox-data-marts) credentials, for reading private repositories in the cloud. Required together.                                        |
-| `GITHUB_API_BASE_URL`                                        | GitHub REST base URL. Override only for GitHub Enterprise.                                                                                                                                  |
-| `PLUGIN_HOST_PUBLIC_ORIGIN`                                  | This deployment's public origin, so a vendor allowlisting it in `frame-ancestors` is accepted.                                                                                              |
-| `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`                          | Minimum seconds between two synchronizations of the same plugin. Default `300`.                                                                                                             |
-| `PLUGIN_HOST_MAX_RELEASE_PAGES`                              | Pages of GitHub releases read per sync, 100 per page. Default `1` — a sync stops at the newest release that validates, so further pages hold only versions that could never become current. |
-| `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`                        | Timeout for probing a plugin's delivery URL. Default `8000`.                                                                                                                                |
+| Variable                                                     | Purpose                                                                                                                                              |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`               | Comma-separated API key IDs allowed to publish, suspend and resume plugins for the whole deployment.                                                 |
+| `GITHUB_TOKEN`                                               | Read-only, fine-grained PAT for reading private plugin repositories. Self-managed deployments.                                                       |
+| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY` | [OWOX Data Marts GitHub App](https://github.com/apps/owox-data-marts) credentials, for reading private repositories in the cloud. Required together. |
+| `GITHUB_API_BASE_URL`                                        | GitHub REST base URL. Override only for GitHub Enterprise.                                                                                           |
+| `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`                          | Minimum seconds between two synchronizations of the same plugin. Default `300`.                                                                      |
+| `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`                        | Timeout for probing a plugin's delivery URL. Default `8000`.                                                                                         |
 
 The publisher allowlist **is** the authorization model for deployment-scope publishing —
 it stands in for an administration panel that is deliberately not built. An unset or blank
 value denies everyone; it never means "any key". A Project Admin without an allowlisted key
 can still publish to their own project, and any member can publish for themselves.
 
-Without `PLUGIN_HOST_PUBLIC_ORIGIN`, a vendor who correctly names your origin in a
-`Content-Security-Policy: frame-ancestors` directive is still rejected, because the server
-has no way to know what that origin is.
+A vendor may name your origin in a `Content-Security-Policy: frame-ancestors` directive
+instead of allowing `*` or `https:`. The origin compared against is `PUBLIC_ORIGIN`, the
+same value the rest of the deployment uses — the page that embeds a plugin is served from
+it, so a plugin-specific copy could only drift away from the real one.
 
 GitHub access falls back in order: App installation token, then `GITHUB_TOKEN`, then
 anonymous. Public repositories need no credential at all, and an App configured but not
