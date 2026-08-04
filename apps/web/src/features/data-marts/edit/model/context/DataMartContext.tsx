@@ -394,6 +394,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           context: id,
           error: apiError.message,
         });
+        // Rethrown so the caller can tell a rejected save from a successful one — the definition
+        // form must keep the user's input and skip schema actualization when nothing was saved.
+        throw error;
       }
     },
     [state.dataMart?.storage.id]

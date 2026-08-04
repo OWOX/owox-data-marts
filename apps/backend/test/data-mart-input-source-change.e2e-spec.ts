@@ -97,15 +97,19 @@ describe('Data Mart input source change (e2e)', () => {
       });
     expect(outboundRes.status).toBe(201);
 
-    const inboundRes = await agent
-      .post(`/api/data-marts/${neighbourId}/relationships`)
-      .set(AUTH_HEADER)
-      .send({
-        targetDataMartId: subjectId,
-        targetAlias: 'subject',
-        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
-      });
-    expect(inboundRes.status).toBe(201);
+    // Two inbound relationships from the SAME source under different aliases: the unique key is
+    // source + alias, so each row is its own dependency and must be counted separately.
+    for (const alias of ['subject', 'subject_secondary']) {
+      const inboundRes = await agent
+        .post(`/api/data-marts/${neighbourId}/relationships`)
+        .set(AUTH_HEADER)
+        .send({
+          targetDataMartId: subjectId,
+          targetAlias: alias,
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+        });
+      expect(inboundRes.status).toBe(201);
+    }
 
     const destRes = await agent
       .post('/api/data-destinations')
@@ -153,14 +157,15 @@ describe('Data Mart input source change (e2e)', () => {
     expect(reportAfter.status).toBe(200);
     expect(reportAfter.body.dataMart.id).toBe(subjectId);
 
-    // The impact endpoint reports the real counts, including the report.
+    // The impact endpoint reports the real counts, including the report. Inbound is 2 — one
+    // source joining under two aliases is two dependencies, not one.
     const impact = await agent
       .get(`/api/data-marts/${subjectId}/input-source-change-impact`)
       .set(AUTH_HEADER);
     expect(impact.status).toBe(200);
     expect(impact.body).toEqual({
       outboundRelationshipsCount: 1,
-      inboundRelationshipsCount: 1,
+      inboundRelationshipsCount: 2,
       reportsCount: 1,
     });
   });

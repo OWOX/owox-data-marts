@@ -38,19 +38,14 @@ export class GetDataMartInputSourceChangeImpactService {
       }
     }
 
-    const [outbound, inboundSourceIds, reportsCount] = await Promise.all([
+    // Inbound is a row count, not distinct sources: one source may join this data mart under
+    // several aliases, and every one of those joins depends on this data mart's fields.
+    const [outbound, inboundCount, reportsCount] = await Promise.all([
       this.relationshipService.findBySourceDataMartId(command.id),
-      this.relationshipService.findSourceDataMartIdsByTargetDataMartId(
-        command.id,
-        command.projectId
-      ),
+      this.relationshipService.countByTargetDataMartId(command.id, command.projectId),
       this.reportService.countByDataMartIdAndProjectId(command.id, command.projectId),
     ]);
 
-    return new DataMartInputSourceChangeImpactDto(
-      outbound.length,
-      inboundSourceIds.length,
-      reportsCount
-    );
+    return new DataMartInputSourceChangeImpactDto(outbound.length, inboundCount, reportsCount);
   }
 }

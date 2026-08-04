@@ -254,4 +254,47 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
     });
     expect(screen.queryByText(/Change input source from/)).not.toBeInTheDocument();
   });
+
+  it('keeps the entered definition and skips schema actualization when the backend rejects the change', async () => {
+    testState.updateDataMartDefinition.mockRejectedValue(new Error('Syntax error near FROM'));
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.VIEW);
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select from' } });
+    await clickSaveWhenEnabled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Change input source' }));
+
+    await waitFor(() => {
+      expect(testState.updateDataMartDefinition).toHaveBeenCalled();
+    });
+
+    // The rejected save must not wipe what the user typed, and must not refresh the schema of a
+    // Data Mart whose definition never changed.
+    expect(screen.getByLabelText('SQL query')).toHaveValue('select from');
+    expect(testState.runSchemaActualization).not.toHaveBeenCalled();
+  });
+
+  it('reports an unknown impact as unknown, never as zero dependencies', async () => {
+    testState.getInputSourceChangeImpact.mockRejectedValue(new Error('Network error'));
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.VIEW);
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
+    await clickSaveWhenEnabled();
+
+    expect(
+      await screen.findByText(/Couldn’t check what depends on this Data Mart/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing else depends on this Data Mart/)).not.toBeInTheDocument();
+
+    // Retry turns a later successful read into real counts.
+    testState.getInputSourceChangeImpact.mockResolvedValue({
+      outboundRelationshipsCount: 0,
+      inboundRelationshipsCount: 2,
+      reportsCount: 0,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'try again' }));
+
+    expect(
+      await screen.findByText('2 relationships depend on this Data Mart.')
+    ).toBeInTheDocument();
+  });
 });

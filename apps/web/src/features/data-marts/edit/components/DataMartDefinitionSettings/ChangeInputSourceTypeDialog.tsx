@@ -25,6 +25,9 @@ interface ChangeInputSourceTypeDialogProps {
   toType: DataMartDefinitionType;
   impact: InputSourceChangeImpact | null;
   isLoadingImpact: boolean;
+  /** The impact read failed — dependencies are unknown, not zero. */
+  impactFailed: boolean;
+  onRetryImpact: () => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -57,6 +60,8 @@ export function ChangeInputSourceTypeDialog({
   toType,
   impact,
   isLoadingImpact,
+  impactFailed,
+  onRetryImpact,
   onConfirm,
   onCancel,
 }: ChangeInputSourceTypeDialogProps) {
@@ -83,13 +88,25 @@ export function ChangeInputSourceTypeDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <p className='text-muted-foreground text-sm'>
-          {isLoadingImpact
-            ? 'Checking what depends on this Data Mart…'
-            : dependants
+        {/* A failed read is "unknown", never "zero": the reassuring copy is reserved for a
+            successful response that actually counted nothing. */}
+        {isLoadingImpact ? (
+          <p className='text-muted-foreground text-sm'>Checking what depends on this Data Mart…</p>
+        ) : impactFailed ? (
+          <p className='text-muted-foreground text-sm'>
+            Couldn’t check what depends on this Data Mart. You can still proceed, or{' '}
+            <button type='button' className='underline underline-offset-2' onClick={onRetryImpact}>
+              try again
+            </button>
+            .
+          </p>
+        ) : impact ? (
+          <p className='text-muted-foreground text-sm'>
+            {dependants
               ? `${dependants} depend on this Data Mart.`
               : 'Nothing else depends on this Data Mart yet.'}
-        </p>
+          </p>
+        ) : null}
 
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

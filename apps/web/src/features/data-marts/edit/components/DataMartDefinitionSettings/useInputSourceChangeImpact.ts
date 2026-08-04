@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dataMartService } from '../../../shared';
 
 export interface InputSourceChangeImpact {
@@ -12,6 +12,12 @@ export interface InputSourceChangeImpact {
 interface UseInputSourceChangeImpactResult {
   impact: InputSourceChangeImpact | null;
   isLoading: boolean;
+  /**
+   * True when the read failed. Distinct from `impact === null` while loading: a failure must
+   * never be presented as "nothing depends on this Data Mart".
+   */
+  hasError: boolean;
+  retry: () => void;
 }
 
 /**
@@ -28,6 +34,13 @@ export function useInputSourceChangeImpact(
 ): UseInputSourceChangeImpactResult {
   const [impact, setImpact] = useState<InputSourceChangeImpact | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  // Incremented by retry; a new value re-arms the fetch effect.
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setAttempt(current => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) {
@@ -36,6 +49,7 @@ export function useInputSourceChangeImpact(
 
     const abortController = new AbortController();
     setIsLoading(true);
+    setHasError(false);
 
     dataMartService
       .getInputSourceChangeImpact(dataMartId, { signal: abortController.signal })
@@ -47,10 +61,13 @@ export function useInputSourceChangeImpact(
         });
       })
       .catch(() => {
-        // Counts are advisory. A failed read must not block the user from confirming, so the
-        // dialog goes without them rather than inventing zeros, which would read as "nothing
-        // depends on this Data Mart".
+        if (abortController.signal.aborted) {
+          return;
+        }
+        // Counts are advisory, so a failed read must not block confirmation — but it must be
+        // reported as unknown, never rendered as zero dependencies.
         setImpact(null);
+        setHasError(true);
       })
       .finally(() => {
         if (!abortController.signal.aborted) {
@@ -61,7 +78,7 @@ export function useInputSourceChangeImpact(
     return () => {
       abortController.abort();
     };
-  }, [dataMartId, enabled]);
+  }, [dataMartId, enabled, attempt]);
 
-  return { impact, isLoading };
+  return { impact, isLoading, hasError, retry };
 }

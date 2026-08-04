@@ -94,10 +94,12 @@ export function DataMartDefinitionSettings({
     storageType !== DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
     (!initialDefinitionType || initialDefinitionType !== DataMartDefinitionType.CONNECTOR);
 
-  const { impact, isLoading: isLoadingImpact } = useInputSourceChangeImpact(
-    dataMartId,
-    pendingTypeChange !== null
-  );
+  const {
+    impact,
+    isLoading: isLoadingImpact,
+    hasError: impactFailed,
+    retry: retryImpact,
+  } = useInputSourceChangeImpact(dataMartId, pendingTypeChange !== null);
 
   const getInitialFormValues = useCallback((): DataMartDefinitionFormData | undefined => {
     if (!definitionType) return undefined;
@@ -340,6 +342,8 @@ export function DataMartDefinitionSettings({
             toType={pendingTypeChange.definitionType}
             impact={impact}
             isLoadingImpact={isLoadingImpact}
+            impactFailed={impactFailed}
+            onRetryImpact={retryImpact}
             onConfirm={handleConfirmTypeChange}
             onCancel={() => {
               setPendingTypeChange(null);
