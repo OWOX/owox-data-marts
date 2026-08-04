@@ -23,7 +23,7 @@ describe('FailedDraftsToast', () => {
       'Failed to publish 2 Data Mart drafts: Data Mart has no definition.'
     );
 
-    const link = screen.getByRole('link', { name: 'Check them' });
+    const link = screen.getByRole('link', { name: 'Review them' });
     const href = link.getAttribute('href') ?? '';
     expect(href.startsWith('/ui/project-1/data-marts?')).toBe(true);
     const filters: unknown = JSON.parse(

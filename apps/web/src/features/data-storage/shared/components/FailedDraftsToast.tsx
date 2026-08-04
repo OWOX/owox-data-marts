@@ -36,7 +36,7 @@ export function FailedDraftsToast({
           toast.dismiss(`${triggerId}-error`);
         }}
       >
-        Check them
+        Review them
       </Link>{' '}
       and try again.
     </span>
