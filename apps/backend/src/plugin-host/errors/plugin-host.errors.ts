@@ -41,7 +41,7 @@ export class GithubRepoNotFoundError extends PluginHostError {
 }
 
 /**
- * The repository exists but the OWOX GitHub App is not installed on it.
+ * The repository exists but the OWOX Data Marts GitHub App is not installed on it.
  *
  * Carries the actionable installation URL the spec requires: the CLI prints it and
  * asks the publisher to rerun the same command once access is granted.
@@ -52,7 +52,7 @@ export class GithubRepoNotAccessibleError extends PluginHostError {
   constructor(owner: string, name: string, installationUrl: string) {
     super(
       'GITHUB_REPO_NOT_ACCESSIBLE',
-      `OWOX cannot read ${owner}/${name}. Install the OWOX GitHub App on it and run the same command again.`,
+      `OWOX Data Marts cannot read ${owner}/${name}. Install the OWOX Data Marts GitHub App on it and run the same command again.`,
       { owner, name, installationUrl }
     );
   }

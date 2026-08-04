@@ -6,7 +6,7 @@
  * to ordinary members -- it is source diagnostics.
  */
 export enum GithubAccessMode {
-  /** Short-lived installation token minted from the OWOX GitHub App. */
+  /** Short-lived installation token minted from the OWOX Data Marts GitHub App. */
   APP = 'app',
   /** Deployment-configured GITHUB_TOKEN, self-managed installs. */
   SERVER_TOKEN = 'server-token',
