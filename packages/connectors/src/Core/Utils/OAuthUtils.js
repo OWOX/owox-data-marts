@@ -53,9 +53,6 @@ var OAuthUtils = {
 
       return json.access_token;
     } catch (error) {
-      if (signal?.aborted) {
-        throw signal.reason || error;
-      }
       const wrapped = new Error(`Failed to get access token: ${error.message}`);
       wrapped.isWarning = error.isWarning;
       throw wrapped;
