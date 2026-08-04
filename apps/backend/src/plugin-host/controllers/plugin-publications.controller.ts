@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, type AuthorizationContext } from '../../idp';
+import { Auth, AuthContext, type AuthorizationContext, RejectPluginAuth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import {
   PublicationResponseApiDto,
@@ -22,6 +22,10 @@ import { UnpublishPluginService } from '../use-cases/unpublish-plugin.service';
  */
 @ApiTags('Plugins')
 @Controller('plugins/publications')
+// A plugin runtime token never manages publications: publishing, unpublishing and even
+// listing what a member may manage are the member's decisions, not the third-party page's.
+// The api-key path stays open, since owox-ctl drives these under a publisher key.
+@RejectPluginAuth()
 export class PluginPublicationsController {
   constructor(
     private readonly publishPluginService: PublishPluginService,

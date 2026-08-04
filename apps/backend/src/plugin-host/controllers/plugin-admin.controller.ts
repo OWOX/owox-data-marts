@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, type AuthorizationContext } from '../../idp';
+import { Auth, AuthContext, type AuthorizationContext, RejectPluginAuth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import {
   PluginSuspensionResponseApiDto,
@@ -19,6 +19,10 @@ import { SuspendPluginService } from '../use-cases/suspend-plugin.service';
  */
 @ApiTags('Plugins')
 @Controller('plugins')
+// Suspend and resume are deployment-publisher operations; a plugin runtime token is refused
+// here as well as by the publisher-key check, so the refusal is a guard decision, not a
+// deeper one.
+@RejectPluginAuth()
 export class PluginAdminController {
   constructor(
     private readonly suspendPluginService: SuspendPluginService,

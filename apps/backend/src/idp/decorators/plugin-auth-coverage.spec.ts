@@ -84,4 +84,48 @@ describe('plugin runtime token coverage', () => {
       ).toContain('@RejectPluginAuth()');
     }
   });
+
+  /**
+   * The blind spot the pairing rule above could not see.
+   *
+   * Publishing runs under an API key -- `owox-ctl` drives it -- so those controllers carry
+   * no `@RejectApiKeyAuth` for the pairing rule to mirror. Nothing then forced a
+   * `@RejectPluginAuth`, and a plugin could publish and unpublish on the member's behalf:
+   * a manual probe caught `POST /api/plugins/publications` succeeding from inside a plugin.
+   *
+   * The invariant that does hold: every state-changing route a plugin can reach must refuse
+   * a plugin runtime token, class-level or per-handler. Reads (the Gallery, a plugin page,
+   * a member's own installation list) are the authority `ctx.owox` legitimately carries and
+   * stay open by omission.
+   */
+  const PLUGIN_HOST_CONTROLLERS = controllerFiles().filter(file =>
+    file.includes(join('plugin-host', 'controllers'))
+  );
+
+  const WRITE_DECORATOR = /^\s*@(Post|Put|Patch|Delete)\(/;
+
+  it.each(PLUGIN_HOST_CONTROLLERS.map(f => [f.slice(SRC.length + 1), readFileSync(f, 'utf8')]))(
+    '%s refuses a plugin runtime token on every write route',
+    (_name, source) => {
+      const lines = source.split('\n');
+      const classGuarded = lines.some(
+        (line, i) =>
+          line.trim() === '@RejectPluginAuth()' &&
+          lines.slice(i + 1, i + 6).some(l => l.startsWith('export class'))
+      );
+      if (classGuarded) {
+        return;
+      }
+
+      lines.forEach((line, index) => {
+        if (!WRITE_DECORATOR.test(line)) {
+          return;
+        }
+        // The decorator block sits above the route decorator; a guarded route has
+        // @RejectPluginAuth within it.
+        const block = lines.slice(Math.max(0, index - 12), index + 1).join('\n');
+        expect(block).toContain('@RejectPluginAuth()');
+      });
+    }
+  );
 });
