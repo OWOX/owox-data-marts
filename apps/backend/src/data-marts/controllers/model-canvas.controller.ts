@@ -1,13 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  AllowPluginAuth,
-  Auth,
-  AuthContext,
-  AuthorizationContext,
-  Role,
-  Strategy,
-} from '../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { GetModelCanvasDataMartsQueryApiDto } from '../dto/presentation/get-model-canvas-data-marts-query-api.dto';
 import { GetModelCanvasEdgesQueryApiDto } from '../dto/presentation/get-model-canvas-edges-query-api.dto';
 import {
@@ -29,7 +22,6 @@ export class ModelCanvasController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @AllowPluginAuth()
   @Get('data-marts')
   @GetModelCanvasDataMartsSpec()
   async getDataMarts(
@@ -42,7 +34,6 @@ export class ModelCanvasController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @AllowPluginAuth()
   @Get('edges')
   @GetModelCanvasEdgesSpec()
   async getEdges(

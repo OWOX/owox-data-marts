@@ -6,7 +6,6 @@ jest.mock('../decorators', () => ({
   __esModule: true,
   Auth: () => () => undefined,
   AuthContext: () => () => undefined,
-  AllowPluginAuth: () => () => undefined,
 }));
 
 import { AuthContextController } from './auth-context.controller';

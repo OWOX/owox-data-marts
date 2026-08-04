@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AllowPluginAuth, Auth, AuthContext, AuthorizationContext } from '../../idp';
+import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { ProjectSetupProgressResponseApiDto } from '../dto/presentation/project-setup-progress-response-api.dto';
 import { ProjectSetupProgressMapper } from '../mappers/project-setup-progress.mapper';
@@ -15,7 +15,6 @@ export class ProjectSetupProgressController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @AllowPluginAuth()
   @Get()
   @ApiOperation({ summary: 'Get project setup progress' })
   @ApiOkResponse({

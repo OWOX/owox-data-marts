@@ -14,7 +14,6 @@ jest.mock('../../idp', () => ({
   __esModule: true,
   Auth: () => () => undefined,
   AuthContext: () => () => undefined,
-  AllowPluginAuth: () => () => undefined,
   ViewOnlySafe: () => () => undefined,
   Role: {
     admin: jest.fn(),

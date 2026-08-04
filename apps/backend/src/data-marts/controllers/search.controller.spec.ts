@@ -3,7 +3,6 @@ jest.mock('../../idp', () => {
   return {
     Auth: noop,
     AuthContext: noop,
-    AllowPluginAuth: noop,
     Role: { viewer: () => ({ role: 'viewer', strategy: 'parse' }) },
     Strategy: { PARSE: 'parse', INTROSPECT: 'introspect' },
   };

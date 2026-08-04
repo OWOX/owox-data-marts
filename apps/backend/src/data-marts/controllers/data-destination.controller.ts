@@ -26,11 +26,11 @@ import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-de
 import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import {
-  AllowPluginAuth,
   Auth,
   AuthContext,
   AuthorizationContext,
   RejectApiKeyAuth,
+  RejectPluginAuth,
 } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
@@ -135,6 +135,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post('connect/google-sheets')
   @CreateConnectGoogleSheetsDestinationSpec()
   async createConnectGoogleSheets(
@@ -172,7 +173,6 @@ export class DataDestinationController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @AllowPluginAuth()
   @Get()
   @ListDataDestinationsSpec()
   async getAll(
@@ -189,6 +189,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get('oauth/settings')
   @OAuthSettingsSpec()
   async getOAuthSettings(): Promise<GoogleOAuthSettingsResponseDto> {
@@ -197,6 +198,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get('oauth/credential-status/:credentialId')
   @OAuthCredentialStatusSpec()
   async getOAuthCredentialStatus(
@@ -209,6 +211,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post('oauth/authorize')
   @HttpCode(200)
   @OAuthAuthorizeSpec()
@@ -222,6 +225,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post('oauth/exchange')
   @HttpCode(200)
   @OAuthExchangeSpec()
@@ -292,6 +296,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post(':id/oauth/authorize')
   @HttpCode(200)
   @OAuthAuthorizeSpec(true)
@@ -307,6 +312,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get(':id/oauth/status')
   @OAuthStatusSpec()
   async getOAuthStatus(
@@ -320,6 +326,7 @@ export class DataDestinationController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Delete(':id/oauth')
   @HttpCode(204)
   @OAuthRevokeSpec()

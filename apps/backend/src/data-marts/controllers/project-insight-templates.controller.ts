@@ -1,13 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  AllowPluginAuth,
-  Auth,
-  AuthContext,
-  AuthorizationContext,
-  Role,
-  Strategy,
-} from '../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { ListProjectInsightTemplatesCommand } from '../dto/domain/list-project-insight-templates.command';
 import { ProjectInsightTemplatesResponseApiDto } from '../dto/presentation/project-insight-templates-response-api.dto';
 import { InsightTemplateMapper } from '../mappers/insight-template.mapper';
@@ -24,7 +17,6 @@ export class ProjectInsightTemplatesController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @AllowPluginAuth()
   @Get()
   @ListProjectInsightTemplatesSpec()
   async list(

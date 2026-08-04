@@ -12,7 +12,7 @@ import { IdpProviderService } from '../services/idp-provider.service';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Role, Strategy, type RoleConfig } from '../types';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
-import { ALLOW_PLUGIN_AUTH_METADATA } from '../decorators/allow-plugin-auth.decorator';
+import { REJECT_PLUGIN_AUTH_METADATA } from '../decorators/reject-plugin-auth.decorator';
 import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import type { PluginRuntimeAuthorizerPort } from '../ports/plugin-runtime-authorizer.port';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
@@ -20,7 +20,7 @@ import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
 describe('IdpGuard', () => {
   let roleConfig: RoleConfig;
   let rejectApiKeyAuth: boolean;
-  let allowPluginAuth: boolean;
+  let rejectPluginAuth: boolean;
   let viewOnlySafe: boolean;
   let request: AuthenticatedRequest;
   let idpProvider: {
@@ -38,8 +38,7 @@ describe('IdpGuard', () => {
   beforeEach(() => {
     roleConfig = Role.authenticated(Strategy.PARSE);
     rejectApiKeyAuth = false;
-    // The guard denies by default; these cases exercise routes that opted in.
-    allowPluginAuth = true;
+    rejectPluginAuth = false;
     viewOnlySafe = false;
     request = {
       headers: {
@@ -77,8 +76,8 @@ describe('IdpGuard', () => {
           if (metadataKey === REJECT_API_KEY_AUTH_METADATA) {
             return rejectApiKeyAuth;
           }
-          if (metadataKey === ALLOW_PLUGIN_AUTH_METADATA) {
-            return allowPluginAuth;
+          if (metadataKey === REJECT_PLUGIN_AUTH_METADATA) {
+            return rejectPluginAuth;
           }
           if (metadataKey === VIEW_ONLY_SAFE_METADATA) {
             return viewOnlySafe;
@@ -342,11 +341,9 @@ describe('IdpGuard', () => {
       expect(pluginRuntimeAuthorizer.assertActiveInstallation).not.toHaveBeenCalled();
     });
 
-    // No decorator at all is the ordinary case, and the one that used to let a plugin
-    // call POST /api/project-member-api-keys and keep the API-key secret it returned.
-    it('rejects plugin auth on an endpoint that never opted in, before lookup', async () => {
+    it('rejects plugin auth on credential-minting routes before lookup', async () => {
       roleConfig = Role.viewer(Strategy.INTROSPECT);
-      allowPluginAuth = false;
+      rejectPluginAuth = true;
       idpProvider.introspectToken.mockResolvedValue(
         payload(['viewer'], {
           authFlow: 'plugin',

@@ -1,7 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { MarkdownParser } from '../../common/markdown/markdown-parser.service';
-import { AllowPluginAuth, Auth, Role, Strategy, ViewOnlySafe } from '../../idp';
+import { Auth, Role, Strategy, ViewOnlySafe } from '../../idp';
 import { MarkdownParseRequestApiDto } from '../dto/presentation/markdown-parse-request-api.dto';
 import { ParseMarkdownToHtmlSpec } from './spec/markdown-parser.api';
 
@@ -12,7 +12,6 @@ export class MarkdownParserController {
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @ViewOnlySafe()
-  @AllowPluginAuth()
   @Post('/parse-to-html')
   @ParseMarkdownToHtmlSpec()
   async parseToHtml(@Body() request: MarkdownParseRequestApiDto): Promise<string> {

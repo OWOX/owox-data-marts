@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { AllowPluginAuth, Auth, AuthContext, AuthorizationContext, Role } from '../../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role } from '../../../idp';
 import { HttpDataMapper } from '../../mappers/http-data.mapper';
 import { StreamHttpDataService } from '../../use-cases/stream-http-data.service';
 import { StreamHttpDataSpec, StreamHttpReportDataSpec } from '../spec/external/http-data.api';
@@ -16,7 +16,6 @@ export class HttpDataController {
 
   @StreamHttpDataSpec()
   @Auth(Role.viewer())
-  @AllowPluginAuth()
   @Get('data-marts/:dataMartId.ndjson')
   async stream(
     @Param('dataMartId') dataMartId: string,
@@ -29,7 +28,6 @@ export class HttpDataController {
   }
 
   @Auth(Role.viewer())
-  @AllowPluginAuth()
   @Get('reports/:reportId.ndjson')
   @StreamHttpReportDataSpec()
   async streamReport(
