@@ -6,6 +6,9 @@ import { DataMartTableReferenceService } from './data-mart-table-reference.servi
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { ReportLike, shouldIncludeRowCount } from '../dto/domain/report-like-read-plan';
+import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
+import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import { withoutCountBesideSleevedCountDistinct } from '../dto/schemas/field-aggregation-governance';
 import {
   BlendedColumnTypes,
   ResolvedRelationshipChain,
@@ -24,6 +27,7 @@ import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import {
+  collectPrimaryKeyRowIdentity,
   collectSchemaFieldPaths,
   collectSchemaFieldPathTypes,
   getPrimaryKeyFields,
@@ -82,6 +86,12 @@ export class BlendedReportDataService {
     }
     const sortColumns = (report.sortConfig ?? []).map(s => s.column);
     const hasPreJoinFilters = preJoinFilterColumns.length > 0;
+    // Totals only — a persisted `Report` never carries a restriction (see composeTotals).
+    const groupRestriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
+    const restrictionColumns = [
+      ...(groupRestriction?.dimensions ?? []),
+      ...(groupRestriction?.having ?? []).map(rule => rule.column),
+    ];
 
     if (columnConfig === null || columnConfig === undefined) {
       // Without an explicit column config the native projection is "all native
@@ -139,6 +149,14 @@ export class BlendedReportDataService {
       ...columnConfig,
       ...postJoinFilterColumns,
       ...sortColumns,
+      // A Totals plan projects only metrics and carries no HAVING in `filterConfig` — its
+      // dimensions and metric filters live in `groupRestriction` instead. They are
+      // nonetheless referenced by the emitted SQL, so they must count as referenced here too:
+      // otherwise a JOINED restriction dimension never reaches `buildRelationshipChains`, its
+      // qualifier falls back to `main."<alias>"` (unrecognized name), its source is never
+      // access-checked, and a report whose ONLY blended reference was that dimension is routed
+      // to the flat builder altogether.
+      ...restrictionColumns,
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
@@ -192,6 +210,10 @@ export class BlendedReportDataService {
 
     const schemaFields = dataMart.schema?.fields ?? [];
     const pkFields = getPrimaryKeyFields(schemaFields);
+    const normalizedAggregations = this.withoutJoinedCountBesideCountDistinct(
+      report.aggregationConfig ?? [],
+      new Set(blendableSchema.blendedFields.map(f => f.name))
+    );
     const blendedResult = await this.blendedQueryBuilderFacade.buildBlendedQuery(
       dataMart.storage.type,
       {
@@ -203,13 +225,14 @@ export class BlendedReportDataService {
         filters: report.filterConfig ?? undefined,
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
-        aggregations: report.aggregationConfig ?? undefined,
+        aggregations: normalizedAggregations ?? report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
         rowCount: shouldIncludeRowCount(report),
         uniqueCount: report.uniqueCountConfig === true,
         primaryKeyColumns: pkFields.map(f => f.name),
         columnTypes: this.buildBlendedColumnTypes(blendableSchema),
         fieldIndex,
+        groupRestriction,
       }
     );
     const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;
@@ -222,7 +245,37 @@ export class BlendedReportDataService {
       columnFilter: columnConfig,
       blendedDataHeaders,
       chains,
+      aggregations: normalizedAggregations,
     };
+  }
+
+  /**
+   * A saved COUNT beside a joined COUNT_DISTINCT is dropped rather than rejected: the two are
+   * computed at different grains and can invert, but the report was valid when it was saved.
+   * Returns undefined when nothing changed, so callers keep their own list.
+   */
+  private withoutJoinedCountBesideCountDistinct(
+    aggregations: AggregationRule[],
+    joinedColumns: ReadonlySet<string>
+  ): AggregationRule[] | undefined {
+    const functionsByJoinedColumn = new Map<string, ReportAggregateFunction[]>();
+    for (const rule of aggregations) {
+      if (!joinedColumns.has(rule.column)) continue;
+      functionsByJoinedColumn.set(rule.column, [
+        ...(functionsByJoinedColumn.get(rule.column) ?? []),
+        rule.function,
+      ]);
+    }
+
+    const dropped = new Set<string>();
+    for (const [column, functions] of functionsByJoinedColumn) {
+      const kept = new Set(withoutCountBesideSleevedCountDistinct(functions));
+      for (const fn of functions) {
+        if (!kept.has(fn)) dropped.add(`${column}\u0000${fn}`);
+      }
+    }
+    if (dropped.size === 0) return undefined;
+    return aggregations.filter(rule => !dropped.has(`${rule.column}\u0000${rule.function}`));
   }
 
   private buildBlendedColumnTypes(blendableSchema: BlendableSchemaDto): BlendedColumnTypes {
@@ -354,6 +407,7 @@ export class BlendedReportDataService {
         // WHERE can reference them, but must not appear in the final SELECT.
         isHidden: f.isHidden || !columnConfigSet.has(f.name),
         aggregateFunction: f.aggregateFunction,
+        targetFieldType: f.sourceFieldType ?? f.type,
       }));
 
       chains.push({
@@ -364,6 +418,9 @@ export class BlendedReportDataService {
         blendedFields: chainBlendedFields,
         targetDataMartTitle: rel.targetDataMart.title,
         targetDataMartUrl,
+        targetPrimaryKeyFields: collectPrimaryKeyRowIdentity(
+          rel.targetDataMart.schema?.fields ?? []
+        ),
       });
     }
 

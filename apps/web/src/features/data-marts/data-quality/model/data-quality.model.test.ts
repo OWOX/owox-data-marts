@@ -65,6 +65,7 @@ describe('data quality model', () => {
     ['PASSED', 'All checks passed'],
     ['ISSUES', 'Issues found'],
     ['EXECUTION_FAILED', 'Execution failed'],
+    ['RESTRICTED', 'Run restricted'],
     ['CANCELLED', 'Run cancelled'],
     ['ALL_DISABLED', 'All checks are disabled'],
   ] as const)('presents %s', (state, title) => {

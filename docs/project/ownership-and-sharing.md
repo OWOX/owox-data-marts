@@ -86,7 +86,17 @@ The second toggle is **Shared for maintenance** for all resource types. The comb
 | First toggle off, second on | Can see, use, edit, and delete the resource |
 | Both toggles on | Both of the above |
 
-> ☝️ New resources start with both toggles off. Existing resources were migrated to both toggles on to preserve previous access patterns. Owners can gradually reconfigure sharing to match their intended access model.
+### Defaults for new resources
+
+| Resource | Shared for reporting / use | Shared for maintenance |
+|---|---|---|
+| Data Mart | On | On |
+| Storage | On | Off |
+| Destination | On | Off |
+
+A new Data Mart is shared for maintenance so that other Technical Users can join it to their own Data Marts right away, without asking the owner for access first. If you do not want that, turn **Shared for maintenance** off on the Data Mart — non-owners keep reporting access and lose the ability to edit or join it.
+
+> ☝️ Changing the default does not touch Data Marts that already exist. Resources created before the sharing model was introduced were migrated to both toggles on to preserve previous access patterns.
 
 ![Resource settings page with the Shared for reporting and Shared for maintenance toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f8622cf6-8d75-46ee-e9e2-b869f987a500/public)
 
@@ -192,7 +202,7 @@ Data Mart Triggers have no dedicated ownership. Who can see them and who can man
 
 Relationships between Data Marts have no dedicated ownership. They belong to the source Data Mart and follow its access rules. See [Joinable Data Marts](../getting-started/setup-guide/joinable-data-marts.md) to configure them.
 
-**Creating a relationship** requires `Edit` access on both the source and target Data Marts. The user needs maintenance access on each Data Mart, through one of two paths. First: a Technical Owner with the Technical User role. Second: a Technical User on a Data Mart *Shared for maintenance*.
+**Creating a relationship** requires `Edit` access on both the source and target Data Marts. The user needs maintenance access on each Data Mart, through one of two paths. First: a Technical Owner with the Technical User role. Second: a Technical User on a Data Mart *Shared for maintenance*. Because a new Data Mart is *Shared for maintenance* by default, any Technical User can join it without the owner changing anything; turning that toggle off on a Data Mart also stops others from joining it.
 
 **Editing or deleting a relationship** requires `Edit` access on the source Data Mart only.
 
@@ -248,6 +258,10 @@ Access to edit, delete, or run a Report requires one of two conditions:
 [1] "Has Data Mart maintenance access" means the user receives `Edit` on the parent Data Mart through any path defined in the [Data Mart access table](#data-mart) — that is, Technical Owner with Technical User role, or Technical User (including a Business Owner who is a Technical User) receiving maintenance through the non-owner sharing path on a Data Mart that is *Shared for maintenance*. The non-owner sharing path is gated by role scope and contexts; the Report-level decision inherits that gate.
 
 > ☝️ A Report owner can edit, delete, and run the Report only while its Destination still exists. If the Destination is deleted, the owner can still see the Report but cannot edit, delete, or run it until the Destination is restored or ownership is reassigned by a Technical User.
+
+**Viewing the Report's SQL follows visibility, not maintenance access.** Anyone who can see a Report can open **Preview SQL** and read or copy the generated query — including Business Users and Technical Users without maintenance access to the parent Data Mart. Two actions in that dialog stay restricted to users with Data Mart maintenance access and are hidden for everyone else: the SQL validator (dry run) and **Copy as Data Mart**.
+
+If the Report pulls fields from a [joined Data Mart](../getting-started/setup-guide/joinable-data-marts.md) that the viewer cannot access, the SQL is not shown at all — the error names the inaccessible Data Mart.
 
 ---
 

@@ -312,7 +312,7 @@ export class RunReportService {
         sqlOverrideParams,
         columnFilter: blendingDecision.columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
-        aggregationConfig: report.aggregationConfig ?? undefined,
+        aggregationConfig: blendingDecision.aggregations ?? report.aggregationConfig ?? undefined,
         uniqueCount: report.uniqueCountConfig ?? undefined,
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);

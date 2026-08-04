@@ -101,8 +101,15 @@ export function GetReportGeneratedSqlSpec() {
       description: 'The generated SQL query for the report.',
       schema: {
         type: 'object',
-        required: ['sql'],
-        properties: { sql: { type: 'string' } },
+        required: ['sql', 'canModifySource'],
+        properties: {
+          sql: { type: 'string' },
+          canModifySource: {
+            type: 'boolean',
+            description:
+              'Whether the caller has maintenance (edit) access to the source data mart. False for read-only viewers, who can read and copy the SQL but cannot dry-run it or copy it as a new data mart.',
+          },
+        },
       },
     })
   );

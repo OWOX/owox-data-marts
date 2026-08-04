@@ -20,6 +20,21 @@ describe('ReportService', () => {
     (apiClient.get as any).mockResolvedValue({ data: [] });
   });
 
+  it('fetches a report by id without extra request options by default', async () => {
+    await service.getReportById('report-1');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/reports/report-1', { params: undefined });
+  });
+
+  it('forwards request options so a background poll can opt out of the error toast', async () => {
+    await service.getReportById('report-1', { skipErrorToast: true });
+
+    expect(apiClient.get).toHaveBeenCalledWith('/reports/report-1', {
+      skipErrorToast: true,
+      params: undefined,
+    });
+  });
+
   it('fetches all project reports when pagination is omitted', async () => {
     const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: `report-${index + 1}` }));
     const secondPage = [{ id: 'report-101' }];

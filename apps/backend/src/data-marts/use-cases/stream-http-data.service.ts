@@ -332,13 +332,17 @@ export class StreamHttpDataService {
         sqlOverrideParams,
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
-        aggregationConfig: readPlan.aggregationConfig ?? undefined,
+        aggregationConfig: decision.aggregations ?? readPlan.aggregationConfig ?? undefined,
         uniqueCount: readPlan.uniqueCountConfig ?? undefined,
       });
 
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed
       // BEFORE streamRows: NDJSON headers cannot change once the first chunk is flushed. BEST-EFFORT.
-      const totals = await this.computeTotalsBestEffort(readPlan, accessor, dataMart);
+      const { totals, totalsError } = await this.computeTotalsBestEffort(
+        readPlan,
+        accessor,
+        dataMart
+      );
 
       // Journalled into the run metadata regardless of outcome; persisted as the Data Mart's
       // last-known value only when the stream reads exactly this Data Mart's own sources (a
@@ -399,6 +403,7 @@ export class StreamHttpDataService {
           bytesWritten,
           completed: true,
           ...(totals ? { totals } : {}),
+          ...(totalsError ? { totalsError } : {}),
         },
         reportId
       );
@@ -466,22 +471,30 @@ export class StreamHttpDataService {
     return mapper.toStorageReadError(error, { force: forceStorageReadError || reader !== null });
   }
 
+  /**
+   * Totals never cost the run its rows, so a failure degrades to none — but it is RECORDED, not
+   * swallowed: an absent totals block is otherwise indistinguishable from a report that has no
+   * eligible metric, and the run record is the only place anyone can look afterwards. Logged at
+   * error level for the same reason — a whole class of reports losing their totals must be
+   * visible in production, not inferred from a missing field.
+   */
   private async computeTotalsBestEffort(
     readPlan: ReportLikeReadPlan,
     accessor: BlendableSchemaAccessor,
     dataMart: DataMart
-  ): Promise<ReportTotals | null> {
+  ): Promise<{ totals: ReportTotals | null; totalsError?: string }> {
     try {
-      return await this.reportTotalsService.computeTotals(
-        readPlan,
-        accessor,
-        dataMart.storage.type
-      );
+      return {
+        totals: await this.reportTotalsService.computeTotals(
+          readPlan,
+          accessor,
+          dataMart.storage.type
+        ),
+      };
     } catch (err) {
-      this.logger.warn(
-        `Failed to compute totals for Data Mart ${dataMart.id}: ${err instanceof Error ? err.message : String(err)}`
-      );
-      return null;
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to compute totals for Data Mart ${dataMart.id}: ${reason}`);
+      return { totals: null, totalsError: reason };
     }
   }
 

@@ -626,11 +626,13 @@ WITH
 
   dq_violations AS (
     SELECT
-      *
-    FROM dq_source
+      source."amount" AS negative_value,
+      source."id" AS primary_key_value_1,
+      source."tenant_id" AS primary_key_value_2
+    FROM dq_source AS source
     WHERE
-      "amount" IS NOT NULL
-      AND "amount" < 0
+      source."amount" IS NOT NULL
+      AND source."amount" < 0
   ),
 
   dq_summary AS (
@@ -643,9 +645,9 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."amount" AS negative_value,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.negative_value AS negative_value,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -694,7 +696,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      source.*
+      source."tenant_id" AS source_join_value_1,
+      source."customer_id" AS source_join_value_2,
+      source."id" AS primary_key_value_1,
+      source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
     WHERE
       source."tenant_id" IS NOT NULL
@@ -719,10 +724,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."tenant_id" AS source_join_value_1,
-      violation."customer_id" AS source_join_value_2,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.source_join_value_1 AS source_join_value_1,
+      violation.source_join_value_2 AS source_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -772,7 +777,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      target.*
+      target."tenant_id" AS target_join_value_1,
+      target."id" AS target_join_value_2,
+      target."id" AS primary_key_value_1,
+      target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
     WHERE
       target."tenant_id" IS NOT NULL
@@ -797,10 +805,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."tenant_id" AS target_join_value_1,
-      violation."id" AS target_join_value_2,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.target_join_value_1 AS target_join_value_1,
+      violation.target_join_value_2 AS target_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -1478,11 +1486,13 @@ WITH
 
   dq_violations AS (
     SELECT
-      *
-    FROM dq_source
+      source."amount" AS negative_value,
+      source."id" AS primary_key_value_1,
+      source."tenant_id" AS primary_key_value_2
+    FROM dq_source AS source
     WHERE
-      "amount" IS NOT NULL
-      AND "amount" < 0
+      source."amount" IS NOT NULL
+      AND source."amount" < 0
   ),
 
   dq_summary AS (
@@ -1495,9 +1505,9 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."amount" AS negative_value,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.negative_value AS negative_value,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -1546,7 +1556,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      source.*
+      source."tenant_id" AS source_join_value_1,
+      source."customer_id" AS source_join_value_2,
+      source."id" AS primary_key_value_1,
+      source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
     WHERE
       source."tenant_id" IS NOT NULL
@@ -1571,10 +1584,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."tenant_id" AS source_join_value_1,
-      violation."customer_id" AS source_join_value_2,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.source_join_value_1 AS source_join_value_1,
+      violation.source_join_value_2 AS source_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -1624,7 +1637,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      target.*
+      target."tenant_id" AS target_join_value_1,
+      target."id" AS target_join_value_2,
+      target."id" AS primary_key_value_1,
+      target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
     WHERE
       target."tenant_id" IS NOT NULL
@@ -1649,10 +1665,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."tenant_id" AS target_join_value_1,
-      violation."id" AS target_join_value_2,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.target_join_value_1 AS target_join_value_1,
+      violation.target_join_value_2 AS target_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -2299,11 +2315,13 @@ WITH
 
   dq_violations AS (
     SELECT
-      *
-    FROM dq_source
+      source.\`amount\` AS negative_value,
+      source.\`id\` AS primary_key_value_1,
+      source.\`tenant_id\` AS primary_key_value_2
+    FROM dq_source AS source
     WHERE
-      \`amount\` IS NOT NULL
-      AND \`amount\` < 0
+      source.\`amount\` IS NOT NULL
+      AND source.\`amount\` < 0
   ),
 
   dq_summary AS (
@@ -2316,9 +2334,9 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`amount\` AS negative_value,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.negative_value AS negative_value,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -2367,7 +2385,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      source.*
+      source.\`tenant_id\` AS source_join_value_1,
+      source.\`customer_id\` AS source_join_value_2,
+      source.\`id\` AS primary_key_value_1,
+      source.\`tenant_id\` AS primary_key_value_2
     FROM dq_source AS source
     WHERE
       source.\`tenant_id\` IS NOT NULL
@@ -2392,10 +2413,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`tenant_id\` AS source_join_value_1,
-      violation.\`customer_id\` AS source_join_value_2,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.source_join_value_1 AS source_join_value_1,
+      violation.source_join_value_2 AS source_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -2445,7 +2466,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      target.*
+      target.\`tenant_id\` AS target_join_value_1,
+      target.\`id\` AS target_join_value_2,
+      target.\`id\` AS primary_key_value_1,
+      target.\`tenant_id\` AS primary_key_value_2
     FROM dq_target AS target
     WHERE
       target.\`tenant_id\` IS NOT NULL
@@ -2470,10 +2494,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`tenant_id\` AS target_join_value_1,
-      violation.\`id\` AS target_join_value_2,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.target_join_value_1 AS target_join_value_1,
+      violation.target_join_value_2 AS target_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -3118,11 +3142,13 @@ WITH
 
   dq_violations AS (
     SELECT
-      *
-    FROM dq_source
+      source.\`amount\` AS negative_value,
+      source.\`id\` AS primary_key_value_1,
+      source.\`tenant_id\` AS primary_key_value_2
+    FROM dq_source AS source
     WHERE
-      \`amount\` IS NOT NULL
-      AND \`amount\` < 0
+      source.\`amount\` IS NOT NULL
+      AND source.\`amount\` < 0
   ),
 
   dq_summary AS (
@@ -3135,9 +3161,9 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`amount\` AS negative_value,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.negative_value AS negative_value,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -3186,7 +3212,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      source.*
+      source.\`tenant_id\` AS source_join_value_1,
+      source.\`customer_id\` AS source_join_value_2,
+      source.\`id\` AS primary_key_value_1,
+      source.\`tenant_id\` AS primary_key_value_2
     FROM dq_source AS source
     WHERE
       source.\`tenant_id\` IS NOT NULL
@@ -3211,10 +3240,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`tenant_id\` AS source_join_value_1,
-      violation.\`customer_id\` AS source_join_value_2,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.source_join_value_1 AS source_join_value_1,
+      violation.source_join_value_2 AS source_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -3264,7 +3293,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      target.*
+      target.\`tenant_id\` AS target_join_value_1,
+      target.\`id\` AS target_join_value_2,
+      target.\`id\` AS primary_key_value_1,
+      target.\`tenant_id\` AS primary_key_value_2
     FROM dq_target AS target
     WHERE
       target.\`tenant_id\` IS NOT NULL
@@ -3289,10 +3321,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`tenant_id\` AS target_join_value_1,
-      violation.\`id\` AS target_join_value_2,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.target_join_value_1 AS target_join_value_1,
+      violation.target_join_value_2 AS target_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -3937,11 +3969,13 @@ WITH
 
   dq_violations AS (
     SELECT
-      *
-    FROM dq_source
+      source.\`amount\` AS negative_value,
+      source.\`id\` AS primary_key_value_1,
+      source.\`tenant_id\` AS primary_key_value_2
+    FROM dq_source AS source
     WHERE
-      \`amount\` IS NOT NULL
-      AND \`amount\` < 0
+      source.\`amount\` IS NOT NULL
+      AND source.\`amount\` < 0
   ),
 
   dq_summary AS (
@@ -3954,9 +3988,9 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`amount\` AS negative_value,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.negative_value AS negative_value,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -4005,7 +4039,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      source.*
+      source.\`tenant_id\` AS source_join_value_1,
+      source.\`customer_id\` AS source_join_value_2,
+      source.\`id\` AS primary_key_value_1,
+      source.\`tenant_id\` AS primary_key_value_2
     FROM dq_source AS source
     WHERE
       source.\`tenant_id\` IS NOT NULL
@@ -4030,10 +4067,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`tenant_id\` AS source_join_value_1,
-      violation.\`customer_id\` AS source_join_value_2,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.source_join_value_1 AS source_join_value_1,
+      violation.source_join_value_2 AS source_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -4083,7 +4120,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      target.*
+      target.\`tenant_id\` AS target_join_value_1,
+      target.\`id\` AS target_join_value_2,
+      target.\`id\` AS primary_key_value_1,
+      target.\`tenant_id\` AS primary_key_value_2
     FROM dq_target AS target
     WHERE
       target.\`tenant_id\` IS NOT NULL
@@ -4108,10 +4148,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation.\`tenant_id\` AS target_join_value_1,
-      violation.\`id\` AS target_join_value_2,
-      violation.\`id\` AS primary_key_value_1,
-      violation.\`tenant_id\` AS primary_key_value_2
+      violation.target_join_value_1 AS target_join_value_1,
+      violation.target_join_value_2 AS target_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -4677,11 +4717,13 @@ WITH
 
   dq_violations AS (
     SELECT
-      *
-    FROM dq_source
+      source."amount" AS negative_value,
+      source."id" AS primary_key_value_1,
+      source."tenant_id" AS primary_key_value_2
+    FROM dq_source AS source
     WHERE
-      "amount" IS NOT NULL
-      AND "amount" < 0
+      source."amount" IS NOT NULL
+      AND source."amount" < 0
   ),
 
   dq_summary AS (
@@ -4694,9 +4736,9 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."amount" AS negative_value,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.negative_value AS negative_value,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -4745,7 +4787,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      source.*
+      source."tenant_id" AS source_join_value_1,
+      source."customer_id" AS source_join_value_2,
+      source."id" AS primary_key_value_1,
+      source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
     WHERE
       source."tenant_id" IS NOT NULL
@@ -4770,10 +4815,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."tenant_id" AS source_join_value_1,
-      violation."customer_id" AS source_join_value_2,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.source_join_value_1 AS source_join_value_1,
+      violation.source_join_value_2 AS source_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )
@@ -4823,7 +4868,10 @@ WITH
 
   dq_violations AS (
     SELECT
-      target.*
+      target."tenant_id" AS target_join_value_1,
+      target."id" AS target_join_value_2,
+      target."id" AS primary_key_value_1,
+      target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
     WHERE
       target."tenant_id" IS NOT NULL
@@ -4848,10 +4896,10 @@ WITH
   dq_examples AS (
     SELECT
       1 AS example_available,
-      violation."tenant_id" AS target_join_value_1,
-      violation."id" AS target_join_value_2,
-      violation."id" AS primary_key_value_1,
-      violation."tenant_id" AS primary_key_value_2
+      violation.target_join_value_1 AS target_join_value_1,
+      violation.target_join_value_2 AS target_join_value_2,
+      violation.primary_key_value_1 AS primary_key_value_1,
+      violation.primary_key_value_2 AS primary_key_value_2
     FROM dq_violations AS violation
     LIMIT 3
   )

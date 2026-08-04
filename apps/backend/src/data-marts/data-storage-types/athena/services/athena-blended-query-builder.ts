@@ -18,7 +18,9 @@ export class AthenaBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   }
 
   protected buildStringAgg(fieldName: string): string {
-    return `ARRAY_JOIN(ARRAY_AGG(CAST(${fieldName} AS VARCHAR)), ', ')`;
+    // ORDER BY inside ARRAY_AGG keeps the roll-up deterministic across the dedup CTE's two
+    // references (outer query + metric sleeve); see the BigQuery sibling.
+    return `ARRAY_JOIN(ARRAY_AGG(CAST(${fieldName} AS VARCHAR) ORDER BY CAST(${fieldName} AS VARCHAR)), ', ')`;
   }
 
   // Trino does not guarantee ANY_VALUE across engine versions; arbitrary() is the all-version-safe form.

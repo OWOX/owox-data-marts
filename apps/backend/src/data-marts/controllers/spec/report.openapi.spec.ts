@@ -281,8 +281,11 @@ describe('ReportController OpenAPI', () => {
         'application/json': {
           schema: {
             type: 'object',
-            required: ['sql'],
-            properties: { sql: { type: 'string' } },
+            required: ['sql', 'canModifySource'],
+            properties: {
+              sql: { type: 'string' },
+              canModifySource: { type: 'boolean' },
+            },
           },
         },
       },

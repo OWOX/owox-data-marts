@@ -23,6 +23,7 @@ export const McpQueryRunMetadataSchema = z.object({
    * Optional so runs recorded before this field existed still parse.
    */
   dataLastUpdated: SourceDataLastUpdatedSchema.optional(),
+  totalsError: z.string().optional(),
 });
 
 export type McpQueryRunMetadata = z.infer<typeof McpQueryRunMetadataSchema>;

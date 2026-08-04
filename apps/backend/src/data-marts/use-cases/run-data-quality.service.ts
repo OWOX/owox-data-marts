@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import {
   DataQualityCheckCompiler,
   DataQualityCompiledCheck,
@@ -31,6 +32,7 @@ import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum'
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import { ProjectBalanceService } from '../services/project-balance.service';
 import { DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE } from '../services/data-quality-run.service';
 import {
   DataQualitySnapshotStorageMismatchError,
@@ -42,6 +44,8 @@ interface ClaimedDataQualityRun {
   dataMartRun: DataMartRun;
   dataMart: DataMart;
 }
+
+type DataQualityQueryResolver = (columns: string[]) => Promise<string | QueryBuildResult>;
 
 interface ProviderErrorIdentity {
   code?: unknown;
@@ -80,7 +84,8 @@ export class RunDataQualityService {
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    private readonly systemClock: SystemTimeService
+    private readonly systemClock: SystemTimeService,
+    private readonly projectBalanceService: ProjectBalanceService
   ) {}
 
   async executeExistingRun(
@@ -102,6 +107,7 @@ export class RunDataQualityService {
     try {
       signal?.throwIfAborted();
       if (pendingRules.length > 0) {
+        await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
         const definitionRun = dataMartRun.definitionRun;
         if (!definitionRun) {
           throw new Error(
@@ -113,7 +119,7 @@ export class RunDataQualityService {
           definition: definitionRun,
           schema: snapshot.schema ?? undefined,
         } as DataMart;
-        const sourceQuery = await this.resolveSnapshotTableReference({
+        const resolveSourceQuery = await this.resolveSnapshotTableReference({
           dataMartId: dataMart.id,
           projectId: expectedProjectId,
           definition: definitionRun,
@@ -121,7 +127,7 @@ export class RunDataQualityService {
           liveStorage: toStorageSnapshot(dataMart),
         });
         const targets = await this.loadRelationshipTargets(snapshot, expectedProjectId);
-        const targetSourceQueries = new Map<string, Promise<string | QueryBuildResult>>();
+        const targetSourceQueries = new Map<string, Promise<DataQualityQueryResolver>>();
         const compiled: DataQualityCompiledCheck[] = [];
 
         for (const originalRule of pendingRules) {
@@ -145,7 +151,7 @@ export class RunDataQualityService {
             compiled.push(
               await this.compiler.compile({
                 storageType: dataMart.storage.type,
-                sourceQuery,
+                resolveSourceQuery,
                 schema: snapshot.schema,
                 rule,
                 relationship: relationshipSnapshot
@@ -208,6 +214,10 @@ export class RunDataQualityService {
         await this.finishRun(dataMartRun, true);
         return;
       }
+      if (error instanceof ProjectOperationBlockedException) {
+        await this.finishRun(dataMartRun, false, error);
+        return;
+      }
 
       const missingRules = pendingRules.filter(
         rule => !parsedResults.some(result => result.ruleKey === rule.key)
@@ -246,7 +256,8 @@ export class RunDataQualityService {
       if (
         dataMartRun.status === DataMartRunStatus.CANCELLED ||
         dataMartRun.status === DataMartRunStatus.SUCCESS ||
-        dataMartRun.status === DataMartRunStatus.FAILED
+        dataMartRun.status === DataMartRunStatus.FAILED ||
+        dataMartRun.status === DataMartRunStatus.RESTRICTED
       ) {
         return null;
       }
@@ -313,7 +324,7 @@ export class RunDataQualityService {
     snapshot: DataQualityRelationshipSnapshot,
     targetSnapshot: DataQualityRelationshipTargetSnapshot | undefined,
     target: DataMart | undefined,
-    targetSourceQueries: Map<string, Promise<string | QueryBuildResult>>,
+    targetSourceQueries: Map<string, Promise<DataQualityQueryResolver>>,
     projectId: string
   ): DataQualityRelationshipCompileContext | undefined {
     if (snapshot.targetAccessible === false) {
@@ -324,19 +335,19 @@ export class RunDataQualityService {
     }
     return {
       snapshot,
-      resolveTargetSourceQuery: () => {
-        let targetSourceQuery = targetSourceQueries.get(snapshot.id);
-        if (!targetSourceQuery) {
-          targetSourceQuery = this.resolveRelationshipTargetSourceQuery(
+      resolveTargetSourceQuery: async columns => {
+        let targetSourceQueryResolver = targetSourceQueries.get(snapshot.id);
+        if (!targetSourceQueryResolver) {
+          targetSourceQueryResolver = this.resolveRelationshipTargetSourceQuery(
             dataMartRun,
             snapshot,
             targetSnapshot,
             target,
             projectId
           );
-          targetSourceQueries.set(snapshot.id, targetSourceQuery);
+          targetSourceQueries.set(snapshot.id, targetSourceQueryResolver);
         }
-        return targetSourceQuery;
+        return (await targetSourceQueryResolver)(columns);
       },
       targetSchema: targetSnapshot.schema,
       targetStorageType: targetSnapshot.storage.type,
@@ -351,7 +362,7 @@ export class RunDataQualityService {
     targetSnapshot: DataQualityRelationshipTargetSnapshot,
     target: DataMart | undefined,
     projectId: string
-  ): Promise<string | QueryBuildResult> {
+  ): Promise<DataQualityQueryResolver> {
     return this.resolveSnapshotTableReference({
       dataMartId: relationship.targetDataMartId,
       projectId,
@@ -363,9 +374,16 @@ export class RunDataQualityService {
 
   private async resolveSnapshotTableReference(
     input: DataQualitySnapshotTableReferenceInput
-  ): Promise<string | QueryBuildResult> {
+  ): Promise<DataQualityQueryResolver> {
     try {
-      return (await this.snapshotTableReference.resolve(input)).query;
+      const reference = await this.snapshotTableReference.resolve(input);
+      return async columns => {
+        try {
+          return await reference.buildQuery(columns);
+        } catch (error) {
+          throw new DataQualitySourceQueryError(error);
+        }
+      };
     } catch (error) {
       if (error instanceof DataQualitySnapshotStorageMismatchError) {
         throw error;
@@ -418,7 +436,11 @@ export class RunDataQualityService {
     };
   }
 
-  private async finishRun(dataMartRun: DataMartRun, cancelled: boolean): Promise<void> {
+  private async finishRun(
+    dataMartRun: DataMartRun,
+    cancelled: boolean,
+    restriction?: ProjectOperationBlockedException
+  ): Promise<void> {
     await this.dataSource.transaction(async manager => {
       const runRepository = manager.getRepository(DataMartRun);
       const currentRun = await this.findRunForResultMutation(manager, dataMartRun.id, true);
@@ -428,7 +450,8 @@ export class RunDataQualityService {
       if (
         currentRun.status === DataMartRunStatus.FAILED ||
         currentRun.status === DataMartRunStatus.SUCCESS ||
-        (currentRun.status === DataMartRunStatus.CANCELLED && cancelled)
+        currentRun.status === DataMartRunStatus.RESTRICTED ||
+        (currentRun.status === DataMartRunStatus.CANCELLED && (cancelled || restriction))
       ) {
         Object.assign(dataMartRun, currentRun);
         return;
@@ -447,6 +470,7 @@ export class RunDataQualityService {
         currentRun.dataQualitySummary.enabledChecks
       );
       if (cancelled) summary.state = DataQualitySummaryState.CANCELLED;
+      else if (restriction) summary.state = DataQualitySummaryState.RESTRICTED;
       const finishedAt =
         currentRun.status === DataMartRunStatus.CANCELLED && !cancelled
           ? this.systemClock.now()
@@ -454,13 +478,17 @@ export class RunDataQualityService {
       currentRun.dataQualitySummary = summary;
       currentRun.status = cancelled
         ? DataMartRunStatus.CANCELLED
-        : summary.state === DataQualitySummaryState.EXECUTION_FAILED
-          ? DataMartRunStatus.FAILED
-          : DataMartRunStatus.SUCCESS;
+        : restriction
+          ? DataMartRunStatus.RESTRICTED
+          : summary.state === DataQualitySummaryState.EXECUTION_FAILED
+            ? DataMartRunStatus.FAILED
+            : DataMartRunStatus.SUCCESS;
       currentRun.finishedAt = finishedAt;
-      currentRun.errors = results.some(result => result.status === DataQualityCheckStatus.ERROR)
-        ? [DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE]
-        : [];
+      currentRun.errors = restriction
+        ? [restriction.message]
+        : results.some(result => result.status === DataQualityCheckStatus.ERROR)
+          ? [DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE]
+          : [];
       await runRepository.save(currentRun);
       Object.assign(dataMartRun, currentRun);
     });

@@ -569,6 +569,32 @@ describe('QueryDataMartTool', () => {
       });
     });
 
+    it('maps BusinessViolationException with reservedNameColumns → field_name_reserved, without the raw message', async () => {
+      const err = new BusinessViolationException(
+        "buildValueSleeveGroupCte: dimension column(s) [_val] collide with a reserved internal alias ('_oid', '_val', '_dedup') of the sleeve 'sleeve_orders_hitId' computing [SUM(revenue)] — rename the field/output alias",
+        { reservedNameColumns: ['_val'] }
+      );
+      facade.queryDataMart.mockRejectedValue(err);
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['_val', 'revenue'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_name_reserved' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      // Unnameable = unfixable: the caller can only act if the offending field is named.
+      expect(msg).toContain('_val');
+      expect(msg).toMatch(/rename/i);
+      // The field exists — a schema re-fetch would just loop the model.
+      expect(msg).toContain('do not re-fetch the schema');
+      const text = (result.content?.[0] as { text: string }).text;
+      expect(text).not.toContain('buildValueSleeveGroupCte');
+      expect(text).not.toContain('sleeve_orders_hitId');
+      expect(text).not.toContain('SUM(revenue)');
+    });
+
     it('maps BadRequestException with FILTER_COLUMN_UNKNOWN → field_not_found', async () => {
       const err = new BadRequestException({
         message: 'Output controls validation failed',

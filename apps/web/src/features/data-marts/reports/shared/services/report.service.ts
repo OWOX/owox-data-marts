@@ -28,10 +28,11 @@ export class ReportService extends ApiService {
   /**
    * Get a report by ID
    * @param id Report ID
+   * @param config Additional axios config (e.g. `skipErrorToast` for background polling)
    * @returns Promise with report response
    */
-  async getReportById(id: string): Promise<ReportResponseDto> {
-    return this.get<ReportResponseDto>(`/${id}`);
+  async getReportById(id: string, config?: AxiosRequestConfig): Promise<ReportResponseDto> {
+    return this.get<ReportResponseDto>(`/${id}`, undefined, config);
   }
 
   /**
@@ -130,10 +131,11 @@ export class ReportService extends ApiService {
   /**
    * Get the generated SQL for a report
    * @param id Report ID
-   * @returns Object containing the generated SQL string
+   * @returns The generated SQL plus whether the caller has maintenance access to the
+   *          source data mart (drives the dry-run validator / "Copy as Data Mart" actions)
    */
-  async getGeneratedSql(id: string): Promise<{ sql: string }> {
-    return this.get<{ sql: string }>(`/${id}/generated-sql`);
+  async getGeneratedSql(id: string): Promise<{ sql: string; canModifySource: boolean }> {
+    return this.get<{ sql: string; canModifySource: boolean }>(`/${id}/generated-sql`);
   }
 
   /**

@@ -1,6 +1,6 @@
 import { Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, RejectApiKeyAuth, ViewOnlySafe } from '../decorators';
+import { Auth, AuthContext, RejectApiKeyAuth } from '../decorators';
 import type { AuthorizationContext } from '../types';
 import { Role, Strategy } from '../types';
 import { IssueIntercomJwtService } from '../use-cases/issue-intercom-jwt.service';
@@ -17,8 +17,9 @@ export class IntercomController {
     private readonly mapper: IntercomMapper
   ) {}
 
+  // Not @ViewOnlySafe: view-only sessions must not get an Intercom JWT, so the
+  // widget can never boot for them (see IntercomChat on the client).
   @Auth(Role.viewer(Strategy.PARSE))
-  @ViewOnlySafe()
   @Post('jwt')
   @HttpCode(HttpStatus.OK)
   @IssueIntercomJwtSpec()

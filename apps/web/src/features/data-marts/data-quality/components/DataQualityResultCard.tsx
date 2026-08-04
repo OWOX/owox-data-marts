@@ -220,13 +220,13 @@ export function DataQualityResultCard({
                     <Button
                       variant='outline'
                       size='sm'
-                      aria-label={isCopied ? 'Copied' : 'Copy SQL'}
+                      aria-label={isCopied ? 'Copied' : 'Copy to Clipboard'}
                       onClick={() => {
                         handleCopy(result.sql ?? '', result.id);
                       }}
                     >
                       {isCopied ? <Check className='size-4' /> : <Copy className='size-4' />}
-                      {isCopied ? 'Copied' : 'Copy SQL'}
+                      {isCopied ? 'Copied' : 'Copy to Clipboard'}
                     </Button>
                   </div>
                 </>

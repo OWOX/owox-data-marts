@@ -4,11 +4,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
+import { CopyableField } from '@owox/ui/components/common/copyable-field';
+
+interface DocumentLinkDescriptionProps {
+  accessEmail?: string;
+}
 
 /**
  * Accordion with step-by-step instructions for copy and paste document link.
  */
-export default function DocumentLinkDescription() {
+export default function DocumentLinkDescription({ accessEmail }: DocumentLinkDescriptionProps) {
   return (
     <Accordion variant='common' type='single' collapsible>
       <AccordionItem value='service-account-details'>
@@ -28,8 +33,23 @@ export default function DocumentLinkDescription() {
               where the data should be inserted.
             </li>
             <li>
-              Share the document with the service account email and grant it <strong>Editor</strong>{' '}
-              access.
+              {accessEmail ? (
+                <>
+                  Share the document with the following email and grant it <strong>Editor</strong>{' '}
+                  access:
+                  <CopyableField
+                    value={accessEmail}
+                    className='bg-background mt-1 w-fit max-w-full'
+                  >
+                    {accessEmail}
+                  </CopyableField>
+                </>
+              ) : (
+                <>
+                  Share the document with the service account email and grant it{' '}
+                  <strong>Editor</strong> access.
+                </>
+              )}
             </li>
             <li>
               While the correct sheet is selected, copy the URL from your browser's address bar — it

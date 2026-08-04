@@ -137,7 +137,7 @@ export class ReportController {
   async getGeneratedSql(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
-  ): Promise<{ sql: string }> {
+  ): Promise<{ sql: string; canModifySource: boolean }> {
     const command = this.mapper.toGetGeneratedSqlCommand(id, context);
     return this.getReportGeneratedSqlService.run(command);
   }

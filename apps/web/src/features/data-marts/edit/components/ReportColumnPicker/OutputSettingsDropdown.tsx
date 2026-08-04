@@ -84,7 +84,11 @@ function columnToPickerItem(c: OutputSettingsDropdownColumn): FieldPickerItem {
 interface OutputSettingsDropdownProps {
   value: OutputConfig;
   onChange: (next: OutputConfig) => void;
-  selectedColumns: readonly OutputSettingsDropdownColumn[];
+  /**
+   * Sort-only column list. May include synthetic metrics (e.g. Unique Count) that are
+   * orderable but NOT filterable/aggregatable — never pass this to the filter surfaces.
+   */
+  sortColumns: readonly OutputSettingsDropdownColumn[];
   allColumns: readonly OutputSettingsDropdownColumn[];
   joinedSources?: readonly JoinedSource[];
 }
@@ -92,7 +96,7 @@ interface OutputSettingsDropdownProps {
 export function OutputSettingsDropdown({
   value,
   onChange,
-  selectedColumns,
+  sortColumns,
   allColumns,
   joinedSources,
 }: OutputSettingsDropdownProps) {
@@ -137,7 +141,7 @@ export function OutputSettingsDropdown({
       )}
       <SortSection
         sort={value.sortConfig}
-        selectedColumns={selectedColumns}
+        selectedColumns={sortColumns}
         onChange={s => {
           onChange({ ...value, sortConfig: s });
         }}

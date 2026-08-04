@@ -92,8 +92,27 @@ describe('DataQualityService', () => {
     );
   });
 
-  it('sends only the stored config on save', async () => {
-    const config = effectiveConfig as unknown as DataQualityConfig;
+  it('omits disabled rules from the saved config', async () => {
+    const config: DataQualityConfig = {
+      rules: [
+        {
+          key: 'null_rate:field:["email"]',
+          category: 'null_rate',
+          scope: { type: 'FIELD', fieldPath: ['email'] },
+          severity: 'warning',
+          enabled: true,
+          parameters: { thresholdPercent: 2 },
+        },
+        {
+          key: 'duplicate_rows:data_mart',
+          category: 'duplicate_rows',
+          scope: { type: 'DATA_MART' },
+          severity: 'error',
+          enabled: false,
+          parameters: {},
+        },
+      ],
+    };
     vi.mocked(apiClient.put).mockResolvedValueOnce({
       data: {
         savedConfig: config,
@@ -161,7 +180,7 @@ describe('DataQualityService', () => {
   });
 
   it('loads compact summaries for multiple Data Marts through the batch endpoint', async () => {
-    const summary = compactSummary('RUNNING');
+    const summary = compactSummary('RESTRICTED');
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
         items: [{ dataMartId: 'mart-2', summary }],
@@ -236,7 +255,7 @@ describe('DataQualityService', () => {
   });
 });
 
-function compactSummary(state: 'RUNNING' | 'PASSED') {
+function compactSummary(state: 'RUNNING' | 'PASSED' | 'RESTRICTED') {
   return {
     state,
     enabledChecks: 1,

@@ -158,7 +158,7 @@ describe('DataQualityResultCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show details for Negative values' }));
     fireEvent.click(screen.getByRole('button', { name: 'SQL' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Copy SQL' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy to Clipboard' }));
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(result.sql);
@@ -251,7 +251,7 @@ describe('DataQualityResultCard', () => {
         "SQL and examples are hidden because you don't have access to the target Data Mart orders. The counts above are still accurate."
       )
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Copy SQL' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy to Clipboard' })).not.toBeInTheDocument();
   });
 
   it('does not infer access redaction from naturally empty relationship output', () => {

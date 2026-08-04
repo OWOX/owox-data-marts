@@ -114,6 +114,8 @@ export class SyncLegacyDataMartService {
         sqlQuery: projection.query,
       } as SqlDefinition,
       createdById: '',
+      availableForReporting: true,
+      availableForMaintenance: true,
     });
   }
 
