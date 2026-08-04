@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { modelCanvasService } from '../../../model-canvas/api/model-canvas.service';
+import { dataMartService } from '../../../shared';
 
 export interface InputSourceChangeImpact {
   /** Relationships where this Data Mart joins another one. */
@@ -16,16 +16,14 @@ interface UseInputSourceChangeImpactResult {
 
 /**
  * Counts what depends on a Data Mart, so the user can judge the blast radius before repointing it
- * at another input source. Relationship counts come from the storage-wide edge list, which is the
- * only read that exposes inbound edges as well as outbound ones.
+ * at another input source. The counts come from a single authorized backend read rather than being
+ * assembled client-side, so inbound relationships and reports are counted where they actually live.
  *
- * Only fetches while `enabled` is true, so the storage-wide read happens when the confirmation is
- * actually on screen rather than on every visit to the Input Source block.
+ * Only fetches while `enabled` is true, so the read happens when the confirmation is on screen
+ * rather than on every visit to the Input Source block.
  */
 export function useInputSourceChangeImpact(
   dataMartId: string,
-  storageId: string,
-  reportsCount: number,
   enabled: boolean
 ): UseInputSourceChangeImpactResult {
   const [impact, setImpact] = useState<InputSourceChangeImpact | null>(null);
@@ -39,19 +37,20 @@ export function useInputSourceChangeImpact(
     const abortController = new AbortController();
     setIsLoading(true);
 
-    modelCanvasService
-      .getEdges(storageId, { signal: abortController.signal })
-      .then(edges => {
+    dataMartService
+      .getInputSourceChangeImpact(dataMartId, { signal: abortController.signal })
+      .then(response => {
         setImpact({
-          outboundRelationships: edges.filter(edge => edge.sourceDataMartId === dataMartId).length,
-          inboundRelationships: edges.filter(edge => edge.targetDataMartId === dataMartId).length,
-          reports: reportsCount,
+          outboundRelationships: response.outboundRelationshipsCount,
+          inboundRelationships: response.inboundRelationshipsCount,
+          reports: response.reportsCount,
         });
       })
       .catch(() => {
-        // Counts are advisory. A failed read must not block the user from confirming, so we fall
-        // back to reporting only what we already know for certain.
-        setImpact({ outboundRelationships: 0, inboundRelationships: 0, reports: reportsCount });
+        // Counts are advisory. A failed read must not block the user from confirming, so the
+        // dialog goes without them rather than inventing zeros, which would read as "nothing
+        // depends on this Data Mart".
+        setImpact(null);
       })
       .finally(() => {
         if (!abortController.signal.aborted) {
@@ -62,7 +61,7 @@ export function useInputSourceChangeImpact(
     return () => {
       abortController.abort();
     };
-  }, [dataMartId, storageId, reportsCount, enabled]);
+  }, [dataMartId, enabled]);
 
   return { impact, isLoading };
 }

@@ -297,6 +297,21 @@ export class ReportService {
    * @param dataMartId - DataMart identifier
    * @param projectId - Project identifier for ownership validation
    */
+  /**
+   * Counts reports built on a data mart. Used to tell the user how much depends on it before a
+   * change that could disconnect the fields those reports read.
+   */
+  async countByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<number> {
+    return this.repository.count({
+      where: {
+        dataMart: {
+          id: dataMartId,
+          projectId,
+        },
+      },
+    });
+  }
+
   async deleteAllByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<void> {
     const reports = await this.repository.find({
       where: {

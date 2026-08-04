@@ -66,6 +66,7 @@ import { ListProjectDataMartRunsService } from './use-cases/list-project-data-ma
 import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
 import { ListProjectScheduledTriggersService } from './use-cases/list-project-scheduled-triggers.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
+import { GetDataMartInputSourceChangeImpactService } from './use-cases/get-data-mart-input-source-change-impact.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { McpDataCatalogSummaryMapper } from './mappers/mcp-data-catalog-summary.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
@@ -593,6 +594,7 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
     },
     ListDataMartsByConnectorNameService,
     GetDataMartService,
+    GetDataMartInputSourceChangeImpactService,
     ListDataMartRunsService,
     ListProjectDataMartRunsService,
     ListProjectInsightTemplatesService,

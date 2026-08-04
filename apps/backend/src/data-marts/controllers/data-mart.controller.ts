@@ -26,6 +26,8 @@ import { CreateDataMartService } from '../use-cases/create-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
 import { GetDataMartRunService } from '../use-cases/get-data-mart-run.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
+import { GetDataMartInputSourceChangeImpactService } from '../use-cases/get-data-mart-input-source-change-impact.service';
+import { DataMartInputSourceChangeImpactResponseApiDto } from '../dto/presentation/data-mart-input-source-change-impact-response-api.dto';
 import { ListDataMartRunsService } from '../use-cases/list-data-mart-runs.service';
 import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
@@ -60,6 +62,7 @@ import {
   GetDataMartRunByIdSpec,
   GetDataMartRunsSpec,
   GetDataMartSpec,
+  GetDataMartInputSourceChangeImpactSpec,
   ListDataMartsByConnectorNameSpec,
   ListDataMartsSpec,
   PublishDataMartSpec,
@@ -83,6 +86,7 @@ export class DataMartController {
     private readonly createDataMartService: CreateDataMartService,
     private readonly listDataMartsService: ListDataMartsService,
     private readonly getDataMartService: GetDataMartService,
+    private readonly getInputSourceChangeImpactService: GetDataMartInputSourceChangeImpactService,
     private readonly updateDefinitionService: UpdateDataMartDefinitionService,
     private readonly updateTitleService: UpdateDataMartTitleService,
     private readonly updateDescriptionService: UpdateDataMartDescriptionService,
@@ -155,6 +159,19 @@ export class DataMartController {
   @DataMartAiHelperAvailabilitySpec()
   getAiHelperAvailability(): DataMartAiHelperAvailabilityResponseApiDto {
     return { enabled: this.aiInsightsConfig.isInsightsEnabled() };
+  }
+
+  // Declared before ':id' would otherwise be reached, since a literal suffix on the same
+  // parameterised path still needs its own route.
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Get(':id/input-source-change-impact')
+  @GetDataMartInputSourceChangeImpactSpec()
+  async getInputSourceChangeImpact(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataMartInputSourceChangeImpactResponseApiDto> {
+    const command = this.mapper.toGetInputSourceChangeImpactCommand(id, context);
+    return this.getInputSourceChangeImpactService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

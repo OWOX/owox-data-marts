@@ -76,6 +76,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         context: dataMart.id,
         value: dataMart.title,
       });
+      // Returned so callers that need the freshly loaded state (rather than waiting a render for
+      // it to reach context) can read it directly.
+      return dataMart;
     } catch (error) {
       dispatch({
         type: 'FETCH_DATA_MART_ERROR',

@@ -20,6 +20,7 @@ import { DeleteDataMartCommand } from '../dto/domain/delete-data-mart.command';
 import { GetDataMartRunCommand } from '../dto/domain/get-data-mart-run.command';
 import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
+import { GetDataMartInputSourceChangeImpactCommand } from '../dto/domain/get-data-mart-input-source-change-impact.command';
 import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { PaginatedDataMartListItemsDto } from '../dto/domain/paginated-data-mart-list-items.dto';
@@ -278,6 +279,18 @@ export class DataMartMapper {
 
   toGetCommand(id: string, context: AuthorizationContext): GetDataMartCommand {
     return new GetDataMartCommand(id, context.projectId, context.userId, context.roles ?? []);
+  }
+
+  toGetInputSourceChangeImpactCommand(
+    id: string,
+    context: AuthorizationContext
+  ): GetDataMartInputSourceChangeImpactCommand {
+    return new GetDataMartInputSourceChangeImpactCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toGetDataMartRunsCommand(

@@ -9,7 +9,7 @@ const testState = vi.hoisted(() => ({
   outletContext: null as unknown,
   updateDataMartDefinition: vi.fn(),
   runSchemaActualization: vi.fn(),
-  getEdges: vi.fn(),
+  getInputSourceChangeImpact: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async importOriginal => {
@@ -24,11 +24,18 @@ vi.mock('../../../shared/utils/useDataMartPreset.ts', () => ({
   useDataMartPreset: () => undefined,
 }));
 
-vi.mock('../../../model-canvas/api/model-canvas.service', () => ({
-  modelCanvasService: {
-    getEdges: (...args: unknown[]) => testState.getEdges(...args),
-  },
-}));
+vi.mock('../../../shared', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../../shared')>();
+  return {
+    ...actual,
+    // Only the impact read is exercised here; the rest of the flow goes through the outlet
+    // context. Replacing the whole service keeps us from spreading a class instance.
+    dataMartService: {
+      getInputSourceChangeImpact: (...args: unknown[]) =>
+        testState.getInputSourceChangeImpact(...args),
+    },
+  };
+});
 
 // Radix Select renders its options in a portal driven by pointer events. Swap in a native select
 // so the available options are directly assertable.
@@ -80,7 +87,6 @@ const buildDataMart = (
 ) => ({
   id: 'dm-1',
   title: 'Orders',
-  reportsCount: 2,
   definitionType,
   definition: definitionType ? { fullyQualifiedName: 'project.dataset.orders' } : null,
   storage: {
@@ -130,7 +136,11 @@ const optionLabels = () =>
 describe('DataMartDefinitionSettings — changing the input source type', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    testState.getEdges.mockResolvedValue([]);
+    testState.getInputSourceChangeImpact.mockResolvedValue({
+      outboundRelationshipsCount: 0,
+      inboundRelationshipsCount: 0,
+      reportsCount: 0,
+    });
     testState.updateDataMartDefinition.mockResolvedValue(undefined);
   });
 
@@ -203,11 +213,11 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
   });
 
   it('confirms before saving a type change, and reports what depends on the Data Mart', async () => {
-    testState.getEdges.mockResolvedValue([
-      { sourceDataMartId: 'dm-1', targetDataMartId: 'dm-2' },
-      { sourceDataMartId: 'dm-3', targetDataMartId: 'dm-1' },
-      { sourceDataMartId: 'dm-4', targetDataMartId: 'dm-5' },
-    ]);
+    testState.getInputSourceChangeImpact.mockResolvedValue({
+      outboundRelationshipsCount: 1,
+      inboundRelationshipsCount: 1,
+      reportsCount: 2,
+    });
     renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.VIEW);
 
     fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
@@ -217,7 +227,7 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
     // Nothing is written until the user confirms.
     expect(testState.updateDataMartDefinition).not.toHaveBeenCalled();
 
-    // Two edges touch dm-1 (one outbound, one inbound); reportsCount is 2.
+    // One outbound plus one inbound relationship, and two reports.
     expect(
       await screen.findByText('2 relationships and 2 reports depend on this Data Mart.')
     ).toBeInTheDocument();

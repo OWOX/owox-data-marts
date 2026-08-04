@@ -71,7 +71,6 @@ export function DataMartDefinitionSettings({
   const {
     definition: initialDefinition,
     id: dataMartId,
-    reportsCount,
     storage: { id: storageId, type: storageType, config: storageConfig },
   } = dataMart;
 
@@ -97,8 +96,6 @@ export function DataMartDefinitionSettings({
 
   const { impact, isLoading: isLoadingImpact } = useInputSourceChangeImpact(
     dataMartId,
-    storageId,
-    reportsCount,
     pendingTypeChange !== null
   );
 

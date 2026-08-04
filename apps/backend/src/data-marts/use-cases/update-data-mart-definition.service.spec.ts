@@ -290,7 +290,27 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(dataMartService.save).not.toHaveBeenCalled();
     });
 
-    it('leaves a SQL target to the editor dry-run, as publishing does', async () => {
+    it('refuses an invalid SQL target, persisting neither the type nor the definition', async () => {
+      // The editor dry run is advisory and API callers skip it entirely, so the server has to be
+      // the one that stops an invalid query from replacing a working table definition.
+      const existingDefinition = { fullyQualifiedName: 'project.dataset.orders' };
+      const { service, dataMartService, definitionValidatorFacade } = createService({
+        definitionType: DataMartDefinitionType.TABLE,
+        definition: existingDefinition,
+      });
+      definitionValidatorFacade.checkIsValid.mockRejectedValue(
+        new BusinessViolationException('Syntax error near FROM')
+      );
+
+      await expect(
+        service.run(commandFor(DataMartDefinitionType.SQL, { sqlQuery: 'select from' }))
+      ).rejects.toThrow(/Syntax error/);
+
+      expect(definitionValidatorFacade.checkIsValid).toHaveBeenCalled();
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    });
+
+    it('validates a SQL target before persisting it', async () => {
       const { service, dataMartService, definitionValidatorFacade } = createService({
         definitionType: DataMartDefinitionType.TABLE,
         definition: { fullyQualifiedName: 'project.dataset.orders' },
@@ -298,7 +318,7 @@ describe('UpdateDataMartDefinitionService', () => {
 
       await service.run(commandFor(DataMartDefinitionType.SQL, { sqlQuery: 'select 1' }));
 
-      expect(definitionValidatorFacade.checkIsValid).not.toHaveBeenCalled();
+      expect(definitionValidatorFacade.checkIsValid).toHaveBeenCalled();
       expect(dataMartService.save).toHaveBeenCalled();
     });
 

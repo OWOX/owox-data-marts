@@ -21,6 +21,7 @@ import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-da
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
+import { DataMartInputSourceChangeImpactResponseApiDto } from '../../dto/presentation/data-mart-input-source-change-impact-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartRunDetailResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
@@ -60,6 +61,18 @@ export function GetDataMartSpec() {
     ApiOperation({ summary: 'Get a DataMart by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiResponse({ status: 200, type: DataMartResponseApiDto })
+  );
+}
+
+export function GetDataMartInputSourceChangeImpactSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Count what depends on a DataMart before its input source is changed',
+      description:
+        'Returns how many relationships reference this DataMart in each direction and how many reports are built on it, so the caller can show the blast radius of repointing it at another input source.',
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ type: DataMartInputSourceChangeImpactResponseApiDto })
   );
 }
 

@@ -140,9 +140,11 @@ export class UpdateDataMartDefinitionService {
     // A type change repoints the Data Mart at a different kind of source, so the new definition is
     // checked against the storage before it lands. Same-type edits keep their existing behaviour:
     // they are validated on publish and on schema actualization, not on every save.
-    // SQL is exempt for the same reason publishing exempts it — a SQL definition is dry-run from
-    // the editor, and re-running it here would duplicate that round trip on every switch.
-    if (definitionTypeChanged && command.definitionType !== DataMartDefinitionType.SQL) {
+    //
+    // SQL targets are checked here too. The editor's dry run is advisory — its result does not
+    // gate Save, and API callers never run it at all — so exempting SQL would let an invalid
+    // query silently replace a working table definition.
+    if (definitionTypeChanged) {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 

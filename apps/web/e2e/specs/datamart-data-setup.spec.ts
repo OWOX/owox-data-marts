@@ -292,57 +292,13 @@ test.describe('Data Setup - Connector Definition', () => {
 });
 
 // ---------------------------------------------------------------------------
-// DSET-08: Repointing a Data Mart at another input source type keeps everything
-// that was built on top of it. Driven through the API because the assertions are
-// about persisted relationships and reports, not about the form.
+// DSET-08: Input source type changes that must be refused. The successful
+// transition (and the survival of relationships and reports across it) lives in
+// the backend e2e suite, where the storage validator can be stubbed — a real
+// transition validates the new target against the warehouse, which this harness
+// has no access to.
 // ---------------------------------------------------------------------------
 test.describe('Data Setup - Change input source type', () => {
-  test('keeps relationships and reports when the input source type changes (DSET-08)', async ({
-    apiHelpers,
-  }) => {
-    const storage = await apiHelpers.createStorage();
-
-    const subject = await apiHelpers.createDataMart(storage.id, `Subject DM ${Date.now()}`);
-    const neighbour = await apiHelpers.createDataMart(storage.id, `Neighbour DM ${Date.now()}`);
-    // Setting the very first definition is not a type change, so it is not validated against the
-    // warehouse — which this harness does not have.
-    const seeded = await apiHelpers.updateDefinition(subject.id, 'TABLE', {
-      fullyQualifiedName: 'test_dataset.subject_table',
-    });
-    expect(seeded.ok).toBeTruthy();
-    await apiHelpers.setDefinition(neighbour.id);
-
-    // Outbound: subject -> neighbour. Inbound: neighbour -> subject.
-    await apiHelpers.createRelationship(subject.id, neighbour.id, 'neighbour', [
-      { sourceFieldName: 'id', targetFieldName: 'id' },
-    ]);
-    await apiHelpers.createRelationship(neighbour.id, subject.id, 'subject', [
-      { sourceFieldName: 'id', targetFieldName: 'id' },
-    ]);
-    const { reportId } = await apiHelpers.setupDestinationWithReport(subject.id);
-
-    // TABLE -> SQL: the change that used to be rejected outright. A SQL target is dry-run from the
-    // editor rather than server-side, mirroring how publishing treats it.
-    const changed = await apiHelpers.updateDefinition(subject.id, 'SQL', {
-      sqlQuery: 'SELECT 1 AS id',
-    });
-    expect(changed.ok).toBeTruthy();
-
-    const dm = await apiHelpers.getDataMart(subject.id);
-    expect(dm.definitionType).toBe('SQL');
-    expect(dm.definition?.sqlQuery).toBe('SELECT 1 AS id');
-
-    // Both directions of the relationship survive.
-    const outbound = await apiHelpers.getRelationshipGraph(subject.id);
-    expect(outbound.nodes.length).toBeGreaterThan(0);
-    const inbound = await apiHelpers.getRelationshipGraph(neighbour.id);
-    expect(inbound.nodes.length).toBeGreaterThan(0);
-
-    // The report still exists and still points at the same Data Mart.
-    const report = await apiHelpers.getReport(reportId);
-    expect(report.dataMart?.id).toBe(subject.id);
-  });
-
   test('refuses a new source the storage cannot resolve and rolls back (DSET-08)', async ({
     apiHelpers,
   }) => {
@@ -350,7 +306,7 @@ test.describe('Data Setup - Change input source type', () => {
     const dm = await apiHelpers.createDataMart(storage.id, `Unresolvable DM ${Date.now()}`);
     await apiHelpers.setDefinition(dm.id);
 
-    // Switching to a table validates the target against the storage first. This storage has no
+    // Switching types validates the new target against the storage first. This storage has no
     // usable configuration, so the change must be refused rather than half-applied.
     const changed = await apiHelpers.updateDefinition(dm.id, 'TABLE', {
       fullyQualifiedName: 'test_dataset.missing_table',

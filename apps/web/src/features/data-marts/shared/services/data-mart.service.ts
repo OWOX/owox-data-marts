@@ -22,6 +22,7 @@ import type {
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
+import type { DataMartInputSourceChangeImpactResponseDto } from '../types/api/response/data-mart-input-source-change-impact.response.dto.ts';
 
 /**
  * Data Mart Service
@@ -185,6 +186,22 @@ export class DataMartService extends ApiService {
       skipLoadingIndicator: true,
       ...config,
     } as AxiosRequestConfig);
+  }
+
+  /**
+   * Count what depends on a data mart before its input source is changed.
+   * @param id Data mart ID
+   * @returns Promise with relationship and report counts
+   */
+  async getInputSourceChangeImpact(
+    id: string,
+    config?: AxiosRequestConfig
+  ): Promise<DataMartInputSourceChangeImpactResponseDto> {
+    return this.get<DataMartInputSourceChangeImpactResponseDto>(
+      `/${id}/input-source-change-impact`,
+      undefined,
+      config
+    );
   }
 
   /**

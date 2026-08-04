@@ -307,31 +307,6 @@ export class ApiHelpers {
     return res.json();
   }
 
-  async getReport(reportId: string): Promise<{ id: string; dataMart?: { id: string } }> {
-    const res = await this.page.request.get(`/api/reports/${reportId}`);
-    expect(res.ok()).toBeTruthy();
-    return res.json();
-  }
-
-  async createRelationship(
-    sourceDataMartId: string,
-    targetDataMartId: string,
-    targetAlias: string,
-    joinConditions: { sourceFieldName: string; targetFieldName: string }[]
-  ): Promise<{ id: string }> {
-    const res = await this.page.request.post(`/api/data-marts/${sourceDataMartId}/relationships`, {
-      data: { targetDataMartId, targetAlias, joinConditions },
-    });
-    expect(res.ok()).toBeTruthy();
-    return res.json();
-  }
-
-  async getRelationshipGraph(dataMartId: string): Promise<{ nodes: unknown[] }> {
-    const res = await this.page.request.get(`/api/data-marts/${dataMartId}/relationships/graph`);
-    expect(res.ok()).toBeTruthy();
-    return res.json();
-  }
-
   /**
    * Composite: creates a destination and a report linked to a data mart.
    * Mirrors the backend setupReportPrerequisites pattern.

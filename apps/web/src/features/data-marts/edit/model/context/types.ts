@@ -79,7 +79,8 @@ export type DataMartAction =
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
-  getDataMart: (id: string) => Promise<void>;
+  /** Resolves with the freshly loaded Data Mart, or undefined when the load failed. */
+  getDataMart: (id: string) => Promise<DataMart | undefined>;
   syncDataMartFromResponse: (response: DataMartResponseDto) => Promise<void>;
   refreshDataMart: (id: string) => Promise<void>;
   createDataMart: (data: CreateDataMartRequestDto) => Promise<Pick<DataMart, 'id' | 'title'>>;

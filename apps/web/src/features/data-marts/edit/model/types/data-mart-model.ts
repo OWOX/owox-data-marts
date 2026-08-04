@@ -116,10 +116,4 @@ export interface DataMart {
    * Last-known Data Last Updated snapshot; null when never computed.
    */
   dataLastUpdated: DataLastUpdatedDto | null;
-
-  /**
-   * Number of reports built on this Data Mart. Used to show how much depends on it before a
-   * change that could disconnect fields.
-   */
-  reportsCount: number;
 }
