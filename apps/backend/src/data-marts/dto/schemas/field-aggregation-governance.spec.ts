@@ -32,10 +32,10 @@ describe('resolveFieldGovernance — default allowed aggregations (no explicit o
     expect(resolveFieldGovernance('TIME').allowedAggregations).toEqual(['MIN', 'MAX']);
   });
 
-  it('string → dimension with [COUNT, COUNT_DISTINCT]', () => {
+  it('string → dimension with [COUNT, COUNT_DISTINCT, STRING_AGG, ANY_VALUE]', () => {
     expect(resolveFieldGovernance('STRING')).toEqual({
       role: 'dimension',
-      allowedAggregations: ['COUNT', 'COUNT_DISTINCT'],
+      allowedAggregations: ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE'],
     });
   });
 
@@ -66,10 +66,14 @@ describe('resolveFieldGovernance — default allowed aggregations (no explicit o
     expect(num).not.toContain('P50');
   });
 
-  it('ANY_VALUE is never a default for any category (supported but off by default)', () => {
-    for (const type of ['INTEGER', 'STRING', 'DATE', 'BOOLEAN', 'JSON']) {
+  it('ANY_VALUE and STRING_AGG are defaults for string only', () => {
+    for (const type of ['INTEGER', 'DATE', 'BOOLEAN', 'JSON']) {
       expect(resolveFieldGovernance(type).allowedAggregations).not.toContain('ANY_VALUE');
+      expect(resolveFieldGovernance(type).allowedAggregations).not.toContain('STRING_AGG');
     }
+    expect(resolveFieldGovernance('STRING').allowedAggregations).toEqual(
+      expect.arrayContaining(['ANY_VALUE', 'STRING_AGG'])
+    );
   });
 });
 
@@ -165,7 +169,12 @@ describe('resolveFieldGovernance — explicit overrides', () => {
   it('role override and allowed override are independent (only one set)', () => {
     const onlyRole = resolveFieldGovernance('STRING', { aggregationRole: 'metric' });
     expect(onlyRole.role).toBe('metric');
-    expect(onlyRole.allowedAggregations).toEqual(['COUNT', 'COUNT_DISTINCT']);
+    expect(onlyRole.allowedAggregations).toEqual([
+      'COUNT',
+      'COUNT_DISTINCT',
+      'STRING_AGG',
+      'ANY_VALUE',
+    ]);
 
     const onlyAllowed = resolveFieldGovernance('STRING', { allowedAggregations: ['COUNT'] });
     expect(onlyAllowed.role).toBe('dimension');

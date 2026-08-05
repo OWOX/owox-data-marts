@@ -66,7 +66,7 @@ describe('BaseSchemaTable — Aggregations column', () => {
     expect(screen.getByLabelText('Available aggregations')).toBeInTheDocument();
   });
 
-  it('shows the STRING default (COUNT, COUNT_DISTINCT) as joined names for a STRING field with no allowedAggregations', () => {
+  it('shows "4 selected" for a STRING field with no allowedAggregations (default: COUNT, COUNT_DISTINCT, STRING_AGG, ANY_VALUE)', () => {
     const fields = [buildAthenaField({ name: 'my_string', type: AthenaFieldType.STRING })];
     render(
       <AthenaSchemaTable
@@ -76,8 +76,7 @@ describe('BaseSchemaTable — Aggregations column', () => {
       />
     );
 
-    // STRING default is [COUNT, COUNT_DISTINCT] — 2 items → joined names.
-    expect(screen.getByText('COUNT, COUNT_DISTINCT')).toBeInTheDocument();
+    expect(screen.getByText('4 selected')).toBeInTheDocument();
   });
 
   it('shows "4 selected" for a numeric field with no allowedAggregations (type-derived default: SUM, AVG, MIN, MAX)', () => {
@@ -122,7 +121,7 @@ describe('BaseSchemaTable — Aggregations column', () => {
 
   it('toggling a function OFF calls onFieldsChange with narrowed allowedAggregations array', async () => {
     const onFieldsChange = vi.fn();
-    // STRING default is [COUNT, COUNT_DISTINCT] — both checked by default.
+    // STRING default is [COUNT, COUNT_DISTINCT, STRING_AGG, ANY_VALUE] — all checked by default.
     const fields = [buildAthenaField({ name: 'my_string', type: AthenaFieldType.STRING })];
     render(
       <AthenaSchemaTable
@@ -147,7 +146,7 @@ describe('BaseSchemaTable — Aggregations column', () => {
     });
 
     const [updatedFields] = onFieldsChange.mock.calls[0] as [AthenaSchemaField[]];
-    expect(updatedFields[0].allowedAggregations).toEqual(['COUNT']);
+    expect(updatedFields[0].allowedAggregations).toEqual(['ANY_VALUE', 'COUNT', 'STRING_AGG']);
   });
 
   it('clearing all aggregations writes an explicit empty array [] (not dropped)', async () => {

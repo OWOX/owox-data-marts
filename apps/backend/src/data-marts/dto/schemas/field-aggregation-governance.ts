@@ -45,13 +45,15 @@ const SUPPORTED_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]
 
 /**
  * The subset of aggregations turned ON by default per type (2026-06-29 meeting, point 3),
- * used when a field carries no explicit `allowedAggregations` override. ANY_VALUE is
- * supported (above) but never a default. Single source so the governance map and any UI
- * hint cannot diverge.
+ * used when a field carries no explicit `allowedAggregations` override. Single source so
+ * the governance map and any UI hint cannot diverge.
  */
 const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, CategoryDefault> = {
   number: { role: 'metric', allowedAggregations: ['SUM', 'AVG', 'MIN', 'MAX'] },
-  string: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
+  string: {
+    role: 'dimension',
+    allowedAggregations: ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE'],
+  },
   date: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   time: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   boolean: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },

@@ -533,10 +533,14 @@ describe('BlendableSchemaService', () => {
       const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
       expect(revenueField.postJoinAggregations).toEqual(['MIN', 'MAX']);
 
-      // no override → type-derived governance default (STRING) = [COUNT, COUNT_DISTINCT]
-      // (STRING_AGG is supported but off by default per the 2026-06-29 meeting)
+      // no override → type-derived governance default (STRING)
       const statusField = result.blendedFields.find(f => f.originalFieldName === 'status')!;
-      expect(statusField.postJoinAggregations).toEqual(['COUNT', 'COUNT_DISTINCT']);
+      expect(statusField.postJoinAggregations).toEqual([
+        'COUNT',
+        'COUNT_DISTINCT',
+        'STRING_AGG',
+        'ANY_VALUE',
+      ]);
 
       // explicit empty array → none allowed (NOT the default)
       const notesField = result.blendedFields.find(f => f.originalFieldName === 'notes')!;
