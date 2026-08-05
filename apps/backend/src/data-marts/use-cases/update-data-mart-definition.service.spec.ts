@@ -50,7 +50,7 @@ describe('UpdateDataMartDefinitionService', () => {
       eventDispatcher as any
     );
 
-    return { service, dataMartService, accessDecisionService, dataMart };
+    return { service, dataMartService, accessDecisionService, connectorSecretService, dataMart };
   };
 
   beforeEach(() => {
@@ -88,6 +88,84 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(result).toEqual({ id: 'dm-1' });
     }
   );
+
+  it('cleans up orphaned secrets against the definition that was actually saved', async () => {
+    const { service, dataMartService, connectorSecretService, dataMart } = createService();
+
+    const previousDefinition = {
+      connector: {
+        source: { name: 'FacebookMarketing', configuration: [{ _id: 'c-1', _secrets_id: 'old' }] },
+      },
+    };
+    dataMart.definitionType = DataMartDefinitionType.CONNECTOR;
+    dataMart.definition = previousDefinition;
+
+    const sourceDataMart = {
+      id: 'dm-source',
+      projectId: 'proj-1',
+      definitionType: DataMartDefinitionType.CONNECTOR,
+      definition: {
+        connector: {
+          source: {
+            name: 'FacebookMarketing',
+            configuration: [{ _id: 'src-1', _secrets_id: 'source-secrets' }],
+          },
+        },
+      },
+    };
+    dataMartService.getByIdAndProjectId.mockImplementation(async (id: string) =>
+      id === 'dm-source' ? sourceDataMart : dataMart
+    );
+
+    const mergedFromSource = { merged: 'from-source' };
+    const mergedWithPrevious = { merged: 'with-previous' };
+    // What extractAndSaveSecrets returns is what gets stored, so it is also
+    // what cleanup must be compared against.
+    const savedDefinition = {
+      connector: {
+        source: { name: 'FacebookMarketing', configuration: [{ _id: 'c-2', _secrets_id: 'new' }] },
+      },
+    };
+    connectorSecretService.mergeDefinitionSecretsFromSource.mockResolvedValue(mergedFromSource);
+    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(mergedWithPrevious);
+    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(savedDefinition);
+
+    const incomingDefinition = {
+      connector: {
+        source: {
+          name: 'FacebookMarketing',
+          configuration: [{ _copiedFrom: { configId: 'src-1' } }],
+        },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      incomingDefinition as any,
+      'dm-source',
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await service.run(command);
+
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
+      incomingDefinition,
+      sourceDataMart.definition
+    );
+    expect(connectorSecretService.mergeDefinitionSecrets).toHaveBeenCalledWith(
+      mergedFromSource,
+      previousDefinition
+    );
+    expect(connectorSecretService.deleteOrphanedSecrets).toHaveBeenCalledWith(
+      'dm-1',
+      savedDefinition,
+      previousDefinition
+    );
+    expect(dataMart.definition).toBe(savedDefinition);
+  });
 
   it('should throw ForbiddenException when user has no edit access to data mart', async () => {
     const { service, accessDecisionService } = createService();

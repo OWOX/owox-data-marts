@@ -114,15 +114,10 @@ export class UpdateDataMartDefinitionService {
         mergedDefinition
       );
 
-      // Delete secrets for configuration items that were removed
-      const currentConfigIds = new Set(
-        (dataMart.definition as ConnectorDefinition).connector.source.configuration
-          .map(item => (item as Record<string, unknown>)._id as string)
-          .filter((id): id is string => !!id)
-      );
+      // Delete secrets this DataMart no longer references
       await this.connectorSecretService.deleteOrphanedSecrets(
         dataMart.id,
-        currentConfigIds,
+        dataMart.definition as ConnectorDefinition,
         previousDefinition
       );
     } else {
