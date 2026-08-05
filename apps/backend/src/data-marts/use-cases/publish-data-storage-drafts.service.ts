@@ -4,7 +4,6 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
-import { PublishDraftFailureDto } from '../dto/domain/publish-draft-failure.dto';
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
@@ -60,11 +59,11 @@ export class PublishDataStorageDraftsService {
       );
     }
 
-    const drafts = await this.dataMartService.findDraftsByStorage(dataStorage);
+    const draftIds = await this.dataMartService.findDraftIdsByStorage(dataStorage);
 
     // Nothing to authorize: skip the remote role lookup so an unrelated IDP
     // blip cannot turn "no drafts to publish" into a hard error.
-    if (drafts.length === 0) {
+    if (draftIds.length === 0) {
       return new PublishDataStorageDraftsResultDto(0, 0);
     }
 
@@ -72,13 +71,14 @@ export class PublishDataStorageDraftsService {
 
     let successCount = 0;
     let failedCount = 0;
-    const failures: PublishDraftFailureDto[] = [];
+    // Deduplicated: the caller only needs to know why, not which draft.
+    const failureReasons = new Set<string>();
 
-    for (const draft of drafts) {
+    for (const draftId of draftIds) {
       try {
         await this.publishDataMartService.run(
           new PublishDataMartCommand(
-            draft.id,
+            draftId,
             command.projectId,
             command.userId,
             roles,
@@ -88,12 +88,10 @@ export class PublishDataStorageDraftsService {
         ++successCount;
       } catch (error) {
         this.logger.warn(
-          `Failed to publish draft ${draft.id}: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to publish draft ${draftId}: ${error instanceof Error ? error.message : String(error)}`,
           error instanceof Error ? error.stack : undefined
         );
-        failures.push(
-          new PublishDraftFailureDto(draft.id, draft.title, this.toUserFacingReason(error))
-        );
+        failureReasons.add(this.toUserFacingReason(error));
         ++failedCount;
         continue;
       }
@@ -106,18 +104,18 @@ export class PublishDataStorageDraftsService {
         await this.schemaActualizeTriggerService.createTrigger(
           command.userId,
           command.projectId,
-          draft.id
+          draftId
         );
       } catch (error) {
         this.logger.warn(
-          `Published draft ${draft.id} but failed to schedule schema actualization: ` +
+          `Published draft ${draftId} but failed to schedule schema actualization: ` +
             (error instanceof Error ? error.message : String(error)),
           error instanceof Error ? error.stack : undefined
         );
       }
     }
 
-    return new PublishDataStorageDraftsResultDto(successCount, failedCount, failures);
+    return new PublishDataStorageDraftsResultDto(successCount, failedCount, [...failureReasons]);
   }
 
   /**

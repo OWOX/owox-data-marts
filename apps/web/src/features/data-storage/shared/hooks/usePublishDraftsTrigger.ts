@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FailedDraftsToast } from '../components/FailedDraftsToast.tsx';
-import { useProjectId } from '../../../../shared/hooks/useProjectId.ts';
 import { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
+import { buildPublishFailureMessage } from '../utils/buildPublishFailureMessage.ts';
 import { dataStorageApiService } from '../api';
 
 interface UsePublishDraftsTriggerReturn {
-  run: (dataStorageId: string, storageTitle: string) => Promise<void>;
+  run: (dataStorageId: string) => Promise<void>;
   isLoading: boolean;
   cancel: () => Promise<void>;
   error: string | null;
@@ -17,7 +16,6 @@ const POLLING_INTERVAL = 1000;
 export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraftsTriggerReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const projectId = useProjectId();
 
   const currentTriggerIdRef = useRef<string | null>(null);
   const currentDataStorageIdRef = useRef<string | null>(null);
@@ -71,12 +69,7 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
   }, [setSafeLoading]);
 
   const pollTriggerStatus = useCallback(
-    async (
-      dataStorageId: string,
-      storageTitle: string,
-      triggerId: string,
-      signal: AbortSignal
-    ): Promise<void> => {
+    async (dataStorageId: string, triggerId: string, signal: AbortSignal): Promise<void> => {
       const isFinal = (status: TaskStatus): boolean =>
         status === TaskStatus.SUCCESS ||
         status === TaskStatus.ERROR ||
@@ -110,22 +103,10 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
                 }
 
                 if (response.failedCount > 0) {
-                  if (response.failures?.length) {
-                    toast.error(
-                      <FailedDraftsToast
-                        triggerId={triggerId}
-                        projectId={projectId}
-                        storageTitle={storageTitle}
-                        failures={response.failures}
-                      />,
-                      { duration: 10000, id: `${triggerId}-error` }
-                    );
-                  } else {
-                    toast.error(
-                      `Failed to publish ${String(response.failedCount)} Data Mart draft${response.failedCount !== 1 ? 's' : ''}. Check the Data Marts list for details.`,
-                      { duration: 10000, id: `${triggerId}-error` }
-                    );
-                  }
+                  toast.error(
+                    buildPublishFailureMessage(response.failedCount, response.failureReasons ?? []),
+                    { duration: 10000, id: `${triggerId}-error` }
+                  );
                 }
 
                 if (response.successCount === 0 && response.failedCount === 0) {
@@ -158,11 +139,11 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
         }
       }
     },
-    [setSafeError, setSafeLoading, handleError, projectId]
+    [setSafeError, setSafeLoading, handleError]
   );
 
   const run = useCallback(
-    async (dataStorageId: string, storageTitle: string) => {
+    async (dataStorageId: string) => {
       if (currentTriggerIdRef.current) await cancel();
 
       setSafeError(null);
@@ -182,7 +163,7 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
         abortControllerRef.current = abortController;
 
         try {
-          await pollTriggerStatus(dataStorageId, storageTitle, triggerId, abortController.signal);
+          await pollTriggerStatus(dataStorageId, triggerId, abortController.signal);
         } catch (e) {
           handleError(e, triggerId);
         }

@@ -10,7 +10,7 @@ describe('PublishDataStorageDraftsService', () => {
       getByProjectIdAndId: jest.fn().mockResolvedValue({ id: 'storage-1' }),
     };
     const dataMartService = {
-      findDraftsByStorage: jest.fn().mockResolvedValue([{ id: 'dm-1', title: 'My Draft' }]),
+      findDraftIdsByStorage: jest.fn().mockResolvedValue(['dm-1']),
     };
     const publishDataMartService = {
       run: jest.fn().mockResolvedValue(undefined),
@@ -45,7 +45,7 @@ describe('PublishDataStorageDraftsService', () => {
 
   it('skips the remote role lookup when the storage has no drafts', async () => {
     const { service, dataMartService, idpProjectionsFacade } = createService();
-    dataMartService.findDraftsByStorage.mockResolvedValue([]);
+    dataMartService.findDraftIdsByStorage.mockResolvedValue([]);
 
     const result = await service.run(
       new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
@@ -117,10 +117,10 @@ describe('PublishDataStorageDraftsService', () => {
     // would point the user at a DRAFT-filtered list it is no longer in.
     expect(result.successCount).toBe(1);
     expect(result.failedCount).toBe(0);
-    expect(result.failures).toEqual([]);
+    expect(result.failureReasons).toEqual([]);
   });
 
-  it('counts a draft as failed (without throwing) and reports its id, title and reason', async () => {
+  it('counts a draft as failed (without throwing) and reports the reason', async () => {
     const { service, publishDataMartService } = createService();
     publishDataMartService.run.mockRejectedValue(
       new BusinessViolationException(PUBLISH_DATA_MART_ERRORS.NO_DEFINITION)
@@ -132,9 +132,7 @@ describe('PublishDataStorageDraftsService', () => {
 
     expect(result.successCount).toBe(0);
     expect(result.failedCount).toBe(1);
-    expect(result.failures).toEqual([
-      { dataMartId: 'dm-1', title: 'My Draft', error: PUBLISH_DATA_MART_ERRORS.NO_DEFINITION },
-    ]);
+    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_DEFINITION]);
   });
 
   it('reports the permission error verbatim (thrown as a Nest ForbiddenException)', async () => {
@@ -147,7 +145,7 @@ describe('PublishDataStorageDraftsService', () => {
       new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
     );
 
-    expect(result.failures[0].error).toBe(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION);
+    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_PERMISSION]);
   });
 
   it('never leaks an unrecognized error message to the caller', async () => {
@@ -164,8 +162,43 @@ describe('PublishDataStorageDraftsService', () => {
     );
 
     expect(result.failedCount).toBe(1);
-    expect(result.failures[0].error).toBe('Publishing failed. Open the Data Mart to see details.');
+    expect(result.failureReasons).toEqual([
+      'Publishing failed. Open the Data Mart to see details.',
+    ]);
     expect(JSON.stringify(result)).not.toContain('acme-prod-1234');
     expect(JSON.stringify(result)).not.toContain('gserviceaccount');
+  });
+
+  // The trigger only requires EDIT on the storage, but the batch covers every
+  // draft in it. A publisher may therefore hit Data Marts they cannot see, and
+  // the result must not disclose which ones they were.
+  it('discloses no Data Mart identifiers for drafts the publisher cannot see', async () => {
+    const { service, dataMartService, publishDataMartService } = createService();
+    dataMartService.findDraftIdsByStorage.mockResolvedValue([
+      'visible-dm',
+      'hidden-dm-8f3a1c02',
+      'hidden-dm-b71e94dd',
+    ]);
+    publishDataMartService.run.mockImplementation((command: { id: string }) => {
+      if (command.id === 'visible-dm') return Promise.resolve(undefined);
+      // Access-gated Data Marts fail the per-draft EDIT check.
+      return Promise.reject(new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION));
+    });
+
+    const result = await service.run(
+      new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
+    );
+
+    expect(result.successCount).toBe(1);
+    expect(result.failedCount).toBe(2);
+
+    // Reasons are deduplicated, so the count of hidden Data Marts is not
+    // inferable from the list either.
+    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_PERMISSION]);
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('hidden-dm-8f3a1c02');
+    expect(serialized).not.toContain('hidden-dm-b71e94dd');
+    expect(serialized).not.toContain('visible-dm');
   });
 });

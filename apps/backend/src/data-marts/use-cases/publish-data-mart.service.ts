@@ -76,11 +76,14 @@ export class PublishDataMartService {
     dataMart.status = DataMartStatus.PUBLISHED;
 
     await this.dataMartService.save(dataMart);
-    await this.advancedSearchIndexSync?.scheduleReindex(
-      SearchableEntityType.DATA_MART,
-      dataMart.id,
-      command.projectId
-    );
+
+    await this.runPostPublishEffect(dataMart.id, 'scheduling the search reindex', async () => {
+      await this.advancedSearchIndexSync?.scheduleReindex(
+        SearchableEntityType.DATA_MART,
+        dataMart.id,
+        command.projectId
+      );
+    });
 
     const event = new DataMartPublishedEvent(
       dataMart.id,
@@ -89,7 +92,9 @@ export class PublishDataMartService {
       previousStatus
     );
 
-    await this.eventDispatcher.publish(event);
+    await this.runPostPublishEffect(dataMart.id, 'dispatching DataMartPublishedEvent', async () => {
+      await this.eventDispatcher.publish(event);
+    });
 
     if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
       const userId = command.createdById ?? command.userId;
@@ -112,5 +117,30 @@ export class PublishDataMartService {
     }
 
     return this.mapper.toDomainDto(dataMart);
+  }
+
+  /**
+   * Runs a side effect that must not fail the publish.
+   *
+   * By the time these run the Data Mart is already saved as PUBLISHED, so a
+   * rejection would make callers report a failure for a Data Mart that is in
+   * fact published — the bulk publisher would count it as failed and send the
+   * user to a DRAFT-filtered list it no longer appears in, and the single-mart
+   * endpoint would answer 500. The connector auto-run below is already
+   * fire-and-forget for the same reason.
+   */
+  private async runPostPublishEffect(
+    dataMartId: string,
+    description: string,
+    effect: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await effect();
+    } catch (error) {
+      this.logger.error(
+        `Published data mart ${dataMartId} but ${description} failed`,
+        error instanceof Error ? error.stack : undefined
+      );
+    }
   }
 }
