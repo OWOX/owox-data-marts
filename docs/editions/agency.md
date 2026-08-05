@@ -77,7 +77,7 @@ Clients gain the freedom to explore data independently, while your team retains 
 
 Here’s how to get started locally on your machine:
 
-1. **Install Node.js** (version 22.16.0 or higher)
+1. **Install Node.js** (version 22.22.0 or higher)
 
    If it’s not installed yet, [download it here](https://nodejs.org/en/download)
 
