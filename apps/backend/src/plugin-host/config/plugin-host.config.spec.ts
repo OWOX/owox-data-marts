@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
 import { validateConfig } from '../../config/env-validation.config';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { PluginHostConfigService } from './plugin-host.config';
@@ -63,6 +64,21 @@ describe('PluginHostConfigService', () => {
         config({ GITHUB_APP_ID: '1', GITHUB_APP_SLUG: 'owox', GITHUB_APP_PRIVATE_KEY: 'k' })
           .missingGithubAppVars
       ).toEqual([]);
+    });
+
+    // Not the string shape but that OpenSSL accepts the result: armour we rebuild wrongly
+    // fails exactly like the mangled value it exists to rescue.
+    it('rebuilds a signable PEM from a bare base64 body', () => {
+      const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+      const body = privateKey
+        .export({ type: 'pkcs1', format: 'pem' })
+        .replace(/-----[^-]+-----/g, '')
+        .replace(/\s/g, '');
+
+      const rebuilt = config({ GITHUB_APP_PRIVATE_KEY: body }).githubAppPrivateKey;
+
+      expect(rebuilt).toMatch(/^-----BEGIN RSA PRIVATE KEY-----\n/);
+      expect(() => createPrivateKey(rebuilt as string)).not.toThrow();
     });
 
     it('unescapes newlines in a private key supplied as a single-line env var', () => {

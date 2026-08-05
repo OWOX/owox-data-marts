@@ -51,9 +51,26 @@ export class PluginHostConfigService {
     return this.trimmed('GITHUB_APP_SLUG');
   }
 
+  /**
+   * Accepts the PEM itself, or just its base64 body with the armour left off.
+   *
+   * The armour is what makes a PEM hostile to secret pipelines: `-----BEGIN RSA PRIVATE
+   * KEY-----` carries spaces, and the body carries newlines. A store that ends in an
+   * unquoted `export KEY=$value` splits on the spaces and eats the backslashes, so the
+   * process receives no usable key and no way to tell that is what happened. The body
+   * alone is a single word with neither, so it arrives intact and we rebuild the rest.
+   *
+   * `RSA PRIVATE KEY` for the rebuilt armour because OpenSSL reads both PKCS#1 (what
+   * GitHub hands out) and PKCS#8 under it, which leaves nothing to detect.
+   */
   get githubAppPrivateKey(): string | undefined {
     // PEM keys are commonly supplied as a single line with escaped newlines.
-    return this.trimmed('GITHUB_APP_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+    const value = this.trimmed('GITHUB_APP_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+    if (!value || value.startsWith('-----')) {
+      return value;
+    }
+
+    return `-----BEGIN RSA PRIVATE KEY-----\n${value}\n-----END RSA PRIVATE KEY-----`;
   }
 
   /**
