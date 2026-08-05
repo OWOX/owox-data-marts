@@ -67,6 +67,7 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
     isLoading: isTopologyLoading,
     error: topologyError,
     refetch,
+    isEnriching,
   } = useModelCanvas(storageKnown ? filters.storageId : null);
   const { refresh: refreshDataLastUpdated, isRefreshing: isRefreshingDataLastUpdated } =
     useRefreshDataLastUpdated(storageKnown ? filters.storageId : null);
@@ -158,8 +159,21 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
   // Image capture can take seconds on a large model — swallow repeat clicks
   // instead of kicking off parallel captures and duplicate downloads.
   const isExportingRef = useRef(false);
+  // Mirrors for the [] callback below: whether detail enrichment is still in
+  // flight, and how many visible nodes never got their details (a failed
+  // detail fetch keeps the node compact — the export must not be silent about it).
+  const isEnrichingRef = useRef(isEnriching);
+  isEnrichingRef.current = isEnriching;
+  const unenrichedCountRef = useRef(0);
+  unenrichedCountRef.current = filtered?.nodes.filter(node => !node.fields).length ?? 0;
   const handleExport = useCallback((format: DataMartCanvasExportFormat) => {
     if (isExportingRef.current) return;
+    // Definitions and schemas arrive with the follow-up detail query; exporting
+    // before it settles would serialize the model without them.
+    if (isEnrichingRef.current) {
+      toast('The canvas is still loading details — please try again in a moment.');
+      return;
+    }
     isExportingRef.current = true;
     void (async () => {
       try {
@@ -171,6 +185,12 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
         if (!exported) {
           toast('The canvas is still loading — please try again in a moment.');
           return;
+        }
+        const unenriched = unenrichedCountRef.current;
+        if (unenriched > 0) {
+          toast(
+            `Exported without schema details for ${String(unenriched)} data mart${unenriched === 1 ? '' : 's'} — reload the page to retry.`
+          );
         }
         trackEvent({
           event: 'model_canvas_exported',

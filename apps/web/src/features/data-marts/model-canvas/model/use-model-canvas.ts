@@ -125,5 +125,11 @@ export function useModelCanvas(storageId: string | null) {
   return {
     ...baseQuery,
     data,
+    /**
+     * True while the follow-up detail query hasn't settled — fields and
+     * definitions may still be missing from the merged nodes. Consumers that
+     * serialize the model (canvas export) should wait this out.
+     */
+    isEnriching: Boolean(baseNodes?.length) && !detailsQuery.isFetched,
   };
 }

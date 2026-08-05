@@ -132,6 +132,8 @@ describe('useModelCanvas', () => {
     expect(serviceMocks.getEdges).toHaveBeenCalledTimes(1);
     expect(serviceMocks.getDataMartById).toHaveBeenCalledTimes(1);
     expect(serviceMocks.getSummaries).not.toHaveBeenCalled();
+    // The enrichment flag settles once the detail query lands — the export gate reads it.
+    expect(result.current.isEnriching).toBe(false);
   });
 });
 

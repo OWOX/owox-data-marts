@@ -118,6 +118,22 @@ describe('serializeOkfBundle', () => {
     expect(bare['data-marts/orders.md']).not.toContain('## Definition');
   });
 
+  it('keeps a backtick-fence line inside a SQL definition from closing the block', () => {
+    const sql = 'SELECT 1\n/*\n```\nsample fence in a comment\n*/\nFROM raw.orders';
+    const { files } = serializeOkfBundle({
+      ...GRAPH,
+      nodes: GRAPH.nodes.map(node =>
+        node.key === 'orders' ? { ...node, inputSource: 'SQL' as const, definition: sql } : node
+      ),
+    });
+    const doc = files['data-marts/orders.md'];
+    // The inner fence line is padded with a space, so it can no longer close the block...
+    expect(doc).toContain('\n ```\nsample fence in a comment');
+    // ...and the Model Canvas parser regex extracts the WHOLE definition (round-trip).
+    const parsed = /^##?\s+Definition\s*\n+```[^\n]*\n([\s\S]*?)\n```/im.exec(doc);
+    expect(parsed?.[1]).toContain('FROM raw.orders');
+  });
+
   it('escapes square brackets so titles cannot terminate their links early', () => {
     const { files } = serializeOkfBundle({
       ...GRAPH,

@@ -43,7 +43,11 @@ const viewState = vi.hoisted(() => ({
     isLoading: false,
     error: null as unknown,
     refetch: vi.fn().mockResolvedValue(undefined),
+    isEnriching: false,
   },
+  // When set, the mocked ModelCanvas registers it as the export handle —
+  // mirroring the real lazy canvas having mounted.
+  exportHandle: null as { exportCanvas: (format: string) => Promise<boolean> } | null,
   qualitySummariesHook: {
     data: {} as Record<string, ReturnType<typeof buildQualitySummary>>,
     isLoading: false,
@@ -122,31 +126,39 @@ vi.mock('./ModelCanvas', () => ({
     onOpenDataMart,
     onOpenQuality,
     onRunQuality,
+    exportApiRef,
   }: {
     nodes: { id: string }[];
     edges: { id: string }[];
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
+    exportApiRef?: { current: unknown };
   }) => (
-    <>
-      <span data-testid='canvas-node-ids'>{nodes.map(node => node.id).join(',')}</span>
-      <span data-testid='canvas-edge-ids'>{edges.map(edge => edge.id).join(',')}</span>
-      <button
-        type='button'
-        onClick={() => {
-          onOpenDataMart('mart-1');
-        }}
-      >
-        Open Orders
-      </button>
-      <button type='button' onClick={() => onOpenQuality?.('mart-1')}>
-        Open Quality Orders
-      </button>
-      <button type='button' onClick={() => void onRunQuality?.('mart-1')}>
-        Run Quality Orders
-      </button>
-    </>
+    (() => {
+      if (exportApiRef && viewState.exportHandle) exportApiRef.current = viewState.exportHandle;
+      return null;
+    })(),
+    (
+      <>
+        <span data-testid='canvas-node-ids'>{nodes.map(node => node.id).join(',')}</span>
+        <span data-testid='canvas-edge-ids'>{edges.map(edge => edge.id).join(',')}</span>
+        <button
+          type='button'
+          onClick={() => {
+            onOpenDataMart('mart-1');
+          }}
+        >
+          Open Orders
+        </button>
+        <button type='button' onClick={() => onOpenQuality?.('mart-1')}>
+          Open Quality Orders
+        </button>
+        <button type='button' onClick={() => void onRunQuality?.('mart-1')}>
+          Run Quality Orders
+        </button>
+      </>
+    )
   ),
 }));
 
@@ -184,6 +196,8 @@ describe('ModelCanvasView', () => {
     viewState.canvasHook.isLoading = false;
     viewState.canvasHook.error = null;
     viewState.canvasHook.refetch.mockResolvedValue(undefined);
+    viewState.canvasHook.isEnriching = false;
+    viewState.exportHandle = null;
     viewState.qualitySummariesHook.data = {};
     viewState.qualitySummariesHook.isLoading = false;
     viewState.qualitySummariesHook.error = null;
@@ -324,6 +338,47 @@ describe('ModelCanvasView', () => {
     expect(screen.getByTestId('canvas-node-ids')).not.toHaveTextContent('mart-2');
     expect(screen.getByTestId('canvas-edge-ids')).toBeEmptyDOMElement();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('blocks export while detail enrichment is still in flight', async () => {
+    viewState.canvasHook.data = buildCanvasData();
+    viewState.canvasHook.isEnriching = true;
+
+    render(<ModelCanvasView />);
+
+    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.keyDown(screen.getByTestId('export-canvas'), { key: 'ArrowRight' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'JSON' }));
+
+    await waitFor(() => {
+      expect(exportMocks.toast).toHaveBeenCalledWith(
+        'The canvas is still loading details — please try again in a moment.'
+      );
+    });
+    expect(exportMocks.trackEvent).not.toHaveBeenCalled();
+  });
+
+  it('warns when the export ran with nodes that never got their details', async () => {
+    // buildCanvasData nodes carry no `fields` — the shape of a failed detail fetch.
+    viewState.canvasHook.data = buildCanvasData();
+    const exportCanvas = vi.fn().mockResolvedValue(true);
+    viewState.exportHandle = { exportCanvas };
+
+    render(<ModelCanvasView />);
+
+    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.keyDown(screen.getByTestId('export-canvas'), { key: 'ArrowRight' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'OKF (Markdown)' }));
+
+    await waitFor(() => {
+      expect(exportCanvas).toHaveBeenCalledWith('okf');
+      expect(exportMocks.toast).toHaveBeenCalledWith(
+        'Exported without schema details for 2 data marts — reload the page to retry.'
+      );
+    });
+    expect(exportMocks.trackEvent).toHaveBeenCalledTimes(1);
   });
 
   it('reports a loading canvas instead of a silent no-op when export is not ready', async () => {
