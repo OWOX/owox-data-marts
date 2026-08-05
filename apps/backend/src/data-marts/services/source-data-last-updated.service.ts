@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { SOURCE_DATA_LAST_UPDATED_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
@@ -7,6 +8,7 @@ import {
   SourceDataLastUpdatedResolver,
 } from '../data-storage-types/interfaces/source-data-last-updated-resolver.interface';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import {
   SourceDataLastUpdated,
@@ -38,8 +40,54 @@ export class SourceDataLastUpdatedService {
 
   constructor(
     @Inject(SOURCE_DATA_LAST_UPDATED_RESOLVER)
-    private readonly resolverRegistry: TypeResolver<DataStorageType, SourceDataLastUpdatedResolver>
+    private readonly resolverRegistry: TypeResolver<DataStorageType, SourceDataLastUpdatedResolver>,
+    private readonly queryBuilderFacade: DataMartQueryBuilderFacade
   ) {}
+
+  /**
+   * Measures against the Data Mart's OWN definition — the scope whose result is safe to persist
+   * as the Data Mart's last-known value. Used by run paths for non-blended runs, where the run's
+   * source set equals the definition's (output controls only narrow rows, never widen sources).
+   *
+   * An unbuildable definition (draft mid-edit, unsupported storage) degrades to `unavailable`
+   * like any other miss.
+   */
+  async resolveForDefinition(input: {
+    dataMart: Pick<DataMart, 'id' | 'storage' | 'definitionType' | 'definition'>;
+    signal?: AbortSignal;
+    softTimeoutMs?: number;
+  }): Promise<SourceDataLastUpdated> {
+    const { dataMart } = input;
+    if (!dataMart.definitionType || !dataMart.definition) {
+      return unavailableSourceDataLastUpdated();
+    }
+
+    let sql: string;
+    let params: SqlParameter[] | undefined;
+    try {
+      const built = await this.queryBuilderFacade.buildQuery(
+        dataMart.storage.type,
+        dataMart.definition
+      );
+      sql = typeof built === 'string' ? built : built.sql;
+      params = typeof built === 'string' ? undefined : built.params;
+    } catch (error) {
+      this.logger.warn(
+        `Could not build source query for data mart ${dataMart.id}; reporting unavailable: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return unavailableSourceDataLastUpdated();
+    }
+
+    return this.resolveForSql({
+      storage: dataMart.storage,
+      sql,
+      params,
+      signal: input.signal,
+      softTimeoutMs: input.softTimeoutMs,
+    });
+  }
 
   /**
    * Never rejects. Every failure mode — no resolver for the storage, warehouse error, timeout,

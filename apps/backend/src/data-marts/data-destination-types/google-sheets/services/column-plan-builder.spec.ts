@@ -285,6 +285,38 @@ describe('ColumnPlanBuilder', () => {
     });
   });
 
+  describe('joined-field label convention change', () => {
+    it('rewrites headers in place when joined labels move the data mart name to the end', () => {
+      // A sheet last refreshed under the old convention holds `Orders revenue` / `Orders cost` in
+      // row 1, and its OWOX_COLUMNS snapshot still maps those strings to the canonical names. The
+      // next refresh asks for the same columns under the new `revenue (Orders)` labels. The diff
+      // must resolve row 1 through the OLD snapshot and emit nothing structural — otherwise every
+      // joined column would be deleted and re-inserted, shifting user content to its right.
+      const plan = builder.build(
+        ['date', 'Orders revenue', 'Orders cost'],
+        prevAliased('date', 'orders__revenue|Orders revenue', 'orders__cost|Orders cost'),
+        aliased('date', 'orders__revenue|revenue (Orders)', 'orders__cost|cost (Orders)')
+      );
+
+      expect(plan.ops).toEqual([]);
+      expect(plan.finalImportedNames).toEqual(['date', 'orders__revenue', 'orders__cost']);
+      expect(plan.nameToFinalIndex.get('orders__revenue')).toBe(1);
+      expect(plan.nameToFinalIndex.get('orders__cost')).toBe(2);
+    });
+
+    it('keeps a user reorder across the label change', () => {
+      // Same migration, but the user had dragged the joined columns around. Their layout survives.
+      const plan = builder.build(
+        ['Orders cost', 'date', 'Orders revenue'],
+        prevAliased('date', 'orders__revenue|Orders revenue', 'orders__cost|Orders cost'),
+        aliased('date', 'orders__revenue|revenue (Orders)', 'orders__cost|cost (Orders)')
+      );
+
+      expect(plan.ops).toEqual([]);
+      expect(plan.finalImportedNames).toEqual(['orders__cost', 'date', 'orders__revenue']);
+    });
+  });
+
   describe('alias↔name collision (C6)', () => {
     it('logs a warning, ignores the second mapping, and does not crash on a collision', () => {
       // Pathological-but-allowed shape: one column named `revenue` exposed
@@ -310,6 +342,31 @@ describe('ColumnPlanBuilder', () => {
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('Display string "Revenue" maps to multiple canonical names')
       );
+      warn.mockRestore();
+    });
+
+    // Pins the damage a duplicate rendered header does on the refresh AFTER the one that wrote it,
+    // which is why GoogleSheetsReportWriter refuses such a report up front (C5b). Refresh 1 writes
+    // `Revenue (Orders)` into two cells and persists both in OWOX_COLUMNS; refresh 2 is this call.
+    // The builder cannot recover: it is handed two identical keys and one canonical name.
+    it('a duplicate rendered header corrupts the next refresh — blank cell, extra column, user content shifted', () => {
+      const warn = jest.spyOn(builder['logger'], 'warn').mockImplementation(() => undefined);
+
+      const plan = builder.build(
+        ['Revenue (Orders)', 'Revenue (Orders)', 'user stuff'],
+        prevAliased('revenue|Revenue (Orders)', 'orders__revenue|Revenue (Orders)'),
+        aliased('revenue|Revenue (Orders)', 'orders__revenue|Revenue (Orders)')
+      );
+
+      // Both cells resolve to the FIRST canonical name, so the plan carries `revenue` twice.
+      expect(plan.finalImportedNames).toEqual(['revenue', 'revenue', 'orders__revenue']);
+      // `orders__revenue` looks new, so the imported range grows — pushing `user stuff` right.
+      expect(opsTuples(plan)).toEqual([['insert', 2, 'orders__revenue']]);
+      // Only the LAST `revenue` slot is addressable, so index 0 never receives a header and is
+      // written blank, taking its column's data with it.
+      expect(plan.nameToFinalIndex.get('revenue')).toBe(1);
+      expect(plan.nameToFinalIndex.get('orders__revenue')).toBe(2);
+
       warn.mockRestore();
     });
   });

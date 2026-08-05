@@ -15,7 +15,13 @@ import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fie
 import { SpecificationConnectorService } from '../use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from '../use-cases/connector/fields-connector.service';
 import { ConnectorMapper } from '../mappers/connector.mapper';
-import { Auth, AuthorizationContext, AuthContext, RejectApiKeyAuth } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  RejectPluginAuth,
+} from '../../idp';
 import { Role } from '../../idp/types/role-config.types';
 import { ExchangeOAuthCredentialsDto } from '../dto/presentation/exchange-oauth-credentials.dto';
 import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/connector-oauth-credentials-response-api.dto';
@@ -64,6 +70,7 @@ export class ConnectorController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get(':connectorName/oauth/settings')
   @GetConnectorOAuthSettingsSpec()
   async getConnectorOAuthSettings(
@@ -76,6 +83,7 @@ export class ConnectorController {
 
   @Auth(Role.editor())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post(':connectorName/oauth/exchange')
   @ExchangeOAuthCredentialsSpec()
   async handleOAuthCallback(
@@ -96,6 +104,7 @@ export class ConnectorController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get(':connectorName/oauth/status/:credentialId')
   @GetConnectorOAuthStatusSpec()
   async getConnectorOAuthStatus(

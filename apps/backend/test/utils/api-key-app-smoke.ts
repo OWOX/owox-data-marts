@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { assertCliManifestsPrepared } from './cli-manifest-setup';
+import { createLogBuffer } from './log-buffer';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -32,7 +33,6 @@ const backendRoot = resolve(backendTestRoot, '../..');
 const repoRoot = resolve(backendRoot, '../..');
 const owoxRoot = resolve(repoRoot, 'apps/owox');
 const ctlRoot = resolve(repoRoot, 'apps/ctl');
-const maxLogChars = 120_000;
 const appSecret = 'test-secret-for-better-auth-e2e-32-characters';
 
 export async function startOwoxApp(
@@ -46,7 +46,7 @@ export async function startOwoxApp(
   const tempDir = mkdtempSync(join(tmpdir(), `owox-api-key-smoke-${idpProvider}-`));
   const appDbPath = join(tempDir, 'app.sqlite');
   const authDbPath = join(tempDir, 'auth.sqlite');
-  let bufferedLogs = '';
+  const bufferedLogs = createLogBuffer();
   let exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
 
   const child = spawn(process.execPath, ['./bin/run.js', 'serve', '--no-web-enabled'], {
@@ -72,10 +72,7 @@ export async function startOwoxApp(
   });
 
   const appendLogs = (chunk: Buffer) => {
-    bufferedLogs = `${bufferedLogs}${chunk.toString('utf8')}`;
-    if (bufferedLogs.length > maxLogChars) {
-      bufferedLogs = bufferedLogs.slice(-maxLogChars);
-    }
+    bufferedLogs.append(chunk.toString('utf8'));
   };
 
   child.stdout.on('data', appendLogs);
@@ -84,7 +81,7 @@ export async function startOwoxApp(
     exited = { code, signal };
   });
 
-  const logs = () => bufferedLogs;
+  const logs = () => bufferedLogs.read();
 
   const stop = async () => {
     if (exited) {

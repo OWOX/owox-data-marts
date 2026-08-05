@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { REPORT_AGGREGATE_FUNCTION_LABELS, aggregateFunctionLabel } from './aggregation-labels';
+import {
+  REPORT_AGGREGATE_FUNCTION_LABELS,
+  ROW_COUNT_LABEL,
+  UNIQUE_COUNT_LABEL,
+  aggregateFunctionLabel,
+} from './aggregation-labels';
 import { REPORT_AGGREGATE_FUNCTIONS } from '../types/relationship.types';
 
 // Drift guard. This web map MUST stay byte-for-byte identical to the backend
@@ -25,6 +30,13 @@ describe('REPORT_AGGREGATE_FUNCTION_LABELS (web mirror — drift guard)', () => 
       P75: '75th Percentile',
       P95: '95th Percentile',
     });
+  });
+
+  // Same drift contract as the map above: the backend emits these as the literal SQL alias
+  // and header name, and the web builds sort rules from them, so a silent edit must fail CI.
+  it('pins the synthetic output-column labels', () => {
+    expect(ROW_COUNT_LABEL).toBe('Row Count');
+    expect(UNIQUE_COUNT_LABEL).toBe('Unique Count');
   });
 
   it('has exactly one non-empty label for every aggregate function (no missing/extra key)', () => {

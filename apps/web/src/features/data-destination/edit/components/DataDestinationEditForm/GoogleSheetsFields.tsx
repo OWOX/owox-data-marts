@@ -17,10 +17,11 @@ import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleShee
 import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDescription';
 import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
+import { FieldWithActions } from '@owox/ui/components/common/field-with-actions';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { getServiceAccountLink } from '../../../../../utils';
-import { Copy, Check, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import {
   isValidGoogleDriveFolderUrl,
   buildDriveFolderUrl,
@@ -55,7 +56,6 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
     undefined
   );
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
-  const [saCopied, setSaCopied] = useState(false);
   const [oauthClientId, setOauthClientId] = useState<string | undefined>(undefined);
   const [pickerApiKey, setPickerApiKey] = useState<string | undefined>(undefined);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
@@ -321,33 +321,17 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                   </div>
                   <FormControl>
                     {!isEditing && serviceAccountLink ? (
-                      <div className='flex items-center gap-2'>
-                        <ExternalAnchor
-                          href={serviceAccountLink.url}
-                          variant='field'
-                          className='flex-1 truncate'
-                        >
-                          {serviceAccountLink.email}
-                        </ExternalAnchor>
-                        <button
-                          type='button'
-                          onClick={() => {
-                            void navigator.clipboard.writeText(serviceAccountLink.email);
-                            setSaCopied(true);
-                            setTimeout(() => {
-                              setSaCopied(false);
-                            }, 2000);
-                          }}
-                          className='text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 rounded-md p-1 transition-colors'
-                          aria-label='Copy email'
-                        >
-                          {saCopied ? (
-                            <Check className='h-4 w-4 text-green-500' />
-                          ) : (
-                            <Copy className='h-4 w-4' />
-                          )}
-                        </button>
-                      </div>
+                      <FieldWithActions
+                        value={serviceAccountLink.email}
+                        actions={[
+                          { type: 'copy', tooltip: 'Copy email' },
+                          {
+                            type: 'external-link',
+                            href: serviceAccountLink.url,
+                            tooltip: 'Open details',
+                          },
+                        ]}
+                      />
                     ) : (
                       <FileDropTextarea
                         {...field}

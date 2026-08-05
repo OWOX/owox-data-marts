@@ -180,7 +180,7 @@ describe('DataQualityService', () => {
   });
 
   it('loads compact summaries for multiple Data Marts through the batch endpoint', async () => {
-    const summary = compactSummary('RUNNING');
+    const summary = compactSummary('RESTRICTED');
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
         items: [{ dataMartId: 'mart-2', summary }],
@@ -255,7 +255,7 @@ describe('DataQualityService', () => {
   });
 });
 
-function compactSummary(state: 'RUNNING' | 'PASSED') {
+function compactSummary(state: 'RUNNING' | 'PASSED' | 'RESTRICTED') {
   return {
     state,
     enabledChecks: 1,

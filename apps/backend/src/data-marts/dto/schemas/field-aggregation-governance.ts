@@ -1,4 +1,4 @@
-import { ReportAggregateFunction } from './aggregate-function.schema';
+import { ReportAggregateFunction, SLEEVE_ROUTED_FUNCTIONS } from './aggregate-function.schema';
 import { categorizeFieldType, FieldTypeCategory } from './field-type-category';
 
 export type AggregationRole = 'dimension' | 'metric';
@@ -111,4 +111,22 @@ function intersectWithSupported(
 ): ReportAggregateFunction[] {
   const supported = new Set(supportedAggregationsForType(fieldType));
   return requested.filter(fn => supported.has(fn));
+}
+
+/**
+ * Drops `COUNT` from a JOINED column's allowed set when `COUNT_DISTINCT` is there and
+ * sleeve-routed. The two are computed at different grains — `COUNT_DISTINCT` reads the raw path
+ * before the join's fan-out is collapsed, `COUNT` counts the rows that survive it — so side by
+ * side they can invert `COUNT DISTINCT <= COUNT`, which both people and LLM callers assume.
+ *
+ * Derived from `SLEEVE_ROUTED_FUNCTIONS`, so if either function's routing changes the rule turns
+ * itself off rather than hiding a metric that no longer disagrees.
+ */
+export function withoutCountBesideSleevedCountDistinct(
+  allowed: ReportAggregateFunction[]
+): ReportAggregateFunction[] {
+  const grainsDiffer =
+    SLEEVE_ROUTED_FUNCTIONS.has('COUNT_DISTINCT') && !SLEEVE_ROUTED_FUNCTIONS.has('COUNT');
+  if (!grainsDiffer || !allowed.includes('COUNT_DISTINCT')) return allowed;
+  return allowed.filter(fn => fn !== 'COUNT');
 }

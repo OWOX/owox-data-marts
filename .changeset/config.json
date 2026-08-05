@@ -10,6 +10,7 @@
       "@owox/idp-owox-better-auth",
       "@owox/connectors",
       "@owox/api-client",
+      "@owox/plugin-sdk",
       "@owox/backend",
       "@owox/web",
       "@owox/ctl",

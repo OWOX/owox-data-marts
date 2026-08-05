@@ -63,6 +63,8 @@ interface ModelCanvasProps {
   onOpenDataMart: (dataMartId: string) => void;
   onOpenQuality: (dataMartId: string) => void;
   onRunQuality: (dataMartId: string) => Promise<void>;
+  /** True while the Actions → Check Data Last Updated sweep is in flight — spins the node icons. */
+  isCheckingDataLastUpdated?: boolean;
   /** Scopes the persisted node positions — each storage keeps its own layout. */
   storageId?: string;
   topLeftControls?: ReactNode;
@@ -175,6 +177,7 @@ interface FlowNodeParams {
   direction: CanvasDirection;
   viewMode: CanvasViewMode;
   objectLabels: ObjectLabelsHidden;
+  isCheckingDataLastUpdated: boolean;
   onOpenExternal: () => void;
   onOpenQuality: () => void;
   onRunQuality: () => Promise<void>;
@@ -183,12 +186,13 @@ interface FlowNodeParams {
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
   const { node, highlight, viewMode, objectLabels } = params;
   const metaRowHidden = objectLabels.source && objectLabels.fields;
+  const statusRowHidden = metaRowHidden && objectLabels.status;
   return {
     id: node.id,
     type: 'modelCanvasNode',
     position: params.position,
     width: nodeWidth(viewMode),
-    height: computeNodeHeight(node, viewMode, metaRowHidden),
+    height: computeNodeHeight(node, viewMode, metaRowHidden, statusRowHidden),
     draggable: true,
     selectable: false,
     focusable: false,
@@ -206,6 +210,7 @@ function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
       viewMode,
       objectLabels,
       dataLastUpdated: node.dataLastUpdated,
+      isCheckingDataLastUpdated: params.isCheckingDataLastUpdated,
       hasIncoming: params.hasIncoming,
       hasOutgoing: params.hasOutgoing,
       highlighted: highlight.highlighted,
@@ -262,6 +267,7 @@ interface ModelCanvasInnerProps {
   onOpenDataMart: (dataMartId: string) => void;
   onOpenQuality: (dataMartId: string) => void;
   onRunQuality: (dataMartId: string) => Promise<void>;
+  isCheckingDataLastUpdated?: boolean;
   storageId?: string;
 }
 
@@ -272,6 +278,7 @@ function ModelCanvasInner({
   onOpenDataMart,
   onOpenQuality,
   onRunQuality,
+  isCheckingDataLastUpdated = false,
   storageId,
 }: ModelCanvasInnerProps) {
   const reactFlow = useReactFlow<ModelCanvasFlowNodeType, ModelCanvasFlowEdgeType>();
@@ -288,6 +295,8 @@ function ModelCanvasInner({
   nodesRef.current = nodes;
   const searchQueryRef = useRef(searchQuery);
   searchQueryRef.current = searchQuery;
+  const isCheckingDataLastUpdatedRef = useRef(isCheckingDataLastUpdated);
+  isCheckingDataLastUpdatedRef.current = isCheckingDataLastUpdated;
 
   const [direction, setDirection] = useState<CanvasDirection>(() =>
     parseCanvasDirection(storageService.get(LAYOUT_LS_KEY))
@@ -366,6 +375,9 @@ function ModelCanvasInner({
     const liveQualitySummaries = new Map(
       nodesRef.current.map(node => [node.id, node.qualitySummary])
     );
+    const liveDataLastUpdated = new Map(
+      nodesRef.current.map(node => [node.id, node.dataLastUpdated])
+    );
 
     setFlowNodes(
       topologyNodes.map(topologyNode =>
@@ -374,6 +386,8 @@ function ModelCanvasInner({
             ...topologyNode,
             qualitySummary:
               liveQualitySummaries.get(topologyNode.id) ?? topologyNode.qualitySummary,
+            dataLastUpdated:
+              liveDataLastUpdated.get(topologyNode.id) ?? topologyNode.dataLastUpdated,
           },
           // A user-dragged position wins over the computed layout.
           position: savedPositions[topologyNode.id] ??
@@ -391,6 +405,7 @@ function ModelCanvasInner({
             onOpenQualityRef.current(topologyNode.id);
           },
           onRunQuality: () => onRunQualityRef.current(topologyNode.id),
+          isCheckingDataLastUpdated: isCheckingDataLastUpdatedRef.current,
         })
       )
     );
@@ -507,17 +522,38 @@ function ModelCanvasInner({
     []
   );
 
+  // Data-only updates (quality polling, a finished Data Last Updated sweep) flow into the
+  // existing flow nodes here: the layout effect above deliberately re-runs only when the
+  // TOPOLOGY signature changes, so without this sync fresh values would not appear until a
+  // reload.
   useEffect(() => {
     const summaries = new Map(nodes.map(node => [node.id, node.qualitySummary]));
+    const lastUpdated = new Map(nodes.map(node => [node.id, node.dataLastUpdated]));
     setFlowNodes(current =>
       current.map(node => {
-        const qualitySummary = summaries.get(node.id);
-        return qualitySummary && node.data.qualitySummary !== qualitySummary
-          ? { ...node, data: { ...node.data, qualitySummary } }
+        const qualitySummary = summaries.get(node.id) ?? node.data.qualitySummary;
+        const dataLastUpdated = lastUpdated.has(node.id)
+          ? (lastUpdated.get(node.id) ?? null)
+          : node.data.dataLastUpdated;
+        return node.data.qualitySummary !== qualitySummary ||
+          node.data.dataLastUpdated !== dataLastUpdated
+          ? { ...node, data: { ...node.data, qualitySummary, dataLastUpdated } }
           : node;
       })
     );
   }, [nodes]);
+
+  // The sweep flag is canvas-wide: flip it on every node so the Data Last Updated icons spin
+  // while the check runs, mirroring how a RUNNING quality run announces itself.
+  useEffect(() => {
+    setFlowNodes(current =>
+      current.map(node =>
+        node.data.isCheckingDataLastUpdated === isCheckingDataLastUpdated
+          ? node
+          : { ...node, data: { ...node.data, isCheckingDataLastUpdated } }
+      )
+    );
+  }, [isCheckingDataLastUpdated]);
 
   useEffect(() => {
     const state = computeCanvasHighlight(
@@ -839,6 +875,7 @@ export default function ModelCanvas({
   onOpenDataMart,
   onOpenQuality,
   onRunQuality,
+  isCheckingDataLastUpdated,
   storageId,
   topLeftControls,
   className,
@@ -861,6 +898,7 @@ export default function ModelCanvas({
           onOpenDataMart={onOpenDataMart}
           onOpenQuality={onOpenQuality}
           onRunQuality={onRunQuality}
+          isCheckingDataLastUpdated={isCheckingDataLastUpdated}
           storageId={storageId}
         />
       </ReactFlowProvider>

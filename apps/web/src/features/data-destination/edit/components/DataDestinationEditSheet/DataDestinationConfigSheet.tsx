@@ -15,6 +15,8 @@ import { DestinationMapperFactory } from '../../../shared/model/mappers/destinat
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
+import { useProjectRoute } from '../../../../../shared/hooks';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
@@ -45,6 +47,12 @@ export function DataDestinationConfigSheet({
   } = useUnsavedGuard(onClose);
 
   useIntercomLauncher(isOpen);
+
+  const { scope, projectId } = useProjectRoute();
+  const destinationLink =
+    dataDestination && projectId
+      ? `${window.location.origin}${scope(`/data-destinations?id=${dataDestination.id}`)}`
+      : null;
 
   const onSave = async (
     data: DataDestinationFormData,
@@ -184,8 +192,13 @@ export function DataDestinationConfigSheet({
         }}
       >
         <SheetHeader>
-          <SheetTitle>Configure destination</SheetTitle>
-          <SheetDescription>Customize settings for your destination</SheetDescription>
+          <SheetTitle>Destination Config</SheetTitle>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>Customize settings for your destination</SheetDescription>
+            {destinationLink && (
+              <CopyLinkButton link={destinationLink} ariaLabel='Copy link to this destination' />
+            )}
+          </div>
         </SheetHeader>
         <DataDestinationForm
           initialData={dataDestination ?? initialFormData ?? null}

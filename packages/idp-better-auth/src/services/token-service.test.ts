@@ -267,6 +267,58 @@ describe('TokenService', () => {
       await expect(service.introspectToken('token')).resolves.toBeNull();
     });
 
+    it('should return an unexpired installation-bound plugin payload', async () => {
+      const payload = {
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      };
+      cryptoService.decrypt.mockResolvedValue(JSON.stringify(payload));
+
+      const service = new TokenService(
+        createAuthMock() as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(service.introspectToken('token')).resolves.toEqual(payload);
+    });
+
+    it.each([
+      ['pluginId', { pluginId: undefined }],
+      ['installationId', { installationId: '' }],
+      ['expiresAt', { expiresAt: new Date(Date.now() - 60_000).toISOString() }],
+    ])('should return null for plugin payloads without valid %s', async (_field, overrides) => {
+      cryptoService.decrypt.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          ...overrides,
+        })
+      );
+
+      const service = new TokenService(
+        createAuthMock() as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(service.introspectToken('token')).resolves.toBeNull();
+    });
+
     it('should throw on empty string payload', async () => {
       cryptoService.decrypt.mockResolvedValue('');
 
@@ -395,6 +447,71 @@ describe('TokenService', () => {
         } as never)
       ).rejects.toThrow('Invalid project member API key token payload');
       expect(cryptoService.encrypt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('issuePluginRuntimeAccessToken', () => {
+    it('encrypts an access-only token with installation identity claims', async () => {
+      cryptoService.encrypt.mockResolvedValue('encrypted-plugin-token');
+      const service = new TokenService(
+        createAuthMock() as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      const result = await service.issuePluginRuntimeAccessToken({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      });
+
+      expect(JSON.parse(cryptoService.encrypt.mock.calls[0][0])).toEqual({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+        expiresAt: expect.any(String),
+      });
+      expect(result).toEqual({
+        accessToken: 'encrypted-plugin-token',
+        accessTokenExpiresIn: 900,
+      });
+    });
+
+    it.each([
+      ['authFlow', { authFlow: 'app_owox' }],
+      ['pluginId', { pluginId: '' }],
+      ['installationId', { installationId: '' }],
+      ['roles', { roles: [] }],
+    ])('rejects plugin payloads without valid %s', async (_field, overrides) => {
+      const service = new TokenService(
+        createAuthMock() as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(
+        service.issuePluginRuntimeAccessToken({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+          ...overrides,
+        } as never)
+      ).rejects.toThrow('Invalid plugin runtime token payload');
     });
   });
 

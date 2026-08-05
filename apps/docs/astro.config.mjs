@@ -153,6 +153,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Plugins',
+          items: [{ autogenerate: { directory: 'docs/plugins' } }],
+        },
+        {
           label: 'Contributing',
           items: [
             {

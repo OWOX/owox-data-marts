@@ -27,6 +27,16 @@ const configSchema = z
 
     MAX_CONNECTOR_RUNS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(3),
     MAX_REPORT_RUNS_PER_PROJECT: z.coerce.number().int().min(1).max(1000).default(1000),
+
+    // Plugin host. GITHUB_* stay unvalidated pass-through strings: they are optional and
+    // mode-dependent, and PluginHostConfigService already treats a blank value as absent.
+    PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC: z.coerce.number().int().min(0).max(86_400).default(300),
+    PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(60_000)
+      .default(8_000),
   })
   .passthrough(); // Pass through all other fields as-is
 

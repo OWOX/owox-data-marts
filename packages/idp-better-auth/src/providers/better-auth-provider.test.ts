@@ -91,6 +91,7 @@ jest.unstable_mockModule('../services/token-service.js', () => ({
     refreshToken: jest.fn(),
     revokeToken: jest.fn(),
     issueProjectMemberApiKeyAccessToken: jest.fn(),
+    issuePluginRuntimeAccessToken: jest.fn(),
   })),
 }));
 
@@ -736,6 +737,69 @@ describe('BetterAuthProvider', () => {
         )
       ).rejects.toBeInstanceOf(AuthorizationError);
       expect(tokenService.issueProjectMemberApiKeyAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('plugin runtime token issuing', () => {
+    it('issues a token from the current member identity and installation claims', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'User Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('editor');
+      tokenService.issuePluginRuntimeAccessToken.mockResolvedValue({
+        accessToken: 'encrypted-plugin-runtime-token',
+        accessTokenExpiresIn: 900,
+      });
+
+      await expect(
+        provider.issueAccessTokenForPluginRuntime(
+          'plugin-1',
+          'installation-1',
+          'user-1',
+          'project-1'
+        )
+      ).resolves.toEqual({
+        accessToken: 'encrypted-plugin-runtime-token',
+        accessTokenExpiresIn: 900,
+      });
+      expect(tokenService.issuePluginRuntimeAccessToken).toHaveBeenCalledWith({
+        userId: 'user-1',
+        projectId: 'project-1',
+        projectTitle: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['editor'],
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      });
+    });
+
+    it('rejects token issuing when current membership is gone', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'User Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue(null);
+
+      await expect(
+        provider.issueAccessTokenForPluginRuntime(
+          'plugin-1',
+          'installation-1',
+          'user-1',
+          'project-1'
+        )
+      ).rejects.toBeInstanceOf(AuthorizationError);
+      expect(tokenService.issuePluginRuntimeAccessToken).not.toHaveBeenCalled();
     });
   });
 

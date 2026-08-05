@@ -26,6 +26,7 @@ import { SearchPage } from '../pages/search/SearchPage';
 import { ConnectFlowLayout } from '../layouts/ConnectFlowLayout';
 import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPage';
 import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
+import { pluginsRoutes } from './plugins/routes';
 
 const routes: RouteObject[] = [
   {
@@ -54,6 +55,7 @@ const routes: RouteObject[] = [
         element: <DataMartsPage />,
         errorElement: <LayoutErrorBoundary />,
       },
+      ...pluginsRoutes,
       {
         path: 'data-marts',
         element: <DataMartsPage />,

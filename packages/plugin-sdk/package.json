@@ -1,0 +1,66 @@
+{
+  "name": "@owox/plugin-sdk",
+  "version": "0.30.1",
+  "description": "SDK for building OWOX Data Marts plugins",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "homepage": "https://github.com/OWOX/owox-data-marts",
+  "bugs": "https://github.com/OWOX/owox-data-marts/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git",
+    "directory": "packages/plugin-sdk"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prebuild": "npm run build:dep",
+    "build:dep": "npm run build -w @owox/api-client --prefix ../..",
+    "clean": "shx rm -rf dist",
+    "test": "vitest run",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run lint && npm run typecheck"
+  },
+  "keywords": [
+    "owox",
+    "data-marts",
+    "plugin",
+    "sdk"
+  ],
+  "dependencies": {
+    "@owox/api-client": "*"
+  },
+  "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
+    "@owox/typescript-config": "*",
+    "happy-dom": "^20.0.0",
+    "vitest": "^4.1.10"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./protocol": {
+      "import": "./dist/protocol.js",
+      "types": "./dist/protocol.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

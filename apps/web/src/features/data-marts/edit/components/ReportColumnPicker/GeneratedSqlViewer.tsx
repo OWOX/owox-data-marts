@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { reportService } from '../../../reports/shared/services/report.service';
 import { useProjectRoute } from '../../../../../shared/hooks';
+import { extractApiError, type ApiError } from '../../../../../app/api';
 import SqlValidator from '../SqlValidator/SqlValidator';
 
 type GeneratedSqlViewerVariant = 'action-icon' | 'outline-button';
@@ -58,6 +59,12 @@ export function GeneratedSqlViewer({
   const [sql, setSql] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCopyingAsDataMart, setIsCopyingAsDataMart] = useState(false);
+  /**
+   * Whether the viewer has maintenance access to the source Data Mart. Reading the SQL
+   * only needs visibility, but the dry-run validator and "Copy as Data Mart" both require
+   * edit access — hide them rather than let the user click into a guaranteed 403.
+   */
+  const [canModifySource, setCanModifySource] = useState(false);
   const { resolvedTheme } = useTheme();
   const { scope } = useProjectRoute();
 
@@ -66,9 +73,17 @@ export function GeneratedSqlViewer({
     try {
       const result = await reportService.getGeneratedSql(reportId);
       setSql(result.sql);
-    } catch {
-      toast.error('Failed to load generated SQL');
+      setCanModifySource(result.canModifySource);
+    } catch (error) {
+      // The API client already surfaces server-provided messages (missing access to the
+      // source or to a joined Data Mart). Only fall back to a generic toast when there
+      // is none — otherwise the specific reason gets buried under it.
+      const apiError = extractApiError(error) as ApiError | undefined;
+      if (!apiError?.message?.trim()) {
+        toast.error('Failed to load generated SQL');
+      }
       setSql('');
+      setCanModifySource(false);
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +94,7 @@ export function GeneratedSqlViewer({
     if (open) {
       // Always refetch on open — skip cache, show fresh SQL.
       setSql(null);
+      setCanModifySource(false);
       void loadSql();
     }
   }
@@ -192,8 +208,10 @@ export function GeneratedSqlViewer({
                 <span className='text-sm'>Generating SQL...</span>
               </div>
             </div>
-          ) : (
+          ) : canModifySource ? (
             <SqlValidator sql={sql} dataMartId={dataMartId} />
+          ) : (
+            <div />
           )}
           <div className='flex gap-2'>
             <Button
@@ -205,14 +223,16 @@ export function GeneratedSqlViewer({
               <Copy className='mr-2 h-4 w-4' />
               Copy to Clipboard
             </Button>
-            <Button
-              type='button'
-              variant='default'
-              onClick={() => void handleCopyAsDataMart()}
-              disabled={isLoading || isCopyingAsDataMart}
-            >
-              Copy as Data Mart
-            </Button>
+            {canModifySource && (
+              <Button
+                type='button'
+                variant='default'
+                onClick={() => void handleCopyAsDataMart()}
+                disabled={isLoading || isCopyingAsDataMart}
+              >
+                Copy as Data Mart
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

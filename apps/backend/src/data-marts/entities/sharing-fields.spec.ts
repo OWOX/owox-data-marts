@@ -19,11 +19,11 @@ describe('Sharing fields on entities', () => {
       expect(col!.options.default).toBe(true);
     });
 
-    it('should have availableForMaintenance boolean column defaulting to false', () => {
+    it('should have availableForMaintenance boolean column defaulting to true', () => {
       const col = getColumnMeta(DataMart, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(false);
+      expect(col!.options.default).toBe(true);
     });
   });
 

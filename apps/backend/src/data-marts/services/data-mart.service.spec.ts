@@ -308,6 +308,80 @@ describe('DataMartService canvas visibility queries', () => {
   });
 });
 
+describe('DataMartService data last updated persistence', () => {
+  const block = (computedAt: string) => ({
+    dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+    computedAt,
+    coverage: 'complete' as const,
+    sources: [],
+  });
+
+  const createService = () => {
+    const repository = {
+      findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new DataMartService(repository as never, {} as never, {} as never, {} as never);
+    return { service, repository };
+  };
+
+  it('writes when no snapshot is saved yet', async () => {
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue({ id: 'dm-1', dataLastUpdated: null });
+    const fresh = block('2026-07-31T10:00:00.000Z');
+
+    await expect(service.updateDataLastUpdated('dm-1', 'proj-1', fresh)).resolves.toBe(true);
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1' },
+      { dataLastUpdated: fresh }
+    );
+  });
+
+  it('writes when the measurement is newer than the saved one', async () => {
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue({
+      id: 'dm-1',
+      dataLastUpdated: block('2026-07-31T09:00:00.000Z'),
+    });
+    const fresh = block('2026-07-31T10:00:00.000Z');
+
+    await service.updateDataLastUpdated('dm-1', 'proj-1', fresh);
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1' },
+      { dataLastUpdated: fresh }
+    );
+  });
+
+  it('drops a measurement older than the saved one — the value never moves backwards', async () => {
+    // Writers are unordered (manual check, report run, HTTP Data, MCP) and a report run's
+    // measure→write gap can span the whole run, so a stale measurement can arrive last.
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue({
+      id: 'dm-1',
+      dataLastUpdated: block('2026-07-31T10:00:00.000Z'),
+    });
+
+    await expect(
+      service.updateDataLastUpdated('dm-1', 'proj-1', block('2026-07-31T09:00:00.000Z'))
+    ).resolves.toBe(false);
+
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('skips silently when the data mart does not belong to the project', async () => {
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.updateDataLastUpdated('dm-1', 'other-project', block('2026-07-31T10:00:00.000Z'))
+    ).resolves.toBe(false);
+
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+});
+
 async function createCanvasVisibilityTables(dataSource: DataSource): Promise<void> {
   await dataSource.query(
     'CREATE TABLE data_mart_technical_owners (data_mart_id varchar, user_id varchar)'

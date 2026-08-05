@@ -11,6 +11,7 @@ import { SidebarProjectMenu } from './ProjectMenu';
 import { UserMenu } from './UserMenu';
 import { ActionButton } from './ActionButton';
 import { SearchButton } from './SearchButton';
+import { PluginsMenu } from './PluginsMenu/PluginsMenu';
 import { MainMenu } from './MainMenu';
 import { HelpMenu } from './HelpMenu';
 import { Separator } from '@owox/ui/components/separator';
@@ -40,6 +41,7 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
         <SidebarGroup>
           <SidebarGroupContent>
             <MainMenu />
+            <PluginsMenu />
           </SidebarGroupContent>
         </SidebarGroup>
         {setupChecklistVisibility.isVisible && (

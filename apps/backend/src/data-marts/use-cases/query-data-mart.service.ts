@@ -162,13 +162,14 @@ export class QueryDataMartService {
     // Cancels the DWH work on any early exit (client abort / deadline / rows failure), not just abort.
     const workController = new AbortController();
     try {
-      // Inside the try so `dataMart` is resolved for the CANCELLED audit row.
       if (signal?.aborted) {
         throw new QueryAbortedError();
       }
 
-      // Only the app-side timer and abort actually stop the server waiting; both throw, so billing
-      // (success-path only) is skipped. Audit + billing stay OUTSIDE the race — fast local writes.
+      // Only the app-side timer and abort actually stop the server waiting; both throw, so neither
+      // billing nor the audit row (both success-path only) happens. A timed-out or cancelled query
+      // is deliberately NOT recorded in Run History — an MCP client aborts often, and a row per
+      // abandoned request would bury the runs that matter.
       const deadline = new Promise<never>((_, reject) => {
         deadlineTimer = setTimeout(() => {
           workController.abort();
@@ -198,6 +199,7 @@ export class QueryDataMartService {
         let reader: DataStorageReportReader | undefined;
         try {
           const composed = await this.composer.compose(readPlan, accessor);
+          const needsBlending = composed.needsBlending;
           // Inline params so Run History's "Executed SQL" is runnable; fall back if unsupported.
           try {
             executionSqlQuery = this.composer.inlineStaticSql(
@@ -209,22 +211,31 @@ export class QueryDataMartService {
             executionSqlQuery = composed.sql;
           }
 
-          // Run totals in PARALLEL with the rows read (wall-clock ≈ max, not sum); failure degrades to null.
-          const totalsPromise: Promise<McpQueryDataMartResponse['totals']> =
-            this.reportTotalsService
-              .computeTotals(
-                readPlan,
-                accessor,
-                dataMart.storage.type,
-                queryTimeoutMs,
-                workController.signal
-              )
-              .catch(totalsErr => {
-                this.logger.warn(
-                  `computeTotals failed; degrading to null: ${totalsErr instanceof Error ? totalsErr.message : String(totalsErr)}`
-                );
-                return null;
-              });
+          // Run totals in PARALLEL with the rows read (wall-clock ≈ max, not sum). A failure must
+          // not cost the caller its rows, so it degrades to null — but it is REPORTED rather than
+          // swallowed: a null with no reason is indistinguishable from "this report has no totals
+          // metric", and the caller then either shows no total or sums the returned page itself,
+          // which is wrong for any non-additive metric. Logged at error level for the same reason:
+          // a whole class of reports losing their totals should be visible in production.
+          const totalsPromise: Promise<{
+            totals: McpQueryDataMartResponse['totals'];
+            totalsError?: string;
+          }> = this.reportTotalsService
+            .computeTotals(
+              readPlan,
+              accessor,
+              dataMart.storage.type,
+              queryTimeoutMs,
+              workController.signal
+            )
+            .then(totals => ({ totals }))
+            .catch(totalsErr => {
+              const reason = totalsErr instanceof Error ? totalsErr.message : String(totalsErr);
+              this.logger.error(
+                `computeTotals failed for Data Mart ${dataMart.id}; degrading to null: ${reason}`
+              );
+              return { totals: null, totalsError: reason };
+            });
 
           // Third parallel track alongside rows and totals. Reads the COMPOSED sql, so a blended
           // result reports every joined Data Mart's tables, not just the primary one. The service
@@ -251,7 +262,9 @@ export class QueryDataMartService {
             sqlOverride: composed.sql,
             sqlOverrideParams: composed.params,
             columnFilter: r.fields,
-            aggregationConfig: readPlan.aggregationConfig ?? undefined,
+            // A joined column is absent from the native schema, so only these carry its type.
+            blendedDataHeaders: composed.blendedDataHeaders,
+            aggregationConfig: composed.aggregations ?? readPlan.aggregationConfig ?? undefined,
             queryTimeoutMs,
             signal: workController.signal,
           });
@@ -280,13 +293,22 @@ export class QueryDataMartService {
 
           const truncated = rows.length > r.limit;
           const trimmed = truncated ? rows.slice(0, r.limit) : rows;
-          const totals = await totalsPromise;
+          const { totals, totalsError } = await totalsPromise;
           // Rows and totals are done; the auxiliary block gets a short grace, then degrades to
           // unavailable rather than delaying a finished answer by its own 15s soft timeout. The
           // abandoned lookup does not keep running: the finally below aborts workController and
           // the resolver stops on that signal.
           const dataLastUpdated = await this.withGrace(dataLastUpdatedPromise);
-          return { columns, columnMetadata, trimmed, truncated, totals, dataLastUpdated };
+          return {
+            columns,
+            columnMetadata,
+            trimmed,
+            truncated,
+            totals,
+            totalsError,
+            dataLastUpdated,
+            needsBlending,
+          };
         } finally {
           workController.abort();
           try {
@@ -299,8 +321,16 @@ export class QueryDataMartService {
         }
       })();
 
-      const { columns, columnMetadata, trimmed, truncated, totals, dataLastUpdated } =
-        await Promise.race([produce, deadline, aborted]);
+      const {
+        columns,
+        columnMetadata,
+        trimmed,
+        truncated,
+        totals,
+        totalsError,
+        dataLastUpdated,
+        needsBlending,
+      } = await Promise.race([produce, deadline, aborted]);
 
       // Audit save is best-effort — a successful read must not become FAILED.
       let runRecorded = false;
@@ -323,6 +353,8 @@ export class QueryDataMartService {
             // Journalled so Run History can later show what the sources looked like at run time.
             // This is a record of a past run, never a cache to answer a future request from.
             dataLastUpdated,
+            // The caller only gets a generic sentence, so this is the only place the reason survives.
+            ...(totalsError ? { totalsError } : {}),
           },
         });
         runRecorded = true;
@@ -347,6 +379,25 @@ export class QueryDataMartService {
         );
       }
 
+      // A non-blended query reads exactly this Data Mart's own sources, so the measurement is
+      // safe to save as the last-known value (same meaning as the manual Check now). Blended
+      // queries span several Data Marts and only journal into their run record above.
+      if (!needsBlending && dataLastUpdated.dataLastUpdatedAt !== null) {
+        try {
+          await this.dataMartService.updateDataLastUpdated(
+            dataMart.id,
+            dataMart.projectId,
+            dataLastUpdated
+          );
+        } catch (persistError) {
+          this.logger.warn(
+            `Failed to persist data last updated for data mart ${dataMart.id}: ${
+              persistError instanceof Error ? persistError.message : String(persistError)
+            }`
+          );
+        }
+      }
+
       return {
         columns,
         columnMetadata,
@@ -354,6 +405,7 @@ export class QueryDataMartService {
         truncated,
         totals,
         dataLastUpdated,
+        totalsError,
         dataMart: {
           id: dataMart.id,
           title: dataMart.title,

@@ -1,12 +1,14 @@
 jest.mock('../../idp', () => {
   const noopDecorator = () => () => undefined;
   const rejectApiKeyAuth = jest.requireActual('../../idp/decorators/reject-api-key-auth.decorator');
+  const rejectPluginAuth = jest.requireActual('../../idp/decorators/reject-plugin-auth.decorator');
 
   return {
     Auth: noopDecorator,
     AuthContext: noopDecorator,
     ViewOnlySafe: noopDecorator,
     ...rejectApiKeyAuth,
+    ...rejectPluginAuth,
   };
 });
 

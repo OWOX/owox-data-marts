@@ -12,7 +12,14 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, RejectApiKeyAuth, ViewOnlySafe } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  RejectPluginAuth,
+  ViewOnlySafe,
+} from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
@@ -160,6 +167,7 @@ export class DataStorageController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get('oauth/settings')
   @OAuthSettingsSpec()
   async getOAuthSettings(): Promise<GoogleOAuthSettingsResponseDto> {
@@ -168,6 +176,7 @@ export class DataStorageController {
 
   @Auth(Role.editor())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post('oauth/exchange')
   @HttpCode(200)
   @OAuthExchangeSpec()
@@ -232,6 +241,7 @@ export class DataStorageController {
 
   @Auth(Role.editor())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post(':id/oauth/authorize')
   @HttpCode(200)
   @OAuthAuthorizeSpec()
@@ -247,6 +257,7 @@ export class DataStorageController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get(':id/oauth/status')
   @OAuthStatusSpec()
   async getOAuthStatus(
@@ -260,6 +271,7 @@ export class DataStorageController {
 
   @Auth(Role.editor())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Delete(':id/oauth')
   @HttpCode(204)
   @OAuthRevokeSpec()

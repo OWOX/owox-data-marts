@@ -177,6 +177,9 @@ describe('ModelCanvasFlowNode', () => {
     expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Published')).not.toBeInTheDocument();
     expect(screen.getByText('Orders')).toBeInTheDocument();
+    // Title-only mode also drops the quality indicators row.
+    expect(screen.queryByLabelText('Data Quality checks for Orders')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Data Last Updated for Orders/)).not.toBeInTheDocument();
     // The ERD body (field rows) is a view-mode concern and stays visible.
     expect(screen.getByText('Order ID')).toBeInTheDocument();
     expect(container.querySelector('[title="Orders"]')).toBeInTheDocument();

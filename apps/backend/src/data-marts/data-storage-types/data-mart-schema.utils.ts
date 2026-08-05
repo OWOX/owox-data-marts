@@ -68,6 +68,31 @@ export function getPrimaryKeyFields(
   return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
 }
 
+// The declared primary key as a row identity — every component or none, since de-duplicating by
+// PART of a composite key merges rows the key itself keeps distinct. Unlike getPrimaryKeyFields,
+// a hidden component still counts: hidden means off the reporting menu, not absent from the source.
+export function collectPrimaryKeyRowIdentity(fields: readonly DataMartSchemaField[]): string[] {
+  const columns: string[] = [];
+  let complete = true;
+
+  const walk = (nodes: readonly DataMartSchemaField[], prefix: string, reachable: boolean) => {
+    for (const field of nodes) {
+      const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+      const isReachable = reachable && isConnected(field);
+      if (field.isPrimaryKey) {
+        if (isReachable && !fullName.includes('.')) columns.push(fullName);
+        else complete = false;
+      }
+      if ('fields' in field && field.fields?.length) {
+        walk(field.fields as DataMartSchemaField[], fullName, isReachable);
+      }
+    }
+  };
+  walk(fields, '', true);
+
+  return complete ? columns : [];
+}
+
 // TRUE when the schema has at least one primary-key field usable as a dedup/join key — i.e.
 // `isPrimaryKey` and NOT DISCONNECTED. Unlike `getPrimaryKeyFields` (which ALSO prunes
 // `isHiddenForReporting` for the reporting-view projection), a hidden PK still keys the join,

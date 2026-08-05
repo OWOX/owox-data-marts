@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFlags } from '../store/hooks';
 import { RequestStatus } from '../../shared/types/request-status';
-import { useAuth, type User } from '../../features/idp';
+import { isViewOnlySession, useAuth, type User } from '../../features/idp';
 import apiClient from '../api/apiClient';
 import { resetIntercomLauncher } from './intercomUtils';
 
@@ -75,9 +75,7 @@ function buildIntercomPayload(appId: string, user: User): IntercomPayload {
   return payload;
 }
 
-async function initializeIntercom(appId: string, user: User | null): Promise<void> {
-  if (!user) return;
-
+async function initializeIntercom(appId: string, user: User): Promise<void> {
   const payload = buildIntercomPayload(appId, user);
 
   const token = await fetchIntercomJwt();
@@ -97,6 +95,12 @@ async function initializeIntercom(appId: string, user: User | null): Promise<voi
   }
 }
 
+/**
+ * Boots the Intercom widget when configured via app flags.
+ * Skipped entirely in view-only sessions: the script is never loaded, so
+ * `window.Intercom` stays undefined and `openIntercom()` becomes a no-op.
+ * The backend also refuses to issue an Intercom JWT for such sessions.
+ */
 export function IntercomChat(): null {
   const { flags, callState } = useFlags();
   const { user } = useAuth();
@@ -105,7 +109,9 @@ export function IntercomChat(): null {
 
   useEffect(() => {
     if (initializedRef.current) return;
-    if (callState !== RequestStatus.LOADED || !flags) return;
+    // Fail closed until auth resolves: do not load Intercom without a known user.
+    if (callState !== RequestStatus.LOADED || !flags || !user) return;
+    if (isViewOnlySession(user)) return;
 
     const rawAppId = flags[INTERCOM_APP_ID_FLAG];
     const appId = (typeof rawAppId === 'string' ? rawAppId : '').trim();

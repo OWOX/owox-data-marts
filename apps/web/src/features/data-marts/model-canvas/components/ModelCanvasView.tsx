@@ -225,12 +225,6 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
         onRelChange={filters.setRel}
         searchQuery={filters.searchQuery}
         onSearchChange={filters.setSearchQuery}
-        onRefreshDataLastUpdated={() => {
-          // Meeting decision: the check covers what the user actually sees — the filtered set.
-          void refreshDataLastUpdated((filtered?.nodes ?? []).map(node => node.id));
-        }}
-        isRefreshingDataLastUpdated={isRefreshingDataLastUpdated}
-        canRefreshDataLastUpdated={Boolean(filtered && filtered.nodes.length > 0)}
       />
       {storageLoadError ? (
         <CanvasMessage role='alert'>
@@ -283,8 +277,15 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
               navigate(`/data-marts/${dataMartId}/quality`);
             }}
             onRunQuality={runQuality}
+            isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
             topLeftControls={
               <DataMartBulkActions
+                onCheckDataLastUpdated={() => {
+                  // Meeting decision: the check covers what the user actually sees — the same
+                  // filtered set the other bulk actions target.
+                  void refreshDataLastUpdated(filtered.nodes.map(node => node.id));
+                }}
+                isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
                 dataMarts={bulkActionDataMarts}
                 projectId={projectId ?? ''}
                 deleteDataMart={deleteDataMart}

@@ -102,7 +102,7 @@ export class RefreshDataMartDataLastUpdatedService {
         // Persist only what actually resolved: a failed lookup must not erase yesterday's answer,
         // it just returns unknown to this caller.
         if (block.dataLastUpdatedAt !== null) {
-          await this.persist(dataMartId, block);
+          await this.persist(dataMartId, command.projectId, block);
         }
       }
     }
@@ -136,9 +136,13 @@ export class RefreshDataMartDataLastUpdatedService {
     return items;
   }
 
-  private async persist(dataMartId: string, block: SourceDataLastUpdated): Promise<void> {
+  private async persist(
+    dataMartId: string,
+    projectId: string,
+    block: SourceDataLastUpdated
+  ): Promise<void> {
     try {
-      await this.dataMartService.updateDataLastUpdated(dataMartId, block);
+      await this.dataMartService.updateDataLastUpdated(dataMartId, projectId, block);
     } catch (error) {
       this.logger.warn(
         `Failed to persist data last updated for data mart ${dataMartId}; returning the fresh value anyway: ${

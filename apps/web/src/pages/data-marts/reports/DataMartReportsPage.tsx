@@ -50,6 +50,11 @@ import {
 const PROJECT_REPORTS_TABLE_PAGE_SIZE = 15;
 const PROJECT_REPORTS_TABLE_ID = 'project-reports-table';
 
+// A rejected poll keeps the row RUNNING, so the interval never stops retrying it.
+const POLL_REQUEST_OPTIONS = {
+  skipErrorToast: true,
+} as const;
+
 type ProjectReportFilterKey =
   | 'dataMart'
   | 'report'
@@ -245,7 +250,7 @@ export default function DataMartReportsPage() {
 
   const refreshReportsByIds = useCallback(async (reportIds: string[]) => {
     const responses = await Promise.allSettled(
-      reportIds.map(reportId => reportService.getReportById(reportId))
+      reportIds.map(reportId => reportService.getReportById(reportId, POLL_REQUEST_OPTIONS))
     );
     const nextReports = responses.flatMap(response =>
       response.status === 'fulfilled' ? [mapReportDtoToEntity(response.value)] : []

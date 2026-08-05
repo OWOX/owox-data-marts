@@ -9,6 +9,7 @@ import { SnowflakeBlendedQueryBuilder } from './snowflake-blended-query-builder'
 import { SnowflakeClauseRenderer } from './snowflake-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
+import type { AggregationRule } from '../../../dto/schemas/aggregation-config.schema';
 
 const buildContext = createBuildContext('mydb."myschema"."customers"');
 
@@ -141,6 +142,106 @@ describe('SnowflakeBlendedQueryBuilder', () => {
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
 
     expect(sql).toContain('COUNT("order_id") AS "order_count"');
+  });
+});
+
+// C2.1: Snowflake's own docs say a window ORDER BY integer literal is interpreted as a
+// constant, not an ordinal reference into the outer SELECT list ("OVER (PARTITION BY 1
+// ORDER BY 2)... `2` is interpreted as the constant `2`") — so the base class's default
+// surrogate compiles as-is here — no override needed.
+describe('SnowflakeBlendedQueryBuilder — row surrogate (__owox_rid) for value-sleeve owners', () => {
+  let builder: SnowflakeBlendedQueryBuilder;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [SnowflakeBlendedQueryBuilder, SnowflakeClauseRenderer],
+    }).compile();
+    builder = module.get(SnowflakeBlendedQueryBuilder);
+  });
+
+  it('partitions the row surrogate by the chain own join key when the chain owns a joined SUM metric', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'mydb."myschema"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'orders__amount', aliasPath: 'orders', originalFieldName: 'amount', type: 'FLOAT' },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const ctx: BlendedQueryContext = {
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'SUM' } as AggregationRule],
+    };
+
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    // Snowflake's quoteIdentifier override always quotes — including the reserved surrogate alias.
+    expect(sql).toContain(
+      'ROW_NUMBER() OVER (PARTITION BY "customer_id" ORDER BY 1) AS "__owox_rid"'
+    );
+
+    // (tester): the sleeve BODY was only ever asserted on the always-quoting
+    // dialects through the abstract spec's test double. Pin the real Snowflake rendering.
+    const s = sql.replace(/\s+/g, ' ');
+    expect(s).toContain('"sleeve_orders__amount" AS (');
+    expect(s).toContain('SUM("_val") AS "orders__amount | SUM"');
+    expect(s).toContain('"orders_raw"."__owox_rid" AS "_oid"');
+    expect(s).toContain('"orders_raw"."amount" AS "_val"');
+    expect(s).toContain('ANY_VALUE("sleeve_orders__amount"."orders__amount | SUM")');
+  });
+
+  it('spells a joined percentile as an ordered-set aggregate inside the value sleeve', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'mydb."myschema"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'orders__amount', aliasPath: 'orders', originalFieldName: 'amount', type: 'FLOAT' },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'P95' } as AggregationRule],
+    });
+    const s = sql.replace(/\s+/g, ' ');
+
+    expect(s).toContain(
+      'PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "_val") AS "orders__amount | P95"'
+    );
+    expect(s).toContain('"orders_raw"."amount" AS "_val"');
+    expect(s).toContain('ANY_VALUE("sleeve_orders__amount"."orders__amount | P95")');
   });
 });
 

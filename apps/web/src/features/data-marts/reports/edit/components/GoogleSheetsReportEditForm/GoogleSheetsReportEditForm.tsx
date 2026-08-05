@@ -247,6 +247,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
 
     const selectedDestinationId = form.watch('dataDestinationId');
+    const selectedDestination = filteredDestinations.find(
+      destination => destination.id === selectedDestinationId
+    );
+    const selectedDestinationEmail = selectedDestination
+      ? getGoogleSheetsDestinationEmail(selectedDestination)
+      : undefined;
     const [isCreatingSheet, setIsCreatingSheet] = useState(false);
 
     const handleCreateGoogleSheet = async () => {
@@ -407,26 +413,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         </AlertDescription>
                       </Alert>
                     )}
-                    {field.value &&
-                      filteredDestinations.length > 0 &&
-                      (() => {
-                        const selectedDestination = filteredDestinations.find(
-                          destination => destination.id === field.value
-                        );
-                        if (selectedDestination) {
-                          const accessEmail = getGoogleSheetsDestinationEmail(selectedDestination);
-                          if (!accessEmail) return null;
-                          return (
-                            <div className='mt-2 flex flex-col gap-1'>
-                              <FormLabel tooltip='Share the Google Sheet with this email to allow writing'>
-                                Share document with
-                              </FormLabel>
-                              <CopyableField value={accessEmail}>{accessEmail}</CopyableField>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                    {field.value && selectedDestinationEmail && (
+                      <div className='mt-2 flex flex-col gap-1'>
+                        <FormLabel tooltip='Share the Google Sheet with this email to allow writing'>
+                          Share document with
+                        </FormLabel>
+                        <CopyableField value={selectedDestinationEmail}>
+                          {selectedDestinationEmail}
+                        </CopyableField>
+                      </div>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -503,7 +499,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                       </div>
                     </FormControl>
                     <FormDescription>
-                      <DocumentLinkDescription />
+                      <DocumentLinkDescription accessEmail={selectedDestinationEmail} />
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

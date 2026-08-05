@@ -1,3 +1,19 @@
+/**
+ * What every resource in this package actually needs from a transport.
+ *
+ * The seam already existed structurally -- each resource declared its own narrow
+ * requester type -- this only gives it a name so an alternative implementation can be
+ * injected. `authenticate` is optional: a transport that carries no credential of its
+ * own has nothing to do.
+ */
+export type OWOXTransport = {
+  getJson<T>(path: string, query?: Record<string, string>): Promise<T>;
+  postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T>;
+  putJson<T>(path: string, jsonBody: unknown): Promise<T>;
+  getStream(path: string, query?: URLSearchParams): Promise<Response>;
+  authenticate?(): Promise<void>;
+};
+
 import { createNetworkError } from './errors.js';
 
 type QueryParams = Record<string, string> | URLSearchParams;

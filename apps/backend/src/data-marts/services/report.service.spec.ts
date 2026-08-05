@@ -38,6 +38,44 @@ describe('ReportService', () => {
     );
   });
 
+  it('persists the final run outcome as a targeted update, never a full entity save', async () => {
+    // A full save would cascade the run-start DataMart snapshot over columns written during
+    // the run (e.g. dataLastUpdated) — the outcome must touch only the Report's own scalars.
+    const { service, repository } = createService();
+    const report = {
+      id: 'report-1',
+      lastRunStatus: ReportRunStatus.ERROR,
+      lastRunError: 'boom',
+    } as Report;
+
+    await service.updateLastRunOutcome(report);
+
+    expect(repository.update).toHaveBeenCalledWith('report-1', {
+      lastRunStatus: ReportRunStatus.ERROR,
+      lastRunError: 'boom',
+    });
+  });
+
+  it('clears lastRunError with an explicit NULL on a successful outcome', async () => {
+    const { service, repository } = createService();
+    const report = {
+      id: 'report-1',
+      lastRunStatus: ReportRunStatus.SUCCESS,
+      lastRunError: undefined,
+    } as Report;
+
+    await service.updateLastRunOutcome(report);
+
+    const [id, patch] = repository.update.mock.calls[0] as [
+      string,
+      { lastRunStatus: ReportRunStatus; lastRunError: () => string },
+    ];
+    expect(id).toBe('report-1');
+    expect(patch.lastRunStatus).toBe(ReportRunStatus.SUCCESS);
+    // `update` silently skips undefined values, so the clear must be an explicit NULL.
+    expect(patch.lastRunError()).toBe('NULL');
+  });
+
   it('loads report by id scoped to project with data mart relation', async () => {
     const { service, repository } = createService();
     const report = {

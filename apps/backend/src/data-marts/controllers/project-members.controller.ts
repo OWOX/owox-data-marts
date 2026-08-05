@@ -5,6 +5,7 @@ import {
   AuthContext,
   AuthorizationContext,
   RejectApiKeyAuth,
+  RejectPluginAuth,
   Role,
   Strategy,
 } from '../../idp';
@@ -53,6 +54,7 @@ import {
 @Controller('members')
 @ApiTags('Project Members')
 @RejectApiKeyAuth()
+@RejectPluginAuth()
 /**
  * Self-protection (admin cannot remove or change-role on themselves) is
  * enforced inside `RemoveProjectMemberService.run` and

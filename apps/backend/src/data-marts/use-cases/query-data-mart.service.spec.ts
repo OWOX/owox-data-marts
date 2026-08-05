@@ -10,6 +10,7 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
+import { McpQueryRunMetadataSchema } from '../dto/schemas/mcp-query-run-metadata.schema';
 
 /** What the real service returns when no resolver can answer — its most common outcome. */
 const unavailableDataLastUpdated = (): SourceDataLastUpdated => ({
@@ -57,6 +58,7 @@ describe('QueryDataMartService', () => {
 
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
+      updateDataLastUpdated: jest.fn().mockResolvedValue(undefined),
     };
     const composer = {
       compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
@@ -170,6 +172,114 @@ describe('QueryDataMartService', () => {
       })
     );
     expect(reader.finalize).toHaveBeenCalledTimes(1);
+  });
+
+  // Totals are best-effort so a failure never costs the caller its rows — but a null with no
+  // reason is indistinguishable from "this report has no totals", which invites summing the
+  // returned page instead (wrong for any non-additive metric). The whole reporting chain
+  // (service -> facade -> MCP tool -> run metadata) had no assertion anywhere.
+  it('reports WHY totals are missing instead of silently returning null', async () => {
+    const { service, reportTotalsService } = createService();
+    reportTotalsService.computeTotals.mockRejectedValue(new Error('sleeve exploded'));
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+
+    // The rows still arrive — degrading, not failing.
+    expect(result.rows).toHaveLength(2);
+    expect(result.totals).toBeNull();
+    expect(result.totalsError).toContain('sleeve exploded');
+  });
+
+  it('leaves totalsError unset when totals are simply not applicable', async () => {
+    const { service } = createService();
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'revenue'],
+        limit: 100,
+      })
+    );
+
+    expect(result.totals).toBeNull();
+    expect(result.totalsError).toBeUndefined();
+  });
+
+  it('forwards the composer blended headers so joined columns resolve a type', async () => {
+    const { service, composer, reader } = createService();
+    const joinedHeader = new ReportDataHeader(
+      'partner__cost',
+      'partner Cost',
+      undefined,
+      'NUMERIC' as ReportDataHeader['storageFieldType']
+    );
+    composer.compose.mockResolvedValue({
+      sql: 'SELECT 1',
+      params: [],
+      blendedDataHeaders: [joinedHeader],
+    });
+
+    await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'partner__cost'],
+        limit: 100,
+      })
+    );
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ blendedDataHeaders: [joinedHeader] })
+    );
+  });
+
+  it('reports the type of a joined column in column_metadata', async () => {
+    const { service, composer } = createService({
+      dataHeaders: [
+        new ReportDataHeader('channel', 'channel'),
+        new ReportDataHeader(
+          'partner__cost',
+          'partner Cost',
+          undefined,
+          'NUMERIC' as ReportDataHeader['storageFieldType']
+        ),
+      ],
+    });
+    composer.compose.mockResolvedValue({
+      sql: 'SELECT 1',
+      params: [],
+      blendedDataHeaders: [],
+    });
+
+    const result = await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel', 'partner__cost'],
+        limit: 100,
+      })
+    );
+
+    expect(result.columnMetadata).toContainEqual(
+      expect.objectContaining({ name: 'partner__cost', type: 'NUMERIC' })
+    );
   });
 
   it('threads the request sortConfig into the composed read plan', async () => {
@@ -614,6 +724,52 @@ describe('QueryDataMartService', () => {
       expect(call.metadata).not.toHaveProperty('rows');
       expect(call.metadata).not.toHaveProperty('data');
     });
+
+    it('records why totals failed — the caller only ever gets a generic sentence', async () => {
+      const { service, reportTotalsService, dataMartRunService } = createService();
+      reportTotalsService.computeTotals.mockRejectedValue(new Error('sleeve exploded'));
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' as never }] as never,
+        })
+      );
+
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.status).toBe(DataMartRunStatus.SUCCESS);
+      expect(call.metadata.totalsError).toContain('sleeve exploded');
+      // Passing it is not enough: recordMcpQueryRun parses through this schema, which drops unknown keys.
+      expect(McpQueryRunMetadataSchema.parse(call.metadata).totalsError).toContain(
+        'sleeve exploded'
+      );
+    });
+
+    it('records no totalsError when totals succeed', async () => {
+      const { service, reportTotalsService, dataMartRunService } = createService();
+      reportTotalsService.computeTotals.mockResolvedValue({ 'revenue | SUM': 18 });
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel', 'revenue'],
+          limit: 100,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' as never }] as never,
+        })
+      );
+
+      const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+      expect(call.metadata).not.toHaveProperty('totalsError');
+      expect(McpQueryRunMetadataSchema.parse(call.metadata)).not.toHaveProperty('totalsError');
+    });
   });
 
   it('returns totals even for non-aggregated queries', async () => {
@@ -811,6 +967,77 @@ describe('QueryDataMartService', () => {
         dataLastUpdatedAt: null,
         coverage: 'unavailable',
       });
+    });
+
+    it('persists a resolved measurement for a NON-blended query', async () => {
+      const { service, composer, sourceDataLastUpdatedService, dataMartService } = createService();
+      composer.compose.mockResolvedValue({ sql: 'SELECT 1', params: [], needsBlending: false });
+      const measured = {
+        dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'complete' as const,
+        sources: [],
+      };
+      sourceDataLastUpdatedService.resolveForSql.mockResolvedValue(measured);
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel'],
+          limit: 100,
+        })
+      );
+
+      // Non-blended composed SQL reads exactly this Data Mart's own sources — same meaning as
+      // the manual Check now, so the value becomes the Data Mart's last-known snapshot.
+      expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', 'p1', measured);
+    });
+
+    it('journals but does NOT persist for a blended query', async () => {
+      const { service, composer, sourceDataLastUpdatedService, dataMartService } = createService();
+      composer.compose.mockResolvedValue({ sql: 'SELECT b', params: [], needsBlending: true });
+      sourceDataLastUpdatedService.resolveForSql.mockResolvedValue({
+        dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'complete' as const,
+        sources: [],
+      });
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel'],
+          limit: 100,
+        })
+      );
+
+      // A blended measurement spans several Data Marts and would overstate this one.
+      expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalled();
+    });
+
+    it('does not persist an unresolved measurement', async () => {
+      const { service, composer, dataMartService } = createService();
+      composer.compose.mockResolvedValue({ sql: 'SELECT 1', params: [], needsBlending: false });
+      // Default stub resolves to unavailable (null timestamp).
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['channel'],
+          limit: 100,
+        })
+      );
+
+      expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalled();
     });
 
     it('runs in parallel with the rows read rather than after it', async () => {

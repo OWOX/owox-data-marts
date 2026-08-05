@@ -262,7 +262,7 @@ export class BlendableSchemaService {
           fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type);
         // A joined field's value in the blended result is its DEDUP (pre-join) output, so its
         // effective type — and thus which report-level aggregations are legal/offered — follows
-        // the dedup function, not the raw source type (#6733). E.g. COUNT_DISTINCT on a STRING
+        // the dedup function, not the raw source type. E.g. COUNT_DISTINCT on a STRING
         // hitId yields a per-key INTEGER count → SUM/AVG/MIN/MAX become available (SUM default).
         // For the default dedups the effective type is type-PRESERVING for numeric (→SUM) and
         // date (→MAX), so it equals the raw type; but `other` (→STRING_AGG) intentionally
@@ -273,18 +273,24 @@ export class BlendableSchemaService {
           ctx.storageType
         );
         // Carry the RAW type BEFORE overwriting `type` with the effective type, so the web can
-        // recompute effective types for type-preserving dedups off the true base (#6733).
+        // recompute effective types for type-preserving dedups off the true base.
         dto.sourceFieldType = field.type;
         dto.type = effectiveType;
         dto.alias = fieldOverride?.alias ?? field.alias ?? '';
         dto.description = field.description ?? '';
         dto.isHidden = fieldOverride?.isHidden ?? false;
         dto.aggregateFunction = dedupFunction;
-        // No override → effective-type governance default; explicit `[]` = none allowed. Existing
-        // explicit overrides are kept verbatim — we only widen the offered set, never rewrite it.
-        dto.postJoinAggregations =
-          fieldOverride?.postJoinAggregations ??
-          resolveFieldGovernance(effectiveType).allowedAggregations;
+        // No override → effective-type governance default; explicit `[]` = none allowed. An
+        // explicit override may only NARROW the effective type's SUPPORTED set: it used to be
+        // carried verbatim, so a stored config could offer a function the type cannot run. The
+        // validator's type floor catches the obvious ones (SUM/AVG on a non-number,
+        // COUNT_DISTINCT/STRING_AGG on a non-scalar) but NOT percentiles — `P50` on a text field
+        // passed save-time validation and only failed at the warehouse. Clamping here fixes it
+        // for every consumer at once: this menu feeds the validator, the MCP field list and the
+        // web column picker.
+        dto.postJoinAggregations = resolveFieldGovernance(effectiveType, {
+          allowedAggregations: fieldOverride?.postJoinAggregations,
+        }).allowedAggregations;
         dto.transitiveDepth = ctx.depth;
 
         ctx.result.push(dto);

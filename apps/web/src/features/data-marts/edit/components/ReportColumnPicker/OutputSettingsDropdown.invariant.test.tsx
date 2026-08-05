@@ -79,7 +79,7 @@ describe('OutputSettingsDropdown stored-identifier invariant', () => {
         value={EMPTY}
         onChange={onChange}
         allColumns={[productId]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[]}
       />
     );
@@ -100,7 +100,7 @@ describe('OutputSettingsDropdown stored-identifier invariant', () => {
         value={EMPTY}
         onChange={onChange}
         allColumns={[]}
-        selectedColumns={[]}
+        sortColumns={[]}
         joinedSources={[
           {
             aliasPath: 'orders',
@@ -132,7 +132,7 @@ describe('OutputSettingsDropdown stored-identifier invariant', () => {
         value={EMPTY}
         onChange={onChange}
         allColumns={[]}
-        selectedColumns={[productId]}
+        sortColumns={[productId]}
         joinedSources={[]}
       />
     );

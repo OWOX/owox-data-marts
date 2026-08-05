@@ -1,11 +1,11 @@
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import {
-  OWOX_BLUE_BASE,
   OWOX_GRAY_DARK,
   OWOX_GREEN_BASE,
   OWOX_ORANGE_BASE,
   OWOX_PURPLE_BASE,
   OWOX_RED_BASE,
+  OWOX_YELLOW_BASE,
 } from './owox-palette';
 
 /**
@@ -15,7 +15,7 @@ import {
  */
 export const DEFINITION_TYPE_ACCENT: Partial<Record<DataMartDefinitionType, string>> = {
   [DataMartDefinitionType.SQL]: OWOX_GREEN_BASE,
-  [DataMartDefinitionType.VIEW]: OWOX_BLUE_BASE,
+  [DataMartDefinitionType.VIEW]: OWOX_YELLOW_BASE,
   [DataMartDefinitionType.TABLE]: OWOX_PURPLE_BASE,
   [DataMartDefinitionType.TABLE_PATTERN]: OWOX_RED_BASE,
   [DataMartDefinitionType.CONNECTOR]: OWOX_ORANGE_BASE,

@@ -1,3 +1,4 @@
+import { decodeBase64Url } from './base64url.js';
 import { OWOXConfigError } from './errors.js';
 
 export const API_KEY_PREFIX = 'owox_key_';
@@ -59,7 +60,7 @@ export function parseOWOXApiKey(apiKey: string | undefined): ParsedOWOXApiKey {
 
   let decodedPayload: unknown;
   try {
-    decodedPayload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    decodedPayload = JSON.parse(decodeBase64Url(encodedPayload));
   } catch (error) {
     throw new OWOXConfigError('OWOX_API_KEY must contain a valid JSON payload', {
       cause: error,

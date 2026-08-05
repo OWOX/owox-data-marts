@@ -47,6 +47,7 @@ describe('data quality enums', () => {
       'PASSED',
       'ISSUES',
       'EXECUTION_FAILED',
+      'RESTRICTED',
       'CANCELLED',
       'ALL_DISABLED',
     ]);

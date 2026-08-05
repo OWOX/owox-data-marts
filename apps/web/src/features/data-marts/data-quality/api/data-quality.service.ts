@@ -261,6 +261,7 @@ function isDataQualitySummaryState(value: unknown): value is DataQualityCompactS
     value === 'PASSED' ||
     value === 'ISSUES' ||
     value === 'EXECUTION_FAILED' ||
+    value === 'RESTRICTED' ||
     value === 'CANCELLED' ||
     value === 'ALL_DISABLED'
   );
