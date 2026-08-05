@@ -52,6 +52,19 @@ describe('PluginHostConfigService', () => {
       ).toBe(true);
     });
 
+    // The diagnostic the partial-configuration error message is built from: the point is
+    // naming the variable that is absent, not merely knowing that one is.
+    it('names the app credentials that are missing', () => {
+      expect(config({ GITHUB_APP_ID: '1', GITHUB_APP_SLUG: 'owox' }).missingGithubAppVars).toEqual([
+        'GITHUB_APP_PRIVATE_KEY',
+      ]);
+      expect(config({}).missingGithubAppVars).toHaveLength(3);
+      expect(
+        config({ GITHUB_APP_ID: '1', GITHUB_APP_SLUG: 'owox', GITHUB_APP_PRIVATE_KEY: 'k' })
+          .missingGithubAppVars
+      ).toEqual([]);
+    });
+
     it('unescapes newlines in a private key supplied as a single-line env var', () => {
       const key = config({
         GITHUB_APP_PRIVATE_KEY: '-----BEGIN-----\\nabc\\n-----END-----',

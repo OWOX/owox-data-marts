@@ -51,6 +51,8 @@ export class GithubAuthService {
    * stable per repository; uninstalling the App is a restart-level change.
    */
   private readonly installationCache = new Map<string, number>();
+  /** Deployment-wide fault, so once per process rather than once per repository read. */
+  private partialAppConfigReported = false;
 
   constructor(private readonly config: PluginHostConfigService) {}
 
@@ -61,6 +63,8 @@ export class GithubAuthService {
         const token = await this.mintInstallationToken(installationId);
         return this.access(GithubAccessMode.APP, token);
       }
+    } else {
+      this.reportPartialAppConfig();
     }
 
     const serverToken = this.config.githubToken;
@@ -84,6 +88,27 @@ export class GithubAuthService {
     };
   }
 
+  /**
+   * A deployment that sets some GITHUB_APP_* variables but not all of them has App mode
+   * off without saying so -- the symptom reaches the publisher as "this repository is
+   * not accessible, install the App", which is untrue and unfixable from their side.
+   * Nothing else in the chain can tell the difference, so it has to be said here.
+   */
+  private reportPartialAppConfig(): void {
+    const missing = this.config.missingGithubAppVars;
+    // All three absent is a deliberate choice -- self-managed deployments run on
+    // GITHUB_TOKEN or anonymously by design, and only private repositories are affected.
+    if (this.partialAppConfigReported || missing.length === 3) {
+      return;
+    }
+
+    this.partialAppConfigReported = true;
+    this.logger.error(
+      `GitHub App mode is disabled because ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set. ` +
+        'Private repositories will read as inaccessible until the deployment supplies them.'
+    );
+  }
+
   /** Null when the App is not installed on this repository. */
   private async findInstallationId(ref: GithubRepoRef): Promise<number | null> {
     const key = `${ref.owner}/${ref.name}`.toLowerCase();
@@ -98,6 +123,13 @@ export class GithubAuthService {
     );
 
     if (response.status === 404) {
+      // Expected for any public repository the App was never installed on, so INFO:
+      // it is the one line that explains a later 404 on a repository that does exist.
+      this.logger.log(
+        `GitHub App is not installed on ${ref.owner}/${ref.name}; falling back to ${
+          this.config.githubToken ? 'the deployment token' : 'anonymous access'
+        }`
+      );
       return null;
     }
 
@@ -131,6 +163,11 @@ export class GithubAuthService {
     );
 
     if (!response.ok) {
+      // Usually a revoked App, a rotated private key, or an installation suspended on
+      // GitHub's side -- none of which the publisher can see from the 400 they get back.
+      this.logger.error(
+        `Installation token request for ${installationId} returned ${response.status}; the App credentials or the installation itself are no longer valid`
+      );
       throw new GithubAuthConfigError([`installation ${installationId} token request`]);
     }
 

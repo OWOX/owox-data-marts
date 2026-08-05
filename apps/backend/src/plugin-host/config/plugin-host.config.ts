@@ -56,8 +56,24 @@ export class PluginHostConfigService {
     return this.trimmed('GITHUB_APP_PRIVATE_KEY')?.replace(/\\n/g, '\n');
   }
 
+  /**
+   * Which GITHUB_APP_* variables are absent. Empty means App mode is fully configured.
+   *
+   * Named rather than boolean because a partially configured deployment is the failure
+   * worth reporting: App mode switches off silently, and the anonymous fallback then
+   * reports a private repository as "install the App", which sends the publisher to
+   * GitHub for a fault that lives in our own environment.
+   */
+  get missingGithubAppVars(): string[] {
+    return [
+      !this.githubAppId && 'GITHUB_APP_ID',
+      !this.githubAppSlug && 'GITHUB_APP_SLUG',
+      !this.githubAppPrivateKey && 'GITHUB_APP_PRIVATE_KEY',
+    ].filter(Boolean) as string[];
+  }
+
   get isAppModeConfigured(): boolean {
-    return Boolean(this.githubAppId && this.githubAppSlug && this.githubAppPrivateKey);
+    return this.missingGithubAppVars.length === 0;
   }
 
   /** Self-managed deployments only. Read by the server, never by the CLI. */

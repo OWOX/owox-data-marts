@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { fetchWithBackoff } from '@owox/internal-helpers';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
@@ -41,6 +41,8 @@ interface GithubReleaseResponse {
  */
 @Injectable()
 export class GithubApiService {
+  private readonly logger = new Logger(GithubApiService.name);
+
   constructor(
     private readonly auth: GithubAuthService,
     private readonly config: PluginHostConfigService
@@ -60,6 +62,18 @@ export class GithubApiService {
 
     if (response.status === 404) {
       const installationUrl = this.auth.buildInstallationUrl();
+      // The access mode is the whole diagnosis and never reaches the response: a private
+      // repository read as ANONYMOUS or SERVER_TOKEN answers 404 exactly like one that
+      // does not exist, and the publisher is told to install an App that may already be
+      // installed. Only the log can say which of the two actually happened.
+      //
+      // WARN rather than ERROR: a mistyped repository reaches this line just as often as
+      // a real access fault, and a deployment alerting on ERROR must not page on someone
+      // else's typo.
+      this.logger.warn(
+        `GitHub returned 404 for ${ref.owner}/${ref.name} using ${access.mode} access. ` +
+          'If the repository exists, this access mode cannot read it.'
+      );
       // With an App configured, 404 usually means "private and not granted" rather than
       // "does not exist" -- and that distinction is the difference between an actionable
       // message and a dead end.
@@ -173,9 +187,13 @@ export class GithubApiService {
       response.headers.get('x-ratelimit-remaining') === '0'
     ) {
       const reset = Number(response.headers.get('x-ratelimit-reset') ?? 0);
+      this.logger.error(`GitHub rate limit exhausted for ${accessMode} access on ${path}`);
       throw new GithubRateLimitedError(new Date(reset * 1000).toISOString(), accessMode);
     }
 
+    // Publisher routes render this error without the filter that logs member-facing ones,
+    // so without this line a failed publish leaves nothing behind on the server at all.
+    this.logger.error(`GitHub returned ${response.status} for ${path} using ${accessMode} access`);
     throw new GithubApiError(response.status, path);
   }
 }
