@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.interface';
 import { PublishDraftsTrigger } from '../entities/publish-drafts-trigger.entity';
+import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { PublishDataStorageDraftsService } from '../use-cases/publish-data-storage-drafts.service';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
 
@@ -18,7 +19,8 @@ export class PublishDraftsTriggerHandlerService
     private readonly repository: Repository<PublishDraftsTrigger>,
     @Inject(SCHEDULER_FACADE)
     private readonly schedulerFacade: SchedulerFacade,
-    private readonly publishDraftsService: PublishDataStorageDraftsService
+    private readonly publishDraftsService: PublishDataStorageDraftsService,
+    private readonly dataStorageMapper: DataStorageMapper
   ) {}
 
   async handleTrigger(
@@ -37,11 +39,7 @@ export class PublishDraftsTriggerHandlerService
 
       const result = await this.publishDraftsService.run(command);
 
-      trigger.uiResponse = {
-        successCount: result.successCount,
-        failedCount: result.failedCount,
-        failures: result.failures,
-      };
+      trigger.uiResponse = this.dataStorageMapper.toPublishDraftsResponse(result);
       trigger.onSuccess();
       await this.repository.save(trigger);
     } catch (e) {

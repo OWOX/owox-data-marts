@@ -35,6 +35,28 @@ describe('FailedDraftsToast', () => {
     ]);
   });
 
+  it('still reports the reason when there is no project id to build a link with', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <FailedDraftsToast
+          triggerId='trigger-1'
+          projectId={null}
+          storageTitle='My BigQuery'
+          failures={[
+            { dataMartId: 'dm-1', title: 'My Draft', error: 'Data Mart has no definition' },
+          ]}
+        />
+      </MemoryRouter>
+    );
+
+    // The reason is the point of the toast; losing it was the bug.
+    expect(container.textContent).toContain(
+      'Failed to publish 1 Data Mart draft: Data Mart has no definition.'
+    );
+    expect(container.textContent).toContain('Review them in the Data Marts list');
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
   it('says "due to different errors" when failures have mixed reasons', () => {
     const { container } = render(
       <MemoryRouter>

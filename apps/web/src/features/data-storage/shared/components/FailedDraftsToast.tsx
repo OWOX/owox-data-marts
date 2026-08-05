@@ -10,7 +10,7 @@ export function FailedDraftsToast({
   failures,
 }: {
   triggerId: string;
-  projectId: string;
+  projectId: string | null;
   storageTitle: string;
   failures: PublishDraftFailureDto[];
 }) {
@@ -18,27 +18,38 @@ export function FailedDraftsToast({
   const uniqueErrors = new Set(failures.map(failure => failure.error));
   const reason = uniqueErrors.size === 1 ? `: ${[...uniqueErrors][0]}` : ' due to different errors';
 
-  const draftsLink = `${buildProjectPath(projectId, '/data-marts')}?${new URLSearchParams({
-    filters: JSON.stringify([
-      { f: 'storageTitle', o: 'eq', v: [storageTitle] },
-      { f: 'status', o: 'eq', v: ['DRAFT'] },
-    ]),
-  }).toString()}`;
+  // Only the link needs a project id. Without one (auth still loading, or a
+  // token refresh in flight) still report why publishing failed, rather than
+  // dropping to a detail-free message.
+  const draftsLink = projectId
+    ? `${buildProjectPath(projectId, '/data-marts')}?${new URLSearchParams({
+        filters: JSON.stringify([
+          { f: 'storageTitle', o: 'eq', v: [storageTitle] },
+          { f: 'status', o: 'eq', v: ['DRAFT'] },
+        ]),
+      }).toString()}`
+    : null;
 
   return (
     <span>
       Failed to publish {count} Data Mart draft{count !== 1 ? 's' : ''}
       {reason}.{' '}
-      <Link
-        to={draftsLink}
-        className='underline underline-offset-4'
-        onClick={() => {
-          toast.dismiss(`${triggerId}-error`);
-        }}
-      >
-        Review them
-      </Link>{' '}
-      and try again.
+      {draftsLink ? (
+        <>
+          <Link
+            to={draftsLink}
+            className='underline underline-offset-4'
+            onClick={() => {
+              toast.dismiss(`${triggerId}-error`);
+            }}
+          >
+            Review them
+          </Link>{' '}
+          and try again.
+        </>
+      ) : (
+        'Review them in the Data Marts list and try again.'
+      )}
     </span>
   );
 }

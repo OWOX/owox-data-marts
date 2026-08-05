@@ -110,7 +110,7 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
                 }
 
                 if (response.failedCount > 0) {
-                  if (response.failures?.length && projectId) {
+                  if (response.failures?.length) {
                     toast.error(
                       <FailedDraftsToast
                         triggerId={triggerId}

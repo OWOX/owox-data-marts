@@ -15,6 +15,20 @@ import { ConnectorExecutionService } from '../services/connector/connector-execu
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 
+/**
+ * Failure reasons authored here, and therefore safe to show to end users.
+ *
+ * Anything else raised while publishing — storage driver errors, warehouse
+ * dry-run validation output — may carry SQL, table paths or credential hints,
+ * so callers that surface failures to the UI must not echo it back. See
+ * PublishDataStorageDraftsService.toUserFacingReason.
+ */
+export const PUBLISH_DATA_MART_ERRORS = {
+  NO_PERMISSION: 'You do not have permission to publish this Data Mart',
+  ALREADY_PUBLISHED: 'Data Mart is already published',
+  NO_DEFINITION: 'Data Mart has no definition',
+} as const;
+
 @Injectable()
 export class PublishDataMartService {
   private readonly logger = new Logger(PublishDataMartService.name);
@@ -42,16 +56,16 @@ export class PublishDataMartService {
         command.projectId
       );
       if (!canEdit) {
-        throw new ForbiddenException('You do not have permission to publish this Data Mart');
+        throw new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION);
       }
     }
 
     if (dataMart.status !== DataMartStatus.DRAFT) {
-      throw new BusinessViolationException('Data Mart is already published');
+      throw new BusinessViolationException(PUBLISH_DATA_MART_ERRORS.ALREADY_PUBLISHED);
     }
 
     if (!dataMart.definition || !dataMart.definitionType) {
-      throw new BusinessViolationException('Data Mart has no definition');
+      throw new BusinessViolationException(PUBLISH_DATA_MART_ERRORS.NO_DEFINITION);
     }
 
     if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
