@@ -45,6 +45,7 @@ describe('useModelCanvas', () => {
     serviceMocks.getEdges.mockResolvedValue([]);
     serviceMocks.getDataMartById.mockResolvedValue({
       definitionType: 'VIEW',
+      definition: { fullyQualifiedName: 'project.dataset.orders_view' },
       schema: { fields: [] },
     });
   });
@@ -115,7 +116,16 @@ describe('useModelCanvas', () => {
       expect(result.current.data?.nodes[0]?.fields).toEqual([]);
     });
     expect(result.current.data).toEqual({
-      nodes: [{ ...canvasNode(), definitionType: 'VIEW', fields: [] }],
+      nodes: [
+        {
+          ...canvasNode(),
+          definitionType: 'VIEW',
+          // The physical reference must survive the base+details merge — the
+          // OKF export's Definition section reads it from these nodes.
+          definition: 'project.dataset.orders_view',
+          fields: [],
+        },
+      ],
       edges: [],
     });
     expect(serviceMocks.getDataMarts).toHaveBeenCalledTimes(1);

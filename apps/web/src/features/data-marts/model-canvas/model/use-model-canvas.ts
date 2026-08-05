@@ -110,7 +110,12 @@ export function useModelCanvas(storageId: string | null) {
       nodes: baseQuery.data.nodes.map(node => {
         const detail = detailById.get(node.id);
         return detail
-          ? { ...node, definitionType: detail.definitionType, fields: detail.fields }
+          ? {
+              ...node,
+              definitionType: detail.definitionType,
+              definition: detail.definition,
+              fields: detail.fields,
+            }
           : node;
       }),
       edges: baseQuery.data.edges,
