@@ -11,6 +11,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import {
   AvailableSourceDto,
   BlendableSchemaDto,
@@ -272,70 +273,94 @@ describe('BlendedReportDataService', () => {
       );
     });
 
-    it('populates blendedDataHeaders for blended columns only (native cols are reader-resolved)', async () => {
-      const columnConfig = ['native_col', 'my_alias__blended_col'];
-      const report = makeReport({ columnConfig });
+    // The joined-field label convention is per destination: Google Sheets writes it into a narrow
+    // header cell and puts the data mart name last, everything else keeps it as a prefix. A read
+    // plan (totals / HTTP data / MCP) carries no destination and therefore keeps the prefix too.
+    it.each([
+      {
+        case: 'a Google Sheets destination',
+        destinationType: DataDestinationType.GOOGLE_SHEETS,
+        expectedAlias: 'Blended Display (my_alias)',
+      },
+      {
+        case: 'a Looker Studio destination',
+        destinationType: DataDestinationType.LOOKER_STUDIO,
+        expectedAlias: 'my_alias Blended Display',
+      },
+      {
+        case: 'no destination at all',
+        destinationType: undefined,
+        expectedAlias: 'my_alias Blended Display',
+      },
+    ])(
+      'populates blendedDataHeaders for blended columns only, with $case (native cols are reader-resolved)',
+      async ({ destinationType, expectedAlias }) => {
+        const columnConfig = ['native_col', 'my_alias__blended_col'];
+        const report = makeReport({
+          columnConfig,
+          ...(destinationType ? { dataDestination: { type: destinationType } } : {}),
+        } as Partial<Report>);
 
-      const blendedField = new BlendedFieldDto();
-      blendedField.name = 'my_alias__blended_col';
-      blendedField.sourceRelationshipId = 'rel-1';
-      blendedField.sourceDataMartId = 'dm-target';
-      blendedField.sourceDataMartTitle = 'Target';
-      blendedField.targetAlias = 'alias_1';
-      blendedField.originalFieldName = 'blended_col';
-      blendedField.type = 'STRING';
-      blendedField.alias = 'Blended Display';
-      blendedField.description = 'Blended field description';
-      blendedField.isHidden = false;
-      blendedField.aggregateFunction = 'STRING_AGG';
-      blendedField.transitiveDepth = 1;
-      blendedField.aliasPath = 'alias_1';
-      blendedField.outputPrefix = 'my_alias';
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'my_alias__blended_col';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target';
+        blendedField.sourceDataMartTitle = 'Target';
+        blendedField.targetAlias = 'alias_1';
+        blendedField.originalFieldName = 'blended_col';
+        blendedField.type = 'STRING';
+        blendedField.alias = 'Blended Display';
+        blendedField.description = 'Blended field description';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'STRING_AGG';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'alias_1';
+        blendedField.outputPrefix = 'my_alias';
 
-      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
-        nativeFields: [],
-        availableSources: [
-          {
-            aliasPath: 'alias_1',
-            title: 'Target',
-            defaultAlias: 'my_alias',
-            depth: 1,
-            fieldCount: 1,
-            isIncluded: true,
-            isAccessibleForReporting: true,
-            relationshipId: 'rel-1',
-            dataMartId: 'dm-target',
-          },
-        ],
-        blendedFields: [blendedField],
-      });
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'alias_1',
+              title: 'Target',
+              defaultAlias: 'my_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
 
-      const mockRel = {
-        id: 'rel-1',
-        targetAlias: 'alias_1',
-        sourceDataMart: { id: 'dm-1' },
-        targetDataMart: { id: 'dm-target' },
-        joinConditions: [],
-      } as unknown as DataMartRelationship;
+        const mockRel = {
+          id: 'rel-1',
+          targetAlias: 'alias_1',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
 
-      relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
-      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
-      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      const result = await service.resolveBlendingDecision(report, {
-        userId: 'user-1',
-        roles: ['admin'],
-      });
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
 
-      // Only the blended column gets a header; native columns are resolved
-      // by the reader's own headers generator.
-      expect(result.blendedDataHeaders).toHaveLength(1);
-      expect(result.blendedDataHeaders?.[0].name).toBe('my_alias__blended_col');
-      // Exported header: "<outputPrefix> <fieldAlias|originalFieldName>".
-      expect(result.blendedDataHeaders?.[0].alias).toBe('my_alias Blended Display');
-      expect(result.blendedDataHeaders?.[0].description).toBe('Blended field description');
-      expect(result.columnFilter).toEqual(columnConfig);
-    });
+        // Only the blended column gets a header; native columns are resolved
+        // by the reader's own headers generator.
+        expect(result.blendedDataHeaders).toHaveLength(1);
+        expect(result.blendedDataHeaders?.[0].name).toBe('my_alias__blended_col');
+        expect(result.blendedDataHeaders?.[0].alias).toBe(expectedAlias);
+        expect(result.blendedDataHeaders?.[0].description).toBe('Blended field description');
+        expect(result.columnFilter).toEqual(columnConfig);
+      }
+    );
 
     describe('blendedDataHeaders carry effective type and aggregateFunction', () => {
       function makeSimpleSchema(
@@ -481,6 +506,235 @@ describe('BlendedReportDataService', () => {
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       expect(context?.chains[0].parentAlias).toBe('main');
+    });
+
+    describe('COUNT beside a joined COUNT_DISTINCT', () => {
+      const joinedReport = (aggregationConfig: NonNullable<Report['aggregationConfig']>) =>
+        makeReport({ columnConfig: ['blended_field'], aggregationConfig });
+
+      const withJoinedStringField = () => {
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_field';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target';
+        blendedField.sourceDataMartTitle = 'Target';
+        blendedField.targetAlias = 'alias_1';
+        blendedField.originalFieldName = 'field';
+        blendedField.type = 'STRING';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'ANY_VALUE';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'alias_1';
+        blendedField.outputPrefix = 'alias_1';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'alias_1',
+              title: 'Target',
+              defaultAlias: 'alias_1',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'alias_1',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target', title: 'Target' },
+            joinConditions: [{ sourceFieldName: 'a', targetFieldName: 'b' }],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+      };
+
+      it('drops the COUNT from the built query and reports the normalised list', async () => {
+        withJoinedStringField();
+        const aggregationConfig: NonNullable<Report['aggregationConfig']> = [
+          { column: 'blended_field', function: 'COUNT' },
+          { column: 'blended_field', function: 'COUNT_DISTINCT' },
+        ];
+        const report = joinedReport(aggregationConfig);
+
+        const decision = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context?.aggregations).toEqual([
+          { column: 'blended_field', function: 'COUNT_DISTINCT' },
+        ]);
+        // Readers emit one header per (column, function); without this they would emit a
+        // `| COUNT` header the SQL no longer has.
+        expect(decision.aggregations).toEqual([
+          { column: 'blended_field', function: 'COUNT_DISTINCT' },
+        ]);
+        expect(report.aggregationConfig).toBe(aggregationConfig);
+      });
+
+      it('leaves a lone joined COUNT alone', async () => {
+        withJoinedStringField();
+        const report = joinedReport([{ column: 'blended_field', function: 'COUNT' }]);
+
+        const decision = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context?.aggregations).toEqual([{ column: 'blended_field', function: 'COUNT' }]);
+        expect(decision.aggregations).toBeUndefined();
+      });
+    });
+
+    it("carries the joined Data Mart's declared primary key onto its chain", async () => {
+      const columnConfig = ['blended_field'];
+      const report = makeReport({ columnConfig });
+
+      const blendedField = new BlendedFieldDto();
+      blendedField.name = 'blended_field';
+      blendedField.sourceRelationshipId = 'rel-1';
+      blendedField.sourceDataMartId = 'dm-target';
+      blendedField.sourceDataMartTitle = 'Target';
+      blendedField.targetAlias = 'alias_1';
+      blendedField.originalFieldName = 'field';
+      blendedField.type = 'STRING';
+      blendedField.isHidden = false;
+      blendedField.aggregateFunction = 'ANY_VALUE';
+      blendedField.transitiveDepth = 1;
+      blendedField.aliasPath = 'alias_1';
+      blendedField.outputPrefix = 'alias_1';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'alias_1',
+            title: 'Target',
+            defaultAlias: 'alias_1',
+            depth: 1,
+            fieldCount: 1,
+            isIncluded: true,
+            isAccessibleForReporting: true,
+            relationshipId: 'rel-1',
+            dataMartId: 'dm-target',
+          },
+        ],
+        blendedFields: [blendedField],
+      });
+
+      const mockRel = {
+        id: 'rel-1',
+        targetAlias: 'alias_1',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: {
+          id: 'dm-target',
+          title: 'Target',
+          schema: {
+            fields: [
+              { name: 'org_key', type: 'STRING', status: 'CONNECTED', isPrimaryKey: true },
+              {
+                name: 'tenant',
+                type: 'STRING',
+                status: 'CONNECTED',
+                isPrimaryKey: true,
+                isHiddenForReporting: true,
+              },
+              { name: 'field', type: 'STRING', status: 'CONNECTED', isPrimaryKey: false },
+            ],
+          },
+        },
+        joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: 'org_key' }],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      expect(context?.chains[0].targetPrimaryKeyFields).toEqual(['org_key', 'tenant']);
+    });
+
+    it('drops the whole key when one component is gone from the source', async () => {
+      const columnConfig = ['blended_field'];
+      const report = makeReport({ columnConfig });
+
+      const blendedField = new BlendedFieldDto();
+      blendedField.name = 'blended_field';
+      blendedField.sourceRelationshipId = 'rel-1';
+      blendedField.sourceDataMartId = 'dm-target';
+      blendedField.sourceDataMartTitle = 'Target';
+      blendedField.targetAlias = 'alias_1';
+      blendedField.originalFieldName = 'field';
+      blendedField.type = 'STRING';
+      blendedField.isHidden = false;
+      blendedField.aggregateFunction = 'ANY_VALUE';
+      blendedField.transitiveDepth = 1;
+      blendedField.aliasPath = 'alias_1';
+      blendedField.outputPrefix = 'alias_1';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'alias_1',
+            title: 'Target',
+            defaultAlias: 'alias_1',
+            depth: 1,
+            fieldCount: 1,
+            isIncluded: true,
+            isAccessibleForReporting: true,
+            relationshipId: 'rel-1',
+            dataMartId: 'dm-target',
+          },
+        ],
+        blendedFields: [blendedField],
+      });
+
+      const mockRel = {
+        id: 'rel-1',
+        targetAlias: 'alias_1',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: {
+          id: 'dm-target',
+          title: 'Target',
+          schema: {
+            fields: [
+              { name: 'date', type: 'DATE', status: 'CONNECTED', isPrimaryKey: true },
+              {
+                name: 'campaign_id',
+                type: 'STRING',
+                status: 'DISCONNECTED',
+                isPrimaryKey: true,
+              },
+              { name: 'field', type: 'STRING', status: 'CONNECTED', isPrimaryKey: false },
+            ],
+          },
+        },
+        joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: 'date' }],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      expect(context?.chains[0].targetPrimaryKeyFields).toEqual([]);
     });
 
     it('throws when two requested chains produce the same outputAlias (cross-chain collision)', async () => {
@@ -1676,6 +1930,80 @@ describe('BlendedReportDataService', () => {
         expect(chain.blendedFields[0].outputAlias).toBe('blended_b');
         // It is referenced only via filterConfig, so it must be hidden
         expect(chain.blendedFields[0].isHidden).toBe(true);
+      });
+
+      // A Totals plan projects ONLY metrics and carries no HAVING in filterConfig — its dimensions
+      // and metric filters live in `groupRestriction`. The emitted SQL still references
+      // them, so they must count as referenced columns here: otherwise a joined restriction
+      // dimension never reaches the chain builder, its qualifier falls back to `main."<alias>"`
+      // (unrecognized name), and a plan whose only blended reference was that dimension is routed
+      // to the flat builder altogether.
+      it('extends the join chain for a blended dimension referenced only by groupRestriction', async () => {
+        const report = {
+          ...makeReport({ columnConfig: ['main_a'] }),
+          groupRestriction: {
+            dimensions: ['blended_b'],
+            having: [{ column: 'main_a', function: 'SUM', operator: 'gt', value: 1 }],
+          },
+        } as unknown as Report;
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_b';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'b';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'target_alias',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Target DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName
+          .mockResolvedValueOnce('`project.dataset.main_table`')
+          .mockResolvedValueOnce('`project.dataset.target_table`');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.chains).toHaveLength(1);
+        expect(context!.chains[0].blendedFields[0].outputAlias).toBe('blended_b');
+        // ...and the restriction itself reaches the builder, or there is nothing to join on.
+        expect(context!.groupRestriction?.dimensions).toEqual(['blended_b']);
       });
 
       it('does not include blended chain if filterConfig references only a native column', async () => {

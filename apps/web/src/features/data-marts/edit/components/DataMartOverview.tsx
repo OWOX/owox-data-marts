@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import { InlineEditDescription } from '../../../../shared/components/InlineEditDescription';
 import { DataMartDefinitionType, DataMartMetadataScope } from '../../shared';
 import { useAiHelper, useAiHelperAvailability } from '../model/hooks';

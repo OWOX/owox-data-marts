@@ -11,7 +11,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router';
 import { useFlags } from '../../../../app/store/hooks';
 import { Button } from '../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
@@ -32,7 +32,7 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
-import { useSchemaUnsavedGuard } from '../model';
+import { useRefreshDataMartAfterConnectorRun, useSchemaUnsavedGuard } from '../model';
 import {
   countSuccessfulManualConnectorRuns,
   findTerminalTrackedManualConnectorRun,
@@ -51,6 +51,7 @@ import {
   isDataQualityActivityState,
   RunActivityIndicator,
 } from '../../shared/components/RunActivityIndicator';
+import { GOOGLE_SHEETS_CONNECTOR_NAME } from '../../../connectors/shared/utils/google-sheets-fields.utils';
 
 interface DataMartDetailsProps {
   id: string;
@@ -84,6 +85,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     getErrorMessage,
     runs,
     getDataMart,
+    refreshDataMart,
     isManualRunTriggered,
     manualRunId,
     resetManualRunTriggered,
@@ -107,10 +109,26 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const storageId = dataMart?.storage.id;
 
   const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
+  const isGoogleSheetsConnector = Boolean(
+    isConnector &&
+    dataMartDefinition &&
+    'connector' in dataMartDefinition &&
+    dataMartDefinition.connector.source.name === GOOGLE_SHEETS_CONNECTOR_NAME
+  );
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
   const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
   const hasActiveDataQualityRun = isDataQualityActivityState(dataQualitySummary?.state);
   const runActivityLabel = getDataMartRunActivityLabel(hasActiveRuns, hasActiveDataQualityRun);
+  const schemaGuard = useSchemaUnsavedGuard();
+
+  useRefreshDataMartAfterConnectorRun({
+    dataMartId,
+    isGoogleSheetsConnector,
+    isManualRunTriggered,
+    hasUnsavedSchemaChanges: schemaGuard.isSchemaDirty,
+    runs,
+    refreshDataMart,
+  });
 
   // Returns the refreshed Data Mart so the trigger can report what the new schema looks like.
   const onActualizeSuccess = useCallback(async () => {
@@ -128,8 +146,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
-
-  const schemaGuard = useSchemaUnsavedGuard();
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 

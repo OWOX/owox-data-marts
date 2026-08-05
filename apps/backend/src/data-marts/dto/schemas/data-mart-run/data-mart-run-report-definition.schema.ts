@@ -3,6 +3,7 @@ import { DataDestinationConfigSchema } from '../../../data-destination-types/dat
 import { DataDestinationType } from '../../../data-destination-types/enums/data-destination-type.enum';
 import { FilterConfigSchema } from '../filter-config.schema';
 import { SortConfigSchema } from '../sort-config.schema';
+import { SourceDataLastUpdatedSchema } from '../source-data-last-updated.schema';
 
 export const DataMartRunReportOutputConfigSchema = z.object({
   filterConfig: FilterConfigSchema.optional(),
@@ -20,6 +21,11 @@ export const DataMartRunReportDefinitionSchema = z.object({
   destinationConfig: DataDestinationConfigSchema,
   outputConfig: DataMartRunReportOutputConfigSchema.nullable().optional(),
   executionSqlQuery: z.string().optional(),
+  /**
+   * Snapshot of when the source tables had last changed at the moment this run executed.
+   * Optional so runs recorded before this field existed still parse.
+   */
+  dataLastUpdated: SourceDataLastUpdatedSchema.optional(),
 });
 
 export type DataMartRunReportDefinition = z.infer<typeof DataMartRunReportDefinitionSchema>;

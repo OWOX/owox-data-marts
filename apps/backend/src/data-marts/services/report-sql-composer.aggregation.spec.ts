@@ -8,11 +8,13 @@ import {
   AthenaClauseRenderer,
   countPositionalPlaceholders,
 } from '../data-storage-types/athena/services/athena-clause-renderer';
+import { extractCteBody } from '@owox/test-utils';
 import { BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
 import {
   AggregateFunction,
   ReportAggregateFunction,
 } from '../dto/schemas/aggregate-function.schema';
+import { buildBlendedFieldIndex } from './blended-field-index';
 
 describe('ReportSqlComposerService — aggregations wiring', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -46,7 +48,10 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       queryBuilderFacade as never,
       tableReferenceService as never,
       capabilityService as never,
-      blendableSchemaService as never
+      blendableSchemaService as never,
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     return { service, queryBuilderFacade, blendedReportDataService };
   };
@@ -315,14 +320,18 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
           .fn()
           .mockResolvedValue(blendableSchema ?? { nativeFields: [], blendedFields: [] }),
       };
+      // The composer validates the REPORT's own config before deriving a Totals restriction from
+      // its HAVING rules (that precondition used to hold by call order alone).
+      const validator = { validateForReport: jest.fn().mockResolvedValue(undefined) };
       const service = new ReportSqlComposerService(
         blendedReportDataService as never,
         facade as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        validator as never
       );
-      return { service, facade, blendedReportDataService, blendableSchemaService };
+      return { service, facade, blendedReportDataService, blendableSchemaService, validator };
     };
 
     const field = (name: string, type: string, extra: Record<string, unknown> = {}) => ({
@@ -432,10 +441,10 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
     });
 
-    // Requirement (WI #6680 §D): a COUNT_DISTINCT metric over a STRING field with no grouping
+    // Requirement (WI §D): a COUNT_DISTINCT metric over a STRING field with no grouping
     // must appear in totals — totals follow the field's governance-allowed functions, not a
     // numeric-type gate (governance permits COUNT/COUNT_DISTINCT on STRING).
-    it('scorecard: COUNT_DISTINCT over a STRING metric (NO grouping) is included in totals (WI #6680 §D)', async () => {
+    it('scorecard: COUNT_DISTINCT over a STRING metric (NO grouping) is included in totals (WI §D)', async () => {
       const { service } = makeBqTotalsComposer(['country']);
       const report = buildTotalsReport(
         {
@@ -490,7 +499,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
     });
 
-    it('strips HAVING (function-carrying) filters from the totals query, keeping WHERE filters', async () => {
+    it('restricts totals to the groups the metric filter keeps, keeping WHERE filters', async () => {
       const { service } = makeBqTotalsComposer(['revenue']);
       const report = buildTotalsReport({
         columnConfig: ['channel', 'revenue'],
@@ -502,9 +511,90 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
 
       const result = await service.composeTotals(report, {} as never);
 
+      // The Totals query itself still has no grouping...
       expect(result!.sql).toContain('WHERE src.`channel` = @p0');
-      expect(result!.sql).not.toMatch(/HAVING/);
-      expect(result!.sql).not.toMatch(/GROUP BY/);
+      const outerTail = result!.sql.slice(result!.sql.indexOf(') AS `_kept_groups`'));
+      expect(outerTail).not.toMatch(/GROUP BY/);
+      expect(outerTail).not.toMatch(/HAVING/);
+      // ...but it is joined to the groups the report keeps, recomputed with the report's own
+      // WHERE, grouping and metric filter. Totals therefore summarise the rows the report shows.
+      expect(result!.sql).toContain('JOIN (');
+      expect(result!.sql).toContain('HAVING SUM(src.`revenue`) > @kgh0');
+      expect(result!.sql).toContain('WHERE src.`channel` = @kgp0');
+    });
+
+    // The restriction must be regrouped at the REPORT's grain. A Totals plan sets
+    // `dateTruncConfig: null` (it has no GROUP BY of its own), so the buckets have to travel with
+    // the restriction — otherwise the surviving groups are recomputed per raw day where the
+    // report grouped by month, and a month whose total clears the filter can contain no single
+    // day that does: Totals would read 0 while the report shows the month.
+    it('recomputes the kept groups at the report date bucket, not the raw column', async () => {
+      const { service } = makeBqTotalsComposer(['revenue']);
+      const report = buildTotalsReport({
+        columnConfig: ['order_date', 'revenue'],
+        dateTruncConfig: [{ column: 'order_date', unit: 'MONTH' }],
+        filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+      } as unknown as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      const bucket = 'DATE_TRUNC(src.`order_date`, MONTH)';
+      expect(result!.sql).toContain(`GROUP BY\n  ${bucket}`);
+      expect(result!.sql).toContain(`ON (${bucket} = `);
+      // The bare column must never become the grouping key.
+      expect(result!.sql).not.toMatch(/GROUP BY\n {2}src\.`order_date`\n/);
+    });
+
+    // A metrics-only report ("total revenue, only if above 1000") has no dimensions at all, so
+    // the restriction has nothing to project — and an empty SELECT list is a syntax error.
+    it('restricts a metrics-only report through a dimensionless CROSS JOIN', async () => {
+      const { service } = makeBqTotalsComposer(['revenue']);
+      const report = buildTotalsReport({
+        columnConfig: ['revenue'],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+      } as unknown as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result!.sql).toContain('CROSS JOIN (');
+      expect(result!.sql).toMatch(/SELECT\n {2}1 AS /);
+      expect(result!.sql).not.toMatch(/SELECT\s*\n\s*FROM/);
+      expect(result!.sql).toContain('HAVING SUM(src.`revenue`) > @kgh0');
+    });
+
+    // The restriction is derived from the REPORT's HAVING rules, which are lifted OUT of
+    // filterConfig here — so the totals plan's own validation never sees them. That held by call
+    // order alone (compose runs before computeTotals), and computeTotals is a public service.
+    it("validates the report's own config before deriving a restriction from its HAVING", async () => {
+      const { service, validator } = makeBqTotalsComposer(['revenue']);
+      const report = buildTotalsReport({
+        columnConfig: ['channel', 'revenue'],
+        filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }],
+      } as unknown as Partial<Report>);
+
+      await service.composeTotals(report, {} as never);
+
+      expect(validator.validateForReport).toHaveBeenCalledTimes(1);
+      // The REPORT's rules, not the metrics-only totals plan's.
+      const args = validator.validateForReport.mock.calls[0][0] as {
+        filterConfig: unknown;
+        columnConfig: unknown;
+      };
+      expect(args.filterConfig).toEqual(report.filterConfig);
+      expect(args.columnConfig).toEqual(['channel', 'revenue']);
+    });
+
+    it('skips that validation when the report carries no metric filter', async () => {
+      const { service, validator } = makeBqTotalsComposer(['revenue']);
+      const report = buildTotalsReport({
+        columnConfig: ['channel', 'revenue'],
+        filterConfig: [{ column: 'channel', operator: 'eq', value: 'paid' }],
+      } as unknown as Partial<Report>);
+
+      await service.composeTotals(report, {} as never);
+
+      expect(validator.validateForReport).not.toHaveBeenCalled();
     });
 
     it('re-resolves the blending decision against the metrics-only totals plan (rowCount false, no Unique Count)', async () => {
@@ -604,6 +694,16 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
             aggregations: plan.aggregationConfig ?? undefined,
             rowCount: false,
             columnTypes: { postJoin: new Map(blendedFields.map(f => [f.name, f.type])) },
+            // Mirror the real BlendedReportDataService.resolveBlendingDecision, which always
+            // builds and passes a fieldIndex before invoking buildBlendedQuery — a joined
+            // COUNT_DISTINCT metric routes through a sleeve CTE that resolves the metric's raw
+            // column via context.fieldIndex.
+            fieldIndex: buildBlendedFieldIndex({
+              blendedFields,
+              availableSources: [...new Set(blendedFields.map(f => f.aliasPath))].map(
+                aliasPath => ({ aliasPath, isIncluded: true })
+              ),
+            } as never),
           });
           return { needsBlending: true, blendedSql: built.sql, params: built.params };
         }),
@@ -618,7 +718,10 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
         { buildQuery: jest.fn() } as never,
         tableReferenceService as never,
         capabilityService as never,
-        blendableSchemaService as never
+        blendableSchemaService as never,
+        // The composer validates the REPORT's own config before deriving a Totals restriction from
+        // its HAVING rules (that precondition used to hold by call order alone).
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
       return { service, blendedReportDataService, blendableSchemaService };
     };
@@ -652,8 +755,54 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(planArg.columnConfig).toEqual(['revenue', 'partner__cost']);
       expect(planArg.rowCount).toBe(false);
       const finalSelect = result!.sql.slice(result!.sql.lastIndexOf('\n\nSELECT'));
-      expect(finalSelect).toContain('SUM(partner.partner__cost)');
+      // partner__cost is a JOINED numeric field carrying BOTH SUM and AVG at once — routed
+      // through its value sleeve (uniform routing, 3) rather than dedup+SUM/dedup+
+      // AVG. Since 1, two sleeve-eligible functions on the SAME column now share ONE
+      // merged sleeve CTE (one dedup pass, two outer aggregates) instead of two identically-
+      // shaped `SELECT DISTINCT` subqueries.
+      expect(result!.sql).toContain('sleeve_partner__cost AS (');
+      expect(result!.sql.match(/sleeve_partner__cost AS \(/g)).toHaveLength(1);
+      expect(result!.sql.match(/SELECT DISTINCT/g)).toHaveLength(1);
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__cost.`partner__cost | SUM`) AS `partner__cost | SUM`'
+      );
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__cost.`partner__cost | AVG`) AS `partner__cost | AVG`'
+      );
+      // ONE join-back feeds both aggregates.
+      expect(
+        finalSelect.match(/LEFT JOIN sleeve_partner__cost ON|CROSS JOIN sleeve_partner__cost/g)
+      ).toHaveLength(1);
+      expect(finalSelect).not.toContain('SUM(partner.partner__cost)');
+      expect(finalSelect).not.toContain('AVG(partner.partner__cost)');
+      // Main-native `revenue` is unaffected — stays on the normal dedup/re-aggregate path.
+      expect(finalSelect).toContain('SUM(main.revenue) AS `revenue | SUM`');
       expect(finalSelect).not.toMatch(/GROUP BY/);
+    });
+
+    // A STRING joined field the report aggregates as COUNT_DISTINCT. Pre-join roll-up is
+    // ANY_VALUE (STRING cannot SUM). The post-join COUNT_DISTINCT total must be produced by a
+    // metric SLEEVE (re-join raw, DISTINCT at the grand-total grain) — NOT re-aggregated as SUM
+    // over the dedup CTE (the pre-slice-1 over-counting path). Guards the joined-COUNT_DISTINCT
+    // totals story end-to-end at the composer level.
+    it('routes a JOINED COUNT_DISTINCT total through a metric sleeve (exact, not dedup+SUM)', async () => {
+      const fields = [blendedField('partner__country', 'STRING', ['COUNT_DISTINCT'], 'ANY_VALUE')];
+      const { service } = makeBlendedTotalsComposer(fields);
+      const report = buildTotalsReport({
+        columnConfig: ['partner__country'],
+        aggregationConfig: [{ column: 'partner__country', function: 'COUNT_DISTINCT' }],
+      } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result).not.toBeNull();
+      expect(result!.aggregations).toEqual(
+        expect.arrayContaining([{ column: 'partner__country', function: 'COUNT_DISTINCT' }])
+      );
+      // Dimensionless grand total → the sleeve is CROSS JOINed and its value pulled via ANY_VALUE.
+      // The presence of the sleeve CTE is the proof this is NOT the old dedup+SUM path.
+      expect(result!.sql).toContain('sleeve_partner__country');
+      expect(result!.sql).toContain('CROSS JOIN');
     });
 
     // Symmetry with the main-mart rule: a JOINED non-numeric field the report aggregates as a
@@ -683,24 +832,48 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       const fns = result!.aggregations
         .filter(a => a.column === 'partner__country')
         .map(a => a.function);
-      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT', 'MIN', 'MAX']));
+      expect(fns).toEqual(expect.arrayContaining(['COUNT_DISTINCT', 'MIN', 'MAX']));
+      // COUNT is deliberately absent beside a JOINED COUNT_DISTINCT: the two are computed at
+      // different grains (COUNT_DISTINCT through a sleeve on the raw path, COUNT re-aggregated
+      // over the dedup CTE), so shown together they can invert COUNT(DISTINCT x) <= COUNT(x).
+      // A NATIVE column keeps both — nothing routes it through a sleeve.
+      expect(fns).not.toContain('COUNT');
       // STRING_AGG (and ANY_VALUE) are excluded from totals on the joined path too.
       expect(fns).not.toContain('STRING_AGG');
 
       // The generated SQL must be executable: the bottom-up CTE rolls the STRING column up with
-      // ANY_VALUE (never SUM over text), and the ungrouped outer SELECT applies the post-join
-      // totals functions — COUNT / COUNT_DISTINCT / MIN / MAX — over the joined column.
+      // ANY_VALUE (never SUM over text), and the ungrouped outer SELECT pulls each post-join
+      // total off its sleeve. MIN/MAX share one value sleeve; COUNT_DISTINCT keeps its own, and
+      // the name collision between the two shapes is what `_2` resolves.
       const splitAt = result!.sql.lastIndexOf('\n\nSELECT');
       const cte = result!.sql.slice(0, splitAt);
       const finalSelect = result!.sql.slice(splitAt);
       expect(cte).toContain('ANY_VALUE(country) AS partner__country');
       expect(result!.sql).not.toMatch(/SUM\(/); // no SUM over a text column anywhere
-      expect(finalSelect).toContain('MIN(partner.partner__country)');
-      expect(finalSelect).toContain('MAX(partner.partner__country)');
-      expect(finalSelect).toContain('COUNT(partner.partner__country)');
-      expect(finalSelect).toContain('COUNT(DISTINCT partner.partner__country)');
-      // Excluded functions never reach the totals SELECT.
-      expect(finalSelect).not.toContain('ANY_VALUE');
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__country_2.`partner__country | MIN`)'
+      );
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__country_2.`partner__country | MAX`)'
+      );
+      expect(finalSelect).not.toContain('MIN(partner.partner__country)');
+      // No `COUNT(...)` over the dedup CTE beside the sleeve's COUNT DISTINCT — see above.
+      expect(finalSelect).not.toContain('COUNT(partner.partner__country)');
+      // COUNT_DISTINCT on a JOINED column routes through a dimensionless "sleeve" CTE (correct
+      // through fan-out): the outer SELECT pulls its single grand-total value via ANY_VALUE and
+      // CROSS JOINs the sleeve, instead of re-aggregating COUNT(DISTINCT partner.partner__country)
+      // over the fanned-out join (which would over-count).
+      const sleeveCte = extractCteBody(result!.sql, 'sleeve_partner__country');
+      expect(sleeveCte).toContain('COUNT(DISTINCT partner_raw.country)');
+      expect(sleeveCte).not.toMatch(/GROUP BY/); // dimensionless grand total → one row, no grouping
+      expect(finalSelect).toContain('CROSS JOIN sleeve_partner__country');
+      expect(finalSelect).toContain(
+        'ANY_VALUE(sleeve_partner__country.`partner__country | COUNTUNIQUE`)'
+      );
+      expect(finalSelect).not.toContain('COUNT(DISTINCT partner.partner__country)');
+      // Excluded functions never reach the totals SELECT. The only ANY_VALUE here is the sleeve
+      // value-pull above — the excluded pre-join ANY_VALUE is NOT applied over the column itself.
+      expect(finalSelect).not.toContain('ANY_VALUE(partner.partner__country)');
       expect(finalSelect).not.toMatch(/STRING_?AGG/i);
       // Single grand-total row — no outer GROUP BY.
       expect(finalSelect).not.toMatch(/GROUP BY/);
@@ -753,7 +926,10 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       // SUM / AVG are not supported for STRING → clamped away; the valid ones survive.
       expect(fns).not.toContain('SUM');
       expect(fns).not.toContain('AVG');
-      expect(fns).toEqual(expect.arrayContaining(['COUNT', 'COUNT_DISTINCT']));
+      expect(fns).toEqual(expect.arrayContaining(['COUNT_DISTINCT']));
+      // See above: COUNT is dropped for a joined column that carries a sleeve-routed
+      // COUNT_DISTINCT, so the clamp result is COUNT_DISTINCT alone rather than both.
+      expect(fns).not.toContain('COUNT');
       expect(result!.sql).not.toMatch(/SUM\(/);
       expect(result!.sql).not.toMatch(/AVG\(/);
     });
@@ -855,7 +1031,10 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
           facade as never,
           tableReferenceService as never,
           capabilityService as never,
-          blendableSchemaService as never
+          blendableSchemaService as never,
+          // The composer validates the REPORT's own config before deriving a Totals restriction from
+          // its HAVING rules (that precondition used to hold by call order alone).
+          { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
         );
         return { service, facade };
       };

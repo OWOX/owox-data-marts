@@ -13,6 +13,7 @@ import { EeModule } from './ee/ee.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ProjectMemberApiKeysModule } from './project-member-api-keys/project-member-api-keys.module';
 import { SearchModule } from './data-marts/search/search.module';
+import { PluginHostModule } from './plugin-host/plugin-host.module';
 import { ProjectSettingsModule } from './project-settings/project-settings.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 import { validateConfig } from './config/env-validation.config';
@@ -58,6 +59,7 @@ import { serializeSqliteTransactions } from './config/sqlite-transaction-seriali
     EeModule,
     ProjectMemberApiKeysModule,
     NotificationsModule,
+    PluginHostModule,
     ProjectSettingsModule,
   ],
   providers: [

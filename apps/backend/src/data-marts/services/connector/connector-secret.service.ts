@@ -767,6 +767,9 @@ export class ConnectorSecretService {
       );
     }
 
+    const { copySecretsByValue } = this.connectorService.getConnectorCapabilities(
+      incoming.connector.source.name
+    );
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
     const sourceSecretsIds = sourceDefinition.connector.source.configuration
       .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
@@ -815,6 +818,9 @@ export class ConnectorSecretService {
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
+      if (copySecretsByValue) {
+        delete mergedItem._secrets_id;
+      }
       mergedItem._id = randomUUID();
       delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
       if (

@@ -184,6 +184,40 @@ describe('SyncLegacyDataMartService', () => {
       expect(dataMartService.save).toHaveBeenCalledWith(existingDataMart);
     });
 
+    it('should share a newly synced data mart for reporting and for maintenance', async () => {
+      legacyDataMartsService.getDataMartDetails.mockResolvedValue(mockProjection);
+      legacyDataStorageService.findByGcpProjectId.mockResolvedValue(mockStorage);
+      dataMartService.findById.mockResolvedValue(null);
+      dataMartService.create.mockReturnValue({ id: 'dm-123' } as DataMart);
+
+      await service.run({ dataMartId: 'dm-123' });
+
+      expect(dataMartService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          availableForReporting: true,
+          availableForMaintenance: true,
+        })
+      );
+    });
+
+    it('should keep the sharing settings of an existing data mart on re-sync', async () => {
+      const existingDataMart = {
+        id: 'dm-123',
+        title: 'Old Title',
+        availableForReporting: false,
+        availableForMaintenance: false,
+      } as DataMart;
+
+      legacyDataMartsService.getDataMartDetails.mockResolvedValue(mockProjection);
+      legacyDataStorageService.findByGcpProjectId.mockResolvedValue(mockStorage);
+      dataMartService.findById.mockResolvedValue(existingDataMart);
+
+      await service.run({ dataMartId: 'dm-123' });
+
+      expect(existingDataMart.availableForReporting).toBe(false);
+      expect(existingDataMart.availableForMaintenance).toBe(false);
+    });
+
     it('should silently skip when AccessValidationException is thrown', async () => {
       legacyDataMartsService.getDataMartDetails.mockResolvedValue(mockProjection);
       legacyDataStorageService.findByGcpProjectId.mockResolvedValue(null);

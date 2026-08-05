@@ -18,8 +18,10 @@ export const ERD_ROW_HEIGHT = 26;
 export const ERD_EXPAND_ROW_HEIGHT = 26;
 /** ERD nodes show at most this many rows before collapsing behind a toggle. */
 export const ERD_COLLAPSED_ROWS = 4;
-/** Height of the meta row (badge + field count), subtracted when object labels hide it. */
+/** Height of the meta row (the source badge), subtracted when object labels hide it. */
 export const CARD_META_ROW_HEIGHT = 36;
+/** Height of the status icons row (quality shield + Data Last Updated + field count), dropped in title-only mode. */
+export const CARD_STATUS_ROW_HEIGHT = 30;
 
 export function nodeWidth(viewMode: CanvasViewMode): number {
   return viewMode === 'erd' ? ERD_NODE_WIDTH : COMPACT_NODE_WIDTH;
@@ -42,15 +44,20 @@ export function collapsedRowCount(fields: CanvasNodeField[]): number {
 
 /**
  * Collapsed layout height for a node, used by dagre and as the initial render
- * size. `metaRowHidden` reflects the object-labels preference: when both the
- * source badge and the field count are hidden, the card drops its meta row.
+ * size. `metaRowHidden` reflects the object-labels preference: when the
+ * source badge is hidden, the card drops its meta row (the field count lives
+ * in the status icons row).
+ * `statusRowHidden` reflects title-only mode, which also drops the quality
+ * indicators row (Data Quality shield + Data Last Updated clock).
  */
 export function computeNodeHeight(
   node: Pick<ModelCanvasNode, 'fields'>,
   viewMode: CanvasViewMode,
-  metaRowHidden = false
+  metaRowHidden = false,
+  statusRowHidden = false
 ): number {
-  const metaAdjustment = metaRowHidden ? -CARD_META_ROW_HEIGHT : 0;
+  const metaAdjustment =
+    (metaRowHidden ? -CARD_META_ROW_HEIGHT : 0) + (statusRowHidden ? -CARD_STATUS_ROW_HEIGHT : 0);
   if (viewMode !== 'erd') return COMPACT_NODE_HEIGHT + metaAdjustment;
   const fields = node.fields ?? [];
   if (fields.length === 0) return COMPACT_NODE_HEIGHT + metaAdjustment;

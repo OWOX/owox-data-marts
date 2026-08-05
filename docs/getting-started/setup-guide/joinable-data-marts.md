@@ -77,7 +77,11 @@ By default, all fields from the target Data Mart are available in reports built 
 The **Output Alias** at the top of the tab controls how the joined Data Mart is presented to report editors:
 
 - It's the **group label** shown in the Report Columns picker.
-- It's the **prefix** added to every joined field name in the report output (e.g., `orders revenue` if the alias is `orders`).
+- It's the **Data Mart name** attached to every joined field name in the report output. Where it goes depends on the destination — with the alias `orders`, a field named `revenue` becomes:
+  - `revenue (orders)` in **Google Sheets**, so the field name stays readable in a narrow header cell;
+  - `orders revenue` in **Data Studio**, **email-based destinations** and the **HTTP data endpoint**.
+
+The position follows the surface that renders the label, not the report. Reading a Google Sheets report through the HTTP data endpoint therefore returns `orders revenue`, even though its sheet shows `revenue (orders)`. Match columns on the technical field name — it is identical everywhere.
 
 Rename it to anything that reads well in reports — by default it inherits the target Data Mart title.
 
@@ -85,10 +89,10 @@ Rename it to anything that reads well in reports — by default it inherits the 
 
 Each row in the fields table lets you override:
 
-| Setting                | What it does                                                                                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Alias**              | Per-field rename — replaces the original field name in the report output. The Data Mart-level prefix still applies (e.g., with prefix `orders` and field alias `total`, the column becomes `orders total`).                                                       |
-| **Aggregate Function** | How the field is collapsed when the relationship is 1-to-many. See the table below.                                                                   |
+| Setting                | What it does                                                                                                                                                                                                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Alias**              | Per-field rename — replaces the original field name in the report output. The Data Mart-level Output Alias still applies. With Output Alias `orders` and field alias `total`, the column becomes `total (orders)` in Google Sheets and `orders total` elsewhere. |
+| **Aggregate Function** | How the field is collapsed when the relationship is 1-to-many. See the table below.                                                                                                                                                                                     |
 
 To hide a field from reports, open its **⋯** action menu and click **Hide from reports**. Hidden fields stay configurable in this tab but no longer appear in the Report Columns picker on any report. Use it for fields business users don't need.
 
@@ -157,7 +161,7 @@ The Joinable Data Marts block has a **Graph** view that visualizes every relatio
 
 ![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/52bc4830-7dcd-4968-344d-fdf84dee3f00/public)
 
-If **Campaigns** joins **Orders**, and **Orders** joins **Products**, the column picker on any **Campaigns** report exposes fields from **Products** as available options — prefixed with the alias chain. Existing reports keep their current columns until you pick the new ones.
+If **Campaigns** joins **Orders**, and **Orders** joins **Products**, the column picker on any **Campaigns** report exposes fields from **Products** as available options — qualified with the Output Alias of the Data Mart the field actually comes from (**Products**), not the whole chain. Existing reports keep their current columns until you pick the new ones.
 
 There is **no hard limit** on chain length. The generated SQL pre-aggregates each level on its parent's join key, so adding depth never multiplies the source Data Mart's rows.
 

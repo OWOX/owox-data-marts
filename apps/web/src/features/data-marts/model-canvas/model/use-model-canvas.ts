@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import type { AxiosRequestConfig } from '../../../../app/api';
 import { dataMartService } from '../../shared/services/data-mart.service';
 import type { DataMartSchema } from '../../shared/types/data-mart-schema.types';
 import { modelCanvasService } from '../api/model-canvas.service';
+import { extractDefinitionText } from './definition-text';
 import type { CanvasNodeField, ModelCanvasTopologyData, ModelCanvasTopologyNode } from './types';
 
 const SILENT_REQUEST_OPTIONS = {
@@ -54,6 +55,7 @@ async function enrichNodes(
       enriched[start + index] = {
         ...target,
         definitionType: detail.definitionType,
+        definition: extractDefinitionText(detail.definitionType, detail.definition),
         fields: mapSchemaFields(detail.schema),
       };
     });
@@ -108,7 +110,12 @@ export function useModelCanvas(storageId: string | null) {
       nodes: baseQuery.data.nodes.map(node => {
         const detail = detailById.get(node.id);
         return detail
-          ? { ...node, definitionType: detail.definitionType, fields: detail.fields }
+          ? {
+              ...node,
+              definitionType: detail.definitionType,
+              definition: detail.definition,
+              fields: detail.fields,
+            }
           : node;
       }),
       edges: baseQuery.data.edges,
@@ -118,5 +125,11 @@ export function useModelCanvas(storageId: string | null) {
   return {
     ...baseQuery,
     data,
+    /**
+     * True while the follow-up detail query hasn't settled — fields and
+     * definitions may still be missing from the merged nodes. Consumers that
+     * serialize the model (canvas export) should wait this out.
+     */
+    isEnriching: Boolean(baseNodes?.length) && !detailsQuery.isFetched,
   };
 }

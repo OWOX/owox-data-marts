@@ -17,7 +17,7 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -115,6 +115,10 @@
     },
     "googleapis-common": {
       "google-auth-library": "^10.1.0"
+    },
+    "sharp": "^0.35.0",
+    "@modelcontextprotocol/sdk": {
+      "@hono/node-server": "^2.0.5"
     }
   }
 }

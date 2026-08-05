@@ -11,7 +11,7 @@ import { OpenIssueLink } from '../components';
 import { StepperHeroBlock } from '../components';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import { ChevronRight, Unplug } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 interface NodesSelectionStepProps {
   connector: ConnectorListItem;

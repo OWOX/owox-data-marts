@@ -14,6 +14,8 @@ import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
+import { useProjectRoute } from '../../../../../shared/hooks';
+import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
 
 interface DataStorageEditSheetProps {
   isOpen: boolean;
@@ -31,6 +33,12 @@ export function DataStorageConfigSheet({
   const { updateDataStorage } = useDataStorage();
 
   useIntercomLauncher(isOpen);
+
+  const { scope, projectId } = useProjectRoute();
+  const storageLink =
+    dataStorage && projectId
+      ? `${window.location.origin}${scope(`/data-storages?id=${dataStorage.id}`)}`
+      : null;
 
   const {
     showUnsavedDialog,
@@ -88,7 +96,12 @@ export function DataStorageConfigSheet({
       <SheetContent data-testid='storageConfigSheet'>
         <SheetHeader>
           <SheetTitle>Configure Storage Provider</SheetTitle>
-          <SheetDescription>Customize settings for your storage provider</SheetDescription>
+          <div className='flex w-full items-center gap-4'>
+            <SheetDescription>Customize settings for your storage provider</SheetDescription>
+            {storageLink && (
+              <CopyLinkButton link={storageLink} ariaLabel='Copy link to this storage' />
+            )}
+          </div>
         </SheetHeader>
         <DataStorageForm
           initialData={dataStorage ?? undefined}

@@ -26,10 +26,12 @@ import {
  *   column (e.g. for SQL override results that contain unknown names).
  * - Aggregated columns are expanded to one header per applied function, named
  *   `aggregatedColumnLabel(col, fn)` — the SAME labels the SQL renderer emits as output
- *   aliases, in the SAME order — each with its effective type and aggregate function
- *   set. A column may carry more than one function (each becomes its own output column).
- *   Readers map result rows to headers by name, so the header name MUST equal the SQL
- *   alias.
+ *   aliases — each with its effective type and aggregate function set. A column may carry
+ *   more than one function (each becomes its own output column). Readers map result rows to
+ *   headers BY NAME, so the header name MUST equal the SQL alias. Header order does NOT have
+ *   to equal SELECT column order, and on the blended path it does not: a metric-sleeve pull
+ * (joined COUNT DISTINCT / SUM / AVG,) is appended after `Row Count`, while the
+ *   header for it sits at its own column's position.
  * - When `aggregationConfig` is non-empty, a synthetic `Row Count` header (matching the
  *   `COUNT(*) AS "Row Count"` output column) is appended last. Row Count is automatic
  *   for aggregated reports, unless `options.rowCount === false` (the Totals reader opts
@@ -69,8 +71,10 @@ export function resolveReportDataHeaders(
   }
 
   if (aggregations.length > 0) {
-    // Expand each aggregated column into one header per applied function, in rule
-    // order — mirroring renderAggregatedSelect so header order == SELECT column order.
+    // Expand each aggregated column into one header per applied function, in rule order —
+    // the same labels renderAggregatedSelect (and, for a sleeve metric, the blended builder)
+    // emits as output aliases. Readers bind by name, so only the labels must agree, not the
+    // positions.
     headers = headers.flatMap(header => {
       const fns = aggregationFunctionsForColumn(aggregations, header.name);
       if (fns.length === 0) return [header];

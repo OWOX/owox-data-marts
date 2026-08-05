@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Button } from '@owox/ui/components/button';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 /* --------------------------------------------------------------------------
  * Main wrapper: EmptyStateCard

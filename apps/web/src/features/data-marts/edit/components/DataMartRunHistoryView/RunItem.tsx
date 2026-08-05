@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import { Box, ChevronDown, Download } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { UserReference } from '../../../../../shared/components/UserReference';

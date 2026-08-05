@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@owox/ui/components/badge';
 import RelativeTime from '@owox/ui/components/common/relative-time';

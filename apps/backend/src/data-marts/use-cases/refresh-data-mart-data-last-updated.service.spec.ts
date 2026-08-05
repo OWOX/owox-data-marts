@@ -88,7 +88,7 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
         items: [{ key: 'dm1', sql: 'SELECT * FROM t', params: [] }],
       })
     );
-    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', measured);
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', 'p1', measured);
   });
 
   it('measures all Data Marts on one storage in a single batch', async () => {
@@ -129,7 +129,7 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
     const results = await service.run(command('dm1', 'dm2'));
 
     expect(results.has('dm2')).toBe(false);
-    expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalledWith('dm2', measured);
+    expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalledWith('dm2', 'p1', measured);
     expect(sourceDataLastUpdatedService.resolveForSqlBatch.mock.calls[0][0].items).toEqual([
       expect.objectContaining({ key: 'dm1' }),
     ]);
@@ -191,7 +191,7 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
 
     expect(results.has('dm2')).toBe(false);
     expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledTimes(1);
-    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', measured);
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm1', 'p1', measured);
   });
 
   it('returns the fresh value even when persisting it fails', async () => {

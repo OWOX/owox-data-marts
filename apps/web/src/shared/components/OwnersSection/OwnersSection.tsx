@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { OwnersEditor } from '../../../features/data-marts/edit/components/OwnersEditor';
 import type { UserProjectionDto } from '../../types/api';
 

@@ -8,7 +8,7 @@ When contributing, please keep the wider community in mind. We review pull reque
 
 Set up the following tools locally before you start developing:
 
-- Node.js 22.16.0 or later (see `engines.node` requirement in root `package.json`)
+- Node.js 22.22.0 or later (see `engines.node` requirement in root `package.json`)
 - npm 10 or later (ships with the Node 22 installer)
 - Git (any recent 2.x release) for working with the repository
 

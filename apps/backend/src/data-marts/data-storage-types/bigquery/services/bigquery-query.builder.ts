@@ -14,7 +14,6 @@ import {
   QueryBuildResult,
 } from '../../interfaces/data-mart-query-builder.interface';
 import { escapeBigQueryIdentifier } from '../utils/bigquery-identifier.utils';
-import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
 import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
@@ -95,33 +94,25 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     // SELECT/GROUP BY stay unqualified: after FROM … AS src, bare column names resolve
     // to columns of src (qualifying projections would force nested-RECORD AS work).
     if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
-      const agg = this.clauseRenderer.renderAggregatedSelect(
-        queryOptions?.columns ?? [],
+      return this.clauseRenderer.renderAggregatedQuery({
+        fromClause,
+        columns: queryOptions?.columns ?? [],
         aggregations,
-        buildDateTruncUnitMap(dateTruncs),
-        {
-          includeRowCount: rowCount,
-          includeUniqueCount: uniqueCount,
-          primaryKeyColumns: queryOptions?.primaryKeyColumns,
-          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
-          typeByColumn: columnTypes,
-        }
-      );
-      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
-      const aggOrderBy = this.clauseRenderer.renderOrderBy(
-        queryOptions?.sort ?? [],
-        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
-      );
-      const having = this.clauseRenderer.renderHaving(
-        queryOptions?.filters ?? [],
+        dateTruncs,
+        filters: queryOptions?.filters ?? [],
+        sort: queryOptions?.sort ?? [],
+        limit: queryOptions?.limit ?? null,
+        rowCount,
+        uniqueCount,
+        primaryKeyColumns: queryOptions?.primaryKeyColumns,
+        groupRestriction: queryOptions?.groupRestriction,
         qualifyColumn,
-        'h',
-        resolveColumnType
-      );
-      return {
-        sql: `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`,
-        params: [...where.params, ...having.params, ...aggOrderBy.params, ...limit.params],
-      };
+        // SELECT/GROUP BY stay unqualified: after FROM … AS src a bare column name already
+        // resolves to a column of src, and qualifying it would force nested-RECORD AS work.
+        qualifyProjection: undefined,
+        typeByColumn: columnTypes,
+        resolveColumnType,
+      });
     }
 
     const sql = `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;

@@ -43,7 +43,10 @@ const SUPPORTED_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]
 
 const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, FieldGovernance> = {
   number: { role: 'metric', allowedAggregations: ['SUM', 'AVG', 'MIN', 'MAX'] },
-  string: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
+  string: {
+    role: 'dimension',
+    allowedAggregations: ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE'],
+  },
   date: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   time: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   boolean: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },

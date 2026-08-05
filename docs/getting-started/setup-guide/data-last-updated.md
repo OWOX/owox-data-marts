@@ -20,19 +20,21 @@ Hover over any Data Last Updated value or icon to see the details: the exact tim
 | --- | --- |
 | **Data Mart page** → Overview → Details | A **Data Last Updated** tile with a *Check now* button |
 | **Data Marts list** | A sortable **Data Last Updated** column |
-| **Models canvas** | A clock icon on every node, next to the Data Quality shield, plus a **Data Last Updated** toolbar button |
+| **Models canvas** | A clock icon on every node, next to the Data Quality shield, plus a **Data Last Updated** entry in the **Actions** menu |
 | **MCP** | A `data_last_updated` block in every `query_data_mart` response — see [MCP Server](./mcp.md#data-last-updated) |
 
-The list and the canvas show the **last-known** value — the result of the most recent check, with its time visible in the hover card. They never query the storage on page load.
+The list and the canvas show the **last-known** value — the result of the most recent check or data-delivering run, with its time visible in the hover card. They never query the storage on page load.
 
 ## How to check it
 
-Two buttons measure the value live and save the result:
+Two manual checks measure the value live and save the result:
 
 - **Check now** (⟳) on the Data Mart page measures that one Data Mart.
-- **Data Last Updated** in the canvas toolbar measures every Data Mart currently visible on the canvas, in one pass.
+- **Actions → Check Data Last Updated** on the canvas measures every Data Mart currently visible on the canvas, in one pass.
 
 Checking is free. It reads storage metadata only, consumes no [credits](../billing/consumption-units.md), and records no run. Any project member who can see the Data Mart can run the check.
+
+You rarely need the buttons, though: every run that delivers data refreshes the value on the way out — see the table below.
 
 A check that cannot determine the time reports Unknown and **keeps the previously saved value** — a failed lookup never erases the last-known answer.
 
@@ -41,9 +43,13 @@ A check that cannot determine the time reports Unknown and **keeps the previousl
 | Trigger | Effect |
 | --- | --- |
 | *Check now* on the Data Mart page | Measures and **saves** the value |
-| Toolbar button on the canvas | Measures and **saves** the value for all visible Data Marts |
-| Every MCP `query_data_mart` call | Measures live for that response and records it in the run's history entry. Does **not** overwrite the saved value, because an MCP query can span several joined Data Marts |
-| On a schedule | Never. OWOX does not re-measure Data Marts in the background |
+| *Actions → Check Data Last Updated* on the canvas | Measures and **saves** the value for all visible Data Marts |
+| Report run — manual or scheduled | Measures during the run and records the result in the run's history entry. When the report reads only the Data Mart's own sources, it also **saves** the value |
+| HTTP Data request | Same as a report run: records in history, **saves** when the request reads only the Data Mart's own sources |
+| MCP `query_data_mart` call | Measures live for that response and records it in the run's history entry. **Saves** the value when the query reads only the Data Mart's own sources (no joined fields) |
+| In the background, on its own | Never. OWOX only measures when someone checks manually or a run delivers data — a scheduled report run counts as a run |
+
+A blended run records the measurement in its history entry only. Its reading covers other Data Marts' tables too, so saving it on one Data Mart would overstate that value.
 
 ## How OWOX determines the value
 

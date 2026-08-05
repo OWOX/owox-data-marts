@@ -11,8 +11,8 @@ const serviceMocks = vi.hoisted(() => ({
   getDataMartById: vi.fn(),
 }));
 
-vi.mock('react-router-dom', async importOriginal => ({
-  ...(await importOriginal<typeof import('react-router-dom')>()),
+vi.mock('react-router', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ projectId: 'project-1' }),
 }));
 
@@ -45,6 +45,7 @@ describe('useModelCanvas', () => {
     serviceMocks.getEdges.mockResolvedValue([]);
     serviceMocks.getDataMartById.mockResolvedValue({
       definitionType: 'VIEW',
+      definition: { fullyQualifiedName: 'project.dataset.orders_view' },
       schema: { fields: [] },
     });
   });
@@ -115,13 +116,24 @@ describe('useModelCanvas', () => {
       expect(result.current.data?.nodes[0]?.fields).toEqual([]);
     });
     expect(result.current.data).toEqual({
-      nodes: [{ ...canvasNode(), definitionType: 'VIEW', fields: [] }],
+      nodes: [
+        {
+          ...canvasNode(),
+          definitionType: 'VIEW',
+          // The physical reference must survive the base+details merge — the
+          // OKF export's Definition section reads it from these nodes.
+          definition: 'project.dataset.orders_view',
+          fields: [],
+        },
+      ],
       edges: [],
     });
     expect(serviceMocks.getDataMarts).toHaveBeenCalledTimes(1);
     expect(serviceMocks.getEdges).toHaveBeenCalledTimes(1);
     expect(serviceMocks.getDataMartById).toHaveBeenCalledTimes(1);
     expect(serviceMocks.getSummaries).not.toHaveBeenCalled();
+    // The enrichment flag settles once the detail query lands — the export gate reads it.
+    expect(result.current.isEnriching).toBe(false);
   });
 });
 

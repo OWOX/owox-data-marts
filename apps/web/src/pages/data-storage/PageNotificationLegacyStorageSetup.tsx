@@ -7,7 +7,7 @@ import {
   CollapsibleCardHeaderActions,
 } from '../../shared/components/CollapsibleCard/index.ts';
 import { Info, BookOpen, Airplay } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button } from '../../shared/components/Button/index.tsx';
 import { useContentPopovers } from '../../app/store/hooks/useContentPopovers.ts';
 

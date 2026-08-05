@@ -12,9 +12,15 @@ interface CopyableFieldProps {
   value: string;
   children?: React.ReactNode;
   doNotTruncateContent?: boolean;
+  className?: string;
 }
 
-export function CopyableField({ value, children, doNotTruncateContent }: CopyableFieldProps) {
+export function CopyableField({
+  value,
+  children,
+  doNotTruncateContent,
+  className,
+}: CopyableFieldProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -36,7 +42,8 @@ export function CopyableField({ value, children, doNotTruncateContent }: Copyabl
             className={cn(
               'flex cursor-pointer items-center justify-between gap-2 select-none',
               'text-muted-foreground border-input rounded-md border px-3 py-1.5 text-sm',
-              'hover:bg-accent hover:text-accent-foreground transition-colors'
+              'hover:bg-accent hover:text-accent-foreground transition-colors',
+              className
             )}
           >
             <span className={doNotTruncateContent ? 'w-[95%]' : 'truncate'}>

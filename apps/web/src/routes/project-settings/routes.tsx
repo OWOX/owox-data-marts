@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router-dom';
+import type { RouteObject } from 'react-router';
 import { MembersTab } from '../../pages/project-settings/MembersTab';
 import { ContextsTab } from '../../pages/project-settings/ContextsTab';
 import { OverviewTab } from '../../pages/project-settings/OverviewTab';

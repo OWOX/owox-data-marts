@@ -27,7 +27,7 @@
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
     "axios": "^1.11.0",
-    "better-auth": "1.6.13",
+    "better-auth": "1.6.25",
     "better-sqlite3": "^12.2.0",
     "cookie-parser": "^1.4.7",
     "ejs": "^3.1.10",
@@ -55,7 +55,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.22.0"
   },
   "files": ["dist"],
   "exports": {

@@ -1,4 +1,4 @@
-import { Navigate, type RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router';
 import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
@@ -26,6 +26,7 @@ import { SearchPage } from '../pages/search/SearchPage';
 import { ConnectFlowLayout } from '../layouts/ConnectFlowLayout';
 import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPage';
 import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
+import { pluginsRoutes } from './plugins/routes';
 
 const routes: RouteObject[] = [
   {
@@ -54,6 +55,7 @@ const routes: RouteObject[] = [
         element: <DataMartsPage />,
         errorElement: <LayoutErrorBoundary />,
       },
+      ...pluginsRoutes,
       {
         path: 'data-marts',
         element: <DataMartsPage />,

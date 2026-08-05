@@ -1,0 +1,40 @@
+export { AudienceIcon, InstallPluginDialog, PluginCard, PublishPluginSheet } from './components';
+export { pluginsService } from './services/plugins.service';
+export { repositoryPath } from './repository';
+export { safeHttpsUrl } from './safeHttpsUrl';
+export { describeVisibility, type GalleryVisibility, type PluginAudience } from './visibility';
+export { createPluginHostBridge, type FetchRuntimeToken } from './runtime/pluginHostBridge';
+export { fetchRuntimeToken } from './runtime/fetchRuntimeToken';
+export {
+  useGalleryView,
+  type GalleryView,
+  type PluginFilter,
+  type PluginSort,
+} from './hooks/useGalleryView';
+export {
+  usePluginManageablePublications,
+  usePluginPublications,
+  usePluginPublishing,
+  usePublishableScopes,
+  type PublishFailure,
+} from './hooks/usePluginPublications';
+export {
+  usePlugin,
+  usePluginActions,
+  usePluginGallery,
+  usePluginInstallations,
+  type StaleVersionSignal,
+} from './hooks/usePlugins';
+export type {
+  InstalledPlugin,
+  PluginEntryPoint,
+  PluginGalleryEntry,
+  PluginInstallationState,
+  PluginPublication,
+  PluginPublicationScope,
+  PluginRuntimeToken,
+  PluginSource,
+  PluginUpdateOutcome,
+  PluginUpdateResult,
+  PublishPluginRequest,
+} from './types';

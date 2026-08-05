@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useBlocker } from 'react-router';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 
 export type SchemaGuardIntent = 'ai' | 'refresh' | 'publish' | 'definition' | 'navigation';

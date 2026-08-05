@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useProjectRoute } from '../../../../../../shared/hooks';
 import { PromoBlock } from '../../../../../../shared/components/PromoBlock/PromoBlock';
 import { GoogleSheetsIcon } from '../../../../../../shared/icons/google-sheets-icon';

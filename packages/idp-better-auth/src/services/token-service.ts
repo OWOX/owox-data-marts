@@ -18,7 +18,22 @@ type ProjectMemberApiKeyAccessTokenPayload = ProjectMemberApiKeyPayload & {
   expiresAt: string;
 };
 
-const PROJECT_MEMBER_API_KEY_ROLES: ReadonlySet<Role> = new Set<Role>([
+type PluginRuntimePayload = Payload & {
+  userId: string;
+  projectId: string;
+  email: string;
+  fullName: string;
+  roles: [Role];
+  authFlow: 'plugin';
+  pluginId: string;
+  installationId: string;
+};
+
+type PluginRuntimeAccessTokenPayload = PluginRuntimePayload & {
+  expiresAt: string;
+};
+
+const DELEGATED_ACCESS_TOKEN_ROLES: ReadonlySet<Role> = new Set<Role>([
   'admin',
   'editor',
   'viewer',
@@ -26,7 +41,7 @@ const PROJECT_MEMBER_API_KEY_ROLES: ReadonlySet<Role> = new Set<Role>([
 
 export class TokenService {
   private static readonly DEFAULT_ORGANIZATION_ID = '0';
-  private static readonly PROJECT_MEMBER_API_KEY_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+  private static readonly DELEGATED_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -48,6 +63,10 @@ export class TokenService {
         payload.authFlow === 'api_key' &&
         !this.isProjectMemberApiKeyAccessTokenPayload(payload)
       ) {
+        return null;
+      }
+
+      if (payload.authFlow === 'plugin' && !this.isPluginRuntimeAccessTokenPayload(payload)) {
         return null;
       }
 
@@ -75,11 +94,30 @@ export class TokenService {
       const encryptedToken = await this.cryptoService.encrypt(JSON.stringify(tokenPayload));
       return {
         accessToken: encryptedToken,
-        accessTokenExpiresIn: TokenService.PROJECT_MEMBER_API_KEY_ACCESS_TOKEN_TTL_SECONDS,
+        accessTokenExpiresIn: TokenService.DELEGATED_ACCESS_TOKEN_TTL_SECONDS,
       };
     } catch (error) {
       logger.error('Project member API key token issuing failed', {}, error as Error);
       throw new Error('Project member API key token issuing failed');
+    }
+  }
+
+  async issuePluginRuntimeAccessToken(payload: PluginRuntimePayload): Promise<AuthResult> {
+    this.assertPluginRuntimePayload(payload);
+
+    try {
+      const tokenPayload: PluginRuntimeAccessTokenPayload = {
+        ...payload,
+        expiresAt: this.getDelegatedAccessTokenExpiresAt(),
+      };
+      const encryptedToken = await this.cryptoService.encrypt(JSON.stringify(tokenPayload));
+      return {
+        accessToken: encryptedToken,
+        accessTokenExpiresIn: TokenService.DELEGATED_ACCESS_TOKEN_TTL_SECONDS,
+      };
+    } catch (error) {
+      logger.error('Plugin runtime token issuing failed', {}, error as Error);
+      throw new Error('Plugin runtime token issuing failed');
     }
   }
 
@@ -97,6 +135,18 @@ export class TokenService {
     return this.isProjectMemberApiKeyPayload(payload) && this.isFutureDateString(payload.expiresAt);
   }
 
+  private assertPluginRuntimePayload(payload: Payload): asserts payload is PluginRuntimePayload {
+    if (!this.isPluginRuntimePayload(payload)) {
+      throw new Error('Invalid plugin runtime token payload');
+    }
+  }
+
+  private isPluginRuntimeAccessTokenPayload(
+    payload: Payload
+  ): payload is PluginRuntimeAccessTokenPayload {
+    return this.isPluginRuntimePayload(payload) && this.isFutureDateString(payload.expiresAt);
+  }
+
   private isProjectMemberApiKeyPayload(payload: Payload): payload is ProjectMemberApiKeyPayload {
     const roles = payload.roles;
     const role = Array.isArray(roles) && roles.length === 1 ? roles[0] : undefined;
@@ -109,13 +159,34 @@ export class TokenService {
       this.isNonEmptyString(payload.fullName) &&
       this.isNonEmptyString(payload.apiKeyId) &&
       role !== undefined &&
-      PROJECT_MEMBER_API_KEY_ROLES.has(role)
+      DELEGATED_ACCESS_TOKEN_ROLES.has(role)
+    );
+  }
+
+  private isPluginRuntimePayload(payload: Payload): payload is PluginRuntimePayload {
+    const roles = payload.roles;
+    const role = Array.isArray(roles) && roles.length === 1 ? roles[0] : undefined;
+
+    return (
+      payload.authFlow === 'plugin' &&
+      this.isNonEmptyString(payload.userId) &&
+      this.isNonEmptyString(payload.projectId) &&
+      this.isNonEmptyString(payload.email) &&
+      this.isNonEmptyString(payload.fullName) &&
+      this.isNonEmptyString(payload.pluginId) &&
+      this.isNonEmptyString(payload.installationId) &&
+      role !== undefined &&
+      DELEGATED_ACCESS_TOKEN_ROLES.has(role)
     );
   }
 
   private getProjectMemberApiKeyAccessTokenExpiresAt(): string {
+    return this.getDelegatedAccessTokenExpiresAt();
+  }
+
+  private getDelegatedAccessTokenExpiresAt(): string {
     return new Date(
-      Date.now() + TokenService.PROJECT_MEMBER_API_KEY_ACCESS_TOKEN_TTL_SECONDS * 1000
+      Date.now() + TokenService.DELEGATED_ACCESS_TOKEN_TTL_SECONDS * 1000
     ).toISOString();
   }
 

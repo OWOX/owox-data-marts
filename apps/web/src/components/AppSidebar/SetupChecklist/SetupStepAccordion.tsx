@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ArrowRight, CircleCheckBig, ExternalLink, PartyPopper } from 'lucide-react';
 import { AccordionContent, AccordionItem, AccordionTrigger } from '@owox/ui/components/accordion';
 import { Button } from '@owox/ui/components/button';

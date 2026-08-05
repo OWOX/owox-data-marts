@@ -20,11 +20,11 @@ describe('resolveFieldGovernance — type-derived defaults (on-by-default subset
     }
   });
 
-  it('string types are dimensions with [COUNT, COUNT_DISTINCT]', () => {
+  it('string types are dimensions with [COUNT, COUNT_DISTINCT, STRING_AGG, ANY_VALUE]', () => {
     for (const t of ['STRING', 'VARCHAR', 'TEXT', 'CHAR', 'BPCHAR']) {
       const { role, allowedAggregations } = resolveFieldGovernance(t);
       expect(role).toBe('dimension');
-      expect(allowedAggregations).toEqual(['COUNT', 'COUNT_DISTINCT']);
+      expect(allowedAggregations).toEqual(['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE']);
     }
   });
 

@@ -15,6 +15,7 @@ export enum ConnectorActionType {
   FETCH_CONNECTOR_FIELDS_START = 'FETCH_CONNECTOR_FIELDS_START',
   FETCH_CONNECTOR_FIELDS_SUCCESS = 'FETCH_CONNECTOR_FIELDS_SUCCESS',
   FETCH_CONNECTOR_FIELDS_ERROR = 'FETCH_CONNECTOR_FIELDS_ERROR',
+  FETCH_CONNECTOR_FIELDS_RESET = 'FETCH_CONNECTOR_FIELDS_RESET',
 }
 
 export type ConnectorAction =
@@ -32,7 +33,8 @@ export type ConnectorAction =
       type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS;
       payload: ConnectorFieldsResponseApiDto[];
     }
-  | { type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR; payload: string };
+  | { type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR; payload: string }
+  | { type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_RESET };
 
 export interface ConnectorContextValue {
   state: ConnectorState;

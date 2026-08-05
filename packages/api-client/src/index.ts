@@ -21,6 +21,17 @@ export {
   type TraverseDataRelativeDatePreset,
   type TraverseDataSortRule,
 } from './data-marts.js';
+export {
+  type OWOXDeploymentAudience,
+  type OWOXPluginPublication,
+  type OWOXPluginPublicationScope,
+  type OWOXPluginPublisherDiagnostics,
+  type OWOXPluginSuspension,
+  type OWOXPluginUpdateResult,
+  type OWOXPublishPluginInput,
+  type OWOXReleaseRejection,
+} from './plugins.js';
+export { type OWOXTransport } from './transport.js';
 export { type OWOXStorage } from './storages.js';
 export { type OWOXDestination } from './destinations.js';
 export {

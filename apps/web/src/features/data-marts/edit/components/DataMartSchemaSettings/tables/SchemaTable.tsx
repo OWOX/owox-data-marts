@@ -17,7 +17,7 @@ import {
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ComponentType } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { BaseSchemaField } from '../../../../shared/types/data-mart-schema.types.ts';
 import { DataMartSchemaFieldStatus } from '../../../../shared/types/data-mart-schema.types.ts';
 import { TableToolbar } from '../components';

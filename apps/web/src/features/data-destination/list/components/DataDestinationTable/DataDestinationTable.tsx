@@ -1,6 +1,6 @@
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import {
   BaseTable,
   TableColumnSearch,

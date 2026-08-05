@@ -7,7 +7,7 @@
 
 The CLI provides an easy way to launch the pre-built OWOX Data Marts server, including both the frontend and backend components.
 
-1. **Make sure Node.js ≥ 22.16.0 is installed**
+1. **Make sure Node.js ≥ 22.22.0 is installed**
 
    If you don't have it installed, [download it here](https://nodejs.org/en/download)
    (Windows / macOS / Linux installers are all listed there)

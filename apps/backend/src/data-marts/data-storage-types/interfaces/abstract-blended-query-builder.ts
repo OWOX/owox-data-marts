@@ -1,42 +1,32 @@
-import { Logger, NotImplementedException } from '@nestjs/common';
-import {
-  BlendedQueryBuilder,
-  BlendedQueryContext,
-  ResolvedRelationshipChain,
-} from './blended-query-builder.interface';
+import { NotImplementedException } from '@nestjs/common';
+import { BlendedQueryBuilder, BlendedQueryContext } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
 import {
-  ColumnRefResolver,
-  ColumnTypeResolver,
-  SqlClauseRenderer,
-  SqlParameter,
-} from '../utils/sql-clause-renderer';
+  ReportAggregateFunction,
+  isPercentileFunction,
+} from '../../dto/schemas/aggregate-function.schema';
+import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
+import { buildOptionalDateTruncUnitMap, buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
+import {
+  ROW_COUNT_LABEL,
+  UNIQUE_COUNT_LABEL,
+  aggregatedColumnLabel,
+  aggregationFunctionsForColumn,
+} from '../../dto/schemas/aggregation-labels';
+import { isFloatingPointType } from '../../dto/schemas/field-type-category';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
-import { ROW_COUNT_LABEL, UNIQUE_COUNT_LABEL } from '../../dto/schemas/aggregation-labels';
-import { DateTruncUnit } from '../../dto/schemas/date-trunc-config.schema';
-import { buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
-import { effectiveComparisonType } from '../field-aggregation';
-
-interface BlendTreeNode {
-  chain: ResolvedRelationshipChain;
-  children: BlendTreeNode[];
-}
-
-// Embedded newlines / `--` in title/url would close the SQL comment and expose
-// trailing input as executable SQL.
-function sanitizeSqlComment(text: string): string {
-  return text
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/--/g, '—')
-    .trim();
-}
-
-interface PassthroughField {
-  outputAlias: string;
-  aggregateFunction: AggregateFunction;
-  isHidden: boolean;
-}
+import { ColumnRefResolver, ColumnTypeResolver } from '../utils/sql-clause-renderer';
+import { sanitizeSqlComment } from '../blending/sql-comment.utils';
+import {
+  KEPT_GROUPS_CTE,
+  buildKeptGroupsJoinPairs,
+  buildKeptGroupsProjection,
+} from '../utils/kept-groups.utils';
+import { BlendedSqlDialect, createColumnQualifier } from '../blending/blended-sql-dialect';
+import { BlendCteBuilder } from '../blending/blend-cte.builder';
+import { partitionBlendedFilters } from '../blending/blended-filter-partition';
+import { MetricSleeveBuilder } from '../blending/metric-sleeve.builder';
+import { collectSleeveMetrics, collectValueSleeveOwners } from '../blending/metric-sleeve.planner';
 
 /**
  * Base class for blended SQL query builders.
@@ -77,9 +67,22 @@ interface PassthroughField {
  * LEFT JOIN b ON main.key = b.key
  * ```
  *
- * Subclasses only need to override `buildAggregation` to provide
- * dialect-specific aggregate expressions (STRING_AGG is the only function
- * that differs between dialects today).
+ * A joined COUNT DISTINCT / SUM / AVG metric is NOT read off those dedup CTEs — the dedup
+ * already collapsed the join's fan-out, so re-aggregating it over- or under-counts. Each such
+ * metric instead gets a "metric sleeve" CTE that re-joins the raw path and recomputes the
+ * value at the report's own dimension grain; the outer query pulls it back with
+ * `ANY_VALUE` over a NULL-safe join on the dimension tuple.
+ *
+ * This class owns the DIALECT and the orchestration of one query. The SQL itself lives in
+ * `../blending/`, behind the narrow `BlendedSqlDialect` port this class supplies:
+ * `BlendCteBuilder` (the CTE tree above), `MetricSleeveBuilder` (sleeve CTEs),
+ * `metric-sleeve.planner` (which sleeves exist and what they are named — no SQL, no dialect)
+ * and `partitionBlendedFilters` (pre-join vs post-join split).
+ *
+ * What a dialect subclass must supply: `identifierQuoteChar`, `clauseRenderer` and
+ * `buildStringAgg` (abstract). What it MAY override: `buildAggregation` (aggregate spelling),
+ * `buildAnyValue` (Athena needs `arbitrary()`), `buildRowSurrogate` (Redshift rejects a
+ * constant window ORDER BY) and `quoteIdentifier` (Snowflake case folding).
  */
 export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder {
   abstract readonly type: DataStorageType;
@@ -88,7 +91,143 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   protected abstract get clauseRenderer(): SqlClauseRenderer | null;
 
-  private readonly logger = new Logger(AbstractBlendedQueryBuilder.name);
+  /**
+   * The dialect surface the blending collaborators need. Built per call rather than cached in a
+   * field: `clauseRenderer` and the aggregate hooks are overridden by subclasses (often over an
+   * instance field), so they must be read after construction completes.
+   */
+  private dialectPort(): BlendedSqlDialect {
+    return {
+      quoteIdentifier: name => this.quoteIdentifier(name),
+      quoteFieldRef: ref => this.quoteFieldRef(ref),
+      buildAggregation: (fn, fieldName) => this.buildAggregation(fn, fieldName),
+      buildRowSurrogate: partitionByRefs => this.buildRowSurrogate(partitionByRefs),
+      clauseRenderer: () => this.clauseRenderer,
+    };
+  }
+
+  /**
+   * The `_kept_groups` CTE plus the semi-join that restricts a Totals query to the rows of the
+   * groups its report actually shows (`context.groupRestriction`).
+   *
+   * It re-runs the report's own grouping over the SAME CTEs — dimensions, WHERE and HAVING —
+   * and projects just the dimension tuple. A GROUP BY result has distinct tuples, so joining it
+   * filters rows without duplicating any. Returns undefined when there is nothing to restrict.
+   */
+  private buildKeptGroupsCte(
+    context: BlendedQueryContext,
+    renderer: SqlClauseRenderer,
+    qualifyColumn: ColumnRefResolver,
+    postJoinFilters: FilterRule[],
+    resolveColumnType?: ColumnTypeResolver
+  ): { sql: string; params: SqlParameter[]; join: string; dimensions: string[] } | undefined {
+    const restriction = context.groupRestriction;
+    if (!restriction?.having.length) return undefined;
+
+    const cteName = KEPT_GROUPS_CTE;
+    // Same rendering as the report: its dimensions become the GROUP BY, and its metric filters
+    // become the HAVING — so "the groups this query keeps" is decided by the exact expressions the
+    // report used. Two things must come from the RESTRICTION rather than from this query:
+    //  - NO aggregation rules. A Totals plan makes every selected numeric column a metric, so a
+    //    dimension that is also one would stop being a GROUP BY key here — the HAVING would then
+    //    be evaluated at the wrong grain, and the join would reference a key that was never
+    //    projected.
+    //  - the report's date buckets. Totals carry none of their own (no GROUP BY), so reading
+    //    `context.dateTruncs` would regroup at the raw grain: `GROUP BY date` where the report
+    //    grouped by month, and a month that clears the filter can have no single day that does.
+    const restrictionDateTruncs = restriction.dateTruncs ?? [];
+    const agg = renderer.renderAggregatedSelect(
+      restriction.dimensions,
+      [],
+      buildOptionalDateTruncUnitMap(restrictionDateTruncs),
+      {
+        qualifyColumn,
+        timeZoneByColumn: buildTimeZoneMap(restrictionDateTruncs),
+        typeByColumn: context.columnTypes?.postJoin,
+      }
+    );
+    const projection = buildKeptGroupsProjection(agg.groupByParts, restriction.dimensions, name =>
+      this.quoteIdentifier(name)
+    );
+    const where = renderer.renderWhere(postJoinFilters, qualifyColumn, 'kgp', resolveColumnType);
+    const having = renderer.renderHaving(
+      restriction.having,
+      qualifyColumn,
+      'kgh',
+      resolveColumnType
+    );
+    const cteBuilder = new BlendCteBuilder(this.dialectPort());
+    const joinParts = cteBuilder.buildJoinParts(cteBuilder.buildTree(context.chains));
+
+    const body =
+      `SELECT\n      ${projection.join(',\n      ')}\n    FROM ${this.quoteIdentifier('main')}` +
+      (joinParts.length > 0 ? '\n    ' + joinParts.join('\n    ') : '') +
+      where.sql.replace(/\n/g, '\n    ') +
+      agg.groupBySql.replace(/\n/g, '\n    ') +
+      having.sql.replace(/\n/g, '\n    ');
+
+    const label = sanitizeSqlComment(
+      `groups kept by the report's metric filter(s) — Totals summarise only these rows`
+    );
+    const sql = `  -- ${label}\n  ${this.quoteIdentifier(cteName)} AS (\n    ${body}\n  )`;
+
+    // No dimensions: the report is one grand-total group that the HAVING either keeps or drops,
+    // so a CROSS JOIN reproduces exactly that (zero rows out when it dropped).
+    const pairs = buildKeptGroupsJoinPairs(
+      agg.groupByParts,
+      restriction.dimensions,
+      this.quoteIdentifier(cteName),
+      name => this.quoteIdentifier(name),
+      column => isFloatingPointType(context.columnTypes?.postJoin?.get(column))
+    );
+    const join =
+      pairs.length > 0
+        ? `JOIN ${this.quoteIdentifier(cteName)} ON ${renderer.renderNullSafeJoinOn(pairs)}`
+        : `CROSS JOIN ${this.quoteIdentifier(cteName)}`;
+
+    return {
+      sql,
+      params: [...where.params, ...having.params],
+      join,
+      dimensions: restriction.dimensions,
+    };
+  }
+
+  /**
+   * A HAVING rule targeting a sleeve metric's column (joined COUNT_DISTINCT, SUM or AVG) would
+   * re-derive its aggregate expression from `qualifyColumn` — the dedup CTE — and so filter on the
+   * OLD, wrong value rather than what the SELECT emits from the sleeve. The output-controls
+   * validator rejects that combination at save time, but stating the invariant only in a comment
+   * is how it comes back: this file throws for the GROUP BY drift invariant for exactly the same
+   * reason, so enforce this one too.
+   *
+   * Takes the rules as ONE list because they arrive from two places: the outer query's post-join
+   * filters and, for Totals, `groupRestriction.having`. Checking only the first left the entire
+   * restriction outside the invariant — `_kept_groups` rendered `SUM(<dedupCte>.<col>)` for a
+   * metric the report itself computes in a sleeve, which is the very thing this forbids.
+   */
+  private assertNoHavingOnSleeveMetric(
+    rules: readonly FilterRule[],
+    sleeveMetricKeys: ReadonlySet<string>
+  ): void {
+    const offending = rules.filter(
+      r => r.function && sleeveMetricKeys.has(`${r.column}␟${r.function}`)
+    );
+    if (offending.length === 0) return;
+    throw new Error(
+      `buildBlendedQuery: metric filter(s) ` +
+        `[${offending.map(r => `${r.function}(${r.column})`).join(', ')}] target a ` +
+        `sleeve-routed joined metric — HAVING is rendered from the dedup CTE, not the ` +
+        `sleeve, so it would filter on a different value than the SELECT returns. The ` +
+        `output-controls validator rejects this combination; reaching the builder means it ` +
+        `was bypassed`
+    );
+  }
+
+  /** Metric-sleeve SQL emitter for this dialect. Exposed for its own unit tests. */
+  protected createSleeveBuilder(): MetricSleeveBuilder {
+    return new MetricSleeveBuilder(this.dialectPort());
+  }
 
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
@@ -110,50 +249,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       );
     }
 
-    const validCteNames = new Set(context.chains.map(c => c.cteName));
-    const preJoinByCte = new Map<string, FilterRule[]>();
-    const postJoinFilters: FilterRule[] = [];
-    // Maps each resolved pre-join rule object (identity key) to its column type,
-    // so resolveColumnType can serve pre-join casts without a separate type map.
-    const preJoinTypeByRule = new Map<FilterRule, string | undefined>();
-    for (const rule of allFilters) {
-      if (rule.placement === 'pre-join') {
-        const f = context.fieldIndex?.get(rule.column);
-        if (!f) {
-          // Invariant: the validator must have rejected an unresolvable pre-join
-          // slice before reaching the builder. Reaching here means the unified
-          // column isn't a known blended field for this schema.
-          throw new Error(
-            `buildBlendedQuery: pre-join filter column='${rule.column}' is an unresolved blended column ` +
-              `(not present in the field index for this schema)`
-          );
-        }
-        if (!validCteNames.has(f.cteName)) {
-          throw new Error(
-            `buildBlendedQuery: pre-join filter column='${rule.column}' ` +
-              `resolves to cteName='${f.cteName}' which is not in any chain`
-          );
-        }
-        const internal: FilterRule = { ...rule, column: f.originalFieldName };
-        // Pre-join slices cast against the RAW source type (the raw column pre-dedup), not the
-        // dedup effective `type` — e.g. a raw DATE deduped COUNT_DISTINCT still casts as DATE.
-        preJoinTypeByRule.set(internal, f.sourceFieldType ?? f.type);
-        const list = preJoinByCte.get(f.cteName) ?? [];
-        list.push(internal);
-        preJoinByCte.set(f.cteName, list);
-      } else {
-        postJoinFilters.push(rule);
-      }
-    }
-
-    const resolveColumnType: ColumnTypeResolver = rule => {
-      const raw = preJoinTypeByRule.has(rule)
-        ? preJoinTypeByRule.get(rule)
-        : context.columnTypes?.postJoin?.get(rule.column);
-      // A post-join HAVING rule (carries a function) compares against the aggregate's
-      // value, so cast to the aggregate's effective type rather than the raw field type.
-      return effectiveComparisonType(raw, rule, this.type);
-    };
+    const { preJoinByCte, postJoinFilters, resolveColumnType } = partitionBlendedFilters(
+      context,
+      this.type
+    );
 
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
@@ -164,6 +263,13 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       // Unique Count emits COUNT(DISTINCT main.<pk>) in the outer select, so the main CTE
       // must project the PK columns even when they aren't a selected/filtered/sorted column.
       ...(context.uniqueCount === true ? (context.primaryKeyColumns ?? []) : []),
+      // A Totals query projects no dimensions and carries no HAVING of its own, but the
+      // restriction CTE groups by those dimensions and filters on those metrics — so the source
+      // CTEs must carry BOTH even though nothing in the outer SELECT mentions them. Omitting the
+      // HAVING columns fails at the warehouse ("Name weight not found inside main"), which is the
+      // loud half; omitting the dimensions silently qualifies them against the wrong CTE.
+      ...(context.groupRestriction?.dimensions ?? []),
+      ...(context.groupRestriction?.having ?? []).map(rule => rule.column),
     ]);
     // Row Count / Unique Count are OUTER-SELECT aliases, not columns of any CTE. A sort (or
     // HAVING) on one would otherwise flow through collectMainReferences into the main raw CTE
@@ -175,19 +281,29 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       if (!columnSet.has(label)) referencedColumns.delete(label);
     }
 
-    const roots = this.buildTree(chains);
+    const cteBuilder = new BlendCteBuilder(this.dialectPort());
+    const roots = cteBuilder.buildTree(chains);
 
     const outputAliasToRoot = new Map<string, string>();
     const hiddenOutputAliases = new Set<string>();
     for (const root of roots) {
-      this.mapOutputAliasesToRoot(root, root.chain.cteName, outputAliasToRoot, hiddenOutputAliases);
+      cteBuilder.mapOutputAliasesToRoot(
+        root,
+        root.chain.cteName,
+        outputAliasToRoot,
+        hiddenOutputAliases
+      );
     }
 
     const cteBlocks: string[] = [];
     const cteParams: SqlParameter[] = [];
 
-    const mainColumns = this.collectMainReferences(roots, referencedColumns, outputAliasToRoot);
-    const mainRaw = this.buildRawCte(
+    const mainColumns = cteBuilder.collectMainReferences(
+      roots,
+      referencedColumns,
+      outputAliasToRoot
+    );
+    const mainRaw = cteBuilder.buildRawCte(
       'main',
       mainTableReference,
       mainDataMartTitle,
@@ -198,16 +314,28 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     cteBlocks.push(mainRaw.sql);
     cteParams.push(...mainRaw.params);
 
+    // C2.1: which chains' raw CTEs need the per-row surrogate (`__owox_rid`) — only a chain
+    // that owns a joined SUM/AVG (a future value-sleeve metric) needs it; every other raw
+    // CTE stays lean. The value sleeve itself (C2.2) and its routing (C2.3) land later.
+    const valueSleeveOwners = collectValueSleeveOwners(
+      context.aggregations ?? [],
+      outputAliasToRoot,
+      context
+    );
+
     for (const root of roots) {
-      const { ctes, params } = this.buildSubtreeCtes(root, preJoinByCte, resolveColumnType);
+      const { ctes, params } = cteBuilder.buildSubtreeCtes(
+        root,
+        preJoinByCte,
+        resolveColumnType,
+        valueSleeveOwners
+      );
       cteBlocks.push(...ctes);
       cteParams.push(...params);
     }
 
-    const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
-
-    const joinParts = this.buildJoinParts(roots);
-    const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
+    const joinParts = cteBuilder.buildJoinParts(roots);
+    const qualifyColumn = createColumnQualifier(this.dialectPort(), outputAliasToRoot);
     const renderer = this.clauseRenderer;
 
     // Post-join aggregation: an outer GROUP BY over the flat blended result. The
@@ -215,10 +343,71 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // so this aggregates those per-main values across the group (the two-level
     // semantics). The CTE machinery and pre-join rollup are unchanged.
     if (aggregated && renderer) {
+      // Sleeve metrics: every joined COUNT DISTINCT / SUM / AVG is computed in its own
+      // CTE that re-joins the raw (pre-dedup) path at the report's dimension grain, instead of
+      // re-aggregating the dedup CTE, which over- or under-counts on a fanning join.
+      // Totals under a metric filter: recompute the groups the report itself keeps, as one more
+      // CTE over the SAME sources, and semi-join it below. Without it a Totals row summarises
+      // rows the report hides — and the fix must restrict ROWS, not add up per-group values,
+      // or a symmetric aggregate (COUNT DISTINCT) would count an entity once per group.
+      const sleeveMetrics = collectSleeveMetrics(context.aggregations ?? [], outputAliasToRoot);
+      const sleeveMetricKeys = new Set(sleeveMetrics.map(m => `${m.column}\u241F${m.function}`));
+      // Checked BEFORE anything renders a HAVING: both the outer query's and the restriction's
+      // metric filters must stay off sleeve-routed metrics (see the throw for why).
+      this.assertNoHavingOnSleeveMetric(
+        [...postJoinFilters, ...(context.groupRestriction?.having ?? [])],
+        sleeveMetricKeys
+      );
+
+      const keptGroups = this.buildKeptGroupsCte(
+        context,
+        renderer,
+        qualifyColumn,
+        postJoinFilters,
+        resolveColumnType
+      );
+      if (keptGroups) {
+        cteBlocks.push(keptGroups.sql);
+        cteParams.push(...keptGroups.params);
+      }
+
+      const sleeves = this.createSleeveBuilder().buildAll(sleeveMetrics, context, {
+        outputAliasToRoot,
+        filters: postJoinFilters,
+        resolveColumnType,
+        keptGroups,
+      });
+      // Push each sleeve's SQL AND its WHERE params together, in WITH-clause order, so the
+      // params array stays aligned with placeholder order for positional (Athena) binding.
+      for (const s of sleeves) {
+        cteBlocks.push(s.sql);
+        cteParams.push(...s.params);
+      }
+      // Recomputed AFTER the sleeve CTEs are pushed so they're part of the WITH clause.
+      const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
+
+      // Exclude sleeve metrics from the normal aggregated SELECT — they'd otherwise
+      // re-aggregate as SUM over the dedup CTE; they're pulled from their sleeve below instead.
+      const nonSleeveAggs = (context.aggregations ?? []).filter(
+        a => !sleeveMetricKeys.has(`${a.column}\u241F${a.function}`)
+      );
+      // A projected column whose ENTIRE aggregation list was sleeve metrics must also be
+      // dropped from the columns passed to renderAggregatedSelect: with no aggregation
+      // function left for it there, it would otherwise be misclassified as a bare GROUP
+      // BY dimension (and duplicate the sleeve's own SELECT item under a different alias).
+      const sleeveOnlyColumns = new Set(
+        context.columns.filter(
+          c =>
+            aggregationFunctionsForColumn(context.aggregations ?? [], c).length > 0 &&
+            aggregationFunctionsForColumn(nonSleeveAggs, c).length === 0
+        )
+      );
+      const nonSleeveColumns = context.columns.filter(c => !sleeveOnlyColumns.has(c));
+
       const agg = renderer.renderAggregatedSelect(
-        context.columns,
-        context.aggregations ?? [],
-        this.buildDateTruncMap(context.dateTruncs),
+        nonSleeveColumns,
+        nonSleeveAggs,
+        buildOptionalDateTruncUnitMap(context.dateTruncs),
         {
           includeRowCount: context.rowCount === true,
           includeUniqueCount: context.uniqueCount === true,
@@ -228,18 +417,130 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
           typeByColumn: context.columnTypes?.postJoin,
         }
       );
+      // the sleeve's join-back is only correct because `dimRefs.outer` is
+      // byte-identical to the outer GROUP BY key for the same dimension — but the two are
+      // derived INDEPENDENTLY (here via `renderAggregatedSelect`, in the sleeve via
+      // `renderDimensionExpr`). That invariant already broke once in this feature's history
+      // (a date-trunc'd dimension the sleeve projected untruncated → the NULL-safe join-back
+      // matched nothing → the metric came back NULL for every row), and since a
+      // COUNT_DISTINCT pull now COALESCEs to 0 such a miss would read as a confident zero
+      // rather than an obvious NULL. Verify it instead of trusting it.
+      const outerGroupByKeys = new Set(agg.groupByParts);
+      // The same grouping key twice means the same column was projected twice: the sleeve
+      // join-back would still work, but every count below compares against a de-duplicated set,
+      // so say what is actually wrong instead of blaming the sleeve's grain.
+      if (outerGroupByKeys.size !== agg.groupByParts.length) {
+        throw new Error(
+          `buildBlendedQuery: the outer query groups by the same key more than once ` +
+            `[${agg.groupByParts.join(', ')}] — a column is projected twice`
+        );
+      }
+      for (const s of sleeves) {
+        // Both directions matter, and the DANGEROUS one is this: an outer GROUP BY key the
+        // sleeve does NOT carry makes the LEFT JOIN match one sleeve row against several outer
+        // groups, so ANY_VALUE hands each of them a value computed at a COARSER grain — a
+        // plausible number, no NULL, no error. (The subset check below catches the opposite
+        // drift, which announces itself as NULL/0.) The two sets are equal by construction
+        // today; this asserts it rather than trusting two independent derivations to stay so.
+        // Counted against the keys the outer query actually EMITS, not against the de-duplicated
+        // set: a report listing the same column twice emits it twice, so comparing with the set
+        // size reported a grain mismatch — pointing at the sleeve — for what is really a
+        // duplicate projection. The distinct case gets its own message below.
+        if (s.dimRefs.length !== agg.groupByParts.length) {
+          throw new Error(
+            `buildBlendedQuery: metric sleeve '${s.cteName}' groups by ${s.dimRefs.length} ` +
+              `dimension(s) but the outer query groups by ${agg.groupByParts.length} ` +
+              `[${agg.groupByParts.join(', ')}] — a sleeve at a coarser grain would spread ` +
+              `one value across several outer groups instead of failing`
+          );
+        }
+        for (const d of s.dimRefs) {
+          if (!outerGroupByKeys.has(d.outer)) {
+            throw new Error(
+              `buildBlendedQuery: metric sleeve '${s.cteName}' would join back on ` +
+                `'${d.outer}', which is not one of the outer GROUP BY keys ` +
+                `[${[...outerGroupByKeys].join(', ')}] — the sleeve's dimension rendering has ` +
+                `drifted from the aggregated SELECT's, so the join-back would silently match ` +
+                `no rows (NULL metric, or 0 after the COUNT DISTINCT coalesce)`
+            );
+          }
+        }
+      }
+      // One ANY_VALUE pull per METRIC (a merged group's several metrics each get their own
+      // SELECT item) but the join-back below is still one per CTE — that shared join-back is
+      // the point of merging.
+      //
+      // a COUNT_DISTINCT sleeve pull is wrapped in COALESCE(..., 0). The sleeve
+      // itself always computes the right value (COUNT is a counting function — 0 over zero
+      // rows, never NULL), but the OUTER pull reads it through ANY_VALUE over the join-back
+      // (CROSS JOIN for a grand total, LEFT JOIN per group) — and ANY_VALUE, like AVG, returns
+      // NULL over an empty input set. That happens whenever the outer FROM clause contributes
+      // zero rows for a bucket: a report WHERE that matches nothing (grand-total Totals), or a
+      // LEFT-JOIN miss for one dimension group. Either way the correct read is 0, not NULL —
+      // COALESCE restores the sleeve's own already-correct value. SUM and AVG are LEFT bare:
+      // NULL-over-empty is the correct SQL aggregate semantics for those (no data is not the
+      // same as a genuine zero), so coalescing them would misrepresent "no data" as "zero".
+      const sleeveSelect = sleeves.flatMap(s =>
+        s.pulls.map(p => {
+          const pulled = this.buildAnyValue(
+            `${this.quoteIdentifier(s.cteName)}.${this.quoteIdentifier(p.alias)}`
+          );
+          const value = p.metric.function === 'COUNT_DISTINCT' ? `COALESCE(${pulled}, 0)` : pulled;
+          return `${value} AS ${this.quoteIdentifier(p.alias)}`;
+        })
+      );
+      // No report dimensions (grand-total sleeve): the sleeve has exactly one row and no
+      // GROUP BY, so a NULL-safe dimension-tuple ON (empty pairs → '') would be invalid SQL —
+      // CROSS JOIN it instead.
+      const sleeveJoins = sleeves.map(s =>
+        s.dimRefs.length > 0
+          ? `LEFT JOIN ${this.quoteIdentifier(s.cteName)} ON ${renderer.renderNullSafeJoinOn(
+              s.dimRefs.map(d => ({
+                left: d.outer,
+                right: d.sleeve,
+                nanSafe: isFloatingPointType(context.columnTypes?.postJoin?.get(d.column)),
+              }))
+            )}`
+          : `CROSS JOIN ${this.quoteIdentifier(s.cteName)}`
+      );
+      // agg.selectSql can be empty (every requested column was sleeve-only, e.g. a lone
+      // dimensionless COUNT_DISTINCT metric) — filter out empty pieces so we never emit a
+      // stray leading comma.
+      const selectSqlWithSleeves = [agg.selectSql, ...sleeveSelect]
+        .filter(part => part.length > 0)
+        .join(',\n  ');
       const body =
-        `SELECT\n  ${agg.selectSql}\nFROM ${this.quoteIdentifier('main')}` +
-        (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
+        `SELECT\n  ${selectSqlWithSleeves}\nFROM ${this.quoteIdentifier('main')}` +
+        (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '') +
+        (keptGroups ? '\n' + keptGroups.join : '') +
+        (sleeveJoins.length > 0 ? '\n' + sleeveJoins.join('\n') : '');
       const where = renderer.renderWhere(postJoinFilters, qualifyColumn, 'p', resolveColumnType);
       // Post-aggregation filters (rules carrying a `function`) become HAVING, using the
       // SAME qualified aggregate expression the SELECT emits. WHERE skips them above.
       const having = renderer.renderHaving(postJoinFilters, qualifyColumn, 'h', resolveColumnType);
-      // A bare aggregated column is not in GROUP BY, so ORDER BY references the
-      // output alias instead of the plain qualified column.
+      // A bare aggregated column is not in GROUP BY, so ORDER BY references the output alias
+      // instead of the plain qualified column. `renderAggregatedSelect` documents the contract
+      // as "an ORDER BY on a multi-aggregated column resolves to its FIRST aggregation" — first
+      // in RULE order — and `agg.aliasByColumn` alone can no longer honour it: it is built from
+      // `nonSleeveAggs`, so a column carrying BOTH a sleeve function and a non-sleeve one holds
+      // the first NON-sleeve function there. A saved report sorting on such a column would
+      // silently switch to a different metric (e.g. rules [SUM, MAX] sorted by MAX), changing
+      // which rows survive LIMIT with no error — `SortRule` carries no function, so the user
+      // cannot even express the intent again. Re-resolve every aggregated column from the FULL,
+      // unfiltered rule list; dimensions keep the alias `renderAggregatedSelect` assigned.
+      const aliasByColumnWithSleeves = new Map(agg.aliasByColumn);
+      const aliasResolvedColumns = new Set<string>();
+      for (const rule of context.aggregations ?? []) {
+        if (aliasResolvedColumns.has(rule.column)) continue;
+        aliasResolvedColumns.add(rule.column);
+        aliasByColumnWithSleeves.set(
+          rule.column,
+          this.quoteIdentifier(aggregatedColumnLabel(rule.column, rule.function))
+        );
+      }
       const orderBy = renderer.renderOrderBy(
         context.sort ?? [],
-        renderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+        renderer.buildAggregatedAliasResolver(aliasByColumnWithSleeves)
       );
       const limit = renderer.renderLimit(context.limit ?? null);
       const sql = `${withClause}\n\n${body}${where.sql}${agg.groupBySql}${having.sql}${orderBy.sql}${limit.sql}`;
@@ -255,7 +556,13 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       };
     }
 
-    const selectParts = this.buildSelectParts(columnSet, outputAliasToRoot, hiddenOutputAliases);
+    const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
+
+    const selectParts = cteBuilder.buildSelectParts(
+      columnSet,
+      outputAliasToRoot,
+      hiddenOutputAliases
+    );
     const selectClause = selectParts.length > 0 ? selectParts.join(',\n  ') : '*';
 
     const body =
@@ -275,23 +582,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return { sql, params: [...cteParams, ...where.params, ...orderBy.params, ...limit.params] };
   }
 
-  private buildDateTruncMap(
-    dateTruncs: BlendedQueryContext['dateTruncs']
-  ): ReadonlyMap<string, DateTruncUnit> | undefined {
-    if (!dateTruncs?.length) return undefined;
-    return new Map(dateTruncs.map(d => [d.column, d.unit]));
-  }
-
-  private buildColumnQualifier(outputAliasToRoot: Map<string, string>): ColumnRefResolver {
-    return (column: string) => {
-      const rootAlias = outputAliasToRoot.get(column);
-      if (rootAlias) {
-        return `${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(column)}`;
-      }
-      return `${this.quoteIdentifier('main')}.${this.quoteFieldRef(column)}`;
-    };
-  }
-
   protected quoteIdentifier(name: string): string {
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return name;
     const q = this.identifierQuoteChar;
@@ -305,342 +595,22 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       .join('.');
   }
 
-  private buildTree(chains: ResolvedRelationshipChain[]): BlendTreeNode[] {
-    const nodeMap = new Map<string, BlendTreeNode>();
-    for (const chain of chains) {
-      nodeMap.set(chain.cteName, { chain, children: [] });
-    }
-    const roots: BlendTreeNode[] = [];
-    for (const chain of chains) {
-      const node = nodeMap.get(chain.cteName)!;
-      if (chain.parentAlias === 'main') {
-        roots.push(node);
-      } else {
-        const parentNode = nodeMap.get(chain.parentAlias);
-        if (parentNode) parentNode.children.push(node);
-      }
-    }
-    return roots;
-  }
-
-  private buildSubtreeCtes(
-    node: BlendTreeNode,
-    preJoinByCte: ReadonlyMap<string, FilterRule[]>,
-    resolveColumnType?: ColumnTypeResolver
-  ): {
-    ctes: string[];
-    passthroughFields: PassthroughField[];
-    params: SqlParameter[];
-  } {
-    const ctes: string[] = [];
-    const params: SqlParameter[] = [];
-
-    const childPassthroughs = new Map<string, PassthroughField[]>();
-    for (const child of node.children) {
-      const childResult = this.buildSubtreeCtes(child, preJoinByCte, resolveColumnType);
-      ctes.push(...childResult.ctes);
-      params.push(...childResult.params);
-      childPassthroughs.set(child.chain.cteName, childResult.passthroughFields);
-    }
-
-    const { chain } = node;
-    const alias = chain.cteName;
-
-    const preJoinFilters = preJoinByCte.get(alias) ?? [];
-    const preJoinColumns = new Set(preJoinFilters.map(r => r.column));
-    const subsidiaryColumns = this.collectSubsidiaryReferences(
-      chain,
-      node.children,
-      preJoinColumns
-    );
-    const rawCte = this.buildRawCte(
-      `${alias}_raw`,
-      chain.targetTableReference,
-      chain.targetDataMartTitle,
-      chain.targetDataMartUrl,
-      subsidiaryColumns,
-      preJoinFilters,
-      `s_${alias}_`,
-      resolveColumnType
-    );
-    ctes.push(rawCte.sql);
-    params.push(...rawCte.params);
-
-    const hasChildren = node.children.length > 0;
-    if (hasChildren) {
-      ctes.push(this.buildJoinedCte(node, childPassthroughs));
-    }
-
-    const allPassthroughFields = this.collectAllPassthroughs(childPassthroughs);
-    ctes.push(this.buildAggregationCte(chain, hasChildren, allPassthroughFields));
-
-    const passthroughFields: PassthroughField[] = chain.blendedFields.map(f => ({
-      outputAlias: f.outputAlias,
-      aggregateFunction: f.aggregateFunction,
-      isHidden: f.isHidden,
-    }));
-    for (const pt of allPassthroughFields) {
-      passthroughFields.push({
-        outputAlias: pt.outputAlias,
-        aggregateFunction: this.getReAggregateFunction(pt.aggregateFunction),
-        isHidden: pt.isHidden,
-      });
-    }
-
-    return { ctes, passthroughFields, params };
-  }
-
-  private collectAllPassthroughs(
-    childPassthroughs: Map<string, PassthroughField[]>
-  ): PassthroughField[] {
-    const result: PassthroughField[] = [];
-    for (const fields of childPassthroughs.values()) {
-      result.push(...fields);
-    }
-    return result;
-  }
-
-  private buildJoinedCte(
-    node: BlendTreeNode,
-    childPassthroughs: Map<string, PassthroughField[]>
+  // Percentiles are delegated to the clause renderer rather than given a second per-dialect
+  // override, so the blended and flat paths cannot spell them differently.
+  protected buildAggregation(
+    aggregateFunction: ReportAggregateFunction,
+    fieldName: string
   ): string {
-    const { chain } = node;
-    const alias = chain.cteName;
-    const rawAlias = `${alias}_raw`;
-    const joinedAlias = `${alias}_joined`;
-    const quotedRawAlias = this.quoteIdentifier(rawAlias);
-    const quotedJoinedAlias = this.quoteIdentifier(joinedAlias);
-
-    const selectParts: string[] = [];
-
-    for (const jc of chain.relationship.joinConditions) {
-      selectParts.push(`${quotedRawAlias}.${this.quoteFieldRef(jc.targetFieldName)}`);
-    }
-
-    const seen = new Set(selectParts);
-    for (const field of chain.blendedFields) {
-      const ref = `${quotedRawAlias}.${this.quoteFieldRef(field.targetFieldName)}`;
-      if (!seen.has(ref)) {
-        seen.add(ref);
-        selectParts.push(ref);
+    if (isPercentileFunction(aggregateFunction)) {
+      const renderer = this.clauseRenderer;
+      if (!renderer) {
+        throw new Error(
+          `buildAggregation: ${aggregateFunction} needs a clause renderer to spell the ` +
+            `percentile for this storage, and none is registered`
+        );
       }
+      return renderer.renderAggregateExpression(aggregateFunction, fieldName);
     }
-
-    const joinClauses: string[] = [];
-    for (const child of node.children) {
-      const childAlias = child.chain.cteName;
-      const quotedChildAlias = this.quoteIdentifier(childAlias);
-
-      for (const pt of childPassthroughs.get(childAlias) ?? []) {
-        selectParts.push(`${quotedChildAlias}.${this.quoteIdentifier(pt.outputAlias)}`);
-      }
-
-      const onParts = child.chain.relationship.joinConditions.map(
-        jc =>
-          `${quotedRawAlias}.${this.quoteFieldRef(jc.sourceFieldName)} = ${quotedChildAlias}.${this.quoteFieldRef(jc.targetFieldName)}`
-      );
-      joinClauses.push(`LEFT JOIN ${quotedChildAlias} ON ${onParts.join(' AND ')}`);
-    }
-
-    return (
-      `  ${quotedJoinedAlias} AS (\n` +
-      `    SELECT\n` +
-      `      ${selectParts.join(',\n      ')}\n` +
-      `    FROM ${quotedRawAlias}\n` +
-      `    ${joinClauses.join('\n    ')}\n` +
-      `  )`
-    );
-  }
-
-  private buildRawCte(
-    alias: string,
-    tableReference: string,
-    title: string,
-    url: string,
-    columns: string[],
-    preJoinFilters?: FilterRule[],
-    preJoinParamPrefix?: string,
-    resolveColumnType?: ColumnTypeResolver
-  ): { sql: string; params: SqlParameter[] } {
-    // `quoteIdentifier` treats the input as one identifier — dotted paths
-    // can't be projected, so we widen to SELECT *. Warn so the perf hit is visible.
-    const hasNestedColumns = columns.some(c => c.includes('.'));
-    const safeForExplicitProjection = columns.length > 0 && !hasNestedColumns;
-    if (columns.length > 0 && hasNestedColumns) {
-      this.logger.warn(
-        `buildRawCte(${alias}): nested-path column(s) forced SELECT * on ${tableReference}`
-      );
-    }
-    const safeTitle = sanitizeSqlComment(title);
-    const safeUrl = sanitizeSqlComment(url);
-    const header = `  -- ${safeTitle}\n  -- ${safeUrl}\n  ${this.quoteIdentifier(alias)} AS (\n`;
-
-    const renderer = this.clauseRenderer;
-    if (preJoinFilters?.length && !preJoinParamPrefix) {
-      throw new Error(
-        `buildRawCte: preJoinParamPrefix is required when preJoinFilters are present (alias='${alias}')`
-      );
-    }
-    const paramPrefix = preJoinParamPrefix ?? '';
-    const qualifyForRawCte: ColumnRefResolver = column => this.quoteFieldRef(column);
-    const where =
-      preJoinFilters?.length && renderer
-        ? renderer.renderWhere(preJoinFilters, qualifyForRawCte, paramPrefix, resolveColumnType)
-        : { sql: '', params: [] as SqlParameter[] };
-
-    // Re-indent every line of the WHERE (it can be multi-line: `WHERE …\n  AND …`)
-    // so it nests under this CTE's 4-space SELECT/FROM block.
-    const indentedWhere = where.sql ? where.sql.replace(/\n/g, '\n    ') : '';
-
-    const body = safeForExplicitProjection
-      ? `${header}    SELECT\n      ${columns.map(c => this.quoteIdentifier(c)).join(',\n      ')}\n    FROM ${tableReference}`
-      : `${header}    SELECT * FROM ${tableReference}`;
-
-    return { sql: `${body}${indentedWhere}\n  )`, params: where.params };
-  }
-
-  private collectMainReferences(
-    roots: BlendTreeNode[],
-    referencedColumns: Set<string>,
-    blendedAliases: Map<string, string>
-  ): string[] {
-    const refs = new Set<string>();
-    for (const col of referencedColumns) {
-      if (!blendedAliases.has(col)) refs.add(col);
-    }
-    for (const root of roots) {
-      for (const jc of root.chain.relationship.joinConditions) refs.add(jc.sourceFieldName);
-    }
-    return Array.from(refs).sort();
-  }
-
-  private collectSubsidiaryReferences(
-    chain: ResolvedRelationshipChain,
-    children: BlendTreeNode[],
-    preJoinColumns: ReadonlySet<string>
-  ): string[] {
-    const refs = new Set<string>();
-    for (const jc of chain.relationship.joinConditions) refs.add(jc.targetFieldName);
-    for (const field of chain.blendedFields) refs.add(field.targetFieldName);
-    for (const child of children) {
-      for (const jc of child.chain.relationship.joinConditions) refs.add(jc.sourceFieldName);
-    }
-    for (const col of preJoinColumns) refs.add(col);
-    return Array.from(refs).sort();
-  }
-
-  private buildAggregationCte(
-    chain: ResolvedRelationshipChain,
-    hasChildren: boolean,
-    passthroughFields: PassthroughField[]
-  ): string {
-    const { relationship, blendedFields, cteName } = chain;
-    const alias = this.quoteIdentifier(cteName);
-    const sourceAlias = hasChildren
-      ? this.quoteIdentifier(`${cteName}_joined`)
-      : this.quoteIdentifier(`${cteName}_raw`);
-
-    const parentJoinKeys = relationship.joinConditions.map(jc =>
-      this.quoteFieldRef(jc.targetFieldName)
-    );
-
-    const groupByKeys = [...parentJoinKeys];
-
-    const aggregatedParts = blendedFields.map(field => {
-      const aggregated = this.buildAggregation(
-        field.aggregateFunction,
-        this.quoteFieldRef(field.targetFieldName)
-      );
-      return `${aggregated} AS ${this.quoteIdentifier(field.outputAlias)}`;
-    });
-
-    const passthroughParts = passthroughFields.map(pt => {
-      const reAggFunc = this.getReAggregateFunction(pt.aggregateFunction);
-      const aggregated = this.buildAggregation(reAggFunc, this.quoteIdentifier(pt.outputAlias));
-      return `${aggregated} AS ${this.quoteIdentifier(pt.outputAlias)}`;
-    });
-
-    const selectItems = [...groupByKeys, ...aggregatedParts, ...passthroughParts];
-
-    return (
-      `  ${alias} AS (\n` +
-      `    SELECT\n` +
-      `      ${selectItems.join(',\n      ')}\n` +
-      `    FROM ${sourceAlias}\n` +
-      `    GROUP BY ${groupByKeys.join(', ')}\n` +
-      `  )`
-    );
-  }
-
-  private buildSelectParts(
-    columnSet: Set<string>,
-    outputAliasToRoot: Map<string, string>,
-    hiddenOutputAliases: Set<string>
-  ): string[] {
-    const parts: string[] = [];
-    for (const col of columnSet) {
-      const rootAlias = outputAliasToRoot.get(col);
-      if (rootAlias && !hiddenOutputAliases.has(col)) {
-        parts.push(`${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(col)}`);
-      } else {
-        parts.push(`${this.quoteIdentifier('main')}.${this.quoteFieldRef(col)}`);
-      }
-    }
-    return parts;
-  }
-
-  private mapOutputAliasesToRoot(
-    node: BlendTreeNode,
-    rootAlias: string,
-    outputAliasToRoot: Map<string, string>,
-    hiddenOutputAliases: Set<string>
-  ): void {
-    for (const field of node.chain.blendedFields) {
-      outputAliasToRoot.set(field.outputAlias, rootAlias);
-      if (field.isHidden) hiddenOutputAliases.add(field.outputAlias);
-    }
-    for (const child of node.children) {
-      this.mapOutputAliasesToRoot(child, rootAlias, outputAliasToRoot, hiddenOutputAliases);
-    }
-  }
-
-  private buildJoinParts(roots: BlendTreeNode[]): string[] {
-    return roots.map(root => {
-      const { relationship, parentAlias, cteName } = root.chain;
-      const alias = this.quoteIdentifier(cteName);
-      const parent = this.quoteIdentifier(parentAlias);
-
-      const onParts = relationship.joinConditions.map(
-        jc =>
-          `${parent}.${this.quoteFieldRef(jc.sourceFieldName)} = ${alias}.${this.quoteFieldRef(jc.targetFieldName)}`
-      );
-      const onClause = onParts.join(' AND ');
-
-      return `LEFT JOIN ${alias} ON ${onClause}`;
-    });
-  }
-
-  protected getReAggregateFunction(aggregateFunction: AggregateFunction): AggregateFunction {
-    switch (aggregateFunction) {
-      case 'COUNT':
-        // Correct: summing per-child-group row counts yields the total count.
-        return 'SUM';
-      case 'COUNT_DISTINCT':
-        // KNOWN LIMITATION (#6680 joined-DM aggregation): re-aggregating as SUM adds up the
-        // per-child-group distinct counts, so on a 2+ level (transitive) blend a value present
-        // in more than one child group is over-counted — this is NOT a true global distinct
-        // count. Same class as the AVG avg-of-avgs case below; a correct transitive distinct
-        // needs the raw values at the parent level (handle when joined-DM aggregation lands).
-        return 'SUM';
-      case 'ANY_VALUE':
-        return 'MAX';
-      default:
-        // TODO(#6680 joined-DM aggregation): AVG re-aggregation is incorrect (avg of avgs); handle when joined-DM aggregation lands.
-        return aggregateFunction;
-    }
-  }
-
-  protected buildAggregation(aggregateFunction: AggregateFunction, fieldName: string): string {
     switch (aggregateFunction) {
       case 'STRING_AGG':
         return this.buildStringAgg(fieldName);
@@ -659,5 +629,43 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return `ANY_VALUE(${fieldName})`;
   }
 
+  /**
+   * SQL expression assigning a value distinct per raw row, PRE-fan-out — the synthetic
+   * owner-identity surrogate a value-sleeve dedups on: `DISTINCT (dim, <this>, value)`. Emitted
+   * only for an owner whose joined Data Mart declares NO usable primary key; with one, that key
+   * is the identity and this window is not computed at all. Without it, genuine duplicate raw
+   * rows are
+   * deliberately counted as distinct owners here — a documented, later follow-up.
+   *
+   * Default `ROW_NUMBER() OVER (ORDER BY 1)`: BigQuery, Snowflake, Trino/Presto (Athena)
+   * and Databricks/Spark all resolve an integer literal in a window's ORDER BY as a plain
+   * constant expression, NOT as an ordinal reference into the outer SELECT list (that
+   * ordinal shorthand is a distinct grammar production that applies only to a top-level
+   * query's own ORDER BY). ROW_NUMBER() still assigns a distinct sequential value to every
+   * row even when every row ties on that constant — the specific order is irrelevant here,
+   * only distinctness is. Snowflake's docs say this explicitly: "The ORDER BY clause for
+   * window functions does not support the use of an ordinal position... `2` is interpreted
+   * as the constant `2`". Redshift is the one dialect that rejects this: its window ORDER
+   * BY requires an actual column identifier and explicitly disallows constants ("Neither
+   * constants nor constant expressions can be used as substitutes for column names" — AWS
+   * Redshift docs) — see `RedshiftBlendedQueryBuilder.buildRowSurrogate`'s override.
+   */
+  protected buildRowSurrogate(partitionByRefs: readonly string[] = []): string {
+    const partition = partitionByRefs.length ? `PARTITION BY ${partitionByRefs.join(', ')} ` : '';
+    return `ROW_NUMBER() OVER (${partition}ORDER BY 1)`;
+  }
+
+  /**
+   * The dialect's string concatenation for a pre-join roll-up.
+   *
+   * MUST be deterministic — `LISTAGG … WITHIN GROUP (ORDER BY …)`, `array_join(array_agg(…))` over
+   * a sorted array, and so on. Not a style preference: since the dedup CTE holding this
+   * value is read TWICE in one query (the outer SELECT and a metric sleeve), and the sleeve joins
+   * back on the rolled-up value. Two different orderings of the same set are two different
+   * strings, so a non-deterministic implementation makes that join match nothing — the metric
+   * comes back NULL, or 0 once a COUNT DISTINCT pull coalesces, with no error anywhere. All three
+   * dialects that spell this were changed for exactly that reason; the obvious implementation on
+   * a new warehouse is the unordered one.
+   */
   protected abstract buildStringAgg(fieldName: string): string;
 }

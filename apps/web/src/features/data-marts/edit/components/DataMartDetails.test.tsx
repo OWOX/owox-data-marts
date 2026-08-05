@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartDetails } from './DataMartDetails';
 
@@ -44,6 +44,7 @@ vi.mock('../../shared/hooks/useSchemaActualizeTrigger', () => ({
 vi.mock('../model', () => ({
   useAiHelper: () => ({ generateTitle: vi.fn(), pendingScope: null }),
   useAiHelperAvailability: () => ({ enabled: false }),
+  useRefreshDataMartAfterConnectorRun: vi.fn(),
   useSchemaUnsavedGuard: () => ({
     registerSchemaGuard: mocks.registerSchemaGuard,
     runGuarded: vi.fn(),

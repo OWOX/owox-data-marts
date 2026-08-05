@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ResizableColumns from '../../../../shared/components/ResizableColumns/ResizableColumns';
 import InsightEditor from './InsightEditor.tsx';

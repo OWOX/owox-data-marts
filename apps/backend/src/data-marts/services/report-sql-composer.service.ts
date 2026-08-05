@@ -14,6 +14,7 @@ import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-q
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
+import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { inlineAthenaPositionalParams } from '../data-storage-types/athena/adapters/athena-execution-parameters.utils';
 import { inlineBigQueryNamedParams } from '../data-storage-types/bigquery/adapters/bigquery-execution-parameters.utils';
@@ -25,6 +26,7 @@ import {
 } from '../data-storage-types/data-mart-schema.utils';
 import {
   resolveFieldGovernance,
+  withoutCountBesideSleevedCountDistinct,
   NON_SUMMARIZABLE_AGGREGATIONS,
   type AggregationRole,
 } from '../dto/schemas/field-aggregation-governance';
@@ -45,7 +47,8 @@ export class ReportSqlComposerService {
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
     private readonly capabilityService: OutputControlsCapabilityService,
-    private readonly blendableSchemaService: BlendableSchemaService
+    private readonly blendableSchemaService: BlendableSchemaService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   async compose(
@@ -54,7 +57,15 @@ export class ReportSqlComposerService {
     precomputedDecision?: BlendingDecision,
     // Reuse an already-resolved schema (totals path) so the decision isn't recomputed.
     precomputedBlendableSchema?: BlendableSchemaDto
-  ): Promise<{ sql: string; params?: SqlParameter[] }> {
+  ): Promise<{
+    sql: string;
+    params?: SqlParameter[];
+    needsBlending: boolean;
+    /** Types for the JOINED columns, which the reader cannot resolve from the native schema. */
+    blendedDataHeaders?: ReportDataHeader[];
+    /** Set when a joined COUNT was dropped beside a COUNT_DISTINCT — headers must follow it. */
+    aggregations?: AggregationRule[];
+  }> {
     const decision =
       precomputedDecision ??
       (await this.blendedReportDataService.resolveBlendingDecision(
@@ -66,7 +77,13 @@ export class ReportSqlComposerService {
     // Post-join aggregation is built into the blended SQL by BlendedReportDataService,
     // so the blended path below already carries any aggregation / date-trunc / row-count.
     if (decision.needsBlending && decision.blendedSql) {
-      return { sql: decision.blendedSql, params: decision.params };
+      return {
+        sql: decision.blendedSql,
+        params: decision.params,
+        needsBlending: true,
+        blendedDataHeaders: decision.blendedDataHeaders,
+        aggregations: decision.aggregations,
+      };
     }
 
     if (decision.needsBlending && !decision.blendedSql) {
@@ -156,13 +173,15 @@ export class ReportSqlComposerService {
         limit: report.limitConfig ?? undefined,
         mainTableReference,
         columnTypes,
+        // Totals only — a report itself groups, so its HAVING applies directly there.
+        groupRestriction: 'groupRestriction' in report ? report.groupRestriction : undefined,
       }
     );
 
     if (isQueryBuildResult(queryResult)) {
-      return { sql: queryResult.sql, params: queryResult.params };
+      return { sql: queryResult.sql, params: queryResult.params, needsBlending: false };
     }
-    return { sql: queryResult };
+    return { sql: queryResult, needsBlending: false };
   }
 
   /**
@@ -178,15 +197,30 @@ export class ReportSqlComposerService {
    * drives `compose` onto the blended path (still NO GROUP BY). Returns `null` (totals skipped)
    * when no selected column is a totals metric with a summarizable function.
    *
-   * ⚠️ Joined NON-numeric totals are dedup-function-dependent: a joined column is first rolled
-   * up per join key by its pre-join aggregate (default STRING_AGG for text), so a post-join
-   * COUNT_DISTINCT counts distinct rolled-up values, NOT distinct raw rows. Treat such a total
-   * as approximate — same accepted-limitation class as the unweighted blended AVG.
+   * Joined `COUNT_DISTINCT`, `SUM`, and `AVG` totals are each computed CORRECTLY at the
+   * grand-total grain by a dedicated metric sleeve — `COUNT_DISTINCT` re-joins the raw path
+   * and counts distinct across ALL rows; `SUM`/`AVG` carry `DISTINCT (owner, value)` across
+   * ALL rows before aggregating (the value-carrying sleeve,) — neither is the
+   * pre-join roll-up.
+   *
+   * (deliberately NOT calling this "EXACT"): a symmetric aggregate is
+   * NON-ADDITIVE across the report's own GROUP BY — an entity reachable under two DIFFERENT
+   * dimension values is counted once in EACH of those grouped rows (correctly, per-group) but
+   * only once in the grand total (also correctly, at the total's own grain). The displayed
+   * per-row values summing to something other than the Totals value is therefore EXPECTED for
+   * a joined/blended metric with fan-out, not a discrepancy to chase — rows and Totals are each
+   * independently correct at their own grain, they just don't add up to each other. A
+   * non-blended (main-native) aggregate has no fan-out and stays additive as before. Joined
+   * percentile totals go through the same value sleeve, so they are computed over the
+   * de-duplicated distribution rather than the fanned one.
    *
    * Totals are otherwise INDEPENDENT of the report's own display aggregation functions — the
    * numeric auto-summary is computed even for a non-aggregated report. Row Count and Unique
-   * Count are NOT part of totals. WHERE filters are respected; HAVING (function-carrying)
-   * filters are dropped (a single grand-total group). The blending decision is resolved FRESH
+   * Count are NOT part of totals. WHERE filters are respected. HAVING (function-carrying) filters
+   * are HONOURED, not dropped: they cannot apply directly to a query with no GROUP BY, so they
+   * travel as a `GroupRestriction` and the builder restricts Totals to the ROWS of the groups
+   * that survive them (restricting rows, rather than adding up per-group values, is what keeps a
+   * symmetric aggregate right). The blending decision is resolved FRESH
    * from this metrics-only plan — never inherited from the full report (which carries dimension
    * columns / the grouped main SQL and would emit GROUP BY, collapsing the grand total to the
    * first group's row). The returned `aggregations`/`columns` let the totals reader resolve
@@ -210,11 +244,44 @@ export class ReportSqlComposerService {
       return null;
     }
 
-    // Keep only WHERE filters (dimension predicates). HAVING rules (those carrying a
-    // `function`) filter per-GROUP, but the totals query has NO GROUP BY — a single
-    // grand-total group — so a HAVING here would filter that one row. Totals respect the
-    // same WHERE filters only.
-    const whereFilters = (report.filterConfig ?? []).filter(rule => !rule.function);
+    // HAVING rules filter per-GROUP, and a Totals query has no GROUP BY — one grand-total
+    // group — so they cannot apply here directly. Dropping them would make Totals summarise
+    // rows the report itself hides, so they travel as a `groupRestriction` instead: the builder
+    // recomputes the surviving groups and restricts Totals to THEIR ROWS. Restricting rows (not
+    // adding up per-group values) is what keeps a symmetric aggregate right — an entity in two
+    // surviving groups still counts once in a joined COUNT DISTINCT.
+    const allFilters = report.filterConfig ?? [];
+    const whereFilters = allFilters.filter(rule => !rule.function);
+    const havingFilters = allFilters.filter(rule => rule.function);
+
+    // A restriction is only as sound as the HAVING it is derived from, and this method derives it
+    // from the REPORT's rules — which are validated on the report's own path, not on this one
+    // (they are lifted out of `filterConfig` here, so the totals plan's own validation never sees
+    // them). Today that holds by call order alone: `compose` always runs before `computeTotals`.
+    // But `ReportTotalsService.computeTotals` is public with no such precondition declared, and a
+    // report saved before the HAVING-on-sleeve gate existed would otherwise have its metric filter
+    // rendered from the dedup CTE — the OLD, wrong value — with nothing to say so. Validate the
+    // report's own config against the schema already resolved above: no extra I/O, and a failure
+    // costs the caller its totals with a reason rather than handing back a plausible wrong number.
+    if (havingFilters.length > 0) {
+      await this.outputControlsValidator.validateForReport({
+        storageType: report.dataMart.storage.type,
+        dataMartId: report.dataMart.id,
+        projectId: report.dataMart.projectId,
+        columnConfig: report.columnConfig ?? null,
+        filterConfig: report.filterConfig ?? null,
+        sortConfig: report.sortConfig ?? null,
+        limitConfig: report.limitConfig ?? null,
+        aggregationConfig: report.aggregationConfig ?? null,
+        dateTruncConfig: report.dateTruncConfig ?? null,
+        uniqueCountConfig: report.uniqueCountConfig ?? null,
+        accessor,
+        precomputedBlendableSchema: blendableSchema,
+      });
+    }
+    const reportDimensions = (report.columnConfig ?? []).filter(
+      column => !(report.aggregationConfig ?? []).some(rule => rule.column === column)
+    );
 
     const totalsPlan: ReportLikeReadPlan = {
       dataMart: report.dataMart,
@@ -227,6 +294,19 @@ export class ReportSqlComposerService {
       // Totals are a metrics-only summary — no Unique Count, no Row Count.
       uniqueCountConfig: null,
       rowCount: false,
+      groupRestriction:
+        havingFilters.length > 0
+          ? {
+              dimensions: reportDimensions,
+              having: havingFilters,
+              // The report's own buckets travel WITH the restriction — `dateTruncConfig` above
+              // is null (Totals have no GROUP BY of their own), so without this the surviving
+              // groups would be recomputed by raw date where the report grouped by month.
+              dateTruncs: (report.dateTruncConfig ?? []).filter(rule =>
+                reportDimensions.includes(rule.column)
+              ),
+            }
+          : undefined,
     };
 
     // Reuse the schema resolved while deriving the aggregations (when blended) so the decision
@@ -288,7 +368,7 @@ export class ReportSqlComposerService {
   }> {
     const descriptors = collectSchemaFieldPathDescriptors(report.dataMart.schema?.fields ?? []);
     const byName = new Map(descriptors.map(d => [d.name, d]));
-    // The columns the report aggregates — the metric signal for non-numeric fields (WI #6680
+    // The columns the report aggregates — the metric signal for non-numeric fields (WI
     // §D: totals are over the SELECTED metrics; §C: Unique-by-PK is a normal COUNT_DISTINCT
     // metric). A per-field dimension/metric role IS persisted (`aggregationRole`), but it is
     // type-derived in practice, so totals key off type + report aggregation rather than role.
@@ -380,11 +460,12 @@ export class ReportSqlComposerService {
   // the field became STRING) cannot inject SQL the warehouse rejects and silently null the whole
   // totals block. ANY_VALUE / STRING_AGG are stripped later in resolveTotalsAllowedForColumn.
   //
-  // Accepted limitations for JOINED metrics — the grand total is re-aggregated over per-join-key
-  // roll-ups, not raw rows: blended AVG/percentiles are unweighted (avg-of-avgs — see TODO(#6680)
-  // in abstract-blended-query-builder.ts); a joined NON-numeric COUNT_DISTINCT counts distinct
-  // pre-join-rolled-up values (the default text roll-up is STRING_AGG concatenations), NOT
-  // distinct raw rows. Treat such totals as approximate.
+  // A joined COUNT_DISTINCT, SUM, or AVG total is computed CORRECTLY at the grand-total grain
+  // by a dedicated metric sleeve (COUNT_DISTINCT re-joins the raw path and counts distinct
+  // across all rows; SUM/AVG carry DISTINCT (owner, value) across all rows first,),
+  // not by the pre-join roll-up. this is NOT "exact" in the sense of summing
+  // to the report's own per-group row values — a symmetric aggregate is non-additive across
+  // GROUP BY (see composeTotals' doc comment).
   private collectBlendedAllowedSets(
     blendableSchema: BlendableSchemaDto,
     aggregatedColumns: ReadonlySet<string>
@@ -400,7 +481,7 @@ export class ReportSqlComposerService {
       const allowed = resolveFieldGovernance(blendedField.type, {
         allowedAggregations: blendedField.postJoinAggregations,
       }).allowedAggregations;
-      result.set(blendedField.name, allowed);
+      result.set(blendedField.name, withoutCountBesideSleevedCountDistinct(allowed));
     }
     return result;
   }

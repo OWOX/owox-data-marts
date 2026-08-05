@@ -32,6 +32,7 @@ const RECOGNIZED_CODES = new Set([
   'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART',
   'AGGREGATION_REQUIRES_COLUMN_CONFIG',
   'HAVING_FILTER_NOT_AGGREGATED',
+  'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
   'INVALID_OPERATOR_FOR_TYPE',
   ...NOT_SELECTED_CODES,
   ...AGG_NOT_ALLOWED_CODES,
@@ -41,6 +42,8 @@ const RECOGNIZED_CODES = new Set([
 interface ValidatorErrorEntry {
   code?: string;
   column?: string;
+  /** OUTPUT_COLUMN_NAME_COLLISION names the colliding OUTPUT name here, not in `column`. */
+  label?: string;
   function?: string;
   type?: string;
   operator?: string;
@@ -141,6 +144,24 @@ export function translateOutputControlsError(
     });
   }
 
+  // A HAVING constraint on a joined COUNT DISTINCT / SUM / AVG: those metrics are
+  // computed in a separate "sleeve" pass, which HAVING is not routed through yet, so the
+  // combination is rejected rather than filtered on a stale value. This fires on reports that
+  // ran fine before, and for an agent this text is the only recovery signal — name the rule and
+  // both ways out.
+  const sleeveHaving =
+    errors?.filter(e => e.code === 'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED') ?? [];
+  if (sleeveHaving.length > 0) {
+    const rules = sleeveHaving
+      .map(e => (e.function && e.column ? `${e.function}(${e.column})` : e.column))
+      .filter(Boolean)
+      .join(', ');
+    sections.push({
+      code: 'having_on_joined_metric_not_supported',
+      message: `A metric (HAVING) constraint${rules ? ` on ${rules}` : ''} targets a metric of a JOINED Data Mart (COUNT DISTINCT, SUM or AVG), which is computed at the report's own grain and cannot be filtered on yet. Filter on a column of the main Data Mart, or on a different metric, instead. If this constraint is stored on the report, pass filters: [] to clear it together with the row filters, then re-apply the ones you want.`,
+    });
+  }
+
   // Operator doesn't fit the field's type — name the field, its type, and the operators
   // that DO fit, so the model fixes the operator instead of re-fetching the schema.
   // The validator reports the INTERNAL (post-mapping) operator; the message must speak
@@ -212,7 +233,12 @@ export function translateOutputControlsError(
   const unrecognized = errors?.filter(e => !RECOGNIZED_CODES.has(e.code ?? '')) ?? [];
   if (unrecognized.length > 0) {
     const detail = [
-      ...new Set(unrecognized.map(e => (e.column ? `${e.code} (${e.column})` : e.code))),
+      ...new Set(
+        unrecognized.map(e => {
+          const named = e.column ?? e.label;
+          return named ? `${e.code} (${named})` : e.code;
+        })
+      ),
     ]
       .filter(Boolean)
       .join(', ');

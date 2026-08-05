@@ -16,6 +16,8 @@ const IdpOwoxToPayloadSchema = IdpOwoxPayloadSchema.transform((src: IdpOwoxPaylo
     projectTitle: src.projectTitle,
     authFlow: src.authFlow ?? undefined,
     apiKeyId: src.apiKeyId ?? undefined,
+    pluginId: src.pluginId ?? undefined,
+    installationId: src.installationId ?? undefined,
     // Only set when true so normal sessions stay free of the flag.
     ...(viewOnly ? { viewOnly: true } : {}),
   };

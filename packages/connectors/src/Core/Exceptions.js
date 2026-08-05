@@ -43,6 +43,11 @@ class HttpRequestException extends AbstractException {
 }
 
 /**
+ * Exception thrown when connector input cannot be processed as configured.
+ */
+class ConnectorConfigurationException extends AbstractException {}
+
+/**
  * Exception thrown when an OAuth flow fails.
  */
 class OauthFlowException extends AbstractException {

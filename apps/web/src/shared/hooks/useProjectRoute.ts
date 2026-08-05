@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useProjectId } from './useProjectId';
 import { buildProjectPath } from '../../utils/path';
 

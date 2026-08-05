@@ -11,11 +11,16 @@ import {
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Strategy } from '../types';
 import type { RoleConfig } from '../types';
-import { Reflector } from '@nestjs/core';
+import { ModuleRef, Reflector } from '@nestjs/core';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { ClsService } from 'nestjs-cls';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
+import { REJECT_PLUGIN_AUTH_METADATA } from '../decorators/reject-plugin-auth.decorator';
 import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
+import {
+  PLUGIN_RUNTIME_AUTHORIZER,
+  PluginRuntimeAuthorizerPort,
+} from '../ports/plugin-runtime-authorizer.port';
 
 export interface AuthenticatedRequest extends Request {
   idpContext: {
@@ -31,6 +36,8 @@ export interface AuthenticatedRequest extends Request {
     projectTitle?: string;
     authFlow?: string;
     apiKeyId?: string;
+    pluginId?: string;
+    installationId?: string;
     /** True when the session is in view-only mode. */
     viewOnly?: boolean;
   };
@@ -46,7 +53,8 @@ export class IdpGuard implements CanActivate {
     private reflector: Reflector,
     private idpProviderService: IdpProviderService,
     private readonly cls: ClsService,
-    private readonly idpProjectionsService: IdpProjectionsService
+    private readonly idpProjectionsService: IdpProjectionsService,
+    private readonly moduleRef: ModuleRef
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -56,6 +64,10 @@ export class IdpGuard implements CanActivate {
     ]);
     const rejectApiKeyAuth = this.reflector.getAllAndOverride<boolean>(
       REJECT_API_KEY_AUTH_METADATA,
+      [context.getHandler(), context.getClass()]
+    );
+    const rejectPluginAuth = this.reflector.getAllAndOverride<boolean>(
+      REJECT_PLUGIN_AUTH_METADATA,
       [context.getHandler(), context.getClass()]
     );
     const viewOnlySafe = this.reflector.getAllAndOverride<boolean>(VIEW_ONLY_SAFE_METADATA, [
@@ -80,6 +92,7 @@ export class IdpGuard implements CanActivate {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
       this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
       this.checkApiKeyHeaderBinding(request, tokenPayload);
+      await this.checkPluginRuntimeAuthorization(tokenPayload, Boolean(rejectPluginAuth));
       this.checkViewOnlyRestrictions(request, tokenPayload, Boolean(viewOnlySafe));
 
       // Propagate only when true so normal sessions stay free of the flag.
@@ -95,6 +108,8 @@ export class IdpGuard implements CanActivate {
         projectTitle: tokenPayload.projectTitle,
         authFlow: tokenPayload.authFlow,
         apiKeyId: tokenPayload.apiKeyId,
+        pluginId: tokenPayload.pluginId,
+        installationId: tokenPayload.installationId,
         viewOnly,
       };
 
@@ -104,6 +119,8 @@ export class IdpGuard implements CanActivate {
         roles: tokenPayload.roles,
         authFlow: tokenPayload.authFlow,
         apiKeyId: tokenPayload.apiKeyId,
+        pluginId: tokenPayload.pluginId,
+        installationId: tokenPayload.installationId,
         viewOnly,
       });
 
@@ -205,6 +222,54 @@ export class IdpGuard implements CanActivate {
     if (rejectApiKeyAuth) {
       throw new AuthorizationError('API key authentication is not allowed for this endpoint');
     }
+  }
+
+  private async checkPluginRuntimeAuthorization(
+    tokenPayload: Payload,
+    rejectPluginAuth: boolean
+  ): Promise<void> {
+    if (tokenPayload.authFlow !== 'plugin') {
+      return;
+    }
+
+    if (rejectPluginAuth) {
+      throw new AuthorizationError(
+        'Plugin runtime authentication is not allowed for this endpoint'
+      );
+    }
+
+    if (
+      !this.isNonEmptyString(tokenPayload.pluginId) ||
+      !this.isNonEmptyString(tokenPayload.installationId) ||
+      !this.isNonEmptyString(tokenPayload.projectId) ||
+      !this.isNonEmptyString(tokenPayload.userId)
+    ) {
+      throw new AuthorizationError('Invalid plugin runtime identity');
+    }
+
+    let authorizer: PluginRuntimeAuthorizerPort;
+    try {
+      authorizer = this.moduleRef.get<PluginRuntimeAuthorizerPort>(PLUGIN_RUNTIME_AUTHORIZER, {
+        strict: false,
+      });
+    } catch {
+      throw new AuthorizationError('Plugin runtime authorization is unavailable');
+    }
+
+    if (!authorizer) {
+      throw new AuthorizationError('Plugin runtime authorization is unavailable');
+    }
+
+    await authorizer.assertActiveInstallation({
+      pluginId: tokenPayload.pluginId,
+      installationId: tokenPayload.installationId,
+      projectId: tokenPayload.projectId,
+      userId: tokenPayload.userId,
+    });
+  }
+
+  private isNonEmptyString(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0;
   }
 
   private static readonly ROLE_DISPLAY_NAMES: Record<string, string> = {

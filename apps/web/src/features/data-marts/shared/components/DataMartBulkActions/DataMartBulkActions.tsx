@@ -14,10 +14,25 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, CircleCheckBig, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  ChevronDown,
+  CircleCheckBig,
+  Download,
+  FileImage,
+  FileJson,
+  FileText,
+  History,
+  Image as ImageIcon,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { DataStorageType } from '../../../../data-storage';
@@ -30,6 +45,16 @@ export interface DataMartBulkActionTarget {
   storageType?: DataStorageType;
 }
 
+export type DataMartCanvasExportFormat = 'svg' | 'png' | 'json' | 'okf';
+
+const EXPORT_ITEMS: { format: DataMartCanvasExportFormat; label: string; icon: typeof Download }[] =
+  [
+    { format: 'svg', label: 'Image (SVG)', icon: ImageIcon },
+    { format: 'png', label: 'Image (PNG)', icon: FileImage },
+    { format: 'json', label: 'JSON', icon: FileJson },
+    { format: 'okf', label: 'OKF (Markdown)', icon: FileText },
+  ];
+
 interface DataMartBulkActionsProps {
   dataMarts: DataMartBulkActionTarget[];
   projectId: string;
@@ -38,6 +63,18 @@ interface DataMartBulkActionsProps {
   onCompleted: () => void | Promise<void>;
   onClearDataMarts?: () => void;
   targetScope?: 'selection' | 'canvas';
+  /**
+   * When provided, adds a "Data Last Updated" item that measures, for every targeted Data Mart,
+   * when its source tables last changed in the storage. Free of consumption — safe to run on
+   * the whole set without a confirmation dialog.
+   */
+  onCheckDataLastUpdated?: () => void;
+  isCheckingDataLastUpdated?: boolean;
+  /**
+   * When provided, adds an "Export" submenu with the canvas export formats.
+   * Only the canvas surface passes it — the list page has no model to export.
+   */
+  onExport?: (format: DataMartCanvasExportFormat) => void;
 }
 
 export function DataMartBulkActions({
@@ -48,6 +85,9 @@ export function DataMartBulkActions({
   onCompleted,
   onClearDataMarts,
   targetScope = 'selection',
+  onCheckDataLastUpdated,
+  isCheckingDataLastUpdated = false,
+  onExport,
 }: DataMartBulkActionsProps) {
   const [actionDataMarts, setActionDataMarts] = useState<DataMartBulkActionTarget[]>([]);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -184,6 +224,42 @@ export function DataMartBulkActions({
             <ShieldCheck aria-hidden='true' />
             Check Quality
           </DropdownMenuItem>
+          {onCheckDataLastUpdated && (
+            <DropdownMenuItem
+              disabled={isCheckingDataLastUpdated}
+              onSelect={onCheckDataLastUpdated}
+              data-testid='check-data-last-updated'
+            >
+              <History aria-hidden='true' />
+              {isCheckingDataLastUpdated
+                ? 'Checking Data Last Updated…'
+                : 'Check Data Last Updated'}
+            </DropdownMenuItem>
+          )}
+          {onExport && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger data-testid='export-canvas' className='gap-2'>
+                <Download className='text-muted-foreground size-4 shrink-0' aria-hidden='true' />
+                Export
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  {EXPORT_ITEMS.map(item => (
+                    <DropdownMenuItem
+                      key={item.format}
+                      data-testid={`export-canvas-${item.format}`}
+                      onSelect={() => {
+                        onExport(item.format);
+                      }}
+                    >
+                      <item.icon aria-hidden='true' />
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant='destructive'

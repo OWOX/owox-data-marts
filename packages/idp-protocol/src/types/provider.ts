@@ -142,6 +142,20 @@ export interface IdpProvider {
   ): Promise<AuthResult>;
 
   /**
+   * Issue an installation-bound access token for a frontend plugin runtime.
+   *
+   * The token carries the current project-member authority plus plugin identity
+   * claims. Installation lifecycle authorization remains the backend's
+   * responsibility on every request.
+   */
+  issueAccessTokenForPluginRuntime(
+    pluginId: string,
+    installationId: string,
+    userId: string,
+    projectId: string
+  ): Promise<AuthResult>;
+
+  /**
    * Create an MCP OAuth authorization code for an already authenticated
    * project-member context.
    *

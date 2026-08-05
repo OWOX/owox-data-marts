@@ -317,7 +317,7 @@ describe('SourceFieldsTable — available aggregations follow the dedup EFFECTIV
     await waitFor(() => {
       expect(onFieldOverrideChange).toHaveBeenCalledWith('hitId', {
         aggregateFunction: 'MIN',
-        postJoinAggregations: ['COUNT', 'COUNT_DISTINCT'],
+        postJoinAggregations: ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE'],
       });
     });
   });

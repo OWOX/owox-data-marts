@@ -1,6 +1,4 @@
-import { useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
-import { Button } from '../../../../shared/components/Button';
+import { useMemo, type ReactNode } from 'react';
 import { SearchInput } from '@owox/ui/components/common/search-input';
 import {
   Select,
@@ -24,9 +22,8 @@ interface ModelCanvasToolbarProps {
   onRelChange: (rel: CanvasRelFilter) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onRefreshDataLastUpdated: () => void;
-  isRefreshingDataLastUpdated: boolean;
-  canRefreshDataLastUpdated: boolean;
+  /** The Actions menu — rendered at the row start, mirroring the list page. */
+  actions?: ReactNode;
 }
 
 export function ModelCanvasToolbar(props: ModelCanvasToolbarProps) {
@@ -42,6 +39,7 @@ export function ModelCanvasToolbar(props: ModelCanvasToolbarProps) {
 
   return (
     <div className='flex min-w-0 flex-nowrap items-center gap-2 pb-4'>
+      {props.actions}
       <label className='contents' aria-label='Storage'>
         <Combobox
           options={storageOptions}
@@ -90,21 +88,6 @@ export function ModelCanvasToolbar(props: ModelCanvasToolbarProps) {
           <SelectItem value='all'>All data marts</SelectItem>
         </SelectContent>
       </Select>
-      <Button
-        type='button'
-        variant='outline'
-        onClick={props.onRefreshDataLastUpdated}
-        disabled={!props.canRefreshDataLastUpdated || props.isRefreshingDataLastUpdated}
-        aria-label='Check Data Last Updated for visible data marts'
-        title='Check when the source tables of the visible data marts last changed'
-        className='shrink-0'
-      >
-        <RefreshCw
-          className={`size-4 ${props.isRefreshingDataLastUpdated ? 'animate-spin' : ''}`}
-          aria-hidden='true'
-        />
-        Data Last Updated
-      </Button>
       <div className='ml-auto w-[240px] min-w-[180px] shrink [&>div]:w-full'>
         <SearchInput
           id='model-canvas-search'

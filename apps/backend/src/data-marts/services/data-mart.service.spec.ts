@@ -17,7 +17,12 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
 }
 
 describe('DataMartService schema actualization', () => {
-  let repository: { findOne: jest.Mock; save: jest.Mock };
+  let repository: {
+    findOne: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+    manager: { connection: { options: { type: string } } };
+  };
   let schemaProvider: { getActualDataMartSchema: jest.Mock };
   let schemaMerger: { mergeSchemas: jest.Mock };
   let searchIndexInvalidation: { scheduleDataMartSchemaChanged: jest.Mock };
@@ -27,6 +32,8 @@ describe('DataMartService schema actualization', () => {
     repository = {
       findOne: jest.fn(),
       save: jest.fn(async (dataMart: DataMart) => dataMart),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      manager: { connection: { options: { type: 'mysql' } } },
     };
     schemaProvider = {
       getActualDataMartSchema: jest.fn().mockResolvedValue({ fields: [{ name: 'amount' }] }),
@@ -85,6 +92,105 @@ describe('DataMartService schema actualization', () => {
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('queue down'));
     warnSpy.mockRestore();
+  });
+
+  it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
+    const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
+      name: 'ConditionalUpdateTest',
+      tableName: 'conditional_update_test',
+      columns: {
+        id: { type: String, primary: true },
+        modifiedAt: { type: Date },
+        value: { type: String },
+      },
+    });
+    const dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [entitySchema],
+      synchronize: true,
+    });
+
+    await dataSource.initialize();
+    try {
+      await dataSource.query(
+        "INSERT INTO conditional_update_test (id, modifiedAt, value) VALUES ('dm-1', '2026-07-14 10:00:00', 'old')"
+      );
+      const sqliteRepository = dataSource.getRepository(entitySchema);
+      const sqliteService = new DataMartService(
+        sqliteRepository as any,
+        schemaProvider as any,
+        schemaMerger as any
+      );
+      const modifiedAtCriterion = sqliteService['createModifiedAtUpdateCriterion'](
+        new Date('2026-07-14T10:00:00.000Z')
+      );
+
+      const result = await sqliteRepository.update(
+        { id: 'dm-1', modifiedAt: modifiedAtCriterion },
+        { value: 'updated' }
+      );
+
+      expect(result.affected).toBe(1);
+      await expect(sqliteRepository.findOneByOrFail({ id: 'dm-1' })).resolves.toMatchObject({
+        value: 'updated',
+      });
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('updates fields without rewriting connector configuration', async () => {
+    const sourceAtRunStart = {
+      name: 'GoogleSheets',
+      node: 'sheet',
+      fields: ['old_field'],
+      configuration: [
+        {
+          _id: 'config-1',
+          ImportAllColumns: true,
+        },
+      ],
+    };
+    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
+    const dataMart = makeDataMart({
+      modifiedAt,
+      definition: {
+        connector: {
+          source: sourceAtRunStart,
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    const latestModifiedAt = new Date('2026-07-14T10:01:00.000Z');
+    repository.findOne.mockResolvedValue({ ...dataMart, modifiedAt: latestModifiedAt });
+
+    const updated = await service.updateConnectorSourceFields(dataMart, ['new_field']);
+
+    expect(updated).toBe(true);
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1', modifiedAt: latestModifiedAt },
+      {
+        definition: {
+          connector: {
+            source: { ...sourceAtRunStart, fields: ['new_field'] },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      }
+    );
+
+    repository.findOne.mockResolvedValue({
+      ...dataMart,
+      definition: {
+        connector: {
+          source: { ...sourceAtRunStart, fields: ['user_edit'] },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    await expect(service.updateConnectorSourceFields(dataMart, ['new_field'])).resolves.toBe(false);
+    expect(repository.update).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -305,6 +411,80 @@ describe('DataMartService canvas visibility queries', () => {
     });
 
     expect(new Set(ids)).toEqual(new Set(['owned', 'shared-context']));
+  });
+});
+
+describe('DataMartService data last updated persistence', () => {
+  const block = (computedAt: string) => ({
+    dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+    computedAt,
+    coverage: 'complete' as const,
+    sources: [],
+  });
+
+  const createService = () => {
+    const repository = {
+      findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new DataMartService(repository as never, {} as never, {} as never, {} as never);
+    return { service, repository };
+  };
+
+  it('writes when no snapshot is saved yet', async () => {
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue({ id: 'dm-1', dataLastUpdated: null });
+    const fresh = block('2026-07-31T10:00:00.000Z');
+
+    await expect(service.updateDataLastUpdated('dm-1', 'proj-1', fresh)).resolves.toBe(true);
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1' },
+      { dataLastUpdated: fresh }
+    );
+  });
+
+  it('writes when the measurement is newer than the saved one', async () => {
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue({
+      id: 'dm-1',
+      dataLastUpdated: block('2026-07-31T09:00:00.000Z'),
+    });
+    const fresh = block('2026-07-31T10:00:00.000Z');
+
+    await service.updateDataLastUpdated('dm-1', 'proj-1', fresh);
+
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1' },
+      { dataLastUpdated: fresh }
+    );
+  });
+
+  it('drops a measurement older than the saved one — the value never moves backwards', async () => {
+    // Writers are unordered (manual check, report run, HTTP Data, MCP) and a report run's
+    // measure→write gap can span the whole run, so a stale measurement can arrive last.
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue({
+      id: 'dm-1',
+      dataLastUpdated: block('2026-07-31T10:00:00.000Z'),
+    });
+
+    await expect(
+      service.updateDataLastUpdated('dm-1', 'proj-1', block('2026-07-31T09:00:00.000Z'))
+    ).resolves.toBe(false);
+
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('skips silently when the data mart does not belong to the project', async () => {
+    const { service, repository } = createService();
+    repository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.updateDataLastUpdated('dm-1', 'other-project', block('2026-07-31T10:00:00.000Z'))
+    ).resolves.toBe(false);
+
+    expect(repository.update).not.toHaveBeenCalled();
   });
 });
 

@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import { DataQualityWorkspace } from '../../../features/data-marts/data-quality';
 import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
 

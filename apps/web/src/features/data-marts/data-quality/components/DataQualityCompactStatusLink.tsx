@@ -1,5 +1,5 @@
 import { cn } from '@owox/ui/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { formatDateShort } from '../../../../utils/date-formatters';
 import {
   DATA_QUALITY_STATUS_TEXT_CLASSES,

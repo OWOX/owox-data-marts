@@ -9,6 +9,7 @@ import { RedshiftBlendedQueryBuilder } from './redshift-blended-query-builder';
 import { RedshiftClauseRenderer } from './redshift-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
+import type { AggregationRule } from '../../../dto/schemas/aggregation-config.schema';
 
 const buildContext = createBuildContext('"myschema"."customers"');
 
@@ -116,6 +117,106 @@ describe('RedshiftBlendedQueryBuilder', () => {
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
 
     expect(sql).toContain('COUNT(order_id) AS order_count');
+  });
+});
+
+// C2.1: Redshift's window ORDER BY explicitly rejects constants ("Neither constants nor
+// constant expressions can be used as substitutes for column names" — AWS Redshift docs),
+// so the base class's default `ROW_NUMBER() OVER (ORDER BY 1)` fails to compile here.
+// RedshiftBlendedQueryBuilder overrides buildRowSurrogate() to omit ORDER BY entirely
+// (optional for ROW_NUMBER on Redshift) — this asserts that override actually reaches SQL.
+describe('RedshiftBlendedQueryBuilder — row surrogate (__owox_rid) for value-sleeve owners', () => {
+  let builder: RedshiftBlendedQueryBuilder;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [RedshiftBlendedQueryBuilder, RedshiftClauseRenderer],
+    }).compile();
+    builder = module.get(RedshiftBlendedQueryBuilder);
+  });
+
+  it('partitions the ORDER-BY-less row surrogate by the chain own join key', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: '"myschema"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'orders__amount',
+          aliasPath: 'orders',
+          originalFieldName: 'amount',
+          type: 'FLOAT8',
+        },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const ctx: BlendedQueryContext = {
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'SUM' } as AggregationRule],
+    };
+
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    expect(sql).toContain('ROW_NUMBER() OVER (PARTITION BY customer_id) AS __owox_rid');
+    // The base class's default (invalid on Redshift) must not leak through.
+    expect(sql).not.toContain('ORDER BY 1');
+  });
+
+  it('spells a joined percentile as an ordered-set aggregate inside the value sleeve', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: '"myschema"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'orders__amount',
+          aliasPath: 'orders',
+          originalFieldName: 'amount',
+          type: 'FLOAT8',
+        },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['orders__amount']),
+      fieldIndex,
+      aggregations: [{ column: 'orders__amount', function: 'P75' } as AggregationRule],
+    });
+    const s = sql.replace(/\s+/g, ' ');
+
+    expect(s).toContain(
+      'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY _val) AS "orders__amount | P75"'
+    );
+    expect(s).toContain('orders_raw.amount AS _val');
   });
 });
 

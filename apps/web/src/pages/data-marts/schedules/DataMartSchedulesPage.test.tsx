@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataDestinationType } from '../../../features/data-destination';
 import { DataDestinationCredentialsType } from '../../../features/data-destination/shared/enums/data-destination-credentials-type.enum';

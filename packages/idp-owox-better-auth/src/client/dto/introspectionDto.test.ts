@@ -26,6 +26,24 @@ describe('IntrospectionResponseSchema', () => {
     ).toThrow();
   });
 
+  it('accepts plugin runtime identity claims in an active response', () => {
+    expect(
+      IntrospectionResponseSchema.parse(
+        activeResponse({
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+        })
+      )
+    ).toEqual(
+      expect.objectContaining({
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      })
+    );
+  });
+
   function activeResponse(overrides: Record<string, unknown> = {}) {
     return {
       isActive: true,

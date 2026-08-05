@@ -1,7 +1,7 @@
 import { Button } from '@owox/ui/components/button';
 import { useCallback, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type {
   AthenaSchemaField,
   BigQuerySchemaField,

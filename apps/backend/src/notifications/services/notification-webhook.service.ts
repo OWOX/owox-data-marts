@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import dns from 'node:dns/promises';
+import { assertPublicHttpUrl, fetchPublicUrl } from '../../common/helpers/safe-url.helper';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationPendingQueue } from '../entities/notification-pending-queue.entity';
 import { ProjectNotificationSettings } from '../entities/project-notification-settings.entity';
@@ -17,76 +17,6 @@ export class NotificationWebhookService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  /**
-   * Throws if the URL targets a loopback, private, or link-local address.
-   * Protects against SSRF: an editor could otherwise use a webhook to probe
-   * internal services (e.g. http://169.254.169.254/ AWS metadata endpoint).
-   *
-   * Both the literal hostname and its resolved IP addresses are checked
-   * to prevent DNS rebinding attacks.
-   */
-  private async assertSafeWebhookUrl(rawUrl: string): Promise<void> {
-    let url: URL;
-    try {
-      url = new URL(rawUrl);
-    } catch {
-      throw new Error(`Invalid webhook URL: ${rawUrl}`);
-    }
-
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new Error(`Webhook URL must use http or https protocol`);
-    }
-
-    // Strip IPv6 brackets (e.g. [::1] → ::1)
-    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-
-    if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1') {
-      throw new Error(`Webhook URL targets an internal address`);
-    }
-
-    this.assertNotPrivateIpv4(hostname);
-
-    // Resolve DNS and check resolved IPs to prevent DNS rebinding
-    const ipv4Addresses = await dns.resolve4(hostname).catch(() => []);
-    const ipv6Addresses = await dns.resolve6(hostname).catch(() => []);
-
-    for (const addr of ipv4Addresses) {
-      this.assertNotPrivateIpv4(addr);
-    }
-
-    for (const addr of ipv6Addresses) {
-      const normalized = addr.toLowerCase();
-      if (
-        normalized === '::1' ||
-        normalized === '::' ||
-        normalized.startsWith('fe80:') ||
-        normalized.startsWith('fc') ||
-        normalized.startsWith('fd')
-      ) {
-        throw new Error(`Webhook URL resolves to an internal address`);
-      }
-    }
-  }
-
-  private assertNotPrivateIpv4(hostname: string): void {
-    const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-    if (ipv4) {
-      const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-      const isPrivate =
-        a === 0 || // 0.0.0.0/8
-        a === 10 || // 10.0.0.0/8
-        a === 127 || // 127.0.0.0/8 loopback
-        (a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 shared
-        (a === 169 && b === 254) || // 169.254.0.0/16 link-local / cloud metadata
-        (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
-        (a === 192 && b === 168) || // 192.168.0.0/16
-        a >= 240; // 240.0.0.0/4 reserved
-      if (isPrivate) {
-        throw new Error(`Webhook URL targets an internal address`);
-      }
-    }
-  }
-
   async sendWebhook(
     queueItem: NotificationPendingQueue,
     settings: ProjectNotificationSettings
@@ -94,7 +24,7 @@ export class NotificationWebhookService {
     if (!settings.webhookUrl) return;
 
     try {
-      await this.assertSafeWebhookUrl(settings.webhookUrl);
+      await assertPublicHttpUrl(settings.webhookUrl);
     } catch (error) {
       this.logger.error(
         `Blocked unsafe webhook URL for ${settings.notificationType}: ${error instanceof Error ? error.message : String(error)}`
@@ -124,7 +54,7 @@ export class NotificationWebhookService {
     const timeoutId = setTimeout(() => controller.abort(), this.WEBHOOK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(url, {
+      const response = await fetchPublicUrl(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -212,8 +142,6 @@ export class NotificationWebhookService {
     projectId: string,
     context?: { userId?: string; projectTitle?: string }
   ): Promise<void> {
-    await this.assertSafeWebhookUrl(webhookUrl);
-
     const handler = NOTIFICATION_DEFINITIONS[notificationType];
     if (!handler) {
       throw new Error(`No handler found for notification type: ${notificationType}`);
@@ -231,7 +159,7 @@ export class NotificationWebhookService {
     const timeoutId = setTimeout(() => controller.abort(), this.WEBHOOK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(webhookUrl, {
+      const response = await fetchPublicUrl(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

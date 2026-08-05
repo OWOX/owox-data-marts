@@ -1,6 +1,6 @@
 import { Controller, Post, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, RejectApiKeyAuth } from '../decorators';
+import { Auth, AuthContext, RejectApiKeyAuth, RejectPluginAuth } from '../decorators';
 import type { AuthorizationContext } from '../types';
 import { Role, Strategy } from '../types';
 import { IssueIntercomJwtService } from '../use-cases/issue-intercom-jwt.service';
@@ -11,6 +11,7 @@ import { IntercomTokenResponseApiDto } from '../dto/presentation/intercom-token-
 @ApiTags('Intercom')
 @Controller('intercom')
 @RejectApiKeyAuth()
+@RejectPluginAuth()
 export class IntercomController {
   constructor(
     private readonly issueIntercomJwtUseCaseService: IssueIntercomJwtService,

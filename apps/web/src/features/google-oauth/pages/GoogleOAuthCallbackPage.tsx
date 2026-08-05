@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { storageOAuthApi, destinationOAuthApi } from '../api/google-oauth-api.service';
 
 function sendToOpener(data: object): boolean {

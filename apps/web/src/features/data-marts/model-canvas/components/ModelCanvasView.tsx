@@ -14,7 +14,11 @@ import { useModelCanvasFilters } from '../model/use-model-canvas-filters';
 import { ModelCanvasToolbar } from './ModelCanvasToolbar';
 import { dataQualityService } from '../../data-quality/api/data-quality.service';
 import { dataMartService } from '../../shared';
-import { DataMartBulkActions } from '../../shared/components/DataMartBulkActions';
+import {
+  DataMartBulkActions,
+  type DataMartCanvasExportFormat,
+} from '../../shared/components/DataMartBulkActions';
+import type { ModelCanvasExportHandle } from '../export';
 import { trackEvent } from '../../../../utils/data-layer';
 import { isDataQualityActivityState } from '../../shared/components/RunActivityIndicator';
 import { useDataQualitySummaries } from '../../data-quality/model/use-data-quality-workspace';
@@ -63,6 +67,7 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
     isLoading: isTopologyLoading,
     error: topologyError,
     refetch,
+    isEnriching,
   } = useModelCanvas(storageKnown ? filters.storageId : null);
   const { refresh: refreshDataLastUpdated, isRefreshing: isRefreshingDataLastUpdated } =
     useRefreshDataLastUpdated(storageKnown ? filters.storageId : null);
@@ -150,6 +155,58 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
 
   const canvasStyle = { height: 'calc(100vh - 220px)', minHeight: 480 };
 
+  const canvasExportRef = useRef<ModelCanvasExportHandle>(null);
+  // Image capture can take seconds on a large model — swallow repeat clicks
+  // instead of kicking off parallel captures and duplicate downloads.
+  const isExportingRef = useRef(false);
+  // Mirrors for the [] callback below: whether detail enrichment is still in
+  // flight, and how many visible nodes never got their details (a failed
+  // detail fetch keeps the node compact — the export must not be silent about it).
+  const isEnrichingRef = useRef(isEnriching);
+  isEnrichingRef.current = isEnriching;
+  const unenrichedCountRef = useRef(0);
+  unenrichedCountRef.current = filtered?.nodes.filter(node => !node.fields).length ?? 0;
+  const handleExport = useCallback((format: DataMartCanvasExportFormat) => {
+    if (isExportingRef.current) return;
+    // Definitions and schemas arrive with the follow-up detail query; exporting
+    // before it settles would serialize the model without them.
+    if (isEnrichingRef.current) {
+      toast('The canvas is still loading details — please try again in a moment.');
+      return;
+    }
+    isExportingRef.current = true;
+    void (async () => {
+      try {
+        // The handle registers once the lazy canvas chunk mounts, and the
+        // export itself declines until the first layout pass — in both windows
+        // nothing downloads, so say so instead of silently succeeding, and
+        // record analytics only for real downloads.
+        const exported = (await canvasExportRef.current?.exportCanvas(format)) ?? false;
+        if (!exported) {
+          toast('The canvas is still loading — please try again in a moment.');
+          return;
+        }
+        const unenriched = unenrichedCountRef.current;
+        if (unenriched > 0) {
+          toast(
+            `Exported without schema details for ${String(unenriched)} data mart${unenriched === 1 ? '' : 's'} — reload the page to retry.`
+          );
+        }
+        trackEvent({
+          event: 'model_canvas_exported',
+          category: 'DataMart',
+          action: 'CanvasExport',
+          label: format,
+        });
+      } catch (caught) {
+        console.error('Canvas export failed:', caught);
+        toast.error("Couldn't export the model — please try again.");
+      } finally {
+        isExportingRef.current = false;
+      }
+    })();
+  }, []);
+
   const runQuality = useCallback(
     async (dataMartId: string) => {
       try {
@@ -225,12 +282,23 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
         onRelChange={filters.setRel}
         searchQuery={filters.searchQuery}
         onSearchChange={filters.setSearchQuery}
-        onRefreshDataLastUpdated={() => {
-          // Meeting decision: the check covers what the user actually sees — the filtered set.
-          void refreshDataLastUpdated((filtered?.nodes ?? []).map(node => node.id));
-        }}
-        isRefreshingDataLastUpdated={isRefreshingDataLastUpdated}
-        canRefreshDataLastUpdated={Boolean(filtered && filtered.nodes.length > 0)}
+        actions={
+          <DataMartBulkActions
+            onExport={handleExport}
+            onCheckDataLastUpdated={() => {
+              // Meeting decision: the check covers what the user actually sees — the same
+              // filtered set the other bulk actions target.
+              void refreshDataLastUpdated(bulkActionDataMarts.map(dataMart => dataMart.id));
+            }}
+            isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
+            dataMarts={bulkActionDataMarts}
+            projectId={projectId ?? ''}
+            deleteDataMart={deleteDataMart}
+            publishDataMart={publishDataMart}
+            onCompleted={refreshCanvas}
+            targetScope='canvas'
+          />
+        }
       />
       {storageLoadError ? (
         <CanvasMessage role='alert'>
@@ -283,16 +351,9 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
               navigate(`/data-marts/${dataMartId}/quality`);
             }}
             onRunQuality={runQuality}
-            topLeftControls={
-              <DataMartBulkActions
-                dataMarts={bulkActionDataMarts}
-                projectId={projectId ?? ''}
-                deleteDataMart={deleteDataMart}
-                publishDataMart={publishDataMart}
-                onCompleted={refreshCanvas}
-                targetScope='canvas'
-              />
-            }
+            isCheckingDataLastUpdated={isRefreshingDataLastUpdated}
+            storageTitle={dataStorages.find(storage => storage.id === filters.storageId)?.title}
+            exportApiRef={canvasExportRef}
             style={canvasStyle}
           />
         </Suspense>

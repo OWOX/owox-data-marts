@@ -1,7 +1,7 @@
 import { Button } from '@owox/ui/components/button';
 import { ExternalLinkIcon } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { AppIcon } from '../../icons/icons.types';
 
 const DEFAULT_BG_LIGHT =

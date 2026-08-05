@@ -167,6 +167,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         );
       }
 
+      // C5b — Reject duplicate RENDERED labels for the same reason, one level up. Row 1 holds
+      // `alias || name`, and `OWOX_COLUMNS` persists that same string as the key the next refresh
+      // resolves back to a canonical name. Two columns rendering identically make that mapping
+      // ambiguous: `ColumnPlanBuilder` keeps the first name for both cells, so the plan carries the
+      // same name twice, the loser gets no entry in `nameToFinalIndex`, its header cell is left
+      // blank, and an extra column is inserted — shifting user content to the right of the imported
+      // range. Distinct names are not enough to prevent this, so the name check above cannot catch
+      // it. Fail before any sheet mutation instead of corrupting the layout on the refresh after.
+      const duplicateLabels = this.findDuplicateRenderedLabels(this.reportDataHeaders);
+      if (duplicateLabels.length > 0) {
+        throw new BusinessViolationException(
+          `Duplicate column headers in report output: ${duplicateLabels.join(', ')}. ` +
+            `Two columns would be written to the sheet under the same header. ` +
+            `Change one of their aliases, or the Output Alias of the joined Data Mart they come from.`
+        );
+      }
+
       this.headersByName = new Map(this.reportDataHeaders.map(h => [h.name, h]));
 
       const { existingHeaders, previousOwoxColumns } = await this.readSheetState();
@@ -1044,6 +1061,25 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         duplicates.add(h.name);
       } else {
         seen.add(h.name);
+      }
+    }
+    return [...duplicates];
+  }
+
+  /**
+   * Labels that two or more columns would render into row 1, i.e. the exact strings
+   * {@link writeHeaders} writes and `OWOX_COLUMNS` persists. Mirrors
+   * {@link findDuplicateColumnNames} one level up, on `alias || name` instead of `name`.
+   */
+  private findDuplicateRenderedLabels(headers: ReportDataHeader[]): string[] {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const h of headers) {
+      const label = h.alias || h.name;
+      if (seen.has(label)) {
+        duplicates.add(label);
+      } else {
+        seen.add(label);
       }
     }
     return [...duplicates];

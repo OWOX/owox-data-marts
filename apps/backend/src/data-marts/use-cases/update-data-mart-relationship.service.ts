@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -18,6 +19,8 @@ import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
+  private readonly logger = new Logger(UpdateDataMartRelationshipService.name);
+
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService,
@@ -69,11 +72,19 @@ export class UpdateDataMartRelationshipService {
     }
 
     if (command.joinConditions !== undefined) {
-      this.relationshipService.validateJoinFieldTypes(
+      // See CreateDataMartRelationshipService: a field the schema cannot confirm is a warning,
+      // not a rejection — but it must reach the log rather than be discarded.
+      const { warnings } = this.relationshipService.validateJoinFieldTypes(
         relationship.sourceDataMart.schema,
         relationship.targetDataMart.schema,
         command.joinConditions
       );
+      if (warnings.length > 0) {
+        this.logger.warn(
+          `Relationship ${command.relationshipId} saved with unverifiable join field(s): ` +
+            `${warnings.join('; ')}`
+        );
+      }
     }
 
     const updated = await this.relationshipService.update(relationship, command);

@@ -12,6 +12,11 @@ import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-sc
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorOauthCredentials } from '../../connector-types/interfaces/connector-oauth-credentials';
 import { OAuthVar, OAuthAttribute } from '../../connector-types/connector-oauth-schema';
+import {
+  mapConnectorFieldsSchema,
+  type SourceFieldsSchema,
+} from './connector-fields-schema.mapper';
+import type { ConnectorCapabilities } from '../../connector-types/connector-capabilities';
 
 interface ConnectorSpecificationOneOf {
   label: string;
@@ -30,32 +35,13 @@ interface ConnectorConfigField {
   isRequired: boolean;
   options?: unknown[];
   placeholder?: string;
+  minimum?: number;
   attributes?: Core.CONFIG_ATTRIBUTES[];
   oneOf?: ConnectorSpecificationOneOf[];
 }
 
 interface ConnectorConfig {
   [key: string]: ConnectorConfigField;
-}
-
-interface SourceFieldDefinition {
-  type: string;
-  description: string;
-}
-
-interface SourceFieldsGroup {
-  overview: string;
-  description: string;
-  documentation: string;
-  uniqueKeys: string[];
-  uniqueKeysByDataLevel?: Record<string, string[]>;
-  defaultFields?: string[];
-  destinationName: string;
-  fields: Record<string, SourceFieldDefinition>;
-}
-
-interface SourceFieldsSchema {
-  [key: string]: SourceFieldsGroup;
 }
 
 @Injectable()
@@ -79,6 +65,16 @@ export class ConnectorService {
         docUrl: manifest.docUrl,
       };
     });
+  }
+
+  getConnectorCapabilities(connectorName: string): ConnectorCapabilities {
+    this.validateConnectorExists(connectorName);
+    const capabilities = this.getConnectorManifest(connectorName)?.capabilities;
+
+    return {
+      singleConfiguration: capabilities?.singleConfiguration === true,
+      copySecretsByValue: capabilities?.copySecretsByValue === true,
+    };
   }
 
   /**
@@ -109,7 +105,7 @@ export class ConnectorService {
       );
       sourceFieldsSchema = {};
     }
-    const fieldsSchema = this.mapFieldsSchemaToDto(sourceFieldsSchema);
+    const fieldsSchema = mapConnectorFieldsSchema(sourceFieldsSchema);
 
     return ConnectorFieldsSchema.parse(fieldsSchema);
   }
@@ -469,6 +465,7 @@ export class ConnectorService {
         required: config[key].isRequired,
         options: config[key].options,
         placeholder: config[key].placeholder,
+        minimum: config[key].minimum,
         attributes: config[key].attributes,
         oneOf: config[key].oneOf?.map(oneOf => {
           return {
@@ -488,6 +485,7 @@ export class ConnectorService {
                   required: itemValue.isRequired,
                   options: itemValue.options,
                   placeholder: itemValue.placeholder,
+                  minimum: itemValue.minimum,
                   attributes: itemValue.attributes,
                 };
                 return acc;
@@ -500,23 +498,5 @@ export class ConnectorService {
       return item;
     });
     return result;
-  }
-
-  private mapFieldsSchemaToDto(sourceFieldsSchema: SourceFieldsSchema) {
-    return Object.keys(sourceFieldsSchema).map(key => ({
-      name: key,
-      overview: sourceFieldsSchema[key].overview,
-      description: sourceFieldsSchema[key].description,
-      documentation: sourceFieldsSchema[key].documentation,
-      uniqueKeys: sourceFieldsSchema[key].uniqueKeys,
-      uniqueKeysByDataLevel: sourceFieldsSchema[key].uniqueKeysByDataLevel,
-      defaultFields: sourceFieldsSchema[key].defaultFields,
-      destinationName: sourceFieldsSchema[key].destinationName,
-      fields: Object.keys(sourceFieldsSchema[key].fields).map(fieldKey => ({
-        name: fieldKey,
-        type: sourceFieldsSchema[key].fields[fieldKey].type,
-        description: sourceFieldsSchema[key].fields[fieldKey].description,
-      })),
-    }));
   }
 }

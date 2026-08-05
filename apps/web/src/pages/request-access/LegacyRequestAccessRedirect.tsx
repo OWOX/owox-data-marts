@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { useAuth } from '../../features/idp';
 import { AuthStatus } from '../../features/idp/types';

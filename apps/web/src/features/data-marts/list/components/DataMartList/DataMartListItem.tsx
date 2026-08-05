@@ -1,5 +1,5 @@
 import type { DataMartListItem } from '../../model/types';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 interface DataMartListItemProps {
   item: DataMartListItem;

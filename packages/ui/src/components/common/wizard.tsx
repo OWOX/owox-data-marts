@@ -7,7 +7,7 @@ import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info, ExternalLinkIcon, ChevronRight } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import {

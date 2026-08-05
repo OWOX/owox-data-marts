@@ -5,6 +5,7 @@ import {
   GetAvailableConnectorsSpec,
   GetConnectorSpecificationSpec,
   GetConnectorFieldsSpec,
+  PreviewConnectorFieldsSpec,
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
   GetConnectorOAuthSettingsSpec,
@@ -15,13 +16,21 @@ import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fie
 import { SpecificationConnectorService } from '../use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from '../use-cases/connector/fields-connector.service';
 import { ConnectorMapper } from '../mappers/connector.mapper';
-import { Auth, AuthorizationContext, AuthContext, RejectApiKeyAuth } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  RejectPluginAuth,
+} from '../../idp';
 import { Role } from '../../idp/types/role-config.types';
 import { ExchangeOAuthCredentialsDto } from '../dto/presentation/exchange-oauth-credentials.dto';
 import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/connector-oauth-credentials-response-api.dto';
 import { ConnectorOauthService } from '../services/connector/connector-oauth.service';
 import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
+import { ConnectorFieldsPreviewService } from '../services/connector/connector-fields-preview.service';
+import { ConnectorFieldsPreviewRequestApiDto } from '../dto/presentation/connector-fields-preview-request-api.dto';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -30,6 +39,7 @@ export class ConnectorController {
     private readonly availableConnectorService: AvailableConnectorService,
     private readonly specificationConnectorService: SpecificationConnectorService,
     private readonly fieldsConnectorService: FieldsConnectorService,
+    private readonly connectorFieldsPreviewService: ConnectorFieldsPreviewService,
     private readonly mapper: ConnectorMapper,
     private readonly connectorOauthService: ConnectorOauthService
   ) {}
@@ -62,8 +72,25 @@ export class ConnectorController {
     return this.mapper.toFieldsResponse(fields);
   }
 
+  @Auth(Role.editor())
+  @Post(':connectorName/fields/preview')
+  @PreviewConnectorFieldsSpec()
+  async previewConnectorFields(
+    @AuthContext() context: AuthorizationContext,
+    @Param('connectorName') connectorName: string,
+    @Body() body: ConnectorFieldsPreviewRequestApiDto
+  ): Promise<ConnectorFieldsResponseApiDto[]> {
+    const fields = await this.connectorFieldsPreviewService.run(
+      context,
+      connectorName,
+      body.configuration ?? {}
+    );
+    return this.mapper.toFieldsResponse(fields);
+  }
+
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get(':connectorName/oauth/settings')
   @GetConnectorOAuthSettingsSpec()
   async getConnectorOAuthSettings(
@@ -76,6 +103,7 @@ export class ConnectorController {
 
   @Auth(Role.editor())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Post(':connectorName/oauth/exchange')
   @ExchangeOAuthCredentialsSpec()
   async handleOAuthCallback(
@@ -96,6 +124,7 @@ export class ConnectorController {
 
   @Auth(Role.viewer())
   @RejectApiKeyAuth()
+  @RejectPluginAuth()
   @Get(':connectorName/oauth/status/:credentialId')
   @GetConnectorOAuthStatusSpec()
   async getConnectorOAuthStatus(

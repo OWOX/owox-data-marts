@@ -45,6 +45,39 @@ function responseBodyMessage(structured: unknown): string | undefined {
   return undefined;
 }
 
+const VALIDATION_FAILED_MESSAGE = 'Request validation failed';
+
+/**
+ * The per-constraint reasons `ValidationPipe` puts in the body's `message` as a string ARRAY.
+ * `responseBodyMessage` only takes a string, so they used to fall through to `exception.message`
+ * — which `HttpException` derives from the class name: the literal "Bad Request Exception".
+ */
+function validationConstraints(structured: unknown): string[] | undefined {
+  if (!structured || typeof structured !== 'object' || Array.isArray(structured)) return undefined;
+  const msg = (structured as Record<string, unknown>).message;
+  if (!Array.isArray(msg)) return undefined;
+  const constraints = msg
+    .filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
+    .map(asSentence);
+  return constraints.length > 0 ? constraints : undefined;
+}
+
+// The interface concatenates one `details.errors` list into a single line, and class-validator
+// writes bare clauses, so without punctuation two constraints run together.
+function asSentence(constraint: string): string {
+  const text = constraint.trim();
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function hasOwnDetails(structured: unknown): boolean {
+  return (
+    !!structured &&
+    typeof structured === 'object' &&
+    !Array.isArray(structured) &&
+    (structured as Record<string, unknown>).details !== undefined
+  );
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -61,6 +94,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const structured =
       isHttp && typeof exception.getResponse === 'function' ? exception.getResponse() : undefined;
+    const constraints = validationConstraints(structured);
     const responseBody: Record<string, unknown> = {
       ...(structured && typeof structured === 'object' && !Array.isArray(structured)
         ? (structured as Record<string, unknown>)
@@ -68,7 +102,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message:
         responseBodyMessage(structured) ??
+        (constraints ? VALIDATION_FAILED_MESSAGE : undefined) ??
         (isHttp && exception instanceof Error ? exception.message : undefined),
+      // Structured rather than folded into `message`, which stays a string every caller can call
+      // string methods on; `details.errors[]` is already rendered capped and de-duplicated.
+      ...(constraints && !hasOwnDetails(structured)
+        ? { details: { errors: constraints.map(message => ({ message })) } }
+        : {}),
       timestamp: new Date().toISOString(),
       path: request?.originalUrl || request?.url,
       requestId: (request?.headers?.['x-request-id'] as string) || undefined,

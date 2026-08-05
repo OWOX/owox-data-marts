@@ -28,10 +28,11 @@ export class ReportService extends ApiService {
   /**
    * Get a report by ID
    * @param id Report ID
+   * @param config Additional axios config (e.g. `skipErrorToast` for background polling)
    * @returns Promise with report response
    */
-  async getReportById(id: string): Promise<ReportResponseDto> {
-    return this.get<ReportResponseDto>(`/${id}`);
+  async getReportById(id: string, config?: AxiosRequestConfig): Promise<ReportResponseDto> {
+    return this.get<ReportResponseDto>(`/${id}`, undefined, config);
   }
 
   /**
