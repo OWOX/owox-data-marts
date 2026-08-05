@@ -96,12 +96,12 @@ DEFAULT_CRON // '0 * * * *'
 
 #### `ALL_CONNECTORS`
 
-Array of all 14 connector names, useful for parameterized connector tests.
+Array of all connector names, useful for parameterized connector tests.
 
 ```typescript
 ALL_CONNECTORS
 // ['BankOfCanada', 'CriteoAds', 'FacebookMarketing', 'GitHub', 'GoogleAds',
-//  'LinkedInAds', 'LinkedInPages', 'MicrosoftAds', 'OpenExchangeRates',
+//  'GoogleSheets', 'LinkedInAds', 'LinkedInPages', 'MicrosoftAds', 'OpenExchangeRates',
 //  'OpenHolidays', 'RedditAds', 'Shopify', 'TikTokAds', 'XAds']
 ```
 

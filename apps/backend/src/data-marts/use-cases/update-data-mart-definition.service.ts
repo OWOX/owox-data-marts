@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -16,6 +16,8 @@ import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-dat
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
+import { ConnectorService } from '../services/connector/connector.service';
+import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -26,6 +28,7 @@ export class UpdateDataMartDefinitionService {
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly connectorService: ConnectorService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -53,6 +56,9 @@ export class UpdateDataMartDefinitionService {
       throw new BusinessViolationException('DataMart already has definition');
     }
 
+    const connectorCapabilities = this.getConnectorCapabilities(command);
+    this.validateConnectorConfigurationCount(command, connectorCapabilities);
+
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       if (command.definitionType !== DataMartDefinitionType.SQL) {
         throw new BusinessViolationException(
@@ -70,9 +76,13 @@ export class UpdateDataMartDefinitionService {
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
       const connectorDefinition = command.definition as ConnectorDefinition;
+      const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
+      let sourceDefinition: ConnectorDefinition | undefined;
       let mergedDefinition: ConnectorDefinition;
 
       if (command.sourceDataMartId) {
+        await this.validateCredentialCopyAccess(command, connectorCapabilities);
+
         const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
           command.sourceDataMartId,
           command.projectId
@@ -87,25 +97,33 @@ export class UpdateDataMartDefinitionService {
           );
         }
 
+        sourceDefinition = sourceDataMart.definition as ConnectorDefinition;
+      }
+
+      this.validateSecretReferences(
+        connectorDefinition,
+        previousDefinition,
+        sourceDefinition,
+        connectorCapabilities
+      );
+
+      if (sourceDefinition) {
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
           connectorDefinition,
-          sourceDataMart.definition as ConnectorDefinition
+          sourceDefinition
         );
-
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
           mergedDefinition,
-          dataMart.definition as ConnectorDefinition | undefined
+          previousDefinition
         );
       } else {
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
           connectorDefinition,
-          dataMart.definition as ConnectorDefinition | undefined
+          previousDefinition
         );
       }
 
       // Store previous definition for orphaned secrets cleanup
-      const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
-
       // Extract non-OAuth secrets and save them to a separate table
       dataMart.definition = await this.connectorSecretService.extractAndSaveSecrets(
         dataMart.id,
@@ -160,5 +178,100 @@ export class UpdateDataMartDefinitionService {
     );
 
     return this.mapper.toDomainDto(dataMart);
+  }
+
+  private getConnectorCapabilities(
+    command: UpdateDataMartDefinitionCommand
+  ): ConnectorCapabilities | undefined {
+    if (command.definitionType !== DataMartDefinitionType.CONNECTOR) {
+      return undefined;
+    }
+
+    const definition = command.definition as ConnectorDefinition;
+    const source = definition?.connector?.source;
+    return source?.name ? this.connectorService.getConnectorCapabilities(source.name) : undefined;
+  }
+
+  private validateConnectorConfigurationCount(
+    command: UpdateDataMartDefinitionCommand,
+    capabilities: ConnectorCapabilities | undefined
+  ): void {
+    if (!capabilities?.singleConfiguration) {
+      return;
+    }
+
+    const definition = command.definition as ConnectorDefinition;
+    const source = definition?.connector?.source;
+    if (source?.configuration?.length !== 1) {
+      throw new BadRequestException(
+        `Connector '${source?.name}' requires exactly one source configuration`
+      );
+    }
+  }
+
+  private async validateCredentialCopyAccess(
+    command: UpdateDataMartDefinitionCommand,
+    capabilities: ConnectorCapabilities | undefined
+  ): Promise<void> {
+    if (!command.userId || !command.sourceDataMartId || !capabilities?.copySecretsByValue) {
+      return;
+    }
+
+    const canCopyCredentials = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      command.sourceDataMartId,
+      Action.EDIT,
+      command.projectId
+    );
+    if (!canCopyCredentials) {
+      throw new ForbiddenException(
+        'You do not have permission to copy connector credentials from the source DataMart'
+      );
+    }
+  }
+
+  private validateSecretReferences(
+    incoming: ConnectorDefinition,
+    previous: ConnectorDefinition | undefined,
+    copySource: ConnectorDefinition | undefined,
+    capabilities: ConnectorCapabilities | undefined
+  ): void {
+    if (!capabilities?.copySecretsByValue) {
+      return;
+    }
+
+    const previousConfigurations = previous?.connector?.source?.configuration ?? [];
+    const sourceConfigurations = copySource?.connector?.source?.configuration ?? [];
+
+    for (const configuration of incoming.connector.source.configuration) {
+      const item = configuration as Record<string, unknown>;
+      const secretsId = typeof item._secrets_id === 'string' ? item._secrets_id : undefined;
+      if (!secretsId) {
+        continue;
+      }
+
+      const matchesPrevious = previousConfigurations.some(previousConfiguration => {
+        const previousItem = previousConfiguration as Record<string, unknown>;
+        return previousItem._id === item._id && previousItem._secrets_id === secretsId;
+      });
+      const copiedFrom =
+        item._copiedFrom && typeof item._copiedFrom === 'object'
+          ? (item._copiedFrom as Record<string, unknown>)
+          : undefined;
+      const matchesCopySource =
+        typeof copiedFrom?.configId === 'string' &&
+        sourceConfigurations.some(sourceConfiguration => {
+          const sourceItem = sourceConfiguration as Record<string, unknown>;
+          return sourceItem._id === copiedFrom.configId && sourceItem._secrets_id === secretsId;
+        });
+
+      if (!matchesPrevious && !matchesCopySource) {
+        throw new ForbiddenException(
+          'The selected connector credentials cannot be used for this DataMart'
+        );
+      }
+    }
   }
 }

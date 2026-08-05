@@ -151,9 +151,11 @@ import { ConnectorProcessSpawnerService } from './services/connector/connector-p
 import { ConnectorStorageConfigService } from './services/connector/connector-storage-config.service';
 import { ConnectorSourceConfigService } from './services/connector/connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './services/connector/connector-credential-injector.service';
+import { ConnectorPreviewCredentialsService } from './services/connector/connector-preview-credentials.service';
 import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
+import { ConnectorFieldsPreviewService } from './services/connector/connector-fields-preview.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
 import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
@@ -706,9 +708,11 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
     ConnectorStorageConfigService,
     ConnectorSourceConfigService,
     ConnectorCredentialInjectorService,
+    ConnectorPreviewCredentialsService,
     ConnectorMapper,
     SpecificationConnectorService,
     FieldsConnectorService,
+    ConnectorFieldsPreviewService,
     RunDataMartService,
     CancelDataMartRunService,
     SqlDryRunService,

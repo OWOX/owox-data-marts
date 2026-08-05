@@ -1,9 +1,11 @@
 jest.mock('@owox/internal-helpers', () => ({ fetchWithBackoff: jest.fn() }));
 jest.mock('jsonwebtoken', () => ({ sign: jest.fn(() => 'app-jwt') }));
 
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { fetchWithBackoff } from '@owox/internal-helpers';
 import * as jwt from 'jsonwebtoken';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { GithubAuthConfigError } from '../errors/plugin-host.errors';
@@ -21,9 +23,8 @@ const APP_ENV = {
 };
 
 function service(env: Record<string, string | undefined>): GithubAuthService {
-  const config = new PluginHostConfigService({
-    get: <T>(key: string) => env[key] as T,
-  } as ConfigService);
+  const configService = { get: <T>(key: string) => env[key] as T } as ConfigService;
+  const config = new PluginHostConfigService(configService, new PublicOriginService(configService));
 
   return new GithubAuthService(config);
 }
@@ -100,6 +101,33 @@ describe('GithubAuthService', () => {
       expect(access.mode).toBe(GithubAccessMode.ANONYMOUS);
       expect(access.headers.Authorization).toBeUndefined();
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // A publisher only ever sees "install the App on this repository". These are the lines
+  // that let an operator tell an uninstalled App from a half-configured deployment.
+  describe('configuration diagnostics', () => {
+    const errorSpy = () => jest.spyOn(Logger.prototype, 'error').mockImplementation();
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('reports which app credential is missing, once per process', async () => {
+      const errors = errorSpy();
+      const auth = service({ GITHUB_APP_ID: '12345', GITHUB_APP_SLUG: 'owox' });
+
+      await auth.getRepoAccess(REF);
+      await auth.getRepoAccess(REF);
+
+      expect(errors).toHaveBeenCalledTimes(1);
+      expect(errors.mock.calls[0][0]).toContain('GITHUB_APP_PRIVATE_KEY');
+    });
+
+    it('stays quiet when no app is configured at all', async () => {
+      const errors = errorSpy();
+
+      await service({ GITHUB_TOKEN: 'ghp_server' }).getRepoAccess(REF);
+
+      expect(errors).not.toHaveBeenCalled();
     });
   });
 

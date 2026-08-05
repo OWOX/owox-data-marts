@@ -15,6 +15,7 @@ import { ConnectorOAuthCredentialsResponseApiDto } from '../../dto/presentation/
 import { ConnectorOAuthStatusResponseApiDto } from '../../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../../dto/presentation/connector-oauth-settings-response-api.dto';
 import { ExchangeOAuthCredentialsDto } from '../../dto/presentation/exchange-oauth-credentials.dto';
+import { ConnectorFieldsPreviewRequestApiDto } from '../../dto/presentation/connector-fields-preview-request-api.dto';
 
 export function GetAvailableConnectorsSpec() {
   return applyDecorators(
@@ -38,6 +39,19 @@ export function GetConnectorFieldsSpec() {
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiOkResponse({ type: ConnectorFieldsResponseApiDto, isArray: true }),
     ApiResponse({ status: 404, description: 'Connector not found' })
+  );
+}
+
+export function PreviewConnectorFieldsSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Preview fields from a connector source configuration' }),
+    ApiParam({ name: 'connectorName', description: 'Connector name' }),
+    ApiBody({ type: ConnectorFieldsPreviewRequestApiDto }),
+    ApiOkResponse({ type: ConnectorFieldsResponseApiDto, isArray: true }),
+    ApiResponse({ status: 400, description: 'Unable to preview connector fields' }),
+    ApiResponse({ status: 403, description: 'Connector credentials cannot access the resource' }),
+    ApiResponse({ status: 502, description: 'Connector provider is unavailable' }),
+    ApiResponse({ status: 504, description: 'Connector field preview timed out' })
   );
 }
 

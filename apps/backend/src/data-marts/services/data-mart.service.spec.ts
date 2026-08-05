@@ -17,7 +17,12 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
 }
 
 describe('DataMartService schema actualization', () => {
-  let repository: { findOne: jest.Mock; save: jest.Mock };
+  let repository: {
+    findOne: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+    manager: { connection: { options: { type: string } } };
+  };
   let schemaProvider: { getActualDataMartSchema: jest.Mock };
   let schemaMerger: { mergeSchemas: jest.Mock };
   let searchIndexInvalidation: { scheduleDataMartSchemaChanged: jest.Mock };
@@ -27,6 +32,8 @@ describe('DataMartService schema actualization', () => {
     repository = {
       findOne: jest.fn(),
       save: jest.fn(async (dataMart: DataMart) => dataMart),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      manager: { connection: { options: { type: 'mysql' } } },
     };
     schemaProvider = {
       getActualDataMartSchema: jest.fn().mockResolvedValue({ fields: [{ name: 'amount' }] }),
@@ -85,6 +92,105 @@ describe('DataMartService schema actualization', () => {
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('queue down'));
     warnSpy.mockRestore();
+  });
+
+  it('matches SQLite timestamps stored without milliseconds during the conditional update', async () => {
+    const entitySchema = new EntitySchema<{ id: string; modifiedAt: Date; value: string }>({
+      name: 'ConditionalUpdateTest',
+      tableName: 'conditional_update_test',
+      columns: {
+        id: { type: String, primary: true },
+        modifiedAt: { type: Date },
+        value: { type: String },
+      },
+    });
+    const dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [entitySchema],
+      synchronize: true,
+    });
+
+    await dataSource.initialize();
+    try {
+      await dataSource.query(
+        "INSERT INTO conditional_update_test (id, modifiedAt, value) VALUES ('dm-1', '2026-07-14 10:00:00', 'old')"
+      );
+      const sqliteRepository = dataSource.getRepository(entitySchema);
+      const sqliteService = new DataMartService(
+        sqliteRepository as any,
+        schemaProvider as any,
+        schemaMerger as any
+      );
+      const modifiedAtCriterion = sqliteService['createModifiedAtUpdateCriterion'](
+        new Date('2026-07-14T10:00:00.000Z')
+      );
+
+      const result = await sqliteRepository.update(
+        { id: 'dm-1', modifiedAt: modifiedAtCriterion },
+        { value: 'updated' }
+      );
+
+      expect(result.affected).toBe(1);
+      await expect(sqliteRepository.findOneByOrFail({ id: 'dm-1' })).resolves.toMatchObject({
+        value: 'updated',
+      });
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('updates fields without rewriting connector configuration', async () => {
+    const sourceAtRunStart = {
+      name: 'GoogleSheets',
+      node: 'sheet',
+      fields: ['old_field'],
+      configuration: [
+        {
+          _id: 'config-1',
+          ImportAllColumns: true,
+        },
+      ],
+    };
+    const modifiedAt = new Date('2026-07-14T10:00:00.000Z');
+    const dataMart = makeDataMart({
+      modifiedAt,
+      definition: {
+        connector: {
+          source: sourceAtRunStart,
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    const latestModifiedAt = new Date('2026-07-14T10:01:00.000Z');
+    repository.findOne.mockResolvedValue({ ...dataMart, modifiedAt: latestModifiedAt });
+
+    const updated = await service.updateConnectorSourceFields(dataMart, ['new_field']);
+
+    expect(updated).toBe(true);
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'dm-1', projectId: 'proj-1', modifiedAt: latestModifiedAt },
+      {
+        definition: {
+          connector: {
+            source: { ...sourceAtRunStart, fields: ['new_field'] },
+            storage: { fullyQualifiedName: 'dataset.table' },
+          },
+        },
+      }
+    );
+
+    repository.findOne.mockResolvedValue({
+      ...dataMart,
+      definition: {
+        connector: {
+          source: { ...sourceAtRunStart, fields: ['user_edit'] },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      },
+    });
+    await expect(service.updateConnectorSourceFields(dataMart, ['new_field'])).resolves.toBe(false);
+    expect(repository.update).toHaveBeenCalledTimes(1);
   });
 });
 

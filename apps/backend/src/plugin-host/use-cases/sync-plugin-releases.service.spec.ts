@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { SyncPluginReleasesCommand } from '../dto/domain/plugin-sync.dto';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
@@ -66,7 +67,8 @@ function setup() {
     insertVersion: jest.fn(input => Promise.resolve({ id: `v-${input.semver}`, ...input })),
   } as unknown as jest.Mocked<PluginVersionService>;
 
-  const config = new PluginHostConfigService({ get: () => undefined } as unknown as ConfigService);
+  const configService = { get: () => undefined } as unknown as ConfigService;
+  const config = new PluginHostConfigService(configService, new PublicOriginService(configService));
 
   const service = new SyncPluginReleasesService(
     githubApi,

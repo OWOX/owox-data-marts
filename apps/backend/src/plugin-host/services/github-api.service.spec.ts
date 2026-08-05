@@ -2,6 +2,7 @@ jest.mock('@owox/internal-helpers', () => ({ fetchWithBackoff: jest.fn() }));
 
 import { ConfigService } from '@nestjs/config';
 import { fetchWithBackoff } from '@owox/internal-helpers';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { GithubApiError, GithubRepoNotFoundError } from '../errors/plugin-host.errors';
@@ -12,9 +13,8 @@ const fetchMock = fetchWithBackoff as jest.Mock;
 const REF = { owner: 'OWOX', name: 'example-plugin' };
 
 function service(env: Record<string, string | undefined> = {}): GithubApiService {
-  const config = new PluginHostConfigService({
-    get: <T>(key: string) => env[key] as T,
-  } as ConfigService);
+  const configService = { get: <T>(key: string) => env[key] as T } as ConfigService;
+  const config = new PluginHostConfigService(configService, new PublicOriginService(configService));
 
   const auth = {
     getRepoAccess: jest.fn().mockResolvedValue({

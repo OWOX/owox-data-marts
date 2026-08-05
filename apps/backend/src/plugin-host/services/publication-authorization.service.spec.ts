@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { PluginPublicationScope } from '../enums/plugin-publication-scope.enum';
@@ -6,11 +7,13 @@ import { PublicationAuthorizationError } from '../errors/plugin-host.errors';
 import { PublicationAuthorizationService } from './publication-authorization.service';
 
 function service(allowlist = ''): PublicationAuthorizationService {
+  const configService = {
+    get: <T>(key: string) =>
+      (key === 'OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS' ? allowlist : undefined) as T,
+  } as ConfigService;
+
   return new PublicationAuthorizationService(
-    new PluginHostConfigService({
-      get: <T>(key: string) =>
-        (key === 'OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS' ? allowlist : undefined) as T,
-    } as ConfigService)
+    new PluginHostConfigService(configService, new PublicOriginService(configService))
   );
 }
 

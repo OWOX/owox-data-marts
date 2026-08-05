@@ -234,7 +234,7 @@ describe('ModelCanvasFlowNode', () => {
     ).toHaveClass('-ml-0.5');
   });
 
-  it('renders Data Quality indicators on a row below the definition metadata', () => {
+  it('renders Data Quality indicators and the field count on one row below the badge', () => {
     renderNode();
 
     const qualityRow = screen.getByRole('button', {
@@ -243,7 +243,9 @@ describe('ModelCanvasFlowNode', () => {
     const metadataRow = screen.getByText('View').parentElement;
 
     expect(qualityRow).not.toBe(metadataRow);
-    expect(screen.getByText('3 fields').parentElement).toBe(metadataRow);
+    // The field count shares the status row with the quality indicators, so
+    // cards stay one row shorter than with a dedicated field-count line.
+    expect(screen.getByText('3 fields').parentElement).toBe(qualityRow);
   });
 
   it('provides the non-bubbling run action inside the quality details', async () => {

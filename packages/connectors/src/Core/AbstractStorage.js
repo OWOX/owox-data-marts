@@ -130,6 +130,45 @@ class AbstractStorage {
       throw new Error("Method saveData() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
+
+  //---- replaceData -------------------------------------------------
+    /**
+     * Replace all data and schema in the destination table.
+     * Full-refresh sources use this when removed source rows and columns must
+     * also be removed from storage.
+     * @param {data} array of assoc objects with records to save
+     * @returns {Promise<void>}
+     */
+    async replaceData(data) {
+
+      throw new Error(`${this.constructor.name} does not support full-refresh table replacement`);
+    }
+    //----------------------------------------------------------------
+
+  //---- hasSameSchema -----------------------------------------------
+    hasSameSchema(actualColumns, expectedColumns, normalizeType = type => String(type).toUpperCase()) {
+
+      const actualNames = Object.keys(actualColumns || {});
+      const expectedNames = Object.keys(expectedColumns || {});
+      if (actualNames.length !== expectedNames.length) {
+        return false;
+      }
+
+      return expectedNames.every(name => {
+        if (!(name in actualColumns)) {
+          return false;
+        }
+
+        const actualColumn = actualColumns[name];
+        const expectedColumn = expectedColumns[name];
+        const actualType = typeof actualColumn === 'string' ? actualColumn : actualColumn?.type;
+        const expectedType = typeof expectedColumn === 'string' ? expectedColumn : expectedColumn?.type;
+
+        return normalizeType(actualType) === normalizeType(expectedType);
+      });
+
+    }
+    //----------------------------------------------------------------
   
   //---- saveRecordsAddedToBuffer ------------------------------------
     /**

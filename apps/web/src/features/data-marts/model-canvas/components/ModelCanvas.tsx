@@ -1,5 +1,13 @@
 import { Check, Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from 'react';
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -53,6 +61,7 @@ import {
   type ObjectLabelPart,
   type ObjectLabelsHidden,
 } from '../model/object-labels';
+import type { ModelCanvasExportHandle } from '../export';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
@@ -67,7 +76,10 @@ interface ModelCanvasProps {
   isCheckingDataLastUpdated?: boolean;
   /** Scopes the persisted node positions — each storage keeps its own layout. */
   storageId?: string;
-  topLeftControls?: ReactNode;
+  /** Human-readable storage title — names the export files and OKF bundle. */
+  storageTitle?: string;
+  /** Receives the export API — the Actions menu lives outside the flow provider. */
+  exportApiRef?: Ref<ModelCanvasExportHandle>;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -98,24 +110,20 @@ function loadSavedPositions(storageId: string | undefined): SavedPositions {
   return positions;
 }
 
-const OBJECT_LABEL_META: Record<ObjectLabelPart, { glyph: string; label: string; helper: string }> =
-  {
-    source: {
-      glyph: '⬚',
-      label: 'Input source',
-      helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
-    },
-    fields: {
-      glyph: '#',
-      label: 'Field count',
-      helper: 'The field-count line under each object',
-    },
-    status: {
-      glyph: '•',
-      label: 'Status dot',
-      helper: 'The published/draft status dot in the card header',
-    },
-  };
+const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string }> = {
+  source: {
+    label: 'Input source',
+    helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
+  },
+  fields: {
+    label: 'Field count',
+    helper: 'The field count shown on each object',
+  },
+  status: {
+    label: 'Status dot',
+    helper: 'The published/draft status dot in the card header',
+  },
+};
 const VIEW_MODE_OPTIONS: { value: CanvasViewMode; label: string }[] = [
   { value: 'compact', label: 'Compact' },
   { value: 'erd', label: 'Detailed' },
@@ -185,8 +193,10 @@ interface FlowNodeParams {
 
 function buildFlowNode(params: FlowNodeParams): ModelCanvasFlowNodeType {
   const { node, highlight, viewMode, objectLabels } = params;
-  const metaRowHidden = objectLabels.source && objectLabels.fields;
-  const statusRowHidden = metaRowHidden && objectLabels.status;
+  // The field count lives in the status icons row, so the meta row only holds
+  // the source badge — hiding the badge drops the whole row.
+  const metaRowHidden = objectLabels.source;
+  const statusRowHidden = objectLabels.source && objectLabels.fields && objectLabels.status;
   return {
     id: node.id,
     type: 'modelCanvasNode',
@@ -269,6 +279,8 @@ interface ModelCanvasInnerProps {
   onRunQuality: (dataMartId: string) => Promise<void>;
   isCheckingDataLastUpdated?: boolean;
   storageId?: string;
+  storageTitle?: string;
+  exportApiRef?: Ref<ModelCanvasExportHandle>;
 }
 
 function ModelCanvasInner({
@@ -280,10 +292,13 @@ function ModelCanvasInner({
   onRunQuality,
   isCheckingDataLastUpdated = false,
   storageId,
+  storageTitle,
+  exportApiRef,
 }: ModelCanvasInnerProps) {
   const reactFlow = useReactFlow<ModelCanvasFlowNodeType, ModelCanvasFlowEdgeType>();
   const paneWidth = useStore(state => state.width);
   const paneHeight = useStore(state => state.height);
+  const flowDomNode = useStore(state => state.domNode);
 
   const onOpenDataMartRef = useRef(onOpenDataMart);
   onOpenDataMartRef.current = onOpenDataMart;
@@ -329,6 +344,25 @@ function ModelCanvasInner({
   const topologyNodes = useStableValue(nodes, getNodeTopologySignature);
   const topologyEdges = useStableValue(edges, getEdgeTopologySignature);
 
+  // The export deps (html-to-image, fflate) load on first use, so the canvas
+  // chunk itself stays lean.
+  useImperativeHandle(
+    exportApiRef,
+    () => ({
+      exportCanvas: async format => {
+        const { exportModelCanvas } = await import('../export');
+        return exportModelCanvas(format, {
+          viewport: flowDomNode?.querySelector<HTMLElement>('.react-flow__viewport') ?? null,
+          flowNodes,
+          nodes,
+          edges,
+          storageTitle,
+        });
+      },
+    }),
+    [flowDomNode, flowNodes, nodes, edges, storageTitle]
+  );
+
   useEffect(() => {
     const hasIncoming = new Set(topologyEdges.map(e => e.targetId));
     const hasOutgoing = new Set(topologyEdges.map(e => e.sourceId));
@@ -340,7 +374,7 @@ function ModelCanvasInner({
       n => n.title
     );
 
-    const metaRowHidden = objectLabels.source && objectLabels.fields;
+    const metaRowHidden = objectLabels.source;
     const dagreNodes: DagreLayoutNode[] = topologyNodes.map(n => ({
       id: n.id,
       width: nodeWidth(viewMode),
@@ -780,7 +814,6 @@ function ModelCanvasInner({
                       <span
                         className={`text-sm font-medium ${shown ? 'text-foreground' : 'text-muted-foreground'}`}
                       >
-                        <span className='text-muted-foreground mr-1 font-bold'>{meta.glyph}</span>
                         {meta.label}
                       </span>
                       <span className='text-muted-foreground text-xs leading-snug'>
@@ -877,7 +910,8 @@ export default function ModelCanvas({
   onRunQuality,
   isCheckingDataLastUpdated,
   storageId,
-  topLeftControls,
+  storageTitle,
+  exportApiRef,
   className,
   style,
 }: ModelCanvasProps) {
@@ -889,7 +923,6 @@ export default function ModelCanvas({
       style={style ?? { height: 480 }}
     >
       <style>{NODE_PULSE_KEYFRAMES}</style>
-      {topLeftControls && <div className='absolute top-3 left-3 z-10'>{topLeftControls}</div>}
       <ReactFlowProvider>
         <ModelCanvasInner
           nodes={nodes}
@@ -900,6 +933,8 @@ export default function ModelCanvas({
           onRunQuality={onRunQuality}
           isCheckingDataLastUpdated={isCheckingDataLastUpdated}
           storageId={storageId}
+          storageTitle={storageTitle}
+          exportApiRef={exportApiRef}
         />
       </ReactFlowProvider>
     </div>

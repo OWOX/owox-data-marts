@@ -5,6 +5,7 @@ import {
   GetAvailableConnectorsSpec,
   GetConnectorSpecificationSpec,
   GetConnectorFieldsSpec,
+  PreviewConnectorFieldsSpec,
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
   GetConnectorOAuthSettingsSpec,
@@ -28,6 +29,8 @@ import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/con
 import { ConnectorOauthService } from '../services/connector/connector-oauth.service';
 import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
+import { ConnectorFieldsPreviewService } from '../services/connector/connector-fields-preview.service';
+import { ConnectorFieldsPreviewRequestApiDto } from '../dto/presentation/connector-fields-preview-request-api.dto';
 
 @Controller('connectors')
 @ApiTags('Connectors')
@@ -36,6 +39,7 @@ export class ConnectorController {
     private readonly availableConnectorService: AvailableConnectorService,
     private readonly specificationConnectorService: SpecificationConnectorService,
     private readonly fieldsConnectorService: FieldsConnectorService,
+    private readonly connectorFieldsPreviewService: ConnectorFieldsPreviewService,
     private readonly mapper: ConnectorMapper,
     private readonly connectorOauthService: ConnectorOauthService
   ) {}
@@ -65,6 +69,22 @@ export class ConnectorController {
     @Param('connectorName') connectorName: string
   ): Promise<ConnectorFieldsResponseApiDto[]> {
     const fields = await this.fieldsConnectorService.run(connectorName);
+    return this.mapper.toFieldsResponse(fields);
+  }
+
+  @Auth(Role.editor())
+  @Post(':connectorName/fields/preview')
+  @PreviewConnectorFieldsSpec()
+  async previewConnectorFields(
+    @AuthContext() context: AuthorizationContext,
+    @Param('connectorName') connectorName: string,
+    @Body() body: ConnectorFieldsPreviewRequestApiDto
+  ): Promise<ConnectorFieldsResponseApiDto[]> {
+    const fields = await this.connectorFieldsPreviewService.run(
+      context,
+      connectorName,
+      body.configuration ?? {}
+    );
     return this.mapper.toFieldsResponse(fields);
   }
 

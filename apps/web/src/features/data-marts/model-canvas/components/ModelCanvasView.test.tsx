@@ -2,6 +2,20 @@ import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartStatus } from '../../shared/enums';
+
+const exportMocks = vi.hoisted(() => {
+  const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
+  return { toast, trackEvent: vi.fn() };
+});
+
+vi.mock('react-hot-toast', () => ({
+  default: exportMocks.toast,
+  toast: exportMocks.toast,
+}));
+
+vi.mock('../../../../utils/data-layer', () => ({
+  trackEvent: exportMocks.trackEvent,
+}));
 import type { DataQualityCompactSummary } from '../../shared/types';
 import type { ModelCanvasTopologyData } from '../model/types';
 import { ModelCanvasView } from './ModelCanvasView';
@@ -97,7 +111,8 @@ vi.mock('../../data-quality/api/data-quality.service', () => ({
 }));
 
 vi.mock('./ModelCanvasToolbar', () => ({
-  ModelCanvasToolbar: () => null,
+  // The Actions menu renders through the toolbar's `actions` slot.
+  ModelCanvasToolbar: ({ actions }: { actions?: React.ReactNode }) => <>{actions}</>,
 }));
 
 vi.mock('./ModelCanvas', () => ({
@@ -107,17 +122,14 @@ vi.mock('./ModelCanvas', () => ({
     onOpenDataMart,
     onOpenQuality,
     onRunQuality,
-    topLeftControls,
   }: {
     nodes: { id: string }[];
     edges: { id: string }[];
     onOpenDataMart: (dataMartId: string) => void;
     onOpenQuality?: (dataMartId: string) => void;
     onRunQuality?: (dataMartId: string) => Promise<void>;
-    topLeftControls?: React.ReactNode;
   }) => (
     <>
-      {topLeftControls}
       <span data-testid='canvas-node-ids'>{nodes.map(node => node.id).join(',')}</span>
       <span data-testid='canvas-edge-ids'>{edges.map(edge => edge.id).join(',')}</span>
       <button
@@ -314,6 +326,28 @@ describe('ModelCanvasView', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('reports a loading canvas instead of a silent no-op when export is not ready', async () => {
+    // The mocked ModelCanvas never registers the export handle — the same
+    // state as the real lazy chunk still loading behind Suspense.
+    viewState.canvasHook.data = buildCanvasData();
+
+    render(<ModelCanvasView />);
+
+    const trigger = await screen.findByRole('button', { name: 'Actions 2' });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.keyDown(screen.getByTestId('export-canvas'), { key: 'ArrowRight' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'JSON' }));
+
+    await waitFor(() => {
+      expect(exportMocks.toast).toHaveBeenCalledWith(
+        'The canvas is still loading — please try again in a moment.'
+      );
+    });
+    expect(exportMocks.trackEvent).not.toHaveBeenCalled();
+  });
+
+  // The same `bulkActionDataMarts` set feeds the Actions badge AND the export
+  // scope: search only highlights, it never narrows either of them.
   it('counts the Data Marts left by canvas filters without narrowing the count by search', async () => {
     viewState.filters.searchQuery = 'Orders';
     viewState.canvasHook.data = {

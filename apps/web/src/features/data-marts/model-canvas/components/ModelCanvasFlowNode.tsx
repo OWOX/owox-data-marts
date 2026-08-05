@@ -188,18 +188,13 @@ export default function ModelCanvasFlowNode({
         </button>
       </div>
 
-      {/* Meta row: definition badge + field count. Skipped entirely when both are hidden. */}
-      {(withSource || withFieldCount) && (
+      {/* Meta row: the definition badge on its own line. */}
+      {withSource && (
         <div className='text-muted-foreground flex items-center gap-2 px-3.5 pt-1 text-[11px]'>
-          {withSource && <ErdDefinitionBadge type={data.definitionType} />}
-          {withFieldCount && (
-            <span className='ml-auto shrink-0'>
-              {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
-            </span>
-          )}
+          <ErdDefinitionBadge type={data.definitionType} />
         </div>
       )}
-      {/* Status icons row: quality shield + data-last-updated clock */}
+      {/* Status icons row: quality shield + data-last-updated clock + field count */}
       {!titleOnly && (
         <div className='text-muted-foreground flex items-center gap-1 px-3.5 pt-1 pb-3 text-[11px]'>
           <DataQualityCanvasStatusIcon
@@ -213,6 +208,11 @@ export default function ModelCanvasFlowNode({
             block={data.dataLastUpdated}
             isChecking={data.isCheckingDataLastUpdated}
           />
+          {withFieldCount && (
+            <span className='ml-auto shrink-0'>
+              {data.fieldCount} field{data.fieldCount !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       )}
 
