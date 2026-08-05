@@ -91,7 +91,9 @@ export function canvasToModelGraph(input: CanvasModelGraphInput): ModelGraph {
       ? INPUT_SOURCE_BY_DEFINITION_TYPE[node.definitionType]
       : 'TABLE',
     description: node.description ?? undefined,
-    definition: node.definition ?? null,
+    // Product rule: the physical reference / SQL leaves the product only for
+    // PUBLISHED data marts — a draft's definition is not settled yet.
+    definition: node.status === DataMartStatus.PUBLISHED ? (node.definition ?? null) : null,
     schema: (node.fields ?? []).map(field => ({
       name: field.name,
       type: field.type,

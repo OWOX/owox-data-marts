@@ -127,6 +127,30 @@ describe('canvasToModelGraph', () => {
     ]);
   });
 
+  it('drops the definition for draft data marts — only published ones export it', () => {
+    const graph = canvasToModelGraph({
+      nodes: [
+        buildNode({
+          id: 'id-draft',
+          title: 'Draft mart',
+          status: DataMartStatus.DRAFT,
+          definitionType: DataMartDefinitionType.SQL,
+          definition: 'SELECT secret FROM wip',
+        }),
+        buildNode({
+          id: 'id-live',
+          title: 'Live mart',
+          definitionType: DataMartDefinitionType.TABLE,
+          definition: 'project.dataset.live',
+        }),
+      ],
+      edges: [],
+      positions: new Map(),
+    });
+    expect(graph.nodes[0]?.definition).toBeNull();
+    expect(graph.nodes[1]?.definition).toBe('project.dataset.live');
+  });
+
   it('de-duplicates keys of same-titled data marts', () => {
     const graph = canvasToModelGraph({
       nodes: [

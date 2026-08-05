@@ -25,7 +25,7 @@ The JSON file contains the model graph — Data Marts with their schemas and can
 
 ### OKF bundle
 
-OKF (Open Knowledge Format) is a Markdown-based description of a data model: the zip contains one `.md` document per Data Mart — with an overview, the schema table, the definition (the physical table or view reference, the table pattern, or the SQL query — connector configs stay out), and the join list — plus an `index.md` catalog. Each join links to the document of the Data Mart it points at, so the bundle reads as a small cross-linked wiki. The same format is produced and imported by [OWOX Model Canvas](https://model.owox.com/), and it works well as context for AI assistants: with the table references included, an assistant can write runnable SQL against your storage.
+OKF (Open Knowledge Format) is a Markdown-based description of a data model: the zip contains one `.md` document per Data Mart — with an overview, the schema table, the definition (the physical table or view reference, the table pattern, or the SQL query — included for published Data Marts only, and connector configs stay out), and the join list — plus an `index.md` catalog. Each join links to the document of the Data Mart it points at, so the bundle reads as a small cross-linked wiki. The same format is produced and imported by [OWOX Model Canvas](https://model.owox.com/), and it works well as context for AI assistants: with the table references included, an assistant can write runnable SQL against your storage.
 
 ## Notes
 
