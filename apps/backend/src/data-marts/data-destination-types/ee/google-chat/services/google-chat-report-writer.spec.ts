@@ -40,17 +40,25 @@ describe('GoogleChatReportWriter', () => {
       },
     }) as Report;
 
-  const createWriter = (credentials: object = { type: 'google-chat-credentials', webhookUrl }) => {
+  const createWriter = (
+    credentials: object = { type: 'google-chat-credentials', webhookUrl },
+    rendered = '# Revenue\n\n**Up 12%**'
+  ) => {
     const emailProvider = { sendEmail: jest.fn().mockResolvedValue(undefined) };
     const webhookClient = { send: jest.fn().mockResolvedValue(undefined) };
     const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
+    const executionLogger = {
+      log: jest.fn(),
+      error: jest.fn(),
+      asArrays: jest.fn().mockReturnValue({ logs: [], errors: [] }),
+    };
     const writer = new GoogleChatReportWriter(
       emailProvider as never,
       { parseToHtml: jest.fn().mockResolvedValue('<p>Rendered</p>') } as never,
       { getPublicOrigin: jest.fn().mockReturnValue('https://example.test') } as never,
       {
         render: jest.fn().mockResolvedValue({
-          rendered: '# Revenue\n\n**Up 12%**',
+          rendered,
           status: DataMartInsightTemplateStatus.OK,
           prompts: [],
         }),
@@ -62,12 +70,14 @@ describe('GoogleChatReportWriter', () => {
       { getUsedSourceKeys: jest.fn() } as never,
       webhookClient as never
     );
+    writer.setExecutionContext({ runId: 'run-1', logger: executionLogger });
 
-    return { writer, emailProvider, webhookClient, eventDispatcher };
+    return { writer, emailProvider, webhookClient, eventDispatcher, executionLogger };
   };
 
   it('posts the complete rendered Insight directly to Google Chat', async () => {
-    const { writer, emailProvider, webhookClient, eventDispatcher } = createWriter();
+    const { writer, emailProvider, webhookClient, eventDispatcher, executionLogger } =
+      createWriter();
 
     await writer.prepareToWriteReport(createReport(), new ReportDataDescription([]));
     await writer.finalize();
@@ -83,7 +93,7 @@ describe('GoogleChatReportWriter', () => {
       subtitle: 'Data Mart: Sales',
     });
     expect(payload.cardsV2[0].card.sections[0].widgets[0].textParagraph).toEqual({
-      text: '# Revenue\n\n**Up 12%**',
+      text: '**Revenue**\n\n**Up 12%**',
       textSyntax: 'MARKDOWN',
     });
     expect(payload.fallbackText).toBe('Weekly report — Data Mart: Sales');
@@ -92,6 +102,43 @@ describe('GoogleChatReportWriter', () => {
     );
     expect(eventDispatcher.publishExternal.mock.calls[0][0].name).toBe(
       'google-chat.report.run.successfully'
+    );
+    expect(executionLogger.log).toHaveBeenCalledWith({
+      type: 'google_chat_part_sent',
+      part: 1,
+      totalParts: 1,
+    });
+    expect(executionLogger.log).toHaveBeenCalledWith({
+      type: 'google_chat_sent',
+      messageCount: 1,
+    });
+  });
+
+  it('logs partial delivery before propagating a later part failure', async () => {
+    const { writer, webhookClient, executionLogger } = createWriter(
+      { type: 'google-chat-credentials', webhookUrl },
+      `# Large insight\n${'Д'.repeat(16_000)}`
+    );
+    webhookClient.send
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Google Chat API request failed'));
+
+    await writer.prepareToWriteReport(createReport(), new ReportDataDescription([]));
+    await expect(writer.finalize()).rejects.toThrow('Google Chat API request failed');
+
+    expect(executionLogger.log).toHaveBeenCalledWith({
+      type: 'google_chat_part_sent',
+      part: 1,
+      totalParts: 2,
+    });
+    expect(executionLogger.log).toHaveBeenCalledWith({
+      type: 'google_chat_part_failed',
+      part: 2,
+      totalParts: 2,
+      deliveredParts: 1,
+    });
+    expect(executionLogger.log).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'google_chat_sent' })
     );
   });
 
@@ -123,7 +170,7 @@ describe('GoogleChatReportWriter', () => {
   });
 
   it('splits oversized Insights without dropping multibyte content', () => {
-    const markdown = `# Large insight\n${'Д'.repeat(16_000)}`;
+    const markdown = `Large insight\n${'Д'.repeat(16_000)}`;
     const messages = buildGoogleChatMessages({
       subject: 'Large report',
       markdown,
@@ -141,6 +188,37 @@ describe('GoogleChatReportWriter', () => {
     expect(messages.every(message => Buffer.byteLength(JSON.stringify(message)) <= 30_000)).toBe(
       true
     );
+  });
+
+  it('downlevels unsupported headings and tables while preserving supported Markdown', () => {
+    const messages = buildGoogleChatMessages({
+      subject: 'Representative insight',
+      markdown: '# Revenue\n\n**Up 12%**\n\n| Metric | Value |\n| --- | ---: |\n| Revenue | $10 |',
+      dataMartTitle: 'Sales',
+      reportUrl: 'https://example.test/report',
+    });
+
+    const widget = messages[0].cardsV2[0].card.sections[0].widgets[0];
+    expect(widget).toEqual({
+      textParagraph: {
+        text: '**Revenue**\n\n**Up 12%**\n\n```\n| Metric | Value |\n| --- | ---: |\n| Revenue | $10 |\n```',
+        textSyntax: 'MARKDOWN',
+      },
+    });
+  });
+
+  it('does not rewrite heading or table-like text inside fenced code blocks', () => {
+    const markdown = '```\n# Heading-like code\n| A | B |\n| --- | --- |\n```';
+    const messages = buildGoogleChatMessages({
+      subject: 'Code sample',
+      markdown,
+      dataMartTitle: 'Sales',
+      reportUrl: 'https://example.test/report',
+    });
+
+    expect(messages[0].cardsV2[0].card.sections[0].widgets[0]).toEqual({
+      textParagraph: { text: markdown, textSyntax: 'MARKDOWN' },
+    });
   });
 
   it('sizes complete serialized payloads when Markdown contains JSON escape characters', () => {

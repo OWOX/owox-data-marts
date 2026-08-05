@@ -310,7 +310,7 @@ export class DataDestinationMapper {
     // No stored credential of any type reaches a plugin. The same empty shape the
     // orphaned-credential paths below already return, so every consumer handles it.
     if (this.isPluginRuntimeCall()) {
-      return {} as DataDestinationCredentials;
+      return {} as DataDestinationResponseApiDto['credentials'];
     }
 
     if (!dto.credentialId) {

@@ -71,6 +71,10 @@ Write your **Message** using Markdown. Switch to **Preview** to check the conten
 API**, OWOX posts the rendered Insight as a card with the subject, Data Mart name, complete message
 body, and a link back to the report. Messages that exceed Google Chat's per-message size limit are
 split into as many as 20 numbered parts. Insights requiring more parts are rejected before sending.
+Because Google Chat cards support only a subset of Markdown, headings are rendered as bold lines and
+tables as monospace code blocks; supported emphasis, lists, links, and code formatting are preserved.
+Parts are sent sequentially. If a later part fails, earlier parts remain visible because incoming
+webhooks do not support transactional delivery or rollback; running the report again may resend them.
 With **Channel Email**, Google Chat controls how the emailed content is rendered.
 
 #### 2.5. Set sending conditions

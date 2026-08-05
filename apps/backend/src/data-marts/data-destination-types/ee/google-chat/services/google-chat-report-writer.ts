@@ -45,6 +45,75 @@ function truncateUtf8(value: string, maxBytes: number): string {
   return `${result}${suffix}`;
 }
 
+function isMarkdownTableDelimiter(line: string): boolean {
+  const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  const cells = trimmed.split('|').map(cell => cell.trim());
+  return cells.length >= 2 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+}
+
+function boldHeading(text: string): string {
+  const trimmed = text.trim();
+  const alreadyBold =
+    (trimmed.startsWith('**') && trimmed.endsWith('**')) ||
+    (trimmed.startsWith('__') && trimmed.endsWith('__'));
+  return alreadyBold ? trimmed : `**${trimmed}**`;
+}
+
+/**
+ * Google Chat card Markdown does not support headings or tables. Downlevel only those
+ * constructs while leaving the supported Markdown subset and fenced code blocks untouched.
+ */
+function prepareMarkdownForGoogleChat(markdown: string): string {
+  const lines = markdown.split('\n');
+  const output: string[] = [];
+  let activeFence: '`' | '~' | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0] as '`' | '~';
+      activeFence = activeFence === marker ? null : (activeFence ?? marker);
+      output.push(line);
+      continue;
+    }
+
+    if (activeFence) {
+      output.push(line);
+      continue;
+    }
+
+    if (line.includes('|') && isMarkdownTableDelimiter(lines[index + 1] ?? '')) {
+      const tableLines = [line, lines[index + 1]];
+      index += 2;
+      while (index < lines.length && lines[index].trim() && lines[index].includes('|')) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+      index -= 1;
+      output.push('```', ...tableLines, '```');
+      continue;
+    }
+
+    const atxHeading = line.match(/^\s{0,3}#{1,6}[ \t]+(.+?)\s*$/);
+    if (atxHeading) {
+      const heading = atxHeading[1].replace(/[ \t]+#+[ \t]*$/, '');
+      output.push(boldHeading(heading));
+      continue;
+    }
+
+    if (line.trim() && /^\s{0,3}(?:=+|-+)\s*$/.test(lines[index + 1] ?? '')) {
+      output.push(boldHeading(line));
+      index += 1;
+      continue;
+    }
+
+    output.push(line);
+  }
+
+  return output.join('\n');
+}
+
 function buildGoogleChatMessage(input: {
   subject: string;
   dataMartTitle: string;
@@ -176,7 +245,7 @@ export function buildGoogleChatMessages(input: {
     dataMartTitle: truncateUtf8(input.dataMartTitle, MAX_HEADER_FIELD_BYTES),
     reportUrl: input.reportUrl,
   };
-  const markdown = input.markdown.trim() || 'No content';
+  const markdown = prepareMarkdownForGoogleChat(input.markdown.trim() || 'No content');
   const chunks = splitMarkdownForGoogleChat({ ...messageInput, markdown });
 
   const messages = chunks.map((chunk, index) =>
@@ -272,11 +341,29 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       reportUrl,
     });
 
+    // Incoming webhooks do not support transactions or rollback. If a later part fails,
+    // earlier parts remain delivered, so record each outcome for troubleshooting.
     for (let index = 0; index < messages.length; index += 1) {
       if (index > 0) {
         await new Promise(resolve => setTimeout(resolve, GOOGLE_CHAT_WRITE_INTERVAL_MS));
       }
-      await this.webhookClient.send(this.googleChatCredentials.webhookUrl, messages[index]);
+
+      try {
+        await this.webhookClient.send(this.googleChatCredentials.webhookUrl, messages[index]);
+        this.executionLogger?.log({
+          type: 'google_chat_part_sent',
+          part: index + 1,
+          totalParts: messages.length,
+        });
+      } catch (error) {
+        this.executionLogger?.log({
+          type: 'google_chat_part_failed',
+          part: index + 1,
+          totalParts: messages.length,
+          deliveredParts: index,
+        });
+        throw error;
+      }
     }
 
     this.executionLogger?.log({
