@@ -4,6 +4,10 @@ import { DataSource } from 'typeorm';
 import { createLogger } from '../common/logger/logger.service';
 import { createDataSourceOptions } from './data-source-options.config';
 import {
+  createPluginCollectionsDataSourceOptions,
+  PLUGIN_COLLECTIONS_DATA_SOURCE,
+} from './plugin-collections-data-source-options.config';
+import {
   runMigrations as executeRunMigrations,
   revertMigration as executeRevertMigration,
   listMigrations as executeListMigrations,
@@ -78,44 +82,55 @@ async function executeMigrationAction(action: MigrationAction): Promise<void> {
   logger.debug(`Executing migration action: ${action}`);
   const config = new ConfigService();
   config.set('TYPEORM_LOGGING', 'schema');
-  const dataSource = new DataSource(createDataSourceOptions(config));
+  const main = new DataSource(createDataSourceOptions(config));
+  const collections = new DataSource(createPluginCollectionsDataSourceOptions(config));
+  const requestedDownTarget = config.get<string>('MIGRATIONS_DATA_SOURCE')?.trim() || 'main';
+  if (
+    action === MigrationAction.DOWN &&
+    !['main', PLUGIN_COLLECTIONS_DATA_SOURCE].includes(requestedDownTarget)
+  ) {
+    if (requestedDownTarget === 'all') {
+      throw new Error(
+        `MIGRATIONS_DATA_SOURCE=all is unsafe for down migrations; select main or ${PLUGIN_COLLECTIONS_DATA_SOURCE}`
+      );
+    }
+    throw new Error(`Unsupported MIGRATIONS_DATA_SOURCE: ${requestedDownTarget}`);
+  }
+  const target = action === MigrationAction.DOWN ? requestedDownTarget : 'all';
+  if (!['main', PLUGIN_COLLECTIONS_DATA_SOURCE, 'all'].includes(target)) {
+    throw new Error(`Unsupported MIGRATIONS_DATA_SOURCE: ${target}`);
+  }
+  // UP applies main declarations before collection storage. DOWN intentionally targets
+  // one history: reverting one migration from each independent DB can over-revert either.
+  const dataSources =
+    target === 'main'
+      ? [main]
+      : target === PLUGIN_COLLECTIONS_DATA_SOURCE
+        ? [collections]
+        : [main, collections];
 
   try {
-    if (!dataSource.isInitialized) {
-      logger.debug('Initializing data source for migration action');
+    for (const dataSource of dataSources) {
       await dataSource.initialize();
-      logger.debug('Data source initialized successfully');
-    } else {
-      logger.debug('Data source already initialized');
-    }
-
-    switch (action) {
-      case MigrationAction.UP:
-        logger.debug('Executing UP migrations...');
-        await executeRunMigrations(dataSource);
-        logger.debug('Migrations executed successfully');
-        return;
-      case MigrationAction.DOWN:
-        logger.debug('Executing DOWN migration (revert)...');
-        await executeRevertMigration(dataSource);
-        logger.debug('Migration reverted successfully');
-        return;
-      case MigrationAction.STATUS: {
-        logger.debug('Retrieving migration status...');
-        await executeListMigrations(dataSource);
-        logger.debug('Migration status retrieval completed');
-        return;
+      switch (action) {
+        case MigrationAction.UP:
+          await executeRunMigrations(dataSource);
+          break;
+        case MigrationAction.DOWN:
+          await executeRevertMigration(dataSource);
+          break;
+        case MigrationAction.STATUS:
+          await executeListMigrations(dataSource);
+          break;
+        default:
+          logger.warn(`Unexpected migration action: ${action}`);
       }
-      default:
-        logger.warn(`Unexpected migration action: ${action}`);
     }
   } finally {
-    if (dataSource.isInitialized) {
-      logger.debug('Destroying data source connection');
-      await dataSource.destroy();
-      logger.debug('Data source connection destroyed successfully');
-    } else {
-      logger.debug('Data source was not initialized, no cleanup needed');
+    for (const dataSource of dataSources) {
+      if (dataSource.isInitialized) {
+        await dataSource.destroy();
+      }
     }
   }
 }

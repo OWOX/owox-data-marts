@@ -1,0 +1,16 @@
+export const PLUGIN_COLLECTION_LIMITS = {
+  maxDocumentBytes: 1024 * 1024,
+  maxDocumentDepth: 100,
+  maxDocumentsPerNamespace: 10_000,
+  maxBytesPerNamespace: 100 * 1024 * 1024,
+  maxBytesPerPluginProject: 500 * 1024 * 1024,
+  maxBytesPerProject: 2 * 1024 * 1024 * 1024,
+  defaultPageSize: 50,
+  maxPageSize: 100,
+  maxAuthorizationScanRows: 10,
+  maxPageBytes: 4 * 1024 * 1024,
+  maxDocumentIdBytes: 200,
+  auditRetentionDays: 90,
+  maxAuditRowsPerPluginProject: 50_000,
+  maxAuditRowsPerProject: 500_000,
+} as const;

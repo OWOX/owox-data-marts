@@ -195,9 +195,13 @@ export default class Serve extends BaseCommand {
 
     this.log(`Starting server on port ${port} with ${logFormat} logs...`);
 
-    const { bootstrap, createHealthProbe } = await import('@owox/backend');
+    const { bootstrap, createHealthProbe, registerPluginCollectionsBodyParser } =
+      await import('@owox/backend');
 
     const expressApp = express();
+    // Must precede IDP middleware: some providers install Express's default 100 KiB
+    // JSON parser globally, while plugin collection documents are allowed up to 1 MiB.
+    registerPluginCollectionsBodyParser(expressApp);
     expressApp.set('trust proxy', 1);
 
     const corsConfig = buildCorsConfig();

@@ -4,7 +4,11 @@ import { PluginHostConfigService } from '../config/plugin-host.config';
 import { SyncPluginReleasesCommand } from '../dto/domain/plugin-sync.dto';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
-import { InvalidRepoLocatorError, PluginSyncRateLimitedError } from '../errors/plugin-host.errors';
+import {
+  InvalidRepoLocatorError,
+  PluginSyncLeaseLostError,
+  PluginSyncRateLimitedError,
+} from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
@@ -57,14 +61,15 @@ function setup() {
     createForRepo: jest.fn(),
     createOrFindForRepo: jest.fn(),
     syncRepoNaming: jest.fn().mockResolvedValue(undefined),
-    tryClaimSyncSlot: jest.fn().mockResolvedValue(true),
-    saveSyncOutcome: jest.fn().mockResolvedValue(undefined),
+    tryClaimSyncSlot: jest.fn().mockResolvedValue('lease-1'),
+    releaseSyncSlot: jest.fn().mockResolvedValue(undefined),
+    saveSyncOutcome: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<PluginService>;
 
   const versionService = {
     findBySemver: jest.fn().mockResolvedValue(null),
     findAllByPluginId: jest.fn().mockResolvedValue([]),
-    insertVersion: jest.fn(input => Promise.resolve({ id: `v-${input.semver}`, ...input })),
+    insertVersionForLease: jest.fn(input => Promise.resolve({ id: `v-${input.semver}`, ...input })),
   } as unknown as jest.Mocked<PluginVersionService>;
 
   const configService = { get: () => undefined } as unknown as ConfigService;
@@ -85,6 +90,34 @@ const run = (s: ReturnType<typeof setup>, enforceThrottle = true) =>
   s.service.run(new SyncPluginReleasesCommand(LOCATOR, enforceThrottle));
 
 describe('SyncPluginReleasesService', () => {
+  describe('sync lease fencing', () => {
+    it('does not record a version after the worker loses its lease', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
+      s.versionService.insertVersionForLease.mockResolvedValue(null);
+
+      await expect(run(s)).rejects.toBeInstanceOf(PluginSyncLeaseLostError);
+      expect(s.pluginService.saveSyncOutcome).not.toHaveBeenCalled();
+      expect(s.pluginService.releaseSyncSlot).toHaveBeenCalledWith('p1', 'lease-1');
+    });
+
+    it('does not promote a version after the worker loses its lease', async () => {
+      const s = setup();
+      s.pluginService.saveSyncOutcome.mockResolvedValue(false);
+
+      await expect(run(s)).rejects.toBeInstanceOf(PluginSyncLeaseLostError);
+      expect(s.pluginService.releaseSyncSlot).toHaveBeenCalledWith('p1', 'lease-1');
+    });
+
+    it('does not disguise an unexpected insert failure as a version conflict', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([release('v1.0.0')]);
+      s.versionService.insertVersionForLease.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(run(s)).rejects.toThrow('database unavailable');
+    });
+  });
+
   describe('identity and immutability', () => {
     it('resolves a renamed repository to the same plugin instead of creating a second one', async () => {
       const s = setup();
@@ -125,7 +158,7 @@ describe('SyncPluginReleasesService', () => {
 
       const result = await run(s);
 
-      expect(s.versionService.insertVersion).not.toHaveBeenCalled();
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
       expect(result.report.rejections).toEqual([
         expect.objectContaining({
           code: ReleaseRejectionCode.VERSION_CONFLICT,
@@ -148,7 +181,7 @@ describe('SyncPluginReleasesService', () => {
 
       const result = await run(s);
 
-      expect(s.versionService.insertVersion).not.toHaveBeenCalled();
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
       expect(result.report.rejections[0].code).toBe(ReleaseRejectionCode.VERSION_CONFLICT);
     });
 
@@ -165,7 +198,7 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(s.githubApi.getFileAtCommit).not.toHaveBeenCalled();
-      expect(s.versionService.insertVersion).not.toHaveBeenCalled();
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
       expect(result.report.unchangedSemvers).toEqual(['1.2.0']);
       expect(result.report.rejections).toEqual([]);
     });
@@ -188,7 +221,7 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(result.currentSemver).toBe('1.0.0');
-      expect(s.versionService.insertVersion).toHaveBeenCalledTimes(1);
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalledTimes(1);
       expect(result.report.rejections[0].code).toBe(ReleaseRejectionCode.MANIFEST_SCHEMA);
     });
 
@@ -208,7 +241,12 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(result.currentSemver).toBe('2.0.0');
-      expect(s.pluginService.saveSyncOutcome).toHaveBeenCalledWith('p1', 'c', expect.anything());
+      expect(s.pluginService.saveSyncOutcome).toHaveBeenCalledWith(
+        'p1',
+        'c',
+        expect.anything(),
+        'lease-1'
+      );
     });
 
     // Nothing pins an installation to a version, so recording anything below the newest
@@ -224,7 +262,7 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(result.report.acceptedSemvers).toEqual(['2.0.0']);
-      expect(s.versionService.insertVersion).toHaveBeenCalledTimes(1);
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalledTimes(1);
       expect(s.githubApi.resolveCommitSha).toHaveBeenCalledTimes(1);
       expect(s.githubApi.resolveCommitSha).toHaveBeenCalledWith(expect.anything(), 'v2.0.0');
     });
@@ -325,7 +363,7 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(result.report.rejections[0].code).toBe(ReleaseRejectionCode.IFRAME_BLOCKED);
-      expect(s.versionService.insertVersion).not.toHaveBeenCalled();
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
     });
 
     it('records what it accepted, with the exact commit', async () => {
@@ -334,7 +372,7 @@ describe('SyncPluginReleasesService', () => {
 
       const result = await run(s);
 
-      expect(s.versionService.insertVersion).toHaveBeenCalledWith(
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalledWith(
         expect.objectContaining({
           pluginId: 'p1',
           semver: '1.0.0',
@@ -342,9 +380,31 @@ describe('SyncPluginReleasesService', () => {
           githubReleaseId: 'id-v1.0.0',
           displayName: 'Example Plugin',
           deliveryUrl: 'https://plugin.example.com',
-        })
+          collections: [],
+        }),
+        'lease-1'
       );
       expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
+    });
+
+    it('rejects a release that removes a collection from the current manifest', async () => {
+      const s = setup();
+      s.githubApi.listReleases.mockResolvedValue([release('v2.0.0')]);
+      s.versionService.findAllByPluginId.mockResolvedValue([
+        {
+          id: 'v1',
+          semver: '1.0.0',
+          collections: [{ name: 'dashboards', scope: 'project' }],
+        },
+      ] as never);
+
+      const result = await run(s);
+
+      expect(result.report.rejections[0]).toMatchObject({
+        code: ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
+      });
+      expect(s.validator.validate).not.toHaveBeenCalled();
+      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
     });
 
     // One broken release must not take the good ones down with it.

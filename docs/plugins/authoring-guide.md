@@ -16,8 +16,8 @@ Five constraints cause almost every "why doesn't my plugin work" question. They 
 from the sandbox, not from policy, so no setting in OWOX Data Marts relaxes them.
 
 **Your page runs in an opaque origin.** No cookies, no `localStorage`, no `sessionStorage`,
-no `IndexedDB`, no service workers. Anything you keep between sessions has to live on your
-own backend, keyed by something you receive from OWOX Data Marts.
+no `IndexedDB`, no service workers. Use host-managed plugin collections for ordinary JSON
+state, or your own backend when collections do not fit the use case.
 
 **Calls to your own backend arrive with `Origin: null`.** Your backend must answer
 `Access-Control-Allow-Origin: *`, and it cannot authenticate them with cookies. If it
@@ -115,6 +115,7 @@ running inside an OWOX Data Marts frame, and if no host answers within 10 second
 |                                            |                                                                                                                                                                             |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ctx.owox`                                 | OWOX Data Marts API client. The SDK owns its transport; you cannot replace or inspect it.                                                                                   |
+| `ctx.collections(name)`                    | Host-managed JSON collection declared by the current plugin version.                                                                                                        |
 | `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab. The sandbox denies you both navigation and popups, so the host opens it, not you.                                  |
 | `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX Data Marts — `/ui/${ctx.projectId}/data-marts/${id}` — in place of your frame. Anything resolving off the app's origin is refused. |
 | `ctx.signal`                               | Aborts when the host tears your plugin down.                                                                                                                                |
@@ -142,6 +143,59 @@ await ctx.owox.patchJson('/api/example-resource/item-123', { title: 'Updated tit
 const deleted = await ctx.owox.deleteJson<Deleted>('/api/example-resource/item-123');
 await ctx.owox.deleteJson('/api/example-resource/item-123'); // Empty or 204 response: void
 ```
+
+## Persisting JSON with collections
+
+Declare every collection in `plugin.json`. The declaration is immutable in structure once
+released: later versions may add collections and change action mappings, but cannot remove a
+collection or change its name, scope, or entity binding.
+
+```json
+{
+  "collections": [
+    {
+      "name": "dashboards",
+      "scope": "project",
+      "entityBinding": {
+        "type": "data-mart",
+        "actions": {
+          "read": "SEE",
+          "create": "SEE",
+          "update": "SEE",
+          "delete": "SEE"
+        }
+      }
+    }
+  ]
+}
+```
+
+Project scope shares documents between eligible members of the project. Member scope creates
+a private namespace for each member. An optional entity binding can target `data-mart`,
+`storage`, `destination`, or `report`; OWOX checks the mapped existing action on every request.
+For a bound collection, `parentId` is required on create and cannot change later.
+
+```ts
+const dashboards = ctx.collections<Dashboard>('dashboards');
+
+await dashboards.put('revenue', dashboard, { parentId: dataMartId });
+const saved = await dashboards.get('revenue');
+const page = await dashboards.list({ limit: 50 });
+await dashboards.delete('revenue');
+```
+
+Collections store non-secret JSON only. Do not put credentials, access tokens, refresh tokens,
+or other secrets in a document. Platform limits are 1 MiB per document, 10,000 documents and
+100 MiB per namespace, 500 MiB per plugin and project, and 2 GiB across collections in a
+project. JSON may contain at most 100 nested containers. List pages contain at most 100
+documents and 4 MiB of JSON.
+
+Collection data survives uninstall, suspension, and recoverable deletion. Documents bound to
+a recoverably deleted parent are inaccessible until the parent is restored. There is no
+document schema validation or automatic migration; the plugin owns compatibility of its JSON.
+Mutation and authorization-denial audit records never include document bodies. They use rolling
+90-day retention and are additionally capped at 50,000 rows per plugin/project and 500,000 rows
+per project, with the oldest records removed first.
 
 ## Publishing
 
@@ -180,8 +234,9 @@ At install time a member sees your GitHub owner name, a link to it, and — for 
 repository — a link to the repository itself. A private repository discloses the owner
 only.
 
-They are also told plainly that your plugin acts with their access, that anything it reads
-can leave OWOX Data Marts, and that reinstalling restores nothing your plugin kept on its own side.
+They are also told plainly that your plugin acts with their access and that anything it reads
+can leave OWOX Data Marts. Reinstalling does not restore data kept on your own backend;
+host-managed collection data follows the retention behavior described above.
 Design accordingly: a member who feels misled about that is a member who uninstalls.
 
 ## When something goes wrong

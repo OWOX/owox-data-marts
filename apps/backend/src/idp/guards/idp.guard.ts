@@ -16,6 +16,7 @@ import { IdpProviderService } from '../services/idp-provider.service';
 import { ClsService } from 'nestjs-cls';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
 import { REJECT_PLUGIN_AUTH_METADATA } from '../decorators/reject-plugin-auth.decorator';
+import { REQUIRE_PLUGIN_AUTH_METADATA } from '../decorators/require-plugin-auth.decorator';
 import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import {
   PLUGIN_RUNTIME_AUTHORIZER,
@@ -70,6 +71,10 @@ export class IdpGuard implements CanActivate {
       REJECT_PLUGIN_AUTH_METADATA,
       [context.getHandler(), context.getClass()]
     );
+    const requirePluginAuth = this.reflector.getAllAndOverride<boolean>(
+      REQUIRE_PLUGIN_AUTH_METADATA,
+      [context.getHandler(), context.getClass()]
+    );
     const viewOnlySafe = this.reflector.getAllAndOverride<boolean>(VIEW_ONLY_SAFE_METADATA, [
       context.getHandler(),
     ]);
@@ -84,7 +89,7 @@ export class IdpGuard implements CanActivate {
     // apply view-only restrictions. Callers of these routes authenticate outside IDP
     // (e.g. InternalApiGuard service-account tokens, GoogleJwtBody connector JWTs).
     // A user view-only access token is not accepted as credentials on those paths.
-    if (roleConfig.optional) {
+    if (roleConfig.optional && !requirePluginAuth) {
       return true;
     }
 
@@ -92,7 +97,11 @@ export class IdpGuard implements CanActivate {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
       this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
       this.checkApiKeyHeaderBinding(request, tokenPayload);
-      await this.checkPluginRuntimeAuthorization(tokenPayload, Boolean(rejectPluginAuth));
+      await this.checkPluginRuntimeAuthorization(
+        tokenPayload,
+        Boolean(rejectPluginAuth),
+        Boolean(requirePluginAuth)
+      );
       this.checkViewOnlyRestrictions(request, tokenPayload, Boolean(viewOnlySafe));
 
       // Propagate only when true so normal sessions stay free of the flag.
@@ -226,9 +235,13 @@ export class IdpGuard implements CanActivate {
 
   private async checkPluginRuntimeAuthorization(
     tokenPayload: Payload,
-    rejectPluginAuth: boolean
+    rejectPluginAuth: boolean,
+    requirePluginAuth: boolean
   ): Promise<void> {
     if (tokenPayload.authFlow !== 'plugin') {
+      if (requirePluginAuth) {
+        throw new AuthorizationError('Plugin runtime authentication is required');
+      }
       return;
     }
 

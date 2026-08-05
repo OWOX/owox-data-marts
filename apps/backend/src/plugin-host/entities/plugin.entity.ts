@@ -77,6 +77,16 @@ export class Plugin {
   lastSyncAt: Date | null;
 
   /**
+   * Cross-instance sync lease. The random owner token prevents a stale worker from
+   * releasing a lease reclaimed by a newer worker after the staleness window.
+   */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  syncLeaseId: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  syncLeaseStartedAt: Date | null;
+
+  /**
    * When this deployment next checks GitHub for a higher version, and the member-facing
    * "next check" time.
    *

@@ -3,6 +3,7 @@ import { bootstrap } from './bootstrap';
 import express from 'express';
 import { Logger } from '@nestjs/common';
 import { loadEnv } from './load-env';
+import { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
 
 async function setupIdp(app: express.Express) {
   const idpProvider = new NullIdpProvider();
@@ -20,6 +21,7 @@ export async function main() {
   loadEnv();
   try {
     const app = express();
+    registerPluginCollectionsBodyParser(app);
     app.set('trust proxy', 1);
     app.get('/api/flags', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');

@@ -104,6 +104,15 @@ export class PluginSyncRateLimitedError extends PluginHostError {
   }
 }
 
+/** A stale sync worker lost its cross-instance lease and must not record or promote a version. */
+export class PluginSyncLeaseLostError extends PluginHostError {
+  readonly memberVisible = false;
+
+  constructor(pluginId: string) {
+    super('PLUGIN_SYNC_LEASE_LOST', 'Plugin synchronization lease was lost', { pluginId });
+  }
+}
+
 /**
  * The caller may not manage publications at the requested scope.
  *
