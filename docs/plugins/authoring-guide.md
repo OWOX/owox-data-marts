@@ -54,8 +54,8 @@ the application inside a protected frame and connects it to the installing membe
 These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them.
 
 **The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
-`IndexedDB`, or service workers. Anything kept between sessions must live on your own backend,
-keyed by an identifier received from OWOX Data Marts.
+`IndexedDB`, or service workers. Use host-managed plugin collections for ordinary JSON state, or
+your own backend when collections do not fit the use case.
 
 **Calls to your backend arrive with `Origin: null`.** The backend must answer
 `Access-Control-Allow-Origin: *`, and it cannot authenticate requests with cookies. Pass an
@@ -106,6 +106,7 @@ Marts frame or if no host answers within 10 seconds.
 | Context value | What it provides |
 | --- | --- |
 | `ctx.owox` | Authenticated [OWOX Data Marts API client](../api/api-client.md), supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). Use the API client documentation to discover available methods. Do not install `@owox/api-client` or provide an API key inside a plugin; the SDK owns its transport, which cannot be replaced or inspected. |
+| `ctx.collections(name)` | Provides a host-managed JSON collection declared by the current plugin version. |
 | `ctx.ui.openExternal(url)` | Asks the host to open an external HTTPS address in a new tab. |
 | `ctx.ui.navigate(path)` | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused. |
 | `ctx.signal` | Aborts when the host tears the plugin down. |
@@ -201,6 +202,59 @@ data-driven screen should include loading, empty, error, and success states.
 
 Do not depend on undocumented host HTML or CSS: it cannot cross the iframe boundary and may change
 without notice.
+
+## Persisting JSON with collections
+
+Declare every collection in `plugin.json`. The declaration is immutable in structure once
+released: later versions may add collections and change action mappings, but cannot remove a
+collection or change its name, scope, or entity binding.
+
+```json
+{
+  "collections": [
+    {
+      "name": "dashboards",
+      "scope": "project",
+      "entityBinding": {
+        "type": "data-mart",
+        "actions": {
+          "read": "SEE",
+          "create": "SEE",
+          "update": "SEE",
+          "delete": "SEE"
+        }
+      }
+    }
+  ]
+}
+```
+
+Project scope shares documents between eligible members of the project. Member scope creates
+a private namespace for each member. An optional entity binding can target `data-mart`,
+`storage`, `destination`, or `report`; OWOX checks the mapped existing action on every request.
+For a bound collection, `parentId` is required on create and cannot change later.
+
+```ts
+const dashboards = ctx.collections<Dashboard>('dashboards');
+
+await dashboards.put('revenue', dashboard, { parentId: dataMartId });
+const saved = await dashboards.get('revenue');
+const page = await dashboards.list({ limit: 50 });
+await dashboards.delete('revenue');
+```
+
+Collections store non-secret JSON only. Do not put credentials, access tokens, refresh tokens,
+or other secrets in a document. Platform limits are 1 MiB per document, 10,000 documents and
+100 MiB per namespace, 500 MiB per plugin and project, and 2 GiB across collections in a
+project. JSON may contain at most 100 nested containers. List pages contain at most 100
+documents and 4 MiB of JSON.
+
+Collection data survives uninstall, suspension, and recoverable deletion. Documents bound to
+a recoverably deleted parent are inaccessible until the parent is restored. There is no
+document schema validation or automatic migration; the plugin owns compatibility of its JSON.
+Mutation and authorization-denial audit records never include document bodies. They use rolling
+90-day retention and are additionally capped at 50,000 rows per plugin/project and 500,000 rows
+per project, with the oldest records removed first.
 
 ## Define the plugin manifest
 

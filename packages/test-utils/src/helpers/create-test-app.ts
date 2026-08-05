@@ -24,6 +24,7 @@ export async function createTestApp(
   // each Jest worker runs in a separate process and createTestApp() is always called first.
   process.env.DB_TYPE = 'sqlite';
   process.env.SQLITE_DB_PATH = ':memory:';
+  process.env.PLUGIN_COLLECTIONS_SQLITE_DB_PATH = ':memory:';
   process.env.RUN_MIGRATIONS = 'false';
   process.env.NODE_ENV = 'test';
 
@@ -51,6 +52,10 @@ export async function createTestApp(
 
   // Set up express with NullIdpProvider (mirrors main.ts setup)
   const expressApp = (express.default || express)();
+  const { registerPluginCollectionsBodyParser } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/config/plugin-collections-body-parser.config'
+  );
+  registerPluginCollectionsBodyParser(expressApp);
   expressApp.set('trust proxy', 1);
   const idpProvider = new NullIdpProvider();
   await idpProvider.initialize();
@@ -111,6 +116,9 @@ export async function createTestApp(
   const dataSource = moduleRef.get(DataSource);
   await dataSource.query('PRAGMA foreign_keys = ON'); // requirement INFR-03
   await dataSource.runMigrations(); // use real migrations to match production behavior
+  const { getDataSourceToken } = resolveFromBackend('@nestjs/typeorm');
+  const collectionsDataSource = moduleRef.get(getDataSourceToken('pluginCollections'));
+  await collectionsDataSource.runMigrations();
 
   await app.init();
 

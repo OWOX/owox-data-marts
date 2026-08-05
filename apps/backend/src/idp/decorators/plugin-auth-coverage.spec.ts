@@ -99,7 +99,7 @@ describe('plugin runtime token coverage', () => {
    * stay open by omission.
    */
   const PLUGIN_HOST_CONTROLLERS = controllerFiles().filter(file =>
-    file.includes(join('plugin-host', 'controllers'))
+    file.includes(join('plugin-host'))
   );
 
   const WRITE_DECORATOR = /^\s*@(Post|Put|Patch|Delete)\(/;
@@ -108,12 +108,17 @@ describe('plugin runtime token coverage', () => {
     '%s refuses a plugin runtime token on every write route',
     (_name, source) => {
       const lines = source.split('\n');
-      const classGuarded = lines.some(
+      const classRejectsPlugin = lines.some(
         (line, i) =>
           line.trim() === '@RejectPluginAuth()' &&
           lines.slice(i + 1, i + 6).some(l => l.startsWith('export class'))
       );
-      if (classGuarded) {
+      const classRequiresPlugin = lines.some(
+        (line, i) =>
+          line.trim() === '@RequirePluginAuth()' &&
+          lines.slice(i + 1, i + 6).some(l => l.startsWith('export class'))
+      );
+      if (classRejectsPlugin || classRequiresPlugin) {
         return;
       }
 

@@ -19,7 +19,10 @@ describe('serializeSqliteTransactions', () => {
     ) => Promise<T>
   >;
 
-  const createDataSource = (type: DataSource['options']['type']): DataSource => {
+  const createDataSource = (
+    type: DataSource['options']['type'],
+    database = `test-${Math.random()}`
+  ): DataSource => {
     const manager = {} as EntityManager;
     const transaction: TransactionMock = jest.fn(
       async <T>(
@@ -36,7 +39,7 @@ describe('serializeSqliteTransactions', () => {
     );
 
     return {
-      options: { type },
+      options: { type, database },
       transaction,
     } as unknown as DataSource;
   };
@@ -129,6 +132,27 @@ describe('serializeSqliteTransactions', () => {
       value: 'second result',
     });
     expect(executionOrder).toEqual(['start:first', 'start:second']);
+  });
+
+  it('shares one transaction queue across named connections to the same SQLite file', async () => {
+    const main = createDataSource('better-sqlite3', '/tmp/shared.db');
+    const collections = createDataSource('better-sqlite3', '/tmp/shared.db');
+    serializeSqliteTransactions(main);
+    serializeSqliteTransactions(collections);
+    const order: string[] = [];
+
+    const first = main.transaction(async () => {
+      order.push('main:start');
+      await wait(20);
+      order.push('main:end');
+    });
+    const second = collections.transaction(async () => {
+      order.push('collections:start');
+      order.push('collections:end');
+    });
+
+    await Promise.all([first, second]);
+    expect(order).toEqual(['main:start', 'main:end', 'collections:start', 'collections:end']);
   });
 
   it('serializes @Transactional methods through the registered sqlite data source', async () => {
