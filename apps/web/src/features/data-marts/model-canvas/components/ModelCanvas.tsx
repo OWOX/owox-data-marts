@@ -351,7 +351,7 @@ function ModelCanvasInner({
     () => ({
       exportCanvas: async format => {
         const { exportModelCanvas } = await import('../export');
-        await exportModelCanvas(format, {
+        return exportModelCanvas(format, {
           viewport: flowDomNode?.querySelector<HTMLElement>('.react-flow__viewport') ?? null,
           flowNodes,
           nodes,

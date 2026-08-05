@@ -163,7 +163,15 @@ function ModelCanvasViewContent({ onActiveQualityRunChange }: ModelCanvasViewPro
     isExportingRef.current = true;
     void (async () => {
       try {
-        await canvasExportRef.current?.exportCanvas(format);
+        // The handle registers once the lazy canvas chunk mounts, and the
+        // export itself declines until the first layout pass — in both windows
+        // nothing downloads, so say so instead of silently succeeding, and
+        // record analytics only for real downloads.
+        const exported = (await canvasExportRef.current?.exportCanvas(format)) ?? false;
+        if (!exported) {
+          toast('The canvas is still loading — please try again in a moment.');
+          return;
+        }
         trackEvent({
           event: 'model_canvas_exported',
           category: 'DataMart',

@@ -22,27 +22,32 @@ export interface ModelCanvasExportContext {
 }
 
 export interface ModelCanvasExportHandle {
-  exportCanvas: (format: DataMartCanvasExportFormat) => Promise<void>;
+  /** Resolves `true` once a download was actually triggered. */
+  exportCanvas: (format: DataMartCanvasExportFormat) => Promise<boolean>;
 }
 
+/**
+ * Returns `false` (and downloads nothing) while the canvas is not ready:
+ * before the first layout pass populates the measured nodes, every format
+ * would lie — images would capture nothing and JSON/OKF would serialize all
+ * positions at (0, 0). Capture failures still reject.
+ */
 export async function exportModelCanvas(
   format: DataMartCanvasExportFormat,
   context: ModelCanvasExportContext
-): Promise<void> {
-  if (context.nodes.length === 0) return;
+): Promise<boolean> {
+  if (context.nodes.length === 0 || context.flowNodes.length === 0) return false;
   const filename = buildExportFileName(context.storageTitle);
 
   if (format === 'svg' || format === 'png') {
-    if (!context.viewport || context.flowNodes.length === 0) {
-      throw new Error('Canvas is not ready for image export');
-    }
+    if (!context.viewport) return false;
     const background = resolveCanvasBackground(context.viewport);
     const blob =
       format === 'svg'
         ? await exportCanvasSvg(context.viewport, context.flowNodes, background)
         : await exportCanvasPng(context.viewport, context.flowNodes, background);
     downloadBlob(blob, `${filename}.${format}`);
-    return;
+    return true;
   }
 
   const positions = new Map<string, PathPoint>(
@@ -58,10 +63,11 @@ export async function exportModelCanvas(
   if (format === 'json') {
     const json = JSON.stringify(sanitizeModelGraph(graph), null, 2);
     downloadBlob(new Blob([json], { type: 'application/json' }), `${filename}.json`);
-    return;
+    return true;
   }
 
   const bundle = serializeOkfBundle(graph, context.storageTitle ?? 'Data Marts');
   const zip = bundleToZip(bundle.files);
   downloadBlob(new Blob([zip.slice()], { type: 'application/zip' }), `${filename}.zip`);
+  return true;
 }
