@@ -32,6 +32,8 @@ export interface ModelGraphNode {
   title: string;
   inputSource: ModelGraphInputSource;
   description?: string;
+  /** Physical reference (table/view path, pattern) or SQL text; OKF-only, see sanitize. */
+  definition?: string | null;
   schema: ModelGraphSchemaField[];
   position: { x: number; y: number };
   status: ModelGraphNodeStatus;
@@ -89,6 +91,7 @@ export function canvasToModelGraph(input: CanvasModelGraphInput): ModelGraph {
       ? INPUT_SOURCE_BY_DEFINITION_TYPE[node.definitionType]
       : 'TABLE',
     description: node.description ?? undefined,
+    definition: node.definition ?? null,
     schema: (node.fields ?? []).map(field => ({
       name: field.name,
       type: field.type,
@@ -127,7 +130,9 @@ export type SanitizedModelGraph = Omit<ModelGraph, 'storageId'>;
  * Strip everything project-specific before the graph leaves the product as a
  * JSON file — the same rules model.owox.com applies to its share links. The
  * `storageId` field is dropped entirely: it only carries meaning in the Model
- * Canvas push flow, and its import tolerates the field being absent.
+ * Canvas push flow, and its import tolerates the field being absent. The
+ * `definition` (table paths / SQL text) stays out of JSON too — as in the
+ * reference share links — and is emitted only into the OKF documents.
  */
 export function sanitizeModelGraph(graph: ModelGraph): SanitizedModelGraph {
   return {

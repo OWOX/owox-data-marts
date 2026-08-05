@@ -35,6 +35,8 @@ export interface ModelCanvasNode {
    */
   definitionType?: DataMartDefinitionType | null;
   fields?: CanvasNodeField[];
+  /** Physical reference (table/view path, pattern) or SQL text — enriched client-side. */
+  definition?: string | null;
   qualitySummary: DataQualityCompactSummary;
   dataLastUpdated: DataLastUpdatedDto | null;
 }

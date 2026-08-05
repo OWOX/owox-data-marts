@@ -51,6 +51,7 @@ describe('canvasToModelGraph', () => {
           id: 'id-orders',
           title: 'Orders',
           definitionType: DataMartDefinitionType.SQL,
+          definition: 'SELECT * FROM orders',
           description: 'All orders',
           fields: [
             {
@@ -96,6 +97,7 @@ describe('canvasToModelGraph', () => {
         title: 'Orders',
         inputSource: 'SQL',
         description: 'All orders',
+        definition: 'SELECT * FROM orders',
         schema: [
           { name: 'order_id', type: 'STRING', pk: true, alias: 'Order ID' },
           { name: 'total', type: 'NUMERIC', pk: false },
@@ -108,6 +110,7 @@ describe('canvasToModelGraph', () => {
         title: 'Customers',
         inputSource: 'TABLE',
         description: undefined,
+        definition: null,
         schema: [],
         position: { x: 0, y: 0 },
         status: 'pending',
@@ -149,5 +152,6 @@ describe('sanitizeModelGraph', () => {
     expect(sanitized).not.toHaveProperty('storageId');
     expect(sanitized.nodes[0]).toMatchObject({ status: 'pending' });
     expect(sanitized.nodes[0]).not.toHaveProperty('owoxId');
+    expect(sanitized.nodes[0]).not.toHaveProperty('definition');
   });
 });

@@ -98,6 +98,26 @@ describe('serializeOkfBundle', () => {
     expect(files['data-marts/customers-vip.md']).toContain('Customer \\| ID');
   });
 
+  it('renders a Definition section with the table path or SQL text when present', () => {
+    const { files } = serializeOkfBundle({
+      ...GRAPH,
+      nodes: GRAPH.nodes.map(node =>
+        node.key === 'orders'
+          ? { ...node, definition: 'SELECT id, revenue FROM raw.orders' }
+          : { ...node, definition: 'project.dataset.customers' }
+      ),
+    });
+    expect(files['data-marts/orders.md']).toContain(
+      '## Definition\n\n```sql\nSELECT id, revenue FROM raw.orders\n```'
+    );
+    expect(files['data-marts/customers.md']).toContain(
+      '## Definition\n\n```text\nproject.dataset.customers\n```'
+    );
+    // Without a definition the section is omitted entirely.
+    const { files: bare } = serializeOkfBundle(GRAPH);
+    expect(bare['data-marts/orders.md']).not.toContain('## Definition');
+  });
+
   it('escapes square brackets so titles cannot terminate their links early', () => {
     const { files } = serializeOkfBundle({
       ...GRAPH,

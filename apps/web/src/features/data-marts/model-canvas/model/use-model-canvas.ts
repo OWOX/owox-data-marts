@@ -5,6 +5,7 @@ import type { AxiosRequestConfig } from '../../../../app/api';
 import { dataMartService } from '../../shared/services/data-mart.service';
 import type { DataMartSchema } from '../../shared/types/data-mart-schema.types';
 import { modelCanvasService } from '../api/model-canvas.service';
+import { extractDefinitionText } from './definition-text';
 import type { CanvasNodeField, ModelCanvasTopologyData, ModelCanvasTopologyNode } from './types';
 
 const SILENT_REQUEST_OPTIONS = {
@@ -54,6 +55,7 @@ async function enrichNodes(
       enriched[start + index] = {
         ...target,
         definitionType: detail.definitionType,
+        definition: extractDefinitionText(detail.definitionType, detail.definition),
         fields: mapSchemaFields(detail.schema),
       };
     });

@@ -136,6 +136,10 @@ function renderNode(
       '\n\n'
     : '';
 
+  const definition = node.definition?.trim()
+    ? `## Definition\n\n\`\`\`${node.inputSource === 'SQL' ? 'sql' : 'text'}\n${node.definition.trim()}\n\`\`\`\n\n`
+    : '';
+
   const outgoing = graph.edges.filter(
     edge => edge.from === node.key || (edge.bidirectional && edge.to === node.key)
   );
@@ -159,5 +163,5 @@ function renderNode(
       '\n'
     : '';
 
-  return `---\n${frontmatter}\n---\n\n# ${node.title}\n${node.description ? '\n' + node.description + '\n' : ''}\n${overview}${schema}${joins}`;
+  return `---\n${frontmatter}\n---\n\n# ${node.title}\n${node.description ? '\n' + node.description + '\n' : ''}\n${overview}${schema}${definition}${joins}`;
 }
