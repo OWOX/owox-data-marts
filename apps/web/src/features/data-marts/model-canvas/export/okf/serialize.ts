@@ -125,6 +125,9 @@ function renderNode(
         .map(field => {
           const parts: string[] = [];
           if (field.pk) parts.push('PK.');
+          // Newlines would end the Markdown table row, so multi-line
+          // descriptions collapse to a single line.
+          if (field.description) parts.push(field.description.replace(/\s+/g, ' ').trim());
           const ref = fk.get(field.name);
           if (ref) parts.push(`FK to [${escapeLinkText(ref.title)}](./${ref.slug}.md)`);
           const cells = withAlias

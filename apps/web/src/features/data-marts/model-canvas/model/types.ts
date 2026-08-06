@@ -17,6 +17,8 @@ export interface CanvasNodeField {
   /** Human-friendly alias (businessName / displayName) when set, else the raw name. */
   alias: string;
   type: string;
+  /** Business description from the Output Schema — exported, not rendered on the card. */
+  description?: string;
   isPrimaryKey: boolean;
   /** Hidden-for-reporting fields (usually surrogate join keys). */
   isHidden: boolean;

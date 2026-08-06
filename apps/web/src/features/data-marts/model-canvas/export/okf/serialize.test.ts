@@ -12,7 +12,7 @@ const GRAPH: ModelGraph = {
       description: 'All orders',
       schema: [
         { name: 'order_id', type: 'STRING', pk: true },
-        { name: 'customer_id', type: 'STRING', pk: false },
+        { name: 'customer_id', type: 'STRING', pk: false, description: 'Reference to the buyer.' },
       ],
       position: { x: 0, y: 0 },
       status: 'created',
@@ -64,6 +64,31 @@ describe('serializeOkfBundle', () => {
     expect(files['data-marts/orders.md']).toContain('FK to [Customers](./customers.md)');
     expect(files['data-marts/customers.md']).toContain('| Column | Type | Alias | Description |');
     expect(files['data-marts/customers.md']).toContain('Customer ID');
+  });
+
+  it('renders field descriptions before the FK note, collapsed to one line', () => {
+    const { files } = serializeOkfBundle(GRAPH);
+    // Description and FK note share the cell, description first (reference order).
+    expect(files['data-marts/orders.md']).toContain(
+      '| `customer_id` | STRING | Reference to the buyer. FK to [Customers](./customers.md) |'
+    );
+    // A multi-line description would end the table row, so it collapses.
+    const { files: multiline } = serializeOkfBundle({
+      ...GRAPH,
+      nodes: GRAPH.nodes.map(node =>
+        node.key === 'orders'
+          ? {
+              ...node,
+              schema: [
+                { name: 'total', type: 'NUMERIC', pk: false, description: 'Line one\nline two' },
+              ],
+            }
+          : node
+      ),
+    });
+    expect(multiline['data-marts/orders.md']).toContain(
+      '| `total` | NUMERIC | Line one line two |'
+    );
   });
 
   it('renders the index table with statuses resolved and the product footer', () => {

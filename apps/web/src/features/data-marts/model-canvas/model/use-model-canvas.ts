@@ -22,6 +22,7 @@ function mapSchemaFields(schema: DataMartSchema | null | undefined): CanvasNodeF
     name: field.name,
     alias: field.alias?.trim() ? field.alias : field.name,
     type: field.type,
+    ...(field.description?.trim() ? { description: field.description } : {}),
     isPrimaryKey: field.isPrimaryKey,
     isHidden: field.isHiddenForReporting ?? false,
   }));

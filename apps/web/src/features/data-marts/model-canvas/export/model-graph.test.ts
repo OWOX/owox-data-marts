@@ -65,6 +65,7 @@ describe('canvasToModelGraph', () => {
               name: 'total',
               alias: 'total',
               type: 'NUMERIC',
+              description: 'Order total in USD.',
               isPrimaryKey: false,
               isHidden: false,
             },
@@ -100,7 +101,7 @@ describe('canvasToModelGraph', () => {
         definition: 'SELECT * FROM orders',
         schema: [
           { name: 'order_id', type: 'STRING', pk: true, alias: 'Order ID' },
-          { name: 'total', type: 'NUMERIC', pk: false },
+          { name: 'total', type: 'NUMERIC', pk: false, description: 'Order total in USD.' },
         ],
         position: { x: 10, y: 20 },
         status: 'created',
@@ -167,7 +168,22 @@ describe('canvasToModelGraph', () => {
 describe('sanitizeModelGraph', () => {
   it('strips storage, ids and statuses before the graph leaves as a file', () => {
     const graph = canvasToModelGraph({
-      nodes: [buildNode({ id: 'id-orders', title: 'Orders' })],
+      nodes: [
+        buildNode({
+          id: 'id-orders',
+          title: 'Orders',
+          fields: [
+            {
+              name: 'total',
+              alias: 'total',
+              type: 'NUMERIC',
+              description: 'Order total in USD.',
+              isPrimaryKey: false,
+              isHidden: false,
+            },
+          ],
+        }),
+      ],
       edges: [],
       positions: new Map(),
       storageLabel: 'BigQuery (Common)',
@@ -177,5 +193,7 @@ describe('sanitizeModelGraph', () => {
     expect(sanitized.nodes[0]).toMatchObject({ status: 'pending' });
     expect(sanitized.nodes[0]).not.toHaveProperty('owoxId');
     expect(sanitized.nodes[0]).not.toHaveProperty('definition');
+    // Field descriptions stay in the JSON export.
+    expect(sanitized.nodes[0]?.schema[0]?.description).toBe('Order total in USD.');
   });
 });

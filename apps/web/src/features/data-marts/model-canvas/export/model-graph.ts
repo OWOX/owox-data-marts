@@ -17,6 +17,7 @@ export interface ModelGraphSchemaField {
   type: string;
   pk: boolean;
   alias?: string;
+  description?: string;
 }
 
 export interface ModelGraphJoinKey {
@@ -99,6 +100,7 @@ export function canvasToModelGraph(input: CanvasModelGraphInput): ModelGraph {
       type: field.type,
       pk: field.isPrimaryKey,
       ...(field.alias && field.alias !== field.name ? { alias: field.alias } : {}),
+      ...(field.description ? { description: field.description } : {}),
     })),
     position: input.positions.get(node.id) ?? { x: 0, y: 0 },
     status: node.status === DataMartStatus.PUBLISHED ? 'created' : 'pending',
