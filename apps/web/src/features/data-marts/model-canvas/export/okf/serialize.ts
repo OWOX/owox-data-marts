@@ -2,9 +2,15 @@ import type { ModelGraph, ModelGraphNode } from '../model-graph';
 import { slugify } from '../slug';
 import { renderFrontmatter } from './frontmatter';
 
-/** Keep a value from breaking out of its Markdown table cell. */
+/**
+ * Keep a value from breaking out of its Markdown table cell. The HTML entity is
+ * used instead of the GFM `\|` escape because the Model Canvas importer splits
+ * rows on every raw pipe without recognizing backslash escapes, which would
+ * truncate the cell on re-import; `&#124;` renders as `|` and survives the
+ * split intact.
+ */
 function escapeTableCell(value: string): string {
-  return value.replace(/\|/g, '\\|');
+  return value.replace(/\|/g, '&#124;');
 }
 
 /** Keep a title from terminating its `[text](./slug.md)` link early. */

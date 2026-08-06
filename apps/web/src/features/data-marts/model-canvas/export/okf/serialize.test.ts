@@ -119,8 +119,38 @@ describe('serializeOkfBundle', () => {
           : node
       ),
     });
-    expect(files['data-marts/index.md']).toContain('[Customers \\| VIP]');
-    expect(files['data-marts/customers-vip.md']).toContain('Customer \\| ID');
+    expect(files['data-marts/index.md']).toContain('[Customers &#124; VIP]');
+    expect(files['data-marts/customers-vip.md']).toContain('Customer &#124; ID');
+  });
+
+  it('keeps a piped description intact through the importer raw-pipe row split', () => {
+    const { files } = serializeOkfBundle({
+      ...GRAPH,
+      nodes: GRAPH.nodes.map(node =>
+        node.key === 'orders'
+          ? {
+              ...node,
+              schema: [
+                {
+                  name: 'segment',
+                  type: 'STRING',
+                  pk: false,
+                  description: 'Eligible A | B customers',
+                },
+              ],
+            }
+          : node
+      ),
+    });
+    const row = files['data-marts/orders.md'].split('\n').find(line => line.includes('`segment`'));
+    // The Model Canvas importer splits rows on every raw pipe without
+    // recognizing GFM `\|` escapes — the cell must survive that split whole.
+    const cells = String(row).split('|').slice(1, -1);
+    expect(cells.map(cell => cell.trim())).toEqual([
+      '`segment`',
+      'STRING',
+      'Eligible A &#124; B customers',
+    ]);
   });
 
   it('renders a Definition section with the table path or SQL text when present', () => {
