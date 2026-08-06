@@ -7,6 +7,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@owox/ui/components/empty';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@owox/ui/components/select';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { GitMerge, Link2, List, Network, Plus } from 'lucide-react';
@@ -38,9 +45,11 @@ import type {
 
 import { storageService } from '../../../../../services/localstorage.service';
 import {
+  filterTransientRows,
   parseRelationshipStatusFilter,
+  RELATIONSHIP_STATUS_FILTER_OPTIONS,
   type RelationshipStatusFilter,
-} from './relationship-canvas-filters';
+} from './relationship-filters';
 import { cleanBlendedFieldOverride } from './blended-field-override.utils';
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
@@ -247,9 +256,9 @@ export function DataMartRelationshipsContent({
     viewMode === 'graph'
   );
 
-  // Diagram filters live here (not inside the canvas) so the inline and
-  // fullscreen instances stay in sync; keys are scoped per data mart because
-  // a filter useful on one mart's diagram would silently truncate another's.
+  // Toolbar filters apply to both the list and the diagram (and keep the
+  // inline and fullscreen canvas instances in sync); keys are scoped per data
+  // mart because a filter useful on one mart would silently truncate another's.
   const showLoopedKey = `relationship-canvas-show-looped:${dataMartId}`;
   const statusFilterKey = `relationship-canvas-status-filter:${dataMartId}`;
   const [showLooped, setShowLooped] = useState(
@@ -276,14 +285,15 @@ export function DataMartRelationshipsContent({
   );
 
   const filteredRows = useMemo(() => {
-    if (!searchQuery) return transientRows;
+    const rows = filterTransientRows(transientRows, { showLooped, statusFilter });
+    if (!searchQuery) return rows;
     const q = searchQuery.toLowerCase();
-    return transientRows.filter(
+    return rows.filter(
       row =>
         row.relationship.targetDataMart.title.toLowerCase().includes(q) ||
         row.relationship.targetAlias.toLowerCase().includes(q)
     );
-  }, [transientRows, searchQuery]);
+  }, [transientRows, showLooped, statusFilter, searchQuery]);
 
   // Backend enforces (sourceDataMartId, targetAlias) uniqueness. Precompute
   // sibling aliases per relationship so each row gets a stable reference and
@@ -445,16 +455,49 @@ export function DataMartRelationshipsContent({
 
   function renderToolbar() {
     return (
-      <div className='flex items-center justify-between gap-2 pb-4'>
-        <SearchInput
-          id='search-relationships'
-          placeholder='Search data marts'
-          value={searchInput}
-          onChange={setSearchInput}
-          debounceTime={0}
-          className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
-          aria-label='Search data marts'
-        />
+      <div className='flex min-w-0 items-center justify-between gap-2 pb-4'>
+        <div className='flex min-w-0 flex-nowrap items-center gap-2'>
+          <SearchInput
+            id='search-relationships'
+            placeholder='Search data marts'
+            value={searchInput}
+            onChange={setSearchInput}
+            debounceTime={0}
+            className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
+            aria-label='Search data marts'
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={value => {
+              handleStatusFilterChange(value as RelationshipStatusFilter);
+            }}
+          >
+            <SelectTrigger className='w-[180px] min-w-[150px]' aria-label='Status'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RELATIONSHIP_STATUS_FILTER_OPTIONS.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={showLooped ? 'show' : 'hide'}
+            onValueChange={value => {
+              handleShowLoopedChange(value === 'show');
+            }}
+          >
+            <SelectTrigger className='w-[220px] min-w-[180px]' aria-label='Looped data marts'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='hide'>Hide looped data marts</SelectItem>
+              <SelectItem value='show'>Show looped data marts</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className='flex items-center gap-2'>
           {transientRows.length > 0 && (
             <span className='text-muted-foreground mr-2 flex items-center gap-1 text-sm'>
@@ -500,9 +543,7 @@ export function DataMartRelationshipsContent({
             connectedFieldCounts={connectedFieldCounts}
             searchQuery={searchQuery}
             showLooped={showLooped}
-            onShowLoopedChange={handleShowLoopedChange}
             statusFilter={statusFilter}
-            onStatusFilterChange={handleStatusFilterChange}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -521,10 +562,10 @@ export function DataMartRelationshipsContent({
       );
     }
 
-    if (filteredRows.length === 0 && searchQuery) {
+    if (filteredRows.length === 0) {
       return (
         <div className='text-muted-foreground px-4 py-6 text-sm'>
-          No relationships match your search.
+          No relationships match your search or filters.
         </div>
       );
     }
@@ -685,9 +726,7 @@ export function DataMartRelationshipsContent({
                 connectedFieldCounts={connectedFieldCounts}
                 searchQuery={searchQuery}
                 showLooped={showLooped}
-                onShowLoopedChange={handleShowLoopedChange}
                 statusFilter={statusFilter}
-                onStatusFilterChange={handleStatusFilterChange}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

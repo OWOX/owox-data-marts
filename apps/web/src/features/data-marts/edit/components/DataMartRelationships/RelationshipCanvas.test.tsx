@@ -302,19 +302,17 @@ describe('RelationshipCanvas filters', () => {
     vi.restoreAllMocks();
   });
 
-  it('hides looped relationships by default and shows them when toggled on', async () => {
+  it('hides looped relationships when showLooped is off and shows them when on', async () => {
     const loop = buildRelationship('rel-loop', 'source-1');
-    render(
-      <RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1'), loop])} />
-    );
+    const relationships = [buildRelationship('rel-1', 'target-1'), loop];
+    const { rerender } = render(<RelationshipCanvas {...buildCanvasProps(relationships)} />);
 
     // Root + the ordinary target; the self-referencing loop is filtered out.
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Diagram filters' }));
-    fireEvent.click(await screen.findByRole('switch', { name: 'Show looped Data Marts' }));
+    rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} showLooped />);
 
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
@@ -366,52 +364,24 @@ describe('RelationshipCanvas filters', () => {
     expect(reactFlowHarness.latestProps?.deleteKeyCode).toBeNull();
   });
 
-  it('uses controlled filter props when provided instead of its internal state', async () => {
-    const onShowLoopedChange = vi.fn();
-    const loop = buildRelationship('rel-loop', 'source-1');
-    render(
-      <RelationshipCanvas
-        {...buildCanvasProps([buildRelationship('rel-1', 'target-1'), loop])}
-        showLooped
-        onShowLoopedChange={onShowLoopedChange}
-        statusFilter='all'
-        onStatusFilterChange={vi.fn()}
-      />
-    );
-
-    // Controlled showLooped=true renders the loop node (3 = root + target + loop).
-    await waitFor(() => {
-      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /Diagram filters/ }));
-    fireEvent.click(await screen.findByRole('switch', { name: 'Show looped Data Marts' }));
-
-    // The change is delegated to the owner, not applied internally.
-    expect(onShowLoopedChange).toHaveBeenCalledWith(false);
-    expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
-  });
-
   it('filters targets by status', async () => {
     const draft = buildRelationship('rel-draft', 'target-draft');
     draft.targetDataMart.status = 'DRAFT';
-    render(
-      <RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1'), draft])} />
-    );
+    const relationships = [buildRelationship('rel-1', 'target-1'), draft];
+    const { rerender } = render(<RelationshipCanvas {...buildCanvasProps(relationships)} />);
 
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Diagram filters' }));
-    fireEvent.click(await screen.findByRole('radio', { name: 'Draft' }));
+    rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} statusFilter='DRAFT' />);
 
     // Root + the draft target only.
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+    rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} statusFilter='all' />);
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
     });
@@ -436,6 +406,8 @@ function buildCanvasProps(relationships: DataMartRelationship[]) {
     relationships,
     relationshipGraph: null,
     searchQuery: '',
+    showLooped: false,
+    statusFilter: 'all' as const,
   };
 }
 

@@ -1,14 +1,10 @@
 import { Badge } from '@owox/ui/components/badge';
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/components/popover';
-import { Switch } from '@owox/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
-  Check,
   ExternalLink,
   Info,
   Locate,
   Maximize2,
-  Settings,
   TriangleAlert,
   ZoomIn,
   ZoomOut,
@@ -33,7 +29,6 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Button } from '../../../../../shared/components/Button';
 import { useProjectRoute } from '../../../../../shared/hooks';
-import { storageService } from '../../../../../services/localstorage.service';
 import {
   DIMMED_OPACITY,
   EDGE_NEUTRAL_COLOR,
@@ -74,11 +69,7 @@ import {
   getNextGraphZoom,
   type GraphZoomRange,
 } from './relationship-canvas-zoom';
-import {
-  parseRelationshipStatusFilter,
-  RELATIONSHIP_STATUS_FILTER_OPTIONS,
-  type RelationshipStatusFilter,
-} from './relationship-canvas-filters';
+import type { RelationshipStatusFilter } from './relationship-filters';
 
 interface RelationshipCanvasProps {
   dataMartId: string;
@@ -94,11 +85,13 @@ interface RelationshipCanvasProps {
   connectedFieldCounts?: Map<string, number>;
   searchQuery: string;
   onRequestFullscreen?: () => void;
-  /** Controlled diagram filters — see RelationshipCanvasInnerProps. */
-  showLooped?: boolean;
-  onShowLoopedChange?: (checked: boolean) => void;
-  statusFilter?: RelationshipStatusFilter;
-  onStatusFilterChange?: (next: RelationshipStatusFilter) => void;
+  /**
+   * Toolbar filters, owned by DataMartRelationshipsContent. They apply to the
+   * list view as well, and keeping them in the parent also keeps the inline
+   * and fullscreen canvas instances in sync.
+   */
+  showLooped: boolean;
+  statusFilter: RelationshipStatusFilter;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -107,8 +100,6 @@ const NODE_W = 240;
 const SRC_H = 48;
 const TGT_H = 92;
 
-const SHOW_LOOPED_LS_KEY = 'relationship-canvas-show-looped';
-const STATUS_FILTER_LS_KEY = 'relationship-canvas-status-filter';
 const H_GAP = 280;
 const V_GAP = 24;
 const FIT_VIEW_SCALE = 0.85;
@@ -675,16 +666,9 @@ interface RelationshipCanvasInnerProps {
   searchQuery: string;
   onRequestFullscreen?: () => void;
   onOpenExternal: (targetId: string) => void;
-  /**
-   * Diagram filters. When provided (the edit page passes them from
-   * DataMartRelationshipsContent so the inline and fullscreen instances stay
-   * in sync), the canvas is controlled; otherwise it falls back to its own
-   * localStorage-backed state.
-   */
-  showLooped?: boolean;
-  onShowLoopedChange?: (checked: boolean) => void;
-  statusFilter?: RelationshipStatusFilter;
-  onStatusFilterChange?: (next: RelationshipStatusFilter) => void;
+  /** Toolbar filters — see RelationshipCanvasProps. */
+  showLooped: boolean;
+  statusFilter: RelationshipStatusFilter;
 }
 
 function RelationshipCanvasInner({
@@ -700,10 +684,8 @@ function RelationshipCanvasInner({
   searchQuery,
   onRequestFullscreen,
   onOpenExternal,
-  showLooped: showLoopedProp,
-  onShowLoopedChange,
-  statusFilter: statusFilterProp,
-  onStatusFilterChange,
+  showLooped,
+  statusFilter,
 }: RelationshipCanvasInnerProps) {
   const reactFlow = useReactFlow<RelationshipFlowNodeType, RelationshipFlowEdgeType>();
   const paneWidth = useStore(s => s.width);
@@ -714,40 +696,6 @@ function RelationshipCanvasInner({
     min: GRAPH_ZOOM_MIN,
     max: GRAPH_ZOOM_MAX,
   });
-  const [internalShowLooped, setInternalShowLooped] = useState(
-    () => storageService.get(SHOW_LOOPED_LS_KEY, 'boolean') ?? false
-  );
-  const [internalStatusFilter, setInternalStatusFilter] = useState<RelationshipStatusFilter>(() =>
-    parseRelationshipStatusFilter(storageService.get(STATUS_FILTER_LS_KEY))
-  );
-  const showLooped = showLoopedProp ?? internalShowLooped;
-  const statusFilter = statusFilterProp ?? internalStatusFilter;
-
-  const handleShowLoopedChange = useCallback(
-    (checked: boolean) => {
-      if (onShowLoopedChange) {
-        onShowLoopedChange(checked);
-        return;
-      }
-      setInternalShowLooped(checked);
-      storageService.set(SHOW_LOOPED_LS_KEY, checked);
-    },
-    [onShowLoopedChange]
-  );
-
-  const handleStatusFilterChange = useCallback(
-    (next: RelationshipStatusFilter) => {
-      if (onStatusFilterChange) {
-        onStatusFilterChange(next);
-        return;
-      }
-      setInternalStatusFilter(next);
-      storageService.set(STATUS_FILTER_LS_KEY, next);
-    },
-    [onStatusFilterChange]
-  );
-
-  const filtersActive = showLooped || statusFilter !== 'all';
 
   const graphResult = useMemo(
     () =>
@@ -981,55 +929,6 @@ function RelationshipCanvasInner({
               <Maximize2 className='h-6 w-6' />
             </Button>
           )}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant='outline'
-                size='icon'
-                className='relative h-12 w-12'
-                aria-label={filtersActive ? 'Diagram filters (active)' : 'Diagram filters'}
-              >
-                <Settings className='h-6 w-6' />
-                {filtersActive && (
-                  <span
-                    className='bg-primary absolute top-1.5 right-1.5 h-2 w-2 rounded-full'
-                    aria-hidden='true'
-                  />
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align='end' side='left' className='w-56'>
-              <PopoverTitle>Filters</PopoverTitle>
-              <div className='mt-2 flex items-center justify-between gap-2'>
-                <label htmlFor='relationship-canvas-show-looped' className='text-sm'>
-                  Show looped Data Marts
-                </label>
-                <Switch
-                  id='relationship-canvas-show-looped'
-                  checked={showLooped}
-                  onCheckedChange={handleShowLoopedChange}
-                />
-              </div>
-              <PopoverTitle className='mt-3 border-t pt-3'>Status</PopoverTitle>
-              <div role='radiogroup' aria-label='Status filter' className='mt-2 space-y-0.5'>
-                {RELATIONSHIP_STATUS_FILTER_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type='button'
-                    role='radio'
-                    aria-checked={statusFilter === option.value}
-                    className='hover:bg-muted flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm'
-                    onClick={() => {
-                      handleStatusFilterChange(option.value);
-                    }}
-                  >
-                    <span>{option.label}</span>
-                    {statusFilter === option.value && <Check className='h-4 w-4' />}
-                  </button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
         </div>
       </div>
       <div
@@ -1092,9 +991,7 @@ export function RelationshipCanvas({
   searchQuery,
   onRequestFullscreen,
   showLooped,
-  onShowLoopedChange,
   statusFilter,
-  onStatusFilterChange,
   className,
   style,
 }: RelationshipCanvasProps) {
@@ -1129,9 +1026,7 @@ export function RelationshipCanvas({
           onRequestFullscreen={onRequestFullscreen}
           onOpenExternal={handleOpenExternal}
           showLooped={showLooped}
-          onShowLoopedChange={onShowLoopedChange}
           statusFilter={statusFilter}
-          onStatusFilterChange={onStatusFilterChange}
         />
       </ReactFlowProvider>
     </div>
