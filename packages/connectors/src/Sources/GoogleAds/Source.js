@@ -423,7 +423,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    */
   async makeRequest({ customerId, query, nodeName, fields }) {
     const accessToken = await this.getAccessToken();
-    const url = `https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`;
+    const url = `https://googleads.googleapis.com/v25/customers/${customerId}/googleAds:search`;
     
     console.log(`Google Ads API Request URL: ${url}`);
     console.log(`GAQL Query: ${query}`);
