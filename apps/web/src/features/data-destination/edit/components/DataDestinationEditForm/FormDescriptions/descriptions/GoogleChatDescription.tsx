@@ -7,10 +7,11 @@ export default function GoogleChatDescription() {
       <AccordionTrigger>How do I start sending to Google Chat?</AccordionTrigger>
       <AccordionContent>
         <p className='mb-2'>
-          Choose <strong>Google Chat API</strong> to send complete, formatted messages through an
-          incoming webhook, or <strong>Channel Email</strong> to keep the previous email-based
-          delivery. For API delivery, open <strong>Apps &amp; integrations</strong> in the target
-          Chat space, add an incoming webhook, and paste its URL here. Treat the URL as a secret.
+          Choose <strong>Incoming Webhook</strong> to send the report directly to the space as
+          formatted Google Chat messages, or <strong>Channel Email</strong> to send it by email to
+          the Chat space address. For webhook delivery, open{' '}
+          <strong>Apps &amp; integrations</strong> in the target space, add an incoming webhook, and
+          paste its URL here. Treat the URL as a secret.
         </p>
         <p className='mb-2'>
           Then create a report from your Data Mart's <strong>Destinations</strong> tab and configure

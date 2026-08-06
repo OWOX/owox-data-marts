@@ -1,4 +1,11 @@
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@owox/ui/components/form';
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { useEffect } from 'react';
@@ -44,11 +51,16 @@ export function GoogleChatFields({ form }: { form: UseFormReturn<DataDestination
           <FormLabel>Delivery Method</FormLabel>
           <Tabs value={deliveryMethod} onValueChange={handleDeliveryMethodChange}>
             <TabsList aria-label='Delivery method'>
-              <TabsTrigger value='webhook'>Google Chat API</TabsTrigger>
+              <TabsTrigger value='webhook'>Incoming Webhook</TabsTrigger>
               <TabsTrigger value='email'>Channel Email</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
+        <FormDescription>
+          {deliveryMethod === 'webhook'
+            ? 'Sends the report directly to the space as formatted Google Chat messages.'
+            : 'Sends the report by email to the Google Chat space address.'}
+        </FormDescription>
       </FormItem>
 
       {deliveryMethod === 'webhook' ? (

@@ -148,7 +148,7 @@ function buildGoogleChatMessage(input: {
                   buttonList: {
                     buttons: [
                       {
-                        text: 'Open report in OWOX',
+                        text: 'Open report in OWOX Data Marts',
                         onClick: { openLink: { url: input.reportUrl } },
                       },
                     ],

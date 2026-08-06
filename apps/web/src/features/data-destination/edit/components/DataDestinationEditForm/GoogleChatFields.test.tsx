@@ -58,6 +58,9 @@ describe('GoogleChatFields', () => {
       'data-state',
       'active'
     );
+    expect(
+      screen.getByText('Sends the report by email to the Google Chat space address.')
+    ).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('space@example.com');
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -75,11 +78,14 @@ describe('GoogleChatFields', () => {
     render(<TestForm credentials={{} as GoogleChatFormData['credentials']} onValid={onValid} />);
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: 'Google Chat API' })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: 'Incoming Webhook' })).toHaveAttribute(
         'data-state',
         'active'
       );
     });
+    expect(
+      screen.getByText('Sends the report directly to the space as formatted Google Chat messages.')
+    ).toBeInTheDocument();
     expect(screen.getByTestId('dirty')).toHaveTextContent('false');
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -101,7 +107,7 @@ describe('GoogleChatFields', () => {
     });
     const emailField = await screen.findByRole('textbox');
     fireEvent.change(emailField, { target: { value: 'space@example.com' } });
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Google Chat API' }), {
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Incoming Webhook' }), {
       button: 0,
       ctrlKey: false,
     });
