@@ -64,32 +64,6 @@ export function serializeOkfBundle(graph: ModelGraph, bundleTitle = 'Data Marts'
   return { files };
 }
 
-// Map each of a node's own FK columns to the target mart it points at, so the
-// FK note can be rendered inside that column's Description cell.
-function fkColumns(
-  node: ModelGraphNode,
-  graph: ModelGraph,
-  slugByKey: Map<string, string>
-): Map<string, { title: string; slug: string }> {
-  const out = new Map<string, { title: string; slug: string }>();
-  for (const edge of graph.edges) {
-    if (edge.from === node.key) {
-      const target = graph.nodes.find(other => other.key === edge.to);
-      if (!target) continue;
-      const slug = slugByKey.get(edge.to);
-      if (!slug) continue;
-      for (const key of edge.keys) out.set(key.left, { title: target.title, slug });
-    } else if (edge.bidirectional && edge.to === node.key) {
-      const target = graph.nodes.find(other => other.key === edge.from);
-      if (!target) continue;
-      const slug = slugByKey.get(edge.from);
-      if (!slug) continue;
-      for (const key of edge.keys) out.set(key.right, { title: target.title, slug });
-    }
-  }
-  return out;
-}
-
 function renderNode(
   node: ModelGraphNode,
   graph: ModelGraph,
@@ -111,7 +85,6 @@ function renderNode(
     '',
   ].join('\n');
 
-  const fk = fkColumns(node, graph, slugByKey);
   // The Alias column is emitted only when some field has one, so marts without
   // aliases keep the leaner 3-column table.
   const withAlias = node.schema.some(field => field.alias);
@@ -123,13 +96,16 @@ function renderNode(
       header +
       node.schema
         .map(field => {
+          // The Description cell carries the PK marker and the business
+          // description; relationships live only in the Joins section (a
+          // deliberate divergence from model.owox.com, which also annotates FK
+          // columns here — its parser reads joins from the Joins keys first,
+          // so the round-trip is unaffected).
           const parts: string[] = [];
           if (field.pk) parts.push('PK.');
           // Newlines would end the Markdown table row, so multi-line
           // descriptions collapse to a single line.
           if (field.description) parts.push(field.description.replace(/\s+/g, ' ').trim());
-          const ref = fk.get(field.name);
-          if (ref) parts.push(`FK to [${escapeLinkText(ref.title)}](./${ref.slug}.md)`);
           const cells = withAlias
             ? [`\`${field.name}\``, field.type, field.alias ?? '', parts.join(' ').trim()]
             : [`\`${field.name}\``, field.type, parts.join(' ').trim()];

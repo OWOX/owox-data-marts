@@ -58,20 +58,20 @@ describe('serializeOkfBundle', () => {
     );
   });
 
-  it('annotates FK columns and keeps the alias column only when aliases exist', () => {
+  it('keeps the alias column only when aliases exist', () => {
     const { files } = serializeOkfBundle(GRAPH);
     expect(files['data-marts/orders.md']).toContain('| Column | Type | Description |');
-    expect(files['data-marts/orders.md']).toContain('FK to [Customers](./customers.md)');
     expect(files['data-marts/customers.md']).toContain('| Column | Type | Alias | Description |');
     expect(files['data-marts/customers.md']).toContain('Customer ID');
   });
 
-  it('renders field descriptions before the FK note, collapsed to one line', () => {
+  it('renders field descriptions, collapsed to one line, with no FK notes in the table', () => {
     const { files } = serializeOkfBundle(GRAPH);
-    // Description and FK note share the cell, description first (reference order).
     expect(files['data-marts/orders.md']).toContain(
-      '| `customer_id` | STRING | Reference to the buyer. FK to [Customers](./customers.md) |'
+      '| `customer_id` | STRING | Reference to the buyer. |'
     );
+    // Relationships live only in the Joins section, never in the schema table.
+    expect(files['data-marts/orders.md']).not.toContain('FK to');
     // A multi-line description would end the table row, so it collapses.
     const { files: multiline } = serializeOkfBundle({
       ...GRAPH,
