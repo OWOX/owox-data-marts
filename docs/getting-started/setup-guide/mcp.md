@@ -270,6 +270,7 @@ Read the value precisely. It is a **storage** timestamp, not a statement about t
 - It says when something last **wrote to** the source tables. A backfill can rewrite a table today with figures from 2021, so "updated today" does not mean "covers today". For this reason the field is *data last updated*, not *freshness*.
 - `null` means **unknown** — neither fresh nor stale. The assistant should say OWOX could not determine it, without implying either.
 - With `coverage: "partial"`, treat the timestamp as "at least as recent as" and say the picture is incomplete.
+- The assistant is asked to present the timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC") — converted to the user's time zone when the conversation establishes one, otherwise in UTC with the zone named — never as a raw ISO-8601 string. The machine-readable ISO-8601 value stays in the structured response.
 
 Coverage is best effort per storage. Google BigQuery works first, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data.
 

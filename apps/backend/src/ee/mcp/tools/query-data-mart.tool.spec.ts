@@ -227,7 +227,9 @@ describe('QueryDataMartTool', () => {
         const instruction = (await callTool()).structuredContent as { _instruction: string };
 
         expect(instruction._instruction).toContain('SOURCE TABLES');
-        expect(instruction._instruction).toContain('2026-07-25T08:30:00.000Z');
+        // Business phrasing, not the raw ISO value — the ISO stays in the structured block only.
+        expect(instruction._instruction).toContain('July 25, 2026 at 08:30 UTC');
+        expect(instruction._instruction).not.toContain('2026-07-25T08:30:00.000Z');
       });
 
       it('flags partial coverage as a lower bound', async () => {

@@ -45,6 +45,29 @@ import { unavailableSourceDataLastUpdated } from '../../../data-marts/dto/schema
 const TOTALS_UNAVAILABLE_MESSAGE =
   'Totals could not be computed for this query. Do not substitute a total summed from the returned rows — they are only the returned page.';
 
+// The instruction hands the model a ready-to-say business phrasing ("August 4, 2026 at 09:46 UTC")
+// instead of the raw ISO-8601 value, which business users cannot read. The ISO value itself stays
+// in the structured block. en-US month names: the tool contract is English.
+function formatUtcTimestampForHumans(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return iso;
+  }
+  const datePart = parsed.toLocaleString('en-US', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const timePart = parsed.toLocaleString('en-US', {
+    timeZone: 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  return `${datePart} at ${timePart} UTC`;
+}
+
 @Injectable()
 export class QueryDataMartTool implements McpToolDefinition<QueryDataMartInput> {
   readonly name = 'query_data_mart';
@@ -82,6 +105,7 @@ Using the results:
   - null means unknown, not old and not fresh. Say the warehouse does not report it, and do not infer staleness from it.
   - coverage "partial" means some sources could not be read, so the real time can only be MORE recent than the one reported — present it as "at least as recent as X" and mention that the picture is incomplete. "unavailable" means nothing could be determined.
   - Mention it unprompted when the user's question depends on recency (today's numbers, "latest", trends up to now) or when they are about to act on the result.
+  - Present every timestamp from this block (including per-table sources) in a business-friendly form — e.g. "August 4, 2026 at 09:46 UTC" — converted to the user's time zone when the conversation establishes one, otherwise in UTC with the zone named. Never show a raw ISO-8601 value like 2026-08-04T09:46:33Z.
 
 If truncated is true, not all matching rows were returned: narrow the query (fewer fields, tighter slices/filters) or raise limit (up to 1000). Always use the source metadata in the response: name the Data Mart the answer came from, distinguish numbers calculated by OWOX from arithmetic you perform yourself, and clearly warn the user when rows were truncated.`;
   readonly zodSchema = queryDataMartInputSchema.shape;
@@ -236,7 +260,7 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       // Repeated per response because the failure mode is specific and costly: relaying a source
       // modification time as if it were the recency of the data itself.
       const dataLastUpdatedInstruction = dataLastUpdated.dataLastUpdatedAt
-        ? ` If you mention how current the data is, say the SOURCE TABLES were last updated at ${dataLastUpdated.dataLastUpdatedAt} — do not restate it as the data being fresh or complete up to then.${
+        ? ` If you mention how current the data is, say the SOURCE TABLES were last updated on ${formatUtcTimestampForHumans(dataLastUpdated.dataLastUpdatedAt)} — converted to the user's time zone when the conversation establishes one, never as a raw ISO-8601 timestamp — and do not restate it as the data being fresh or complete up to then.${
             dataLastUpdated.coverage === 'partial'
               ? ' Coverage is partial, so treat that as "at least as recent as" and say the picture is incomplete.'
               : ''
