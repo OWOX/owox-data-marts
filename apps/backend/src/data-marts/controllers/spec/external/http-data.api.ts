@@ -76,7 +76,9 @@ export function StreamHttpDataSpec() {
         'applied server-side before streaming. Encode the JSON array with base64url ' +
         '(URL-safe base64: `-`/`_` instead of `+`/`/`, no `=` padding) so it survives the query string. ' +
         'Example JSON: `[{"column":"date","operator":"gte","value":"2026-01-01"}]` → ' +
-        'base64url `W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d`.',
+        'base64url `W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d`. ' +
+        '`in`/`not_in` rules take an array of 1..500 same-type values (never a comma-separated ' +
+        'string): `[{"column":"country","operator":"in","value":["Germany","Ukraine"]}]`.',
       required: false,
       schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
       example: 'W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d',

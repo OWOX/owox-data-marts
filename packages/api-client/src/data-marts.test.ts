@@ -13,10 +13,18 @@ const typedTraverseDataOptions: TraverseDataOptions = {
   column: ['Event Date (local)', 'Revenue: net = USD'],
   filter: [
     { column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' },
+    { column: 'Country', operator: 'in', value: ['Germany', 'Ukraine'] },
+    { column: 'Channel', operator: 'not_in', value: ['(direct)'] },
     {
       column: 'Event Date (local)',
       operator: 'relative_date',
       value: { kind: 'last_n_months', n: 3 },
+    },
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'this_week' } },
+    {
+      column: 'Event Date (local)',
+      operator: 'relative_date',
+      value: { kind: 'next_n_days', n: 7 },
     },
   ],
   sort: [{ column: 'Event Date (local)', direction: 'asc' }],
@@ -29,6 +37,10 @@ const invalidTraverseDataOptions: TraverseDataOptions = {
   filter: [
     // @ts-expect-error unsupported filter operators must be rejected by the public options type
     { column: 'Event Date (local)', operator: 'approximately', value: '2026-01-01' },
+    // @ts-expect-error in/not_in take an array of values, not a comma-separated string
+    { column: 'Country', operator: 'in', value: 'Germany, Ukraine' },
+    // @ts-expect-error in/not_in lists hold strings or numbers — boolean conditions use is_true/is_false
+    { column: 'Is Active', operator: 'in', value: [true, false] },
   ],
 };
 void invalidTraverseDataOptions;

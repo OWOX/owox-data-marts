@@ -97,11 +97,16 @@ export type TraverseDataAggregateFunction =
 export type TraverseDataRelativeDatePreset =
   | { kind: 'today' }
   | { kind: 'yesterday' }
+  | { kind: 'this_week' }
+  | { kind: 'last_week' }
   | { kind: 'this_month' }
   | { kind: 'last_month' }
+  | { kind: 'this_quarter' }
+  | { kind: 'last_quarter' }
   | { kind: 'this_year' }
   | { kind: 'last_n_days'; n: number }
-  | { kind: 'last_n_months'; n: number };
+  | { kind: 'last_n_months'; n: number }
+  | { kind: 'next_n_days'; n: number };
 
 type TraverseDataScalarValue = string | number | boolean;
 type TraverseDataFilterPlacement = {
@@ -130,6 +135,13 @@ export type TraverseDataFilterRule = (
   | {
       column: string;
       operator: 'is_empty' | 'is_not_empty' | 'is_null' | 'is_not_null' | 'is_true' | 'is_false';
+    }
+  | {
+      column: string;
+      operator: 'in' | 'not_in';
+      // The API accepts 1..500 values, all of the same type (all strings or all
+      // numbers); booleans are rejected — use is_true/is_false instead.
+      value: (string | number)[];
     }
   | {
       column: string;
