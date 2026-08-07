@@ -132,7 +132,7 @@ describe('Data Mart run lifecycle API', () => {
       expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
       expect(request.headers['x-owox-api-key-id']).toBe(apiKeyId);
 
-      if (request.method === 'POST' && request.url === '/api/data-marts/data%2Fmart/manual-run') {
+      if (request.method === 'POST' && request.url === '/api/data-marts/data%20mart/manual-run') {
         expect(request.body).toEqual({
           payload: {
             runType: 'MANUAL_BACKFILL',
@@ -143,16 +143,16 @@ describe('Data Mart run lifecycle API', () => {
       }
       if (
         request.method === 'GET' &&
-        request.url === '/api/data-marts/data%2Fmart/runs?limit=25&offset=50'
+        request.url === '/api/data-marts/data%20mart/runs?limit=25&offset=50'
       ) {
         return createJsonResponse(200, { runs: [run] });
       }
-      if (request.method === 'GET' && request.url === '/api/data-marts/data%2Fmart/runs/run%2F1') {
+      if (request.method === 'GET' && request.url === '/api/data-marts/data%20mart/runs/run%3A1') {
         return createJsonResponse(200, runDetail);
       }
       if (
         request.method === 'POST' &&
-        request.url === '/api/data-marts/data%2Fmart/runs/run%2F1/cancel'
+        request.url === '/api/data-marts/data%20mart/runs/run%3A1/cancel'
       ) {
         expect(request.body).toBeUndefined();
         return new Response(null, { status: 204 });
@@ -160,7 +160,7 @@ describe('Data Mart run lifecycle API', () => {
       return createJsonResponse(404, { message: 'Not found' });
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
-    const dataMartRuns = client.runs.forDataMart('data/mart');
+    const dataMartRuns = client.runs.forDataMart('data mart');
 
     await expect(
       dataMartRuns.start({
@@ -169,8 +169,8 @@ describe('Data Mart run lifecycle API', () => {
       })
     ).resolves.toEqual({ runId: '123e4567-e89b-12d3-a456-426614174000' });
     await expect(dataMartRuns.list({ limit: 25, offset: 50 })).resolves.toEqual({ runs: [run] });
-    await expect(dataMartRuns.get('run/1')).resolves.toEqual(runDetail);
-    await expect(dataMartRuns.cancel('run/1')).resolves.toBeUndefined();
+    await expect(dataMartRuns.get('run:1')).resolves.toEqual(runDetail);
+    await expect(dataMartRuns.cancel('run:1')).resolves.toBeUndefined();
   });
 
   it('rejects malformed manual-run and run-history responses', async () => {
@@ -306,10 +306,15 @@ describe('Data Mart run lifecycle API', () => {
 
     expect(() => client.runs.forDataMart('.')).toThrow(OWOXApiError);
     expect(() => client.runs.forDataMart('  ')).toThrow(OWOXApiError);
+    expect(() => client.runs.forDataMart('data/mart')).toThrow(OWOXApiError);
+    expect(() => client.runs.forDataMart('data\\mart')).toThrow(OWOXApiError);
+    expect(() => client.runs.forDataMart('data%2Fmart')).toThrow(OWOXApiError);
 
     const runs = client.runs.forDataMart('dm-1');
     await expect(runs.get('')).rejects.toBeInstanceOf(OWOXApiError);
     await expect(runs.cancel('..')).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(runs.get('run/1')).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(runs.cancel('run\\1')).rejects.toBeInstanceOf(OWOXApiError);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

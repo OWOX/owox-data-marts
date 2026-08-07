@@ -30,17 +30,17 @@ connector-specific fields. Manual-backfill `data` is optional for connectors wit
 fields. The API client requires an explicit `MANUAL_BACKFILL` run type whenever `data` is supplied
 and rejects `data` on implicit or explicit incremental runs before sending a request. The backend
 HTTP endpoint separately accepts retained object-valued `data` on incremental requests so existing
-run forms remain compatible. The client also rejects empty or dot-segment Data Mart and run IDs
-before sending a request. Serialized manual-run options are limited to 1 MiB by both the client and
-HTTP API; requests above the HTTP transport ceiling return `413` instead of an internal-server
-error. Packaged authentication middleware now limits its body parsers to `/auth`, so it no longer
-overrides the backend API's 2 MiB transport ceiling.
+run forms remain compatible. The client also rejects empty, dot-segment, or separator-bearing Data
+Mart and run IDs before sending a request. Serialized manual-run options are limited to 1 MiB by
+both the client and HTTP API; requests above the HTTP transport ceiling return `413` instead of an
+internal-server error. Packaged authentication middleware now limits its body parsers to `/auth`,
+so it no longer overrides the backend API's 2 MiB transport ceiling.
 
 Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
-and offsets without silently capping them. Both scoped and project-wide list methods reject unknown,
-zero or negative limits, negative offsets, non-integer values, non-finite values, and integers outside
-JavaScript's safe range before authentication or network access.
+and offsets without silently capping them. The scoped list method rejects unknown, zero or negative
+limits, negative offsets, non-integer values, non-finite values, and integers outside JavaScript's
+safe range before authentication or network access. Project-wide `runs.list()` pagination remains
+unchanged and relies on server normalization.
 Project-wide and Data-Mart-scoped run methods remain compatible with older self-hosted deployments
 that omit Data Quality fields, and Data Quality response validation tolerates additive server fields
-while still checking known values. Existing typed integrations need no migration unless they relied
-on invalid pagination values.
+while still checking known values. Existing typed integrations need no migration.

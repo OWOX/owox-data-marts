@@ -90,7 +90,8 @@ function validatePathId(value: unknown, label: string): asserts value is string 
     typeof value !== 'string' ||
     value.trim().length === 0 ||
     value.trim() === '.' ||
-    value.trim() === '..'
+    value.trim() === '..' ||
+    /[\\/%]/.test(value)
   ) {
     throw new OWOXApiError(`Invalid OWOX ${label} ID`, { details: value });
   }
@@ -240,7 +241,6 @@ export class RunsApi {
   constructor(private readonly requester: RunsRequester) {}
 
   async list(options: OWOXProjectRunHistoryOptions = {}): Promise<OWOXProjectDataMartRunsResponse> {
-    validateRunListOptions(options);
     const query = {
       ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
       ...(options.offset === undefined ? {} : { offset: String(options.offset) }),

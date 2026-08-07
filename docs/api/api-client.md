@@ -147,15 +147,14 @@ can also see shared Data Marts available for reporting or maintenance, subject t
 context access; viewers can see shared Data Marts available for reporting, subject to the same
 context-access filter.
 
-Pass a positive safe integer `limit` and a non-negative safe integer `offset` to page through the
-newest-first history. The client rejects invalid values before authentication or a network request.
-When omitted, the server defaults `limit` to 100 and `offset` to 0; it caps them at 100 and 100,000
-respectively.
-The response has no total or next-page marker. Increment `offset` by the number of returned runs and
-stop when a page contains fewer runs than the server-effective limit
-(`Math.min(requestedLimit, 100)`, or 100 when omitted) or the next offset would exceed 100,000.
-Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate by
-`run.id` when walking multiple pages.
+Pass optional `limit` and `offset` values to page through the newest-first history. `limit` defaults
+to 100, floors finite fractions, falls back to 100 for non-finite or non-positive values, and caps
+at 100. `offset` defaults to 0, floors finite fractions, falls back to 0 for non-finite or
+non-positive values, and caps at 100,000. The response has no total or next-page marker. Prefer a
+`limit` from 1 through 100, increment `offset` by the number of returned runs, and stop when a page
+contains fewer runs than the server-normalized effective limit or the next offset would exceed
+100,000. Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate
+by `run.id` when walking multiple pages.
 
 ```ts
 const history = await client.runs.list({ limit: 50, offset: 0 });
@@ -183,7 +182,6 @@ compatibility with older self-hosted deployments that did not return the field.
 nullable fields, logs and errors, totals, and the backend's RFC3339 timestamp profile: uppercase
 `T`/`Z`, seconds from `00` through `59`, optional fractional seconds, and valid numeric offsets. It
 throws `OWOXApiError` when the endpoint returns an incompatible payload.
-Invalid pagination options are rejected before authentication or any network request.
 
 ## List project insight templates
 
@@ -307,6 +305,9 @@ omit `data`. The API client rejects `data` on implicit or explicit incremental r
 authentication or any network request. The backend HTTP endpoint separately tolerates retained
 object-valued `data` on incremental requests for compatibility with existing run forms. The method
 returns the new run ID. The serialized options must not exceed 1 MB.
+
+Data Mart and run IDs must not be blank, dot segments, or contain `/`, `\`, or `%`. The client
+rejects invalid scoped IDs before authentication or any network request.
 
 ```ts
 const dataMartRuns = client.runs.forDataMart('data-mart-id');

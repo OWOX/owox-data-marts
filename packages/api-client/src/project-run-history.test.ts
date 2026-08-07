@@ -1,5 +1,4 @@
 import { OWOXApiClient, OWOXApiError, type OWOXProjectDataMartRunsResponse } from './index.js';
-import { jest } from '@jest/globals';
 
 type RecordedRequest = {
   method: string;
@@ -247,22 +246,17 @@ describe('Runs API', () => {
     await expect(client.runs.list()).resolves.toEqual(response);
   });
 
-  it('rejects invalid pagination before authentication or a network request', async () => {
-    const fetchImpl = jest.fn<typeof fetch>();
+  it('preserves project-wide pagination values for server normalization', async () => {
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      expect(request.url).toBe('/api/data-marts/runs?limit=0&offset=-1');
+      return createJsonResponse(200, runHistory);
+    });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.list({ limit: Number.NaN })).rejects.toBeInstanceOf(OWOXApiError);
-    await expect(client.runs.list({ limit: 0 })).rejects.toBeInstanceOf(OWOXApiError);
-    await expect(client.runs.list({ offset: -1 })).rejects.toBeInstanceOf(OWOXApiError);
-    await expect(client.runs.list({ limit: 1.5 })).rejects.toBeInstanceOf(OWOXApiError);
-    await expect(client.runs.list({ limit: Number.MAX_SAFE_INTEGER + 1 })).rejects.toBeInstanceOf(
-      OWOXApiError
-    );
-    await expect(client.runs.list({ offset: Number.MAX_SAFE_INTEGER + 1 })).rejects.toBeInstanceOf(
-      OWOXApiError
-    );
-    await expect(client.runs.list({ typo: 1 } as never)).rejects.toBeInstanceOf(OWOXApiError);
-    expect(fetchImpl).not.toHaveBeenCalled();
+    await expect(client.runs.list({ limit: 0, offset: -1 })).resolves.toEqual(runHistory);
   });
 
   it.each([
