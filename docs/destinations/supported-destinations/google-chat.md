@@ -24,9 +24,9 @@ Choose **Google Chat** from the **Destination Type** dropdown.
 
 - **Title**: Enter a unique name for the Destination (for example, “Marketing Team”).
 - **Delivery Method**:
-  - **Google Chat API** (default): posts the complete Insight as a formatted Google Chat card.
-  - **Channel Email**: uses the previous email-based delivery and Google Chat's email rendering.
-- For **Google Chat API**, provide a **Google Chat incoming webhook URL**:
+  - **Incoming Webhook** (default): sends the report directly to the space as formatted Google Chat messages.
+  - **Channel Email**: sends the report by email to the Google Chat space address.
+- For **Incoming Webhook**, provide a **Google Chat incoming webhook URL**:
   1. Open the target space in Google Chat.
   2. Next to the space title, open **Apps & integrations**.
   3. Click **Add webhooks**, enter a name, and save the webhook.
@@ -34,7 +34,7 @@ Choose **Google Chat** from the **Destination Type** dropdown.
 - For **Channel Email**, enter one or more Google Chat channel email addresses.
 
 Existing Google Chat destinations with saved email addresses continue to open with **Channel Email**
-selected. If an existing destination has no email address, the form defaults to **Google Chat API**.
+selected. If an existing destination has no email address, the form defaults to **Incoming Webhook**.
 
 > The webhook URL contains a secret token. Store it as a credential and do not share it in chat,
 > documentation, or source control. If **Add webhooks** is unavailable, ask your Google Workspace
@@ -67,10 +67,10 @@ Enter a report title and make sure the report is assigned to the correct Destina
 
 #### 2.4. Configure the template
 
-Write your **Message** using Markdown. Switch to **Preview** to check the content. With **Google Chat
-API**, OWOX posts the rendered Insight as a card with the subject, Data Mart name, complete message
-body, and a link back to the report. Messages that exceed Google Chat's per-message size limit are
-split into as many as 20 numbered parts. Insights requiring more parts are rejected before sending.
+Write your **Message** using Markdown. Switch to **Preview** to check the content. With **Incoming
+Webhook**, OWOX posts the rendered report as a card with the subject, Data Mart name, message body,
+and a link back to the report. Messages that exceed Google Chat's per-message size limit are split
+into as many as 20 numbered parts. Reports requiring more parts are rejected before sending.
 Because Google Chat cards support only a subset of Markdown, headings are rendered as bold lines and
 tables as monospace code blocks; supported emphasis, lists, links, and code formatting are preserved.
 Parts are sent sequentially. If a later part fails, earlier parts remain visible because incoming
