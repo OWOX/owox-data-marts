@@ -262,6 +262,9 @@ describe('OWOXApiClient', () => {
     '/api/../auth/context',
     '/api/data-marts/../auth/context',
     '/api/%2e%2e/auth/context',
+    '/api/%25%32%65%25%32%65/auth/context',
+    '/api/%252e%252e/auth/context',
+    '/api/%zz/auth/context',
     '/api/data%2fmarts',
     '/api/data%5cmarts',
     '/api\\data-marts',
@@ -269,6 +272,15 @@ describe('OWOXApiClient', () => {
   ])('rejects unsafe API path %p before exchanging an access token', async path => {
     const fetchImpl = jest.fn<typeof fetch>();
     const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects an API path longer than 2048 characters before exchanging an access token', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+    const path = `/api/${'a'.repeat(2044)}`;
 
     await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
     expect(fetchImpl).not.toHaveBeenCalled();

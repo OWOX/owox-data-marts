@@ -1,8 +1,8 @@
 import type {
   PluginErrorPayload,
   PluginHostContext,
+  PluginHostRequest,
   PluginProtocolVersion,
-  PluginRequest,
   PluginResponse,
 } from './protocol';
 import { OPAQUE_ORIGIN, isPluginHello, isPluginReady } from './protocol';
@@ -35,8 +35,8 @@ const ALLOWED_METHODS: Record<PluginProtocolVersion, ReadonlySet<string>> = {
   2: new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
 };
 const API_PATH_PREFIX = '/api/';
-const ENCODED_SEPARATOR = /%(?:25)*(?:2f|5c)/i;
-const ENCODED_SPECIAL_PATH_CHARACTER = /%(?:25)*(?:2e|2f|5c)/i;
+/** Keeps brokered API paths within the same conservative URL size as API-key clients. */
+const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
 const INVALID_HEADER_VALUE_CHARACTER = /[\0\r\n]/;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
 const MAX_IN_FLIGHT = 32;
@@ -95,24 +95,17 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
    * string prefix test would let a plugin make the host send the runtime token to an
    * attacker. Resolving first and comparing origins is what closes that.
    */
-  function resolvePath(request: Extract<PluginRequest, { kind: 'api' }>): URL {
+  function resolvePath(request: Extract<PluginHostRequest, { kind: 'api' }>): URL {
     const pathBeforeQueryOrHash = request.path.split(/[?#]/, 1)[0];
     if (
+      request.path.length > MAX_AUTHENTICATED_API_PATH_LENGTH ||
       !pathBeforeQueryOrHash.startsWith(API_PATH_PREFIX) ||
-      pathBeforeQueryOrHash.includes('\\') ||
-      ENCODED_SEPARATOR.test(pathBeforeQueryOrHash)
+      pathBeforeQueryOrHash.includes('\\')
     ) {
       throw forbidden('Requests must target a root-relative path under /api/');
     }
 
-    let decodedPath = pathBeforeQueryOrHash;
-    while (ENCODED_SPECIAL_PATH_CHARACTER.test(decodedPath)) {
-      try {
-        decodedPath = decodeURIComponent(decodedPath);
-      } catch {
-        throw forbidden('Requests must target a root-relative path under /api/');
-      }
-    }
+    const decodedPath = decodePathForValidation(pathBeforeQueryOrHash);
 
     if (
       decodedPath.includes('\\') ||
@@ -123,13 +116,11 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
     const url = new URL(request.path, apiOrigin);
 
-    if (
-      url.origin !== apiOrigin ||
-      !url.pathname.startsWith(API_PATH_PREFIX) ||
-      ENCODED_SEPARATOR.test(url.pathname)
-    ) {
+    if (url.origin !== apiOrigin || !url.pathname.startsWith(API_PATH_PREFIX)) {
       throw forbidden('Requests must target a root-relative path under /api/');
     }
+
+    decodePathForValidation(url.pathname);
 
     // append, not set: the pairs arrive ordered and may repeat a key, which is how the
     // API client expresses a multi-column selection.
@@ -141,7 +132,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   }
 
   async function forward(
-    request: Extract<PluginRequest, { kind: 'api' }>,
+    request: Extract<PluginHostRequest, { kind: 'api' }>,
     serializedBody: string | undefined,
     retryOnUnauthorized = true
   ): Promise<PluginResponse> {
@@ -392,7 +383,7 @@ function usableRequestId(value: unknown): string | undefined {
 function validateRequest(
   candidate: unknown,
   negotiatedVersion: PluginProtocolVersion | undefined
-): PluginRequest {
+): PluginHostRequest {
   if (!isRecord(candidate)) {
     throw protocolError('The request envelope is malformed');
   }
@@ -401,14 +392,14 @@ function validateRequest(
     if (typeof candidate.url !== 'string') {
       throw protocolError('The external URL must be a string');
     }
-    return candidate as unknown as PluginRequest;
+    return candidate as unknown as PluginHostRequest;
   }
 
   if (candidate.kind === 'navigate') {
     if (typeof candidate.path !== 'string') {
       throw protocolError('The navigation path must be a string');
     }
-    return candidate as unknown as PluginRequest;
+    return candidate as unknown as PluginHostRequest;
   }
 
   if (candidate.kind !== 'api') {
@@ -481,16 +472,19 @@ function validateRequest(
   }
 
   const needsJsonBody =
-    candidate.method === 'POST' || candidate.method === 'PUT' || candidate.method === 'PATCH';
+    negotiatedVersion === 2 &&
+    (candidate.method === 'POST' || candidate.method === 'PUT' || candidate.method === 'PATCH');
   if (needsJsonBody && candidate.body === undefined) {
     throw protocolError(`${candidate.method} requests must carry a JSON body`);
   }
 
-  return candidate as unknown as PluginRequest;
+  return candidate as unknown as PluginHostRequest;
 }
 
-function serializeJsonBody(request: Extract<PluginRequest, { kind: 'api' }>): string | undefined {
-  if (request.method === 'GET' || request.method === 'DELETE') {
+function serializeJsonBody(
+  request: Extract<PluginHostRequest, { kind: 'api' }>
+): string | undefined {
+  if (request.method === 'GET' || request.method === 'DELETE' || request.body === undefined) {
     return undefined;
   }
 
@@ -505,6 +499,46 @@ function serializeJsonBody(request: Extract<PluginRequest, { kind: 'api' }>): st
       throw caught;
     }
     throw protocolError('The API body must be JSON-serializable');
+  }
+}
+
+function hexDigitValue(code: number): number {
+  if (code >= 48 && code <= 57) {
+    return code - 48;
+  }
+  if (code >= 65 && code <= 70) {
+    return code - 55;
+  }
+  if (code >= 97 && code <= 102) {
+    return code - 87;
+  }
+  return -1;
+}
+
+/** Validates every escape once, then performs one bounded decode for traversal checks. */
+function decodePathForValidation(path: string): string {
+  for (let index = 0; index < path.length; index += 1) {
+    if (path.charCodeAt(index) !== 37) {
+      continue;
+    }
+
+    const high = hexDigitValue(path.charCodeAt(index + 1));
+    const low = hexDigitValue(path.charCodeAt(index + 2));
+    if (high === -1 || low === -1) {
+      throw forbidden('Requests must target a root-relative path under /api/');
+    }
+
+    const encodedByte = high * 16 + low;
+    if (encodedByte === 0x25 || encodedByte === 0x2f || encodedByte === 0x5c) {
+      throw forbidden('Requests must target a root-relative path under /api/');
+    }
+    index += 2;
+  }
+
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    throw forbidden('Requests must target a root-relative path under /api/');
   }
 }
 

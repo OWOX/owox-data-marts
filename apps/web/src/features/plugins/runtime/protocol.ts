@@ -123,6 +123,21 @@ export type PluginRequest =
    */
   | { id: string; kind: 'navigate'; path: string };
 
+/** The body shape accepted from an already-negotiated protocol-v1 plugin. */
+export interface LegacyPluginApiRequest {
+  id: string;
+  kind: 'api';
+  method: 'GET' | 'POST' | 'PUT';
+  path: string;
+  query?: PluginQuery;
+  body?: unknown;
+  accept?: string;
+  stream?: false;
+}
+
+/** Host-only union: the public v2 request remains identical to the SDK protocol copy. */
+export type PluginHostRequest = PluginRequest | LegacyPluginApiRequest;
+
 /**
  * A request before the transport stamps its correlation id.
  *

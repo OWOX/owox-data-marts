@@ -149,6 +149,37 @@ describe('plugin host bridge', () => {
   beforeEach(() => vi.unstubAllGlobals());
   afterEach(() => vi.unstubAllGlobals());
 
+  it('keeps the v2 request type aligned with the runtime body rules', () => {
+    const valid: PluginRequest[] = [
+      { id: 'get', kind: 'api', method: 'GET', path: '/api/x' },
+      { id: 'post', kind: 'api', method: 'POST', path: '/api/x', body: null },
+      { id: 'put', kind: 'api', method: 'PUT', path: '/api/x', body: {} },
+      { id: 'patch', kind: 'api', method: 'PATCH', path: '/api/x', body: [] },
+      { id: 'delete', kind: 'api', method: 'DELETE', path: '/api/x' },
+      { id: 'stream', kind: 'api', method: 'GET', path: '/api/x', stream: true },
+    ];
+
+    // @ts-expect-error Protocol v2 POST requests require a body property.
+    const bodylessPost: PluginRequest = {
+      id: 'bodyless-post',
+      kind: 'api',
+      method: 'POST',
+      path: '/api/x',
+    };
+    const getWithBody: PluginRequest = {
+      id: 'get-with-body',
+      kind: 'api',
+      method: 'GET',
+      path: '/api/x',
+      // @ts-expect-error Protocol v2 GET requests never carry a body.
+      body: {},
+    };
+
+    expect(valid).toHaveLength(6);
+    expect(bodylessPost).toBeDefined();
+    expect(getWithBody).toBeDefined();
+  });
+
   describe('exfiltration guard', () => {
     /**
      * The highest-severity check in the iteration.
@@ -165,11 +196,25 @@ describe('plugin host bridge', () => {
       ['a traversal out of /api/', '/api/../auth/context'],
       ['nested traversal out of /api/', '/api/data-marts/../auth/context'],
       ['encoded traversal', '/api/%2e%2e/auth/context'],
+      ['fragmented double-encoded traversal', '/api/%25%32%65%25%32%65/auth/context'],
+      ['nested encoded traversal', '/api/%252e%252e/auth/context'],
+      ['a malformed percent escape', '/api/%zz/auth/context'],
       ['an encoded slash', '/api/data%2fmarts'],
       ['an encoded backslash', '/api/data%5cmarts'],
       ['a raw backslash', '/api\\data-marts'],
     ])('refuses %s and issues no request at all', async (_label, path) => {
       const h = await harness();
+
+      const response = await h.send({ kind: 'api', method: 'GET', path });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+      expect(h.fetchMock).not.toHaveBeenCalled();
+      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+    });
+
+    it('refuses a path longer than 2048 characters before minting a token', async () => {
+      const h = await harness();
+      const path = `/api/${'a'.repeat(2044)}`;
 
       const response = await h.send({ kind: 'api', method: 'GET', path });
 
@@ -703,6 +748,30 @@ describe('plugin host bridge', () => {
   });
 
   describe('versioned API methods', () => {
+    it.each(['POST', 'PUT'] as const)(
+      'forwards a bodyless v1 %s request without minting a content type',
+      async method => {
+        const h = await harness(undefined, true, 1);
+
+        const response = await h.send({
+          kind: 'api',
+          method,
+          path: '/api/plugin-installations/install',
+        } as unknown as PluginRequestInput);
+
+        expect(response).toMatchObject({ ok: true });
+        expect(h.fetchRuntimeToken).toHaveBeenCalledTimes(1);
+        expect(h.fetchMock).toHaveBeenCalledTimes(1);
+        expect(h.fetchMock.mock.calls[0][1]).toMatchObject({ method });
+        expect((h.fetchMock.mock.calls[0][1] as RequestInit).body).toBeUndefined();
+        expect(
+          ((h.fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>)[
+            'content-type'
+          ]
+        ).toBeUndefined();
+      }
+    );
+
     it.each(['PATCH', 'DELETE'])('refuses v1 %s before minting a token', async method => {
       const h = await harness(undefined, true, 1);
 

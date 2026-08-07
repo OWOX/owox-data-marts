@@ -45,7 +45,8 @@ Use low-level methods only for API-key-compatible endpoints without a typed reso
 `getJson<T>(path, query?)`, `postJson<T>(path, body, accept?)`, `putJson<T>(path, body)`,
 `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`, and `getStream(path, query?)`.
 Their generics do not validate responses at runtime, so validate returned data yourself.
-Paths must be root-relative `/api/...`; unsafe or redirecting paths are refused.
+Paths must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or
+redirecting paths are refused.
 
 ## Context
 

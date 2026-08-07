@@ -55,10 +55,10 @@ The generic is caller-owned TypeScript typing only: a low-level call does not va
 the response at runtime. Validate the returned data yourself before using it. Typed
 resources remain preferred because they model and validate their responses.
 
-All paths must be root-relative `/api/...` paths. The client refuses unsafe or redirecting
-paths, including absolute URLs and paths that resolve away from the API origin. API-key
-clients exchange and attach authentication internally; do not add credentials to a path,
-query, or body.
+All paths must be root-relative `/api/...` paths, and each `path` argument is limited to
+2,048 characters. The client refuses unsafe or redirecting paths, including absolute URLs
+and paths that resolve away from the API origin. API-key clients exchange and attach
+authentication internally; do not add credentials to a path, query, or body.
 
 ```ts
 type Renamed = { id: string; title: string };

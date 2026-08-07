@@ -36,8 +36,8 @@ type ApiRequestOptions = {
 };
 
 const API_PATH_PREFIX = '/api/';
-const ENCODED_SEPARATOR = /%(?:25)*(?:2f|5c)/i;
-const ENCODED_SPECIAL_PATH_CHARACTER = /%(?:25)*(?:2e|2f|5c)/i;
+/** Keeps authenticated API paths within the conservative, widely supported URL size. */
+const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
 
 function unsafeApiPath(): OWOXConfigError {
   return new OWOXConfigError(
@@ -50,26 +50,50 @@ function pathBeforeQueryOrHash(path: string): string {
   return delimiter === -1 ? path : path.slice(0, delimiter);
 }
 
-function decodePathForValidation(path: string): string {
-  let decoded = path;
+function hexDigitValue(code: number): number {
+  if (code >= 48 && code <= 57) {
+    return code - 48;
+  }
+  if (code >= 65 && code <= 70) {
+    return code - 55;
+  }
+  if (code >= 97 && code <= 102) {
+    return code - 87;
+  }
+  return -1;
+}
 
-  while (ENCODED_SPECIAL_PATH_CHARACTER.test(decoded)) {
-    try {
-      decoded = decodeURIComponent(decoded);
-    } catch {
+/** Validates every escape once, then performs one bounded decode for traversal checks. */
+function decodePathForValidation(path: string): string {
+  for (let index = 0; index < path.length; index += 1) {
+    if (path.charCodeAt(index) !== 37) {
+      continue;
+    }
+
+    const high = hexDigitValue(path.charCodeAt(index + 1));
+    const low = hexDigitValue(path.charCodeAt(index + 2));
+    if (high === -1 || low === -1) {
       throw unsafeApiPath();
     }
+
+    const encodedByte = high * 16 + low;
+    // An encoded percent can reveal another escape on a later decode. Encoded path
+    // separators are forbidden even when the decoded pathname would otherwise be safe.
+    if (encodedByte === 0x25 || encodedByte === 0x2f || encodedByte === 0x5c) {
+      throw unsafeApiPath();
+    }
+    index += 2;
   }
 
-  return decoded;
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    throw unsafeApiPath();
+  }
 }
 
 function assertAuthenticatedApiUrl(apiOrigin: string, url: URL): void {
-  if (
-    url.origin !== apiOrigin ||
-    !url.pathname.startsWith(API_PATH_PREFIX) ||
-    ENCODED_SEPARATOR.test(url.pathname)
-  ) {
+  if (url.origin !== apiOrigin || !url.pathname.startsWith(API_PATH_PREFIX)) {
     throw unsafeApiPath();
   }
 
@@ -93,9 +117,9 @@ export function resolveAuthenticatedApiUrl(
 ): URL {
   const pathToValidate = pathBeforeQueryOrHash(path);
   if (
+    path.length > MAX_AUTHENTICATED_API_PATH_LENGTH ||
     !pathToValidate.startsWith(API_PATH_PREFIX) ||
-    pathToValidate.includes('\\') ||
-    ENCODED_SEPARATOR.test(pathToValidate)
+    pathToValidate.includes('\\')
   ) {
     throw unsafeApiPath();
   }

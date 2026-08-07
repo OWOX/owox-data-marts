@@ -35,9 +35,9 @@ not yet have a typed abstraction:
 - `getStream(path, query?)`
 
 Caller generics are TypeScript-only. The low-level client does not validate the response at runtime.
-Validate the data yourself before relying on it. Paths must be root-relative `/api/...` paths;
-unsafe or redirecting paths are refused. The API-key client exchanges and attaches authorization
-internally.
+Validate the data yourself before relying on it. Paths must be root-relative `/api/...` paths and
+are limited to 2,048 characters; unsafe or redirecting paths are refused. The API-key client
+exchanges and attaches authorization internally.
 
 ```ts
 type Deleted = { deleted: true };

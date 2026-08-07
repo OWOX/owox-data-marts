@@ -129,8 +129,8 @@ Prefer the typed `ctx.owox` resources. For an API-key-compatible endpoint that h
 abstraction, the client also exposes `getJson<T>(path, query?)`, `postJson<T>(path, body,
 accept?)`, `putJson<T>(path, body)`, `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`,
 and `getStream(path, query?)`. The generic does not validate the response at runtime, so
-validate returned data yourself. Paths must be root-relative `/api/...`; unsafe or redirecting
-paths are refused.
+validate returned data yourself. Paths must be root-relative `/api/...` and are limited to 2,048
+characters; unsafe or redirecting paths are refused.
 
 `ctx.owox` remains brokered through the host and never exposes runtime credentials. Protocol v2
 enables PATCH and DELETE; the host remains compatible with existing protocol v1 plugins.

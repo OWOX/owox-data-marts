@@ -103,7 +103,13 @@ describe('iframe transport', () => {
     await flush();
 
     expect(host.received[0]).toMatchObject({ method: 'DELETE', path: '/api/data-marts/dm-1' });
-    host.answer({ id: host.received[0].id, ok: true, status: 204, headers: {} });
+    host.answer({
+      id: host.received[0].id,
+      ok: true,
+      status: 204,
+      headers: {},
+      body: undefined,
+    });
 
     await expect(pending).resolves.toBeUndefined();
   });
