@@ -1,106 +1,97 @@
-# Building an OWOX Data Marts plugin
+# Plugin authoring guide
 
-A plugin is a web page OWOX Data Marts embeds in a sandboxed iframe and runs with the
-authority of the member who installed it. That is the contract, and everything below
-follows from it: the sandbox decides what your page may do, and the installing member
-decides what your requests may reach.
+Use this guide while building and maintaining an OWOX Data Marts plugin. It defines the production
+plugin contract, SDK usage, UI foundation, deployment, releases, publication, and updates.
 
-How the page gets there is a separate matter. Today you host it yourself, and OWOX Data
-Marts learns about it from a GitHub repository — which is why publishing takes a
-repository, and why your page must be reachable over https and embeddable from the public
-internet.
+If the repository and development tools are not ready yet, first
+[prepare your plugin project](./project-setup.md).
 
-## Read this part first
+## Scaffold the plugin
 
-Five constraints cause almost every "why doesn't my plugin work" question. They follow
-from the sandbox, not from policy, so no setting in OWOX Data Marts relaxes them.
-
-**Your page runs in an opaque origin.** No cookies, no `localStorage`, no `sessionStorage`,
-no `IndexedDB`, no service workers. Anything you keep between sessions has to live on your
-own backend, keyed by something you receive from OWOX Data Marts.
-
-**Calls to your own backend arrive with `Origin: null`.** Your backend must answer
-`Access-Control-Allow-Origin: *`, and it cannot authenticate them with cookies. If it
-needs to know who is calling, pass an identifier explicitly.
-
-**Your own assets are cross-origin to your own page.** An opaque origin matches nothing,
-including the host that served the page, so anything fetched in CORS mode needs
-`Access-Control-Allow-Origin: *` from your own server too — `<script type="module">`,
-fonts, and every `fetch` your page makes. This is the one that looks like nothing is
-wrong: the page loads, the browser blocks the module script, and the plugin sits there
-having run no code at all. GitHub Pages sends the header already; a plain static server
-usually does not. A page with an inline script and no assets never meets this.
-
-**Your entry page must be embeddable.** It must not send `X-Frame-Options`, and if it
-sends a `Content-Security-Policy` with a `frame-ancestors` directive, that directive must
-permit OWOX Data Marts — `*`, `https:`, or your deployment's exact origin. This is checked
-at publication time, and a page that could never be displayed is refused.
-
-**You never hold a credential.** `ctx.owox` calls are brokered by the OWOX Data Marts host page,
-which attaches the token. Your requests act with the authority of the member who installed
-your plugin — never more, and never on behalf of anyone else. Protected routes still apply
-their server-side authorization and reject calls that member may not make.
-
-## The manifest
-
-A `plugin.json` at the repository root:
-
-```json
-{
-  "name": "Example Plugin",
-  "description": "What this plugin does",
-  "delivery": {
-    "type": "remote",
-    "url": "https://plugin.example.com"
-  }
-}
-```
-
-There is no `id` and no `version` in it. Identity comes from the GitHub repository, and
-the version comes from the release tag — so renaming or transferring your repository does
-not create a second plugin, and two repositories with identical contents are two plugins.
-
-The delivery URL must be HTTPS, must be reachable, and must not resolve into a private or
-metadata network, including through redirects.
-
-## Releasing a version
-
-OWOX Data Marts reads your GitHub releases. A release becomes a version when it is:
-
-- published, not a draft;
-- not marked as a GitHub prerelease;
-- tagged exactly `MAJOR.MINOR.PATCH`, optionally with a leading `v`;
-- pointing at a resolvable commit that has a valid `plugin.json` at its root;
-- delivering an embeddable page.
-
-### Tagging, and one narrowing worth knowing
-
-Prerelease identifiers (`v1.2.3-rc.1`) and build metadata (`v1.2.3+build.7`) are refused,
-**even though both are valid SemVer 2.0.0.**
-
-The reason is what versions do here: the highest eligible version becomes current
-immediately, for everyone who has the plugin installed, and nobody can pin an older one.
-A release candidate reaching production is therefore a hazard rather than a feature. Build
-metadata is worse — SemVer requires it to be ignored when ordering versions, so `1.2.3`
-and `1.2.3+build` could not be told apart at all.
-
-Ship release candidates on releases marked as GitHub prereleases. OWOX Data Marts ignores those
-entirely, so you can cut as many as you like.
-
-### What OWOX Data Marts does and does not pin
-
-OWOX Data Marts records the exact commit your release pointed at, and that record never changes:
-moving, deleting or recreating a tag cannot rewrite a version that already exists.
-
-It records your delivery URL but **does not pin what that URL serves**. You can change
-your deployed code at any time without cutting a release. That is deliberate, and it means
-the trust members place in you is continuous, not per-version.
-
-## Using the SDK
+Create a React and TypeScript application with Vite in the prepared repository:
 
 ```bash
-npm install @owox/plugin-sdk
+npm create vite@latest . -- --template react-ts
+npm install
+npm install @owox/plugin-sdk lucide-react
+npm run build
 ```
+
+A simple plugin can use this project structure:
+
+```text
+.
+├── .github/
+│   └── workflows/
+│       └── deploy-pages.yml
+├── src/
+│   ├── components/
+│   │   └── ui/
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── styles.css
+├── .gitignore
+├── AGENTS.md
+├── index.html
+├── package.json
+├── plugin.json
+├── tsconfig.json
+└── vite.config.ts
+```
+
+Keep reusable controls in `src/components/ui/`. Vite's default build output is `dist/`; GitHub
+Pages publishes that directory. Keep `plugin.json` at the repository root: OWOX Data Marts reads
+it from the GitHub Release commit rather than from the deployed page.
+
+## Understand the plugin runtime
+
+An OWOX Data Marts plugin is a small web application hosted outside OWOX Data Marts. OWOX opens
+the application inside a protected frame and connects it to the installing member through
+`@owox/plugin-sdk`.
+
+### Security and trust model
+
+These constraints follow from the plugin sandbox. No OWOX Data Marts setting relaxes them.
+
+**The page runs in an opaque origin.** It has no cookies, `localStorage`, `sessionStorage`,
+`IndexedDB`, or service workers. Anything kept between sessions must live on your own backend,
+keyed by an identifier received from OWOX Data Marts.
+
+**Calls to your backend arrive with `Origin: null`.** The backend must answer
+`Access-Control-Allow-Origin: *`, and it cannot authenticate requests with cookies. Pass an
+identifier explicitly if the backend needs to know who is calling.
+
+**Your assets are cross-origin to your page.** An opaque origin matches nothing, including the
+host that served the page, so anything fetched in CORS mode needs `Access-Control-Allow-Origin: *`
+from its server. This includes `<script type="module">`, fonts, and every `fetch` request. GitHub
+Pages sends the required header; a plain static server may not. Without it, the page can load while
+the browser blocks its module script and the plugin runs no code. A page with an inline script and
+no assets does not encounter this issue.
+
+**The entry page must be embeddable.** It must not send `X-Frame-Options`. If it sends a
+`Content-Security-Policy` with `frame-ancestors`, the directive must permit OWOX Data Marts by
+using `*`, `https:`, or the exact origin of the deployment. Publication checks this and refuses a
+page that could not be displayed.
+
+**The plugin never holds an OWOX credential.** Calls through `ctx.owox` are brokered by the host,
+which attaches the member's token. Requests have the authority of the member who installed the
+plugin—never more, and never on behalf of another member. Protected routes still apply their
+server-side authorization and reject calls that member may not make.
+
+Never place GitHub tokens, OWOX API keys, or other credentials in plugin source files,
+`AGENTS.md`, coding-agent prompts, commits, or release notes. Plugin code must not read or store an
+OWOX credential. Use `OWOX_API_KEY` only for `owox-ctl` or an external script running outside the
+plugin.
+
+- Add `.env` and `.env.*` to `.gitignore`; keep only a secret-free `.env.example` when useful.
+- Let `gh` use its own authenticated credential store.
+- Put backend secrets in the backend host's secret manager, never in Vite environment variables.
+  Values exposed to browser code are public even when their names contain “secret.”
+
+## Use the plugin SDK
+
+Import `connect` from the [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk),
+then use the context it returns:
 
 ```ts
 import { connect } from '@owox/plugin-sdk';
@@ -109,19 +100,20 @@ const ctx = await connect();
 const dataMarts = await ctx.owox.dataMarts.list();
 ```
 
-`connect()` completes a handshake with the host page. It rejects if your page is not
-running inside an OWOX Data Marts frame, and if no host answers within 10 seconds.
+`connect()` completes a handshake with the OWOX Data Marts host. It rejects outside an OWOX Data
+Marts frame or if no host answers within 10 seconds.
 
-|                                            |                                                                                                                                                                             |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ctx.owox`                                 | OWOX Data Marts API client. The SDK owns its transport; you cannot replace or inspect it.                                                                                   |
-| `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab. The sandbox denies you both navigation and popups, so the host opens it, not you.                                  |
-| `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX Data Marts — `/ui/${ctx.projectId}/data-marts/${id}` — in place of your frame. Anything resolving off the app's origin is refused. |
-| `ctx.signal`                               | Aborts when the host tears your plugin down.                                                                                                                                |
-| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens. Your member's name and avatar come from `ctx.owox.auth` when you need them.                                                                     |
+| Context value | What it provides |
+| --- | --- |
+| `ctx.owox` | Authenticated [OWOX Data Marts API client](../api/api-client.md), supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). Use the API client documentation to discover available methods. Do not install `@owox/api-client` or provide an API key inside a plugin; the SDK owns its transport, which cannot be replaced or inspected. |
+| `ctx.ui.openExternal(url)` | Asks the host to open an external HTTPS address in a new tab. |
+| `ctx.ui.navigate(path)` | Asks the host to navigate to a page inside OWOX Data Marts—for example, `/ui/${ctx.projectId}/data-marts/${id}`—in place of the plugin frame. Resolutions off the app's origin are refused. |
+| `ctx.signal` | Aborts when the host tears the plugin down. |
+| `ctx.userId`, `ctx.projectId`, `ctx.theme` | Provides display context without exposing tokens. The member's name and avatar are available through `ctx.owox.auth` when needed. |
 
-Requests time out after 30 seconds. Streamed reads do not, because data traversals
-legitimately run for minutes. At most 32 requests may be in flight at once.
+See the [API client method reference](../api/api-client.md) and [Support Matrix](../api/coverage.md)
+for currently supported calls. Requests time out after 30 seconds. Streamed reads do not, because
+data traversals can run for minutes. At most 32 requests may be in flight at once.
 
 ### Low-level API escape hatch
 
@@ -132,60 +124,368 @@ The generic does not validate the response at runtime, so validate returned data
 must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or redirecting paths
 are refused.
 
-`ctx.owox` remains brokered through the host and never exposes runtime credentials. PATCH and
-DELETE extend the existing protocol additively, so existing plugins remain compatible.
+## Make the plugin feel native
+
+Plugins run in an iframe and do not inherit OWOX Data Marts styles. They must import and bundle
+their own CSS. `@owox/ui` is an internal package, not a public plugin dependency, so do not import
+it.
+
+For now, keep a small UI foundation in the plugin repository. This makes the plugin independent
+and can later be replaced by an official starter or a versioned plugin UI package without changing
+the plugin contract.
+
+Use semantic variables and the standard page structure in `src/styles.css`:
+
+```css
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.3346 0.0123 279.25);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.5148 0.0128 274.72);
+  --border: oklch(0.922 0 0);
+  --primary: oklch(0.6179 0.2295 250.87);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+:root.dark {
+  color-scheme: dark;
+  --background: oklch(0.205 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --border: oklch(0.269 0 0);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--foreground); }
+.dm-page { min-height: 100vh; }
+.dm-page-header { padding: 1.5rem 3rem; }
+.dm-page-header-title { margin: 0; font-size: 1.5rem; font-weight: 500; }
+.dm-page-content { padding: 0 3rem 3rem; }
+.dm-card { padding: 1rem; border: 1px solid var(--border); border-radius: 0.625rem; background: var(--card); }
+.dm-muted { color: var(--muted-foreground); }
+
+@media (max-width: 640px) {
+  .dm-page-header { padding: 1rem 1.25rem; }
+  .dm-page-content { padding: 0 1.25rem 1.25rem; }
+}
+```
+
+Use those classes for the application shell:
+
+```tsx
+<div className="dm-page">
+  <header className="dm-page-header">
+    <h1 className="dm-page-header-title">Plugin name</h1>
+  </header>
+  <main className="dm-page-content">
+    <section className="dm-card">Plugin content</section>
+  </main>
+</div>
+```
+
+After `connect()`, apply the host theme before rendering:
 
 ```ts
-type Deleted = { deleted: true };
-
-await ctx.owox.patchJson('/api/example-resource/item-123', { title: 'Updated title' });
-const deleted = await ctx.owox.deleteJson<Deleted>('/api/example-resource/item-123');
-await ctx.owox.deleteJson('/api/example-resource/item-123'); // Empty or 204 response: void
+document.documentElement.classList.toggle('dark', ctx.theme === 'dark');
 ```
 
-## Publishing
+Keep reusable controls in `src/components/ui/`. Radix or shadcn-style primitives can be kept
+locally, and [Lucide](https://lucide.dev/) is a good default for icons. Use semantic variables
+instead of fixed colors, visible keyboard focus, accessible names, and responsive layouts. Every
+data-driven screen should include loading, empty, error, and success states.
 
-Publishing to yourself is how you try your own plugin: any project member may do it, and
-nobody else sees the listing. A Project Admin can publish to their whole project the same
-way. Both work from the OWOX Data Marts web app and from `owox-ctl`:
+Do not depend on undocumented host HTML or CSS: it cannot cross the iframe boundary and may change
+without notice.
+
+## Define the plugin manifest
+
+Add `plugin.json` at the repository root:
+
+```json
+{
+  "name": "Example Plugin",
+  "description": "What this plugin helps a member accomplish",
+  "delivery": {
+    "type": "remote",
+    "url": "https://OWNER.github.io/PLUGIN_NAME/"
+  }
+}
+```
+
+Replace `OWNER` and `PLUGIN_NAME` after the first successful deployment. The URL must use HTTPS,
+be publicly reachable without a sign-in prompt, and not resolve to a private or metadata network,
+including through redirects.
+
+The manifest contains the plugin-authored fields above. OWOX Data Marts derives plugin identity
+from the GitHub repository and the current version from the eligible GitHub Release tag. Renaming
+or transferring a repository does not create another plugin; two repositories with identical
+contents are two different plugins.
+
+There is no separate API-key or permissions list in `plugin.json`. The plugin can call only the
+SDK-supported APIs, acting with the permissions of the member who installed it.
+
+## Deploy with GitHub Pages
+
+[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)
+can host the plugin's static HTML, CSS, and JavaScript. A repository named `OWNER/PLUGIN_NAME`
+normally receives this address:
+
+```text
+https://OWNER.github.io/PLUGIN_NAME/
+```
+
+### Configure Vite for the deployment path
+
+Most plugins use the project-site address above. GitHub Pages serves that site below its repository
+name, so update `vite.config.ts` to make scripts, styles, and images use `/PLUGIN_NAME/`. Vite's
+default build output remains `dist/`.
+
+```ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  base: '/PLUGIN_NAME/',
+  plugins: [react()],
+});
+```
+
+Replace `PLUGIN_NAME` with the exact repository name, then verify that `npm run build` creates
+`dist/index.html`.
+
+Use `base: '/'` instead when the plugin is served from the domain root: an `OWNER.github.io`
+user or organization site, or a custom domain deployed at its root. For example:
+
+```ts
+export default defineConfig({
+  base: '/',
+  plugins: [react()],
+});
+```
+
+### Add the GitHub Actions workflow
+
+Create `.github/workflows/deploy-pages.yml`:
+
+```yaml
+name: Deploy plugin to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm run typecheck --if-present
+      - run: npm test --if-present
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+### Enable and verify GitHub Pages
+
+The GitHub CLI can ask GitHub to use the Actions workflow:
 
 ```bash
-# for yourself, which is how you try a build
-owox-ctl plugins publish OWOX/example-plugin --scope member
-
-# a Project Admin, for everyone in the project
-owox-ctl plugins publish OWOX/example-plugin --scope project
+gh api --method POST repos/OWNER/PLUGIN_NAME/pages -f build_type=workflow
 ```
 
-There is a third level, `--scope deployment`, which lists a plugin for every project at
-once. It is an administrator's operation rather than an author's, and it is restricted to
-API keys named in `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS` — so unless you run the
-deployment, the two scopes above are the ones you have.
+This command needs permission to administer Pages for the repository. If GitHub refuses it, open
+**Settings → Pages** in the repository and select **GitHub Actions** under **Build and deployment
+→ Source**. GitHub documents both the [Pages API](https://docs.github.com/en/rest/pages/pages?apiVersion=2022-11-28#create-a-github-pages-site)
+and the [web settings](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
 
-Publishing only makes a plugin **findable**. It installs it for nobody: every member still
-installs it for themselves, and unpublishing later does not uninstall anyone.
+After pushing, find and watch the workflow:
 
-A public repository needs no setup — releases and metadata are read anonymously. A private
-one has to grant access to the
-[OWOX Data Marts GitHub App](https://github.com/apps/owox-data-marts), and publishing
-answers with an installation link if it cannot read your repository yet. Grant access and
-run the same command again.
+```bash
+gh run list --workflow deploy-pages.yml --limit 1
+gh run watch RUN_ID --exit-status
+```
 
-That link is the one to follow: a self-managed deployment may register its own GitHub App,
-so the URL the error gives you points at whichever App that deployment actually uses.
+Replace `RUN_ID` with the value shown by the first command. Open the deployed address and confirm
+that it loads over HTTPS without a sign-in prompt. Put that exact address in `plugin.json`, commit
+and push the manifest change, and wait for the deployment again before creating a release.
 
-## What members are told about you
+## Create a release
 
-At install time a member sees your GitHub owner name, a link to it, and — for a public
-repository — a link to the repository itself. A private repository discloses the owner
-only.
+OWOX Data Marts reads versions from GitHub Releases. A release becomes eligible when it is:
 
-They are also told plainly that your plugin acts with their access, that anything it reads
-can leave OWOX Data Marts, and that reinstalling restores nothing your plugin kept on its own side.
-Design accordingly: a member who feels misled about that is a member who uninstalls.
+- published rather than saved as a draft;
+- not marked as a GitHub prerelease;
+- tagged exactly `MAJOR.MINOR.PATCH`, optionally with a leading `v`;
+- attached to a resolvable commit with a valid root `plugin.json`;
+- configured with a public, embeddable delivery page.
 
-## When something goes wrong
+After the deployment succeeds, create the first production release:
 
-An administrator can suspend a plugin across the whole deployment. While suspended it
-cannot be opened, installed or restored — but nobody's installation is removed, and
-resuming brings it back on whatever version is current by then.
+```bash
+gh release create v0.1.0 --target main --generate-notes
+```
+
+To use GitHub's web interface instead, open **Releases**, select **Draft a new release**, create
+the tag `v0.1.0` from `main`, describe the change, leave **Set as a pre-release** unchecked, and
+select **Publish release**. See [Managing releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
+
+Prerelease identifiers such as `v1.2.3-rc.1` and build metadata such as `v1.2.3+build.7` are not
+eligible, even though both are valid SemVer. Use GitHub's prerelease checkbox for test releases.
+
+The highest eligible version becomes current for everyone using the plugin, and members cannot
+pin an older version.
+
+## Publish and install
+
+Publishing makes a plugin findable but installs it for nobody. Every member decides whether to
+install it, and unpublishing later does not uninstall existing installations.
+
+### Publish in OWOX Data Marts
+
+1. Open **Plugins** in OWOX Data Marts.
+2. Select **Publish Plugin**.
+3. Enter `OWNER/PLUGIN_NAME` in **GitHub repository**.
+4. Under **Who can find it**, choose **Only me** for testing. A Project Admin can choose
+   **Everyone in this project** after the plugin is ready.
+5. Publish the plugin, find it in the Gallery, select it, and confirm installation.
+
+For an agent or script, use the already configured [`owox-ctl`](../api/owox-ctl.md):
+
+```bash
+# Publish only for yourself while testing.
+owox-ctl plugins publish OWNER/PLUGIN_NAME --scope member
+
+# Publish for everyone in the project. Requires Project Admin access.
+owox-ctl plugins publish OWNER/PLUGIN_NAME --scope project
+
+# Deployment administrators can publish to selected projects.
+owox-ctl plugins publish OWNER/PLUGIN_NAME --scope deployment --project-id PROJECT_ID
+
+# Deployment administrators can publish to every current and future project.
+owox-ctl plugins publish OWNER/PLUGIN_NAME --scope deployment --all-projects
+```
+
+Member publication is the recommended first step for authors. Deployment scope is restricted to
+deployment administrators using API keys named in `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`;
+it also requires either one or more `--project-id` choices or `--all-projects`. Use selected
+project IDs when possible: `--all-projects` makes the plugin findable in every current and future
+project, and projects cannot be excluded from that audience.
+
+A public repository needs no GitHub App setup. For a private repository, publish once and follow
+the installation link returned by OWOX Data Marts to grant the correct GitHub App access, then
+publish again. A self-managed deployment may use its own GitHub App, so use the link returned by
+that deployment.
+
+## Test the installed plugin
+
+Publish the first release to **Only me**, install it, and test it inside OWOX Data Marts. The
+frontend depends on the host iframe and the real `@owox/plugin-sdk` handshake, so a standalone
+local frontend is not a supported preview environment.
+
+Exercise the key flows with the installing member's real access. Confirm loading, empty, error,
+and success states; light and dark themes; narrow and wide layouts; navigation; and every
+`ctx.owox` call the plugin uses. Fix issues, deploy the corrected files, and create a higher
+eligible release before sharing the plugin more broadly.
+
+## Update or roll back
+
+For a normal update, change and test the plugin, deploy it, and create a higher production release
+such as `v0.1.1`. OWOX Data Marts checks relevant repositories daily. Ask for an immediate check
+when needed:
+
+```bash
+owox-ctl plugins update OWNER/PLUGIN_NAME
+```
+
+A valid higher release applies to every installation. There is no member-level version pinning.
+To roll back, restore the last working source, deploy it, and create a new higher patch release
+that explains the restoration; do not try to move or recreate an older tag.
+
+OWOX Data Marts records the exact commit referenced by each eligible release, but the delivery URL
+does not pin the files served there. Once an eligible release version is recorded, moving,
+deleting, or recreating its tag cannot rewrite that recorded version; use a new higher eligible
+release to roll back. Deploying different files changes what installed members run even before
+another release is created. Treat every deployment to the production URL as a production change
+and keep its release metadata aligned.
+
+## Troubleshoot
+
+If the plugin cannot be published or opens as a blank page, verify that:
+
+- `npm run build` succeeds and creates `dist/index.html`;
+- the GitHub Actions workflow uploads `dist`;
+- Vite's `base` exactly matches the deployed path: `/PLUGIN_NAME/` for a project site, or `/` for
+  a user or organization site or custom-domain root deployment;
+- the Pages deployment succeeds and the HTTPS address opens without signing in;
+- `plugin.json` is at the repository root and contains that exact delivery address;
+- the GitHub Release is published, is not a prerelease, and has an eligible version tag;
+- scripts, fonts, and fetched assets are served with `Access-Control-Allow-Origin: *`;
+- the entry page is not blocked by `X-Frame-Options` or `frame-ancestors`;
+- the OWOX Data Marts GitHub App can read the repository when it is private;
+- the plugin catches errors and shows a useful message instead of a blank screen.
+
+An administrator can suspend a plugin across a deployment. A suspended plugin cannot be opened,
+installed, or restored, but existing installations are not removed. Resuming makes it available
+again on the current version.
+
+## Definition of done
+
+Before sharing the plugin with a project, confirm that:
+
+- the repository contains `AGENTS.md`, source files, `plugin.json`, and the Pages workflow;
+- build, lint, type checking, and tests pass;
+- the installed personal test in OWOX Data Marts covers narrow and wide layouts, light and dark
+  themes, and understandable loading, empty, error, and success states;
+- no credential or `.env` file is committed;
+- the deployed page and all its assets load from a public HTTPS address;
+- the production release points to the intended commit and has an eligible version tag;
+- the plugin has been published to **Only me**, installed, and tested with the installing member's
+  real access, including every `ctx.owox` call it uses;
+- the plugin description matches what the plugin actually does;
+- project-wide publication happens only after the personal installation passes.
+
+## Reference links
+
+- [GitHub CLI](https://cli.github.com/)
+- [`@owox/plugin-sdk` package guide](../../packages/plugin-sdk/README.md)
+- [TypeScript/JavaScript API client](../api/api-client.md)
+- [API Support Matrix](../api/coverage.md)
+- [owox-ctl](../api/owox-ctl.md)
+- [Vite deployment guide](https://vite.dev/guide/static-deploy.html)
+- [GitHub Pages custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+- [GitHub Pages API](https://docs.github.com/en/rest/pages/pages?apiVersion=2022-11-28#create-a-github-pages-site)
+- [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)

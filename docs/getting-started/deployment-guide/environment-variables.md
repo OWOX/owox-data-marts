@@ -244,8 +244,8 @@ GitHub access falls back in order: App installation token, then `GITHUB_TOKEN`, 
 anonymous. Public repositories need no credential at all, and an App configured but not
 installed on a given public repository does not block it.
 
-See the [plugin authoring guide](../../plugins/authoring-guide.md) for what this means on
-the plugin side.
+See the [plugin authoring guide](../../plugins/authoring-guide.md#deploy-with-github-pages) for
+what this means on the plugin side.
 
 ## Troubleshooting
 

@@ -4,15 +4,22 @@
 
 Use `owox-ctl` for terminal commands. Use `@owox/api-client` for code-level integrations.
 
-## Install
+> **Building a plugin?** The same API-client abstractions are available through `ctx.owox`,
+> supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). A plugin does
+> not install `@owox/api-client` directly and does not create or receive an API key. See the
+> [plugin authoring guide](../plugins/authoring-guide.md#use-the-plugin-sdk).
+
+## Install for an external application or script
 
 ```bash
 npm install @owox/api-client
 ```
 
-## Create an API key
+## Authenticate an external application or script
 
-Before using `@owox/api-client`, create an API key. See [API Keys](./api-keys/).
+Direct use of `@owox/api-client` outside a
+[plugin](../plugins/authoring-guide.md#use-the-plugin-sdk) requires an API key. See
+[API Keys](./api-keys/).
 
 ## Basic usage
 

@@ -155,7 +155,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         },
         {
           label: 'Plugins',
-          items: [{ autogenerate: { directory: 'docs/plugins' } }],
+          items: ['docs/plugins', 'docs/plugins/project-setup', 'docs/plugins/authoring-guide'],
         },
         {
           label: 'Contributing',
