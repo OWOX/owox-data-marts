@@ -292,6 +292,52 @@ unknown enum value, malformed user, storage, or context, invalid timestamp, miss
 field, or invalid pagination value with `OWOXApiError`. Invalid list options are rejected before
 authentication or any network request.
 
+## Manage Data Mart runs
+
+Use `dataMarts.run(dataMartId, request)` to start a manual connector run. Technical User access
+to the Data Mart is required. The optional `payload` must be a JSON object no larger than 1 MB;
+omit it to use the Data Mart's default connector payload. The method returns the new run ID.
+
+```ts
+const { runId } = await client.dataMarts.run('data-mart-id', {
+  payload: { cursor: 'next-page' },
+});
+```
+
+Business Users can inspect runs for a Data Mart they can see. `dataMarts.listRuns()` returns a
+newest-first page, while `dataMarts.getRun()` returns one run and includes full Data Quality detail
+when the run is a Data Quality run.
+
+```ts
+const history = await client.dataMarts.listRuns('data-mart-id', {
+  limit: 50,
+  offset: 0,
+});
+
+const run = await client.dataMarts.getRun('data-mart-id', history.runs[0].id);
+console.log(run.status, run.qualitySummary, run.dataQuality);
+```
+
+The list endpoint defaults to 100 runs, caps `limit` at 100 and `offset` at 100,000, floors finite
+fractions, and replaces non-finite or non-positive values with its defaults. The response has no
+total or next-page marker. Increment `offset` by the number of returned runs and stop when a page
+contains fewer runs than the effective limit or the next offset would exceed 100,000. New runs can
+shift offset pages, so deduplicate by `run.id` while paging.
+
+Use `dataMarts.cancelRun(dataMartId, runId)` to cancel an active connector, standard report, or
+Data Quality run. Technical User access is required. The method resolves with no value after the
+API returns `204 No Content`; cancelling a terminal run returns a conflict error.
+
+```ts
+await client.dataMarts.cancelRun('data-mart-id', runId);
+```
+
+The package exports `OWOXDataMartRun`, `OWOXDataMartRunDetail`,
+`OWOXDataMartRunListOptions`, `OWOXDataMartRunsResponse`, `OWOXRunDataMartRequest`, and the run and
+Data Quality enum and nested-object types. The client validates response field presence,
+nullability, enums, RFC 3339 timestamps, totals, author metadata, compact Data Quality summaries,
+and full Data Quality detail. An incompatible payload throws `OWOXApiError`.
+
 ## Read the Models canvas
 
 Use `models.getDataMarts()` to read one page of the data marts visible to the current project

@@ -13,6 +13,7 @@ import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-
 import { ListDataMartsQueryApiDto } from '../dto/presentation/list-data-marts-query-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
+import { RunDataMartResponseApiDto } from '../dto/presentation/run-data-mart-response-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
@@ -78,6 +79,7 @@ import {
   ValidateDataMartDefinitionSpec,
   DataMartAiHelperAvailabilitySpec,
 } from './spec/data-mart.api';
+import { normalizeProjectListPagination } from '../utils/normalize-project-list-pagination';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -285,7 +287,7 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
     @Body() dto: RunDataMartRequestApiDto
-  ): Promise<{ runId: string }> {
+  ): Promise<RunDataMartResponseApiDto> {
     const command = this.mapper.toRunCommand(id, context, dto.payload);
     const runId = await this.runDataMartService.run(command);
     return { runId };
@@ -348,10 +350,16 @@ export class DataMartController {
   async getRunHistory(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
-    @Query('limit') limit: number = 100,
-    @Query('offset') offset: number = 0
+    @Query('limit') limit?: string | number,
+    @Query('offset') offset?: string | number
   ): Promise<DataMartRunsResponseApiDto> {
-    const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
+    const pagination = normalizeProjectListPagination(limit, offset);
+    const command = this.mapper.toGetDataMartRunsCommand(
+      id,
+      context,
+      pagination.limit,
+      pagination.offset
+    );
     const runs = await this.getDataMartRunsService.run(command);
     return this.mapper.toRunsResponse(runs);
   }

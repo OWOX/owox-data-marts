@@ -213,11 +213,11 @@ export class DataMartRunResponseApiDto {
   @DataMartRunTotalsApiProperty()
   totals: DataMartRunTotals;
 
-  @ApiProperty({ type: CompactDataQualitySummaryApiDto, required: false, nullable: true })
+  @ApiProperty({ type: CompactDataQualitySummaryApiDto, nullable: true })
   qualitySummary: CompactDataQualitySummaryApiDto | null;
 }
 
 export class DataMartRunDetailResponseApiDto extends DataMartRunResponseApiDto {
-  @ApiProperty({ type: DataQualityRunDetailsResponseApiDto, required: false, nullable: true })
-  dataQuality?: DataQualityRunDetailsDto | null;
+  @ApiProperty({ type: DataQualityRunDetailsResponseApiDto, nullable: true })
+  dataQuality: DataQualityRunDetailsDto | null;
 }

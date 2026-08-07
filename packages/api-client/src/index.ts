@@ -22,6 +22,27 @@ export {
   type TraverseDataSortRule,
 } from './data-marts.js';
 export {
+  type OWOXCompactDataQualitySummary,
+  type OWOXDataMartRun,
+  type OWOXDataMartRunDetail,
+  type OWOXDataMartRunListOptions,
+  type OWOXDataMartRunsResponse,
+  type OWOXDataMartRunStatus,
+  type OWOXDataMartRunTriggerType,
+  type OWOXDataMartRunType,
+  type OWOXDataMartRunUser,
+  type OWOXDataQualityCategory,
+  type OWOXDataQualityCheckStatus,
+  type OWOXDataQualityRunDetail,
+  type OWOXDataQualityScope,
+  type OWOXDataQualitySeverity,
+  type OWOXDataQualitySummary,
+  type OWOXDataQualitySummaryState,
+  type OWOXRunDataMartDefinitionType,
+  type OWOXRunDataMartRequest,
+  type OWOXRunDataMartResponse,
+} from './data-mart-runs.js';
+export {
   type OWOXDeploymentAudience,
   type OWOXPluginPublication,
   type OWOXPluginPublicationScope,

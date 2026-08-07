@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
+import { IsObject, IsOptional } from 'class-validator';
 import { MaxJsonSize } from '../../../common/validators/max-json-size.validator';
 
 const MAX_PAYLOAD_SIZE_BYTES = 1024 * 1024; // 1MB
@@ -11,6 +11,7 @@ export class RunDataMartRequestApiDto {
    * For example, for a connector data mart, the payload is the connector configuration fields with unknown structure.
    */
   @IsOptional()
+  @IsObject()
   @MaxJsonSize(MAX_PAYLOAD_SIZE_BYTES)
   @ApiPropertyOptional({
     example: { key: 'value' },

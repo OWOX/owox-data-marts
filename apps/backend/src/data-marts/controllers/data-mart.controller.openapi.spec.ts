@@ -289,4 +289,88 @@ describe('DataMartController list OpenAPI', () => {
       resolveRef('#/components/schemas/DataMartRunDetailResponseApiDto').properties
     ).toHaveProperty('dataQuality');
   });
+
+  it('publishes the complete Data Mart run lifecycle with stable operation identities', () => {
+    const manualRun = document.paths['/api/data-marts/{id}/manual-run']?.post;
+    const listRuns = document.paths['/api/data-marts/{id}/runs']?.get;
+    const getRun = document.paths['/api/data-marts/{id}/runs/{runId}']?.get;
+    const cancelRun = document.paths['/api/data-marts/{id}/runs/{runId}/cancel']?.post;
+
+    expect(manualRun).toMatchObject({
+      operationId: 'DataMartController_manualRun',
+      summary: 'Start a manual Data Mart run',
+      tags: ['DataMarts'],
+    });
+    expect(manualRun?.description).toMatch(/technical user/i);
+    expect(manualRun?.requestBody).toMatchObject({
+      required: false,
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/RunDataMartRequestApiDto' },
+        },
+      },
+    });
+    expect(manualRun?.responses['201']).toMatchObject({
+      description: expect.stringMatching(/created/i),
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/RunDataMartResponseApiDto' },
+        },
+      },
+    });
+    expect(resolveRef('#/components/schemas/RunDataMartResponseApiDto')).toMatchObject({
+      required: ['runId'],
+      properties: { runId: { type: 'string', format: 'uuid' } },
+    });
+
+    expect(listRuns).toMatchObject({
+      operationId: 'DataMartController_getRunHistory',
+      summary: 'List Data Mart runs',
+      tags: ['DataMarts'],
+    });
+    expect(listRuns?.description).toMatch(/business user/i);
+    const listParameters = Object.fromEntries(
+      (listRuns?.parameters ?? []).map(parameter => {
+        if ('$ref' in parameter) {
+          throw new Error('Data Mart run list parameters must be declared inline');
+        }
+        return [parameter.name, parameter];
+      })
+    );
+    expect(listParameters.limit).toMatchObject({
+      in: 'query',
+      required: false,
+      schema: { type: 'number', default: 100, minimum: 1, maximum: 100 },
+    });
+    expect(listParameters.offset).toMatchObject({
+      in: 'query',
+      required: false,
+      schema: { type: 'number', default: 0, minimum: 0, maximum: 100000 },
+    });
+
+    expect(getRun).toMatchObject({
+      operationId: 'DataMartController_getRunById',
+      summary: 'Get a Data Mart run',
+      tags: ['DataMarts'],
+    });
+    expect(getRun?.description).toMatch(/business user/i);
+
+    expect(cancelRun).toMatchObject({
+      operationId: 'DataMartController_cancelRun',
+      summary: 'Cancel a Data Mart run',
+      tags: ['DataMarts'],
+    });
+    expect(cancelRun?.description).toMatch(/technical user/i);
+    expect(cancelRun?.responses['204']).toEqual({ description: 'Data Mart run cancelled' });
+  });
+
+  it('marks mapper-owned nullable Data Quality fields as present in every run response', () => {
+    const runSchema = resolveRef('#/components/schemas/DataMartRunResponseApiDto');
+    const detailSchema = resolveRef('#/components/schemas/DataMartRunDetailResponseApiDto');
+
+    expect(runSchema.required).toContain('qualitySummary');
+    expect(runSchema.properties.qualitySummary).toMatchObject({ nullable: true });
+    expect(detailSchema.required).toContain('dataQuality');
+    expect(detailSchema.properties.dataQuality).toMatchObject({ nullable: true });
+  });
 });

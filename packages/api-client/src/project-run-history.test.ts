@@ -64,6 +64,7 @@ const runHistory: OWOXProjectDataMartRunsResponse = {
       errors: null,
       additionalParams: null,
       totals: null,
+      qualitySummary: null,
       createdByUser: {
         userId: 'user-1',
         fullName: 'Ada Lovelace',
@@ -204,6 +205,24 @@ describe('Runs API', () => {
   it('rejects a run without creator metadata', async () => {
     const { createdByUser: _createdByUser, ...runWithoutCreator } = runHistory.runs[0]!;
     const response = { runs: [runWithoutCreator] };
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Project Run History API returned an unexpected response shape',
+      details: response,
+    });
+  });
+
+  it('rejects a run without the shared Data Quality summary field', async () => {
+    const { qualitySummary: _qualitySummary, ...runWithoutQualitySummary } = runHistory.runs[0];
+    const response = { runs: [runWithoutQualitySummary] };
     const fetchImpl = createFetchMock(request => {
       if (request.method === 'POST') {
         return createJsonResponse(200, { accessToken: 'access-token-1' });
