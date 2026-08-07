@@ -290,6 +290,23 @@ describe('OWOXApiClient', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('rejects raw traversal even when a supplied URL normalizes it', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const path = '/api/data-marts/../auth/context';
+
+    await expect(
+      requestApi({
+        apiOrigin,
+        fetchImpl,
+        path,
+        url: new URL(path, apiOrigin),
+        method: 'GET',
+        apiKeyId,
+      })
+    ).rejects.toBeInstanceOf(OWOXConfigError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('gets the API key auth context without exposing the API key secret', async () => {
     const context = {
       apiKeyId,

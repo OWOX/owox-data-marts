@@ -123,8 +123,12 @@ export function resolveAuthenticatedApiUrl(
 }
 
 export async function requestApi(options: ApiRequestOptions): Promise<Response> {
-  const url =
-    options.url ?? resolveAuthenticatedApiUrl(options.apiOrigin, options.path, options.query);
+  const resolvedUrl = resolveAuthenticatedApiUrl(options.apiOrigin, options.path, options.query);
+  if (options.url && options.url.href !== resolvedUrl.href) {
+    throw unsafeApiPath();
+  }
+
+  const url = options.url ?? resolvedUrl;
   assertAuthenticatedApiUrl(options.apiOrigin, url);
   const headers = new Headers({
     accept: options.accept ?? 'application/json',
