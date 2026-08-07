@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
@@ -44,7 +44,9 @@ export class RunDataMartService {
     }
 
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
-      throw new Error('Only data marts with connector definition type can be run manually');
+      throw new BadRequestException(
+        'Only data marts with connector definition type can be run manually'
+      );
     }
 
     // Pre-check is for user-initiated runs only, where it surfaces an immediate, clear error.

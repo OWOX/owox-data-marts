@@ -33,11 +33,7 @@ import { UpdateEntityContextsRequestApiDto } from '../../dto/presentation/contex
 import { DATA_MARTS_PAGE_SIZE } from '../../use-cases/list-data-marts.service';
 import { BatchDataMartDataLastUpdatedResponseApiDto } from '../../dto/presentation/data-mart-data-last-updated-response-api.dto';
 import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
-import {
-  DEFAULT_PROJECT_LIST_LIMIT,
-  MAX_PROJECT_LIST_LIMIT,
-  MAX_PROJECT_LIST_OFFSET,
-} from '../../utils/normalize-project-list-pagination';
+import { DEFAULT_PROJECT_LIST_LIMIT } from '../../utils/normalize-project-list-pagination';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -221,8 +217,6 @@ export function GetDataMartRunsSpec() {
       required: false,
       type: Number,
       default: DEFAULT_PROJECT_LIST_LIMIT,
-      minimum: 1,
-      maximum: MAX_PROJECT_LIST_LIMIT,
       description:
         'Maximum number of runs to return. Non-positive or non-finite values use the default; fractions are floored and larger values are capped.',
     }),
@@ -231,8 +225,6 @@ export function GetDataMartRunsSpec() {
       required: false,
       type: Number,
       default: 0,
-      minimum: 0,
-      maximum: MAX_PROJECT_LIST_OFFSET,
       description:
         'Number of runs to skip. Non-positive or non-finite values use zero; fractions are floored and larger values are capped.',
     }),

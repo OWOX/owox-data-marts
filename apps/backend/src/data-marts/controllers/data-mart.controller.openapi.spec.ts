@@ -340,13 +340,17 @@ describe('DataMartController list OpenAPI', () => {
     expect(listParameters.limit).toMatchObject({
       in: 'query',
       required: false,
-      schema: { type: 'number', default: 100, minimum: 1, maximum: 100 },
+      schema: { type: 'number', default: 100 },
     });
+    expect(listParameters.limit.schema).not.toHaveProperty('minimum');
+    expect(listParameters.limit.schema).not.toHaveProperty('maximum');
     expect(listParameters.offset).toMatchObject({
       in: 'query',
       required: false,
-      schema: { type: 'number', default: 0, minimum: 0, maximum: 100000 },
+      schema: { type: 'number', default: 0 },
     });
+    expect(listParameters.offset.schema).not.toHaveProperty('minimum');
+    expect(listParameters.offset.schema).not.toHaveProperty('maximum');
 
     expect(getRun).toMatchObject({
       operationId: 'DataMartController_getRunById',
