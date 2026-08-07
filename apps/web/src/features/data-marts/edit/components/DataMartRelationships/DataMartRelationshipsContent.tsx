@@ -454,51 +454,52 @@ export function DataMartRelationshipsContent({
   const dmDefinitionType = dataMart.definitionType;
 
   function renderToolbar() {
+    // flex-wrap: the block also renders in narrow layouts (~600px), where the
+    // search + selects + view toggle cannot fit one row — controls must stay
+    // reachable, so they wrap instead of overflowing.
     return (
-      <div className='flex min-w-0 items-center justify-between gap-2 pb-4'>
-        <div className='flex min-w-0 flex-nowrap items-center gap-2'>
-          <SearchInput
-            id='search-relationships'
-            placeholder='Search data marts'
-            value={searchInput}
-            onChange={setSearchInput}
-            debounceTime={0}
-            className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
-            aria-label='Search data marts'
-          />
-          <Select
-            value={statusFilter}
-            onValueChange={value => {
-              handleStatusFilterChange(value as RelationshipStatusFilter);
-            }}
-          >
-            <SelectTrigger className='w-[180px] min-w-[150px]' aria-label='Status'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RELATIONSHIP_STATUS_FILTER_OPTIONS.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={showLooped ? 'show' : 'hide'}
-            onValueChange={value => {
-              handleShowLoopedChange(value === 'show');
-            }}
-          >
-            <SelectTrigger className='w-[220px] min-w-[180px]' aria-label='Looped data marts'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='hide'>Hide looped data marts</SelectItem>
-              <SelectItem value='show'>Show looped data marts</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className='flex items-center gap-2'>
+      <div className='flex min-w-0 flex-wrap items-center gap-2 pb-4'>
+        <SearchInput
+          id='search-relationships'
+          placeholder='Search data marts'
+          value={searchInput}
+          onChange={setSearchInput}
+          debounceTime={0}
+          className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
+          aria-label='Search data marts'
+        />
+        <Select
+          value={statusFilter}
+          onValueChange={value => {
+            handleStatusFilterChange(value as RelationshipStatusFilter);
+          }}
+        >
+          <SelectTrigger className='w-[180px] min-w-[150px]' aria-label='Status'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RELATIONSHIP_STATUS_FILTER_OPTIONS.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={showLooped ? 'show' : 'hide'}
+          onValueChange={value => {
+            handleShowLoopedChange(value === 'show');
+          }}
+        >
+          <SelectTrigger className='w-[220px] min-w-[180px]' aria-label='Looped data marts'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='hide'>Hide looped data marts</SelectItem>
+            <SelectItem value='show'>Show looped data marts</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className='ml-auto flex items-center gap-2'>
           {transientRows.length > 0 && (
             <span className='text-muted-foreground mr-2 flex items-center gap-1 text-sm'>
               <GitMerge className='h-3.5 w-3.5' />
