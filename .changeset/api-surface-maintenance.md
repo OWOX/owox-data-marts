@@ -23,5 +23,11 @@ consumers should prefer typed resource abstractions when available.
 ## Manage Data Mart run lifecycles through the API client
 
 `@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through
-`runs.start()`, `runs.listForDataMart()`, `runs.get()`, and `runs.cancel()`. These methods enforce the
-same access, payload, pagination, and response contracts as the service API.
+`runs.start()`, `runs.listForDataMart()`, `runs.get()`, and `runs.cancel()`. Starting and cancelling
+require Technical User access; listing and inspecting require Business User access. Manual payloads
+must be objects no larger than 1 MB, and list pagination defaults to 100 items, caps the limit at 100
+and offset at 100,000, and normalizes invalid numeric values. Responses are type-checked at runtime,
+including Data Quality details.
+
+The existing project-wide `runs.list()` method is unchanged, so current integrations require no
+migration.
