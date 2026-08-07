@@ -73,7 +73,6 @@ export type PluginRequest =
       method: 'POST' | 'PUT';
       path: string;
       query?: PluginQuery;
-      /** Optional for compatibility with plugins built against the original v1 shape. */
       body?: unknown;
       accept?: string;
       stream?: false;

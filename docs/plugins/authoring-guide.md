@@ -125,12 +125,12 @@ legitimately run for minutes. At most 32 requests may be in flight at once.
 
 ### Low-level API escape hatch
 
-Prefer the typed `ctx.owox` resources. For an API-key-compatible endpoint that has no typed
-abstraction, the client also exposes `getJson<T>(path, query?)`, `postJson<T>(path, body,
-accept?)`, `putJson<T>(path, body)`, `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`,
-and `getStream(path, query?)`. The generic does not validate the response at runtime, so
-validate returned data yourself. Paths must be root-relative `/api/...` and are limited to 2,048
-characters; unsafe or redirecting paths are refused.
+Prefer the typed `ctx.owox` resources. For an endpoint that has no typed abstraction, the client
+also exposes `getJson<T>(path, query?)`, `postJson<T>(path, body, accept?)`, `putJson<T>(path,
+body)`, `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`, and `getStream(path, query?)`.
+The generic does not validate the response at runtime, so validate returned data yourself. Paths
+must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or redirecting paths
+are refused.
 
 `ctx.owox` remains brokered through the host and never exposes runtime credentials. PATCH and
 DELETE extend the existing protocol additively, so existing plugins remain compatible.
