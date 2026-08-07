@@ -496,14 +496,17 @@ interface RelationshipFlowGraph {
   filteredOutCount: number;
 }
 
+/**
+ * Structural fingerprint of the graph: membership and data flags only —
+ * deliberately NOT positions or sizes. View-settings toggles (view mode,
+ * layout direction, join labels) relayout every node, and keying the reset
+ * and auto-fit effects on geometry would wipe the user's pan/zoom and
+ * selection on every cosmetic toggle.
+ */
 function getRelationshipFlowGraphIdentity(graph: RelationshipFlowGraph): string {
   return JSON.stringify([
     graph.nodes.map(node => [
       node.id,
-      node.position.x,
-      node.position.y,
-      node.width,
-      node.height,
       node.data.isSource,
       node.data.label,
       node.data.targetAlias,

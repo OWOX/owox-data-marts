@@ -17,6 +17,7 @@ interface ReactFlowStubProps {
     height?: number;
     data: {
       isSource: boolean;
+      fields?: { name: string }[];
       onOpenExternal: () => void;
     };
   }[];
@@ -452,6 +453,46 @@ describe('RelationshipCanvas view settings', () => {
     // 92 header + 4 collapsed rows × 26 + the "+2 more" toggle row.
     expect(target?.width).toBe(256);
     expect(target?.height).toBe(92 + 4 * 26 + 26);
+    // The rows themselves must reach the card, not just the sizing math.
+    expect(target?.data.fields?.map(field => field.name)).toEqual([
+      'field_0',
+      'field_1',
+      'field_2',
+      'field_3',
+      'field_4',
+      'field_5',
+    ]);
+  });
+
+  it('keeps the selection and viewport across view-settings toggles', async () => {
+    const relationships = [buildRelationship('rel-1', 'target-1')];
+    const { rerender } = render(<RelationshipCanvas {...buildCanvasProps(relationships)} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+    });
+
+    const rootId = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isSource)?.id ?? '';
+    act(() => {
+      reactFlowHarness.latestProps?.onNodeClick?.(null, { id: rootId });
+    });
+    expect(reactFlowHarness.latestProps?.nodes?.find(node => node.id === rootId)?.selected).toBe(
+      true
+    );
+
+    // Cosmetic toggles relayout the graph but keep every node id — the
+    // selection and the user's viewport must survive (no extra fitView).
+    rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} showJoinFields />);
+    rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} viewMode='erd' />);
+    rerender(<RelationshipCanvas {...buildCanvasProps(relationships)} direction='vertical' />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps).not.toBeNull();
+    });
+    expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+    expect(reactFlowHarness.latestProps?.nodes?.find(node => node.id === rootId)?.selected).toBe(
+      true
+    );
   });
 
   it('labels edges with join conditions when Show join fields is on', async () => {

@@ -228,7 +228,10 @@ export function DataMartRelationshipsContent({
           if (schemaRequestIdRef.current !== requestId) return;
           setBlendableSchema(data);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          // Without the schema the Detailed canvas view falls back to compact
+          // cards with no rows — leave a trace so that state is diagnosable.
+          console.error('Failed to load blendable schema', error);
           if (schemaRequestIdRef.current !== requestId) return;
           setBlendableSchema(null);
         })
@@ -353,9 +356,9 @@ export function DataMartRelationshipsContent({
       if (!map.has(field.aliasPath)) map.set(field.aliasPath, rows);
       rows.push({
         name: field.originalFieldName,
-        // The configured blend alias when set — the same business name the
-        // Models canvas shows for this field.
-        alias: field.alias || field.originalFieldName,
+        // The configured blend alias when set — the same fallback the Models
+        // canvas mapper applies (alias?.trim() ? alias : name).
+        alias: field.alias.trim() ? field.alias : field.originalFieldName,
         type: field.sourceFieldType ?? field.type,
         isPrimaryKey: false,
         isHidden: field.isHidden,

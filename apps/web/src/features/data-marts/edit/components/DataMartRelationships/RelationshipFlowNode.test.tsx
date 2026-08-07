@@ -1,7 +1,8 @@
 import type { NodeProps } from '@xyflow/react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
+import type { ErdCardField } from '../../../shared/canvas/erd-fields';
+import { ALL_HIDDEN, NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
 import { RelationshipFlowNode, type RelationshipFlowNodeType } from './RelationshipCanvas';
 
 vi.mock('@xyflow/react', async importOriginal => {
@@ -107,4 +108,47 @@ describe('RelationshipFlowNode', () => {
     expect(screen.queryByText('No primary key')).not.toBeInTheDocument();
     expect(document.querySelector('.lucide-triangle-alert')).toBeNull();
   });
+
+  it('renders collapsed field rows in Detailed view and expands them in place', () => {
+    renderNode(vi.fn(), { viewMode: 'erd', fields: buildFields(6) });
+
+    expect(screen.getByText('field_0')).toBeInTheDocument();
+    expect(screen.getByText('field_3')).toBeInTheDocument();
+    expect(screen.queryByText('field_4')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /\+2 more fields/ }));
+
+    expect(screen.getByText('field_5')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Show less/ })).toBeInTheDocument();
+  });
+
+  it('renders no field rows in Compact view even when fields exist', () => {
+    renderNode(vi.fn(), { viewMode: 'compact', fields: buildFields(3) });
+
+    expect(screen.queryByText('field_0')).not.toBeInTheDocument();
+  });
+
+  it('hides the object labels when all are unchecked but keeps the alias badge', () => {
+    renderNode(vi.fn(), { objectLabels: ALL_HIDDEN });
+
+    // The alias badge is join configuration, not an object label — it stays.
+    expect(screen.getByText('customers')).toBeInTheDocument();
+    expect(screen.queryByText('3 fields')).not.toBeInTheDocument();
+  });
+
+  it('shows the field count when the fields object label is checked', () => {
+    renderNode(vi.fn(), { objectLabels: NOTHING_HIDDEN });
+
+    expect(screen.getByText('3 fields')).toBeInTheDocument();
+  });
 });
+
+function buildFields(count: number): ErdCardField[] {
+  return Array.from({ length: count }, (_, index) => ({
+    name: `field_${String(index)}`,
+    alias: `field_${String(index)}`,
+    type: 'STRING',
+    isPrimaryKey: false,
+    isHidden: false,
+  }));
+}
