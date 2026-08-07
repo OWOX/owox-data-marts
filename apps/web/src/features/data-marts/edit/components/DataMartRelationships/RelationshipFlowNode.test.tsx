@@ -1,6 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
 import { RelationshipFlowNode, type RelationshipFlowNodeType } from './RelationshipCanvas';
 
 vi.mock('@xyflow/react', async importOriginal => {
@@ -9,6 +10,8 @@ vi.mock('@xyflow/react', async importOriginal => {
     ...actual,
     Handle: () => null,
     Position: { Left: 'left', Right: 'right' },
+    // The real hook needs a mounted ReactFlow store; the node renders bare here.
+    useUpdateNodeInternals: () => () => undefined,
   };
 });
 
@@ -35,6 +38,10 @@ function renderNode(
       hasOutgoing: false,
       highlighted: false,
       dimmed: false,
+      fields: [],
+      viewMode: 'compact' as const,
+      objectLabels: NOTHING_HIDDEN,
+      direction: 'horizontal' as const,
       onOpenExternal,
       ...dataOverrides,
     },

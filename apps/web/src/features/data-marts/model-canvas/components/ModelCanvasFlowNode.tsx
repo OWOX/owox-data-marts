@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { ExternalLink, Info } from 'lucide-react';
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import {
@@ -48,9 +49,20 @@ export type ModelCanvasFlowNodeType = Node<
 >;
 
 export default function ModelCanvasFlowNode({
+  id,
   data,
   selected,
 }: NodeProps<ModelCanvasFlowNodeType>) {
+  // Owned here (not in the section) so expansion survives Compact↔Detailed
+  // round-trips — the node stays mounted while the section unmounts.
+  const [expanded, setExpanded] = useState(false);
+  const updateNodeInternals = useUpdateNodeInternals();
+  // Expansion grows the card past its layout height, moving the handles —
+  // re-measure so edges stay attached to the handle dots.
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [expanded, id, updateNodeInternals]);
+
   const accent = definitionTypeAccent(data.definitionType);
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
@@ -180,7 +192,15 @@ export default function ModelCanvasFlowNode({
       )}
 
       {/* ERD body: field rows (only in ERD view) */}
-      {showBody && <ErdCardFieldsSection fields={fields} />}
+      {showBody && (
+        <ErdCardFieldsSection
+          fields={fields}
+          expanded={expanded}
+          onToggleExpanded={() => {
+            setExpanded(v => !v);
+          }}
+        />
+      )}
 
       {data.hasOutgoing && (
         <Handle

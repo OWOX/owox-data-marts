@@ -1,12 +1,10 @@
 import { Badge } from '@owox/ui/components/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
   ExternalLink,
   Info,
   Locate,
   Maximize2,
-  Settings,
   TriangleAlert,
   ZoomIn,
   ZoomOut,
@@ -22,6 +20,7 @@ import {
   getBezierPath,
   useReactFlow,
   useStore,
+  useUpdateNodeInternals,
   type Edge,
   type EdgeProps,
   type Node,
@@ -47,21 +46,21 @@ import {
 import { EdgeArrowMarkers } from '../../../shared/canvas/edge-arrow';
 import { edgeMarkerId } from '../../../shared/canvas/edge-marker-id';
 import type { CanvasDirection } from '../../../shared/canvas/canvas-direction';
-import { CanvasSettingsPanel } from '../../../shared/canvas/canvas-settings-panel';
+import { CanvasSettingsPopover } from '../../../shared/canvas/canvas-settings-panel';
 import {
   estimateEdgeLabelDimensions,
   runDagreLayout,
   type DagreLayoutEdge,
   type DagreLayoutNode,
 } from '../../../shared/canvas/dagre-layout';
+import { EdgeJoinLabel } from '../../../shared/canvas/edge-join-label';
 import {
-  collapsedRowCount,
-  ERD_EXPAND_ROW_HEIGHT,
-  ERD_ROW_HEIGHT,
+  ERD_NODE_WIDTH,
+  erdFieldsBodyHeight,
   type ErdCardField,
 } from '../../../shared/canvas/erd-fields';
 import { ErdCardFieldsSection } from '../../../shared/canvas/erd-fields-section';
-import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../../../shared/canvas/object-labels';
+import type { ObjectLabelsHidden } from '../../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../../shared/canvas/view-mode';
 import { OWOX_GRAY_DARK, OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
 import { definitionTypeAccent } from '../../../shared/canvas/definition-type-accent';
@@ -131,7 +130,6 @@ interface RelationshipCanvasProps {
 }
 
 const NODE_W = 240;
-const ERD_NODE_W = 256;
 const SRC_H = 48;
 const TGT_H = 92;
 const FIT_VIEW_SCALE = 0.85;
@@ -159,10 +157,10 @@ export interface RelationshipNodeData {
   highlighted: boolean;
   dimmed: boolean;
   /** ERD rows shown in Detailed view; empty when the schema has none for this node. */
-  fields?: ErdCardField[];
-  viewMode?: CanvasViewMode;
-  objectLabels?: ObjectLabelsHidden;
-  direction?: CanvasDirection;
+  fields: ErdCardField[];
+  viewMode: CanvasViewMode;
+  objectLabels: ObjectLabelsHidden;
+  direction: CanvasDirection;
   onOpenExternal: () => void;
 }
 
@@ -217,8 +215,8 @@ function IndicatorLabel({ data }: { data: RelationshipNodeData }) {
   );
 }
 
-function nodeCardWidth(viewMode: CanvasViewMode | undefined): number {
-  return viewMode === 'erd' ? ERD_NODE_W : NODE_W;
+function nodeCardWidth(viewMode: CanvasViewMode): number {
+  return viewMode === 'erd' ? ERD_NODE_WIDTH : NODE_W;
 }
 
 function cardStateStyle(data: RelationshipNodeData, selected: boolean): React.CSSProperties {
@@ -245,13 +243,23 @@ function cardStateStyle(data: RelationshipNodeData, selected: boolean): React.CS
   };
 }
 
-export function RelationshipFlowNode({ data, selected }: NodeProps<RelationshipFlowNodeType>) {
+export function RelationshipFlowNode({ id, data, selected }: NodeProps<RelationshipFlowNodeType>) {
+  // Owned here (not in the section) so expansion survives Compact↔Detailed
+  // round-trips — the node stays mounted while the section unmounts.
+  const [expanded, setExpanded] = useState(false);
+  const updateNodeInternals = useUpdateNodeInternals();
+  // Expansion grows the card past its layout height, moving the handles —
+  // re-measure so edges stay attached to the handle dots.
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [expanded, id, updateNodeInternals]);
+
   const accent = definitionTypeAccent(data.definitionType);
 
   // Object labels mirror the Models canvas: accent stripe + source badge,
   // field count and status dot toggle independently. The alias badge is join
   // configuration (not an object label), so it always stays.
-  const labels = data.objectLabels ?? NOTHING_HIDDEN;
+  const labels = data.objectLabels;
   const withSource = !labels.source;
   const withFieldCount = !labels.fields;
   const withStatus = !labels.status;
@@ -299,8 +307,7 @@ export function RelationshipFlowNode({ data, selected }: NodeProps<RelationshipF
   }
 
   const openExternalLabel = `Open ${data.label} in new tab`;
-  const fields = data.fields ?? [];
-  const showFieldRows = data.viewMode === 'erd' && fields.length > 0;
+  const showFieldRows = data.viewMode === 'erd' && data.fields.length > 0;
 
   return (
     <div
@@ -381,7 +388,15 @@ export function RelationshipFlowNode({ data, selected }: NodeProps<RelationshipF
       </div>
 
       {/* ERD body: field rows (only in Detailed view) */}
-      {showFieldRows && <ErdCardFieldsSection fields={fields} />}
+      {showFieldRows && (
+        <ErdCardFieldsSection
+          fields={data.fields}
+          expanded={expanded}
+          onToggleExpanded={() => {
+            setExpanded(v => !v);
+          }}
+        />
+      )}
 
       {data.hasOutgoing && (
         <Handle
@@ -436,32 +451,13 @@ function RelationshipFlowEdge({
           transition: 'opacity 0.2s, stroke 0.2s',
         }}
       />
-      {data.joinLabel.length > 0 && (
-        <foreignObject x={labelX} y={labelY} width={1} height={1} style={{ overflow: 'visible' }}>
-          <div
-            style={{
-              transform: 'translate(-50%, -50%)',
-              width: 'max-content',
-              background: 'var(--background)',
-              border: `1px solid ${selected ? 'var(--primary)' : 'var(--border)'}`,
-              borderRadius: 8,
-              padding: '3px 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              lineHeight: 1.5,
-              color: 'var(--foreground)',
-              pointerEvents: 'none',
-              opacity: data.dimmed ? DIMMED_OPACITY : 1,
-              transition: 'opacity 0.2s',
-              boxShadow: '0 1px 3px 0 rgba(0,0,0,0.08)',
-            }}
-          >
-            {data.joinLabel.map(line => (
-              <div key={line}>{line}</div>
-            ))}
-          </div>
-        </foreignObject>
-      )}
+      <EdgeJoinLabel
+        x={labelX}
+        y={labelY}
+        lines={data.joinLabel}
+        selected={selected ?? false}
+        dimmed={data.dimmed}
+      />
     </>
   );
 }
@@ -553,10 +549,8 @@ function relationshipNodeHeight(
   viewMode: CanvasViewMode
 ): number {
   if (isSource) return SRC_H;
-  if (viewMode !== 'erd' || fields.length === 0) return TGT_H;
-  const rows = collapsedRowCount(fields);
-  const hasMore = fields.length > rows;
-  return TGT_H + rows * ERD_ROW_HEIGHT + (hasMore ? ERD_EXPAND_ROW_HEIGHT : 0);
+  if (viewMode !== 'erd') return TGT_H;
+  return TGT_H + erdFieldsBodyHeight(fields);
 }
 
 function buildRelationshipFlow({
@@ -839,8 +833,6 @@ function RelationshipCanvasInner({
   const paneHeight = useStore(s => s.height);
   const hasFitRef = useRef(false);
   const userInteractedRef = useRef(false);
-  // Unique per instance — the inline and fullscreen canvases are both mounted.
-  const joinFieldsSwitchId = useId();
   const [zoomRange, setZoomRange] = useState<GraphZoomRange>({
     min: GRAPH_ZOOM_MIN,
     max: GRAPH_ZOOM_MAX,
@@ -903,11 +895,17 @@ function RelationshipCanvasInner({
     if (previousGraphIdentityRef.current === graphIdentity) return;
     previousGraphIdentityRef.current = graphIdentity;
     userInteractedRef.current = false;
-    // The graph changed (filters, data) — a kept selection could point at a
-    // node/edge that no longer exists, so drop the highlight explicitly.
-    setSelectedNodeId(null);
-    setSelectedEdgeId(null);
-  }, [graphIdentity]);
+    // Node keys are aliasPath-stable, so a settings toggle (view mode,
+    // layout, join fields) relayouts without renaming anything — keep the
+    // selection when its target survived, drop it only when the node/edge is
+    // actually gone (filters, data changes).
+    setSelectedNodeId(current =>
+      current !== null && graphResult.nodes.some(node => node.id === current) ? current : null
+    );
+    setSelectedEdgeId(current =>
+      current !== null && graphResult.edges.some(edge => edge.id === current) ? current : null
+    );
+  }, [graphIdentity, graphResult]);
 
   const highlightState = useMemo(
     () =>
@@ -1004,7 +1002,9 @@ function RelationshipCanvasInner({
       hasFitRef.current = true;
       zoomToMatches();
     });
-  }, [paneWidth, paneHeight, graphResult, fitFull, zoomToMatches]);
+    // graphIdentity (not graphResult): an identical-content rebuild — e.g. a
+    // schema refetch producing byte-equal fields — must not re-run the fit.
+  }, [paneWidth, paneHeight, graphIdentity, fitFull, zoomToMatches]);
 
   useEffect(() => {
     if (!hasFitRef.current) return;
@@ -1088,31 +1088,16 @@ function RelationshipCanvasInner({
               <Maximize2 className='h-6 w-6' />
             </Button>
           )}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant='outline'
-                size='icon'
-                className='h-12 w-12'
-                aria-label='Canvas settings'
-              >
-                <Settings className='h-6 w-6' />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align='end' side='left' className='w-56'>
-              <CanvasSettingsPanel
-                viewMode={viewMode}
-                onViewModeChange={onViewModeChange}
-                direction={direction}
-                onDirectionChange={onDirectionChange}
-                showJoinFields={showJoinFields}
-                onShowJoinFieldsChange={onShowJoinFieldsChange}
-                joinFieldsSwitchId={joinFieldsSwitchId}
-                objectLabels={objectLabels}
-                onObjectLabelsChange={onObjectLabelsChange}
-              />
-            </PopoverContent>
-          </Popover>
+          <CanvasSettingsPopover
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            direction={direction}
+            onDirectionChange={onDirectionChange}
+            showJoinFields={showJoinFields}
+            onShowJoinFieldsChange={onShowJoinFieldsChange}
+            objectLabels={objectLabels}
+            onObjectLabelsChange={onObjectLabelsChange}
+          />
         </div>
       </div>
       <div

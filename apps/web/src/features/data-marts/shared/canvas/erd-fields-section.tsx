@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ChevronDown, ChevronRight, KeyRound } from 'lucide-react';
 import { OWOX_YELLOW_BASE } from './owox-palette';
 import { collapsedRowCount, orderFields, type ErdCardField } from './erd-fields';
@@ -27,14 +26,27 @@ function FieldRow({ field }: { field: ErdCardField }) {
   );
 }
 
+interface ErdCardFieldsSectionProps {
+  fields: ErdCardField[];
+  /**
+   * Expansion state is owned by the node component (which stays mounted across
+   * Compact↔Detailed toggles), so an expanded card survives a view-mode
+   * round-trip instead of resetting when this section unmounts.
+   */
+  expanded: boolean;
+  onToggleExpanded: () => void;
+}
+
 /**
  * The ERD card body: collapsed field rows with an in-place "+N more" toggle.
- * Expansion is per-card local state; the layout is sized to the collapsed
- * height, so an expanded card may overlap the card below (as in owox/models).
+ * The layout is sized to the collapsed height, so an expanded card may overlap
+ * the card below (as in owox/models).
  */
-export function ErdCardFieldsSection({ fields }: { fields: ErdCardField[] }) {
-  const [expanded, setExpanded] = useState(false);
-
+export function ErdCardFieldsSection({
+  fields,
+  expanded,
+  onToggleExpanded,
+}: ErdCardFieldsSectionProps) {
   const ordered = orderFields(fields);
   const collapsed = collapsedRowCount(fields);
   const visible = expanded ? ordered : ordered.slice(0, collapsed);
@@ -43,7 +55,7 @@ export function ErdCardFieldsSection({ fields }: { fields: ErdCardField[] }) {
   function toggleExpanded(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
-    setExpanded(v => !v);
+    onToggleExpanded();
   }
 
   return (

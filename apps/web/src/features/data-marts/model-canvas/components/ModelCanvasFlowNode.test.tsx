@@ -6,6 +6,7 @@ import type { CanvasNodeField } from '../model/types';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
 
 vi.mock('@xyflow/react', () => ({
+  useUpdateNodeInternals: () => () => undefined,
   Handle: () => null,
   Position: { Bottom: 'bottom', Left: 'left', Right: 'right', Top: 'top' },
 }));

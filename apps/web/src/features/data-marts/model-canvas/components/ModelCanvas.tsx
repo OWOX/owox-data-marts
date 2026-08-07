@@ -1,4 +1,4 @@
-import { Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
+import { Locate, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -21,9 +21,8 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '../../../../shared/components/Button';
-import { CanvasSettingsPanel } from '../../shared/canvas/canvas-settings-panel';
+import { CanvasSettingsPopover } from '../../shared/canvas/canvas-settings-panel';
 import { storageService } from '../../../../services/localstorage.service';
 import { NODE_PULSE_KEYFRAMES, STATIC_NODE_STYLE } from '../../shared/canvas/constants';
 import {
@@ -51,6 +50,7 @@ import {
   serializeObjectLabelsHidden,
   type ObjectLabelsHidden,
 } from '../../shared/canvas/object-labels';
+import { parseCanvasViewMode } from '../../shared/canvas/view-mode';
 import type { ModelCanvasExportHandle } from '../export';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
@@ -274,7 +274,7 @@ function ModelCanvasInner({
     parseCanvasDirection(storageService.get(LAYOUT_LS_KEY))
   );
   const [viewMode, setViewMode] = useState<CanvasViewMode>(() =>
-    storageService.get(VIEW_MODE_LS_KEY) === 'erd' ? 'erd' : 'compact'
+    parseCanvasViewMode(storageService.get(VIEW_MODE_LS_KEY))
   );
   const [showJoinLabels, setShowJoinLabels] = useState(
     () => storageService.get(JOIN_LABELS_LS_KEY, 'boolean') ?? false
@@ -671,31 +671,16 @@ function ModelCanvasInner({
         >
           <ZoomOut className='h-6 w-6' />
         </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              className='h-12 w-12'
-              aria-label='Canvas settings'
-            >
-              <Settings className='h-6 w-6' />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align='end' side='left' className='w-56'>
-            <CanvasSettingsPanel
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
-              direction={direction}
-              onDirectionChange={handleDirectionChange}
-              showJoinFields={showJoinLabels}
-              onShowJoinFieldsChange={handleJoinLabelsChange}
-              joinFieldsSwitchId='model-canvas-show-join-fields'
-              objectLabels={objectLabels}
-              onObjectLabelsChange={handleObjectLabelsChange}
-            />
-          </PopoverContent>
-        </Popover>
+        <CanvasSettingsPopover
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          direction={direction}
+          onDirectionChange={handleDirectionChange}
+          showJoinFields={showJoinLabels}
+          onShowJoinFieldsChange={handleJoinLabelsChange}
+          objectLabels={objectLabels}
+          onObjectLabelsChange={handleObjectLabelsChange}
+        />
       </div>
       {ready && (
         <ReactFlow

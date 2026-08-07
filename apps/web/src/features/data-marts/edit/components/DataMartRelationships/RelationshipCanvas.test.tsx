@@ -59,6 +59,7 @@ const reactFlowHarness = vi.hoisted(() => {
 });
 
 vi.mock('@xyflow/react', () => ({
+  useUpdateNodeInternals: () => () => undefined,
   BaseEdge: () => null,
   Handle: () => null,
   MiniMap: () => null,

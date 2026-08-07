@@ -1,6 +1,8 @@
-import { Check } from 'lucide-react';
-import { PopoverTitle } from '@owox/ui/components/popover';
+import { useId } from 'react';
+import { Check, Settings } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/components/popover';
 import { Switch } from '@owox/ui/components/switch';
+import { Button } from '../../../../shared/components/Button';
 import { CANVAS_DIRECTION_OPTIONS, type CanvasDirection } from './canvas-direction';
 import {
   ALL_HIDDEN,
@@ -17,7 +19,7 @@ import { VIEW_MODE_OPTIONS, type CanvasViewMode } from './view-mode';
 const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string }> = {
   source: {
     label: 'Input source',
-    helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
+    helper: 'The source badge (VIEW / TABLE / SQL / PATTERN / CONNECTOR) and its accent stripe',
   },
   fields: {
     label: 'Field count',
@@ -195,5 +197,29 @@ export function CanvasSettingsPanel({
         </button>
       </div>
     </>
+  );
+}
+
+export type CanvasSettingsPopoverProps = Omit<CanvasSettingsPanelProps, 'joinFieldsSwitchId'>;
+
+/**
+ * The full gear control: trigger button + popover + settings panel. Both
+ * canvases render this one component so the gear's affordance (icon, size,
+ * aria-label, popover placement) can never drift between them.
+ */
+export function CanvasSettingsPopover(props: CanvasSettingsPopoverProps) {
+  // Unique per instance — the inline and fullscreen canvases mount together.
+  const joinFieldsSwitchId = useId();
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant='outline' size='icon' className='h-12 w-12' aria-label='Canvas settings'>
+          <Settings className='h-6 w-6' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align='end' side='left' className='w-56'>
+        <CanvasSettingsPanel {...props} joinFieldsSwitchId={joinFieldsSwitchId} />
+      </PopoverContent>
+    </Popover>
   );
 }

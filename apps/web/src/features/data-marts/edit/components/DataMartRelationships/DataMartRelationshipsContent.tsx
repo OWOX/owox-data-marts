@@ -345,11 +345,17 @@ export function DataMartRelationshipsContent({
     const map = new Map<string, ErdCardField[]>();
     if (!blendableSchema) return map;
     for (const field of blendableSchema.blendedFields) {
+      // Mirror connectedFieldCounts: UNKNOWN-typed fields are not connected,
+      // and a row the field-count badge does not count would make the card
+      // contradict itself.
+      if (field.type === 'UNKNOWN') continue;
       const rows = map.get(field.aliasPath) ?? [];
       if (!map.has(field.aliasPath)) map.set(field.aliasPath, rows);
       rows.push({
         name: field.originalFieldName,
-        alias: field.originalFieldName,
+        // The configured blend alias when set — the same business name the
+        // Models canvas shows for this field.
+        alias: field.alias || field.originalFieldName,
         type: field.sourceFieldType ?? field.type,
         isPrimaryKey: false,
         isHidden: field.isHidden,

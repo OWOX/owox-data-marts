@@ -72,6 +72,7 @@ vi.mock('../../shared/canvas/dagre-layout', () => ({
 }));
 
 vi.mock('@xyflow/react', () => ({
+  useUpdateNodeInternals: () => () => undefined,
   Background: () => null,
   BackgroundVariant: { Lines: 'lines' },
   Handle: () => null,
