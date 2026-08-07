@@ -36,6 +36,53 @@ const dataMarts = await client.dataMarts.list();
 console.log(dataMarts);
 ```
 
+## Use low-level API methods
+
+Prefer typed resources such as `dataMarts`, `project`, and `reports`. Use the low-level
+methods only as an escape hatch for an API-key-compatible endpoint that does not yet have
+a typed abstraction:
+
+| Method                             | Purpose                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| `getJson<T>(path, query?)`         | GET a JSON response.                                 |
+| `postJson<T>(path, body, accept?)` | POST a JSON body, optionally with an `Accept` value. |
+| `putJson<T>(path, body)`           | PUT a JSON body.                                     |
+| `patchJson<T>(path, body)`         | PATCH a JSON body.                                   |
+| `deleteJson<T = void>(path)`       | DELETE and read an optional JSON response.           |
+| `getStream(path, query?)`          | GET a streaming `Response`.                          |
+
+The generic is caller-owned TypeScript typing only: a low-level call does not validate
+the response at runtime. Validate the returned data yourself before using it. Typed
+resources remain preferred because they model and validate their responses.
+
+All paths must be root-relative `/api/...` paths. The client refuses unsafe or redirecting
+paths, including absolute URLs and paths that resolve away from the API origin. API-key
+clients exchange and attach authentication internally; do not add credentials to a path,
+query, or body.
+
+```ts
+type Renamed = { id: string; title: string };
+
+const renamed = await client.patchJson<Renamed>('/api/example-resource/item-123', {
+  title: 'Updated title',
+});
+```
+
+Use an explicit response type only when the endpoint returns JSON that you will validate:
+
+```ts
+type Deleted = { deleted: true };
+
+const deleted = await client.deleteJson<Deleted>('/api/example-resource/item-123');
+```
+
+For an endpoint with an empty or `204 No Content` DELETE response, omit the generic; it
+defaults to `void`:
+
+```ts
+await client.deleteJson('/api/example-resource/item-123');
+```
+
 ## Get auth context
 
 Use `auth.getContext()` to validate the configured API key and return the project and member context

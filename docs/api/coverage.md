@@ -23,6 +23,13 @@ means the dimension has not been evaluated and does not imply a gap.
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
 
+## Coverage policy
+
+Low-level `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, and `getStream`
+calls are an escape hatch, not typed endpoint coverage. They never change an endpoint's
+API-client coverage status; only a typed resource with runtime response validation counts
+as API-client coverage.
+
 ## Authentication
 
 | Endpoint | OpenAPI | API client |

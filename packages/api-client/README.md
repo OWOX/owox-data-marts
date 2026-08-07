@@ -21,6 +21,32 @@ const client = new OWOXApiClient({
 const context = await client.auth.getContext();
 ```
 
+## Low-level API methods
+
+Prefer the typed resources such as `client.dataMarts` and `client.project`. Use these
+low-level methods only as an escape hatch for an API-key-compatible endpoint that does
+not yet have a typed abstraction:
+
+- `getJson<T>(path, query?)`
+- `postJson<T>(path, body, accept?)`
+- `putJson<T>(path, body)`
+- `patchJson<T>(path, body)`
+- `deleteJson<T = void>(path)`
+- `getStream(path, query?)`
+
+Caller generics are TypeScript-only. The low-level client does not validate the response at runtime.
+Validate the data yourself before relying on it. Paths must be root-relative `/api/...` paths;
+unsafe or redirecting paths are refused. The API-key client exchanges and attaches authorization
+internally.
+
+```ts
+type Deleted = { deleted: true };
+
+await client.patchJson('/api/example-resource/item-123', { title: 'Updated' });
+const deletion = await client.deleteJson<Deleted>('/api/example-resource/item-123');
+await client.deleteJson('/api/example-resource/item-123'); // Empty or 204 response: void
+```
+
 ## Documentation
 
 - [@owox/api-client guide](https://docs.owox.com/docs/api/api-client/)
