@@ -109,8 +109,8 @@ export class BetterAuthProvider
 
   registerRoutes(app: Express): void {
     // Setup middleware
-    app.use(express.json()); // Add JSON parsing middleware
-    app.use(express.urlencoded({ extended: true }));
+    app.use('/auth', express.json()); // Add JSON parsing middleware
+    app.use('/auth', express.urlencoded({ extended: true }));
 
     // Setup Better Auth handler
     this.requestHandlerService.setupBetterAuthHandler(app);

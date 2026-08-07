@@ -30,7 +30,9 @@ connector-specific backfill fields. Manual-backfill `data` now requires an expli
 `runType: 'MANUAL_BACKFILL'`; incremental runs reject `data` instead of silently ignoring it. The
 client also rejects empty or dot-segment Data Mart and run IDs before sending a request. Serialized
 manual-run options are limited to 1 MiB by both the client and HTTP API; requests above the HTTP
-transport ceiling return `413` instead of an internal-server error.
+transport ceiling return `413` instead of an internal-server error. Packaged authentication
+middleware now limits its body parsers to `/auth`, so it no longer overrides the backend API's 2 MiB
+transport ceiling.
 
 Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
 and offsets without silently capping them. Both scoped and project-wide list methods reject unknown,

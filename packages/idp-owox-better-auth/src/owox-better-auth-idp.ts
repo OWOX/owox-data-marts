@@ -336,8 +336,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   }
 
   registerRoutes(app: Express): void {
-    app.use(e.json());
-    app.use(e.urlencoded({ extended: true }));
+    app.use(AUTH_BASE_PATH, e.json());
+    app.use(AUTH_BASE_PATH, e.urlencoded({ extended: true }));
     app.use(cookieParser());
 
     this.betterAuthProxyHandler.setupBetterAuthHandler(app);
