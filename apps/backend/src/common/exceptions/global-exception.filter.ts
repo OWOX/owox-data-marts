@@ -41,6 +41,11 @@ function responseBodyMessage(structured: unknown): string | undefined {
   if (structured && typeof structured === 'object' && !Array.isArray(structured)) {
     const msg = (structured as Record<string, unknown>).message;
     if (typeof msg === 'string') return msg;
+    // class-validator reports one message per failed constraint.
+    if (Array.isArray(msg)) {
+      const joined = msg.filter((item): item is string => typeof item === 'string').join('. ');
+      if (joined) return joined;
+    }
   }
   return undefined;
 }
