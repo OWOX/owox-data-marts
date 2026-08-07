@@ -151,9 +151,10 @@ Pass a positive integer `limit` and a non-negative integer `offset` to page thro
 history. The client rejects invalid values before authentication or a network request. When omitted,
 the server defaults `limit` to 100 and `offset` to 0; it caps them at 100 and 100,000 respectively.
 The response has no total or next-page marker. Increment `offset` by the number of returned runs and
-stop when a page contains fewer runs than the requested limit or the next offset would exceed
-100,000. Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate
-by `run.id` when walking multiple pages.
+stop when a page contains fewer runs than the server-effective limit
+(`Math.min(requestedLimit, 100)`, or 100 when omitted) or the next offset would exceed 100,000.
+Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate by
+`run.id` when walking multiple pages.
 
 ```ts
 const history = await client.runs.list({ limit: 50, offset: 0 });
