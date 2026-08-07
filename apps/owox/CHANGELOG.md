@@ -1,5 +1,113 @@
 # owox
 
+## 0.32.0
+
+### Minor Changes
+
+- babcf50: Ask the AI assistant to present the MCP `data_last_updated` timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC", converted to the user's time zone when known) instead of echoing the raw ISO-8601 value. The structured response still carries the ISO-8601 timestamp for machines.
+- c4fb088: # api-client: expose `in`/`not_in` filters and the new relative-date presets in the traversal types
+
+  Release 0.31.0 taught the Data Mart traversal API the `in`/`not_in` operators and the `this_week`/`last_week`/`this_quarter`/`last_quarter`/`next_n_days` relative-date presets, but the public `@owox/api-client` types were not updated: a TypeScript caller writing `operator: 'in'` got a compile error even though the request itself works.
+  - `TraverseDataFilterRule` gains the `in`/`not_in` branch: `value` is an **array** of 1..500 same-type values (all strings or all numbers) — never a comma-separated string, and never booleans (use `is_true`/`is_false`).
+  - `TraverseDataRelativeDatePreset` gains `this_week`, `last_week`, `this_quarter`, `last_quarter`, and `next_n_days`.
+  - The `@owox/api-client` guide now documents every filter operator's `value` shape (scalar / array / `{ from, to }` / preset), the `in`/`not_in` constraints, the full relative-date preset list, and the NULL-inclusive semantics of negative operators; the OpenAPI description of the `filter` query parameter shows an `in` example.
+
+- 60b1151: # Include field descriptions in the Models canvas exports
+
+  The Models canvas export dropped the business descriptions of Output Schema fields: in the OKF bundle the schema table's Description column carried only the PK/FK notes, and the JSON model graph omitted the field descriptions entirely.
+
+  Both formats now carry each field's description as stored in the Data Mart:
+  - **OKF (Markdown)** — the Description cell reads `PK.` → description. Multi-line descriptions collapse to a single line so they cannot break the Markdown table. The `FK to [Target]` notes left the schema table entirely: relationships live only in the Joins section, which already lists every join with its condition.
+  - **JSON** — every schema field gains a `description` property when one is set, staying compatible with the OWOX Model Canvas graph format.
+
+- 0225afe: # Joinable Data Marts: filters on the toolbar, applied to both List and Graph
+
+  The **Status** and **looped data marts** filters of the Joinable Data Marts block moved out of the diagram's gear popover onto the toolbar, right next to search — the same place the Models canvas keeps its filters. They are now dropdowns (`All statuses` / `Published only` / `Draft only`, and `Hide looped data marts` / `Show looped data marts`).
+
+  More importantly, the filters now cover **both views**: previously they only trimmed the Graph, so switching to List silently showed a different set of relationships. The List now applies the same rules as the diagram — including subtree semantics, where hiding a data mart also hides everything joined through it. Saved filter preferences carry over unchanged.
+
+- f3d035e: # Joinable Data Marts diagram: the same view settings as the Models canvas
+
+  The gear on the Joinable Data Marts diagram is back — and it now holds the same view settings as the Models canvas, shared component and all:
+  - **View** — switch cards between **Compact** and **Detailed**; Detailed shows the joined mart's field rows (name + type, hidden-for-reporting fields dimmed), collapsed to 4 rows with an in-place "+N more" toggle.
+  - **Layout algorithm** — **Horizontal** or **Vertical**; the diagram now uses the same dagre layout engine as the Models canvas.
+  - **Show join fields** — join conditions (`source = target`) rendered as labels on the relationship lines.
+  - **Object labels** — toggle the input-source badge and accent stripe, the field count, and the status dot per card, with "Check all" / "Uncheck all" shortcuts.
+
+  All settings are remembered per browser, and the inline and fullscreen diagrams stay in sync.
+
+- 46a39ea: # Connectors use supported API versions
+
+  Previously, the Google Ads connector called API version v21, which Google
+  sunset on 2026-08-05, causing every import to fail with an
+  `UNSUPPORTED_VERSION` error. The LinkedIn Ads and LinkedIn Pages connectors
+  were also close to hitting the same wall: they called a version only two
+  months newer than one LinkedIn had already sunset. The Shopify connector was
+  two releases behind, with its version nearing its own support cutoff.
+
+  Now, Google Ads uses v25, LinkedIn Ads and LinkedIn Pages use the 2026-07
+  version, and Shopify uses the 2026-07 version — all current, supported
+  releases. This means imports for these connectors keep running instead of
+  failing once their old versions are sunset.
+
+- 43a54e6: # Google Ads campaign and video metrics import
+
+  Google Ads renamed four fields in its v25 API — `video_views`, `video_view_rate`, `campaign_start_date`, and `campaign_end_date` — and the connector kept requesting the old names. Because Google Ads rejects a query entirely when it contains even one unrecognized field, any `campaigns` or `campaigns_stats` import selecting one of these failed outright, including new data marts, which select the campaign dates by default.
+
+  The connector now requests Google Ads' current field names, so these imports run again. No action is needed: the fields keep the same names in OWOX, and existing data mart configurations and destination tables are unaffected.
+
+- ec28b5e: # API surface maintenance
+
+  ## Low-level API client transport methods
+
+  OWOX API clients can now use `patchJson()` and `deleteJson()` alongside
+  `getJson()`, `postJson()`, `putJson()`, and `getStream()` for `/api/...`
+  endpoints that do not yet have typed resource abstractions. Authenticated
+  low-level requests accept only root-relative `/api/...` paths up to 2,048
+  characters and refuse unsafe paths and redirects, preventing credentials from
+  being sent to an unintended destination. Existing custom transports remain
+  source-compatible and can add PATCH and DELETE support independently; calling
+  an unsupported new method rejects with `OWOXConfigError`.
+
+  The existing plugin protocol adds PATCH and DELETE through `ctx.owox` as an
+  additive capability while preserving compatibility with existing plugins.
+  Low-level JSON return values are caller-typed and are not runtime-validated;
+  consumers should prefer typed resource abstractions when available.
+
+  ## Manage Data Mart run lifecycles through the API client
+
+  `@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through
+  the Data-Mart-scoped `runs.forDataMart(id)` client and its `start()`, `list()`, `get()`, and `cancel()`
+  methods. Starting and cancelling require Technical User access; listing and inspecting require
+  Business User access. `start()` accepts typed incremental or manual-backfill options, including
+  connector-specific fields. Manual-backfill `data` is optional for connectors without backfill
+  fields. The API client requires an explicit `MANUAL_BACKFILL` run type whenever `data` is supplied
+  and rejects `data` on implicit or explicit incremental runs before sending a request. The backend
+  HTTP endpoint separately accepts retained object-valued `data` on incremental requests so existing
+  run forms remain compatible. The client also rejects empty, dot-segment, or separator-bearing Data
+  Mart and run IDs before sending a request. Serialized manual-run options are limited to 1 MiB by
+  both the client and HTTP API; requests above the HTTP transport ceiling return `413` instead of an
+  internal-server error. Packaged authentication middleware now limits its body parsers to `/auth`,
+  so it no longer overrides the backend API's 2 MiB transport ceiling.
+
+  Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
+  and offsets without silently capping them. The scoped list method rejects unknown, zero or negative
+  limits, negative offsets, non-integer values, non-finite values, and integers outside JavaScript's
+  safe range before authentication or network access. Project-wide `runs.list()` pagination remains
+  unchanged and relies on server normalization.
+  Project-wide and Data-Mart-scoped run methods remain compatible with older self-hosted deployments
+  that omit Data Quality fields, and Data Quality response validation tolerates additive server fields
+  while still checking known values. Existing typed integrations need no migration.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.32.0
+- @owox/idp-protocol@0.32.0
+- @owox/idp-better-auth@0.32.0
+- @owox/idp-owox-better-auth@0.32.0
+- @owox/backend@0.32.0
+- @owox/web@0.32.0
+
 ## 0.31.0
 
 ### Minor Changes 0.31.0
@@ -13,7 +121,6 @@
 - e8ae62c: **Data Last Updated Date**
 
   You can now see when the source tables behind a Data Mart last changed in the warehouse — in the UI and through MCP.
-
   - **In the UI** — the Data Mart page shows a **Data Last Updated** tile with a **Check now** button, the Data Marts list gains a sortable **Data Last Updated** column, and the model canvas shows the value on every node with an **Actions → Check Data Last Updated** entry that measures everything currently visible in one go. Checking reads warehouse metadata only: it registers no consumption and records no run.
   - **In MCP** — `query_data_mart` returns a `data_last_updated` block alongside the rows and totals, reporting when the source tables behind the result last changed, which tables were checked, and how complete that picture is. It is measured live as part of the same call — never cached, never charged separately — and against the fully composed query, so a blended result covers every joined Data Mart's tables, not just the primary one. Each MCP query run also records the block in Run History.
   - **On every run** — every run that delivers data measures the value on the way out: report runs (manual and scheduled), HTTP Data requests, and MCP queries all record it in Run History. When a run reads only the Data Mart's own sources, the measurement also becomes the Data Mart's saved value, so the list, canvas, and Data Mart page stay current without anyone pressing a button. A run spanning several joined Data Marts records the measurement in its history entry only, because a blended reading would overstate any single Data Mart.
@@ -51,7 +158,6 @@
 - 398e908: **Plugin Gallery: publish, install and run plugins described by GitHub releases**
 
   Plugins are web apps hosted elsewhere, described by a GitHub repository's releases, listed in a per-member Gallery and opened inside OWOX Data Marts in a sandboxed cross-origin iframe. A plugin holds no credential of its own: it can only ask the host page to make calls the host has already decided are allowed, acting with the authority of the member who installed it.
-
   - **Publishing and installing are separate.** A publication controls what a member sees in the Gallery, at three independent levels — deployment, project and member — combined into one deduplicated list with no precedence between them. Installing is each member's own decision, uninstalling is soft, and a previous installer can restore from history even after the plugin stops being published to them. Unpublishing removes a listing without uninstalling anyone.
   - **Updates are managed by the deployment, daily.** Every published or installed plugin is checked once a day for a newer valid release, each at its own time of day. When a check finds a valid higher version it becomes current for everyone using that plugin — versions cannot be pinned, chosen or rolled back, and the plugin page says so along with when the next check happens. **Check now** brings that check forward for anyone who can reach the page; it never decides whether an update happens. A failed check leaves the working version active until the next daily slot.
   - **Plugin identity is the GitHub repository**, held by its stable numeric id, so renaming or transferring a repository resolves to the same plugin. Versions are immutable and anchored to an exact commit: moving, deleting or recreating a tag cannot rewrite an existing version, and an invalid release never displaces a working one.
@@ -147,7 +253,6 @@
 - 970bcee: **Correct COUNT DISTINCT, SUM, AVG, percentiles, and Combined across joined Data Marts (fan-out fix)**
 
   `COUNT DISTINCT`, `SUM`, `AVG`, the percentile metrics (`P25`, `Median`, `P75`, `P95`), and `Combined` on a joined Data Mart are now computed correctly at the report grain, including across multi-hop bridges (a joined Data Mart reached through another joined Data Mart). Previously each was pre-aggregated on the join key and then re-aggregated, which over- or under-counted (`COUNT DISTINCT`), over-summed (`SUM`), produced an unweighted average-of-averages (`AVG`), weighted a percentile by how many times the join repeated each value, or repeated the same text in `Combined` once per matching row, whenever the same entity was reachable through more than one path. Each metric now uses a dedicated "sleeve" pass that carries the raw identity to the report grain. These are symmetric (non-additive) aggregates: an entity reachable under two dimension values is counted once in each group but once overall, so a column's per-group values need not sum to its Totals value — that is correct, not a discrepancy. Applies to BigQuery, Athena, Redshift, Snowflake, and Databricks. **Numbers will change for any saved report using one of these metrics on a joined Data Mart whose join fans out.**
-
   - **Deduplication key.** For `SUM`, `AVG`, and the percentiles, the value is de-duplicated by the joined field's pre-join group key, or — when the field is a raw passthrough (pre-join `ANY_VALUE`) — by the joined Data Mart's own declared primary key. Two rows agreeing on that key and on the value are the same row the join returned twice and are counted once; two rows agreeing on the key but not on the value stay separate, so contradictory data is never silently resolved to one version. A joined Data Mart with no declared primary key falls back to a per-row surrogate, which cannot tell a genuine duplicate from two distinct rows. A declared key is trusted: a key that is not in fact unique will merge rows — and so will one whose column is empty on more than one row. Declare a key only on a column that is genuinely unique and always filled.
   - **`MIN` and `MAX`** on a joined Data Mart are computed the same way, over the same rows. They used to read the value the pre-join roll-up had already collapsed, which measured a different set from `AVG` on the very same column and could leave `MIN` above the average. **`COUNT` is deliberately unchanged**: it counts the rows that survive the join, which is a different question rather than a distorted one. The main-side Unique Count (by primary key) is unchanged.
   - **`COUNT` and `COUNT DISTINCT` are no longer shown side by side on a JOINED field.** They are computed at different grains, so together they can invert `COUNT DISTINCT <= COUNT`. **A report that selects both on a joined field now shows only `COUNT DISTINCT`** — the report is not rejected, and `COUNT` on its own keeps working exactly as before. Totals stop offering the pair for the same reason. A non-joined field is unaffected.
@@ -190,7 +295,6 @@
   When creating a report in the Google Sheets extension, switching to another Data Mart now resets the column selection. Previously, columns picked for the first Data Mart stuck around and showed up as "Disconnected columns" under the new one — and could even reach the created report and make it fail.
 
 - a54bf5d: **API surface maintenance**
-
   - **Project search API** — `GET /api/search` now publishes the integer range and comma-separated serialization of its optional filters in OpenAPI. `@owox/api-client` adds `search.query(query, options)` and exports `OWOXSearchResult`, `OWOXSearchEntityType`, and `OWOXSearchOptions` for discovering visible Data Marts, data storages, and data destinations. Existing viewer access and search behavior are unchanged.
   - **Project run history contract reconciled** — `GET /api/data-marts/runs` now publishes the complete project-wide run-history contract, including viewer visibility, pagination normalization, enums, field presence and nullability, and the backend's RFC3339 timestamp profile. `createdByUser` is the nullable run-author field; when present it includes `userId` and may include nullable `fullName`, `email`, and `avatar`. `definitionRun` remains present but can be `null` when a historical definition snapshot is unavailable. `@owox/api-client` validates this contract and exposes it as `runs.list({ limit, offset })` — **consumers using the previously released `runs.getHistory(...)` must rename those calls to `runs.list(...)`**; the response and option type exports remain available.
   - **HTTP Data streaming contracts strengthened** — `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier, and failure contract in OpenAPI. `@owox/api-client` provides typed filter, sort, aggregation, and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media type before traversal. Consumers passing controls through `unknown[]` or widened variables must adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline calls remain unchanged.
@@ -2308,7 +2412,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2316,7 +2419,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
