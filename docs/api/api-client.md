@@ -294,27 +294,27 @@ authentication or any network request.
 
 ## Manage Data Mart runs
 
-Use `dataMarts.run(dataMartId, request)` to start a manual connector run. Technical User access
+Use `runs.start(dataMartId, request)` to start a manual connector run. Technical User access
 to the Data Mart is required. The optional `payload` must be a JSON object no larger than 1 MB;
 omit it to use the Data Mart's default connector payload. The method returns the new run ID.
 
 ```ts
-const { runId } = await client.dataMarts.run('data-mart-id', {
+const { runId } = await client.runs.start('data-mart-id', {
   payload: { cursor: 'next-page' },
 });
 ```
 
-Business Users can inspect runs for a Data Mart they can see. `dataMarts.listRuns()` returns a
-newest-first page, while `dataMarts.getRun()` returns one run and includes full Data Quality detail
+Business Users can inspect runs for a Data Mart they can see. `runs.listForDataMart()` returns a
+newest-first page, while `runs.get()` returns one run and includes full Data Quality detail
 when the run is a Data Quality run.
 
 ```ts
-const history = await client.dataMarts.listRuns('data-mart-id', {
+const history = await client.runs.listForDataMart('data-mart-id', {
   limit: 50,
   offset: 0,
 });
 
-const run = await client.dataMarts.getRun('data-mart-id', history.runs[0].id);
+const run = await client.runs.get('data-mart-id', history.runs[0].id);
 console.log(run.status, run.qualitySummary, run.dataQuality);
 ```
 
@@ -324,12 +324,12 @@ total or next-page marker. Increment `offset` by the number of returned runs and
 contains fewer runs than the effective limit or the next offset would exceed 100,000. New runs can
 shift offset pages, so deduplicate by `run.id` while paging.
 
-Use `dataMarts.cancelRun(dataMartId, runId)` to cancel an active connector, standard report, or
+Use `runs.cancel(dataMartId, runId)` to cancel an active connector, standard report, or
 Data Quality run. Technical User access is required. The method resolves with no value after the
 API returns `204 No Content`; cancelling a terminal run returns a conflict error.
 
 ```ts
-await client.dataMarts.cancelRun('data-mart-id', runId);
+await client.runs.cancel('data-mart-id', runId);
 ```
 
 The package exports `OWOXDataMartRun`, `OWOXDataMartRunDetail`,

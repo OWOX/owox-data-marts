@@ -152,13 +152,13 @@ describe('Data Mart run lifecycle API', () => {
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
     await expect(
-      client.dataMarts.run('data/mart', { payload: { cursor: 'next-page' } })
+      client.runs.start('data/mart', { payload: { cursor: 'next-page' } })
     ).resolves.toEqual({ runId: '123e4567-e89b-12d3-a456-426614174000' });
     await expect(
-      client.dataMarts.listRuns('data/mart', { limit: 25, offset: 50 })
+      client.runs.listForDataMart('data/mart', { limit: 25, offset: 50 })
     ).resolves.toEqual({ runs: [run] });
-    await expect(client.dataMarts.getRun('data/mart', 'run/1')).resolves.toEqual(runDetail);
-    await expect(client.dataMarts.cancelRun('data/mart', 'run/1')).resolves.toBeUndefined();
+    await expect(client.runs.get('data/mart', 'run/1')).resolves.toEqual(runDetail);
+    await expect(client.runs.cancel('data/mart', 'run/1')).resolves.toBeUndefined();
   });
 
   it('rejects malformed manual-run and run-history responses', async () => {
@@ -173,8 +173,8 @@ describe('Data Mart run lifecycle API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.dataMarts.run('dm-1')).rejects.toBeInstanceOf(OWOXApiError);
-    await expect(client.dataMarts.listRuns('dm-1')).rejects.toMatchObject({
+    await expect(client.runs.start('dm-1')).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(client.runs.listForDataMart('dm-1')).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart Runs API returned an unexpected response shape',
     });
@@ -191,7 +191,7 @@ describe('Data Mart run lifecycle API', () => {
       });
       const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-      await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toBeInstanceOf(OWOXApiError);
+      await expect(client.runs.get('dm-1', 'run-1')).rejects.toBeInstanceOf(OWOXApiError);
     }
   );
 
@@ -199,22 +199,22 @@ describe('Data Mart run lifecycle API', () => {
     const fetchImpl = jest.fn<typeof fetch>();
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.dataMarts.run('dm-1', { payload: [] } as never)).rejects.toMatchObject({
+    await expect(client.runs.start('dm-1', { payload: [] } as never)).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'Invalid OWOX Data Mart manual-run request',
     });
     await expect(
-      client.dataMarts.run('dm-1', { payload: { value: 'x'.repeat(1024 * 1024) } })
+      client.runs.start('dm-1', { payload: { value: 'x'.repeat(1024 * 1024) } })
     ).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart manual-run payload exceeds 1MB',
     });
-    await expect(client.dataMarts.listRuns('dm-1', { limit: '25' } as never)).rejects.toMatchObject(
-      {
-        name: 'OWOXApiError',
-        message: 'Invalid OWOX Data Mart run-list options',
-      }
-    );
+    await expect(
+      client.runs.listForDataMart('dm-1', { limit: '25' } as never)
+    ).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Invalid OWOX Data Mart run-list options',
+    });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -253,7 +253,7 @@ describe('Data Mart run lifecycle API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toMatchObject({
+    await expect(client.runs.get('dm-1', 'run-1')).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart Run API returned an unexpected response shape',
     });
@@ -269,7 +269,7 @@ describe('Data Mart run lifecycle API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.dataMarts.getRun('dm-1', 'run-1')).resolves.toEqual(response);
+    await expect(client.runs.get('dm-1', 'run-1')).resolves.toEqual(response);
   });
 
   it('wraps a non-object Data Quality result as an API response-shape error', async () => {
@@ -285,7 +285,7 @@ describe('Data Mart run lifecycle API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toMatchObject({
+    await expect(client.runs.get('dm-1', 'run-1')).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart Run API returned an unexpected response shape',
     });
@@ -331,7 +331,7 @@ describe('Data Mart run lifecycle API', () => {
       });
       const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-      await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toBeInstanceOf(OWOXApiError);
+      await expect(client.runs.get('dm-1', 'run-1')).rejects.toBeInstanceOf(OWOXApiError);
     }
   });
 });

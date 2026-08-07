@@ -8,15 +8,6 @@ import {
   withSourceContext,
 } from './traversal.js';
 import { isRecord, isRfc3339DateTimeString, isUserProjection } from './validation.js';
-import {
-  isDataMartRun,
-  isDataMartRunDetail,
-  type OWOXDataMartRunDetail,
-  type OWOXDataMartRunListOptions,
-  type OWOXDataMartRunsResponse,
-  type OWOXRunDataMartRequest,
-  type OWOXRunDataMartResponse,
-} from './data-mart-runs.js';
 
 // Keep the traversal rule literals below in sync with the backend schemas in
 // `apps/backend/src/data-marts/dto/schemas/{aggregate-function,filter-config,sort-config,date-trunc-config}.schema.ts`.
@@ -193,10 +184,6 @@ export type TraverseDataOptions = {
   limit?: number;
 };
 
-type DataMartsRequester = JsonRequester & {
-  postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T>;
-};
-
 type DataMartsPage = {
   items: OWOXDataMart[];
   total: number;
@@ -327,7 +314,7 @@ const DATA_MART_TRAVERSAL_SOURCE: TraversalSource = {
 };
 
 export class DataMartsApi {
-  constructor(private readonly requester: DataMartsRequester) {}
+  constructor(private readonly requester: JsonRequester) {}
 
   async list(options: OWOXDataMartListOptions = {}): Promise<OWOXDataMart[]> {
     validateListOptions(options);
@@ -367,76 +354,6 @@ export class DataMartsApi {
     }
   }
 
-  async run(
-    dataMartId: string,
-    request: OWOXRunDataMartRequest = {}
-  ): Promise<OWOXRunDataMartResponse> {
-    validateRunRequest(request);
-    const response = await this.requester.postJson<unknown>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/manual-run`,
-      request
-    );
-    if (
-      !isRecord(response) ||
-      typeof response.runId !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        response.runId
-      )
-    ) {
-      throw new OWOXApiError(
-        'OWOX Data Mart Manual Run API returned an unexpected response shape',
-        {
-          details: response,
-        }
-      );
-    }
-    return response as OWOXRunDataMartResponse;
-  }
-
-  async listRuns(
-    dataMartId: string,
-    options: OWOXDataMartRunListOptions = {}
-  ): Promise<OWOXDataMartRunsResponse> {
-    validateRunListOptions(options);
-    const query = {
-      ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
-      ...(options.offset === undefined ? {} : { offset: String(options.offset) }),
-    };
-    const response = await this.requester.getJson<unknown>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/runs`,
-      Object.keys(query).length === 0 ? undefined : query
-    );
-    if (
-      !isRecord(response) ||
-      !Array.isArray(response.runs) ||
-      !response.runs.every(isDataMartRun)
-    ) {
-      throw new OWOXApiError('OWOX Data Mart Runs API returned an unexpected response shape', {
-        details: response,
-      });
-    }
-    return response as OWOXDataMartRunsResponse;
-  }
-
-  async getRun(dataMartId: string, runId: string): Promise<OWOXDataMartRunDetail> {
-    const response = await this.requester.getJson<unknown>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/runs/${encodeURIComponent(runId)}`
-    );
-    if (!isDataMartRunDetail(response)) {
-      throw new OWOXApiError('OWOX Data Mart Run API returned an unexpected response shape', {
-        details: response,
-      });
-    }
-    return response;
-  }
-
-  async cancelRun(dataMartId: string, runId: string): Promise<void> {
-    await this.requester.postJson<void>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/runs/${encodeURIComponent(runId)}/cancel`,
-      undefined
-    );
-  }
-
   async traverseData(
     dataMartId: string,
     options: TraverseDataOptions = {}
@@ -473,45 +390,5 @@ export class DataMartsApi {
     }
 
     return new HttpNdjsonTraversal(response, dataMartId, DATA_MART_TRAVERSAL_SOURCE);
-  }
-}
-
-const MAX_MANUAL_RUN_PAYLOAD_BYTES = 1024 * 1024;
-
-function validateRunRequest(request: unknown): asserts request is OWOXRunDataMartRequest {
-  if (
-    !isRecord(request) ||
-    Object.keys(request).some(key => key !== 'payload') ||
-    (request.payload !== undefined && !isRecord(request.payload))
-  ) {
-    throw new OWOXApiError('Invalid OWOX Data Mart manual-run request', { details: request });
-  }
-
-  if (request.payload !== undefined) {
-    let json: string;
-    try {
-      json = JSON.stringify(request.payload);
-    } catch (error) {
-      throw new OWOXApiError('Invalid OWOX Data Mart manual-run request', {
-        details: request,
-        cause: error,
-      });
-    }
-    if (new TextEncoder().encode(json).byteLength > MAX_MANUAL_RUN_PAYLOAD_BYTES) {
-      throw new OWOXApiError('OWOX Data Mart manual-run payload exceeds 1MB', {
-        details: { maxSizeBytes: MAX_MANUAL_RUN_PAYLOAD_BYTES },
-      });
-    }
-  }
-}
-
-function validateRunListOptions(options: unknown): asserts options is OWOXDataMartRunListOptions {
-  if (
-    !isRecord(options) ||
-    Object.keys(options).some(key => key !== 'limit' && key !== 'offset') ||
-    (options.limit !== undefined && typeof options.limit !== 'number') ||
-    (options.offset !== undefined && typeof options.offset !== 'number')
-  ) {
-    throw new OWOXApiError('Invalid OWOX Data Mart run-list options', { details: options });
   }
 }

@@ -20,18 +20,8 @@ additive capability while preserving compatibility with existing plugins.
 Low-level JSON return values are caller-typed and are not runtime-validated;
 consumers should prefer typed resource abstractions when available.
 
-## Add Data Mart run lifecycle client support
+## Manage Data Mart run lifecycles through the API client
 
-The Data Mart run lifecycle endpoints now publish their complete request, response, visibility,
-pagination, and cancellation contracts. Manual runs and cancellation require Technical User
-access; listing and inspecting runs require Business User access to the Data Mart. Manual connector
-payloads must be JSON objects no larger than 1 MB. Run list pagination defaults to 100, caps the
-limit at 100 and the offset at 100,000, and normalizes fractional, non-finite, and non-positive
-values.
-
-`@owox/api-client` adds `dataMarts.run(dataMartId, request)`,
-`dataMarts.listRuns(dataMartId, options)`, `dataMarts.getRun(dataMartId, runId)`, and
-`dataMarts.cancelRun(dataMartId, runId)`. It exports the Data Mart run, request, response,
-pagination, status, type, author, and Data Quality types and validates the complete runtime
-response before returning it. Existing `runs.list()` remains the separate project-wide run-history
-method; no existing call needs migration.
+`@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through
+`runs.start()`, `runs.listForDataMart()`, `runs.get()`, and `runs.cancel()`. These methods enforce the
+same access, payload, pagination, and response contracts as the service API.
