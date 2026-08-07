@@ -91,7 +91,8 @@ export class OWOXApiClient implements OWOXTransportWithLowLevelWrites {
     if (serializedBody === undefined) {
       throw new OWOXConfigError('patchJson() requires a JSON-serializable body');
     }
-    return this.transport.patchJson<T>(path, jsonBody);
+    const normalizedBody: unknown = JSON.parse(serializedBody);
+    return this.transport.patchJson<T>(path, normalizedBody);
   }
 
   async deleteJson<T = void>(path: string): Promise<T> {

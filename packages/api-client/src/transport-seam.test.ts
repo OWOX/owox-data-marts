@@ -115,6 +115,25 @@ describe('injected transport', () => {
     ]);
   });
 
+  it('forwards a JSON-normalized PATCH body through an injected transport', async () => {
+    const { transport, calls } = recordingTransport();
+    const client = new OWOXApiClient({ transport });
+
+    await client.patchJson('/api/data-marts/dm-1', {
+      title: 'Updated',
+      callback: () => undefined,
+      values: [1, undefined],
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'patchJson',
+        path: '/api/data-marts/dm-1',
+        body: { title: 'Updated', values: [1, null] },
+      },
+    ]);
+  });
+
   // A transport with nothing to authenticate must not make the shared call blow up.
   it('tolerates a transport that cannot authenticate', async () => {
     const { transport } = recordingTransport();
