@@ -28,12 +28,12 @@ var campaignFields = {
   },
   'campaign_start_date': {
     'description': 'Campaign Start Date',
-    'apiName': 'campaign.start_date',
+    'apiName': 'campaign.start_date_time',
     'type': DATA_TYPES.STRING
   },
   'campaign_end_date': {
     'description': 'Campaign End Date',
-    'apiName': 'campaign.end_date',
+    'apiName': 'campaign.end_date_time',
     'type': DATA_TYPES.STRING
   },
   'campaign_bidding_strategy_type': {
