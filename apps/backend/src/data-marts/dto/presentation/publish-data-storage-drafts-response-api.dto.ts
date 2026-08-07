@@ -9,4 +9,16 @@ export class PublishDataStorageDraftsResponseApiDto {
 
   @ApiProperty({ example: null, required: false })
   error?: string;
+
+  /**
+   * Distinct reasons the failed drafts could not be published. Deliberately
+   * carries no Data Mart ids or titles: EDIT on the storage does not imply
+   * visibility of every Data Mart inside it.
+   */
+  @ApiProperty({
+    type: [String],
+    required: false,
+    example: ['Data Mart has no definition'],
+  })
+  failureReasons?: string[];
 }

@@ -251,6 +251,7 @@ export class DataStorageMapper {
     return {
       successCount: result.successCount,
       failedCount: result.failedCount,
+      failureReasons: result.failureReasons,
     };
   }
 }

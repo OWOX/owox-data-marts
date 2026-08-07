@@ -166,7 +166,10 @@ export const DataStorageList = ({
       return;
     }
 
-    setStorageToPublish({ id: storage.id, draftDataMartsCount: storage.draftDataMartsCount });
+    setStorageToPublish({
+      id: storage.id,
+      draftDataMartsCount: storage.draftDataMartsCount,
+    });
     setPublishDialogOpen(true);
   };
 
