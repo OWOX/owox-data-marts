@@ -1,10 +1,11 @@
 import type {
   PluginErrorPayload,
   PluginHostContext,
+  PluginProtocolVersion,
   PluginRequest,
   PluginResponse,
 } from './protocol';
-import { OPAQUE_ORIGIN, PLUGIN_PROTOCOL_VERSION, isPluginHello, isPluginReady } from './protocol';
+import { OPAQUE_ORIGIN, isPluginHello, isPluginReady } from './protocol';
 
 /** Supplied by the runtime authorization track. There is deliberately no default. */
 export type FetchRuntimeToken = () => Promise<{ runtimeToken: string; expiresIn: number }>;
@@ -29,7 +30,13 @@ export interface PluginHostBridgeOptions {
   onBroken?: () => void;
 }
 
-const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT']);
+const ALLOWED_METHODS: Record<PluginProtocolVersion, ReadonlySet<string>> = {
+  1: new Set(['GET', 'POST', 'PUT']),
+  2: new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
+};
+const API_PATH_PREFIX = '/api/';
+const ENCODED_SEPARATOR = /%(?:25)*(?:2f|5c)/i;
+const ENCODED_SPECIAL_PATH_CHARACTER = /%(?:25)*(?:2e|2f|5c)/i;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
 const MAX_IN_FLIGHT = 32;
 /** Re-mint before the token lapses, so a long session never trips over an expiry. */
@@ -58,6 +65,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   let disposed = false;
   /** The nonce this host sent with host-init, and whether the frame has echoed it back. */
   let nonce: string | undefined;
+  let negotiatedVersion: PluginProtocolVersion | undefined;
   let greeted = false;
   /**
    * Cancels requests already on the wire when the channel goes down.
@@ -87,18 +95,39 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
    * attacker. Resolving first and comparing origins is what closes that.
    */
   function resolvePath(request: Extract<PluginRequest, { kind: 'api' }>): URL {
+    const pathBeforeQueryOrHash = request.path.split(/[?#]/, 1)[0];
+    if (
+      !pathBeforeQueryOrHash.startsWith(API_PATH_PREFIX) ||
+      pathBeforeQueryOrHash.includes('\\') ||
+      ENCODED_SEPARATOR.test(pathBeforeQueryOrHash)
+    ) {
+      throw forbidden('Requests must target a root-relative path under /api/');
+    }
+
+    let decodedPath = pathBeforeQueryOrHash;
+    while (ENCODED_SPECIAL_PATH_CHARACTER.test(decodedPath)) {
+      try {
+        decodedPath = decodeURIComponent(decodedPath);
+      } catch {
+        throw forbidden('Requests must target a root-relative path under /api/');
+      }
+    }
+
+    if (
+      decodedPath.includes('\\') ||
+      decodedPath.split('/').some(segment => segment === '.' || segment === '..')
+    ) {
+      throw forbidden('Requests must target a root-relative path under /api/');
+    }
+
     const url = new URL(request.path, apiOrigin);
 
-    if (url.origin !== apiOrigin) {
-      throw forbidden('Requests must stay on the OWOX API origin');
-    }
-
-    if (!url.pathname.startsWith('/api/')) {
-      throw forbidden('Requests must target a path under /api/');
-    }
-
-    if (!ALLOWED_METHODS.has(request.method)) {
-      throw forbidden(`${request.method} is not allowed from a plugin`);
+    if (
+      url.origin !== apiOrigin ||
+      !url.pathname.startsWith(API_PATH_PREFIX) ||
+      ENCODED_SEPARATOR.test(url.pathname)
+    ) {
+      throw forbidden('Requests must target a root-relative path under /api/');
     }
 
     // append, not set: the pairs arrive ordered and may repeat a key, which is how the
@@ -172,8 +201,12 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // A wrong nonce cannot be a race: the port was transferred to this frame and nowhere
     // else, so whoever answers holds it. Echoing something else means the other end
     // failed the one check it was given, and the channel is not worth keeping.
-    if (isPluginHello(candidate)) {
-      if (candidate.nonce === nonce) {
+    if (isPluginHelloEnvelope(candidate)) {
+      if (
+        negotiatedVersion !== undefined &&
+        isPluginHello(candidate, negotiatedVersion) &&
+        candidate.nonce === nonce
+      ) {
         greeted = true;
       } else {
         shutdown();
@@ -182,11 +215,8 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       return;
     }
 
-    // Anything else without a kind is malformed: the api branch would resolve `undefined`
-    // against the API origin and answer FORBIDDEN with no correlation id -- noise the SDK
-    // can only drop. Ignoring it is the whole of the correct behaviour.
-    const request = candidate as PluginRequest | null;
-    if (!request?.kind) {
+    const id = usableRequestId(candidate);
+    if (id === undefined) {
       return;
     }
 
@@ -194,10 +224,18 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // request arriving first is not a slow handshake -- it is an end that never completed one.
     if (!greeted) {
       reply({
-        id: request.id,
+        id,
         ok: false,
         error: { code: 'PROTOCOL_ERROR', message: 'The plugin handshake is not complete' },
       });
+      return;
+    }
+
+    let request: PluginRequest;
+    try {
+      request = validateRequest(candidate, negotiatedVersion);
+    } catch (caught) {
+      reply({ id, ok: false, error: asErrorPayload(caught) });
       return;
     }
 
@@ -273,11 +311,12 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     window.removeEventListener('message', onWindowMessage);
 
     nonce = crypto.randomUUID();
+    negotiatedVersion = event.data.v;
 
     options.iframe.contentWindow?.postMessage(
       {
         owox: 'host-init',
-        v: PLUGIN_PROTOCOL_VERSION,
+        v: negotiatedVersion,
         nonce,
         context: options.context,
       },
@@ -329,6 +368,109 @@ function forbidden(message: string): PluginTransportRefusal {
   return new PluginTransportRefusal({ code: 'FORBIDDEN', message });
 }
 
+function protocolError(message: string): PluginTransportRefusal {
+  return new PluginTransportRefusal({ code: 'PROTOCOL_ERROR', message });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isPluginHelloEnvelope(value: unknown): boolean {
+  return isRecord(value) && value.owox === 'plugin-hello';
+}
+
+function usableRequestId(value: unknown): string | undefined {
+  if (!isRecord(value) || typeof value.id !== 'string' || value.id.length === 0) {
+    return undefined;
+  }
+
+  return value.id;
+}
+
+function validateRequest(
+  candidate: unknown,
+  negotiatedVersion: PluginProtocolVersion | undefined
+): PluginRequest {
+  if (!isRecord(candidate)) {
+    throw protocolError('The request envelope is malformed');
+  }
+
+  if (candidate.kind === 'openExternal') {
+    if (typeof candidate.url !== 'string') {
+      throw protocolError('The external URL must be a string');
+    }
+    return candidate as unknown as PluginRequest;
+  }
+
+  if (candidate.kind === 'navigate') {
+    if (typeof candidate.path !== 'string') {
+      throw protocolError('The navigation path must be a string');
+    }
+    return candidate as unknown as PluginRequest;
+  }
+
+  if (candidate.kind !== 'api') {
+    throw protocolError('The request kind is not recognized');
+  }
+
+  if (typeof candidate.method !== 'string') {
+    throw protocolError('The API method must be a string');
+  }
+
+  if (negotiatedVersion === undefined) {
+    throw protocolError('The plugin handshake is not complete');
+  }
+
+  if (!ALLOWED_METHODS[negotiatedVersion].has(candidate.method)) {
+    throw forbidden(`${candidate.method} is not allowed by protocol v${String(negotiatedVersion)}`);
+  }
+
+  if (typeof candidate.path !== 'string') {
+    throw protocolError('The API path must be a string');
+  }
+
+  if (
+    candidate.query !== undefined &&
+    (!Array.isArray(candidate.query) ||
+      !candidate.query.every(
+        pair =>
+          Array.isArray(pair) &&
+          pair.length === 2 &&
+          typeof pair[0] === 'string' &&
+          typeof pair[1] === 'string'
+      ))
+  ) {
+    throw protocolError('The API query must contain string pairs');
+  }
+
+  if (candidate.accept !== undefined && typeof candidate.accept !== 'string') {
+    throw protocolError('The API accept value must be a string');
+  }
+
+  if (candidate.stream !== undefined && typeof candidate.stream !== 'boolean') {
+    throw protocolError('The API stream flag must be a boolean');
+  }
+
+  if (candidate.stream === true && candidate.method !== 'GET') {
+    throw protocolError('Only GET requests may stream');
+  }
+
+  if (candidate.method === 'DELETE' && candidate.body !== undefined) {
+    throw protocolError('DELETE requests must not carry a body');
+  }
+
+  if (candidate.body !== undefined) {
+    try {
+      JSON.stringify(candidate.body);
+    } catch {
+      throw protocolError('The API body must be JSON-serializable');
+    }
+  }
+
+  return candidate as unknown as PluginRequest;
+}
+
 class PluginTransportRefusal extends Error {
   constructor(readonly payload: PluginErrorPayload) {
     super(payload.message);
@@ -343,6 +485,8 @@ function asErrorPayload(caught: unknown): PluginErrorPayload {
 
   return {
     code: 'NETWORK_ERROR',
-    message: caught instanceof Error ? caught.message : 'The request could not be completed',
+    // Fetch and token-provider errors are host-side details. Apart from being useless to
+    // a plugin, echoing one can expose a URL or credential included by the failing layer.
+    message: 'The request could not be completed',
   };
 }
