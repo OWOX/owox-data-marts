@@ -5,7 +5,7 @@ import {
   ApiSchema,
   getSchemaPath,
 } from '@nestjs/swagger';
-import { IsObject, IsOptional, ValidateBy, type ValidationOptions } from 'class-validator';
+import { IsObject, ValidateBy, ValidateIf, type ValidationOptions } from 'class-validator';
 import { MaxJsonSize } from '../../../common/validators/max-json-size.validator';
 
 const MAX_PAYLOAD_SIZE_BYTES = 1024 * 1024; // 1MB
@@ -75,7 +75,7 @@ export class RunDataMartRequestApiDto {
    * Payload for the manual run. Omit it or select INCREMENTAL without data for an incremental run.
    * MANUAL_BACKFILL requires connector-specific fields in data.
    */
-  @IsOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsObject()
   @IsRunDataMartPayload()
   @MaxJsonSize(MAX_PAYLOAD_SIZE_BYTES)

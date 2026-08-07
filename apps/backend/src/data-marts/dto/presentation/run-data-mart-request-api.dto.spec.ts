@@ -15,6 +15,19 @@ describe('RunDataMartRequestApiDto', () => {
     );
   });
 
+  it('rejects an explicit null payload instead of treating it as omitted', async () => {
+    const dto = Object.assign(new RunDataMartRequestApiDto(), { payload: null });
+
+    await expect(validate(dto)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'payload',
+          constraints: expect.objectContaining({ isObject: expect.any(String) }),
+        }),
+      ])
+    );
+  });
+
   it('rejects a payload larger than the documented one-megabyte limit', async () => {
     const dto = Object.assign(new RunDataMartRequestApiDto(), {
       payload: { value: 'x'.repeat(1024 * 1024) },
