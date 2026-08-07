@@ -1,17 +1,21 @@
 /**
- * Host-side conformance cases for the credential-bearing plugin boundary.
+ * Package-neutral conformance oracle for credential-bearing API path boundaries.
+ *
+ * The API client and plugin host intentionally keep separate validators and error
+ * types. Both focused suites consume these cases so their admission decisions cannot
+ * drift without a test failure.
  */
 export const acceptedAuthenticatedApiPaths = [
   ['an ordinary API path', '/api/data-marts'],
   ['an API path with a query', '/api/data-marts?limit=10'],
   ['an API path with an encoded Unicode segment', '/api/%E2%9C%93'],
   ['a path at the 2,048-character limit', `/api/${'a'.repeat(2043)}`],
-] as const;
+];
 
 export const rejectedAuthenticatedApiPaths = [
   ['a protocol-relative host', '//evil.example/x'],
   ['an absolute foreign URL', 'https://evil.example/x'],
-  ['an absolute API URL', 'https://app.owox.test/api/data-marts'],
+  ['a same-origin absolute API URL', 'https://app.owox.test/api/data-marts'],
   ['a path outside /api/', '/auth/context'],
   ['the /api path without its required trailing slash', '/api'],
   ['a traversal out of /api/', '/api/../auth/context'],
@@ -25,4 +29,4 @@ export const rejectedAuthenticatedApiPaths = [
   ['an encoded backslash', '/api/data%5cmarts'],
   ['a raw backslash', '/api\\data-marts'],
   ['a path over the 2,048-character limit', `/api/${'a'.repeat(2044)}`],
-] as const;
+];

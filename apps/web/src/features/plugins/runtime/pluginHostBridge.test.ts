@@ -5,7 +5,7 @@ import { createPluginHostBridge, type PluginHostBridge } from './pluginHostBridg
 import {
   acceptedAuthenticatedApiPaths,
   rejectedAuthenticatedApiPaths,
-} from '../../../test/authenticated-api-path-contract';
+} from '../../../../../../test/contracts/authenticated-api-path-contract.mjs';
 
 const RUNTIME_TOKEN = 'runtime-token-that-must-not-leak';
 const API_ORIGIN = 'https://app.owox.test';
