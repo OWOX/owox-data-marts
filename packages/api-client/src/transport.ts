@@ -39,6 +39,15 @@ const API_PATH_PREFIX = '/api/';
 /** Keeps authenticated API paths within the conservative, widely supported URL size. */
 const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
 
+/*
+ * This validator intentionally remains inside the standalone public client while the
+ * iframe host enforces the same rule at its raw-message trust boundary with host-local
+ * errors. Both implementations consume the shared conformance oracle in
+ * `apps/web/src/test/authenticated-api-path-contract.ts`, so either boundary drifting
+ * fails both focused suites without coupling the browser host to the API client's
+ * credential code.
+ */
+
 function unsafeApiPath(): OWOXConfigError {
   return new OWOXConfigError(
     'OWOX API path must be an absolute /api/ path without traversal or encoded separators'

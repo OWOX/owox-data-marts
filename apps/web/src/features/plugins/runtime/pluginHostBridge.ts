@@ -37,6 +37,12 @@ const ALLOWED_METHODS: Record<PluginProtocolVersion, ReadonlySet<string>> = {
 const API_PATH_PREFIX = '/api/';
 /** Keeps brokered API paths within the same conservative URL size as API-key clients. */
 const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
+/*
+ * The host keeps this enforcement local because it validates hostile postMessage input
+ * before any transport code runs and must return protocol errors, not API-client errors.
+ * Its decisions are locked to the standalone API-client boundary by the shared oracle in
+ * `apps/web/src/test/authenticated-api-path-contract.ts`.
+ */
 const INVALID_HEADER_VALUE_CHARACTER = /[\0\r\n]/;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
 const MAX_IN_FLIGHT = 32;

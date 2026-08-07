@@ -1,7 +1,11 @@
 import { jest } from '@jest/globals';
 
 import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from './index.js';
-import { requestApi } from './transport.js';
+import { requestApi, resolveAuthenticatedApiUrl } from './transport.js';
+import {
+  acceptedAuthenticatedApiPaths,
+  rejectedAuthenticatedApiPaths,
+} from '../../../apps/web/src/test/authenticated-api-path-contract.js';
 
 type RecordedRequest = {
   method: string;
@@ -256,34 +260,19 @@ describe('OWOXApiClient', () => {
     await expect(client.deleteJson('/api/data-marts/dm-1')).resolves.toBeUndefined();
   });
 
-  it.each([
-    'https://attacker.test/api/data-marts',
-    '//attacker.test/api/data-marts',
-    '/api/../auth/context',
-    '/api/data-marts/../auth/context',
-    '/api/%2e%2e/auth/context',
-    '/api/%25%32%65%25%32%65/auth/context',
-    '/api/%252e%252e/auth/context',
-    '/api/%zz/auth/context',
-    '/api/data%2fmarts',
-    '/api/data%5cmarts',
-    '/api\\data-marts',
-    '/internal/data-marts',
-  ])('rejects unsafe API path %p before exchanging an access token', async path => {
-    const fetchImpl = jest.fn<typeof fetch>();
-    const client = new OWOXApiClient({ apiKey, fetchImpl });
+  it.each(rejectedAuthenticatedApiPaths)(
+    'rejects %s before exchanging an access token',
+    async (_label, path) => {
+      const fetchImpl = jest.fn<typeof fetch>();
+      const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
+      await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  );
 
-  it('rejects an API path longer than 2048 characters before exchanging an access token', async () => {
-    const fetchImpl = jest.fn<typeof fetch>();
-    const client = new OWOXApiClient({ apiKey, fetchImpl });
-    const path = `/api/${'a'.repeat(2044)}`;
-
-    await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
-    expect(fetchImpl).not.toHaveBeenCalled();
+  it.each(acceptedAuthenticatedApiPaths)('accepts %s', (_label, path) => {
+    expect(resolveAuthenticatedApiUrl(apiOrigin, path, undefined).origin).toBe(apiOrigin);
   });
 
   it('rejects an encoded separator in a supplied authenticated URL before fetching', async () => {

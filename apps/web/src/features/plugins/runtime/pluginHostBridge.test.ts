@@ -2,6 +2,10 @@ import type { PluginRequest, PluginRequestInput, PluginResponse } from './protoc
 import { PLUGIN_PROTOCOL_VERSION } from './protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPluginHostBridge, type PluginHostBridge } from './pluginHostBridge';
+import {
+  acceptedAuthenticatedApiPaths,
+  rejectedAuthenticatedApiPaths,
+} from '../../../test/authenticated-api-path-contract';
 
 const RUNTIME_TOKEN = 'runtime-token-that-must-not-leak';
 const API_ORIGIN = 'https://app.owox.test';
@@ -188,39 +192,27 @@ describe('plugin host bridge', () => {
      * naive string prefix test would let a plugin make the host send the runtime token
      * to an attacker.
      */
-    it.each([
-      ['a protocol-relative host', '//evil.example/x'],
-      ['an absolute foreign url', 'https://evil.example/x'],
-      ['a same-origin absolute url', `${API_ORIGIN}/api/data-marts`],
-      ['a path outside /api/', '/auth/context'],
-      ['a traversal out of /api/', '/api/../auth/context'],
-      ['nested traversal out of /api/', '/api/data-marts/../auth/context'],
-      ['encoded traversal', '/api/%2e%2e/auth/context'],
-      ['fragmented double-encoded traversal', '/api/%25%32%65%25%32%65/auth/context'],
-      ['nested encoded traversal', '/api/%252e%252e/auth/context'],
-      ['a malformed percent escape', '/api/%zz/auth/context'],
-      ['an encoded slash', '/api/data%2fmarts'],
-      ['an encoded backslash', '/api/data%5cmarts'],
-      ['a raw backslash', '/api\\data-marts'],
-    ])('refuses %s and issues no request at all', async (_label, path) => {
+    it.each(rejectedAuthenticatedApiPaths)(
+      'refuses %s and issues no request at all',
+      async (_label, path) => {
+        const h = await harness();
+
+        const response = await h.send({ kind: 'api', method: 'GET', path });
+
+        expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+        expect(h.fetchMock).not.toHaveBeenCalled();
+        expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each(acceptedAuthenticatedApiPaths)('allows %s', async (_label, path) => {
       const h = await harness();
 
       const response = await h.send({ kind: 'api', method: 'GET', path });
 
-      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
-      expect(h.fetchMock).not.toHaveBeenCalled();
-      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
-    });
-
-    it('refuses a path longer than 2048 characters before minting a token', async () => {
-      const h = await harness();
-      const path = `/api/${'a'.repeat(2044)}`;
-
-      const response = await h.send({ kind: 'api', method: 'GET', path });
-
-      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
-      expect(h.fetchMock).not.toHaveBeenCalled();
-      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
+      expect(response).toMatchObject({ ok: true });
+      expect(h.fetchRuntimeToken).toHaveBeenCalledTimes(1);
+      expect(h.fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('refuses an arbitrary method before minting a token', async () => {
@@ -235,15 +227,6 @@ describe('plugin host bridge', () => {
       expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
       expect(h.fetchMock).not.toHaveBeenCalled();
       expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
-    });
-
-    it('allows an ordinary api path', async () => {
-      const h = await harness();
-
-      const response = await h.send({ kind: 'api', method: 'GET', path: '/api/data-marts' });
-
-      expect(response).toMatchObject({ ok: true });
-      expect(String(h.fetchMock.mock.calls[0][0])).toBe(`${API_ORIGIN}/api/data-marts`);
     });
 
     // `?column=a&column=b` is how the API client asks for two columns. Assigning with
