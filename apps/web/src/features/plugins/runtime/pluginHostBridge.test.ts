@@ -1,9 +1,4 @@
-import type {
-  PluginProtocolVersion,
-  PluginRequest,
-  PluginRequestInput,
-  PluginResponse,
-} from './protocol';
+import type { PluginRequest, PluginRequestInput, PluginResponse } from './protocol';
 import { PLUGIN_PROTOCOL_VERSION } from './protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPluginHostBridge, type PluginHostBridge } from './pluginHostBridge';
@@ -43,10 +38,7 @@ function pluginFrame() {
   return { iframe, contentWindow, posted };
 }
 
-function announceReady(
-  contentWindow: object,
-  protocolVersion: PluginProtocolVersion = PLUGIN_PROTOCOL_VERSION
-) {
+function announceReady(contentWindow: object, protocolVersion: number = PLUGIN_PROTOCOL_VERSION) {
   const event = new MessageEvent('message', {
     data: { owox: 'plugin-ready', v: protocolVersion },
     origin: 'null',
@@ -81,7 +73,7 @@ async function harness(
     new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
   /** Off for the tests that are about the handshake itself rather than what follows it. */
   greet = true,
-  protocolVersion: PluginProtocolVersion = PLUGIN_PROTOCOL_VERSION
+  protocolVersion: number = PLUGIN_PROTOCOL_VERSION
 ): Promise<Harness> {
   const frame = pluginFrame();
   const fetchMock = vi.fn(fetchImpl);

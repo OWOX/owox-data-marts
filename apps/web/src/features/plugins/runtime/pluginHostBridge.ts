@@ -1,11 +1,10 @@
 import type {
   PluginErrorPayload,
   PluginHostContext,
-  PluginHostRequest,
-  PluginProtocolVersion,
+  PluginRequest,
   PluginResponse,
 } from './protocol';
-import { OPAQUE_ORIGIN, isPluginHello, isPluginReady } from './protocol';
+import { OPAQUE_ORIGIN, PLUGIN_PROTOCOL_VERSION, isPluginHello, isPluginReady } from './protocol';
 
 /** Supplied by the runtime authorization track. There is deliberately no default. */
 export type FetchRuntimeToken = () => Promise<{ runtimeToken: string; expiresIn: number }>;
@@ -69,7 +68,6 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   let disposed = false;
   /** The nonce this host sent with host-init, and whether the frame has echoed it back. */
   let nonce: string | undefined;
-  let negotiatedVersion: PluginProtocolVersion | undefined;
   let greeted = false;
   /**
    * Cancels requests already on the wire when the channel goes down.
@@ -98,7 +96,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
    * string prefix test would let a plugin make the host send the runtime token to an
    * attacker. Resolving first and comparing origins is what closes that.
    */
-  function resolvePath(request: Extract<PluginHostRequest, { kind: 'api' }>): URL {
+  function resolvePath(request: Extract<PluginRequest, { kind: 'api' }>): URL {
     const pathBeforeQueryOrHash = request.path.split(/[?#]/, 1)[0];
     if (
       request.path.length > MAX_AUTHENTICATED_API_PATH_LENGTH ||
@@ -135,7 +133,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
   }
 
   async function forward(
-    request: Extract<PluginHostRequest, { kind: 'api' }>,
+    request: Extract<PluginRequest, { kind: 'api' }>,
     serializedBody: string | undefined,
     retryOnUnauthorized = true
   ): Promise<PluginResponse> {
@@ -197,11 +195,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     // else, so whoever answers holds it. Echoing something else means the other end
     // failed the one check it was given, and the channel is not worth keeping.
     if (isPluginHelloEnvelope(candidate)) {
-      if (
-        negotiatedVersion !== undefined &&
-        isPluginHello(candidate, negotiatedVersion) &&
-        candidate.nonce === nonce
-      ) {
+      if (isPluginHello(candidate) && candidate.nonce === nonce) {
         greeted = true;
       } else {
         shutdown();
@@ -239,7 +233,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     try {
       // Admission covers validation as well as I/O. In particular, JSON serialization
       // can be attacker-controlled work and must not remain unbounded at capacity.
-      const request = validateRequest(candidate, negotiatedVersion);
+      const request = validateRequest(candidate);
 
       if (request.kind === 'openExternal') {
         options.onOpenExternal(request.url);
@@ -306,12 +300,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     window.removeEventListener('message', onWindowMessage);
 
     nonce = crypto.randomUUID();
-    negotiatedVersion = event.data.v;
-
     options.iframe.contentWindow?.postMessage(
       {
         owox: 'host-init',
-        v: negotiatedVersion,
+        v: PLUGIN_PROTOCOL_VERSION,
         nonce,
         context: options.context,
       },
@@ -383,10 +375,7 @@ function usableRequestId(value: unknown): string | undefined {
   return value.id;
 }
 
-function validateRequest(
-  candidate: unknown,
-  negotiatedVersion: PluginProtocolVersion | undefined
-): PluginHostRequest {
+function validateRequest(candidate: unknown): PluginRequest {
   if (!isRecord(candidate)) {
     throw protocolError('The request envelope is malformed');
   }
@@ -395,14 +384,14 @@ function validateRequest(
     if (typeof candidate.url !== 'string') {
       throw protocolError('The external URL must be a string');
     }
-    return candidate as unknown as PluginHostRequest;
+    return candidate as unknown as PluginRequest;
   }
 
   if (candidate.kind === 'navigate') {
     if (typeof candidate.path !== 'string') {
       throw protocolError('The navigation path must be a string');
     }
-    return candidate as unknown as PluginHostRequest;
+    return candidate as unknown as PluginRequest;
   }
 
   if (candidate.kind !== 'api') {
@@ -413,12 +402,8 @@ function validateRequest(
     throw protocolError('The API method must be a string');
   }
 
-  if (negotiatedVersion === undefined) {
-    throw protocolError('The plugin handshake is not complete');
-  }
-
   if (!ALLOWED_METHODS.has(candidate.method)) {
-    throw forbidden(`${candidate.method} is not allowed by protocol v${String(negotiatedVersion)}`);
+    throw forbidden(`${candidate.method} is not allowed from a plugin`);
   }
 
   if (typeof candidate.path !== 'string') {
@@ -478,12 +463,10 @@ function validateRequest(
     throw protocolError('PATCH requests must carry a JSON body');
   }
 
-  return candidate as unknown as PluginHostRequest;
+  return candidate as unknown as PluginRequest;
 }
 
-function serializeJsonBody(
-  request: Extract<PluginHostRequest, { kind: 'api' }>
-): string | undefined {
+function serializeJsonBody(request: Extract<PluginRequest, { kind: 'api' }>): string | undefined {
   if (request.method === 'GET' || request.method === 'DELETE' || request.body === undefined) {
     return undefined;
   }

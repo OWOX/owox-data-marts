@@ -6,12 +6,14 @@
  * consumed from npm by third parties should not also be a build input of the product it
  * plugs into. The two sides therefore agree by PLUGIN_PROTOCOL_VERSION, not by sharing a
  * module -- which is exactly the contract a plugin built against an older SDK has to
- * satisfy anyway. Additive request methods may evolve v1 when the host preserves every
- * existing wire shape; incompatible wire changes require a new negotiated version.
+ * satisfy anyway.
+ *
+ * Change one side and the version must move with it. The handshake guards check the
+ * version on every message, so a mismatch fails the handshake instead of being read
+ * against the wrong rules.
  */
 
-export const PLUGIN_PROTOCOL_VERSION = 1 as const;
-export type PluginProtocolVersion = typeof PLUGIN_PROTOCOL_VERSION;
+export const PLUGIN_PROTOCOL_VERSION = 1;
 
 /**
  * The plugin's own origin, as this host sees it: a sandboxed frame is opaque, so
@@ -39,7 +41,7 @@ export interface PluginReadyMessage {
 /** Hands over one end of a MessageChannel, which becomes the only data path. */
 export interface PluginHostInitMessage {
   owox: 'host-init';
-  v: PluginProtocolVersion;
+  v: number;
   nonce: string;
   context: PluginHostContext;
 }
@@ -131,8 +133,6 @@ export type PluginRequest =
    */
   | { id: string; kind: 'navigate'; path: string };
 
-export type PluginHostRequest = PluginRequest;
-
 /**
  * A request before the transport stamps its correlation id.
  *
@@ -175,21 +175,18 @@ export type PluginResponse =
     }
   | { id: string; ok: false; error: PluginErrorPayload };
 
-export function isPluginReady(
-  value: unknown
-): value is PluginReadyMessage & { v: PluginProtocolVersion } {
+export function isPluginReady(value: unknown): value is PluginReadyMessage {
   const message = value as PluginReadyMessage | null;
   return message?.owox === 'plugin-ready' && message.v === PLUGIN_PROTOCOL_VERSION;
 }
 
-export function isPluginHello(
-  value: unknown,
-  negotiatedVersion: PluginProtocolVersion
-): value is PluginHelloMessage {
+export function isPluginHello(value: unknown): value is PluginHelloMessage {
   const message = value as PluginHelloMessage | null;
   return (
     message?.owox === 'plugin-hello' &&
-    message.v === negotiatedVersion &&
+    // Checked like the ready guard: without it an ack from a future SDK would be
+    // accepted here and then read against this version's rules.
+    message.v === PLUGIN_PROTOCOL_VERSION &&
     typeof message.nonce === 'string'
   );
 }
