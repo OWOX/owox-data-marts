@@ -39,6 +39,8 @@ import { ScheduledTriggerController } from './controllers/scheduled-trigger.cont
 import { SyncDataMartsByGcpTrigger } from './entities/legacy-data-marts/sync-data-marts-by-gcp-trigger.entity';
 import { SyncGcpStoragesForProjectTrigger } from './entities/legacy-data-marts/sync-gcp-storages-for-project-trigger.entity';
 import { InternalProjectBilling } from './services/project-billing/internal-project-billing.service';
+import { LicenseProjectBilling } from './services/project-billing/license-project-billing.service';
+import { RestrictedProjectBilling } from './services/project-billing/restricted-project-billing.service';
 import { projectBillingProvider } from './services/project-billing/project-billing.providers';
 import { SyncDataMartsByGcpTriggerHandler } from './services/legacy-data-marts/sync-data-marts-by-gcp-trigger.handler';
 import { SyncGcpStoragesForProjectTriggerHandler } from './services/legacy-data-marts/sync-gcp-storages-for-project-trigger.handler';
@@ -750,6 +752,8 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
     ConnectorMessageParserService,
     ConnectorStateService,
     InternalProjectBilling,
+    LicenseProjectBilling,
+    RestrictedProjectBilling,
     projectBillingProvider,
     LegacyDataMartsService,
     LegacyDataStorageService,

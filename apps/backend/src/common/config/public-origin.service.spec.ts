@@ -236,4 +236,19 @@ describe('PublicOriginService', () => {
       expect(service.getPublicOrigin()).toBe(`http://localhost:${PORT}`);
     });
   });
+
+  describe('normalizeOrigin', () => {
+    it.each([
+      ['https://app.owox.test/ui/?q=1', 'https://app.owox.test'],
+      ['app.owox.test', 'http://app.owox.test'],
+      ['  http://localhost:3000  ', 'http://localhost:3000'],
+      ['https://app.owox.test:8443', 'https://app.owox.test:8443'],
+    ])('normalizes %s to %s', (input, expected) => {
+      expect(service.normalizeOrigin(input)).toBe(expected);
+    });
+
+    it.each(['ftp://app.owox.test', 'http:::', 'not a url', '   '])('rejects %s', invalid => {
+      expect(() => service.normalizeOrigin(invalid)).toThrow('Invalid origin');
+    });
+  });
 });

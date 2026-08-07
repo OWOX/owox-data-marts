@@ -10,8 +10,9 @@ import * as jwt from 'jsonwebtoken';
 /**
  * JWT payload structure for Google Service Account tokens
  */
-interface JwtPayload {
+export interface JwtPayload {
   iss: string;
+  jti?: string;
   payload: unknown;
   [key: string]: unknown;
 }
@@ -68,24 +69,33 @@ export async function validateJwt(
   expectedServiceAccount: string,
   audience?: string
 ): Promise<unknown> {
+  const claims = await verifyJwtClaims(token, expectedServiceAccount, audience);
+  return claims.payload;
+}
+
+/**
+ * Same verification as {@link validateJwt}, but returns the full set of verified
+ * claims instead of only the nested `payload` object.
+ */
+export async function verifyJwtClaims(
+  token: string,
+  expectedServiceAccount: string,
+  audience?: string
+): Promise<JwtPayload> {
   try {
     await ensureCertsCache(expectedServiceAccount);
 
+    const certs = certsCache.get(expectedServiceAccount) ?? {};
     const header = jwt.decode(token, { complete: true })?.header;
-    if (!header?.kid) {
-      throw new UnauthorizedException('JWT header missing kid');
+    // A Google-managed service account keeps several system-managed keys active at once and
+    // IAM signBlob does not report which one it will use, so tokens we sign carry no kid.
+    const candidateKeys = header?.kid ? [certs[header.kid]].filter(Boolean) : Object.values(certs);
+
+    if (candidateKeys.length === 0) {
+      throw new UnauthorizedException('No public key available to verify the JWT');
     }
 
-    const certs = certsCache.get(expectedServiceAccount);
-    const publicKey = certs?.[header.kid];
-    if (!publicKey) {
-      throw new UnauthorizedException('Public key not found for kid');
-    }
-
-    const payload = jwt.verify(token, publicKey, {
-      algorithms: ['RS256'],
-      audience: audience,
-    }) as JwtPayload;
+    const payload = verifyWithAnyKey(token, candidateKeys, audience);
 
     if (payload.iss !== expectedServiceAccount) {
       throw new UnauthorizedException(
@@ -93,13 +103,25 @@ export async function validateJwt(
       );
     }
 
-    return payload.payload;
+    return payload;
   } catch (error) {
     if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
       throw error;
     }
     throw new UnauthorizedException(`JWT validation failed: ${error.message}`);
   }
+}
+
+function verifyWithAnyKey(token: string, publicKeys: string[], audience?: string): JwtPayload {
+  let lastError: unknown;
+  for (const publicKey of publicKeys) {
+    try {
+      return jwt.verify(token, publicKey, { algorithms: ['RS256'], audience }) as JwtPayload;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 /**
