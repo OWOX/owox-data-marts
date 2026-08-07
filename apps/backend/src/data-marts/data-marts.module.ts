@@ -439,6 +439,8 @@ import { DataQualityResultParser } from './data-quality/data-quality-result-pars
 import { DataQualitySqlDialect } from './data-quality/data-quality-sql-dialect';
 import { TypeResolver } from '../common/resolver/type-resolver';
 import { DataStorageType } from './data-storage-types/enums/data-storage-type.enum';
+import { PLUGIN_ENTITY_AUTHORIZATION_FACADE } from './facades/plugin-entity-authorization.facade';
+import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-authorization.facade.impl';
 
 @Module({
   imports: [
@@ -539,6 +541,11 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
     RequestAccessController,
   ],
   providers: [
+    PluginEntityAuthorizationFacadeImpl,
+    {
+      provide: PLUGIN_ENTITY_AUTHORIZATION_FACADE,
+      useExisting: PluginEntityAuthorizationFacadeImpl,
+    },
     ...dataStorageResolverProviders,
     ...dataStorageFacadesProviders,
     ...dataDestinationResolverProviders,
@@ -898,6 +905,7 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
     HttpDataColumnValidator,
   ],
   exports: [
+    PLUGIN_ENTITY_AUTHORIZATION_FACADE,
     MCP_DATA_MARTS_FACADE,
     MCP_DATA_DESTINATIONS_FACADE,
     MCP_REPORTS_FACADE,

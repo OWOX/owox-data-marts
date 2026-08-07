@@ -14,10 +14,11 @@ export enum DbType {
  * Custom DataSource logger that implements the Logger interface
  * and uses the logger service from @nestjs/common for logging
  */
-class CustomDataSourceLogger implements Logger {
+export class CustomDataSourceLogger implements Logger {
   constructor(
     private readonly logger: LoggerService,
-    private readonly loggingOptions: LoggerOptions
+    private readonly loggingOptions: LoggerOptions,
+    private readonly logQueryParameters = true
   ) {
     this.logger = logger;
     this.loggingOptions = loggingOptions;
@@ -32,21 +33,22 @@ class CustomDataSourceLogger implements Logger {
 
   logQuery(query: string, parameters?: unknown[]) {
     if (this.checkLoggingOptions('query')) {
-      const message = parameters?.length
-        ? `${query} -- Parameters: ${JSON.stringify(parameters)}`
-        : query;
+      const message =
+        this.logQueryParameters && parameters?.length
+          ? `${query} -- Parameters: ${JSON.stringify(parameters)}`
+          : query;
       this.logger.log(message);
     }
   }
   logQueryError(error: string | Error, query: string, parameters?: unknown[]) {
     if (this.checkLoggingOptions('error')) {
-      const errorMessage = `[QUERY ERROR] ${query}${parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
+      const errorMessage = `[QUERY ERROR] ${query}${this.logQueryParameters && parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
       this.logger.error(errorMessage, String(error));
     }
   }
   logQuerySlow(time: number, query: string, parameters?: unknown[]) {
     if (this.checkLoggingOptions('warn')) {
-      const message = `[SLOW QUERY] (${time}ms): ${query}${parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
+      const message = `[SLOW QUERY] (${time}ms): ${query}${this.logQueryParameters && parameters?.length ? ` -- Parameters: ${JSON.stringify(parameters)}` : ''}`;
       this.logger.warn(message);
     }
   }
@@ -97,6 +99,13 @@ class CustomDataSourceLogger implements Logger {
   }
 }
 
+/** A SQL logger for stores whose bound values must never enter application logs. */
+export class RedactingDataSourceLogger extends CustomDataSourceLogger {
+  constructor(logger: LoggerService, loggingOptions: LoggerOptions) {
+    super(logger, loggingOptions, false);
+  }
+}
+
 export function createDataSourceOptions(config: ConfigService): DataSourceOptions {
   const logger = createLogger('DataSourceOptions');
 
@@ -106,7 +115,7 @@ export function createDataSourceOptions(config: ConfigService): DataSourceOption
   );
 
   const baseOptions = {
-    entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+    entities: [__dirname + '/../**/!(*.collection).entity{.ts,.js}'],
     migrations: [__dirname + '/../migrations/[0-9]*-*.{ts,js}'],
     logger: new CustomDataSourceLogger(
       createLogger('TypeORM'),
@@ -139,7 +148,7 @@ export function createDataSourceOptions(config: ConfigService): DataSourceOption
   }
 }
 
-function resolveLoggerOptions(value: string): LoggerOptions {
+export function resolveLoggerOptions(value: string): LoggerOptions {
   if (value === 'false') return false;
   if (value === 'true') return true;
   if (value === 'all') return 'all';

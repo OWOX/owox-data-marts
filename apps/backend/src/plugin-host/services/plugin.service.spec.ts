@@ -1,4 +1,4 @@
-import { QueryFailedError, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { Plugin } from '../entities/plugin.entity';
 import { PluginService } from './plugin.service';
@@ -65,5 +65,71 @@ describe('PluginService.createOrFindForRepo', () => {
 
     await expect(s.service.createOrFindForRepo(REPO)).rejects.toThrow('connection lost');
     expect(s.repository.findOneBy).not.toHaveBeenCalled();
+  });
+});
+
+describe('PluginService sync lease', () => {
+  let dataSource: DataSource;
+  let repository: Repository<Plugin>;
+  let service: PluginService;
+  let plugin: Plugin;
+
+  beforeEach(async () => {
+    dataSource = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [Plugin],
+      synchronize: true,
+    });
+    await dataSource.initialize();
+    repository = dataSource.getRepository(Plugin);
+    service = new PluginService(repository);
+    plugin = await repository.save(
+      repository.create({
+        githubRepoId: 'lease-test',
+        repoOwner: 'OWOX',
+        repoName: 'lease-test',
+        repoHtmlUrl: 'https://github.com/OWOX/lease-test',
+      })
+    );
+  });
+
+  afterEach(async () => dataSource.destroy());
+
+  it('atomically grants only one concurrent claimant', async () => {
+    const claims = await Promise.all([
+      service.tryClaimSyncSlot(plugin.id, 0),
+      service.tryClaimSyncSlot(plugin.id, 0),
+    ]);
+
+    expect(claims.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('allows only the owner to release and allows a new claim after release', async () => {
+    const leaseId = await service.tryClaimSyncSlot(plugin.id, 0);
+    expect(leaseId).toEqual(expect.any(String));
+
+    await service.releaseSyncSlot(plugin.id, 'different-owner');
+    await expect(service.tryClaimSyncSlot(plugin.id, 0)).resolves.toBeNull();
+
+    await service.releaseSyncSlot(plugin.id, leaseId!);
+    await expect(service.tryClaimSyncSlot(plugin.id, 0)).resolves.toEqual(expect.any(String));
+  });
+
+  it('reclaims a stale lease with a different owner token', async () => {
+    const oldLease = await service.tryClaimSyncSlot(plugin.id, 0);
+    await repository.update(plugin.id, {
+      syncLeaseStartedAt: new Date(Date.now() - 31 * 60 * 1000),
+      lastSyncAt: new Date(Date.now() - 31 * 60 * 1000),
+    });
+
+    const replacement = await service.tryClaimSyncSlot(plugin.id, 0);
+    expect(replacement).toEqual(expect.any(String));
+    expect(replacement).not.toBe(oldLease);
+
+    await service.releaseSyncSlot(plugin.id, oldLease!);
+    await expect(repository.findOneByOrFail({ id: plugin.id })).resolves.toMatchObject({
+      syncLeaseId: replacement,
+    });
   });
 });

@@ -15,6 +15,7 @@ import { setupGlobalPipes } from './config/global-pipes.config';
 import { setupBodyParsers } from './config/body-parser.config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
 import { PROTOCOL_ROUTE_EXCLUSIONS } from './config/protocol-route-exclusions.config';
+import { registerPluginCollectionsBodyParser } from './config/plugin-collections-body-parser.config';
 import { setupSwagger } from './config/swagger.config';
 import { loadEnv } from './load-env';
 
@@ -34,6 +35,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   await runMigrationsIfNeeded();
 
   initializeTransactionalContext({ storageDriver: StorageDriver.AUTO });
+  registerPluginCollectionsBodyParser(options.express);
   options.express.use(`/${PATH_PREFIX}`, (req: Request, res: Response, next: NextFunction) => {
     disableConditionalCaching(req, res);
     next();

@@ -1,4 +1,5 @@
 import { ArgumentsHost, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
 import { GlobalExceptionFilter } from './global-exception.filter';
 
 function validationException(constraints: unknown[]): BadRequestException {
@@ -122,6 +123,30 @@ describe('GlobalExceptionFilter', () => {
       const response = body();
       expect(response.statusCode).toBe(500);
       expect(response.details).toBeUndefined();
+    });
+
+    it('does not send bound database parameters to the structured logger', () => {
+      const secret = 'private plugin collection document';
+      const error = new QueryFailedError(
+        'INSERT INTO plugin_collection_document (document) VALUES (?)',
+        [secret],
+        Object.assign(new Error('database unavailable'), {
+          code: 'SQLITE_BUSY',
+          errno: 5,
+        })
+      );
+
+      filter.catch(error, hostFor(json));
+
+      const errorLog = jest.mocked(Logger.prototype.error);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain(secret);
+      expect(errorLog.mock.calls[0][1]).toMatchObject({
+        name: QueryFailedError.name,
+        message: 'Database query failed (SQLITE_BUSY)',
+        code: 'SQLITE_BUSY',
+        errno: 5,
+      });
     });
 
     it('keeps extra payload fields a structured thrower attached', () => {

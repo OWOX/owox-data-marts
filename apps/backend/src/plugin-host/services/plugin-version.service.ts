@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { PluginVersion } from '../entities/plugin-version.entity';
+import { Plugin } from '../entities/plugin.entity';
 import { PluginVersionConflictError } from '../errors/plugin-host.errors';
+import type { PluginCollectionDeclaration } from '../utils/plugin-manifest.util';
 
 export interface InsertPluginVersionInput {
   readonly pluginId: string;
@@ -14,6 +17,7 @@ export interface InsertPluginVersionInput {
   readonly displayName: string;
   readonly description: string;
   readonly deliveryUrl: string;
+  readonly collections: readonly PluginCollectionDeclaration[];
   readonly releasePublishedAt: Date | null;
 }
 
@@ -26,7 +30,11 @@ export interface InsertPluginVersionInput {
 export class PluginVersionService {
   constructor(
     @InjectRepository(PluginVersion)
-    private readonly repository: Repository<PluginVersion>
+    private readonly repository: Repository<PluginVersion>,
+    @InjectRepository(Plugin)
+    private readonly plugins: Repository<Plugin>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource
   ) {}
 
   findById(id: string): Promise<PluginVersion | null> {
@@ -50,7 +58,11 @@ export class PluginVersionService {
   async insertVersion(input: InsertPluginVersionInput): Promise<PluginVersion> {
     try {
       return await this.repository.save(
-        this.repository.create({ ...input, deliveryType: 'remote' })
+        this.repository.create({
+          ...input,
+          collections: [...input.collections],
+          deliveryType: 'remote',
+        })
       );
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
@@ -58,5 +70,20 @@ export class PluginVersionService {
       }
       throw error;
     }
+  }
+
+  /** Inserts only while this worker still owns the plugin's sync lease. */
+  @Transactional()
+  async insertVersionForLease(
+    input: InsertPluginVersionInput,
+    leaseId: string
+  ): Promise<PluginVersion | null> {
+    const query = this.plugins
+      .createQueryBuilder('plugin')
+      .where('plugin.id = :pluginId', { pluginId: input.pluginId });
+    if (this.dataSource.options.type === 'mysql') query.setLock('pessimistic_write');
+    const plugin = await query.getOne();
+    if (!plugin || plugin.syncLeaseId !== leaseId) return null;
+    return this.insertVersion(input);
   }
 }

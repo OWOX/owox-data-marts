@@ -21,6 +21,10 @@ import { ClsModule } from 'nestjs-cls';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 import { serializeSqliteTransactions } from './config/sqlite-transaction-serializer';
+import {
+  createPluginCollectionsDataSourceOptions,
+  PLUGIN_COLLECTIONS_DATA_SOURCE,
+} from './config/plugin-collections-data-source-options.config';
 
 @Module({
   imports: [
@@ -46,6 +50,27 @@ import { serializeSqliteTransactions } from './config/sqlite-transaction-seriali
         const dataSource = new DataSource(options);
         await dataSource.initialize();
         return serializeSqliteTransactions(addTransactionalDataSource(dataSource));
+      },
+    }),
+    TypeOrmModule.forRootAsync({
+      name: PLUGIN_COLLECTIONS_DATA_SOURCE,
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => ({
+        ...createPluginCollectionsDataSourceOptions(config),
+        name: PLUGIN_COLLECTIONS_DATA_SOURCE,
+      }),
+      async dataSourceFactory(options) {
+        if (!options) {
+          throw new Error('Invalid plugin collections data source options');
+        }
+        const dataSource = new DataSource(options);
+        await dataSource.initialize();
+        return serializeSqliteTransactions(
+          addTransactionalDataSource({
+            name: PLUGIN_COLLECTIONS_DATA_SOURCE,
+            dataSource,
+          })
+        );
       },
     }),
     ScheduleModule.forRoot(),

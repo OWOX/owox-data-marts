@@ -1,4 +1,5 @@
 import { OWOXApiClient } from '@owox/api-client';
+import { createPluginCollection, type PluginCollection } from './collections.js';
 import { createIframeTransport } from './iframe-transport.js';
 import {
   isHostInit,
@@ -9,6 +10,13 @@ import {
 
 export { PLUGIN_PROTOCOL_VERSION } from './protocol.js';
 export type { PluginErrorCode, PluginErrorPayload, PluginHostContext } from './protocol.js';
+export type {
+  PluginCollection,
+  PluginCollectionDocument,
+  PluginCollectionListOptions,
+  PluginCollectionPage,
+  PluginCollectionPutOptions,
+} from './collections.js';
 
 /** Long enough for a slow host, short enough that a broken embed fails visibly. */
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -38,6 +46,14 @@ export interface PluginContext extends PluginHostContext {
    * enters this document -- every call is brokered by the trusted host page.
    */
   readonly owox: OWOXApiClient;
+
+  /**
+   * Opens a host-stored JSON collection declared by this plugin in plugin.json.
+   *
+   * The host resolves the collection's scope and entity authorization. Collection
+   * documents are not suitable for credentials, tokens or other secrets.
+   */
+  collections<T>(name: string): PluginCollection<T>;
 
   /**
    * Things the sandbox forbids you, which the host will do on your behalf if it agrees.
@@ -161,6 +177,7 @@ function bind(
   return {
     ...init.context,
     owox,
+    collections: <T>(name: string) => createPluginCollection<T>(owox, name),
     ui: {
       openExternal: (url: string) => {
         port.postMessage({ id: crypto.randomUUID(), kind: 'openExternal', url });

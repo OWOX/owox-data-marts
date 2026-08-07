@@ -230,6 +230,31 @@ who may publish them and how OWOX Data Marts reads their GitHub sources.
 | `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`                          | Minimum seconds between two synchronizations of the same plugin. Default `300`.                                                                                                                                                                                                                           |
 | `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`                        | Timeout for probing a plugin's delivery URL. Default `8000`.                                                                                                                                                                                                                                              |
 
+### Plugin collections database
+
+Plugin JSON collections use a named database connection. With no additional variables it
+falls back option-by-option to the main `DB_*` configuration (and to `SQLITE_DB_PATH` for
+SQLite), which is the recommended local and self-hosted setup. A Cloud deployment can isolate
+this data in a separate MySQL instance by setting the variables below.
+
+| Variable                            | Fallback                            |
+| ----------------------------------- | ----------------------------------- |
+| `PLUGIN_COLLECTIONS_DB_TYPE`        | `DB_TYPE`                           |
+| `PLUGIN_COLLECTIONS_SQLITE_DB_PATH` | `SQLITE_DB_PATH` / default app path |
+| `PLUGIN_COLLECTIONS_DB_HOST`        | `DB_HOST`                           |
+| `PLUGIN_COLLECTIONS_DB_PORT`        | `DB_PORT`                           |
+| `PLUGIN_COLLECTIONS_DB_USERNAME`    | `DB_USERNAME`                       |
+| `PLUGIN_COLLECTIONS_DB_PASSWORD`    | `DB_PASSWORD`                       |
+| `PLUGIN_COLLECTIONS_DB_DATABASE`    | `DB_DATABASE`                       |
+| `PLUGIN_COLLECTIONS_DB_MYSQL_SSL`   | `DB_MYSQL_SSL`                      |
+
+Blank override values count as absent. The collection connection has its own migration table,
+and `RUN_MIGRATIONS` applies pending migrations to both databases. Migration status also checks
+both by default. A down migration targets only the main database by default; set
+`MIGRATIONS_DATA_SOURCE=pluginCollections` when intentionally reverting the latest collection
+migration. `MIGRATIONS_DATA_SOURCE=all` is rejected for down migrations because the two histories
+advance independently.
+
 The publisher allowlist **is** the authorization model for deployment-scope publishing —
 it stands in for an administration panel that is deliberately not built. An unset or blank
 value denies everyone; it never means "any key". A Project Admin without an allowlisted key

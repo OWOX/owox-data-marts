@@ -1,4 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import type { PluginCollectionDeclaration } from '../utils/plugin-manifest.util';
 
 /**
  * One immutable version of a plugin, anchored to a published GitHub Release and commit.
@@ -53,6 +54,10 @@ export class PluginVersion {
    */
   @Column({ type: 'varchar', length: 2048 })
   deliveryUrl: string;
+
+  /** Immutable storage and authorization declaration from plugin.json. */
+  @Column({ type: 'json', nullable: true })
+  collections: PluginCollectionDeclaration[] | null;
 
   @Column({ type: 'datetime', nullable: true })
   releasePublishedAt: Date | null;

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { PluginHostConfigService } from '../config/plugin-host.config';
 import { GithubReleaseDto } from '../dto/domain/github-release.dto';
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
@@ -10,13 +11,20 @@ import {
 } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
-import { PluginSyncRateLimitedError } from '../errors/plugin-host.errors';
+import {
+  PluginSyncLeaseLostError,
+  PluginSyncRateLimitedError,
+  PluginVersionConflictError,
+} from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
 import { PluginService } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
-import { parsePluginManifest } from '../utils/plugin-manifest.util';
+import {
+  findIncompatibleCollectionChange,
+  parsePluginManifest,
+} from '../utils/plugin-manifest.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 
 /** A release that survived the free checks and is worth spending network calls on. */
@@ -49,32 +57,48 @@ export class SyncPluginReleasesService {
     const repo = await this.githubApi.getRepo(ref);
     const plugin = await this.findOrCreatePlugin(repo);
 
-    if (!(await this.pluginService.tryClaimSyncSlot(plugin.id, this.config.syncMinIntervalMs))) {
+    const syncLeaseId = await this.pluginService.tryClaimSyncSlot(
+      plugin.id,
+      this.config.syncMinIntervalMs
+    );
+    if (!syncLeaseId) {
       return this.throttled(plugin, repo, command.enforceThrottle);
     }
 
-    const rejections: ReleaseRejectionDto[] = [];
-    const candidates = this.selectCandidates(await this.githubApi.listReleases(ref), rejections);
+    try {
+      const rejections: ReleaseRejectionDto[] = [];
+      const candidates = this.selectCandidates(await this.githubApi.listReleases(ref), rejections);
 
-    const accepted: string[] = [];
-    const unchanged: string[] = [];
-    // Newest first, stopping at the first release that settles. Nothing pins an
-    // installation to a version -- the runtime resolves `currentVersionId` on every load
-    // -- so an older release can never become current, and the GitHub calls to record it
-    // buy nothing. Everything newer than the winner is still reported, which is the part
-    // a publisher needs to see.
-    for (const candidate of candidates) {
-      const settled = await this.processCandidate(plugin.id, ref, candidate, {
-        accepted,
-        unchanged,
-        rejections,
-      });
-      if (settled) {
-        break;
+      const accepted: string[] = [];
+      const unchanged: string[] = [];
+      // Newest first, stopping at the first release that settles. Nothing pins an
+      // installation to a version -- the runtime resolves `currentVersionId` on every load
+      // -- so an older release can never become current, and the GitHub calls to record it
+      // buy nothing. Everything newer than the winner is still reported, which is the part
+      // a publisher needs to see.
+      for (const candidate of candidates) {
+        const settled = await this.processCandidate(
+          plugin.id,
+          ref,
+          candidate,
+          { accepted, unchanged, rejections },
+          syncLeaseId
+        );
+        if (settled) {
+          break;
+        }
+      }
+
+      return await this.finish(plugin, repo, { accepted, unchanged, rejections }, syncLeaseId);
+    } finally {
+      try {
+        await this.pluginService.releaseSyncSlot(plugin.id, syncLeaseId);
+      } catch (error) {
+        this.logger.error(
+          `Failed to release sync lease for plugin ${plugin.id}: ${castError(error).message}`
+        );
       }
     }
-
-    return this.finish(plugin, repo, { accepted, unchanged, rejections });
   }
 
   private async findOrCreatePlugin(repo: GithubRepoDto): Promise<Plugin> {
@@ -142,7 +166,8 @@ export class SyncPluginReleasesService {
     pluginId: string,
     ref: GithubRepoRef,
     candidate: Candidate,
-    into: { accepted: string[]; unchanged: string[]; rejections: ReleaseRejectionDto[] }
+    into: { accepted: string[]; unchanged: string[]; rejections: ReleaseRejectionDto[] },
+    syncLeaseId: string
   ): Promise<boolean> {
     const { release, semver } = candidate;
 
@@ -187,6 +212,26 @@ export class SyncPluginReleasesService {
       return false;
     }
 
+    const currentVersion = (await this.versionService.findAllByPluginId(pluginId)).reduce<
+      { semver: string; collections: PluginVersionCollections } | undefined
+    >(
+      (highest, version) =>
+        !highest || compareSemver(version.semver, highest.semver) > 0
+          ? { semver: version.semver, collections: version.collections ?? [] }
+          : highest,
+      undefined
+    );
+    const incompatibility = findIncompatibleCollectionChange(
+      currentVersion?.collections ?? [],
+      manifest.manifest.collections
+    );
+    if (incompatibility) {
+      into.rejections.push(
+        this.rejection(release, ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE, incompatibility)
+      );
+      return false;
+    }
+
     const delivery = await this.remoteUrlValidator.validate(manifest.manifest.delivery.url);
     if (!delivery.ok) {
       into.rejections.push(this.rejection(release, delivery.code, delivery.detail));
@@ -194,24 +239,31 @@ export class SyncPluginReleasesService {
     }
 
     try {
-      await this.versionService.insertVersion({
-        pluginId,
-        semver,
-        commitSha,
-        githubReleaseId: release.githubReleaseId,
-        tagName: release.tagName,
-        displayName: manifest.manifest.name,
-        description: manifest.manifest.description,
-        deliveryUrl: manifest.manifest.delivery.url,
-        releasePublishedAt: release.publishedAt,
-      });
+      const inserted = await this.versionService.insertVersionForLease(
+        {
+          pluginId,
+          semver,
+          commitSha,
+          githubReleaseId: release.githubReleaseId,
+          tagName: release.tagName,
+          displayName: manifest.manifest.name,
+          description: manifest.manifest.description,
+          deliveryUrl: manifest.manifest.delivery.url,
+          collections: manifest.manifest.collections,
+          releasePublishedAt: release.publishedAt,
+        },
+        syncLeaseId
+      );
+      if (!inserted) throw new PluginSyncLeaseLostError(pluginId);
       into.accepted.push(semver);
       return true;
     } catch (error) {
+      if (error instanceof PluginSyncLeaseLostError) throw error;
+      if (!(error instanceof PluginVersionConflictError)) throw error;
       // A concurrent sync recorded this SemVer first. Losing that race is not a reason
       // to fail the whole run -- see the rate-limiter caveat on tryClaimSyncSlot.
       this.logger.warn(
-        `Concurrent insert of ${semver} for plugin ${pluginId}: ${error instanceof Error ? error.message : String(error)}`
+        `Concurrent insert of ${semver} for plugin ${pluginId}: ${castError(error).message}`
       );
       into.rejections.push(
         this.rejection(
@@ -228,7 +280,8 @@ export class SyncPluginReleasesService {
   private async finish(
     plugin: Plugin,
     repo: GithubRepoDto,
-    outcome: { accepted: string[]; unchanged: string[]; rejections: ReleaseRejectionDto[] }
+    outcome: { accepted: string[]; unchanged: string[]; rejections: ReleaseRejectionDto[] },
+    syncLeaseId: string
   ): Promise<PluginSyncResultDto> {
     const versions = await this.versionService.findAllByPluginId(plugin.id);
     const current = versions.reduce<{ id: string; semver: string } | null>(
@@ -245,7 +298,13 @@ export class SyncPluginReleasesService {
       rejections: outcome.rejections,
     };
 
-    await this.pluginService.saveSyncOutcome(plugin.id, current?.id ?? null, report);
+    const saved = await this.pluginService.saveSyncOutcome(
+      plugin.id,
+      current?.id ?? null,
+      report,
+      syncLeaseId
+    );
+    if (!saved) throw new PluginSyncLeaseLostError(plugin.id);
 
     return {
       pluginId: plugin.id,
@@ -327,3 +386,7 @@ export class SyncPluginReleasesService {
     return { tagName: release.tagName, githubReleaseId: release.githubReleaseId, code, detail };
   }
 }
+
+type PluginVersionCollections = NonNullable<
+  Awaited<ReturnType<PluginVersionService['findById']>>
+>['collections'];

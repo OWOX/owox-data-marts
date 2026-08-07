@@ -1,5 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
+import { QueryFailedError } from 'typeorm';
 import { AuthenticatedRequest } from '../../idp';
 
 const safe = (v: unknown, maxLength = 5000): string => {
@@ -35,6 +36,33 @@ function isPayloadTooLargeError(e: unknown): e is Error & { status: 413; type: s
     (e as Error & { status?: unknown }).status === HttpStatus.PAYLOAD_TOO_LARGE &&
     (e as Error & { type?: unknown }).type === 'entity.too.large'
   );
+}
+
+/**
+ * TypeORM exposes the bound parameter array as enumerable fields on QueryFailedError.
+ * Passing that object to the structured logger would persist complete collection documents.
+ */
+function errorForLogging(exception: unknown): Error {
+  if (exception instanceof QueryFailedError) {
+    const driver =
+      exception.driverError && typeof exception.driverError === 'object'
+        ? (exception.driverError as Record<string, unknown>)
+        : {};
+    const safeDetails = Object.fromEntries(
+      ['code', 'errno', 'sqlState'].flatMap(key => {
+        const value = driver[key];
+        return typeof value === 'string' || typeof value === 'number' ? [[key, value]] : [];
+      })
+    );
+    const code = safeDetails.code ?? safeDetails.sqlState ?? safeDetails.errno;
+    const error = new Error(`Database query failed${code ? ` (${String(code)})` : ''}`);
+    error.name = QueryFailedError.name;
+    Object.assign(error, safeDetails);
+    return error;
+  }
+  return exception instanceof Error
+    ? exception
+    : new Error(typeof exception === 'string' ? exception : 'Unhandled exception');
 }
 
 /**
@@ -128,10 +156,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       requestId: (request?.headers?.['x-request-id'] as string) || undefined,
     };
 
-    const err =
-      exception instanceof Error
-        ? exception
-        : new Error(typeof exception === 'string' ? exception : 'Unhandled exception');
+    const err = errorForLogging(exception);
 
     const logBody = {
       status,

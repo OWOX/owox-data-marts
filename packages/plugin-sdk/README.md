@@ -49,9 +49,79 @@ redirecting paths are refused.
 |                                            |                                                                     |
 | ------------------------------------------ | ------------------------------------------------------------------- |
 | `ctx.owox`                                 | OWOX API client. The SDK owns its transport; you cannot replace it. |
+| `ctx.collections(name)`                    | Host-stored JSON documents declared by the plugin.                  |
 | `ctx.ui.openExternal(url)`                 | Ask the host to open an external https URL in a new tab.            |
 | `ctx.ui.navigate(path)`                    | Ask the host to go to a page inside OWOX, in place of your frame.   |
 | `ctx.signal`                               | Aborts when the host tears your plugin down.                        |
 | `ctx.userId`, `ctx.projectId`, `ctx.theme` | Display context. No tokens.                                         |
 
 Requests time out after 30 seconds; streamed reads do not. At most 32 may be in flight.
+
+## Collections
+
+Collections let a plugin persist JSON without running its own backend. Declare every collection in
+the immutable `plugin.json` shipped with the release:
+
+```json
+{
+  "collections": [
+    {
+      "name": "dashboards",
+      "scope": "project",
+      "entityBinding": {
+        "type": "data-mart",
+        "actions": {
+          "read": "SEE",
+          "create": "SEE",
+          "update": "SEE",
+          "delete": "SEE"
+        }
+      }
+    }
+  ]
+}
+```
+
+`project` collections are shared across eligible members of the project. `member` collections are
+private to the current project member. An entity-bound collection additionally authorizes every
+operation against its parent entity using the action map from the manifest.
+
+```ts
+interface Dashboard {
+  title: string;
+  layout: Array<{ chartId: string; x: number; y: number }>;
+}
+
+const dashboards = ctx.collections<Dashboard>('dashboards');
+
+await dashboards.put(
+  'executive-summary',
+  { title: 'Executive summary', layout: [] },
+  { parentId: dataMartId }
+);
+
+const dashboard = await dashboards.get('executive-summary');
+if (dashboard) {
+  console.log(dashboard.document, dashboard.parentId, dashboard.updatedAt);
+}
+
+let cursor: string | undefined;
+do {
+  const page = await dashboards.list({ limit: 50, cursor });
+  for (const item of page.items) {
+    console.log(item.id, item.document);
+  }
+  cursor = page.nextCursor ?? undefined;
+} while (cursor);
+
+await dashboards.delete('executive-summary');
+```
+
+For an entity-bound collection, pass `parentId` on every `put`. It cannot be changed by a later
+update. `get` returns `null` when the document is absent or inaccessible, and `list` returns only
+documents whose parents the current member may read.
+
+Collections survive plugin uninstall, suspension and recoverable deletion. They are subject to
+deployment-wide document, collection and project limits. Store JSON application state only:
+collections are not a credential store and must never contain passwords, API keys, access tokens
+or other secrets.

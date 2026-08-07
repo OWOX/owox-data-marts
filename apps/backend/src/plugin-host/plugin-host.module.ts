@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IdpModule } from '../idp/idp.module';
 import { CommonModule } from '../common/common.module';
+import { DataMartsModule } from '../data-marts/data-marts.module';
+import { PLUGIN_COLLECTIONS_DATA_SOURCE } from '../config/plugin-collections-data-source-options.config';
 import { PLUGIN_RUNTIME_AUTHORIZER } from '../idp/ports/plugin-runtime-authorizer.port';
 import { PluginHostConfigService } from './config/plugin-host.config';
 import { PluginAuditEvent } from './entities/plugin-audit-event.entity';
@@ -44,6 +46,20 @@ import { PluginUpdateCheckProcessor } from './system-triggers/plugin-update-chec
 import { SuspendPluginService } from './use-cases/suspend-plugin.service';
 import { SyncPluginReleasesService } from './use-cases/sync-plugin-releases.service';
 import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
+import { PluginCollectionsController } from './collections/controllers/plugin-collections.controller';
+import { PluginCollectionAuditEvent } from './collections/entities/plugin-collection-audit-event.collection.entity';
+import { PluginCollectionDocument } from './collections/entities/plugin-collection-document.collection.entity';
+import { PluginCollectionUsage } from './collections/entities/plugin-collection-usage.collection.entity';
+import { PluginCollectionMapper } from './collections/mappers/plugin-collection.mapper';
+import { PluginCollectionAuditService } from './collections/services/plugin-collection-audit.service';
+import { PluginCollectionAuthorizationService } from './collections/services/plugin-collection-authorization.service';
+import { PluginCollectionDeclarationService } from './collections/services/plugin-collection-declaration.service';
+import { PluginCollectionPersistenceService } from './collections/services/plugin-collection-persistence.service';
+import { PluginCollectionQuotaService } from './collections/services/plugin-collection-quota.service';
+import { DeletePluginCollectionDocumentService } from './collections/use-cases/delete-plugin-collection-document.service';
+import { GetPluginCollectionDocumentService } from './collections/use-cases/get-plugin-collection-document.service';
+import { ListPluginCollectionDocumentsService } from './collections/use-cases/list-plugin-collection-documents.service';
+import { PutPluginCollectionDocumentService } from './collections/use-cases/put-plugin-collection-document.service';
 
 /**
  * Plugin Host API: a module of this backend, not a separately deployed service.
@@ -61,23 +77,39 @@ import { UnpublishPluginService } from './use-cases/unpublish-plugin.service';
       PluginInstallation,
       PluginAuditEvent,
     ]),
+    TypeOrmModule.forFeature(
+      [PluginCollectionDocument, PluginCollectionUsage, PluginCollectionAuditEvent],
+      PLUGIN_COLLECTIONS_DATA_SOURCE
+    ),
     // Controllers here use @Auth, and IdpGuard resolves its dependencies from this module.
     IdpModule,
     // PluginHostConfigService reads the deployment's public origin from here rather than
     // keeping a second copy of it.
     CommonModule,
+    DataMartsModule,
   ],
   // Order is load-bearing. Every controller here mounts on 'plugins', and Nest matches
   // routes in registration order, so PluginGalleryController's catch-all GET ':pluginId'
   // swallows any literal one-segment GET registered after it -- 'plugins/installations'
   // was answered as a lookup for a plugin named "installations". The gallery goes last.
   controllers: [
+    PluginCollectionsController,
     PluginPublicationsController,
     PluginAdminController,
     PluginInstallationsController,
     PluginGalleryController,
   ],
   providers: [
+    PluginCollectionMapper,
+    PluginCollectionAuditService,
+    PluginCollectionAuthorizationService,
+    PluginCollectionDeclarationService,
+    PluginCollectionPersistenceService,
+    PluginCollectionQuotaService,
+    ListPluginCollectionDocumentsService,
+    GetPluginCollectionDocumentService,
+    PutPluginCollectionDocumentService,
+    DeletePluginCollectionDocumentService,
     PluginHostConfigService,
     GithubAuthService,
     GithubApiService,

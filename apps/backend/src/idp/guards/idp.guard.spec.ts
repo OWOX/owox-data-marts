@@ -13,6 +13,7 @@ import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Role, Strategy, type RoleConfig } from '../types';
 import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
 import { REJECT_PLUGIN_AUTH_METADATA } from '../decorators/reject-plugin-auth.decorator';
+import { REQUIRE_PLUGIN_AUTH_METADATA } from '../decorators/require-plugin-auth.decorator';
 import { VIEW_ONLY_SAFE_METADATA } from '../decorators/view-only-safe.decorator';
 import type { PluginRuntimeAuthorizerPort } from '../ports/plugin-runtime-authorizer.port';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
@@ -21,6 +22,7 @@ describe('IdpGuard', () => {
   let roleConfig: RoleConfig;
   let rejectApiKeyAuth: boolean;
   let rejectPluginAuth: boolean;
+  let requirePluginAuth: boolean;
   let viewOnlySafe: boolean;
   let request: AuthenticatedRequest;
   let idpProvider: {
@@ -39,6 +41,7 @@ describe('IdpGuard', () => {
     roleConfig = Role.authenticated(Strategy.PARSE);
     rejectApiKeyAuth = false;
     rejectPluginAuth = false;
+    requirePluginAuth = false;
     viewOnlySafe = false;
     request = {
       headers: {
@@ -78,6 +81,9 @@ describe('IdpGuard', () => {
           }
           if (metadataKey === REJECT_PLUGIN_AUTH_METADATA) {
             return rejectPluginAuth;
+          }
+          if (metadataKey === REQUIRE_PLUGIN_AUTH_METADATA) {
+            return requirePluginAuth;
           }
           if (metadataKey === VIEW_ONLY_SAFE_METADATA) {
             return viewOnlySafe;
@@ -267,6 +273,22 @@ describe('IdpGuard', () => {
   });
 
   describe('plugin runtime authorization', () => {
+    it('does not let optional auth bypass a plugin-only route', async () => {
+      roleConfig = Role.none();
+      requirePluginAuth = true;
+      idpProvider.introspectToken.mockResolvedValue(
+        payload(['viewer'], {
+          authFlow: 'plugin',
+          pluginId: 'plugin-1',
+          installationId: 'installation-1',
+        })
+      );
+
+      await expect(guard.canActivate(context())).resolves.toBe(true);
+      expect(idpProvider.introspectToken).toHaveBeenCalled();
+      expect(pluginRuntimeAuthorizer.assertActiveInstallation).toHaveBeenCalled();
+    });
+
     it('authorizes an installation-bound token against live installation state', async () => {
       roleConfig = Role.viewer(Strategy.INTROSPECT);
       idpProvider.introspectToken.mockResolvedValue(
@@ -354,6 +376,17 @@ describe('IdpGuard', () => {
 
       await expect(guard.canActivate(context())).rejects.toThrow(
         'Plugin runtime authentication is not allowed for this endpoint'
+      );
+      expect(pluginRuntimeAuthorizer.assertActiveInstallation).not.toHaveBeenCalled();
+    });
+
+    it('requires plugin auth on plugin-only routes', async () => {
+      roleConfig = Role.viewer(Strategy.PARSE);
+      requirePluginAuth = true;
+      idpProvider.parseToken.mockResolvedValue(payload(['viewer'], { authFlow: 'app_owox' }));
+
+      await expect(guard.canActivate(context())).rejects.toThrow(
+        'Plugin runtime authentication is required'
       );
       expect(pluginRuntimeAuthorizer.assertActiveInstallation).not.toHaveBeenCalled();
     });

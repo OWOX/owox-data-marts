@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { randomUUID } from 'node:crypto';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import { GithubRepoDto } from '../dto/domain/github-repo.dto';
 import { SyncReport } from '../dto/domain/plugin-sync.dto';
@@ -8,6 +9,7 @@ import { Plugin } from '../entities/plugin.entity';
 
 @Injectable()
 export class PluginService {
+  private static readonly SYNC_LEASE_STALE_MS = 30 * 60 * 1000;
   constructor(
     @InjectRepository(Plugin)
     private readonly repository: Repository<Plugin>
@@ -106,24 +108,37 @@ export class PluginService {
    * timestamp the publisher view wants anyway. There is no Redis in this codebase and
    * this needs none.
    *
-   * NOTE: a rate limiter, not a mutex -- a sync that outlives the interval can overlap
-   * the next one, which is why version inserts treat a unique violation as a rejection
-   * rather than an error. Upgrade path is a nullable syncStartedAt lease with staleness
-   * reclaim, not Redis. A crashed sync likewise holds the slot for the full interval
-   * before a retry is allowed.
+   * The lease is also a cross-instance mutex. A crashed process can be reclaimed after
+   * the conservative staleness window; ownership is a UUID so an old worker cannot
+   * release a lease that a newer worker has reclaimed.
    */
-  async tryClaimSyncSlot(pluginId: string, minIntervalMs: number): Promise<boolean> {
+  async tryClaimSyncSlot(pluginId: string, minIntervalMs: number): Promise<string | null> {
+    const now = new Date();
+    const leaseId = randomUUID();
     const result = await this.repository
       .createQueryBuilder()
       .update(Plugin)
-      .set({ lastSyncAt: new Date() })
+      .set({ lastSyncAt: now, syncLeaseId: leaseId, syncLeaseStartedAt: now })
       .where('id = :pluginId', { pluginId })
       .andWhere('(lastSyncAt IS NULL OR lastSyncAt <= :cutoff)', {
-        cutoff: new Date(Date.now() - minIntervalMs),
+        cutoff: new Date(now.getTime() - minIntervalMs),
+      })
+      .andWhere('(syncLeaseStartedAt IS NULL OR syncLeaseStartedAt <= :leaseCutoff)', {
+        leaseCutoff: new Date(now.getTime() - PluginService.SYNC_LEASE_STALE_MS),
       })
       .execute();
 
-    return (result.affected ?? 0) > 0;
+    return (result.affected ?? 0) > 0 ? leaseId : null;
+  }
+
+  async releaseSyncSlot(pluginId: string, leaseId: string): Promise<void> {
+    await this.repository
+      .createQueryBuilder()
+      .update(Plugin)
+      .set({ syncLeaseId: null, syncLeaseStartedAt: null })
+      .where('id = :pluginId', { pluginId })
+      .andWhere('syncLeaseId = :leaseId', { leaseId })
+      .execute();
   }
 
   /**
@@ -133,8 +148,16 @@ export class PluginService {
   async saveSyncOutcome(
     pluginId: string,
     currentVersionId: string | null,
-    report: SyncReport
-  ): Promise<void> {
-    await this.repository.update(pluginId, { currentVersionId, lastSyncReport: report });
+    report: SyncReport,
+    leaseId: string
+  ): Promise<boolean> {
+    const result = await this.repository
+      .createQueryBuilder()
+      .update(Plugin)
+      .set({ currentVersionId, lastSyncReport: report })
+      .where('id = :pluginId', { pluginId })
+      .andWhere('syncLeaseId = :leaseId', { leaseId })
+      .execute();
+    return (result.affected ?? 0) > 0;
   }
 }

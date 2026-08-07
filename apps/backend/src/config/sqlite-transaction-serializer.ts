@@ -3,7 +3,8 @@ import { DataSource, EntityManager } from 'typeorm';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 
 const SQLITE_TRANSACTION_SERIALIZER = Symbol('SQLITE_TRANSACTION_SERIALIZER');
-const transactionOwner = new AsyncLocalStorage<boolean>();
+const transactionOwner = new AsyncLocalStorage<AsyncTransactionQueue>();
+const queuesByDatabase = new Map<string, AsyncTransactionQueue>();
 
 type RunInTransaction<T> = (entityManager: EntityManager) => Promise<T>;
 type TransactionMethod = DataSource['transaction'];
@@ -42,7 +43,9 @@ export function serializeSqliteTransactions(dataSource: DataSource): DataSource 
     return dataSource;
   }
 
-  const queue = new AsyncTransactionQueue();
+  const databaseKey = String(dataSource.options.database);
+  const queue = queuesByDatabase.get(databaseKey) ?? new AsyncTransactionQueue();
+  queuesByDatabase.set(databaseKey, queue);
   const originalTransaction = serializableDataSource.transaction.bind(
     dataSource
   ) as TransactionMethod;
@@ -62,12 +65,12 @@ export function serializeSqliteTransactions(dataSource: DataSource): DataSource 
     isolationOrRunInTransaction: IsolationLevel | RunInTransaction<T>,
     runInTransaction?: RunInTransaction<T>
   ): Promise<T> => {
-    if (transactionOwner.getStore()) {
+    if (transactionOwner.getStore() === queue) {
       return runOriginalTransaction(isolationOrRunInTransaction, runInTransaction);
     }
 
     return queue.run(() =>
-      transactionOwner.run(true, () =>
+      transactionOwner.run(queue, () =>
         runOriginalTransaction(isolationOrRunInTransaction, runInTransaction)
       )
     );
