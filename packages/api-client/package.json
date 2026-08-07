@@ -21,12 +21,12 @@
   "scripts": {
     "build": "tsc",
     "clean": "shx rm -rf dist",
-    "test": "tsc --noEmit -p tsconfig.test.json && cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test": "npm run typecheck && cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
     "prepublishOnly": "npm run lint && npm run typecheck"
   },
   "keywords": [

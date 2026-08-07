@@ -4,6 +4,8 @@
     "noEmit": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*"],
+  // Replaces the base exclude on purpose: the base drops **/*.test.ts from the
+  // build, and this override brings the tests back into the typecheck — the
+  // @ts-expect-error type assertions in src/*.test.ts rely on it.
   "exclude": ["node_modules", "dist"]
 }

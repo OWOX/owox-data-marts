@@ -309,15 +309,15 @@ Use `filter` and `sort` arrays with the same rule shapes as report output contro
 
 Each filter rule is `{ column, operator, value? }`. The shape of `value` depends on the operator:
 
-| Operators | `value` shape | Example |
-| --- | --- | --- |
-| `eq`, `neq`, `contains`, `not_contains`, `starts_with`, `ends_with`, `gt`, `lt`, `gte`, `lte`, `regex`, `not_regex` | Single string, number, or boolean | `{ column: 'Country', operator: 'eq', value: 'Germany' }` |
-| `in`, `not_in` | Array of values — match any of / none of the listed values | `{ column: 'Country', operator: 'in', value: ['Germany', 'Ukraine'] }` |
-| `between` | `{ from, to }` bounds of the same type | `{ column: 'Revenue', operator: 'between', value: { from: 100, to: 500 } }` |
-| `relative_date` | A preset object, see below | `{ column: 'Date', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }` |
-| `is_empty`, `is_not_empty`, `is_null`, `is_not_null`, `is_true`, `is_false` | No `value` | `{ column: 'Country', operator: 'is_null' }` |
+| Operators                                                                                                           | `value` shape                                                           | Example                                                                               |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `eq`, `neq`, `contains`, `not_contains`, `starts_with`, `ends_with`, `gt`, `lt`, `gte`, `lte`, `regex`, `not_regex` | Single string or number (boolean conditions use `is_true` / `is_false`) | `{ column: 'Country', operator: 'eq', value: 'Germany' }`                             |
+| `in`, `not_in`                                                                                                      | Array of values — match any of / none of the listed values              | `{ column: 'Country', operator: 'in', value: ['Germany', 'Ukraine'] }`                |
+| `between`                                                                                                           | `{ from, to }` bounds of the same type                                  | `{ column: 'Revenue', operator: 'between', value: { from: 100, to: 500 } }`           |
+| `relative_date`                                                                                                     | A preset object, see below                                              | `{ column: 'Date', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }` |
+| `is_empty`, `is_not_empty`, `is_null`, `is_not_null`, `is_true`, `is_false`                                         | No `value`                                                              | `{ column: 'Country', operator: 'is_null' }`                                          |
 
-`in` and `not_in` take an **array** of 1 to 500 values, never a comma-separated string — `value: 'Germany, Ukraine'` is rejected, exactly like comma-separated column lists, because stored values are opaque and may themselves contain commas. All values in one list must be the same type (all strings or all numbers); booleans are not allowed — use `is_true` / `is_false` instead. Which operators a given column accepts depends on its field type; the API rejects a mismatched operator with a validation error naming the allowed set.
+`in` and `not_in` take an **array** of 1 to 500 values, never a comma-separated string — `value: 'Germany, Ukraine'` is rejected, exactly like comma-separated column lists, because stored values are opaque and may themselves contain commas. All values in one list must be the same type (all strings or all numbers); booleans are not allowed — use `is_true` / `is_false` instead. Which operators a given column accepts depends on its field type; the API rejects a mismatched operator with a 400 validation error (code `INVALID_OPERATOR_FOR_TYPE`) naming the column, its field type, and the rejected operator.
 
 `relative_date` presets: `{ kind }` with `today`, `yesterday`, `this_week`, `last_week`, `this_month`, `last_month`, `this_quarter`, `last_quarter`, or `this_year`, and `{ kind, n }` with `last_n_days`, `last_n_months`, or `next_n_days` (`n` up to 3650). Weeks are ISO weeks (Monday start) on every storage, and `last_n_days` / `next_n_days` both include today.
 

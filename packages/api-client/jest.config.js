@@ -10,6 +10,9 @@ export default {
       'ts-jest',
       {
         useESM: true,
+        // Same config as the typecheck gate, so ts-jest diagnostics and the
+        // tsc pass can never disagree about a test file.
+        tsconfig: 'tsconfig.test.json',
       },
     ],
   },
