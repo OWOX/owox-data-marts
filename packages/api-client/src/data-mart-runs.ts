@@ -402,8 +402,6 @@ function isDataQualityRunDetail(value: unknown): value is OWOXDataQualityRunDeta
     DEFINITION_TYPES.has(value.snapshot.definitionType) &&
     isDataQualitySummary(value.summary) &&
     Array.isArray(results) &&
-    new Set(results.map(result => (result as Record<string, unknown>).ruleKey)).size ===
-      results.length &&
     results.every(
       result =>
         isRecord(result) &&
@@ -431,7 +429,9 @@ function isDataQualityRunDetail(value: unknown): value is OWOXDataQualityRunDeta
             isNullableRecord(result.error.details))) &&
         isRfc3339DateTimeString(result.createdAt) &&
         typeof result.redacted === 'boolean'
-    )
+    ) &&
+    new Set(results.map(result => (result as Record<string, unknown>).ruleKey)).size ===
+      results.length
   );
 }
 

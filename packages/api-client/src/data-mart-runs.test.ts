@@ -272,6 +272,25 @@ describe('Data Mart run lifecycle API', () => {
     await expect(client.dataMarts.getRun('dm-1', 'run-1')).resolves.toEqual(response);
   });
 
+  it('wraps a non-object Data Quality result as an API response-shape error', async () => {
+    const response = {
+      ...runDetail,
+      dataQuality: { ...dataQualityDetail, results: [null] },
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX Data Mart Run API returned an unexpected response shape',
+    });
+  });
+
   it('rejects nested Data Quality values outside the backend schema constraints', async () => {
     const invalidRules = [
       { ...dataQualityRule, scope: { type: 'FIELD', fieldPath: [] } },
