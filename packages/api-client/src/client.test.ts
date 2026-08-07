@@ -221,6 +221,16 @@ describe('OWOXApiClient', () => {
     ).resolves.toEqual({ id: 'dm-1', title: 'Renamed data mart' });
   });
 
+  it('rejects an undefined PATCH body before exchanging an access token', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.patchJson('/api/data-marts/dm-1', undefined)).rejects.toBeInstanceOf(
+      OWOXConfigError
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('returns a JSON response from a DELETE request without a request body', async () => {
     const fetchMock = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
