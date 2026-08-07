@@ -26,6 +26,7 @@ export {
   type OWOXDataMartRun,
   type OWOXDataMartRunDetail,
   type OWOXDataMartRunListOptions,
+  type OWOXDataMartRunStartOptions,
   type OWOXDataMartRunsResponse,
   type OWOXDataMartRunStatus,
   type OWOXDataMartRunTriggerType,
@@ -40,7 +41,6 @@ export {
   type OWOXDataQualitySummary,
   type OWOXDataQualitySummaryState,
   type OWOXRunDataMartDefinitionType,
-  type OWOXRunDataMartRequest,
   type OWOXRunDataMartResponse,
 } from './data-mart-runs.js';
 export {

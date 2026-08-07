@@ -128,7 +128,12 @@ describe('Data Mart run lifecycle API', () => {
       expect(request.headers['x-owox-api-key-id']).toBe(apiKeyId);
 
       if (request.method === 'POST' && request.url === '/api/data-marts/data%2Fmart/manual-run') {
-        expect(request.body).toEqual({ payload: { cursor: 'next-page' } });
+        expect(request.body).toEqual({
+          payload: {
+            runType: 'MANUAL_BACKFILL',
+            data: { StartDate: '2026-07-01', EndDate: '2026-07-31' },
+          },
+        });
         return createJsonResponse(201, { runId: '123e4567-e89b-12d3-a456-426614174000' });
       }
       if (
@@ -152,7 +157,10 @@ describe('Data Mart run lifecycle API', () => {
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
     await expect(
-      client.runs.start('data/mart', { payload: { cursor: 'next-page' } })
+      client.runs.start('data/mart', {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2026-07-01', EndDate: '2026-07-31' },
+      })
     ).resolves.toEqual({ runId: '123e4567-e89b-12d3-a456-426614174000' });
     await expect(
       client.runs.listForDataMart('data/mart', { limit: 25, offset: 50 })
@@ -199,12 +207,18 @@ describe('Data Mart run lifecycle API', () => {
     const fetchImpl = jest.fn<typeof fetch>();
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.start('dm-1', { payload: [] } as never)).rejects.toMatchObject({
+    await expect(
+      client.runs.start('dm-1', { runType: 'FULL_REFRESH' } as never)
+    ).rejects.toMatchObject({
       name: 'OWOXApiError',
-      message: 'Invalid OWOX Data Mart manual-run request',
+      message: 'Invalid OWOX Data Mart run-start options',
+    });
+    await expect(client.runs.start('dm-1', { data: [] } as never)).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Invalid OWOX Data Mart run-start options',
     });
     await expect(
-      client.runs.start('dm-1', { payload: { value: 'x'.repeat(1024 * 1024) } })
+      client.runs.start('dm-1', { data: { value: 'x'.repeat(1024 * 1024) } })
     ).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart manual-run payload exceeds 1MB',

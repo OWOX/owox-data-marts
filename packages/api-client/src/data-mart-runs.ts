@@ -180,7 +180,10 @@ export type OWOXDataMartRunDetail = OWOXDataMartRun & {
 
 export type OWOXDataMartRunsResponse = { runs: OWOXDataMartRun[] };
 export type OWOXDataMartRunListOptions = { limit?: number; offset?: number };
-export type OWOXRunDataMartRequest = { payload?: Record<string, unknown> };
+export type OWOXDataMartRunStartOptions = {
+  runType?: 'INCREMENTAL' | 'MANUAL_BACKFILL';
+  data?: Record<string, unknown>;
+};
 export type OWOXRunDataMartResponse = { runId: string };
 
 const RUN_STATUSES = new Set<string>(DATA_MART_RUN_STATUS_VALUES);

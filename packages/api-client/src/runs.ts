@@ -6,12 +6,12 @@ import {
   type OWOXDataMartRun,
   type OWOXDataMartRunDetail,
   type OWOXDataMartRunListOptions,
+  type OWOXDataMartRunStartOptions,
   type OWOXDataMartRunsResponse,
   type OWOXDataMartRunStatus,
   type OWOXDataMartRunTriggerType,
   type OWOXDataMartRunType,
   type OWOXDataMartRunUser,
-  type OWOXRunDataMartRequest,
   type OWOXRunDataMartResponse,
 } from './data-mart-runs.js';
 
@@ -49,22 +49,25 @@ type RunsRequester = {
 
 const MAX_MANUAL_RUN_PAYLOAD_BYTES = 1024 * 1024;
 
-function validateRunRequest(request: unknown): asserts request is OWOXRunDataMartRequest {
+function validateRunStartOptions(options: unknown): asserts options is OWOXDataMartRunStartOptions {
   if (
-    !isRecord(request) ||
-    Object.keys(request).some(key => key !== 'payload') ||
-    (request.payload !== undefined && !isRecord(request.payload))
+    !isRecord(options) ||
+    Object.keys(options).some(key => key !== 'runType' && key !== 'data') ||
+    (options.runType !== undefined &&
+      options.runType !== 'INCREMENTAL' &&
+      options.runType !== 'MANUAL_BACKFILL') ||
+    (options.data !== undefined && !isRecord(options.data))
   ) {
-    throw new OWOXApiError('Invalid OWOX Data Mart manual-run request', { details: request });
+    throw new OWOXApiError('Invalid OWOX Data Mart run-start options', { details: options });
   }
 
-  if (request.payload !== undefined) {
+  if (Object.keys(options).length > 0) {
     let json: string;
     try {
-      json = JSON.stringify(request.payload);
+      json = JSON.stringify(options);
     } catch (error) {
-      throw new OWOXApiError('Invalid OWOX Data Mart manual-run request', {
-        details: request,
+      throw new OWOXApiError('Invalid OWOX Data Mart run-start options', {
+        details: options,
         cause: error,
       });
     }
@@ -131,12 +134,12 @@ export class RunsApi {
 
   async start(
     dataMartId: string,
-    request: OWOXRunDataMartRequest = {}
+    options: OWOXDataMartRunStartOptions = {}
   ): Promise<OWOXRunDataMartResponse> {
-    validateRunRequest(request);
+    validateRunStartOptions(options);
     const response = await this.requester.postJson<unknown>(
       `/api/data-marts/${encodeURIComponent(dataMartId)}/manual-run`,
-      request
+      Object.keys(options).length === 0 ? {} : { payload: options }
     );
     if (
       !isRecord(response) ||

@@ -294,13 +294,18 @@ authentication or any network request.
 
 ## Manage Data Mart runs
 
-Use `runs.start(dataMartId, request)` to start a manual connector run. Technical User access
-to the Data Mart is required. The optional `payload` must be a JSON object no larger than 1 MB;
-omit it to use the Data Mart's default connector payload. The method returns the new run ID.
+Use `runs.start(dataMartId, options)` to start a manual connector run. Technical User access
+to the Data Mart is required. Omit the options for an incremental run, or set `runType` to
+`MANUAL_BACKFILL` and pass the connector-specific backfill fields in `data`. The method returns the
+new run ID. The serialized options must not exceed 1 MB.
 
 ```ts
 const { runId } = await client.runs.start('data-mart-id', {
-  payload: { cursor: 'next-page' },
+  runType: 'MANUAL_BACKFILL',
+  data: {
+    StartDate: '2026-07-01',
+    EndDate: '2026-07-31',
+  },
 });
 ```
 
@@ -333,10 +338,10 @@ await client.runs.cancel('data-mart-id', runId);
 ```
 
 The package exports `OWOXDataMartRun`, `OWOXDataMartRunDetail`,
-`OWOXDataMartRunListOptions`, `OWOXDataMartRunsResponse`, `OWOXRunDataMartRequest`, and the run and
-Data Quality enum and nested-object types. The client validates response field presence,
+`OWOXDataMartRunListOptions`, `OWOXDataMartRunStartOptions`, `OWOXDataMartRunsResponse`, and the run
+and Data Quality enum and nested-object types. The client validates response field presence,
 nullability, enums, RFC 3339 timestamps, totals, author metadata, compact Data Quality summaries,
-and full Data Quality detail. An incompatible payload throws `OWOXApiError`.
+and full Data Quality detail. An incompatible response throws `OWOXApiError`.
 
 ## Read the Models canvas
 
