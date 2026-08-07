@@ -60,6 +60,10 @@ All paths must be root-relative `/api/...` paths, and each `path` argument is li
 and paths that resolve away from the API origin. API-key clients exchange and attach
 authentication internally; do not add credentials to a path, query, or body.
 
+Custom transports built against the previous interface remain compatible and may add PATCH and
+DELETE support independently. Existing resources continue to work without those methods; calling
+an unsupported new method rejects with `OWOXConfigError`.
+
 ```ts
 type Renamed = { id: string; title: string };
 

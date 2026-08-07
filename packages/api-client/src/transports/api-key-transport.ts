@@ -1,7 +1,11 @@
 import { parseOWOXApiKey } from '../api-key.js';
 import { exchangeAccessToken, normalizeApiOrigin, readResponseBody } from '../auth.js';
 import { createHttpError } from '../errors.js';
-import { requestApi, resolveAuthenticatedApiUrl, type OWOXTransport } from '../transport.js';
+import {
+  requestApi,
+  resolveAuthenticatedApiUrl,
+  type OWOXTransportWithLowLevelWrites,
+} from '../transport.js';
 
 export type ApiKeyTransportOptions = {
   apiKey: string;
@@ -30,7 +34,7 @@ type AuthenticatedRequestOptions = {
  * Lifted verbatim out of OWOXApiClient so the client can accept an alternative
  * transport without either of them knowing about the other's credentials.
  */
-export class ApiKeyTransport implements OWOXTransport {
+export class ApiKeyTransport implements OWOXTransportWithLowLevelWrites {
   private readonly apiOrigin: string;
   private readonly apiKeyId: string;
   private readonly apiKeySecret: string;

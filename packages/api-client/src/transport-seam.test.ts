@@ -1,12 +1,13 @@
 import { jest } from '@jest/globals';
 
-import { OWOXApiClient, type OWOXTransport } from './index.js';
+import { OWOXApiClient, OWOXConfigError, type OWOXTransport } from './index.js';
 import { decodeBase64Url, encodeBase64Url } from './base64url.js';
+import type { OWOXTransportWithLowLevelWrites } from './transport.js';
 
 function recordingTransport() {
   const calls: { method: string; path: string; body?: unknown }[] = [];
 
-  const transport: OWOXTransport = {
+  const transport: OWOXTransportWithLowLevelWrites = {
     getJson: async <T>(path: string) => {
       calls.push({ method: 'getJson', path });
       return [] as T;
@@ -36,6 +37,15 @@ function recordingTransport() {
   };
 
   return { transport, calls };
+}
+
+function legacyTransport(): OWOXTransport {
+  return {
+    getJson: async <T>() => [] as T,
+    postJson: async <T>() => ({}) as T,
+    putJson: async <T>() => ({}) as T,
+    getStream: async () => new Response(''),
+  };
 }
 
 describe('injected transport', () => {
@@ -68,6 +78,26 @@ describe('injected transport', () => {
 
     expect(() => new OWOXApiClient({ transport })).not.toThrow();
   });
+
+  it('accepts a custom transport that implements the original method set', async () => {
+    const client = new OWOXApiClient({ transport: legacyTransport() });
+
+    await expect(client.getJson('/api/data-marts')).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['patchJson', (client: OWOXApiClient) => client.patchJson('/api/x', {})],
+    ['deleteJson', (client: OWOXApiClient) => client.deleteJson('/api/x')],
+  ] as const)(
+    'reports when an injected legacy transport does not support %s',
+    async (method, call) => {
+      const client = new OWOXApiClient({ transport: legacyTransport() });
+
+      await expect(call(client)).rejects.toEqual(
+        new OWOXConfigError(`Injected OWOX transport does not support ${method}()`)
+      );
+    }
+  );
 
   it('forwards low-level PATCH and DELETE calls through the injected transport', async () => {
     const { transport, calls } = recordingTransport();

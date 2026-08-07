@@ -6,6 +6,8 @@ import type {
   PluginResponse,
 } from './protocol.js';
 
+type IframeTransport = OWOXTransport & Required<Pick<OWOXTransport, 'patchJson' | 'deleteJson'>>;
+
 /**
  * Matches the shared axios timeout in the OWOX web app rather than inventing another.
  * A streamed response drops this timer once its head arrives, because NDJSON
@@ -37,7 +39,7 @@ export class PluginTransportError extends Error {
  * Not exported from either package entry point. Plugin code cannot reach this class,
  * cannot construct one, and cannot swap the port underneath it.
  */
-export function createIframeTransport(port: MessagePort): OWOXTransport {
+export function createIframeTransport(port: MessagePort): IframeTransport {
   const pending = new Map<string, Pending>();
 
   port.onmessage = (event: MessageEvent<PluginResponse>) => {

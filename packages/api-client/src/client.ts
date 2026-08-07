@@ -11,7 +11,8 @@ import { RunsApi } from './runs.js';
 import { SearchApi } from './search.js';
 import { StoragesApi } from './storages.js';
 import { ApiKeyTransport } from './transports/api-key-transport.js';
-import type { OWOXTransport } from './transport.js';
+import type { OWOXTransport, OWOXTransportWithLowLevelWrites } from './transport.js';
+import { OWOXConfigError } from './errors.js';
 
 export type OWOXApiClientOptions =
   | {
@@ -29,7 +30,7 @@ export type OWOXApiClientOptions =
    */
   | { transport: OWOXTransport };
 
-export class OWOXApiClient implements OWOXTransport {
+export class OWOXApiClient implements OWOXTransportWithLowLevelWrites {
   readonly auth: AuthApi;
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
@@ -78,10 +79,16 @@ export class OWOXApiClient implements OWOXTransport {
   }
 
   async patchJson<T>(path: string, jsonBody: unknown): Promise<T> {
+    if (!this.transport.patchJson) {
+      throw new OWOXConfigError('Injected OWOX transport does not support patchJson()');
+    }
     return this.transport.patchJson<T>(path, jsonBody);
   }
 
   async deleteJson<T = void>(path: string): Promise<T> {
+    if (!this.transport.deleteJson) {
+      throw new OWOXConfigError('Injected OWOX transport does not support deleteJson()');
+    }
     return this.transport.deleteJson<T>(path);
   }
 

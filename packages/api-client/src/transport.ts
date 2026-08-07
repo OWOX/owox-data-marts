@@ -12,11 +12,17 @@ export type OWOXTransport = {
   getJson<T>(path: string, query?: Record<string, string>): Promise<T>;
   postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T>;
   putJson<T>(path: string, jsonBody: unknown): Promise<T>;
-  patchJson<T>(path: string, jsonBody: unknown): Promise<T>;
-  deleteJson<T = void>(path: string): Promise<T>;
+  /** Optional so transports built before PATCH support remain source-compatible. */
+  patchJson?<T>(path: string, jsonBody: unknown): Promise<T>;
+  /** Optional so transports built before DELETE support remain source-compatible. */
+  deleteJson?<T = void>(path: string): Promise<T>;
   getStream(path: string, query?: URLSearchParams): Promise<Response>;
   authenticate?(): Promise<void>;
 };
+
+/** Internal contract for transports shipped with the current client. */
+export type OWOXTransportWithLowLevelWrites = OWOXTransport &
+  Required<Pick<OWOXTransport, 'patchJson' | 'deleteJson'>>;
 
 type QueryParams = Record<string, string> | URLSearchParams;
 type FetchInit = RequestInit & { dispatcher?: unknown };

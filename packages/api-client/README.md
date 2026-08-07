@@ -39,6 +39,10 @@ Validate the data yourself before relying on it. Paths must be root-relative `/a
 are limited to 2,048 characters; unsafe or redirecting paths are refused. The API-key client
 exchanges and attaches authorization internally.
 
+Custom transports built against the previous interface remain compatible. They can continue
+serving existing resources without implementing PATCH or DELETE; calling a new method before the
+transport adds support rejects with `OWOXConfigError`.
+
 ```ts
 type Deleted = { deleted: true };
 
