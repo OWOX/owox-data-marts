@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
@@ -33,7 +34,9 @@ for (const file of [
 ]) {
   loadGasClass(path.join(apiReferenceDir, file));
 }
-const fieldsSchemaSelf = {
+// Object.create(proto) so _mapResultToColumns can resolve this._snakeToCamel (a
+// prototype method) when called via .call(fieldsSchemaSelf, ...) below.
+const fieldsSchemaSelf = Object.assign(Object.create(proto), {
   fieldsSchema: {
     campaigns: { fields: globalThis.campaignFields },
     campaigns_stats: { fields: globalThis.campaignStatsFields },
@@ -45,7 +48,7 @@ const fieldsSchemaSelf = {
     geo_stats: { fields: globalThis.geoTargetFields },
     geo_target_constants: { fields: globalThis.geoTargetConstantFields },
   },
-};
+});
 
 const callGetAccessToken = tokenError => {
   globalThis.OAuthUtils = {
@@ -102,12 +105,45 @@ describe('_getAPIFields against the v25 field catalog', () => {
   });
 
   it('no longer references the pre-v25 field names removed from the API', () => {
-    const allApiNames = Object.values(fieldsSchemaSelf.fieldsSchema).flatMap(node =>
-      Object.values(node.fields).map(field => field.apiName)
-    );
+    // Reads apiName values straight from every field file in the directory (not from
+    // fieldsSchemaSelf above), so a new field file added later is swept automatically
+    // without this test needing to be updated to know about it.
+    const fieldFiles = fs
+      .readdirSync(apiReferenceDir)
+      .filter(file => file.endsWith('.js') && file !== 'GoogleAdsFieldsSchema.js');
+    const allApiNames = fieldFiles.flatMap(file => {
+      const source = fs.readFileSync(path.join(apiReferenceDir, file), 'utf8');
+      return [...source.matchAll(/'apiName':\s*'([^']+)'/g)].map(match => match[1]);
+    });
     expect(allApiNames).not.toContain('metrics.video_views');
     expect(allApiNames).not.toContain('metrics.video_view_rate');
     expect(allApiNames).not.toContain('campaign.start_date');
     expect(allApiNames).not.toContain('campaign.end_date');
+  });
+});
+
+// v25's campaign.start_date_time / end_date_time return "yyyy-MM-dd HH:mm:ss" (zeroed to
+// 00:00:00 / 23:59:59 for daily-granularity campaigns) where v21's bare-date fields
+// returned "yyyy-MM-dd". Dropping the time component keeps the stored column
+// backward compatible with what customers already have in campaign_start_date/_end_date.
+describe('_mapResultToColumns date-only truncation', () => {
+  it('drops the time component from fields flagged dateOnly, leaves other fields untouched', () => {
+    const result = {
+      campaign: {
+        startDateTime: '2026-01-15 00:00:00',
+        endDateTime: '2026-01-20 23:59:59',
+        name: 'Test Campaign',
+      },
+    };
+    const mapped = proto._mapResultToColumns.call(fieldsSchemaSelf, result, 'campaigns', [
+      'campaign_start_date',
+      'campaign_end_date',
+      'campaign_name',
+    ]);
+    expect(mapped).toEqual({
+      campaign_start_date: '2026-01-15',
+      campaign_end_date: '2026-01-20',
+      campaign_name: 'Test Campaign',
+    });
   });
 });

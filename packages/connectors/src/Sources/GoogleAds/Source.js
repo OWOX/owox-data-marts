@@ -525,11 +525,20 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         .split('.')
         .map(part => this._snakeToCamel(part))
         .join('.');
-      
+
       // Get value from nested API response
-      mapped[fieldName] = this._getNestedValue(result, camelPath);
+      let value = this._getNestedValue(result, camelPath);
+
+      // Some v25 fields (e.g. campaign.start_date_time) return "yyyy-MM-dd HH:mm:ss"
+      // where the schema still promises a bare date; keep the stored value backward
+      // compatible by dropping the time component.
+      if (fieldConfig.dateOnly && typeof value === 'string') {
+        value = value.split(' ')[0];
+      }
+
+      mapped[fieldName] = value;
     }
-    
+
     return mapped;
   }
 
