@@ -294,13 +294,16 @@ authentication or any network request.
 
 ## Manage Data Mart runs
 
-Use `runs.start(dataMartId, options)` to start a manual connector run. Technical User access
-to the Data Mart is required. Omit the options for an incremental run, or set `runType` to
-`MANUAL_BACKFILL` and pass the connector-specific backfill fields in `data`. The method returns the
-new run ID. The serialized options must not exceed 1 MB.
+Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)` method
+starts a manual connector run and requires Technical User access to the Data Mart. Omit the options
+for an incremental run, or set `runType` to `MANUAL_BACKFILL` and pass the connector-specific
+backfill fields in `data`. The method returns the new run ID. The serialized options must not exceed
+1 MB.
 
 ```ts
-const { runId } = await client.runs.start('data-mart-id', {
+const dataMartRuns = client.runs.forDataMart('data-mart-id');
+
+const { runId } = await dataMartRuns.start({
   runType: 'MANUAL_BACKFILL',
   data: {
     StartDate: '2026-07-01',
@@ -309,19 +312,23 @@ const { runId } = await client.runs.start('data-mart-id', {
 });
 ```
 
-Business Users can inspect runs for a Data Mart they can see. `runs.listForDataMart()` returns a
-newest-first page, while `runs.get()` returns one run and includes full Data Quality detail
-when the run is a Data Quality run.
+Business Users can inspect runs for a Data Mart they can see. The scoped `list()` method returns a
+newest-first page, while `get(runId)` returns one run and includes full Data Quality detail when the
+run is a Data Quality run.
 
 ```ts
-const history = await client.runs.listForDataMart('data-mart-id', {
+const history = await dataMartRuns.list({
   limit: 50,
   offset: 0,
 });
 
-const run = await client.runs.get('data-mart-id', history.runs[0].id);
+const run = await dataMartRuns.get(history.runs[0].id);
 console.log(run.status, run.qualitySummary, run.dataQuality);
 ```
+
+The existing `client.runs.list()` method remains the project-wide run history and includes each
+run's Data Mart reference. The scoped `dataMartRuns.list()` method uses the Data-Mart-specific route
+and omits that redundant reference.
 
 The list endpoint defaults to 100 runs, caps `limit` at 100 and `offset` at 100,000, floors finite
 fractions, and replaces non-finite or non-positive values with its defaults. The response has no
@@ -329,19 +336,20 @@ total or next-page marker. Increment `offset` by the number of returned runs and
 contains fewer runs than the effective limit or the next offset would exceed 100,000. New runs can
 shift offset pages, so deduplicate by `run.id` while paging.
 
-Use `runs.cancel(dataMartId, runId)` to cancel an active connector, standard report, or
-Data Quality run. Technical User access is required. The method resolves with no value after the
-API returns `204 No Content`; cancelling a terminal run returns a conflict error.
+Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data Quality
+run. Technical User access is required. The method resolves with no value after the API returns
+`204 No Content`; cancelling a terminal run returns a conflict error.
 
 ```ts
-await client.runs.cancel('data-mart-id', runId);
+await dataMartRuns.cancel(runId);
 ```
 
 The package exports `OWOXDataMartRun`, `OWOXDataMartRunDetail`,
-`OWOXDataMartRunListOptions`, `OWOXDataMartRunStartOptions`, `OWOXDataMartRunsResponse`, and the run
-and Data Quality enum and nested-object types. The client validates response field presence,
-nullability, enums, RFC 3339 timestamps, totals, author metadata, compact Data Quality summaries,
-and full Data Quality detail. An incompatible response throws `OWOXApiError`.
+`OWOXDataMartRunListOptions`, `OWOXDataMartRunStartOptions`, `OWOXDataMartRunsResponse`,
+`OWOXDataMartRunsScope`, and the run and Data Quality enum and nested-object types. The client
+validates response field presence, nullability, enums, RFC 3339 timestamps, totals, author metadata,
+compact Data Quality summaries, and full Data Quality detail. An incompatible response throws
+`OWOXApiError`.
 
 ## Read the Models canvas
 

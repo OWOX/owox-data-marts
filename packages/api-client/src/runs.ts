@@ -115,30 +115,27 @@ function parseProjectRunHistory(response: unknown): OWOXProjectDataMartRunsRespo
   return response as OWOXProjectDataMartRunsResponse;
 }
 
-export class RunsApi {
-  constructor(private readonly requester: RunsRequester) {}
+export type OWOXDataMartRunsScope = {
+  start(options?: OWOXDataMartRunStartOptions): Promise<OWOXRunDataMartResponse>;
+  list(options?: OWOXDataMartRunListOptions): Promise<OWOXDataMartRunsResponse>;
+  get(runId: string): Promise<OWOXDataMartRunDetail>;
+  cancel(runId: string): Promise<void>;
+};
 
-  async list(options: OWOXProjectRunHistoryOptions = {}): Promise<OWOXProjectDataMartRunsResponse> {
-    const query = {
-      ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
-      ...(options.offset === undefined ? {} : { offset: String(options.offset) }),
-    };
+class DataMartRunsScope implements OWOXDataMartRunsScope {
+  private readonly path: string;
 
-    return parseProjectRunHistory(
-      await this.requester.getJson<unknown>(
-        '/api/data-marts/runs',
-        Object.keys(query).length === 0 ? undefined : query
-      )
-    );
+  constructor(
+    private readonly requester: RunsRequester,
+    dataMartId: string
+  ) {
+    this.path = `/api/data-marts/${encodeURIComponent(dataMartId)}`;
   }
 
-  async start(
-    dataMartId: string,
-    options: OWOXDataMartRunStartOptions = {}
-  ): Promise<OWOXRunDataMartResponse> {
+  async start(options: OWOXDataMartRunStartOptions = {}): Promise<OWOXRunDataMartResponse> {
     validateRunStartOptions(options);
     const response = await this.requester.postJson<unknown>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/manual-run`,
+      `${this.path}/manual-run`,
       Object.keys(options).length === 0 ? {} : { payload: options }
     );
     if (
@@ -156,17 +153,14 @@ export class RunsApi {
     return response as OWOXRunDataMartResponse;
   }
 
-  async listForDataMart(
-    dataMartId: string,
-    options: OWOXDataMartRunListOptions = {}
-  ): Promise<OWOXDataMartRunsResponse> {
+  async list(options: OWOXDataMartRunListOptions = {}): Promise<OWOXDataMartRunsResponse> {
     validateRunListOptions(options);
     const query = {
       ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
       ...(options.offset === undefined ? {} : { offset: String(options.offset) }),
     };
     const response = await this.requester.getJson<unknown>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/runs`,
+      `${this.path}/runs`,
       Object.keys(query).length === 0 ? undefined : query
     );
     if (
@@ -181,9 +175,9 @@ export class RunsApi {
     return response as OWOXDataMartRunsResponse;
   }
 
-  async get(dataMartId: string, runId: string): Promise<OWOXDataMartRunDetail> {
+  async get(runId: string): Promise<OWOXDataMartRunDetail> {
     const response = await this.requester.getJson<unknown>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/runs/${encodeURIComponent(runId)}`
+      `${this.path}/runs/${encodeURIComponent(runId)}`
     );
     if (!isDataMartRunDetail(response)) {
       throw new OWOXApiError('OWOX Data Mart Run API returned an unexpected response shape', {
@@ -193,10 +187,32 @@ export class RunsApi {
     return response;
   }
 
-  async cancel(dataMartId: string, runId: string): Promise<void> {
+  async cancel(runId: string): Promise<void> {
     await this.requester.postJson<void>(
-      `/api/data-marts/${encodeURIComponent(dataMartId)}/runs/${encodeURIComponent(runId)}/cancel`,
+      `${this.path}/runs/${encodeURIComponent(runId)}/cancel`,
       undefined
     );
+  }
+}
+
+export class RunsApi {
+  constructor(private readonly requester: RunsRequester) {}
+
+  async list(options: OWOXProjectRunHistoryOptions = {}): Promise<OWOXProjectDataMartRunsResponse> {
+    const query = {
+      ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
+      ...(options.offset === undefined ? {} : { offset: String(options.offset) }),
+    };
+
+    return parseProjectRunHistory(
+      await this.requester.getJson<unknown>(
+        '/api/data-marts/runs',
+        Object.keys(query).length === 0 ? undefined : query
+      )
+    );
+  }
+
+  forDataMart(dataMartId: string): OWOXDataMartRunsScope {
+    return new DataMartRunsScope(this.requester, dataMartId);
   }
 }

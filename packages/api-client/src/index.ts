@@ -79,6 +79,7 @@ export {
   type OWOXProjectDataMartRunType,
   type OWOXProjectDataMartRunUser,
   type OWOXProjectRunHistoryOptions,
+  type OWOXDataMartRunsScope,
 } from './runs.js';
 export {
   type OWOXProjectSettings,
