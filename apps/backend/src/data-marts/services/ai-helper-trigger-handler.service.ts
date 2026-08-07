@@ -41,11 +41,13 @@ export class AiHelperTriggerHandlerService
   async handleTrigger(trigger: AiHelperTrigger, options?: { signal?: AbortSignal }): Promise<void> {
     try {
       this.logger.debug(
-        `Processing AI helper trigger ${trigger.id} for data mart ${trigger.dataMartId} (scope=${trigger.scope})`
+        `Processing AI helper trigger ${trigger.id} for data mart ${trigger.dataMartId} (project=${trigger.projectId}, scope=${trigger.scope})`
       );
 
       if (options?.signal?.aborted) {
-        this.logger.debug(`Trigger ${trigger.id} was cancelled before processing`);
+        this.logger.debug(
+          `Trigger ${trigger.id} was cancelled before processing (dataMart=${trigger.dataMartId}, project=${trigger.projectId})`
+        );
         return;
       }
 
@@ -70,9 +72,17 @@ export class AiHelperTriggerHandlerService
       // Fire-and-forget analytics — failures must not flip a SUCCESSful trigger.
       void this.publishGeneratedEvent(trigger);
 
-      this.logger.debug(`Successfully processed AI helper trigger ${trigger.id}`);
+      this.logger.debug(
+        `Successfully processed AI helper trigger ${trigger.id} (dataMart=${trigger.dataMartId}, project=${trigger.projectId})`
+      );
     } catch (error) {
-      this.logger.error(`Error processing AI helper trigger ${trigger.id}:`, error);
+      // dataMartId/projectId are part of the message so a Cloud Logging text filter on the
+      // data mart id catches this entry too — filtering by dataMartId alone missed it during
+      // the 2026-08-05 incident investigation.
+      this.logger.error(
+        `Error processing AI helper trigger ${trigger.id} (dataMart=${trigger.dataMartId}, project=${trigger.projectId}):`,
+        error
+      );
       trigger.uiResponse = {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
