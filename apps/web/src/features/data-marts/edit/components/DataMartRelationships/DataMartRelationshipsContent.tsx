@@ -45,6 +45,17 @@ import type {
 
 import { storageService } from '../../../../../services/localstorage.service';
 import {
+  parseCanvasDirection,
+  type CanvasDirection,
+} from '../../../shared/canvas/canvas-direction';
+import type { ErdCardField } from '../../../shared/canvas/erd-fields';
+import {
+  parseObjectLabelsHidden,
+  serializeObjectLabelsHidden,
+  type ObjectLabelsHidden,
+} from '../../../shared/canvas/object-labels';
+import { parseCanvasViewMode, type CanvasViewMode } from '../../../shared/canvas/view-mode';
+import {
   filterTransientRows,
   parseRelationshipStatusFilter,
   RELATIONSHIP_STATUS_FILTER_OPTIONS,
@@ -71,6 +82,13 @@ const CanvasSuspenseFallback = (
 
 const VIEW_MODE_KEY = 'relationship-view-mode';
 const CONTENT_MIN_H = 480;
+
+// Canvas view settings are per-browser preferences (not per data mart),
+// mirroring the Models canvas keys (model-canvas-*).
+const CANVAS_VIEW_MODE_KEY = 'relationship-canvas-view-mode';
+const CANVAS_LAYOUT_KEY = 'relationship-canvas-layout';
+const CANVAS_JOIN_FIELDS_KEY = 'relationship-canvas-show-join-fields';
+const CANVAS_OBJECT_LABELS_KEY = 'relationship-canvas-object-labels';
 
 const DEFAULT_BLENDED_FIELDS_CONFIG: BlendedFieldsConfig = { sources: [] };
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -283,6 +301,62 @@ export function DataMartRelationshipsContent({
     },
     [statusFilterKey]
   );
+
+  // Canvas view settings (gear popover) live here so the inline and
+  // fullscreen canvas instances stay in sync, like the filters above.
+  const [canvasViewMode, setCanvasViewMode] = useState<CanvasViewMode>(() =>
+    parseCanvasViewMode(storageService.get(CANVAS_VIEW_MODE_KEY))
+  );
+  const [canvasDirection, setCanvasDirection] = useState<CanvasDirection>(() =>
+    parseCanvasDirection(storageService.get(CANVAS_LAYOUT_KEY))
+  );
+  const [showJoinFields, setShowJoinFields] = useState(
+    () => storageService.get(CANVAS_JOIN_FIELDS_KEY, 'boolean') ?? false
+  );
+  const [objectLabels, setObjectLabels] = useState<ObjectLabelsHidden>(() =>
+    parseObjectLabelsHidden(storageService.get(CANVAS_OBJECT_LABELS_KEY))
+  );
+
+  const handleCanvasViewModeChange = useCallback((next: CanvasViewMode) => {
+    setCanvasViewMode(next);
+    storageService.set(CANVAS_VIEW_MODE_KEY, next);
+  }, []);
+
+  const handleCanvasDirectionChange = useCallback((next: CanvasDirection) => {
+    setCanvasDirection(next);
+    storageService.set(CANVAS_LAYOUT_KEY, next);
+  }, []);
+
+  const handleShowJoinFieldsChange = useCallback((checked: boolean) => {
+    setShowJoinFields(checked);
+    storageService.set(CANVAS_JOIN_FIELDS_KEY, checked);
+  }, []);
+
+  const handleObjectLabelsChange = useCallback((next: ObjectLabelsHidden) => {
+    setObjectLabels(next);
+    storageService.set(CANVAS_OBJECT_LABELS_KEY, serializeObjectLabelsHidden(next));
+  }, []);
+
+  // ERD rows for the Detailed canvas view, keyed by aliasPath. The root
+  // mart's native fields are untyped in the schema payload, so the root card
+  // stays compact. Primary-key info is not part of the blendable schema —
+  // rows render without key icons.
+  const canvasFieldsByAliasPath = useMemo(() => {
+    const map = new Map<string, ErdCardField[]>();
+    if (!blendableSchema) return map;
+    for (const field of blendableSchema.blendedFields) {
+      const rows = map.get(field.aliasPath) ?? [];
+      if (!map.has(field.aliasPath)) map.set(field.aliasPath, rows);
+      rows.push({
+        name: field.originalFieldName,
+        alias: field.originalFieldName,
+        type: field.sourceFieldType ?? field.type,
+        isPrimaryKey: false,
+        isHidden: field.isHidden,
+      });
+    }
+    return map;
+  }, [blendableSchema]);
 
   const filteredRows = useMemo(() => {
     const rows = filterTransientRows(transientRows, { showLooped, statusFilter });
@@ -545,6 +619,15 @@ export function DataMartRelationshipsContent({
             searchQuery={searchQuery}
             showLooped={showLooped}
             statusFilter={statusFilter}
+            viewMode={canvasViewMode}
+            onViewModeChange={handleCanvasViewModeChange}
+            direction={canvasDirection}
+            onDirectionChange={handleCanvasDirectionChange}
+            showJoinFields={showJoinFields}
+            onShowJoinFieldsChange={handleShowJoinFieldsChange}
+            objectLabels={objectLabels}
+            onObjectLabelsChange={handleObjectLabelsChange}
+            fieldsByAliasPath={canvasFieldsByAliasPath}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -728,6 +811,15 @@ export function DataMartRelationshipsContent({
                 searchQuery={searchQuery}
                 showLooped={showLooped}
                 statusFilter={statusFilter}
+                viewMode={canvasViewMode}
+                onViewModeChange={handleCanvasViewModeChange}
+                direction={canvasDirection}
+                onDirectionChange={handleCanvasDirectionChange}
+                showJoinFields={showJoinFields}
+                onShowJoinFieldsChange={handleShowJoinFieldsChange}
+                objectLabels={objectLabels}
+                onObjectLabelsChange={handleObjectLabelsChange}
+                fieldsByAliasPath={canvasFieldsByAliasPath}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

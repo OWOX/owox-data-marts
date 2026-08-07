@@ -1,7 +1,7 @@
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../../shared/enums/data-mart-status.enum';
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
-import type { PathPoint } from '../model/graph/path-point';
+import type { PathPoint } from '../../shared/canvas/path-point';
 import type { ModelCanvasNode } from '../model/types';
 import { slugify } from './slug';
 

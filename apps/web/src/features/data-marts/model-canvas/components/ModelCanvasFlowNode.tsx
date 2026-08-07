@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Info, KeyRound } from 'lucide-react';
+import { ExternalLink, Info } from 'lucide-react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
@@ -11,11 +10,11 @@ import {
 } from '../../shared/canvas/constants';
 import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import { ErdDefinitionBadge, ErdStatusDot } from '../../shared/canvas/erd-card';
-import { OWOX_YELLOW_BASE } from '../../shared/canvas/owox-palette';
-import { type CanvasViewMode, collapsedRowCount, nodeWidth, orderFields } from '../model/erd-node';
-import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../model/object-labels';
+import { type CanvasViewMode, nodeWidth } from '../model/erd-node';
+import { NOTHING_HIDDEN, type ObjectLabelsHidden } from '../../shared/canvas/object-labels';
+import { ErdCardFieldsSection } from '../../shared/canvas/erd-fields-section';
 import type { CanvasNodeField } from '../model/types';
-import type { CanvasDirection } from '../model/graph/canvas-direction';
+import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
@@ -48,35 +47,10 @@ export type ModelCanvasFlowNodeType = Node<
   'modelCanvasNode'
 >;
 
-function FieldRow({ field }: { field: CanvasNodeField }) {
-  return (
-    <div
-      className='border-border/50 flex items-center gap-2 border-b px-3.5 py-1.5 text-[11.5px] last:border-b-0'
-      style={{ opacity: field.isHidden ? 0.5 : 1 }}
-      title={field.isHidden ? `${field.alias} (hidden from reporting)` : field.alias}
-    >
-      {field.isPrimaryKey ? (
-        <KeyRound
-          className='h-3 w-3 shrink-0'
-          style={{ color: OWOX_YELLOW_BASE }}
-          aria-label='Primary key'
-        />
-      ) : (
-        <span className='w-3 shrink-0' />
-      )}
-      <span className='text-foreground flex-1 truncate'>{field.alias}</span>
-      <span className='text-muted-foreground shrink-0 font-mono text-[10px] tracking-tight'>
-        {field.type}
-      </span>
-    </div>
-  );
-}
-
 export default function ModelCanvasFlowNode({
   data,
   selected,
 }: NodeProps<ModelCanvasFlowNodeType>) {
-  const [expanded, setExpanded] = useState(false);
   const accent = definitionTypeAccent(data.definitionType);
   const isErd = data.viewMode === 'erd';
   const fields = data.fields;
@@ -92,11 +66,6 @@ export default function ModelCanvasFlowNode({
   // indicators (Data Quality shield + Data Last Updated clock) go too.
   const titleOnly = labels.source && labels.fields && labels.status;
 
-  const ordered = orderFields(fields);
-  const collapsed = collapsedRowCount(fields);
-  const visible = expanded ? ordered : ordered.slice(0, collapsed);
-  const hiddenCount = ordered.length - collapsed;
-
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
   const openExternalLabel = `Open ${data.title} in new tab`;
@@ -105,12 +74,6 @@ export default function ModelCanvasFlowNode({
     e.stopPropagation();
     e.preventDefault();
     data.onOpenExternal();
-  }
-
-  function toggleExpanded(e: React.MouseEvent) {
-    e.stopPropagation();
-    e.preventDefault();
-    setExpanded(v => !v);
   }
 
   return (
@@ -217,34 +180,7 @@ export default function ModelCanvasFlowNode({
       )}
 
       {/* ERD body: field rows (only in ERD view) */}
-      {showBody && (
-        <div className='border-t'>
-          {visible.map(field => (
-            <FieldRow key={field.name} field={field} />
-          ))}
-          {hiddenCount > 0 && (
-            <button
-              type='button'
-              className='text-muted-foreground hover:text-foreground hover:bg-muted nodrag flex w-full items-center justify-center gap-1 border-t py-1.5 text-[11px] font-medium transition-colors'
-              onPointerDown={e => {
-                e.stopPropagation();
-              }}
-              onClick={toggleExpanded}
-            >
-              {expanded ? (
-                <>
-                  <ChevronDown className='h-3 w-3' /> Show less
-                </>
-              ) : (
-                <>
-                  <ChevronRight className='h-3 w-3' /> +{hiddenCount} more field
-                  {hiddenCount !== 1 ? 's' : ''}
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      )}
+      {showBody && <ErdCardFieldsSection fields={fields} />}
 
       {data.hasOutgoing && (
         <Handle

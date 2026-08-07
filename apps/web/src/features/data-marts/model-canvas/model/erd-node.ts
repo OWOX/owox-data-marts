@@ -1,7 +1,20 @@
-import type { CanvasNodeField, ModelCanvasNode } from './types';
+import {
+  collapsedRowCount,
+  ERD_EXPAND_ROW_HEIGHT,
+  ERD_ROW_HEIGHT,
+} from '../../shared/canvas/erd-fields';
+import type { CanvasViewMode } from '../../shared/canvas/view-mode';
+import type { ModelCanvasNode } from './types';
 
 /** Canvas node display density. Compact = header only; ERD = header + field rows. */
-export type CanvasViewMode = 'compact' | 'erd';
+export type { CanvasViewMode } from '../../shared/canvas/view-mode';
+export {
+  collapsedRowCount,
+  ERD_COLLAPSED_ROWS,
+  ERD_EXPAND_ROW_HEIGHT,
+  ERD_ROW_HEIGHT,
+  orderFields,
+} from '../../shared/canvas/erd-fields';
 
 // ---- Layout geometry -------------------------------------------------------
 // The dagre layout runs before render, so it needs a size estimate per node.
@@ -14,10 +27,6 @@ export const COMPACT_NODE_HEIGHT = 116;
 
 export const ERD_NODE_WIDTH = 256;
 export const ERD_HEADER_HEIGHT = 88; // title + meta + Data Quality rows
-export const ERD_ROW_HEIGHT = 26;
-export const ERD_EXPAND_ROW_HEIGHT = 26;
-/** ERD nodes show at most this many rows before collapsing behind a toggle. */
-export const ERD_COLLAPSED_ROWS = 4;
 /** Height of the meta row (the source badge), subtracted when object labels hide it. */
 export const CARD_META_ROW_HEIGHT = 36;
 /** Height of the status icons row (quality shield + Data Last Updated + field count), dropped in title-only mode. */
@@ -25,21 +34,6 @@ export const CARD_STATUS_ROW_HEIGHT = 30;
 
 export function nodeWidth(viewMode: CanvasViewMode): number {
   return viewMode === 'erd' ? ERD_NODE_WIDTH : COMPACT_NODE_WIDTH;
-}
-
-/** Primary keys first, then the rest — stable order, collapsed or expanded. */
-export function orderFields(fields: CanvasNodeField[]): CanvasNodeField[] {
-  return [...fields.filter(f => f.isPrimaryKey), ...fields.filter(f => !f.isPrimaryKey)];
-}
-
-/**
- * How many rows an ERD node shows when collapsed. Primary keys always stay
- * visible — they identify the mart and anchor joins conceptually — so a
- * key-heavy mart can exceed the base cap.
- */
-export function collapsedRowCount(fields: CanvasNodeField[]): number {
-  const keyCount = fields.filter(f => f.isPrimaryKey).length;
-  return Math.min(fields.length, Math.max(ERD_COLLAPSED_ROWS, keyCount));
 }
 
 /**

@@ -24,6 +24,24 @@ export interface DagreLayoutResult {
 
 const FALLBACK_NODE_GAP = 80;
 
+// Edge labels have no DOM yet when dagre runs, so their reserved space is
+// estimated from the text: an 11px semi-bold line is ~6.6px per character.
+const LABEL_CHAR_WIDTH = 6.6;
+const LABEL_HORIZONTAL_PADDING = 18;
+const LABEL_LINE_HEIGHT = 16.5;
+const LABEL_VERTICAL_PADDING = 8;
+
+export function estimateEdgeLabelDimensions(
+  joinLabel: string[]
+): { width: number; height: number } | undefined {
+  if (joinLabel.length === 0) return undefined;
+  const maxLineChars = Math.max(...joinLabel.map(line => line.length));
+  return {
+    width: maxLineChars * LABEL_CHAR_WIDTH + LABEL_HORIZONTAL_PADDING,
+    height: joinLabel.length * LABEL_LINE_HEIGHT + LABEL_VERTICAL_PADDING,
+  };
+}
+
 function buildFallbackPositions(
   nodes: DagreLayoutNode[],
   direction: CanvasDirection

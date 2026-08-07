@@ -13,6 +13,9 @@ import { DataMartRelationshipsContent } from './DataMartRelationshipsContent';
 interface CanvasStubProps {
   showLooped: boolean;
   statusFilter: string;
+  viewMode: string;
+  direction: string;
+  showJoinFields: boolean;
 }
 
 const harness = vi.hoisted(() => {
@@ -224,6 +227,9 @@ describe('DataMartRelationshipsContent toolbar filters', () => {
     expect(harness.canvasProps.current).toMatchObject({
       showLooped: false,
       statusFilter: 'DRAFT',
+      viewMode: 'compact',
+      direction: 'horizontal',
+      showJoinFields: false,
     });
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Looped data marts' }), {

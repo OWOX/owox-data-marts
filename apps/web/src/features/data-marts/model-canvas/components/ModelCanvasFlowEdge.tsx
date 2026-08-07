@@ -11,7 +11,7 @@ import {
 } from '../../shared/canvas/constants';
 import { EdgeArrowMarkers } from '../../shared/canvas/edge-arrow';
 import { edgeMarkerId } from '../../shared/canvas/edge-marker-id';
-import type { CanvasDirection } from '../model/graph/canvas-direction';
+import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 
 export interface ModelCanvasFlowEdgeData {
   bowOffset: number;

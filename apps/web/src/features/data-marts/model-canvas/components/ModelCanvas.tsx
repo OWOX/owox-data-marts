@@ -1,4 +1,4 @@
-import { Check, Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
+import { Locate, Settings, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -21,9 +21,9 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@owox/ui/components/popover';
-import { Switch } from '@owox/ui/components/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '../../../../shared/components/Button';
+import { CanvasSettingsPanel } from '../../shared/canvas/canvas-settings-panel';
 import { storageService } from '../../../../services/localstorage.service';
 import { NODE_PULSE_KEYFRAMES, STATIC_NODE_STYLE } from '../../shared/canvas/constants';
 import {
@@ -33,34 +33,24 @@ import {
 } from '../../shared/canvas/highlight';
 import { clampCanvasViewport, getCanvasGraphBounds } from '../../shared/canvas/viewport';
 import { DataMartStatus } from '../../shared/enums/data-mart-status.enum';
+import { parseCanvasDirection, type CanvasDirection } from '../../shared/canvas/canvas-direction';
 import {
-  CANVAS_DIRECTION_OPTIONS,
-  parseCanvasDirection,
-  type CanvasDirection,
-} from '../model/graph/canvas-direction';
-import {
+  estimateEdgeLabelDimensions,
   runDagreLayout,
   type DagreLayoutEdge,
   type DagreLayoutNode,
-} from '../model/graph/dagre-layout';
+} from '../../shared/canvas/dagre-layout';
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
 import { computeParallelEdgeOffsets } from '../model/graph/parallel-edge-offsets';
-import type { PathPoint } from '../model/graph/path-point';
+import type { PathPoint } from '../../shared/canvas/path-point';
 import { definitionTypeAccent } from '../../shared/canvas/definition-type-accent';
 import type { ModelCanvasNode } from '../model/types';
 import { type CanvasViewMode, computeNodeHeight, nodeWidth } from '../model/erd-node';
 import {
-  ALL_HIDDEN,
-  isAllHidden,
-  isNothingHidden,
-  NOTHING_HIDDEN,
-  OBJECT_LABEL_PARTS,
   parseObjectLabelsHidden,
   serializeObjectLabelsHidden,
-  toggleObjectLabelPart,
-  type ObjectLabelPart,
   type ObjectLabelsHidden,
-} from '../model/object-labels';
+} from '../../shared/canvas/object-labels';
 import type { ModelCanvasExportHandle } from '../export';
 import ModelCanvasFlowEdge, { type ModelCanvasFlowEdgeType } from './ModelCanvasFlowEdge';
 import ModelCanvasFlowNode, { type ModelCanvasFlowNodeType } from './ModelCanvasFlowNode';
@@ -110,41 +100,8 @@ function loadSavedPositions(storageId: string | undefined): SavedPositions {
   return positions;
 }
 
-const OBJECT_LABEL_META: Record<ObjectLabelPart, { label: string; helper: string }> = {
-  source: {
-    label: 'Input source',
-    helper: 'The source badge (VIEW / TABLE / SQL / CONNECTOR) and its accent stripe',
-  },
-  fields: {
-    label: 'Field count',
-    helper: 'The field count shown on each object',
-  },
-  status: {
-    label: 'Status dot',
-    helper: 'The published/draft status dot in the card header',
-  },
-};
-const VIEW_MODE_OPTIONS: { value: CanvasViewMode; label: string }[] = [
-  { value: 'compact', label: 'Compact' },
-  { value: 'erd', label: 'Detailed' },
-];
 const FIT_VIEW_PADDING = 0.2;
-const LABEL_CHAR_WIDTH = 6.6;
-const LABEL_HORIZONTAL_PADDING = 18;
-const LABEL_LINE_HEIGHT = 16.5;
-const LABEL_VERTICAL_PADDING = 8;
 const CANVAS_PAN_PADDING = 150;
-
-function estimateEdgeLabelDimensions(
-  joinLabel: string[]
-): { width: number; height: number } | undefined {
-  if (joinLabel.length === 0) return undefined;
-  const maxLineChars = Math.max(...joinLabel.map(line => line.length));
-  return {
-    width: maxLineChars * LABEL_CHAR_WIDTH + LABEL_HORIZONTAL_PADDING,
-    height: joinLabel.length * LABEL_LINE_HEIGHT + LABEL_VERTICAL_PADDING,
-  };
-}
 
 const nodeTypes = { modelCanvasNode: ModelCanvasFlowNode };
 const edgeTypes = { modelCanvasEdge: ModelCanvasFlowEdge };
@@ -726,141 +683,17 @@ function ModelCanvasInner({
             </Button>
           </PopoverTrigger>
           <PopoverContent align='end' side='left' className='w-56'>
-            <PopoverTitle>View</PopoverTitle>
-            <div
-              role='radiogroup'
-              aria-label='Card view mode'
-              className='bg-muted mt-2 grid grid-cols-2 gap-0.5 rounded-md p-0.5'
-            >
-              {VIEW_MODE_OPTIONS.map(option => (
-                <button
-                  key={option.value}
-                  type='button'
-                  role='radio'
-                  aria-checked={viewMode === option.value}
-                  className={`rounded px-2 py-1 text-sm transition-colors ${
-                    viewMode === option.value
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => {
-                    handleViewModeChange(option.value);
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <PopoverTitle className='mt-3 border-t pt-3'>Layout algorithm</PopoverTitle>
-            <div role='radiogroup' aria-label='Layout algorithm' className='mt-2 space-y-0.5'>
-              {CANVAS_DIRECTION_OPTIONS.map(option => (
-                <button
-                  key={option.value}
-                  type='button'
-                  role='radio'
-                  aria-checked={direction === option.value}
-                  className='hover:bg-muted flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm'
-                  onClick={() => {
-                    handleDirectionChange(option.value);
-                  }}
-                >
-                  <span>{option.label}</span>
-                  {direction === option.value && <Check className='h-4 w-4' />}
-                </button>
-              ))}
-            </div>
-            <div className='mt-3 flex items-center justify-between gap-2 border-t pt-3'>
-              <label htmlFor='model-canvas-show-join-fields' className='text-sm'>
-                Show join fields
-              </label>
-              <Switch
-                id='model-canvas-show-join-fields'
-                checked={showJoinLabels}
-                onCheckedChange={handleJoinLabelsChange}
-              />
-            </div>
-            <PopoverTitle className='mt-3 border-t pt-3'>Object labels</PopoverTitle>
-            <p className='text-muted-foreground mt-1 text-xs leading-snug'>
-              Tick what every object shows — untick to hide it.
-            </p>
-            <div className='mt-2 space-y-0.5'>
-              {/* A checked box means the part is VISIBLE — unchecking hides it.
-                  The stored state is the hidden set, hence the inversion here. */}
-              {OBJECT_LABEL_PARTS.map(part => {
-                const meta = OBJECT_LABEL_META[part];
-                const shown = !objectLabels[part];
-                return (
-                  <button
-                    key={part}
-                    type='button'
-                    role='checkbox'
-                    aria-checked={shown}
-                    className='hover:bg-muted flex w-full items-start gap-2 rounded px-2 py-1.5 text-left'
-                    onClick={() => {
-                      handleObjectLabelsChange(toggleObjectLabelPart(objectLabels, part));
-                    }}
-                  >
-                    <span
-                      className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                        shown
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-input bg-background text-transparent'
-                      }`}
-                      aria-hidden='true'
-                    >
-                      <Check className='h-2.5 w-2.5' strokeWidth={3.5} />
-                    </span>
-                    <span className='flex min-w-0 flex-col'>
-                      <span
-                        className={`text-sm font-medium ${shown ? 'text-foreground' : 'text-muted-foreground'}`}
-                      >
-                        {meta.label}
-                      </span>
-                      <span className='text-muted-foreground text-xs leading-snug'>
-                        {meta.helper}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {/* Both-ends shortcuts: tick everything back on, or clear it all. */}
-            <div className='mt-1 space-y-0.5 border-t pt-1'>
-              <button
-                type='button'
-                aria-pressed={isNothingHidden(objectLabels)}
-                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
-                  isNothingHidden(objectLabels)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-foreground hover:bg-muted'
-                }`}
-                onClick={() => {
-                  handleObjectLabelsChange(NOTHING_HIDDEN);
-                }}
-              >
-                <span className='w-4 shrink-0 text-center font-bold' aria-hidden='true'>
-                  ≡
-                </span>
-                Check all — show everything
-              </button>
-              <button
-                type='button'
-                aria-pressed={isAllHidden(objectLabels)}
-                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm font-medium ${
-                  isAllHidden(objectLabels)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-foreground hover:bg-muted'
-                }`}
-                onClick={() => {
-                  handleObjectLabelsChange(ALL_HIDDEN);
-                }}
-              >
-                <span className='w-4 shrink-0 text-center font-bold' aria-hidden='true'>
-                  ⊘
-                </span>
-                Uncheck all — title only
-              </button>
-            </div>
+            <CanvasSettingsPanel
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              direction={direction}
+              onDirectionChange={handleDirectionChange}
+              showJoinFields={showJoinLabels}
+              onShowJoinFieldsChange={handleJoinLabelsChange}
+              joinFieldsSwitchId='model-canvas-show-join-fields'
+              objectLabels={objectLabels}
+              onObjectLabelsChange={handleObjectLabelsChange}
+            />
           </PopoverContent>
         </Popover>
       </div>

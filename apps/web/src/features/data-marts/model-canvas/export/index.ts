@@ -1,6 +1,6 @@
 import type { Node } from '@xyflow/react';
 import type { CanvasRenderEdge } from '../model/graph/merge-bidirectional-edges';
-import type { PathPoint } from '../model/graph/path-point';
+import type { PathPoint } from '../../shared/canvas/path-point';
 import type { ModelCanvasNode } from '../model/types';
 import { buildExportFileName, downloadBlob } from './download';
 import { exportCanvasPng, exportCanvasSvg, resolveCanvasBackground } from './export-image';
