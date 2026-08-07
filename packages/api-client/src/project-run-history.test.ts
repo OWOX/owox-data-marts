@@ -234,7 +234,7 @@ describe('Runs API', () => {
   });
 
   it('accepts project run history from deployments that predate qualitySummary', async () => {
-    const { qualitySummary: _qualitySummary, ...runWithoutQualitySummary } = runHistory.runs[0];
+    const { qualitySummary: _qualitySummary, ...runWithoutQualitySummary } = runHistory.runs[0]!;
     const response = { runs: [runWithoutQualitySummary] };
     const fetchImpl = createFetchMock(request => {
       if (request.method === 'POST') {
