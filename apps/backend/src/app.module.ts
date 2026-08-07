@@ -10,6 +10,7 @@ import { OwoxEventDispatcherModule } from './common/event-dispatcher/owox-event-
 import { ActiveRequestInterceptor } from './common/interceptors/active-request.interceptor';
 import { IdpModule } from './idp/idp.module';
 import { EeModule } from './ee/ee.module';
+import { LicenseKeysModule } from './ee/license-keys/license-keys.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ProjectMemberApiKeysModule } from './project-member-api-keys/project-member-api-keys.module';
 import { SearchModule } from './data-marts/search/search.module';
@@ -56,6 +57,7 @@ import { serializeSqliteTransactions } from './config/sqlite-transaction-seriali
     CommonModule,
     IdpModule,
     EeModule,
+    LicenseKeysModule.register(),
     ProjectMemberApiKeysModule,
     NotificationsModule,
     ProjectSettingsModule,

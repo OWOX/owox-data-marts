@@ -896,6 +896,8 @@ import { DataStorageType } from './data-storage-types/enums/data-storage-type.en
     HttpDataColumnValidator,
   ],
   exports: [
+    InternalProjectBilling,
+    UserProjectionsFetcherService,
     MCP_DATA_MARTS_FACADE,
     MCP_DATA_DESTINATIONS_FACADE,
     MCP_REPORTS_FACADE,
