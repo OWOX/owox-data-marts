@@ -132,7 +132,15 @@ GitHub Pages sends the header; a plain static server usually does not.</p>
 against an SDK the deployment cannot speak fails to start rather than misbehaving.</p>
 <p>Your plugin never holds a credential. <code dir="auto">ctx.owox</code> calls are brokered by the host page,
 which attaches the token — so requests act with <strong>the authority of the member who
-installed your plugin</strong>, and never more. Do not assume you are trusted beyond that.</p>
+installed your plugin</strong>, and never more. Do not assume you are trusted beyond that.
+Protected routes still apply their server-side authorization and reject calls the member
+may not make.</p>
+<p>Use low-level methods only for endpoints without a typed resource:
+<code dir="auto">getJson&#x3C;T>(path, query?)</code>, <code dir="auto">postJson&#x3C;T>(path, body, accept?)</code>, <code dir="auto">putJson&#x3C;T>(path, body)</code>,
+<code dir="auto">patchJson&#x3C;T>(path, body)</code>, <code dir="auto">deleteJson&#x3C;T = void>(path)</code>, and <code dir="auto">getStream(path, query?)</code>.
+Their generics do not validate responses at runtime, so validate returned data yourself.
+Paths must be root-relative <code dir="auto">/api/...</code> and are limited to 2,048 characters; unsafe or
+redirecting paths are refused.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="context">Context</h2><a class="sl-anchor-link" href="#context"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Context”</span></a></div>
 
 
