@@ -43,6 +43,12 @@ function announceReady(contentWindow: object, protocolVersion = PLUGIN_PROTOCOL_
   window.dispatchEvent(event);
 }
 
+function announceRaw(contentWindow: object, data: unknown) {
+  const event = new MessageEvent('message', { data, origin: 'null' });
+  Object.defineProperty(event, 'source', { value: contentWindow });
+  window.dispatchEvent(event);
+}
+
 interface Harness {
   bridge: PluginHostBridge;
   send: (request: PluginRequestInput & { id?: string }) => Promise<PluginResponse>;
@@ -243,6 +249,23 @@ describe('plugin host bridge', () => {
       );
     });
 
+    it('forbids fetch redirects so the runtime token cannot follow a cross-origin location', async () => {
+      const h = await harness(
+        async () =>
+          new Response(null, {
+            status: 302,
+            headers: { location: 'https://attacker.test/collect' },
+          })
+      );
+
+      const response = await h.send({ kind: 'api', method: 'GET', path: '/api/data-marts' });
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'HTTP_ERROR', status: 302 } });
+      expect(h.fetchMock).toHaveBeenCalledTimes(1);
+      expect(h.fetchMock.mock.calls[0][0]).toBe(`${API_ORIGIN}/api/data-marts`);
+      expect(h.fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'error' });
+    });
+
     it('does not echo credentials from an unexpected network error to the plugin', async () => {
       const h = await harness(async () => {
         throw new Error(`request failed with Bearer ${RUNTIME_TOKEN}`);
@@ -320,6 +343,39 @@ describe('plugin host bridge', () => {
       await expect(
         h.send({ kind: 'api', method: 'GET', path: '/api/data-marts' })
       ).resolves.toMatchObject({ ok: true });
+    });
+
+    it.each([
+      ['v0', { owox: 'plugin-ready', v: 0 }],
+      ['v3', { owox: 'plugin-ready', v: 3 }],
+      ['a string version', { owox: 'plugin-ready', v: '2' }],
+      ['a missing version', { owox: 'plugin-ready' }],
+      ['a malformed envelope', { owox: 'plugin-ready', v: null }],
+    ])('ignores unsupported ready announcement %s without side effects', async (_label, data) => {
+      const frame = pluginFrame();
+      const fetchMock = vi.fn();
+      const fetchRuntimeToken = vi.fn(() =>
+        Promise.resolve({ runtimeToken: RUNTIME_TOKEN, expiresIn: 900 })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const bridge = createPluginHostBridge({
+        iframe: frame.iframe,
+        src: 'https://plugin.example.test/',
+        apiOrigin: API_ORIGIN,
+        context: CONTEXT,
+        fetchRuntimeToken,
+        onOpenExternal: vi.fn(),
+        onNavigate: vi.fn(),
+      });
+
+      announceRaw(frame.contentWindow, data);
+      await flush();
+
+      expect(frame.posted).toHaveLength(0);
+      expect(fetchRuntimeToken).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+      bridge.dispose();
     });
 
     it('assigns the frame source only after it is listening', async () => {
@@ -420,6 +476,43 @@ describe('plugin host bridge', () => {
       await flush();
 
       expect(seen.signal?.aborted).toBe(true);
+    });
+
+    it('applies the 32-request admission limit before validation and aborts all admitted work', async () => {
+      const signals: AbortSignal[] = [];
+      const h = await harness(
+        (_url, init) =>
+          new Promise<Response>(() => {
+            if (init.signal) {
+              signals.push(init.signal);
+            }
+          })
+      );
+
+      for (let index = 0; index < 32; index += 1) {
+        h.tell({ kind: 'api', method: 'GET', path: `/api/data-marts/${String(index)}` });
+      }
+      await vi.waitFor(() => {
+        expect(signals).toHaveLength(32);
+      });
+      const tokenMintsAtCapacity = h.fetchRuntimeToken.mock.calls.length;
+
+      const response = await h.send({
+        kind: 'api',
+        method: 'PATCH',
+        path: '/api/data-marts/blocked',
+        body: 1n,
+      });
+
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'PROTOCOL_ERROR', message: 'Too many requests in flight' },
+      });
+      expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      expect(h.fetchRuntimeToken).toHaveBeenCalledTimes(tokenMintsAtCapacity);
+
+      h.bridge.dispose();
+      expect(signals.every(signal => signal.aborted)).toBe(true);
     });
   });
 
@@ -533,13 +626,58 @@ describe('plugin host bridge', () => {
         'a non-GET stream request',
         { id: 'malformed-7', kind: 'api', method: 'POST', path: '/api/x', stream: true },
       ],
+      ['a GET body', { id: 'malformed-14', kind: 'api', method: 'GET', path: '/api/x', body: {} }],
+      [
+        'a streaming GET body',
+        {
+          id: 'malformed-15',
+          kind: 'api',
+          method: 'GET',
+          path: '/api/x',
+          stream: true,
+          body: {},
+        },
+      ],
+      [
+        'an accept value on a streaming GET',
+        {
+          id: 'malformed-16',
+          kind: 'api',
+          method: 'GET',
+          path: '/api/x',
+          stream: true,
+          accept: 'application/json',
+        },
+      ],
       [
         'a non-string accept value',
         { id: 'malformed-11', kind: 'api', method: 'GET', path: '/api/x', accept: 7 },
       ],
       [
+        'an invalid accept header value',
+        {
+          id: 'malformed-17',
+          kind: 'api',
+          method: 'POST',
+          path: '/api/x',
+          accept: 'application/json\r\nx-owox-authorization: attacker',
+        },
+      ],
+      [
         'a DELETE body',
         { id: 'malformed-12', kind: 'api', method: 'DELETE', path: '/api/x', body: {} },
+      ],
+      [
+        'a POST without a JSON body',
+        { id: 'malformed-18', kind: 'api', method: 'POST', path: '/api/x' },
+      ],
+      [
+        'a PUT with an undefined JSON body',
+        { id: 'malformed-19', kind: 'api', method: 'PUT', path: '/api/x', body: undefined },
+      ],
+      [
+        'a PATCH without a JSON body',
+        { id: 'malformed-20', kind: 'api', method: 'PATCH', path: '/api/x' },
       ],
       [
         'a non-JSON body',

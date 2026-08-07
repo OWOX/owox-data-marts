@@ -82,10 +82,19 @@ export type PluginRequest =
   | {
       id: string;
       kind: 'api';
-      method: 'GET' | 'POST' | 'PUT' | 'PATCH';
+      method: 'POST' | 'PUT' | 'PATCH';
       path: string;
       query?: PluginQuery;
-      body?: unknown;
+      body: unknown;
+      accept?: string;
+      stream?: false;
+    }
+  | {
+      id: string;
+      kind: 'api';
+      method: 'GET';
+      path: string;
+      query?: PluginQuery;
       accept?: string;
       stream?: false;
     }

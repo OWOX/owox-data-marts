@@ -37,6 +37,7 @@ const ALLOWED_METHODS: Record<PluginProtocolVersion, ReadonlySet<string>> = {
 const API_PATH_PREFIX = '/api/';
 const ENCODED_SEPARATOR = /%(?:25)*(?:2f|5c)/i;
 const ENCODED_SPECIAL_PATH_CHARACTER = /%(?:25)*(?:2e|2f|5c)/i;
+const INVALID_HEADER_VALUE_CHARACTER = /[\0\r\n]/;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
 const MAX_IN_FLIGHT = 32;
 /** Re-mint before the token lapses, so a long session never trips over an expiry. */
@@ -141,6 +142,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
   async function forward(
     request: Extract<PluginRequest, { kind: 'api' }>,
+    serializedBody: string | undefined,
     retryOnUnauthorized = true
   ): Promise<PluginResponse> {
     const url = resolvePath(request);
@@ -151,21 +153,20 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
     const response = await fetch(url.toString(), {
       method: request.method,
       signal: teardown.signal,
+      // A redirect target has not passed resolvePath. Refuse it instead of letting fetch
+      // carry the runtime bearer header to an attacker-controlled Location.
+      redirect: 'error',
       headers: {
         'x-owox-authorization': `Bearer ${await currentToken()}`,
-        ...('body' in request && request.body !== undefined
-          ? { 'content-type': 'application/json' }
-          : {}),
+        ...(serializedBody !== undefined ? { 'content-type': 'application/json' } : {}),
         ...('accept' in request && request.accept ? { accept: request.accept } : {}),
       },
-      ...('body' in request && request.body !== undefined
-        ? { body: JSON.stringify(request.body) }
-        : {}),
+      ...(serializedBody !== undefined ? { body: serializedBody } : {}),
     });
 
     if (response.status === 401 && retryOnUnauthorized) {
       await currentToken(true);
-      return forward(request, false);
+      return forward(request, serializedBody, false);
     }
 
     const headers = pickHeaders(response);
@@ -231,27 +232,9 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       return;
     }
 
-    let request: PluginRequest;
-    try {
-      request = validateRequest(candidate, negotiatedVersion);
-    } catch (caught) {
-      reply({ id, ok: false, error: asErrorPayload(caught) });
-      return;
-    }
-
-    if (request.kind === 'openExternal') {
-      options.onOpenExternal(request.url);
-      return;
-    }
-
-    if (request.kind === 'navigate') {
-      options.onNavigate(request.path);
-      return;
-    }
-
     if (inFlight >= MAX_IN_FLIGHT) {
       reply({
-        id: request.id,
+        id,
         ok: false,
         error: { code: 'PROTOCOL_ERROR', message: 'Too many requests in flight' },
       });
@@ -260,10 +243,28 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
     inFlight += 1;
     try {
-      const response = await forward(request);
+      // Admission covers validation as well as I/O. In particular, JSON serialization
+      // can be attacker-controlled work and must not remain unbounded at capacity.
+      const request = validateRequest(candidate, negotiatedVersion);
+
+      if (request.kind === 'openExternal') {
+        options.onOpenExternal(request.url);
+        return;
+      }
+
+      if (request.kind === 'navigate') {
+        options.onNavigate(request.path);
+        return;
+      }
+
+      // Serialize once, before currentToken, and reuse the immutable string for a 401
+      // retry. This both bounds validation work and prevents a second serialization from
+      // failing only after a credential has been minted.
+      const serializedBody = serializeJsonBody(request);
+      const response = await forward(request, serializedBody);
       reply(response, 'stream' in response ? [response.stream] : []);
     } catch (caught) {
-      reply({ id: request.id, ok: false, error: asErrorPayload(caught) });
+      reply({ id, ok: false, error: asErrorPayload(caught) });
     } finally {
       inFlight -= 1;
     }
@@ -448,6 +449,17 @@ function validateRequest(
     throw protocolError('The API accept value must be a string');
   }
 
+  if (candidate.accept !== undefined) {
+    if (INVALID_HEADER_VALUE_CHARACTER.test(candidate.accept)) {
+      throw protocolError('The API accept value is not a valid header value');
+    }
+    try {
+      new Headers({ accept: candidate.accept });
+    } catch {
+      throw protocolError('The API accept value is not a valid header value');
+    }
+  }
+
   if (candidate.stream !== undefined && typeof candidate.stream !== 'boolean') {
     throw protocolError('The API stream flag must be a boolean');
   }
@@ -456,19 +468,44 @@ function validateRequest(
     throw protocolError('Only GET requests may stream');
   }
 
+  if (candidate.stream === true && candidate.accept !== undefined) {
+    throw protocolError('Streaming GET requests must not override accept');
+  }
+
+  if (candidate.method === 'GET' && candidate.body !== undefined) {
+    throw protocolError('GET requests must not carry a body');
+  }
+
   if (candidate.method === 'DELETE' && candidate.body !== undefined) {
     throw protocolError('DELETE requests must not carry a body');
   }
 
-  if (candidate.body !== undefined) {
-    try {
-      JSON.stringify(candidate.body);
-    } catch {
-      throw protocolError('The API body must be JSON-serializable');
-    }
+  const needsJsonBody =
+    candidate.method === 'POST' || candidate.method === 'PUT' || candidate.method === 'PATCH';
+  if (needsJsonBody && candidate.body === undefined) {
+    throw protocolError(`${candidate.method} requests must carry a JSON body`);
   }
 
   return candidate as unknown as PluginRequest;
+}
+
+function serializeJsonBody(request: Extract<PluginRequest, { kind: 'api' }>): string | undefined {
+  if (request.method === 'GET' || request.method === 'DELETE') {
+    return undefined;
+  }
+
+  try {
+    const serialized: unknown = JSON.stringify(request.body);
+    if (typeof serialized !== 'string') {
+      throw protocolError('The API body must be JSON-serializable');
+    }
+    return serialized;
+  } catch (caught) {
+    if (caught instanceof PluginTransportRefusal) {
+      throw caught;
+    }
+    throw protocolError('The API body must be JSON-serializable');
+  }
 }
 
 class PluginTransportRefusal extends Error {
