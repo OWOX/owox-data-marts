@@ -301,9 +301,10 @@ authentication or any network request.
 
 Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)` method
 starts a manual connector run and requires Technical User access to the Data Mart. Omit the options
-for an incremental run, or set `runType` to `MANUAL_BACKFILL` and pass the connector-specific
-backfill fields in `data`. The method returns the new run ID. The serialized options must not exceed
-1 MB.
+for an incremental run, or set `runType` to `MANUAL_BACKFILL` and pass any connector-specific
+backfill fields in `data`. Connectors without backfill fields can omit `data`. Object-valued `data`
+is also accepted for incremental runs for compatibility with existing run forms that retain hidden
+field values. The method returns the new run ID. The serialized options must not exceed 1 MB.
 
 ```ts
 const dataMartRuns = client.runs.forDataMart('data-mart-id');
@@ -359,7 +360,8 @@ The package exports `OWOXDataMartRun`, `OWOXDataMartRunDetail`,
 `OWOXDataMartRunsScope`, and the run and Data Quality enum and nested-object types. The client
 validates response field presence, nullability, enums, RFC 3339 timestamps, totals, author metadata,
 compact Data Quality summaries, and full Data Quality detail. An incompatible response throws
-`OWOXApiError`.
+`OWOXApiError`. Scoped list and detail methods normalize Data Quality fields omitted by older
+self-hosted deployments to `null`.
 
 ## Read the Models canvas
 

@@ -57,9 +57,9 @@ function validateRunStartOptions(options: unknown): asserts options is OWOXDataM
   }
   const hasValidRunConfiguration =
     options.runType === 'MANUAL_BACKFILL'
-      ? isRecord(options.data)
+      ? options.data === undefined || isRecord(options.data)
       : (options.runType === undefined || options.runType === 'INCREMENTAL') &&
-        options.data === undefined;
+        (options.data === undefined || isRecord(options.data));
   if (
     Object.keys(options).some(key => key !== 'runType' && key !== 'data') ||
     !hasValidRunConfiguration
@@ -137,6 +137,17 @@ function parseProjectRunHistory(response: unknown): OWOXProjectDataMartRunsRespo
   return response as OWOXProjectDataMartRunsResponse;
 }
 
+function normalizeDataMartRun(value: unknown): unknown {
+  return isRecord(value) && value.qualitySummary === undefined
+    ? { ...value, qualitySummary: null }
+    : value;
+}
+
+function normalizeDataMartRunDetail(value: unknown): unknown {
+  const run = normalizeDataMartRun(value);
+  return isRecord(run) && run.dataQuality === undefined ? { ...run, dataQuality: null } : run;
+}
+
 export type OWOXDataMartRunsScope = {
   start(options?: OWOXDataMartRunStartOptions): Promise<OWOXRunDataMartResponse>;
   list(options?: OWOXDataMartRunListOptions): Promise<OWOXDataMartRunsResponse>;
@@ -186,16 +197,20 @@ class DataMartRunsScope implements OWOXDataMartRunsScope {
       `${this.path}/runs`,
       Object.keys(query).length === 0 ? undefined : query
     );
+    const normalizedResponse =
+      isRecord(response) && Array.isArray(response.runs)
+        ? { ...response, runs: response.runs.map(normalizeDataMartRun) }
+        : response;
     if (
-      !isRecord(response) ||
-      !Array.isArray(response.runs) ||
-      !response.runs.every(isDataMartRun)
+      !isRecord(normalizedResponse) ||
+      !Array.isArray(normalizedResponse.runs) ||
+      !normalizedResponse.runs.every(isDataMartRun)
     ) {
       throw new OWOXApiError('OWOX Data Mart Runs API returned an unexpected response shape', {
         details: response,
       });
     }
-    return response as OWOXDataMartRunsResponse;
+    return normalizedResponse as OWOXDataMartRunsResponse;
   }
 
   async get(runId: string): Promise<OWOXDataMartRunDetail> {
@@ -203,12 +218,13 @@ class DataMartRunsScope implements OWOXDataMartRunsScope {
     const response = await this.requester.getJson<unknown>(
       `${this.path}/runs/${encodeURIComponent(runId)}`
     );
-    if (!isDataMartRunDetail(response)) {
+    const normalizedResponse = normalizeDataMartRunDetail(response);
+    if (!isDataMartRunDetail(normalizedResponse)) {
       throw new OWOXApiError('OWOX Data Mart Run API returned an unexpected response shape', {
         details: response,
       });
     }
-    return response;
+    return normalizedResponse;
   }
 
   async cancel(runId: string): Promise<void> {

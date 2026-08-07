@@ -44,9 +44,8 @@ describe('RunDataMartRequestApiDto', () => {
   });
 
   it.each([
-    { data: { StartDate: '2026-07-01' } },
-    { runType: 'MANUAL_BACKFILL' },
-    { runType: 'INCREMENTAL', data: {} },
+    { runType: 'FULL_REFRESH' },
+    { runType: 'MANUAL_BACKFILL', data: [] },
     { runType: 'INCREMENTAL', typo: true },
   ])('rejects a payload whose run type and data do not form a supported pair', async payload => {
     const dto = Object.assign(new RunDataMartRequestApiDto(), { payload });
@@ -68,6 +67,15 @@ describe('RunDataMartRequestApiDto', () => {
         data: { StartDate: '2026-07-01', EndDate: '2026-07-31' },
       },
     });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it.each([
+    { runType: 'INCREMENTAL', data: { StartDate: '2026-07-01' } },
+    { runType: 'MANUAL_BACKFILL' },
+  ])('accepts connector payload variants produced by the existing run form', async payload => {
+    const dto = Object.assign(new RunDataMartRequestApiDto(), { payload });
 
     await expect(validate(dto)).resolves.toEqual([]);
   });

@@ -328,12 +328,13 @@ describe('DataMartController list OpenAPI', () => {
       additionalProperties: false,
       properties: {
         runType: { type: 'string', enum: ['INCREMENTAL'] },
+        data: { type: 'object', additionalProperties: true },
       },
     });
     expect(resolveRef('#/components/schemas/ManualBackfillRunDataMartPayloadApiDto')).toMatchObject(
       {
         additionalProperties: false,
-        required: ['runType', 'data'],
+        required: ['runType'],
         properties: {
           runType: { type: 'string', enum: ['MANUAL_BACKFILL'] },
           data: { type: 'object', additionalProperties: true },

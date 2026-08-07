@@ -22,14 +22,12 @@ function IsRunDataMartPayload(validationOptions?: ValidationOptions) {
         validate(value: unknown): boolean {
           if (!isRecord(value)) return false;
           if (Object.keys(value).some(key => key !== 'runType' && key !== 'data')) return false;
-          if (value.runType === 'MANUAL_BACKFILL') return isRecord(value.data);
-          return (
-            (value.runType === undefined || value.runType === 'INCREMENTAL') &&
-            value.data === undefined
-          );
+          const hasValidData = value.data === undefined || isRecord(value.data);
+          if (value.runType === 'MANUAL_BACKFILL') return hasValidData;
+          return (value.runType === undefined || value.runType === 'INCREMENTAL') && hasValidData;
         },
         defaultMessage: () =>
-          'payload must be incremental without data, or MANUAL_BACKFILL with object data',
+          'payload must select INCREMENTAL or MANUAL_BACKFILL and use object data when provided',
       },
     },
     validationOptions
@@ -54,6 +52,13 @@ const manualBackfillSchema: ClosedApiSchemaOptions = {
 export class IncrementalRunDataMartPayloadApiDto {
   @ApiPropertyOptional({ enum: ['INCREMENTAL'], default: 'INCREMENTAL' })
   runType?: 'INCREMENTAL';
+
+  @ApiPropertyOptional({
+    type: Object,
+    additionalProperties: true,
+    description: 'Connector-specific fields retained for compatibility with existing run forms.',
+  })
+  data?: Record<string, unknown>;
 }
 
 @ApiSchema(manualBackfillSchema)
@@ -61,19 +66,19 @@ export class ManualBackfillRunDataMartPayloadApiDto {
   @ApiProperty({ enum: ['MANUAL_BACKFILL'] })
   runType: 'MANUAL_BACKFILL';
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: Object,
     additionalProperties: true,
-    description: 'Connector-specific manual-backfill fields.',
+    description: 'Connector-specific manual-backfill fields, when the connector defines them.',
   })
-  data: Record<string, unknown>;
+  data?: Record<string, unknown>;
 }
 
 @ApiExtraModels(IncrementalRunDataMartPayloadApiDto, ManualBackfillRunDataMartPayloadApiDto)
 export class RunDataMartRequestApiDto {
   /**
-   * Payload for the manual run. Omit it or select INCREMENTAL without data for an incremental run.
-   * MANUAL_BACKFILL requires connector-specific fields in data.
+   * Payload for the manual run. Omit it or select INCREMENTAL for an incremental run.
+   * MANUAL_BACKFILL can include connector-specific fields in data.
    */
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsObject()
@@ -88,8 +93,8 @@ export class RunDataMartRequestApiDto {
       runType: 'MANUAL_BACKFILL',
       data: { StartDate: '2026-07-01', EndDate: '2026-07-31' },
     },
-    description: `Payload for the manual run. Omit it or select INCREMENTAL without data for an incremental run.
-    MANUAL_BACKFILL requires connector-specific fields in data.`,
+    description: `Payload for the manual run. Omit it or select INCREMENTAL for an incremental run.
+    MANUAL_BACKFILL can include connector-specific fields in data.`,
   })
   payload?: Record<string, unknown> | undefined;
 }

@@ -176,7 +176,7 @@ describe('Data Mart run lifecycle API', () => {
       if (request.method === 'POST') {
         return createJsonResponse(201, { runId: 42 });
       }
-      return createJsonResponse(200, { runs: [{ ...run, qualitySummary: undefined }] });
+      return createJsonResponse(200, { runs: [{ ...run, status: 'UNKNOWN' }] });
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
@@ -184,6 +184,51 @@ describe('Data Mart run lifecycle API', () => {
     await expect(client.runs.forDataMart('dm-1').list()).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart Runs API returned an unexpected response shape',
+    });
+  });
+
+  it('normalizes run responses from deployments that predate Data Quality fields', async () => {
+    const { qualitySummary: _qualitySummary, ...legacyRun } = run;
+    const {
+      qualitySummary: _detailQualitySummary,
+      dataQuality: _dataQuality,
+      ...legacyRunDetail
+    } = runDetail;
+    const fetchImpl = createFetchMock(request => {
+      if (request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      if (request.url === '/api/data-marts/dm-1/runs/run-1') {
+        return createJsonResponse(200, legacyRunDetail);
+      }
+      return createJsonResponse(200, { runs: [legacyRun] });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+    const runs = client.runs.forDataMart('dm-1');
+
+    await expect(runs.list()).resolves.toEqual({ runs: [{ ...legacyRun, qualitySummary: null }] });
+    await expect(runs.get('run-1')).resolves.toEqual({
+      ...legacyRunDetail,
+      qualitySummary: null,
+      dataQuality: null,
+    });
+  });
+
+  it.each([
+    ['incremental data retained by the run form', { runType: 'INCREMENTAL', data: {} }],
+    ['manual backfill without connector-specific fields', { runType: 'MANUAL_BACKFILL' }],
+  ] as const)('accepts %s', async (_case, options) => {
+    const fetchImpl = createFetchMock(request => {
+      if (request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      expect(request.body).toEqual({ payload: options });
+      return createJsonResponse(201, { runId: '123e4567-e89b-12d3-a456-426614174000' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.forDataMart('dm-1').start(options)).resolves.toEqual({
+      runId: '123e4567-e89b-12d3-a456-426614174000',
     });
   });
 
@@ -230,13 +275,7 @@ describe('Data Mart run lifecycle API', () => {
       message: 'OWOX Data Mart manual-run payload exceeds 1MB',
     });
     await expect(
-      client.runs.forDataMart('dm-1').start({ data: { value: 'silently ignored' } } as never)
-    ).rejects.toMatchObject({
-      name: 'OWOXApiError',
-      message: 'Invalid OWOX Data Mart run-start options',
-    });
-    await expect(
-      client.runs.forDataMart('dm-1').start({ runType: 'MANUAL_BACKFILL' } as never)
+      client.runs.forDataMart('dm-1').start({ data: [] } as never)
     ).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'Invalid OWOX Data Mart run-start options',
