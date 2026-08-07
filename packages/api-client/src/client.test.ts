@@ -1,10 +1,12 @@
 import { jest } from '@jest/globals';
 
 import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from './index.js';
+import { requestApi } from './transport.js';
 
 type RecordedRequest = {
   method: string;
   url: string;
+  redirect: RequestRedirect;
   headers: Record<string, string>;
   body: unknown;
 };
@@ -57,6 +59,7 @@ function createFetchMock(
     const recordedRequest: RecordedRequest = {
       method: request.method,
       url: `${parsedUrl.pathname}${parsedUrl.search}`,
+      redirect: request.redirect,
       headers,
       body: await readRequestBody(request),
     };
@@ -189,6 +192,102 @@ describe('OWOXApiClient', () => {
     });
 
     await client.dataMarts.list();
+  });
+
+  it('sends a JSON PATCH request with authenticated redirect handling', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'PATCH' && request.url === '/api/data-marts/dm-1') {
+        expect(request.headers['content-type']).toBe('application/json');
+        expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
+        expect(request.redirect).toBe('error');
+        expect(request.body).toEqual({ title: 'Renamed data mart' });
+        return createJsonResponse(200, { id: 'dm-1', title: 'Renamed data mart' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await expect(
+      client.patchJson('/api/data-marts/dm-1', { title: 'Renamed data mart' })
+    ).resolves.toEqual({ id: 'dm-1', title: 'Renamed data mart' });
+  });
+
+  it('returns a JSON response from a DELETE request without a request body', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'DELETE' && request.url === '/api/data-marts/dm-1') {
+        expect(request.body).toBeUndefined();
+        expect(request.headers['content-type']).toBeUndefined();
+        return createJsonResponse(200, { id: 'dm-1', deleted: true });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await expect(client.deleteJson('/api/data-marts/dm-1')).resolves.toEqual({
+      id: 'dm-1',
+      deleted: true,
+    });
+  });
+
+  it('returns undefined from an empty successful DELETE response', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'DELETE' && request.url === '/api/data-marts/dm-1') {
+        return new Response(null, { status: 204 });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await expect(client.deleteJson('/api/data-marts/dm-1')).resolves.toBeUndefined();
+  });
+
+  it.each([
+    'https://attacker.test/api/data-marts',
+    '//attacker.test/api/data-marts',
+    '/api/../auth/context',
+    '/api/data-marts/../auth/context',
+    '/api/%2e%2e/auth/context',
+    '/api/data%2fmarts',
+    '/api/data%5cmarts',
+    '/api\\data-marts',
+    '/internal/data-marts',
+  ])('rejects unsafe API path %p before exchanging an access token', async path => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects an encoded separator in a supplied authenticated URL before fetching', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+
+    await expect(
+      requestApi({
+        apiOrigin,
+        fetchImpl,
+        path: '/api/data%2fmarts',
+        url: new URL('/api/data%2fmarts', apiOrigin),
+        method: 'GET',
+        apiKeyId,
+      })
+    ).rejects.toBeInstanceOf(OWOXConfigError);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('gets the API key auth context without exposing the API key secret', async () => {

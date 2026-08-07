@@ -77,6 +77,14 @@ export class OWOXApiClient implements OWOXTransport {
     return this.transport.putJson<T>(path, jsonBody);
   }
 
+  async patchJson<T>(path: string, jsonBody: unknown): Promise<T> {
+    return this.transport.patchJson<T>(path, jsonBody);
+  }
+
+  async deleteJson<T = void>(path: string): Promise<T> {
+    return this.transport.deleteJson<T>(path);
+  }
+
   async postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T> {
     return this.transport.postJson<T>(path, jsonBody, accept);
   }

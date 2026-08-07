@@ -21,6 +21,14 @@ function recordingTransport() {
       calls.push({ method: 'putJson', path, body });
       return {} as T;
     },
+    patchJson: async <T>(path: string, body: unknown) => {
+      calls.push({ method: 'patchJson', path, body });
+      return { id: 'dm-1', title: 'Updated' } as T;
+    },
+    deleteJson: async <T>(path: string) => {
+      calls.push({ method: 'deleteJson', path });
+      return undefined as T;
+    },
     getStream: async (path: string) => {
       calls.push({ method: 'getStream', path });
       return new Response('');
@@ -59,6 +67,22 @@ describe('injected transport', () => {
     const { transport } = recordingTransport();
 
     expect(() => new OWOXApiClient({ transport })).not.toThrow();
+  });
+
+  it('forwards low-level PATCH and DELETE calls through the injected transport', async () => {
+    const { transport, calls } = recordingTransport();
+    const client = new OWOXApiClient({ transport });
+
+    await expect(client.patchJson('/api/data-marts/dm-1', { title: 'Updated' })).resolves.toEqual({
+      id: 'dm-1',
+      title: 'Updated',
+    });
+    await expect(client.deleteJson('/api/data-marts/dm-1')).resolves.toBeUndefined();
+
+    expect(calls).toEqual([
+      { method: 'patchJson', path: '/api/data-marts/dm-1', body: { title: 'Updated' } },
+      { method: 'deleteJson', path: '/api/data-marts/dm-1' },
+    ]);
   });
 
   // A transport with nothing to authenticate must not make the shared call blow up.

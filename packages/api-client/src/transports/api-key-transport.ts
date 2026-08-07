@@ -1,7 +1,7 @@
 import { parseOWOXApiKey } from '../api-key.js';
 import { exchangeAccessToken, normalizeApiOrigin, readResponseBody } from '../auth.js';
 import { createHttpError } from '../errors.js';
-import { requestApi, type OWOXTransport } from '../transport.js';
+import { requestApi, resolveAuthenticatedApiUrl, type OWOXTransport } from '../transport.js';
 
 export type ApiKeyTransportOptions = {
   apiKey: string;
@@ -17,7 +17,7 @@ export type ApiKeyTransportOptions = {
 
 type QueryParams = Record<string, string> | URLSearchParams;
 type AuthenticatedRequestOptions = {
-  method: 'GET' | 'POST' | 'PUT';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   query?: QueryParams;
   accept?: string;
   jsonBody?: unknown;
@@ -59,6 +59,14 @@ export class ApiKeyTransport implements OWOXTransport {
     return this.requestJsonWithAuth<T>(path, { method: 'PUT', jsonBody });
   }
 
+  async patchJson<T>(path: string, jsonBody: unknown): Promise<T> {
+    return this.requestJsonWithAuth<T>(path, { method: 'PATCH', jsonBody });
+  }
+
+  async deleteJson<T = void>(path: string): Promise<T> {
+    return this.requestJsonWithAuth<T>(path, { method: 'DELETE' });
+  }
+
   async postJson<T>(path: string, jsonBody: unknown, accept?: string): Promise<T> {
     return this.requestJsonWithAuth<T>(path, { method: 'POST', jsonBody, accept });
   }
@@ -97,10 +105,13 @@ export class ApiKeyTransport implements OWOXTransport {
     options: AuthenticatedRequestOptions,
     retryOnUnauthorized = true
   ): Promise<Response> {
+    // Resolving before the exchange keeps API-key credentials off any caller-supplied URL.
+    const url = resolveAuthenticatedApiUrl(this.apiOrigin, path, options.query);
     const response = await requestApi({
       apiOrigin: this.apiOrigin,
       fetchImpl: this.fetchImpl,
       path,
+      url,
       method: options.method,
       apiKeyId: this.apiKeyId,
       accessToken: await this.getAccessToken(),
