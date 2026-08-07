@@ -244,17 +244,17 @@ describe('DataMartController list OpenAPI', () => {
 
     const runSchema = resolveRef('#/components/schemas/DataMartRunResponseApiDto');
     expect(runSchema.required).toContain('createdByUser');
+    expect(runSchema.properties.status).not.toHaveProperty('nullable');
+    expect(runSchema.properties.type).not.toHaveProperty('nullable');
+    expect(runSchema.properties.runType).not.toHaveProperty('nullable');
     expect(runSchema.properties).toMatchObject({
       status: {
-        nullable: true,
         allOf: [{ $ref: '#/components/schemas/DataMartRunStatus' }],
       },
       type: {
-        nullable: true,
         allOf: [{ $ref: '#/components/schemas/DataMartRunType' }],
       },
       runType: {
-        nullable: true,
         allOf: [{ $ref: '#/components/schemas/RunType' }],
       },
       createdByUser: {

@@ -53,27 +53,24 @@ export class DataMartRunResponseApiDto {
     description: 'Current run lifecycle status.',
     enum: DataMartRunStatus,
     enumName: 'DataMartRunStatus',
-    nullable: true,
   })
-  status: DataMartRunStatus | null;
+  status: DataMartRunStatus;
 
   @ApiProperty({
     example: 'CONNECTOR',
     description: 'Execution category that produced the run.',
     enum: DataMartRunType,
     enumName: 'DataMartRunType',
-    nullable: true,
   })
-  type: DataMartRunType | null;
+  type: DataMartRunType;
 
   @ApiProperty({
     example: 'manual',
     description: 'Run trigger type (manual, scheduled)',
     enum: RunType,
     enumName: 'RunType',
-    nullable: true,
   })
-  runType: RunType | null;
+  runType: RunType;
 
   @ApiProperty({ example: 'a5c9b1d2-3456-7890-abcd-ef0123456789' })
   dataMartId: string;

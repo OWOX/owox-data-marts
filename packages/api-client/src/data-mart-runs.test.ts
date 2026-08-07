@@ -3,6 +3,7 @@ import {
   OWOXApiError,
   type OWOXDataMartRun,
   type OWOXDataMartRunDetail,
+  type OWOXDataQualityRule,
 } from './index.js';
 import { jest } from '@jest/globals';
 
@@ -82,6 +83,40 @@ const run: OWOXDataMartRun = {
 
 const runDetail: OWOXDataMartRunDetail = { ...run, dataQuality: null };
 
+const dataQualityRule: OWOXDataQualityRule = {
+  key: 'null_rate:field:["email"]',
+  category: 'null_rate',
+  scope: { type: 'FIELD', fieldPath: ['email'] },
+  severity: 'warning',
+  enabled: true,
+  parameters: { thresholdPercent: 0 },
+  isApplicable: true,
+};
+
+const dataQualityDetail = {
+  snapshot: {
+    config: { rules: [dataQualityRule] },
+    schema: null,
+    relationships: [],
+    definitionType: 'CONNECTOR',
+  },
+  summary: {
+    state: 'PASSED',
+    enabledChecks: 1,
+    totalChecks: 1,
+    passedChecks: 1,
+    failedChecks: 0,
+    notApplicableChecks: 0,
+    errorChecks: 0,
+    noticeFindings: 0,
+    warningFindings: 0,
+    errorFindings: 0,
+    violationCount: 0,
+    highestSeverity: null,
+  },
+  results: [],
+} as const;
+
 describe('Data Mart run lifecycle API', () => {
   it('starts, lists, reads, and cancels a Data Mart run through authenticated requests', async () => {
     const fetchImpl = createFetchMock(request => {
@@ -145,6 +180,21 @@ describe('Data Mart run lifecycle API', () => {
     });
   });
 
+  it.each(['status', 'type', 'runType'] as const)(
+    'rejects a null %s that the backend cannot produce',
+    async field => {
+      const fetchImpl = createFetchMock(request => {
+        if (request.url === '/api/auth/api-keys/exchange') {
+          return createJsonResponse(200, { accessToken: 'access-token-1' });
+        }
+        return createJsonResponse(200, { ...runDetail, [field]: null });
+      });
+      const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+      await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toBeInstanceOf(OWOXApiError);
+    }
+  );
+
   it('rejects invalid request options before making a network request', async () => {
     const fetchImpl = jest.fn<typeof fetch>();
     const client = new OWOXApiClient({ apiKey, fetchImpl });
@@ -207,5 +257,62 @@ describe('Data Mart run lifecycle API', () => {
       name: 'OWOXApiError',
       message: 'OWOX Data Mart Run API returned an unexpected response shape',
     });
+  });
+
+  it('accepts a nested Data Quality detail that matches the backend schema', async () => {
+    const response = { ...runDetail, dataQuality: dataQualityDetail };
+    const fetchImpl = createFetchMock(request => {
+      if (request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.dataMarts.getRun('dm-1', 'run-1')).resolves.toEqual(response);
+  });
+
+  it('rejects nested Data Quality values outside the backend schema constraints', async () => {
+    const invalidRules = [
+      { ...dataQualityRule, scope: { type: 'FIELD', fieldPath: [] } },
+      { ...dataQualityRule, scope: { type: 'FIELD', fieldPath: ['   '] } },
+      { ...dataQualityRule, parameters: { thresholdPercent: -1 } },
+      { ...dataQualityRule, parameters: { thresholdPercent: 101 } },
+      { ...dataQualityRule, notApplicableReason: '' },
+      {
+        ...dataQualityRule,
+        key: 'data_freshness:field:["email"]',
+        category: 'data_freshness',
+        parameters: { thresholdHours: -1 },
+      },
+      {
+        ...dataQualityRule,
+        key: 'data_freshness:field:["email"]',
+        category: 'data_freshness',
+        parameters: { thresholdHours: Number.MAX_SAFE_INTEGER },
+      },
+    ];
+
+    for (const invalidRule of invalidRules) {
+      const response = {
+        ...runDetail,
+        dataQuality: {
+          ...dataQualityDetail,
+          snapshot: {
+            ...dataQualityDetail.snapshot,
+            config: { rules: [invalidRule] },
+          },
+        },
+      };
+      const fetchImpl = createFetchMock(request => {
+        if (request.url === '/api/auth/api-keys/exchange') {
+          return createJsonResponse(200, { accessToken: 'access-token-1' });
+        }
+        return createJsonResponse(200, response);
+      });
+      const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+      await expect(client.dataMarts.getRun('dm-1', 'run-1')).rejects.toBeInstanceOf(OWOXApiError);
+    }
   });
 });

@@ -34,6 +34,7 @@ export {
   type OWOXDataQualityCategory,
   type OWOXDataQualityCheckStatus,
   type OWOXDataQualityRunDetail,
+  type OWOXDataQualityRule,
   type OWOXDataQualityScope,
   type OWOXDataQualitySeverity,
   type OWOXDataQualitySummary,

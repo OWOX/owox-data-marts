@@ -17,7 +17,7 @@ means the dimension has not been evaluated and does not imply a gap.
 ## Summary
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
-| ----------------: | ------------: | --------------: | -----------------: | ---------: |
+| ----------------: | ------------: | ---------------: | -----------------: | ---------: |
 |               139 |  16/139 (12%) |    16/139 (12%) |       16/139 (12%) |        123 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
@@ -32,121 +32,121 @@ as API-client coverage.
 
 ## Authentication
 
-| Endpoint                | OpenAPI                                                                                                      | API client                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/auth/context` | [Covered](https://app.owox.com/api/swagger-ui#/Authentication/AuthContextController_getContext) · 2026-07-22 | [Covered](./api-client/#get-auth-context) · 2026-07-22 |
 
 ## Connectors
 
-| Endpoint                                            | OpenAPI    | API client |
-| --------------------------------------------------- | ---------- | ---------- |
-| `GET /api/connectors`                               | Unassessed | Unassessed |
-| `GET /api/connectors/{connectorName}/fields`        | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/connectors` | Unassessed | Unassessed |
+| `GET /api/connectors/{connectorName}/fields` | Unassessed | Unassessed |
 | `GET /api/connectors/{connectorName}/specification` | Unassessed | Unassessed |
 
 ## Contexts
 
-| Endpoint                         | OpenAPI    | API client |
-| -------------------------------- | ---------- | ---------- |
-| `GET /api/contexts`              | Unassessed | Unassessed |
-| `POST /api/contexts`             | Unassessed | Unassessed |
-| `DELETE /api/contexts/{id}`      | Unassessed | Unassessed |
-| `PUT /api/contexts/{id}`         | Unassessed | Unassessed |
-| `GET /api/contexts/{id}/impact`  | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/contexts` | Unassessed | Unassessed |
+| `POST /api/contexts` | Unassessed | Unassessed |
+| `DELETE /api/contexts/{id}` | Unassessed | Unassessed |
+| `PUT /api/contexts/{id}` | Unassessed | Unassessed |
+| `GET /api/contexts/{id}/impact` | Unassessed | Unassessed |
 | `PUT /api/contexts/{id}/members` | Unassessed | Unassessed |
 
 ## Data Mart Relationships
 
-| Endpoint                                                 | OpenAPI    | API client |
-| -------------------------------------------------------- | ---------- | ---------- |
-| `POST /api/data-marts/{dataMartId}/relationships`        | Unassessed | Unassessed |
-| `GET /api/data-marts/{dataMartId}/relationships/graph`   | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `POST /api/data-marts/{dataMartId}/relationships` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/relationships/graph` | Unassessed | Unassessed |
 | `DELETE /api/data-marts/{dataMartId}/relationships/{id}` | Unassessed | Unassessed |
-| `PATCH /api/data-marts/{dataMartId}/relationships/{id}`  | Unassessed | Unassessed |
+| `PATCH /api/data-marts/{dataMartId}/relationships/{id}` | Unassessed | Unassessed |
 
 ## Data Storage Relationships
 
-| Endpoint                                           | OpenAPI    | API client |
-| -------------------------------------------------- | ---------- | ---------- |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/data-storages/{storageId}/relationships` | Unassessed | Unassessed |
 
 ## Data destinations
 
-| Endpoint                                                   | OpenAPI    | API client |
-| ---------------------------------------------------------- | ---------- | ---------- |
-| `GET /api/data-destinations`                               | Unassessed | Unassessed |
-| `POST /api/data-destinations`                              | Unassessed | Unassessed |
-| `GET /api/data-destinations/by-type/{type}`                | Unassessed | Unassessed |
-| `DELETE /api/data-destinations/{id}`                       | Unassessed | Unassessed |
-| `GET /api/data-destinations/{id}`                          | Unassessed | Unassessed |
-| `PUT /api/data-destinations/{id}`                          | Unassessed | Unassessed |
-| `PUT /api/data-destinations/{id}/availability`             | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/data-destinations` | Unassessed | Unassessed |
+| `POST /api/data-destinations` | Unassessed | Unassessed |
+| `GET /api/data-destinations/by-type/{type}` | Unassessed | Unassessed |
+| `DELETE /api/data-destinations/{id}` | Unassessed | Unassessed |
+| `GET /api/data-destinations/{id}` | Unassessed | Unassessed |
+| `PUT /api/data-destinations/{id}` | Unassessed | Unassessed |
+| `PUT /api/data-destinations/{id}/availability` | Unassessed | Unassessed |
 | `POST /api/data-destinations/{id}/google-sheets/documents` | Unassessed | Unassessed |
-| `GET /api/data-destinations/{id}/impact`                   | Unassessed | Unassessed |
-| `POST /api/data-destinations/{id}/rotate-secret-key`       | Unassessed | Unassessed |
+| `GET /api/data-destinations/{id}/impact` | Unassessed | Unassessed |
+| `POST /api/data-destinations/{id}/rotate-secret-key` | Unassessed | Unassessed |
 
 ## Data Marts
 
-| Endpoint                                                                        | OpenAPI                                                                                                 | API client                                                  |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET /api/data-marts`                                                           | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list) · 2026-07-23          | [Covered](./api-client/#list-data-marts) · 2026-07-23       |
-| `POST /api/data-marts`                                                          | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/ai-helper/availability`                                    | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/by-connector/{connectorName}`                              | Unassessed                                                                                              | Unassessed                                                  |
-| `POST /api/data-marts/health-status`                                            | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/member-ownership-warnings`                                 | Unassessed                                                                                              | Unassessed                                                  |
-| `POST /api/data-marts/{dataMartId}/ai-helper/triggers`                          | Unassessed                                                                                              | Unassessed                                                  |
-| `DELETE /api/data-marts/{dataMartId}/ai-helper/triggers/{triggerId}`            | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{dataMartId}/ai-helper/triggers/{triggerId}`               | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{dataMartId}/ai-helper/triggers/{triggerId}/status`        | Unassessed                                                                                              | Unassessed                                                  |
-| `POST /api/data-marts/{dataMartId}/schema-actualize-triggers`                   | Unassessed                                                                                              | Unassessed                                                  |
-| `DELETE /api/data-marts/{dataMartId}/schema-actualize-triggers/{triggerId}`     | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{dataMartId}/schema-actualize-triggers/{triggerId}`        | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{dataMartId}/schema-actualize-triggers/{triggerId}/status` | Unassessed                                                                                              | Unassessed                                                  |
-| `POST /api/data-marts/{dataMartId}/sql-dry-run-triggers`                        | Unassessed                                                                                              | Unassessed                                                  |
-| `DELETE /api/data-marts/{dataMartId}/sql-dry-run-triggers/{triggerId}`          | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{dataMartId}/sql-dry-run-triggers/{triggerId}`             | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{dataMartId}/sql-dry-run-triggers/{triggerId}/status`      | Unassessed                                                                                              | Unassessed                                                  |
-| `DELETE /api/data-marts/{id}`                                                   | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{id}`                                                      | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/availability`                                         | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{id}/blendable-schema`                                     | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/blended-fields-config`                                | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/contexts`                                             | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/definition`                                           | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/description`                                          | Unassessed                                                                                              | Unassessed                                                  |
-| `POST /api/data-marts/{id}/manual-run`                                          | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_manualRun) · 2026-08-07     | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
-| `PUT /api/data-marts/{id}/owners`                                               | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/publish`                                              | Unassessed                                                                                              | Unassessed                                                  |
-| `GET /api/data-marts/{id}/runs`                                                 | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_getRunHistory) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
-| `GET /api/data-marts/{id}/runs/{runId}`                                         | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_getRunById) · 2026-08-07    | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
-| `POST /api/data-marts/{id}/runs/{runId}/cancel`                                 | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_cancelRun) · 2026-08-07     | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
-| `PUT /api/data-marts/{id}/schema`                                               | Unassessed                                                                                              | Unassessed                                                  |
-| `PUT /api/data-marts/{id}/title`                                                | Unassessed                                                                                              | Unassessed                                                  |
-| `POST /api/data-marts/{id}/validate-definition`                                 | Unassessed                                                                                              | Unassessed                                                  |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/data-marts` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_list) · 2026-07-23 | [Covered](./api-client/#list-data-marts) · 2026-07-23 |
+| `POST /api/data-marts` | Unassessed | Unassessed |
+| `GET /api/data-marts/ai-helper/availability` | Unassessed | Unassessed |
+| `GET /api/data-marts/by-connector/{connectorName}` | Unassessed | Unassessed |
+| `POST /api/data-marts/health-status` | Unassessed | Unassessed |
+| `GET /api/data-marts/member-ownership-warnings` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/ai-helper/triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/ai-helper/triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/ai-helper/triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/ai-helper/triggers/{triggerId}/status` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/schema-actualize-triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/schema-actualize-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/schema-actualize-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/schema-actualize-triggers/{triggerId}/status` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/sql-dry-run-triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/sql-dry-run-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/sql-dry-run-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/sql-dry-run-triggers/{triggerId}/status` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{id}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{id}` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/availability` | Unassessed | Unassessed |
+| `GET /api/data-marts/{id}/blendable-schema` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/blended-fields-config` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/contexts` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/definition` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/description` | Unassessed | Unassessed |
+| `POST /api/data-marts/{id}/manual-run` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_manualRun) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
+| `PUT /api/data-marts/{id}/owners` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/publish` | Unassessed | Unassessed |
+| `GET /api/data-marts/{id}/runs` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_getRunHistory) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
+| `GET /api/data-marts/{id}/runs/{runId}` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_getRunById) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
+| `POST /api/data-marts/{id}/runs/{runId}/cancel` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_cancelRun) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
+| `PUT /api/data-marts/{id}/schema` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{id}/title` | Unassessed | Unassessed |
+| `POST /api/data-marts/{id}/validate-definition` | Unassessed | Unassessed |
 
 ## Data storages
 
-| Endpoint                                                                            | OpenAPI    | API client |
-| ----------------------------------------------------------------------------------- | ---------- | ---------- |
-| `GET /api/data-storages`                                                            | Unassessed | Unassessed |
-| `POST /api/data-storages`                                                           | Unassessed | Unassessed |
-| `GET /api/data-storages/by-type/{type}`                                             | Unassessed | Unassessed |
-| `POST /api/data-storages/{dataStorageId}/publish-drafts-triggers`                   | Unassessed | Unassessed |
-| `DELETE /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}`     | Unassessed | Unassessed |
-| `GET /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}`        | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/data-storages` | Unassessed | Unassessed |
+| `POST /api/data-storages` | Unassessed | Unassessed |
+| `GET /api/data-storages/by-type/{type}` | Unassessed | Unassessed |
+| `POST /api/data-storages/{dataStorageId}/publish-drafts-triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}` | Unassessed | Unassessed |
 | `GET /api/data-storages/{dataStorageId}/publish-drafts-triggers/{triggerId}/status` | Unassessed | Unassessed |
-| `DELETE /api/data-storages/{id}`                                                    | Unassessed | Unassessed |
-| `GET /api/data-storages/{id}`                                                       | Unassessed | Unassessed |
-| `PUT /api/data-storages/{id}`                                                       | Unassessed | Unassessed |
-| `PUT /api/data-storages/{id}/availability`                                          | Unassessed | Unassessed |
-| `GET /api/data-storages/{id}/resources`                                             | Unassessed | Unassessed |
-| `POST /api/data-storages/{id}/validate-access`                                      | Unassessed | Unassessed |
+| `DELETE /api/data-storages/{id}` | Unassessed | Unassessed |
+| `GET /api/data-storages/{id}` | Unassessed | Unassessed |
+| `PUT /api/data-storages/{id}` | Unassessed | Unassessed |
+| `PUT /api/data-storages/{id}/availability` | Unassessed | Unassessed |
+| `GET /api/data-storages/{id}/resources` | Unassessed | Unassessed |
+| `POST /api/data-storages/{id}/validate-access` | Unassessed | Unassessed |
 
 ## HTTP Data
 
-| Endpoint                                                     | OpenAPI                                                                                            | API client                                                  |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` | [Covered](https://app.owox.com/api/swagger-ui#/HTTP%20Data/HttpDataController_stream) · 2026-07-23 | [Covered](./api-client/#stream-data-mart-rows) · 2026-07-23 |
 
 ## Insights
@@ -154,115 +154,115 @@ as API-client coverage.
 This section includes only the current Insights family. The deprecated family
 whose UI is reachable only through direct links is excluded.
 
-| Endpoint                                                                                                         | OpenAPI                                                                                                      | API client                                                           |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `GET /api/data-marts/insight-templates`                                                                          | [Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-21 | [Covered](./api-client/#list-project-insight-templates) · 2026-07-21 |
-| `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers`                                                     | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}`                                      | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}`                                         | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}/status`                                  | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/ai-assistant/sessions`                                                         | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/ai-assistant/sessions`                                                        | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}`                                          | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}`                                             | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}/apply`                                      | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}/messages`                                   | Unassessed                                                                                                   | Unassessed                                                           |
-| `PATCH /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}/title`                                     | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-artifacts`                                                             | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/insight-artifacts`                                                            | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}`                                      | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}`                                         | Unassessed                                                                                                   | Unassessed                                                           |
-| `PUT /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}`                                         | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers`                   | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers/{triggerId}`     | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers/{triggerId}`        | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers/{triggerId}/status` | Unassessed                                                                                                   | Unassessed                                                           |
-| `PUT /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/title`                                   | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-templates`                                                             | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/insight-templates`                                                            | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}`                                      | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}`                                         | Unassessed                                                                                                   | Unassessed                                                           |
-| `PUT /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}`                                         | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers`                            | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers`                           | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers/{triggerId}`             | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers/{triggerId}`                | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers/{triggerId}/status`         | Unassessed                                                                                                   | Unassessed                                                           |
-| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources`                                 | Unassessed                                                                                                   | Unassessed                                                           |
-| `POST /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources`                                | Unassessed                                                                                                   | Unassessed                                                           |
-| `DELETE /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources/{sourceId}`                   | Unassessed                                                                                                   | Unassessed                                                           |
-| `PATCH /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources/{sourceId}`                    | Unassessed                                                                                                   | Unassessed                                                           |
-| `PUT /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/title`                                   | Unassessed                                                                                                   | Unassessed                                                           |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/data-marts/insight-templates` | [Covered](https://app.owox.com/api/swagger-ui#/Insights/ProjectInsightTemplatesController_list) · 2026-07-21 | [Covered](./api-client/#list-project-insight-templates) · 2026-07-21 |
+| `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/ai-assistant/run-triggers/{triggerId}/status` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/ai-assistant/sessions` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/ai-assistant/sessions` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}/apply` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}/messages` | Unassessed | Unassessed |
+| `PATCH /api/data-marts/{dataMartId}/ai-assistant/sessions/{sessionId}/title` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-artifacts` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/insight-artifacts` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/sql-preview-triggers/{triggerId}/status` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{dataMartId}/insight-artifacts/{insightArtifactId}/title` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-templates` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/insight-templates` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers/{triggerId}` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/run-triggers/{triggerId}/status` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources` | Unassessed | Unassessed |
+| `DELETE /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources/{sourceId}` | Unassessed | Unassessed |
+| `PATCH /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/sources/{sourceId}` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{dataMartId}/insight-templates/{insightTemplateId}/title` | Unassessed | Unassessed |
 
 ## Model Canvas
 
-| Endpoint                           | OpenAPI                                                                                                        | API client                                                   |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/model-canvas/data-marts` | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getDataMarts) · 2026-07-21 | [Covered](./api-client/#read-the-models-canvas) · 2026-07-21 |
-| `GET /api/model-canvas/edges`      | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getEdges) · 2026-07-21     | [Covered](./api-client/#read-the-models-canvas) · 2026-07-21 |
+| `GET /api/model-canvas/edges` | [Covered](https://app.owox.com/api/swagger-ui#/Model%20Canvas/ModelCanvasController_getEdges) · 2026-07-21 | [Covered](./api-client/#read-the-models-canvas) · 2026-07-21 |
 
 ## Project notification settings
 
-| Endpoint                                                                   | OpenAPI    | API client |
-| -------------------------------------------------------------------------- | ---------- | ---------- |
-| `GET /api/projects/notification-settings`                                  | Unassessed | Unassessed |
-| `GET /api/projects/notification-settings/members`                          | Unassessed | Unassessed |
-| `PUT /api/projects/notification-settings/{notificationType}`               | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/projects/notification-settings` | Unassessed | Unassessed |
+| `GET /api/projects/notification-settings/members` | Unassessed | Unassessed |
+| `PUT /api/projects/notification-settings/{notificationType}` | Unassessed | Unassessed |
 | `POST /api/projects/notification-settings/{notificationType}/test-webhook` | Unassessed | Unassessed |
 
 ## Project settings
 
-| Endpoint                                 | OpenAPI                                                                                                                  | API client                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `GET /api/projects/settings`             | [Covered](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings) · 2026-07-21       | [Covered](./api-client/#manage-project-settings) · 2026-07-21 |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/projects/settings` | [Covered](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_getSettings) · 2026-07-21 | [Covered](./api-client/#manage-project-settings) · 2026-07-21 |
 | `PUT /api/projects/settings/description` | [Covered](https://app.owox.com/api/swagger-ui#/ProjectSettings/ProjectSettingsController_updateDescription) · 2026-07-21 | [Covered](./api-client/#manage-project-settings) · 2026-07-21 |
 
 ## Reports
 
-| Endpoint                                                                       | OpenAPI    | API client |
-| ------------------------------------------------------------------------------ | ---------- | ---------- |
-| `GET /api/reports`                                                             | Unassessed | Unassessed |
-| `POST /api/reports`                                                            | Unassessed | Unassessed |
-| `GET /api/reports/data-mart/{dataMartId}`                                      | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/reports` | Unassessed | Unassessed |
+| `POST /api/reports` | Unassessed | Unassessed |
+| `GET /api/reports/data-mart/{dataMartId}` | Unassessed | Unassessed |
 | `GET /api/reports/data-mart/{dataMartId}/insight-template/{insightTemplateId}` | Unassessed | Unassessed |
-| `DELETE /api/reports/{id}`                                                     | Unassessed | Unassessed |
-| `GET /api/reports/{id}`                                                        | Unassessed | Unassessed |
-| `PUT /api/reports/{id}`                                                        | Unassessed | Unassessed |
-| `POST /api/reports/{id}/copy-as-data-mart`                                     | Unassessed | Unassessed |
-| `GET /api/reports/{id}/generated-sql`                                          | Unassessed | Unassessed |
-| `POST /api/reports/{id}/run`                                                   | Unassessed | Unassessed |
+| `DELETE /api/reports/{id}` | Unassessed | Unassessed |
+| `GET /api/reports/{id}` | Unassessed | Unassessed |
+| `PUT /api/reports/{id}` | Unassessed | Unassessed |
+| `POST /api/reports/{id}/copy-as-data-mart` | Unassessed | Unassessed |
+| `GET /api/reports/{id}/generated-sql` | Unassessed | Unassessed |
+| `POST /api/reports/{id}/run` | Unassessed | Unassessed |
 
 ## Run History
 
-| Endpoint                   | OpenAPI                                                                                                       | API client                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/data-marts/runs` | [Covered](https://app.owox.com/api/swagger-ui#/Run%20History/ProjectDataMartRunsController_list) · 2026-07-23 | [Covered](./api-client/#read-project-run-history) · 2026-07-23 |
 
 ## Scheduled triggers
 
-| Endpoint                                                      | OpenAPI    | API client |
-| ------------------------------------------------------------- | ---------- | ---------- |
-| `GET /api/data-marts/scheduled-triggers`                      | Unassessed | Unassessed |
-| `GET /api/data-marts/{dataMartId}/scheduled-triggers`         | Unassessed | Unassessed |
-| `POST /api/data-marts/{dataMartId}/scheduled-triggers`        | Unassessed | Unassessed |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
+| `GET /api/data-marts/scheduled-triggers` | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/scheduled-triggers` | Unassessed | Unassessed |
+| `POST /api/data-marts/{dataMartId}/scheduled-triggers` | Unassessed | Unassessed |
 | `DELETE /api/data-marts/{dataMartId}/scheduled-triggers/{id}` | Unassessed | Unassessed |
-| `GET /api/data-marts/{dataMartId}/scheduled-triggers/{id}`    | Unassessed | Unassessed |
-| `PUT /api/data-marts/{dataMartId}/scheduled-triggers/{id}`    | Unassessed | Unassessed |
+| `GET /api/data-marts/{dataMartId}/scheduled-triggers/{id}` | Unassessed | Unassessed |
+| `PUT /api/data-marts/{dataMartId}/scheduled-triggers/{id}` | Unassessed | Unassessed |
 
 ## Search
 
-| Endpoint          | OpenAPI                                                                                     | API client                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/search` | [Covered](https://app.owox.com/api/swagger-ui#/Search/SearchController_search) · 2026-07-23 | [Covered](./api-client/#search-project-entities) · 2026-07-23 |
 
 ## Project setup progress
 
-| Endpoint                          | OpenAPI                                                                                                                        | API client                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `GET /api/project-setup-progress` | [Covered](https://app.owox.com/api/swagger-ui#/project-setup-progress/ProjectSetupProgressController_getProgress) · 2026-07-21 | [Covered](./api-client/#check-project-setup-progress) · 2026-07-21 |
 
 ## Utilities
 
-| Endpoint                           | OpenAPI                                                                                                 | API client                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Endpoint | OpenAPI | API client |
+| --- | --- | --- |
 | `POST /api/markdown/parse-to-html` | [Covered](https://app.owox.com/api/swagger-ui#/Utils/MarkdownParserController_parseToHtml) · 2026-07-22 | [Covered](./api-client/#convert-markdown-to-html) · 2026-07-22 |
