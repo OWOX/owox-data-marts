@@ -101,9 +101,9 @@ function validateRunListOptions(options: unknown): asserts options is OWOXDataMa
     !isRecord(options) ||
     Object.keys(options).some(key => key !== 'limit' && key !== 'offset') ||
     (options.limit !== undefined &&
-      (!Number.isInteger(options.limit) || (options.limit as number) <= 0)) ||
+      (!Number.isSafeInteger(options.limit) || (options.limit as number) <= 0)) ||
     (options.offset !== undefined &&
-      (!Number.isInteger(options.offset) || (options.offset as number) < 0))
+      (!Number.isSafeInteger(options.offset) || (options.offset as number) < 0))
   ) {
     throw new OWOXApiError('Invalid OWOX Data Mart run-list options', { details: options });
   }

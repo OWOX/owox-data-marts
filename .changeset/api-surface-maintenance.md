@@ -36,8 +36,8 @@ transport ceiling.
 
 Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
 and offsets without silently capping them. Both scoped and project-wide list methods reject unknown,
-zero or negative limits, negative offsets, non-integer values, and non-finite values before
-authentication or network access.
+zero or negative limits, negative offsets, non-integer values, non-finite values, and integers outside
+JavaScript's safe range before authentication or network access.
 Project-wide `runs.list()` remains compatible with older self-hosted deployments that omit
 `qualitySummary`, and Data Quality response validation tolerates additive server fields while still
 checking known values. Existing typed integrations need no migration unless they passed backfill

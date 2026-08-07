@@ -147,9 +147,10 @@ can also see shared Data Marts available for reporting or maintenance, subject t
 context access; viewers can see shared Data Marts available for reporting, subject to the same
 context-access filter.
 
-Pass a positive integer `limit` and a non-negative integer `offset` to page through the newest-first
-history. The client rejects invalid values before authentication or a network request. When omitted,
-the server defaults `limit` to 100 and `offset` to 0; it caps them at 100 and 100,000 respectively.
+Pass a positive safe integer `limit` and a non-negative safe integer `offset` to page through the
+newest-first history. The client rejects invalid values before authentication or a network request.
+When omitted, the server defaults `limit` to 100 and `offset` to 0; it caps them at 100 and 100,000
+respectively.
 The response has no total or next-page marker. Increment `offset` by the number of returned runs and
 stop when a page contains fewer runs than the server-effective limit
 (`Math.min(requestedLimit, 100)`, or 100 when omitted) or the next offset would exceed 100,000.
@@ -338,11 +339,11 @@ run's Data Mart reference. The scoped `dataMartRuns.list()` method uses the Data
 and omits that redundant reference.
 
 The scoped list endpoint defaults to 100 runs when `limit` is omitted and does not silently cap a
-valid caller-provided limit or offset. The client accepts positive integer limits and non-negative
-integer offsets, and rejects invalid list options before authentication or any network request. The
-response has no total or next-page marker. Increment `offset` by the number of returned runs and stop
-when a page contains fewer runs than the requested limit. New runs can shift offset pages, so
-deduplicate by `run.id` while paging.
+valid caller-provided limit or offset. The client accepts positive safe integer limits and
+non-negative safe integer offsets, and rejects invalid list options before authentication or any
+network request. The response has no total or next-page marker. Increment `offset` by the number of
+returned runs and stop when a page contains fewer runs than the requested limit. New runs can shift
+offset pages, so deduplicate by `run.id` while paging.
 
 Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data Quality
 run. Technical User access is required. The method resolves with no value after the API returns

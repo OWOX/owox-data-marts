@@ -255,6 +255,12 @@ describe('Runs API', () => {
     await expect(client.runs.list({ limit: 0 })).rejects.toBeInstanceOf(OWOXApiError);
     await expect(client.runs.list({ offset: -1 })).rejects.toBeInstanceOf(OWOXApiError);
     await expect(client.runs.list({ limit: 1.5 })).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(client.runs.list({ limit: Number.MAX_SAFE_INTEGER + 1 })).rejects.toBeInstanceOf(
+      OWOXApiError
+    );
+    await expect(client.runs.list({ offset: Number.MAX_SAFE_INTEGER + 1 })).rejects.toBeInstanceOf(
+      OWOXApiError
+    );
     await expect(client.runs.list({ typo: 1 } as never)).rejects.toBeInstanceOf(OWOXApiError);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
