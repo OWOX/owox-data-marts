@@ -48,6 +48,66 @@ describe('iframe transport', () => {
     await expect(pending).resolves.toEqual({ ok: true });
   });
 
+  it('forwards a PATCH JSON request with its body', async () => {
+    const host = hostSide();
+
+    const pending = host.transport.patchJson<{ title: string }>('/api/data-marts/dm-1', {
+      title: 'Renamed data mart',
+    });
+    await flush();
+
+    expect(host.received[0]).toMatchObject({
+      kind: 'api',
+      method: 'PATCH',
+      path: '/api/data-marts/dm-1',
+      body: { title: 'Renamed data mart' },
+    });
+    host.answer({
+      id: host.received[0].id,
+      ok: true,
+      status: 200,
+      headers: {},
+      body: { title: 'Renamed data mart' },
+    });
+
+    await expect(pending).resolves.toEqual({ title: 'Renamed data mart' });
+  });
+
+  it('forwards a DELETE request without a body and resolves its JSON body', async () => {
+    const host = hostSide();
+
+    const pending = host.transport.deleteJson<{ deleted: true }>('/api/data-marts/dm-1');
+    await flush();
+
+    expect(host.received[0]).toMatchObject({
+      kind: 'api',
+      method: 'DELETE',
+      path: '/api/data-marts/dm-1',
+    });
+    expect(host.received[0]).not.toHaveProperty('body');
+    host.answer({
+      id: host.received[0].id,
+      ok: true,
+      status: 200,
+      headers: {},
+      body: { deleted: true },
+    });
+
+    await expect(pending).resolves.toEqual({ deleted: true });
+  });
+
+  it('resolves a DELETE response without a body as undefined', async () => {
+    const host = hostSide();
+
+    const pending = host.transport.deleteJson('/api/data-marts/dm-1');
+    await flush();
+
+    expect(host.received[0]).toMatchObject({ method: 'DELETE', path: '/api/data-marts/dm-1' });
+    host.answer({ id: host.received[0].id, ok: true, status: 204, headers: {} });
+
+    await expect(pending).resolves.toBeUndefined();
+  });
+
   // Plugin authors never see a correlation id, so they cannot address someone else's
   // in-flight request even by accident.
   it('generates its own correlation ids', async () => {

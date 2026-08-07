@@ -7,7 +7,7 @@
  * a rule someone has to remember.
  */
 
-export const PLUGIN_PROTOCOL_VERSION = 1 as const;
+export const PLUGIN_PROTOCOL_VERSION = 2 as const;
 
 /**
  * The plugin's own origin, as the host sees it: a sandboxed frame is opaque, so
@@ -70,10 +70,19 @@ export type PluginRequest =
   | {
       id: string;
       kind: 'api';
-      method: 'GET' | 'POST' | 'PUT';
+      method: 'GET' | 'POST' | 'PUT' | 'PATCH';
       path: string;
       query?: PluginQuery;
       body?: unknown;
+      accept?: string;
+      stream?: false;
+    }
+  | {
+      id: string;
+      kind: 'api';
+      method: 'DELETE';
+      path: string;
+      query?: PluginQuery;
       accept?: string;
       stream?: false;
     }

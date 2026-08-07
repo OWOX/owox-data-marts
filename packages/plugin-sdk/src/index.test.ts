@@ -74,8 +74,11 @@ describe('connect', () => {
     await vi.advanceTimersByTimeAsync(600);
 
     expect(parent.postMessage.mock.calls.length).toBeGreaterThan(1);
-    const [message, targetOrigin] = parent.postMessage.mock.calls[0] as [{ owox: string }, string];
-    expect(message.owox).toBe('plugin-ready');
+    const [message, targetOrigin] = parent.postMessage.mock.calls[0] as [
+      { owox: string; v: number },
+      string,
+    ];
+    expect(message).toMatchObject({ owox: 'plugin-ready', v: 2 });
     // A concrete target origin never matches an opaque one, so anything else would be
     // dropped silently by the browser.
     expect(targetOrigin).toBe('*');

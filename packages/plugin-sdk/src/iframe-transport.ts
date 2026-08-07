@@ -97,6 +97,11 @@ export function createIframeTransport(port: MessagePort): OWOXTransport {
     putJson: <T>(path: string, jsonBody: unknown) =>
       json<T>({ kind: 'api', method: 'PUT', path, body: jsonBody }),
 
+    patchJson: <T>(path: string, jsonBody: unknown) =>
+      json<T>({ kind: 'api', method: 'PATCH', path, body: jsonBody }),
+
+    deleteJson: <T = void>(path: string) => json<T>({ kind: 'api', method: 'DELETE', path }),
+
     async getStream(path: string, query?: URLSearchParams): Promise<Response> {
       const response = await send({
         kind: 'api',
