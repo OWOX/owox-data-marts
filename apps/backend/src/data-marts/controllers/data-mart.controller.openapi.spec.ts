@@ -1,6 +1,6 @@
 import { INestApplication, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import { OpenAPIObject } from '@nestjs/swagger';
 
 jest.mock('@owox/connectors', () => ({
   AvailableConnectors: {},
@@ -34,12 +34,19 @@ jest.mock('../use-cases/batch-data-mart-health-status.service', () => ({
   BatchDataMartHealthStatusService: jest.fn(),
 }));
 
-import { Role, Strategy } from '../../idp';
+import { Role, Strategy, type AuthorizationContext } from '../../idp';
 import { DataMartController } from './data-mart.controller';
+import { createSwaggerDocument } from '../../config/swagger.config';
 
 describe('DataMartController list OpenAPI', () => {
   let app: INestApplication;
   let document: OpenAPIObject;
+  let controller: DataMartController;
+  const mapper = {
+    toGetDataMartRunsCommand: jest.fn(),
+    toRunsResponse: jest.fn().mockReturnValue({ runs: [] }),
+  };
+  const getDataMartRunsService = { run: jest.fn().mockResolvedValue([]) };
 
   beforeAll(async () => {
     const dependencies = [
@@ -50,14 +57,14 @@ describe('DataMartController list OpenAPI', () => {
       providers: dependencies.map(provide => ({ provide, useValue: {} })),
     }).compile();
 
+    controller = moduleRef.get(DataMartController);
+    Object.assign(controller, { mapper, getDataMartRunsService });
+
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
 
-    document = SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder().setTitle('Test API').setVersion('1.0').build()
-    );
+    document = createSwaggerDocument(app);
   });
 
   afterAll(async () => {
@@ -310,6 +317,29 @@ describe('DataMartController list OpenAPI', () => {
         },
       },
     });
+    const requestSchema = resolveRef('#/components/schemas/RunDataMartRequestApiDto');
+    expect(requestSchema.properties.payload).toMatchObject({
+      oneOf: [
+        { $ref: '#/components/schemas/IncrementalRunDataMartPayloadApiDto' },
+        { $ref: '#/components/schemas/ManualBackfillRunDataMartPayloadApiDto' },
+      ],
+    });
+    expect(resolveRef('#/components/schemas/IncrementalRunDataMartPayloadApiDto')).toMatchObject({
+      additionalProperties: false,
+      properties: {
+        runType: { type: 'string', enum: ['INCREMENTAL'] },
+      },
+    });
+    expect(resolveRef('#/components/schemas/ManualBackfillRunDataMartPayloadApiDto')).toMatchObject(
+      {
+        additionalProperties: false,
+        required: ['runType', 'data'],
+        properties: {
+          runType: { type: 'string', enum: ['MANUAL_BACKFILL'] },
+          data: { type: 'object', additionalProperties: true },
+        },
+      }
+    );
     expect(manualRun?.responses['201']).toMatchObject({
       description: expect.stringMatching(/created/i),
       content: {
@@ -318,6 +348,7 @@ describe('DataMartController list OpenAPI', () => {
         },
       },
     });
+    expect(manualRun?.responses['413']).toEqual({ description: 'Request body too large' });
     expect(resolveRef('#/components/schemas/RunDataMartResponseApiDto')).toMatchObject({
       required: ['runId'],
       properties: { runId: { type: 'string', format: 'uuid' } },
@@ -368,11 +399,25 @@ describe('DataMartController list OpenAPI', () => {
     expect(cancelRun?.responses['204']).toEqual({ description: 'Data Mart run cancelled' });
   });
 
+  it('preserves caller-provided scoped run-history pagination values', async () => {
+    const context = {
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+    } as AuthorizationContext;
+    mapper.toGetDataMartRunsCommand.mockReturnValue({ kind: 'list-runs' });
+
+    await controller.getRunHistory(context, 'dm-1', 500, 100_001);
+
+    expect(mapper.toGetDataMartRunsCommand).toHaveBeenCalledWith('dm-1', context, 500, 100_001);
+  });
+
   it('marks mapper-owned nullable Data Quality fields as present in every run response', () => {
     const runSchema = resolveRef('#/components/schemas/DataMartRunResponseApiDto');
     const detailSchema = resolveRef('#/components/schemas/DataMartRunDetailResponseApiDto');
 
     expect(runSchema.required).toContain('qualitySummary');
+    expect(runSchema.required).toContain('totals');
     expect(runSchema.properties.qualitySummary).toMatchObject({ nullable: true });
     expect(detailSchema.required).toContain('dataQuality');
     expect(detailSchema.properties.dataQuality).toMatchObject({ nullable: true });

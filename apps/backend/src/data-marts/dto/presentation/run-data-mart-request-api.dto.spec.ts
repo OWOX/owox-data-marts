@@ -29,4 +29,33 @@ describe('RunDataMartRequestApiDto', () => {
       ])
     );
   });
+
+  it.each([
+    { data: { StartDate: '2026-07-01' } },
+    { runType: 'MANUAL_BACKFILL' },
+    { runType: 'INCREMENTAL', data: {} },
+    { runType: 'INCREMENTAL', typo: true },
+  ])('rejects a payload whose run type and data do not form a supported pair', async payload => {
+    const dto = Object.assign(new RunDataMartRequestApiDto(), { payload });
+
+    await expect(validate(dto)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'payload',
+          constraints: expect.objectContaining({ isRunDataMartPayload: expect.any(String) }),
+        }),
+      ])
+    );
+  });
+
+  it('accepts explicit manual-backfill data', async () => {
+    const dto = Object.assign(new RunDataMartRequestApiDto(), {
+      payload: {
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2026-07-01', EndDate: '2026-07-31' },
+      },
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
 });

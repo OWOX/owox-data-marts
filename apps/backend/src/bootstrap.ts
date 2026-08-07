@@ -12,6 +12,7 @@ import { GlobalExceptionFilter } from './common/exceptions/global-exception.filt
 import { createLogger } from './common/logger/logger.service';
 import { DEFAULT_PORT } from './config/constants';
 import { setupGlobalPipes } from './config/global-pipes.config';
+import { setupBodyParsers } from './config/body-parser.config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
 import { PROTOCOL_ROUTE_EXCLUSIONS } from './config/protocol-route-exclusions.config';
 import { setupSwagger } from './config/swagger.config';
@@ -44,6 +45,8 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
     new ExpressAdapter(options.express),
     { logger }
   );
+
+  setupBodyParsers(app);
 
   app.useLogger(createLogger());
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());

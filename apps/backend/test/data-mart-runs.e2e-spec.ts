@@ -130,4 +130,47 @@ describe('DataMart Manual Runs API (e2e)', () => {
 
     expect(res.status).toBe(404);
   });
+
+  it('parses a manual-run request larger than the framework default before routing it', async () => {
+    const res = await agent
+      .post(`/api/data-marts/${NONEXISTENT_UUID}/manual-run`)
+      .set(AUTH_HEADER)
+      .send({
+        payload: {
+          runType: 'MANUAL_BACKFILL',
+          data: { value: 'x'.repeat(150 * 1024) },
+        },
+      });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects a manual-run payload larger than 1 MiB through HTTP validation', async () => {
+    const res = await agent
+      .post(`/api/data-marts/${NONEXISTENT_UUID}/manual-run`)
+      .set(AUTH_HEADER)
+      .send({
+        payload: {
+          runType: 'MANUAL_BACKFILL',
+          data: { value: 'x'.repeat(1024 * 1024) },
+        },
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 413 instead of 500 when the request exceeds the transport ceiling', async () => {
+    const res = await agent
+      .post(`/api/data-marts/${NONEXISTENT_UUID}/manual-run`)
+      .set(AUTH_HEADER)
+      .send({
+        payload: {
+          runType: 'MANUAL_BACKFILL',
+          data: { value: 'x'.repeat(2 * 1024 * 1024) },
+        },
+      });
+
+    expect(res.status).toBe(413);
+    expect(res.body).toMatchObject({ statusCode: 413, message: 'Request body too large' });
+  });
 });

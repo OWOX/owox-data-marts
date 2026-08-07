@@ -79,7 +79,6 @@ import {
   ValidateDataMartDefinitionSpec,
   DataMartAiHelperAvailabilitySpec,
 } from './spec/data-mart.api';
-import { normalizeProjectListPagination } from '../utils/normalize-project-list-pagination';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -350,16 +349,10 @@ export class DataMartController {
   async getRunHistory(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
-    @Query('limit') limit?: string | number,
-    @Query('offset') offset?: string | number
+    @Query('limit') limit: number = 100,
+    @Query('offset') offset: number = 0
   ): Promise<DataMartRunsResponseApiDto> {
-    const pagination = normalizeProjectListPagination(limit, offset);
-    const command = this.mapper.toGetDataMartRunsCommand(
-      id,
-      context,
-      pagination.limit,
-      pagination.offset
-    );
+    const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
     const runs = await this.getDataMartRunsService.run(command);
     return this.mapper.toRunsResponse(runs);
   }

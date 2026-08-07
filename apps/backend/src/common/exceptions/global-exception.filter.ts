@@ -29,6 +29,14 @@ function isHttpError(e: unknown): e is { getStatus(): number; getResponse?: () =
   );
 }
 
+function isPayloadTooLargeError(e: unknown): e is Error & { status: 413; type: string } {
+  return (
+    e instanceof Error &&
+    (e as Error & { status?: unknown }).status === HttpStatus.PAYLOAD_TOO_LARGE &&
+    (e as Error & { type?: unknown }).type === 'entity.too.large'
+  );
+}
+
 /**
  * Extract a human-readable `message` string from a structured exception
  * response when present. NestJS HttpException accepts either a string, or an
@@ -90,7 +98,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<AuthenticatedRequest>();
 
     const isHttp = isHttpError(exception);
-    const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const isPayloadTooLarge = isPayloadTooLargeError(exception);
+    const status = isHttp
+      ? exception.getStatus()
+      : isPayloadTooLarge
+        ? HttpStatus.PAYLOAD_TOO_LARGE
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const structured =
       isHttp && typeof exception.getResponse === 'function' ? exception.getResponse() : undefined;
@@ -103,6 +116,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message:
         responseBodyMessage(structured) ??
         (constraints ? VALIDATION_FAILED_MESSAGE : undefined) ??
+        (isPayloadTooLarge ? 'Request body too large' : undefined) ??
         (isHttp && exception instanceof Error ? exception.message : undefined),
       // Structured rather than folded into `message`, which stays a string every caller can call
       // string methods on; `details.errors[]` is already rendered capped and de-duplicated.

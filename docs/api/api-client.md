@@ -147,12 +147,11 @@ can also see shared Data Marts available for reporting or maintenance, subject t
 context access; viewers can see shared Data Marts available for reporting, subject to the same
 context-access filter.
 
-Pass optional `limit` and `offset` values to page through the newest-first history. `limit` defaults
-to 100, floors finite fractions, falls back to 100 for non-finite or non-positive values, and caps
-at 100. `offset` defaults to 0, floors finite fractions, falls back to 0 for non-finite or
-non-positive values, and caps at 100,000. The response has no total or next-page marker. Prefer a
-`limit` from 1 through 100, increment `offset` by the number of returned runs, and stop when a page
-contains fewer runs than the server-normalized effective limit or the next offset would exceed
+Pass a positive integer `limit` and a non-negative integer `offset` to page through the newest-first
+history. The client rejects invalid values before authentication or a network request. When omitted,
+the server defaults `limit` to 100 and `offset` to 0; it caps them at 100 and 100,000 respectively.
+The response has no total or next-page marker. Increment `offset` by the number of returned runs and
+stop when a page contains fewer runs than the requested limit or the next offset would exceed
 100,000. Because new runs can shift newest-first offset pages while a consumer is paging, deduplicate
 by `run.id` when walking multiple pages.
 
@@ -175,10 +174,14 @@ creator ID or the corresponding user projection is unavailable. When an author i
 `definitionRun` is always present but can be `null` when a historical definition snapshot is
 unavailable.
 
+`qualitySummary` is either the compact Data Quality summary or `null`. It is optional for
+compatibility with older self-hosted deployments that did not return the field.
+
 `@owox/api-client` validates the response shape, enum values, nested references and author data,
 nullable fields, logs and errors, totals, and the backend's RFC3339 timestamp profile: uppercase
 `T`/`Z`, seconds from `00` through `59`, optional fractional seconds, and valid numeric offsets. It
 throws `OWOXApiError` when the endpoint returns an incompatible payload.
+Invalid pagination options are rejected before authentication or any network request.
 
 ## List project insight templates
 
@@ -322,23 +325,28 @@ const history = await dataMartRuns.list({
   offset: 0,
 });
 
-const run = await dataMartRuns.get(history.runs[0].id);
-console.log(run.status, run.qualitySummary, run.dataQuality);
+const [latest] = history.runs;
+if (latest) {
+  const run = await dataMartRuns.get(latest.id);
+  console.log(run.status, run.qualitySummary, run.dataQuality);
+}
 ```
 
 The existing `client.runs.list()` method remains the project-wide run history and includes each
 run's Data Mart reference. The scoped `dataMartRuns.list()` method uses the Data-Mart-specific route
 and omits that redundant reference.
 
-The list endpoint defaults to 100 runs, caps `limit` at 100 and `offset` at 100,000, floors finite
-fractions, and replaces non-finite or non-positive values with its defaults. The response has no
-total or next-page marker. Increment `offset` by the number of returned runs and stop when a page
-contains fewer runs than the effective limit or the next offset would exceed 100,000. New runs can
-shift offset pages, so deduplicate by `run.id` while paging.
+The scoped list endpoint defaults to 100 runs when `limit` is omitted and does not silently cap a
+valid caller-provided limit or offset. The client accepts positive integer limits and non-negative
+integer offsets, and rejects invalid list options before authentication or any network request. The
+response has no total or next-page marker. Increment `offset` by the number of returned runs and stop
+when a page contains fewer runs than the requested limit. New runs can shift offset pages, so
+deduplicate by `run.id` while paging.
 
 Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data Quality
 run. Technical User access is required. The method resolves with no value after the API returns
-`204 No Content`; cancelling a terminal run returns a conflict error.
+`204 No Content`. A cancellable run that is already terminal returns a conflict error; a run type
+that does not support cancellation returns a bad-request error.
 
 ```ts
 await dataMartRuns.cancel(runId);

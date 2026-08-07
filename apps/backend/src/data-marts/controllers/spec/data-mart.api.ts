@@ -182,7 +182,10 @@ export function RunDataMartSpec() {
       description: 'DataMart run created',
       type: RunDataMartResponseApiDto,
     }),
-    ApiResponse({ status: 400, description: 'Invalid payload or unsupported Data Mart type' }),
+    ApiResponse({
+      status: 400,
+      description: 'Invalid payload, unsupported Data Mart type, or unpublished Data Mart',
+    }),
     ApiResponse({ status: 404, description: 'Data Mart not found' })
   );
 }
@@ -217,16 +220,14 @@ export function GetDataMartRunsSpec() {
       required: false,
       type: Number,
       default: DEFAULT_PROJECT_LIST_LIMIT,
-      description:
-        'Maximum number of runs to return. Non-positive or non-finite values use the default; fractions are floored and larger values are capped.',
+      description: 'Maximum number of runs to return. Defaults to 100 when omitted.',
     }),
     ApiQuery({
       name: 'offset',
       required: false,
       type: Number,
       default: 0,
-      description:
-        'Number of runs to skip. Non-positive or non-finite values use zero; fractions are floored and larger values are capped.',
+      description: 'Number of runs to skip. Defaults to zero when omitted.',
     }),
     ApiOkResponse({
       description: 'Newest-first page of Data Mart runs.',

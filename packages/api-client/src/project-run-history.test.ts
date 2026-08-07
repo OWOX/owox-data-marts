@@ -1,4 +1,5 @@
 import { OWOXApiClient, OWOXApiError, type OWOXProjectDataMartRunsResponse } from './index.js';
+import { jest } from '@jest/globals';
 
 type RecordedRequest = {
   method: string;
@@ -178,6 +179,18 @@ describe('Runs API', () => {
     await expect(result).rejects.toBeInstanceOf(OWOXApiError);
   });
 
+  it('wraps a non-object project run as a response-shape error', async () => {
+    const fetchImpl = createFetchMock(request => {
+      if (request.method === 'POST') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, { runs: [null] });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list()).rejects.toBeInstanceOf(OWOXApiError);
+  });
+
   it('rejects malformed run creator metadata', async () => {
     const response = {
       runs: [
@@ -220,7 +233,7 @@ describe('Runs API', () => {
     });
   });
 
-  it('rejects a run without the shared Data Quality summary field', async () => {
+  it('accepts project run history from deployments that predate qualitySummary', async () => {
     const { qualitySummary: _qualitySummary, ...runWithoutQualitySummary } = runHistory.runs[0];
     const response = { runs: [runWithoutQualitySummary] };
     const fetchImpl = createFetchMock(request => {
@@ -231,11 +244,19 @@ describe('Runs API', () => {
     });
     const client = new OWOXApiClient({ apiKey, fetchImpl });
 
-    await expect(client.runs.list()).rejects.toMatchObject({
-      name: 'OWOXApiError',
-      message: 'OWOX Project Run History API returned an unexpected response shape',
-      details: response,
-    });
+    await expect(client.runs.list()).resolves.toEqual(response);
+  });
+
+  it('rejects invalid pagination before authentication or a network request', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.list({ limit: Number.NaN })).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(client.runs.list({ limit: 0 })).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(client.runs.list({ offset: -1 })).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(client.runs.list({ limit: 1.5 })).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(client.runs.list({ typo: 1 } as never)).rejects.toBeInstanceOf(OWOXApiError);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it.each([

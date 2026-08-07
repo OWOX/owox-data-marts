@@ -29,8 +29,10 @@ export type OWOXProjectDataMartRunRef = {
 /** The author attributable to a run. */
 export type OWOXProjectDataMartRunUser = OWOXDataMartRunUser;
 
-export type OWOXProjectDataMartRun = OWOXDataMartRun & {
+export type OWOXProjectDataMartRun = Omit<OWOXDataMartRun, 'qualitySummary'> & {
   dataMart: OWOXProjectDataMartRunRef;
+  /** Absent on older compatible deployments. */
+  qualitySummary?: OWOXDataMartRun['qualitySummary'];
 };
 
 export type OWOXProjectDataMartRunsResponse = {
@@ -50,13 +52,17 @@ type RunsRequester = {
 const MAX_MANUAL_RUN_PAYLOAD_BYTES = 1024 * 1024;
 
 function validateRunStartOptions(options: unknown): asserts options is OWOXDataMartRunStartOptions {
+  if (!isRecord(options)) {
+    throw new OWOXApiError('Invalid OWOX Data Mart run-start options', { details: options });
+  }
+  const hasValidRunConfiguration =
+    options.runType === 'MANUAL_BACKFILL'
+      ? isRecord(options.data)
+      : (options.runType === undefined || options.runType === 'INCREMENTAL') &&
+        options.data === undefined;
   if (
-    !isRecord(options) ||
     Object.keys(options).some(key => key !== 'runType' && key !== 'data') ||
-    (options.runType !== undefined &&
-      options.runType !== 'INCREMENTAL' &&
-      options.runType !== 'MANUAL_BACKFILL') ||
-    (options.data !== undefined && !isRecord(options.data))
+    !hasValidRunConfiguration
   ) {
     throw new OWOXApiError('Invalid OWOX Data Mart run-start options', { details: options });
   }
@@ -79,20 +85,36 @@ function validateRunStartOptions(options: unknown): asserts options is OWOXDataM
   }
 }
 
+function validatePathId(value: unknown, label: string): asserts value is string {
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    value.trim() === '.' ||
+    value.trim() === '..'
+  ) {
+    throw new OWOXApiError(`Invalid OWOX ${label} ID`, { details: value });
+  }
+}
+
 function validateRunListOptions(options: unknown): asserts options is OWOXDataMartRunListOptions {
   if (
     !isRecord(options) ||
     Object.keys(options).some(key => key !== 'limit' && key !== 'offset') ||
-    (options.limit !== undefined && typeof options.limit !== 'number') ||
-    (options.offset !== undefined && typeof options.offset !== 'number')
+    (options.limit !== undefined &&
+      (!Number.isInteger(options.limit) || (options.limit as number) <= 0)) ||
+    (options.offset !== undefined &&
+      (!Number.isInteger(options.offset) || (options.offset as number) < 0))
   ) {
     throw new OWOXApiError('Invalid OWOX Data Mart run-list options', { details: options });
   }
 }
 
 function isProjectDataMartRun(value: unknown): value is OWOXProjectDataMartRun {
-  const projectRun = value as Record<string, unknown>;
-  if (!isDataMartRun(value) || !isRecord(projectRun.dataMart)) {
+  if (!isRecord(value)) return false;
+  const projectRun = value;
+  const sharedRun =
+    projectRun.qualitySummary === undefined ? { ...projectRun, qualitySummary: null } : projectRun;
+  if (!isDataMartRun(sharedRun) || !isRecord(projectRun.dataMart)) {
     return false;
   }
 
@@ -129,6 +151,7 @@ class DataMartRunsScope implements OWOXDataMartRunsScope {
     private readonly requester: RunsRequester,
     dataMartId: string
   ) {
+    validatePathId(dataMartId, 'Data Mart');
     this.path = `/api/data-marts/${encodeURIComponent(dataMartId)}`;
   }
 
@@ -176,6 +199,7 @@ class DataMartRunsScope implements OWOXDataMartRunsScope {
   }
 
   async get(runId: string): Promise<OWOXDataMartRunDetail> {
+    validatePathId(runId, 'run');
     const response = await this.requester.getJson<unknown>(
       `${this.path}/runs/${encodeURIComponent(runId)}`
     );
@@ -188,6 +212,7 @@ class DataMartRunsScope implements OWOXDataMartRunsScope {
   }
 
   async cancel(runId: string): Promise<void> {
+    validatePathId(runId, 'run');
     await this.requester.postJson<void>(
       `${this.path}/runs/${encodeURIComponent(runId)}/cancel`,
       undefined
@@ -199,6 +224,7 @@ export class RunsApi {
   constructor(private readonly requester: RunsRequester) {}
 
   async list(options: OWOXProjectRunHistoryOptions = {}): Promise<OWOXProjectDataMartRunsResponse> {
+    validateRunListOptions(options);
     const query = {
       ...(options.limit === undefined ? {} : { limit: String(options.limit) }),
       ...(options.offset === undefined ? {} : { offset: String(options.offset) }),

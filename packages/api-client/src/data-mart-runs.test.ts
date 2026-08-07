@@ -221,10 +221,25 @@ describe('Data Mart run lifecycle API', () => {
       message: 'Invalid OWOX Data Mart run-start options',
     });
     await expect(
-      client.runs.forDataMart('dm-1').start({ data: { value: 'x'.repeat(1024 * 1024) } })
+      client.runs.forDataMart('dm-1').start({
+        runType: 'MANUAL_BACKFILL',
+        data: { value: 'x'.repeat(1024 * 1024) },
+      })
     ).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart manual-run payload exceeds 1MB',
+    });
+    await expect(
+      client.runs.forDataMart('dm-1').start({ data: { value: 'silently ignored' } } as never)
+    ).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Invalid OWOX Data Mart run-start options',
+    });
+    await expect(
+      client.runs.forDataMart('dm-1').start({ runType: 'MANUAL_BACKFILL' } as never)
+    ).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Invalid OWOX Data Mart run-start options',
     });
     await expect(
       client.runs.forDataMart('dm-1').list({ limit: '25' } as never)
@@ -232,6 +247,19 @@ describe('Data Mart run lifecycle API', () => {
       name: 'OWOXApiError',
       message: 'Invalid OWOX Data Mart run-list options',
     });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects ambiguous Data Mart and run IDs before making a network request', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    expect(() => client.runs.forDataMart('.')).toThrow(OWOXApiError);
+    expect(() => client.runs.forDataMart('  ')).toThrow(OWOXApiError);
+
+    const runs = client.runs.forDataMart('dm-1');
+    await expect(runs.get('')).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(runs.cancel('..')).rejects.toBeInstanceOf(OWOXApiError);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -289,6 +317,38 @@ describe('Data Mart run lifecycle API', () => {
     await expect(client.runs.forDataMart('dm-1').get('run-1')).resolves.toEqual(response);
   });
 
+  it('accepts additive Data Quality fields and server-owned rule invariants', async () => {
+    const response = {
+      ...runDetail,
+      dataQuality: {
+        ...dataQualityDetail,
+        snapshot: {
+          ...dataQualityDetail.snapshot,
+          config: {
+            rules: [
+              {
+                ...dataQualityRule,
+                key: 'server-defined-rule-key',
+                scope: { type: 'DATA_MART', futureScopeField: true },
+                parameters: { thresholdPercent: 101, futureParameter: 'supported' },
+                futureRuleField: { version: 2 },
+              },
+            ],
+          },
+        },
+      },
+    };
+    const fetchImpl = createFetchMock(request => {
+      if (request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+      return createJsonResponse(200, response);
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.runs.forDataMart('dm-1').get('run-1')).resolves.toEqual(response);
+  });
+
   it('wraps a non-object Data Quality result as an API response-shape error', async () => {
     const response = {
       ...runDetail,
@@ -312,21 +372,7 @@ describe('Data Mart run lifecycle API', () => {
     const invalidRules = [
       { ...dataQualityRule, scope: { type: 'FIELD', fieldPath: [] } },
       { ...dataQualityRule, scope: { type: 'FIELD', fieldPath: ['   '] } },
-      { ...dataQualityRule, parameters: { thresholdPercent: -1 } },
-      { ...dataQualityRule, parameters: { thresholdPercent: 101 } },
       { ...dataQualityRule, notApplicableReason: '' },
-      {
-        ...dataQualityRule,
-        key: 'data_freshness:field:["email"]',
-        category: 'data_freshness',
-        parameters: { thresholdHours: -1 },
-      },
-      {
-        ...dataQualityRule,
-        key: 'data_freshness:field:["email"]',
-        category: 'data_freshness',
-        parameters: { thresholdHours: Number.MAX_SAFE_INTEGER },
-      },
     ];
 
     for (const invalidRule of invalidRules) {

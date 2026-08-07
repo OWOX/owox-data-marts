@@ -14,7 +14,7 @@ import { isRecord, isRfc3339DateTimeString, isUserProjection } from './validatio
 const DATA_MART_STATUS_VALUES = ['DRAFT', 'PUBLISHED'] as const;
 export type OWOXDataMartStatus = (typeof DATA_MART_STATUS_VALUES)[number];
 
-const DATA_MART_DEFINITION_TYPE_VALUES = [
+export const DATA_MART_DEFINITION_TYPE_VALUES = [
   'SQL',
   'TABLE',
   'VIEW',

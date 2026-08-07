@@ -93,6 +93,20 @@ describe('GlobalExceptionFilter', () => {
   });
 
   describe('other exceptions are unchanged', () => {
+    it('maps body-parser payload errors to 413 instead of an internal error', () => {
+      const error = Object.assign(new Error('request entity too large'), {
+        status: 413,
+        type: 'entity.too.large',
+      });
+
+      filter.catch(error, hostFor(json));
+
+      expect(body()).toMatchObject({
+        statusCode: 413,
+        message: 'Request body too large',
+      });
+    });
+
     it('prefers a written message over the exception name', () => {
       filter.catch(new NotFoundException('Data Mart not found'), hostFor(json));
 

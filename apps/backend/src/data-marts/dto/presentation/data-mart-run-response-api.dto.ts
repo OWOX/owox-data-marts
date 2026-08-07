@@ -207,7 +207,7 @@ export class DataMartRunResponseApiDto {
   })
   additionalParams: Record<string, unknown> | null;
 
-  @DataMartRunTotalsApiProperty()
+  @DataMartRunTotalsApiProperty(true)
   totals: DataMartRunTotals;
 
   @ApiProperty({ type: CompactDataQualitySummaryApiDto, nullable: true })

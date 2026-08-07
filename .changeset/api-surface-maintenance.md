@@ -26,9 +26,17 @@ consumers should prefer typed resource abstractions when available.
 the Data-Mart-scoped `runs.forDataMart(id)` client and its `start()`, `list()`, `get()`, and `cancel()`
 methods. Starting and cancelling require Technical User access; listing and inspecting require
 Business User access. `start()` accepts typed incremental or manual-backfill options, including
-connector-specific backfill fields. List pagination defaults to 100 items, caps the limit at 100 and
-offset at 100,000, and normalizes invalid numeric values. Responses are type-checked at runtime,
-including Data Quality details.
+connector-specific backfill fields. Manual-backfill `data` now requires an explicit
+`runType: 'MANUAL_BACKFILL'`; incremental runs reject `data` instead of silently ignoring it. The
+client also rejects empty or dot-segment Data Mart and run IDs before sending a request. Serialized
+manual-run options are limited to 1 MiB by both the client and HTTP API; requests above the HTTP
+transport ceiling return `413` instead of an internal-server error.
 
-The existing project-wide `runs.list()` method is unchanged, so current integrations require no
-migration.
+Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
+and offsets without silently capping them. Both scoped and project-wide list methods reject unknown,
+zero or negative limits, negative offsets, non-integer values, and non-finite values before
+authentication or network access.
+Project-wide `runs.list()` remains compatible with older self-hosted deployments that omit
+`qualitySummary`, and Data Quality response validation tolerates additive server fields while still
+checking known values. Existing typed integrations need no migration unless they passed backfill
+`data` without the required manual-backfill run type or relied on invalid pagination values.

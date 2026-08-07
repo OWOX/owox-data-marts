@@ -1,4 +1,5 @@
 import { isRecord, isRfc3339DateTimeString, isUserProjection } from './validation.js';
+import { DATA_MART_DEFINITION_TYPE_VALUES, type OWOXDataMartDefinitionType } from './data-marts.js';
 
 const DATA_MART_RUN_STATUS_VALUES = [
   'PENDING',
@@ -65,15 +66,6 @@ export type OWOXDataQualityCategory = (typeof DATA_QUALITY_CATEGORY_VALUES)[numb
 const DATA_QUALITY_CHECK_STATUS_VALUES = ['PASSED', 'FAILED', 'NOT_APPLICABLE', 'ERROR'] as const;
 export type OWOXDataQualityCheckStatus = (typeof DATA_QUALITY_CHECK_STATUS_VALUES)[number];
 
-const DATA_MART_DEFINITION_TYPE_VALUES = [
-  'SQL',
-  'TABLE',
-  'VIEW',
-  'TABLE_PATTERN',
-  'CONNECTOR',
-] as const;
-export type OWOXRunDataMartDefinitionType = (typeof DATA_MART_DEFINITION_TYPE_VALUES)[number];
-
 export type OWOXDataMartRunUser = {
   userId: string;
   fullName?: string | null;
@@ -129,7 +121,7 @@ export type OWOXDataQualityRunDetail = {
       joinConditions: Array<{ sourceFieldName: string; targetFieldName: string }>;
       targetAccessible?: boolean;
     }>;
-    definitionType: OWOXRunDataMartDefinitionType;
+    definitionType: OWOXDataMartDefinitionType;
   };
   summary: OWOXDataQualitySummary;
   results: Array<{
@@ -180,10 +172,9 @@ export type OWOXDataMartRunDetail = OWOXDataMartRun & {
 
 export type OWOXDataMartRunsResponse = { runs: OWOXDataMartRun[] };
 export type OWOXDataMartRunListOptions = { limit?: number; offset?: number };
-export type OWOXDataMartRunStartOptions = {
-  runType?: 'INCREMENTAL' | 'MANUAL_BACKFILL';
-  data?: Record<string, unknown>;
-};
+export type OWOXDataMartRunStartOptions =
+  | { runType?: 'INCREMENTAL'; data?: never }
+  | { runType: 'MANUAL_BACKFILL'; data: Record<string, unknown> };
 export type OWOXRunDataMartResponse = { runId: string };
 
 const RUN_STATUSES = new Set<string>(DATA_MART_RUN_STATUS_VALUES);
@@ -194,20 +185,6 @@ const SEVERITIES = new Set<string>(DATA_QUALITY_SEVERITY_VALUES);
 const CATEGORIES = new Set<string>(DATA_QUALITY_CATEGORY_VALUES);
 const CHECK_STATUSES = new Set<string>(DATA_QUALITY_CHECK_STATUS_VALUES);
 const DEFINITION_TYPES = new Set<string>(DATA_MART_DEFINITION_TYPE_VALUES);
-const MAX_DATA_QUALITY_THRESHOLD_HOURS = Math.floor(Number.MAX_SAFE_INTEGER / (60 * 60 * 1000));
-const DATA_QUALITY_CATEGORY_SCOPES: Readonly<Record<OWOXDataQualityCategory, string>> = {
-  pk_uniqueness: 'DATA_MART',
-  duplicate_rows: 'DATA_MART',
-  null_rate: 'FIELD',
-  column_uniqueness: 'FIELD',
-  constant_column: 'FIELD',
-  empty_table: 'DATA_MART',
-  type_mismatch: 'FIELD',
-  data_freshness: 'FIELD',
-  negative_values: 'FIELD',
-  relationship_integrity: 'RELATIONSHIP',
-  reverse_relationship: 'RELATIONSHIP',
-};
 
 function isNullableString(value: unknown): boolean {
   return value === null || typeof value === 'string';
@@ -241,11 +218,6 @@ function isNonNegativeInteger(value: unknown): boolean {
 
 function isDataQualityIdentifier(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.trim().length > 0;
-}
-
-function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const allowed = new Set(keys);
-  return Object.keys(value).every(key => allowed.has(key));
 }
 
 function isNullableTotals(value: unknown): boolean {
@@ -293,74 +265,37 @@ function isCompactDataQualitySummary(value: unknown): value is OWOXCompactDataQu
 
 function isDataQualityScope(value: unknown): value is OWOXDataQualityScope {
   if (!isRecord(value) || typeof value.type !== 'string') return false;
-  if (value.type === 'DATA_MART') return hasOnlyKeys(value, ['type']);
+  if (value.type === 'DATA_MART') return true;
   if (value.type === 'FIELD') {
     return (
-      hasOnlyKeys(value, ['type', 'fieldPath']) &&
       Array.isArray(value.fieldPath) &&
       value.fieldPath.length > 0 &&
       value.fieldPath.every(isDataQualityIdentifier)
     );
   }
-  return (
-    value.type === 'RELATIONSHIP' &&
-    hasOnlyKeys(value, ['type', 'relationshipId']) &&
-    isDataQualityIdentifier(value.relationshipId)
-  );
-}
-
-function buildDataQualityRuleKey(
-  category: OWOXDataQualityCategory,
-  scope: OWOXDataQualityScope
-): string {
-  if (scope.type === 'DATA_MART') return `${category}:data_mart`;
-  if (scope.type === 'FIELD') return `${category}:field:${JSON.stringify(scope.fieldPath)}`;
-  return `${category}:relationship:${scope.relationshipId}`;
+  return value.type === 'RELATIONSHIP' && isDataQualityIdentifier(value.relationshipId);
 }
 
 function isDataQualityRule(value: unknown): value is OWOXDataQualityRule {
   if (!isRecord(value) || !isRecord(value.parameters)) return false;
   if (
-    !hasOnlyKeys(value, [
-      'key',
-      'category',
-      'scope',
-      'severity',
-      'enabled',
-      'parameters',
-      'isApplicable',
-      'notApplicableReason',
-    ]) ||
-    !hasOnlyKeys(value.parameters, ['thresholdPercent', 'thresholdHours']) ||
     typeof value.category !== 'string' ||
     !CATEGORIES.has(value.category) ||
     !isDataQualityScope(value.scope)
   ) {
     return false;
   }
-  const category = value.category as OWOXDataQualityCategory;
-  const scope = value.scope;
   const thresholdPercent = value.parameters.thresholdPercent;
   const thresholdHours = value.parameters.thresholdHours;
   return (
-    typeof value.key === 'string' &&
-    value.key === buildDataQualityRuleKey(category, scope) &&
-    DATA_QUALITY_CATEGORY_SCOPES[category] === scope.type &&
+    isDataQualityIdentifier(value.key) &&
     typeof value.severity === 'string' &&
     SEVERITIES.has(value.severity) &&
     typeof value.enabled === 'boolean' &&
     (thresholdPercent === undefined ||
-      (typeof thresholdPercent === 'number' &&
-        Number.isFinite(thresholdPercent) &&
-        thresholdPercent >= 0 &&
-        thresholdPercent <= 100)) &&
+      (typeof thresholdPercent === 'number' && Number.isFinite(thresholdPercent))) &&
     (thresholdHours === undefined ||
-      (typeof thresholdHours === 'number' &&
-        Number.isFinite(thresholdHours) &&
-        thresholdHours >= 0 &&
-        thresholdHours <= MAX_DATA_QUALITY_THRESHOLD_HOURS)) &&
-    (category === 'null_rate' ? thresholdPercent !== undefined : thresholdPercent === undefined) &&
-    (category === 'data_freshness' ? thresholdHours !== undefined : thresholdHours === undefined) &&
+      (typeof thresholdHours === 'number' && Number.isFinite(thresholdHours))) &&
     typeof value.isApplicable === 'boolean' &&
     (value.notApplicableReason === undefined ||
       (typeof value.notApplicableReason === 'string' &&
@@ -379,7 +314,6 @@ function isDataQualityRunDetail(value: unknown): value is OWOXDataQualityRunDeta
   return (
     Array.isArray(rules) &&
     rules.every(isDataQualityRule) &&
-    new Set(rules.map(rule => (rule as Record<string, unknown>).key)).size === rules.length &&
     isNullableRecord(value.snapshot.schema) &&
     Array.isArray(relationships) &&
     relationships.every(
@@ -432,9 +366,7 @@ function isDataQualityRunDetail(value: unknown): value is OWOXDataQualityRunDeta
             isNullableRecord(result.error.details))) &&
         isRfc3339DateTimeString(result.createdAt) &&
         typeof result.redacted === 'boolean'
-    ) &&
-    new Set(results.map(result => (result as Record<string, unknown>).ruleKey)).size ===
-      results.length
+    )
   );
 }
 

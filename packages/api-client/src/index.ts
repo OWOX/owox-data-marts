@@ -40,7 +40,6 @@ export {
   type OWOXDataQualitySeverity,
   type OWOXDataQualitySummary,
   type OWOXDataQualitySummaryState,
-  type OWOXRunDataMartDefinitionType,
   type OWOXRunDataMartResponse,
 } from './data-mart-runs.js';
 export {
