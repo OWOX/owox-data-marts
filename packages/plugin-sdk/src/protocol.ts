@@ -7,7 +7,7 @@
  * a rule someone has to remember.
  */
 
-export const PLUGIN_PROTOCOL_VERSION = 2 as const;
+export const PLUGIN_PROTOCOL_VERSION = 1 as const;
 
 /**
  * The plugin's own origin, as the host sees it: a sandboxed frame is opaque, so
@@ -70,7 +70,18 @@ export type PluginRequest =
   | {
       id: string;
       kind: 'api';
-      method: 'POST' | 'PUT' | 'PATCH';
+      method: 'POST' | 'PUT';
+      path: string;
+      query?: PluginQuery;
+      /** Optional for compatibility with plugins built against the original v1 shape. */
+      body?: unknown;
+      accept?: string;
+      stream?: false;
+    }
+  | {
+      id: string;
+      kind: 'api';
+      method: 'PATCH';
       path: string;
       query?: PluginQuery;
       body: unknown;

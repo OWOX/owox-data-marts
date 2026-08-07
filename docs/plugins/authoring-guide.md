@@ -132,8 +132,8 @@ and `getStream(path, query?)`. The generic does not validate the response at run
 validate returned data yourself. Paths must be root-relative `/api/...` and are limited to 2,048
 characters; unsafe or redirecting paths are refused.
 
-`ctx.owox` remains brokered through the host and never exposes runtime credentials. Protocol v2
-enables PATCH and DELETE; the host remains compatible with existing protocol v1 plugins.
+`ctx.owox` remains brokered through the host and never exposes runtime credentials. PATCH and
+DELETE extend the existing protocol additively, so existing plugins remain compatible.
 
 ```ts
 type Deleted = { deleted: true };

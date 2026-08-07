@@ -30,10 +30,7 @@ export interface PluginHostBridgeOptions {
   onBroken?: () => void;
 }
 
-const ALLOWED_METHODS: Record<PluginProtocolVersion, ReadonlySet<string>> = {
-  1: new Set(['GET', 'POST', 'PUT']),
-  2: new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
-};
+const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const API_PATH_PREFIX = '/api/';
 /** Keeps brokered API paths within the same conservative URL size as API-key clients. */
 const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
@@ -420,7 +417,7 @@ function validateRequest(
     throw protocolError('The plugin handshake is not complete');
   }
 
-  if (!ALLOWED_METHODS[negotiatedVersion].has(candidate.method)) {
+  if (!ALLOWED_METHODS.has(candidate.method)) {
     throw forbidden(`${candidate.method} is not allowed by protocol v${String(negotiatedVersion)}`);
   }
 
@@ -477,11 +474,8 @@ function validateRequest(
     throw protocolError('DELETE requests must not carry a body');
   }
 
-  const needsJsonBody =
-    negotiatedVersion === 2 &&
-    (candidate.method === 'POST' || candidate.method === 'PUT' || candidate.method === 'PATCH');
-  if (needsJsonBody && candidate.body === undefined) {
-    throw protocolError(`${candidate.method} requests must carry a JSON body`);
+  if (candidate.method === 'PATCH' && candidate.body === undefined) {
+    throw protocolError('PATCH requests must carry a JSON body');
   }
 
   return candidate as unknown as PluginHostRequest;

@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { PluginRequest } from './protocol.js';
 
-const v2Requests: PluginRequest[] = [
+const protocolRequests: PluginRequest[] = [
   { id: 'get', kind: 'api', method: 'GET', path: '/api/x' },
+  { id: 'bodyless-post', kind: 'api', method: 'POST', path: '/api/x' },
   { id: 'post', kind: 'api', method: 'POST', path: '/api/x', body: null },
+  { id: 'bodyless-put', kind: 'api', method: 'PUT', path: '/api/x' },
   { id: 'put', kind: 'api', method: 'PUT', path: '/api/x', body: {} },
   { id: 'patch', kind: 'api', method: 'PATCH', path: '/api/x', body: [] },
   { id: 'delete', kind: 'api', method: 'DELETE', path: '/api/x' },
   { id: 'stream', kind: 'api', method: 'GET', path: '/api/x', stream: true },
 ];
 
-// @ts-expect-error Protocol v2 POST requests require a body property.
-const bodylessPost: PluginRequest = {
-  id: 'bodyless-post',
+// @ts-expect-error PATCH requests require a body property.
+const bodylessPatch: PluginRequest = {
+  id: 'bodyless-patch',
   kind: 'api',
-  method: 'POST',
+  method: 'PATCH',
   path: '/api/x',
 };
 
@@ -23,16 +25,16 @@ const getWithBody: PluginRequest = {
   kind: 'api',
   method: 'GET',
   path: '/api/x',
-  // @ts-expect-error Protocol v2 GET requests never carry a body.
+  // @ts-expect-error GET requests never carry a body.
   body: {},
 };
 
-describe('protocol v2 request shapes', () => {
-  it('models bodyless reads/deletes and required-body writes as distinct wire shapes', () => {
+describe('protocol v1 request shapes', () => {
+  it('adds PATCH and DELETE while preserving bodyless POST and PUT compatibility', () => {
     expect(
-      v2Requests.map(request => ('method' in request ? request.method : request.kind))
-    ).toEqual(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'GET']);
-    expect(bodylessPost).toBeDefined();
+      protocolRequests.map(request => ('method' in request ? request.method : request.kind))
+    ).toEqual(['GET', 'POST', 'POST', 'PUT', 'PUT', 'PATCH', 'DELETE', 'GET']);
+    expect(bodylessPatch).toBeDefined();
     expect(getWithBody).toBeDefined();
   });
 });

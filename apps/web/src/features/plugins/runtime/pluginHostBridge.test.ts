@@ -161,21 +161,23 @@ describe('plugin host bridge', () => {
   beforeEach(() => vi.unstubAllGlobals());
   afterEach(() => vi.unstubAllGlobals());
 
-  it('keeps the v2 request type aligned with the runtime body rules', () => {
+  it('keeps the v1 request type aligned with additive runtime body rules', () => {
     const valid: PluginRequest[] = [
       { id: 'get', kind: 'api', method: 'GET', path: '/api/x' },
+      { id: 'bodyless-post', kind: 'api', method: 'POST', path: '/api/x' },
       { id: 'post', kind: 'api', method: 'POST', path: '/api/x', body: null },
+      { id: 'bodyless-put', kind: 'api', method: 'PUT', path: '/api/x' },
       { id: 'put', kind: 'api', method: 'PUT', path: '/api/x', body: {} },
       { id: 'patch', kind: 'api', method: 'PATCH', path: '/api/x', body: [] },
       { id: 'delete', kind: 'api', method: 'DELETE', path: '/api/x' },
       { id: 'stream', kind: 'api', method: 'GET', path: '/api/x', stream: true },
     ];
 
-    // @ts-expect-error Protocol v2 POST requests require a body property.
-    const bodylessPost: PluginRequest = {
-      id: 'bodyless-post',
+    // @ts-expect-error PATCH requests require a body property.
+    const bodylessPatch: PluginRequest = {
+      id: 'bodyless-patch',
       kind: 'api',
-      method: 'POST',
+      method: 'PATCH',
       path: '/api/x',
     };
     const getWithBody: PluginRequest = {
@@ -183,12 +185,12 @@ describe('plugin host bridge', () => {
       kind: 'api',
       method: 'GET',
       path: '/api/x',
-      // @ts-expect-error Protocol v2 GET requests never carry a body.
+      // @ts-expect-error GET requests never carry a body.
       body: {},
     };
 
-    expect(valid).toHaveLength(6);
-    expect(bodylessPost).toBeDefined();
+    expect(valid).toHaveLength(8);
+    expect(bodylessPatch).toBeDefined();
     expect(getWithBody).toBeDefined();
   });
 
@@ -365,11 +367,11 @@ describe('plugin host bridge', () => {
   });
 
   describe('handshake', () => {
-    it('advertises protocol v2 as the latest host protocol', async () => {
+    it('advertises the compatible protocol v1', async () => {
       const h = await harness();
 
-      expect(PLUGIN_PROTOCOL_VERSION).toBe(2);
-      expect(h.posted[0].data).toMatchObject({ owox: 'host-init', v: 2 });
+      expect(PLUGIN_PROTOCOL_VERSION).toBe(1);
+      expect(h.posted[0].data).toMatchObject({ owox: 'host-init', v: 1 });
     });
 
     it('negotiates protocol v1 and serves requests after a matching v1 hello', async () => {
@@ -383,6 +385,7 @@ describe('plugin host bridge', () => {
 
     it.each([
       ['v0', { owox: 'plugin-ready', v: 0 }],
+      ['v2', { owox: 'plugin-ready', v: 2 }],
       ['v3', { owox: 'plugin-ready', v: 3 }],
       ['a string version', { owox: 'plugin-ready', v: '2' }],
       ['a missing version', { owox: 'plugin-ready' }],
@@ -704,14 +707,6 @@ describe('plugin host bridge', () => {
         { id: 'malformed-12', kind: 'api', method: 'DELETE', path: '/api/x', body: {} },
       ],
       [
-        'a POST without a JSON body',
-        { id: 'malformed-18', kind: 'api', method: 'POST', path: '/api/x' },
-      ],
-      [
-        'a PUT with an undefined JSON body',
-        { id: 'malformed-19', kind: 'api', method: 'PUT', path: '/api/x', body: undefined },
-      ],
-      [
         'a PATCH without a JSON body',
         { id: 'malformed-20', kind: 'api', method: 'PATCH', path: '/api/x' },
       ],
@@ -738,7 +733,7 @@ describe('plugin host bridge', () => {
     });
   });
 
-  describe('versioned API methods', () => {
+  describe('API methods', () => {
     it.each(['POST', 'PUT'] as const)(
       'forwards a bodyless v1 %s request without minting a content type',
       async method => {
@@ -763,22 +758,7 @@ describe('plugin host bridge', () => {
       }
     );
 
-    it.each(['PATCH', 'DELETE'])('refuses v1 %s before minting a token', async method => {
-      const h = await harness(undefined, true, 1);
-
-      const response = await h.send({
-        kind: 'api',
-        method,
-        path: '/api/data-marts/dm-1',
-        ...(method === 'PATCH' ? { body: { title: 'Updated' } } : {}),
-      } as unknown as PluginRequestInput);
-
-      expect(response).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
-      expect(h.fetchRuntimeToken).not.toHaveBeenCalled();
-      expect(h.fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('forwards a v2 PATCH with its JSON body', async () => {
+    it('forwards a v1 PATCH with its JSON body', async () => {
       const h = await harness();
 
       const response = await h.send({
@@ -799,7 +779,7 @@ describe('plugin host bridge', () => {
       });
     });
 
-    it('forwards a v2 DELETE without a request body and returns ordinary JSON', async () => {
+    it('forwards a v1 DELETE without a request body and returns ordinary JSON', async () => {
       const h = await harness(async () =>
         Response.json({ deleted: true }, { status: 200, headers: { 'x-owox-run-id': 'run-1' } })
       );

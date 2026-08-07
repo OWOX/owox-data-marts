@@ -6,15 +6,12 @@
  * consumed from npm by third parties should not also be a build input of the product it
  * plugs into. The two sides therefore agree by PLUGIN_PROTOCOL_VERSION, not by sharing a
  * module -- which is exactly the contract a plugin built against an older SDK has to
- * satisfy anyway.
- *
- * Change one side and the latest version must move with it. The host deliberately keeps
- * the versions it can still interpret here so older deployed plugins can negotiate their
- * own rules without a newer message being read against them.
+ * satisfy anyway. Additive request methods may evolve v1 when the host preserves every
+ * existing wire shape; incompatible wire changes require a new negotiated version.
  */
 
-export const PLUGIN_PROTOCOL_VERSION = 2 as const;
-export type PluginProtocolVersion = 1 | typeof PLUGIN_PROTOCOL_VERSION;
+export const PLUGIN_PROTOCOL_VERSION = 1 as const;
+export type PluginProtocolVersion = typeof PLUGIN_PROTOCOL_VERSION;
 
 /**
  * The plugin's own origin, as this host sees it: a sandboxed frame is opaque, so
@@ -82,7 +79,18 @@ export type PluginRequest =
   | {
       id: string;
       kind: 'api';
-      method: 'POST' | 'PUT' | 'PATCH';
+      method: 'POST' | 'PUT';
+      path: string;
+      query?: PluginQuery;
+      /** Optional for compatibility with plugins built against the original v1 shape. */
+      body?: unknown;
+      accept?: string;
+      stream?: false;
+    }
+  | {
+      id: string;
+      kind: 'api';
+      method: 'PATCH';
       path: string;
       query?: PluginQuery;
       body: unknown;
@@ -123,20 +131,7 @@ export type PluginRequest =
    */
   | { id: string; kind: 'navigate'; path: string };
 
-/** The body shape accepted from an already-negotiated protocol-v1 plugin. */
-export interface LegacyPluginApiRequest {
-  id: string;
-  kind: 'api';
-  method: 'GET' | 'POST' | 'PUT';
-  path: string;
-  query?: PluginQuery;
-  body?: unknown;
-  accept?: string;
-  stream?: false;
-}
-
-/** Host-only union: the public v2 request remains identical to the SDK protocol copy. */
-export type PluginHostRequest = PluginRequest | LegacyPluginApiRequest;
+export type PluginHostRequest = PluginRequest;
 
 /**
  * A request before the transport stamps its correlation id.
@@ -184,7 +179,7 @@ export function isPluginReady(
   value: unknown
 ): value is PluginReadyMessage & { v: PluginProtocolVersion } {
   const message = value as PluginReadyMessage | null;
-  return message?.owox === 'plugin-ready' && (message.v === 1 || message.v === 2);
+  return message?.owox === 'plugin-ready' && message.v === PLUGIN_PROTOCOL_VERSION;
 }
 
 export function isPluginHello(
