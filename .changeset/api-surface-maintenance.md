@@ -4,8 +4,8 @@
 
 # Low-level API client transport methods
 
-API-key clients can now use `patchJson()` and `deleteJson()` alongside
-`getJson()`, `postJson()`, `putJson()`, and `getStream()` for API-key-compatible
+OWOX API clients can now use `patchJson()` and `deleteJson()` alongside
+`getJson()`, `postJson()`, `putJson()`, and `getStream()` for `/api/...`
 endpoints that do not yet have typed resource abstractions. Authenticated
 low-level requests accept only root-relative `/api/...` paths up to 2,048
 characters and refuse unsafe paths and redirects, preventing credentials from
