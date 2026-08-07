@@ -3,10 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.interface';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { PublishDraftsTrigger } from '../entities/publish-drafts-trigger.entity';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { PublishDataStorageDraftsService } from '../use-cases/publish-data-storage-drafts.service';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
+
+const GENERIC_TRIGGER_ERROR = 'Publishing Data Mart drafts failed. Please try again.';
 
 @Injectable()
 export class PublishDraftsTriggerHandlerService
@@ -44,12 +47,17 @@ export class PublishDraftsTriggerHandlerService
       await this.repository.save(trigger);
     } catch (e) {
       this.logger.warn(
-        `Trigger ${trigger.id} failed: ${e instanceof Error ? e.message : 'Unknown error'}`
+        `Trigger ${trigger.id} failed: ${e instanceof Error ? e.message : 'Unknown error'}`,
+        e instanceof Error ? e.stack : undefined
       );
       trigger.uiResponse = {
         successCount: 0,
         failedCount: 0,
-        error: e instanceof Error ? e.message : 'Unknown error',
+        // PublishDataStorageDraftsService only raises BusinessViolationException
+        // with text it authored itself. Anything else reaching here is
+        // infrastructure (TypeORM, NotFound, a bug) whose message can carry
+        // internal detail, and this response is readable by any project viewer.
+        error: e instanceof BusinessViolationException ? e.message : GENERIC_TRIGGER_ERROR,
       };
       trigger.onError();
       await this.repository.save(trigger);

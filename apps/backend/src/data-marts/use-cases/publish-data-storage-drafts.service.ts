@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
@@ -25,6 +26,20 @@ const UNRESOLVED_ROLES_ERROR =
 /** Same, but for a failed lookup rather than a definitive empty answer — retrying may help. */
 const PERMISSIONS_LOOKUP_FAILED_ERROR =
   'Could not verify your project permissions. No Data Mart drafts were published. Please try again.';
+
+/** Fallback when the storage check failed for a reason this codebase did not author. */
+const STORAGE_ACCESS_FAILED_ERROR =
+  'Could not access this Storage. Check its connection settings and try again.';
+
+/**
+ * A ValidationResult only carries a `code` when this codebase authored the
+ * message (`unconfigured`, `oauthReauthRequired`). A bare `failure()` can hold
+ * raw text from credential resolution or a warehouse driver, which must not
+ * reach the browser.
+ */
+function toUserFacingStorageError(result: ValidationResult): string {
+  return result.code && result.errorMessage ? result.errorMessage : STORAGE_ACCESS_FAILED_ERROR;
+}
 
 @Injectable()
 export class PublishDataStorageDraftsService {
@@ -54,9 +69,7 @@ export class PublishDataStorageDraftsService {
     );
 
     if (!validationResult.valid) {
-      throw new BusinessViolationException(
-        validationResult.errorMessage ?? 'Data storage access validation failed'
-      );
+      throw new BusinessViolationException(toUserFacingStorageError(validationResult));
     }
 
     const draftIds = await this.dataMartService.findDraftIdsByStorage(dataStorage);

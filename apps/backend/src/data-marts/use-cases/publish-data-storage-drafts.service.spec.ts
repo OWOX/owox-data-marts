@@ -37,11 +37,49 @@ describe('PublishDataStorageDraftsService', () => {
     return {
       service,
       dataMartService,
+      validateDataStorageAccessService,
       publishDataMartService,
       schemaActualizeTriggerService,
       idpProjectionsFacade,
     };
   };
+
+  // The storage check can fail with raw text from credential resolution or a
+  // warehouse driver; only results carrying a code hold text we authored.
+  it('genericizes a storage validation failure that has no code', async () => {
+    const { service, validateDataStorageAccessService, dataMartService } = createService();
+    validateDataStorageAccessService.run.mockResolvedValue({
+      valid: false,
+      errorMessage:
+        'getaddrinfo ENOTFOUND acme-prod-1234.warehouse.internal; secret_key=AKIA123 rejected',
+    });
+
+    const error: unknown = await service
+      .run(new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1'))
+      .catch((e: unknown) => e);
+
+    expect((error as Error).message).toBe(
+      'Could not access this Storage. Check its connection settings and try again.'
+    );
+    expect((error as Error).message).not.toContain('acme-prod-1234');
+    expect((error as Error).message).not.toContain('AKIA123');
+    expect(dataMartService.findDraftIdsByStorage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a coded storage validation message, which this codebase authored', async () => {
+    const { service, validateDataStorageAccessService } = createService();
+    validateDataStorageAccessService.run.mockResolvedValue({
+      valid: false,
+      code: 'UNCONFIGURED',
+      errorMessage: 'Complete setup to activate Storage',
+    });
+
+    const error: unknown = await service
+      .run(new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1'))
+      .catch((e: unknown) => e);
+
+    expect((error as Error).message).toBe('Complete setup to activate Storage');
+  });
 
   it('skips the remote role lookup when the storage has no drafts', async () => {
     const { service, dataMartService, idpProjectionsFacade } = createService();

@@ -1,0 +1,88 @@
+import { NotFoundException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
+import { PublishDraftsTriggerHandlerService } from './publish-drafts-trigger-handler.service';
+
+describe('PublishDraftsTriggerHandlerService', () => {
+  const createHandler = () => {
+    const repository = { save: jest.fn().mockResolvedValue(undefined) };
+    const schedulerFacade = { registerTriggerHandler: jest.fn() };
+    const publishDraftsService = {
+      run: jest.fn().mockResolvedValue(new PublishDataStorageDraftsResultDto(1, 0)),
+    };
+    const dataStorageMapper = {
+      toPublishDraftsResponse: jest.fn((result: PublishDataStorageDraftsResultDto) => ({
+        successCount: result.successCount,
+        failedCount: result.failedCount,
+        failureReasons: result.failureReasons,
+      })),
+    };
+
+    const handler = new PublishDraftsTriggerHandlerService(
+      repository as never,
+      schedulerFacade as never,
+      publishDraftsService as never,
+      dataStorageMapper as never
+    );
+
+    const trigger = {
+      id: 'trigger-1',
+      dataStorageId: 'storage-1',
+      projectId: 'project-1',
+      userId: 'user-1',
+      uiResponse: undefined as unknown,
+      onSuccess: jest.fn(),
+      onError: jest.fn(),
+    };
+
+    return { handler, trigger, publishDraftsService, dataStorageMapper };
+  };
+
+  it('maps a successful run through the mapper', async () => {
+    const { handler, trigger, dataStorageMapper } = createHandler();
+
+    await handler.handleTrigger(trigger as never);
+
+    expect(dataStorageMapper.toPublishDraftsResponse).toHaveBeenCalled();
+    expect(trigger.onSuccess).toHaveBeenCalled();
+    expect(trigger.uiResponse).toMatchObject({ successCount: 1, failedCount: 0 });
+  });
+
+  it('surfaces a business violation message, which the use case authors itself', async () => {
+    const { handler, trigger, publishDraftsService } = createHandler();
+    publishDraftsService.run.mockRejectedValue(
+      new BusinessViolationException(
+        'Could not determine your project permissions. No Data Mart drafts were published.'
+      )
+    );
+
+    await handler.handleTrigger(trigger as never);
+
+    expect(trigger.onError).toHaveBeenCalled();
+    expect(trigger.uiResponse).toMatchObject({
+      error: 'Could not determine your project permissions. No Data Mart drafts were published.',
+    });
+  });
+
+  // This response is readable by any project viewer, so infrastructure errors
+  // must not put their message on it.
+  it('replaces a non-business error with a generic message', async () => {
+    const { handler, trigger, publishDraftsService } = createHandler();
+    publishDraftsService.run.mockRejectedValue(
+      new NotFoundException(
+        'DataStorage with id 8f3a1c02 and projectId acme-prod-1234 not found in schema owox_internal'
+      )
+    );
+
+    await handler.handleTrigger(trigger as never);
+
+    expect(trigger.uiResponse).toMatchObject({
+      successCount: 0,
+      failedCount: 0,
+      error: 'Publishing Data Mart drafts failed. Please try again.',
+    });
+    const serialized = JSON.stringify(trigger.uiResponse);
+    expect(serialized).not.toContain('acme-prod-1234');
+    expect(serialized).not.toContain('owox_internal');
+  });
+});
