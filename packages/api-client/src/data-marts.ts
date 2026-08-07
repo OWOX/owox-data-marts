@@ -139,9 +139,9 @@ export type TraverseDataFilterRule = (
   | {
       column: string;
       operator: 'in' | 'not_in';
-      // The API accepts 1..500 values, all of the same type (all strings or all
-      // numbers); booleans are rejected — use is_true/is_false instead.
-      value: (string | number)[];
+      // The API accepts 1..500 values; booleans are rejected — use
+      // is_true/is_false instead.
+      value: string[] | number[];
     }
   | {
       column: string;

@@ -21,6 +21,9 @@ const typedTraverseDataOptions: TraverseDataOptions = {
       value: { kind: 'last_n_months', n: 3 },
     },
     { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'this_week' } },
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'last_week' } },
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'this_quarter' } },
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'last_quarter' } },
     {
       column: 'Event Date (local)',
       operator: 'relative_date',
@@ -41,6 +44,14 @@ const invalidTraverseDataOptions: TraverseDataOptions = {
     { column: 'Country', operator: 'in', value: 'Germany, Ukraine' },
     // @ts-expect-error in/not_in lists hold strings or numbers — boolean conditions use is_true/is_false
     { column: 'Is Active', operator: 'in', value: [true, false] },
+    // @ts-expect-error in/not_in lists must be homogeneous — all strings or all numbers
+    { column: 'Country', operator: 'in', value: ['Germany', 5] },
+    // @ts-expect-error in/not_in require a value list
+    { column: 'Country', operator: 'in' },
+    // @ts-expect-error next_n_days requires n
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'next_n_days' } },
+    // @ts-expect-error no-argument presets do not take n
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'this_week', n: 7 } },
   ],
 };
 void invalidTraverseDataOptions;
