@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-// API reference: https://shopify.dev/docs/api/admin-graphql/2025-10/objects/DiscountCodeNode
+// API reference: https://shopify.dev/docs/api/admin-graphql/2026-07/objects/DiscountCodeNode
 // Note: codeDiscount is a union type (DiscountCodeBasic | DiscountCodeBxgy | DiscountCodeFreeShipping)
 
 var discountCodesFields = {

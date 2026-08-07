@@ -98,7 +98,7 @@ describe('Runs API', () => {
         {
           ...runHistory.runs[0],
           createdByUser: {
-            ...runHistory.runs[0].createdByUser!,
+            ...runHistory.runs[0]!.createdByUser!,
             email: '',
             avatar: '/avatars/user-1',
           },
@@ -202,7 +202,7 @@ describe('Runs API', () => {
   });
 
   it('rejects a run without creator metadata', async () => {
-    const { createdByUser: _createdByUser, ...runWithoutCreator } = runHistory.runs[0];
+    const { createdByUser: _createdByUser, ...runWithoutCreator } = runHistory.runs[0]!;
     const response = { runs: [runWithoutCreator] };
     const fetchImpl = createFetchMock(request => {
       if (request.method === 'POST') {

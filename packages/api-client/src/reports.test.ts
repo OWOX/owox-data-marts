@@ -37,8 +37,8 @@ describe('ReportsApi.traverseData', () => {
 
     const traversal = await api.traverseData('report-1', { limit: 5 });
 
-    expect(calls[0].path).toBe('/api/external/http-data/reports/report-1.ndjson');
-    expect(calls[0].query?.get('limit')).toBe('5');
+    expect(calls[0]!.path).toBe('/api/external/http-data/reports/report-1.ndjson');
+    expect(calls[0]!.query?.get('limit')).toBe('5');
     expect(traversal.runId).toBe('run-9');
   });
 
@@ -52,7 +52,7 @@ describe('ReportsApi.traverseData', () => {
       },
     };
     await new ReportsApi(requester).traverseData('report-1');
-    expect(calls[0].query).toBeUndefined();
+    expect(calls[0]!.query).toBeUndefined();
   });
 
   it('adds report context to an OWOXApiError raised while opening the stream', async () => {

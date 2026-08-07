@@ -347,7 +347,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
 
   _buildGraphqlUrl() {
     const domain = String(this.config.ShopDomain.value).replace(/^https?:\/\//, "").replace(/\/$/, "");
-    return `https://${domain}/admin/api/2025-10/graphql.json`;
+    return `https://${domain}/admin/api/2026-07/graphql.json`;
   }
 
   _buildHeaders() {

@@ -6,6 +6,7 @@ import {
   type TraverseDataDateTruncRule,
   type TraverseDataFilterRule,
   type TraverseDataOptions,
+  type TraverseDataRelativeDatePreset,
   type TraverseDataSortRule,
 } from './index.js';
 
@@ -13,6 +14,9 @@ const typedTraverseDataOptions: TraverseDataOptions = {
   column: ['Event Date (local)', 'Revenue: net = USD'],
   filter: [
     { column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' },
+    { column: 'Country', operator: 'in', value: ['Germany', 'Ukraine'] },
+    { column: 'Channel', operator: 'not_in', value: ['(direct)'] },
+    { column: 'Revenue: net = USD', operator: 'between', value: { from: 100, to: 500 } },
     {
       column: 'Event Date (local)',
       operator: 'relative_date',
@@ -25,10 +29,44 @@ const typedTraverseDataOptions: TraverseDataOptions = {
 };
 void typedTraverseDataOptions;
 
+// Compile-time coverage of every relative-date preset the API supports —
+// one line per preset so the covered set stays visible at a glance.
+const relativeDatePresetCoverage: TraverseDataRelativeDatePreset[] = [
+  { kind: 'today' },
+  { kind: 'yesterday' },
+  { kind: 'this_week' },
+  { kind: 'last_week' },
+  { kind: 'this_month' },
+  { kind: 'last_month' },
+  { kind: 'this_quarter' },
+  { kind: 'last_quarter' },
+  { kind: 'this_year' },
+  { kind: 'last_n_days', n: 30 },
+  { kind: 'last_n_months', n: 3 },
+  { kind: 'next_n_days', n: 7 },
+];
+void relativeDatePresetCoverage;
+
 const invalidTraverseDataOptions: TraverseDataOptions = {
   filter: [
     // @ts-expect-error unsupported filter operators must be rejected by the public options type
     { column: 'Event Date (local)', operator: 'approximately', value: '2026-01-01' },
+    // @ts-expect-error in/not_in take an array of values, not a comma-separated string
+    { column: 'Country', operator: 'in', value: 'Germany, Ukraine' },
+    // @ts-expect-error in/not_in lists hold strings or numbers — boolean conditions use is_true/is_false
+    { column: 'Is Active', operator: 'in', value: [true, false] },
+    // @ts-expect-error in/not_in lists must be homogeneous — all strings or all numbers
+    { column: 'Country', operator: 'in', value: ['Germany', 5] },
+    // @ts-expect-error in/not_in require a value list
+    { column: 'Country', operator: 'in' },
+    // @ts-expect-error between bounds must share one type
+    { column: 'Revenue', operator: 'between', value: { from: 100, to: '500' } },
+    // @ts-expect-error between bounds cannot be booleans — use is_true/is_false
+    { column: 'Is Active', operator: 'between', value: { from: false, to: true } },
+    // @ts-expect-error next_n_days requires n
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'next_n_days' } },
+    // @ts-expect-error no-argument presets do not take n
+    { column: 'Event Date (local)', operator: 'relative_date', value: { kind: 'this_week', n: 7 } },
   ],
 };
 void invalidTraverseDataOptions;

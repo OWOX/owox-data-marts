@@ -364,7 +364,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     });
 
     const headers = {
-      "LinkedIn-Version": "202509",
+      "LinkedIn-Version": "202607",
       "X-RestLi-Protocol-Version": "2.0.0",
     };
 
