@@ -173,7 +173,7 @@ export type OWOXDataMartRunDetail = OWOXDataMartRun & {
 export type OWOXDataMartRunsResponse = { runs: OWOXDataMartRun[] };
 export type OWOXDataMartRunListOptions = { limit?: number; offset?: number };
 export type OWOXDataMartRunStartOptions =
-  | { runType?: 'INCREMENTAL'; data?: Record<string, unknown> }
+  | { runType?: 'INCREMENTAL'; data?: never }
   | { runType: 'MANUAL_BACKFILL'; data?: Record<string, unknown> };
 export type OWOXRunDataMartResponse = { runId: string };
 

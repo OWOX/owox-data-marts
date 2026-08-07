@@ -3,6 +3,7 @@ import {
   OWOXApiError,
   type OWOXDataMartRun,
   type OWOXDataMartRunDetail,
+  type OWOXDataMartRunStartOptions,
   type OWOXDataQualityRule,
 } from './index.js';
 import { jest } from '@jest/globals';
@@ -13,6 +14,10 @@ type RecordedRequest = {
   headers: Record<string, string>;
   body: unknown;
 };
+
+// @ts-expect-error connector data requires an explicit MANUAL_BACKFILL run type
+const invalidImplicitBackfill: OWOXDataMartRunStartOptions = { data: { StartDate: '2026-07-01' } };
+void invalidImplicitBackfill;
 
 const apiOrigin = 'https://example.test';
 const apiKeyId = 'pmk_AbCdEfGhIjKlMnOpQrStUv';
@@ -214,10 +219,8 @@ describe('Data Mart run lifecycle API', () => {
     });
   });
 
-  it.each([
-    ['incremental data retained by the run form', { runType: 'INCREMENTAL', data: {} }],
-    ['manual backfill without connector-specific fields', { runType: 'MANUAL_BACKFILL' }],
-  ] as const)('accepts %s', async (_case, options) => {
+  it('accepts a manual backfill without connector-specific fields', async () => {
+    const options = { runType: 'MANUAL_BACKFILL' } as const;
     const fetchImpl = createFetchMock(request => {
       if (request.url === '/api/auth/api-keys/exchange') {
         return createJsonResponse(200, { accessToken: 'access-token-1' });
@@ -266,6 +269,20 @@ describe('Data Mart run lifecycle API', () => {
       message: 'Invalid OWOX Data Mart run-start options',
     });
     await expect(
+      client.runs.forDataMart('dm-1').start({ data: { value: 'silently ignored' } } as never)
+    ).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Invalid OWOX Data Mart run-start options',
+    });
+    await expect(
+      client.runs
+        .forDataMart('dm-1')
+        .start({ runType: 'INCREMENTAL', data: { value: 'silently ignored' } } as never)
+    ).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'Invalid OWOX Data Mart run-start options',
+    });
+    await expect(
       client.runs.forDataMart('dm-1').start({
         runType: 'MANUAL_BACKFILL',
         data: { value: 'x'.repeat(1024 * 1024) },
@@ -273,12 +290,6 @@ describe('Data Mart run lifecycle API', () => {
     ).rejects.toMatchObject({
       name: 'OWOXApiError',
       message: 'OWOX Data Mart manual-run payload exceeds 1MB',
-    });
-    await expect(
-      client.runs.forDataMart('dm-1').start({ data: [] } as never)
-    ).rejects.toMatchObject({
-      name: 'OWOXApiError',
-      message: 'Invalid OWOX Data Mart run-start options',
     });
     await expect(
       client.runs.forDataMart('dm-1').list({ limit: '25' } as never)

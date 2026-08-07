@@ -59,7 +59,7 @@ function validateRunStartOptions(options: unknown): asserts options is OWOXDataM
     options.runType === 'MANUAL_BACKFILL'
       ? options.data === undefined || isRecord(options.data)
       : (options.runType === undefined || options.runType === 'INCREMENTAL') &&
-        (options.data === undefined || isRecord(options.data));
+        options.data === undefined;
   if (
     Object.keys(options).some(key => key !== 'runType' && key !== 'data') ||
     !hasValidRunConfiguration

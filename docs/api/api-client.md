@@ -300,11 +300,13 @@ authentication or any network request.
 ## Manage Data Mart runs
 
 Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)` method
-starts a manual connector run and requires Technical User access to the Data Mart. Omit the options
-for an incremental run, or set `runType` to `MANUAL_BACKFILL` and pass any connector-specific
-backfill fields in `data`. Connectors without backfill fields can omit `data`. Object-valued `data`
-is also accepted for incremental runs for compatibility with existing run forms that retain hidden
-field values. The method returns the new run ID. The serialized options must not exceed 1 MB.
+starts a manual connector run and requires Technical User access to the Data Mart. Omit the options,
+or set `runType` to `INCREMENTAL` without `data`, for an incremental run. To send connector-specific
+backfill fields in `data`, set `runType` to `MANUAL_BACKFILL`; connectors without backfill fields can
+omit `data`. The API client rejects `data` on implicit or explicit incremental runs before
+authentication or any network request. The backend HTTP endpoint separately tolerates retained
+object-valued `data` on incremental requests for compatibility with existing run forms. The method
+returns the new run ID. The serialized options must not exceed 1 MB.
 
 ```ts
 const dataMartRuns = client.runs.forDataMart('data-mart-id');
