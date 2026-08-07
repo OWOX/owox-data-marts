@@ -75,6 +75,7 @@ vi.mock('./form/DataMartDefinitionForm.tsx', async () => {
         <div data-testid='definition-form'>
           <span>{definitionType}</span>
           <input aria-label='SQL query' {...register('definition.sqlQuery')} />
+          <input aria-label='Table name' {...register('definition.fullyQualifiedName')} />
         </div>
       );
     },
@@ -88,7 +89,12 @@ const buildDataMart = (
   id: 'dm-1',
   title: 'Orders',
   definitionType,
-  definition: definitionType ? { fullyQualifiedName: 'project.dataset.orders' } : null,
+  definition:
+    definitionType === DataMartDefinitionType.SQL
+      ? { sqlQuery: 'select saved' }
+      : definitionType
+        ? { fullyQualifiedName: 'project.dataset.orders' }
+        : null,
   storage: {
     id: 'storage-1',
     type: storageType,
@@ -108,7 +114,7 @@ const renderSettings = (
     runSchemaActualization: testState.runSchemaActualization,
   } as unknown as DataMartContextType;
 
-  render(
+  const { rerender } = render(
     <DataMartDefinitionSettings
       definitionType={definitionType}
       initialDefinitionType={initialDefinitionType}
@@ -116,7 +122,26 @@ const renderSettings = (
     />
   );
 
-  return { setDefinitionType };
+  /**
+   * Re-renders the way the page does after any Data Mart refresh — schema actualization, a
+   * relationship change, a publish — which hands down a freshly built `dataMart` object.
+   */
+  const refreshDataMart = (nextDefinitionType = definitionType) => {
+    testState.outletContext = {
+      ...(testState.outletContext as object),
+      dataMart: buildDataMart(initialDefinitionType, storageType),
+    } as unknown as DataMartContextType;
+
+    rerender(
+      <DataMartDefinitionSettings
+        definitionType={nextDefinitionType}
+        initialDefinitionType={initialDefinitionType}
+        setDefinitionType={setDefinitionType}
+      />
+    );
+  };
+
+  return { setDefinitionType, refreshDataMart };
 };
 
 /** Validation runs on change, so the Save button only enables once it settles. */
@@ -271,6 +296,56 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
     // Data Mart whose definition never changed.
     expect(screen.getByLabelText('SQL query')).toHaveValue('select from');
     expect(testState.runSchemaActualization).not.toHaveBeenCalled();
+  });
+
+  it('keeps an unsaved query when the Data Mart is refreshed underneath the editor', async () => {
+    const { refreshDataMart } = renderSettings(
+      DataMartDefinitionType.SQL,
+      DataMartDefinitionType.SQL
+    );
+
+    fireEvent.change(screen.getByLabelText('SQL query'), {
+      target: { value: 'select saved where x = 1' },
+    });
+    refreshDataMart();
+
+    // The refresh carries the *saved* query; re-applying it here would silently swallow
+    // everything typed since the last save.
+    expect(screen.getByLabelText('SQL query')).toHaveValue('select saved where x = 1');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+  });
+
+  it('keeps a staged query when the Data Mart is refreshed underneath the editor', async () => {
+    const { refreshDataMart } = renderSettings(
+      DataMartDefinitionType.SQL,
+      DataMartDefinitionType.TABLE
+    );
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
+    refreshDataMart();
+
+    // A staged type change resets to an *empty* definition, so a refresh mid-edit would leave the
+    // editor showing a query the form no longer holds — and Save disabled with text on screen.
+    expect(screen.getByLabelText('SQL query')).toHaveValue('select 1');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+  });
+
+  it('re-shapes the form when another type is picked, even with unsaved edits', () => {
+    const { refreshDataMart } = renderSettings(
+      DataMartDefinitionType.SQL,
+      DataMartDefinitionType.TABLE
+    );
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
+    // Going back to the saved type has to load the saved definition; unsaved edits to the type
+    // being abandoned must not hold that off.
+    refreshDataMart(DataMartDefinitionType.TABLE);
+
+    expect(screen.getByLabelText('Table name')).toHaveValue('project.dataset.orders');
   });
 
   it('reports an unknown impact as unknown, never as zero dependencies', async () => {

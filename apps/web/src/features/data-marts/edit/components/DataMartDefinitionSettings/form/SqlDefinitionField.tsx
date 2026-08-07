@@ -17,7 +17,7 @@ export function SqlDefinitionField({ control }: SqlDefinitionFieldProps) {
           <FormLabel className='text-foreground'>SQL Query</FormLabel>
           <FormControl>
             <DataMartCodeEditor
-              initialValue={field.value ? { sqlQuery: field.value } : undefined}
+              value={{ sqlQuery: field.value }}
               onChange={config => {
                 field.onChange(config.sqlQuery);
               }}

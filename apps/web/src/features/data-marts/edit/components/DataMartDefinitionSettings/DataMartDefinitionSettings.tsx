@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm, FormProvider, type SubmitHandler, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataMartDefinitionTypeSelector } from './form/DataMartDefinitionTypeSelector.tsx';
@@ -144,11 +144,22 @@ export function DataMartDefinitionSettings({
   const currentDefinition = watch('definition');
   const sqlCode = getSqlQueryFromDefinition(definitionType, currentDefinition);
 
+  const lastResetTypeRef = useRef<DataMartDefinitionType | null>(null);
+
   useEffect(() => {
-    if (definitionType) {
-      reset(getInitialFormValues());
-    }
-  }, [definitionType, reset, getInitialFormValues]);
+    if (!definitionType) return;
+
+    // Picking another type has to re-shape the form, so that reset always runs. Every other reason
+    // this effect re-runs is a Data Mart refresh handing us a new `definition` object — schema
+    // actualization after a save, a relationship change, a publish. Those must not overwrite what
+    // the user is typing: `getInitialFormValues` returns the *saved* definition (or an empty one
+    // while a type change is staged), so resetting mid-edit throws the unsaved query away.
+    const isTypeSwitch = definitionType !== lastResetTypeRef.current;
+    lastResetTypeRef.current = definitionType;
+    if (!isTypeSwitch && isDirty) return;
+
+    reset(getInitialFormValues());
+  }, [definitionType, reset, getInitialFormValues, isDirty]);
 
   useEffect(() => {
     if (!definitionType && !initialDefinitionType && preset?.definitionType) {
