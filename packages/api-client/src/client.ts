@@ -82,8 +82,14 @@ export class OWOXApiClient implements OWOXTransportWithLowLevelWrites {
     if (!this.transport.patchJson) {
       throw new OWOXConfigError('Injected OWOX transport does not support patchJson()');
     }
-    if (jsonBody === undefined) {
-      throw new OWOXConfigError('patchJson() requires a defined JSON body');
+    let serializedBody: string | undefined;
+    try {
+      serializedBody = JSON.stringify(jsonBody);
+    } catch (cause) {
+      throw new OWOXConfigError('patchJson() requires a JSON-serializable body', { cause });
+    }
+    if (serializedBody === undefined) {
+      throw new OWOXConfigError('patchJson() requires a JSON-serializable body');
     }
     return this.transport.patchJson<T>(path, jsonBody);
   }

@@ -37,9 +37,6 @@ installed your plugin**, and never more. Do not assume you are trusted beyond th
 Protected routes still apply their server-side authorization and reject calls the member
 may not make.
 
-`ctx.owox.patchJson()` and `ctx.owox.deleteJson()` are available for low-level PATCH and
-DELETE requests brokered by the host.
-
 Use low-level methods only for endpoints without a typed resource:
 `getJson<T>(path, query?)`, `postJson<T>(path, body, accept?)`, `putJson<T>(path, body)`,
 `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`, and `getStream(path, query?)`.
