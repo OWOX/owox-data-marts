@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { trimString } from '@owox/internal-helpers';
 import { HelperOptions } from 'handlebars';
 import { AgentTelemetry } from '../../../../common/ai-insights/agent/types';
-import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
+import { RunRestrictedException } from '../../../../common/exceptions/run-restricted.exception';
 import {
   wrapCautionBlock,
   wrapCodeBlock,
@@ -14,7 +14,11 @@ import {
   RootWithAdditional,
   TagRenderedResult,
 } from '../../../../common/template/types/render-template.types';
-import { ProjectBalanceService } from '../../../services/project-balance.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunKind,
+} from '../../../services/project-billing/project-billing';
 import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
 import {
   DataMartAdditionalParams,
@@ -36,7 +40,8 @@ export class PromptTagHandler implements TagHandler<
   constructor(
     @Inject(AI_INSIGHTS_FACADE)
     private readonly aiInsightFacade: AiInsightsFacade,
-    private readonly projectBalanceService: ProjectBalanceService
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling
   ) {}
 
   buildPayload(args: unknown[], options: HelperOptions, context: unknown): PromptTagPayload {
@@ -66,9 +71,12 @@ export class PromptTagHandler implements TagHandler<
 
   async handle(input: PromptTagPayload): Promise<TagRenderedResult<PromptTagMeta>> {
     try {
-      await this.projectBalanceService.verifyCanPerformOperations(input.projectId);
+      await this.projectBilling.authorizeRun({
+        projectId: input.projectId,
+        runKind: RunKind.AI_PROCESS_RUN,
+      });
     } catch (error) {
-      if (error instanceof ProjectOperationBlockedException) {
+      if (error instanceof RunRestrictedException) {
         return {
           rendered: wrapCautionBlock(error.message),
           meta: {

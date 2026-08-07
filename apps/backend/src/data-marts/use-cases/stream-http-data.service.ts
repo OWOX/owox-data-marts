@@ -29,9 +29,13 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { Action, EntityType } from '../services/access-decision/access-decision.types';
 import { AccessDecisionService } from '../services/access-decision/access-decision.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import { DataMartService } from '../services/data-mart.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunGrant,
+  RunKind,
+} from '../services/project-billing/project-billing';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
@@ -122,8 +126,8 @@ export class StreamHttpDataService {
     private readonly blendableSchemaService: BlendableSchemaService,
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
-    private readonly projectBalanceService: ProjectBalanceService,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly systemTimeService: SystemTimeService,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
@@ -272,7 +276,10 @@ export class StreamHttpDataService {
       const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders } = planContext;
       reportId = planContext.reportId;
 
-      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+      const grant = await this.projectBilling.authorizeRun({
+        projectId: dataMart.projectId,
+        runKind: RunKind.HTTP_DATA_RUN,
+      });
 
       // Seeded here (before blending is resolved) so any failure from this point on — including a
       // report config-drift error inside resolveBlendingDecision, or the missing-blended-SQL guard
@@ -354,6 +361,7 @@ export class StreamHttpDataService {
 
       await this.recordSuccessfulRun(
         dataMart,
+        grant,
         userId,
         runId,
         startedAt,
@@ -453,6 +461,7 @@ export class StreamHttpDataService {
 
   private async recordSuccessfulRun(
     dataMart: DataMart,
+    grant: RunGrant,
     createdById: string,
     runId: string,
     startedAt: Date,
@@ -477,7 +486,11 @@ export class StreamHttpDataService {
     }
 
     try {
-      await this.consumptionTrackingService.registerHttpDataRunConsumption(dataMart, runId);
+      await this.projectBilling.registerConsumption(grant, {
+        kind: RunKind.HTTP_DATA_RUN,
+        dataMart,
+        runId,
+      });
     } catch (err) {
       this.logger.warn(
         `Failed to register HTTP Data run consumption ${runId}: ${err instanceof Error ? err.message : String(err)}`

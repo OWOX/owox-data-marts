@@ -28,8 +28,7 @@ import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataQualityStoredCheckResult } from '../dto/schemas/data-quality/data-quality-run.schema';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import { ProjectBilling, RunKind } from '../services/project-billing/project-billing';
 import {
   DataQualitySnapshotStorageMismatchError,
   DataQualitySnapshotTableReferenceService,
@@ -105,8 +104,7 @@ describe('RunDataQualityService', () => {
   let compiler: jest.Mocked<DataQualityCheckCompiler>;
   let executor: jest.Mocked<DataQualityQueryExecutorService>;
   let parser: jest.Mocked<DataQualityResultParser>;
-  let consumption: jest.Mocked<ConsumptionTrackingService>;
-  let projectBalance: jest.Mocked<ProjectBalanceService>;
+  let projectBilling: jest.Mocked<ProjectBilling>;
   let snapshotTableReference: jest.Mocked<DataQualitySnapshotTableReferenceService>;
   let runQueryBuilder: Record<string, jest.Mock>;
   let service: RunDataQualityService;
@@ -224,11 +222,9 @@ describe('RunDataQualityService', () => {
       }),
     } as never;
     parser = { parse: jest.fn().mockResolvedValue(parsed('empty-1')) } as never;
-    consumption = {
-      registerDataQualityRunConsumption: jest.fn().mockResolvedValue(undefined),
-    } as never;
-    projectBalance = {
-      verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
+    projectBilling = {
+      authorizeRun: jest.fn().mockImplementation(async request => request),
+      registerConsumption: jest.fn().mockResolvedValue(undefined),
     } as never;
     snapshotTableReference = {
       resolve: jest.fn().mockResolvedValue(snapshotReference('SELECT * FROM source')),
@@ -243,9 +239,8 @@ describe('RunDataQualityService', () => {
       compiler,
       executor,
       parser,
-      consumption,
       clock,
-      projectBalance
+      projectBilling
     );
   });
 
@@ -947,7 +942,7 @@ describe('RunDataQualityService', () => {
 
     await service.executeExistingRun('run-1', 'project-1');
 
-    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     expect(snapshotTableReference.resolve).not.toHaveBeenCalled();
     expect(compiler.compile).not.toHaveBeenCalled();
     expect(executor.executeChecks).not.toHaveBeenCalled();
@@ -974,8 +969,12 @@ describe('RunDataQualityService', () => {
 
     expect(dataMartRun.status).toBe(DataMartRunStatus.SUCCESS);
     expect(dataMartRun.startedAt).toEqual(startedAt);
-    expect(consumption.registerDataQualityRunConsumption).toHaveBeenCalledWith(dataMart, 'run-1');
-    expect(consumption.registerDataQualityRunConsumption).toHaveBeenCalledTimes(1);
+    expect(projectBilling.registerConsumption).toHaveBeenCalledWith(expect.anything(), {
+      kind: RunKind.DATA_QUALITY_RUN,
+      dataMart,
+      dataMartRunId: 'run-1',
+    });
+    expect(projectBilling.registerConsumption).toHaveBeenCalledTimes(1);
     expect(dataMartRun.dataQualityResults).toHaveLength(1);
     expect(dataMartRun.dataQualityResults?.[0]).toMatchObject({
       ruleKey: 'empty-1',
@@ -1033,22 +1032,25 @@ describe('RunDataQualityService', () => {
 
     await service.executeExistingRun('run-1', 'project-1');
 
-    expect(projectBalance.verifyCanPerformOperations).not.toHaveBeenCalled();
+    expect(projectBilling.authorizeRun).not.toHaveBeenCalled();
     expect(dataMartRun.status).toBe(DataMartRunStatus.SUCCESS);
   });
 
   it('marks the run as restricted without rule errors when project balance blocks operations', async () => {
-    projectBalance.verifyCanPerformOperations.mockRejectedValue(
+    projectBilling.authorizeRun.mockRejectedValue(
       new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
     );
 
     await service.executeExistingRun('run-1', 'project-1');
 
-    expect(projectBalance.verifyCanPerformOperations).toHaveBeenCalledWith('project-1');
+    expect(projectBilling.authorizeRun).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      runKind: RunKind.DATA_QUALITY_RUN,
+    });
     expect(snapshotTableReference.resolve).not.toHaveBeenCalled();
     expect(compiler.compile).not.toHaveBeenCalled();
     expect(executor.executeChecks).not.toHaveBeenCalled();
-    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     expect(dataMartRun).toMatchObject({
       status: DataMartRunStatus.RESTRICTED,
       dataQualitySummary: expect.objectContaining({ state: DataQualitySummaryState.RESTRICTED }),
@@ -1069,7 +1071,7 @@ describe('RunDataQualityService', () => {
     });
     let statusAtPublication: DataMartRunStatus | undefined;
     let checksStartedAtPublication = false;
-    consumption.registerDataQualityRunConsumption.mockImplementation(async () => {
+    projectBilling.registerConsumption.mockImplementation(async () => {
       statusAtPublication = dataMartRun.status;
       checksStartedAtPublication = executor.executeChecks.mock.calls.length > 0;
       publicationStarted();
@@ -1087,9 +1089,7 @@ describe('RunDataQualityService', () => {
   });
 
   it('keeps the persisted SUCCESS when consumption publication fails', async () => {
-    consumption.registerDataQualityRunConsumption.mockRejectedValue(
-      new Error('pubsub unavailable')
-    );
+    projectBilling.registerConsumption.mockRejectedValue(new Error('pubsub unavailable'));
 
     await service.executeExistingRun('run-1', 'project-1');
 
@@ -1120,7 +1120,7 @@ describe('RunDataQualityService', () => {
       passedChecks: 1,
     });
     expect(dataMartRun.errors).toEqual(['Data Quality run failed during execution']);
-    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
   });
 
   it('persists a parser exception as ERROR for that rule and continues later rules', async () => {
@@ -1154,7 +1154,11 @@ describe('RunDataQualityService', () => {
 
     await service.executeExistingRun('run-1', 'project-1');
 
-    expect(consumption.registerDataQualityRunConsumption).toHaveBeenCalledWith(dataMart, 'run-1');
+    expect(projectBilling.registerConsumption).toHaveBeenCalledWith(expect.anything(), {
+      kind: RunKind.DATA_QUALITY_RUN,
+      dataMart,
+      dataMartRunId: 'run-1',
+    });
     expect(compiler.compile).toHaveBeenCalledTimes(1);
     expect(compiler.compile).toHaveBeenCalledWith(
       expect.objectContaining({ rule: rule('empty-2') })
@@ -1216,7 +1220,7 @@ describe('RunDataQualityService', () => {
 
     await service.executeExistingRun('run-1', 'project-1');
 
-    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     expect(snapshotTableReference.resolve).not.toHaveBeenCalled();
     expect(compiler.compile).not.toHaveBeenCalled();
     expect(executor.executeChecks).not.toHaveBeenCalled();
@@ -1257,7 +1261,7 @@ describe('RunDataQualityService', () => {
         dataQualitySummary: expect.objectContaining({ state: summaryState }),
         dataQualityResults: [],
       });
-      expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+      expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     }
   );
 
@@ -1270,7 +1274,7 @@ describe('RunDataQualityService', () => {
     ).rejects.toMatchObject({ name: 'AbortError' });
 
     expect(dataSource.transaction).not.toHaveBeenCalled();
-    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     expect(dataMartRun.status).toBe(DataMartRunStatus.PENDING);
   });
 
@@ -1298,7 +1302,7 @@ describe('RunDataQualityService', () => {
       totalChecks: 1,
       passedChecks: 1,
     });
-    expect(consumption.registerDataQualityRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
   });
 
   it('completes successfully when all checks finish before the cancellation signal arrives', async () => {
@@ -1319,6 +1323,10 @@ describe('RunDataQualityService', () => {
     expect(dataMartRun.dataQualityResults).toEqual([
       expect.objectContaining({ ruleKey: 'empty-1', status: DataQualityCheckStatus.PASSED }),
     ]);
-    expect(consumption.registerDataQualityRunConsumption).toHaveBeenCalledWith(dataMart, 'run-1');
+    expect(projectBilling.registerConsumption).toHaveBeenCalledWith(expect.anything(), {
+      kind: RunKind.DATA_QUALITY_RUN,
+      dataMart,
+      dataMartRunId: 'run-1',
+    });
   });
 });

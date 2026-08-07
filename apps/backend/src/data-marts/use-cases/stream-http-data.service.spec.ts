@@ -24,10 +24,9 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { AccessDecisionService } from '../services/access-decision/access-decision.service';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import { ProjectBilling } from '../services/project-billing/project-billing';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotalsService } from '../services/report-totals.service';
@@ -180,8 +179,7 @@ describe('StreamHttpDataService', () => {
   let blendableSchema: jest.Mocked<BlendableSchemaService>;
   let blended: jest.Mocked<BlendedReportDataService>;
   let sqlComposer: jest.Mocked<ReportSqlComposerService>;
-  let balance: jest.Mocked<ProjectBalanceService>;
-  let consumption: jest.Mocked<ConsumptionTrackingService>;
+  let projectBilling: jest.Mocked<ProjectBilling>;
   let gracefulShutdown: jest.Mocked<GracefulShutdownService>;
   let systemTime: jest.Mocked<SystemTimeService>;
   let reader: jest.Mocked<DataStorageReportReader>;
@@ -263,13 +261,10 @@ describe('StreamHttpDataService', () => {
       () => "SELECT * FROM t WHERE date >= DATE '2026-01-01'"
     ) as never;
 
-    balance = {
-      verifyCanPerformOperations: jest.fn(async () => undefined),
-    } as unknown as jest.Mocked<ProjectBalanceService>;
-
-    consumption = {
-      registerHttpDataRunConsumption: jest.fn(async () => undefined),
-    } as unknown as jest.Mocked<ConsumptionTrackingService>;
+    projectBilling = {
+      authorizeRun: jest.fn(async request => request),
+      registerConsumption: jest.fn(async () => undefined),
+    } as unknown as jest.Mocked<ProjectBilling>;
 
     reader = {
       prepareReportData: jest.fn(
@@ -337,8 +332,7 @@ describe('StreamHttpDataService', () => {
       blendableSchema,
       blended,
       sqlComposer,
-      balance,
-      consumption,
+      projectBilling,
       gracefulShutdown,
       systemTime,
       readerResolver,
@@ -364,7 +358,7 @@ describe('StreamHttpDataService', () => {
         metadata: expect.objectContaining({ rowCount: 2, completed: true }),
       })
     );
-    expect(consumption.registerHttpDataRunConsumption).toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).toHaveBeenCalled();
     expect(reader.finalize).toHaveBeenCalled();
   });
 
@@ -543,11 +537,11 @@ describe('StreamHttpDataService', () => {
     expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
       expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
-    expect(consumption.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
   });
 
   it('still resolves when consumption tracking throws after a SUCCESS run', async () => {
-    consumption.registerHttpDataRunConsumption.mockRejectedValueOnce(new Error('pubsub down'));
+    projectBilling.registerConsumption.mockRejectedValueOnce(new Error('pubsub down'));
     const res = mockResponse();
 
     await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
@@ -1006,7 +1000,7 @@ describe('StreamHttpDataService', () => {
   });
 
   it('throws and records a FAILED run when blending is required but no blended SQL is produced', async () => {
-    // baseMetadata is seeded right after verifyCanPerformOperations (before resolveBlendingDecision),
+    // baseMetadata is seeded right after authorizeRun (before resolveBlendingDecision),
     // so this guard now throws AFTER the seed and records a FAILED run — consistent with every other
     // execution-phase failure recording a run.
     blended.resolveBlendingDecision.mockResolvedValueOnce({
@@ -1078,10 +1072,10 @@ describe('StreamHttpDataService', () => {
     });
 
     it('records no run when the project balance gate rejects', async () => {
-      // baseMetadata is seeded right after verifyCanPerformOperations (see executeStream), so a
+      // baseMetadata is seeded right after authorizeRun (see executeStream), so a
       // rejection here happens BEFORE the seed — unlike every execution-phase failure (config
       // drift, missing blended SQL, storage errors), this records no run at all.
-      balance.verifyCanPerformOperations.mockRejectedValueOnce(
+      projectBilling.authorizeRun.mockRejectedValueOnce(
         new BusinessViolationException('Project balance is insufficient to run this operation')
       );
 

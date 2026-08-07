@@ -4,7 +4,11 @@ import {
   TEMPLATE_RENDER_FACADE,
   TemplateRenderInput,
 } from '../../common/template/types/render-template.types';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunKind,
+} from '../services/project-billing/project-billing';
 import {
   DataMartAdditionalParams,
   DataMartInsightTemplateFacade,
@@ -32,7 +36,8 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       DataMartAdditionalParams
     >,
     private readonly promptHandler: PromptTagHandler,
-    private readonly consumptionTracker: ConsumptionTrackingService,
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling,
     private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
@@ -66,15 +71,20 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
           p => !isPromptAnswerError(p.meta.status) && !isPromptAnswerRestricted(p.meta.status)
         )
         .forEach(p => {
-          try {
-            const llmCalls = p.meta.telemetry?.llmCalls ?? [];
-            void this.consumptionTracker.registerAiProcessRunConsumption(
-              getPromptTotalUsage(llmCalls).totalTokens,
-              consumptionContext
-            );
-          } catch (error) {
-            this.logger.error('Failed to register consumption:', error);
-          }
+          const llmCalls = p.meta.telemetry?.llmCalls ?? [];
+          void this.projectBilling
+            .authorizeRun({
+              projectId: consumptionContext.dataMart.projectId,
+              runKind: RunKind.AI_PROCESS_RUN,
+            })
+            .then(grant =>
+              this.projectBilling.registerConsumption(grant, {
+                kind: RunKind.AI_PROCESS_RUN,
+                tokensProcessed: getPromptTotalUsage(llmCalls).totalTokens,
+                context: consumptionContext,
+              })
+            )
+            .catch(error => this.logger.error('Failed to register consumption:', error));
         });
     }
 

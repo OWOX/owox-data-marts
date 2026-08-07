@@ -1,7 +1,7 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
-import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
+import { RunRestrictedException } from '../../../../common/exceptions/run-restricted.exception';
 import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
@@ -16,9 +16,13 @@ import {
 import { resolveBlendableSchemaAccessor } from '../../../services/blendable-schema.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
 import { IdpProjectionsFacade } from '../../../../idp/facades/idp-projections.facade';
-import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunGrant,
+  RunKind,
+} from '../../../services/project-billing/project-billing';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
-import { ProjectBalanceService } from '../../../services/project-balance.service';
 import { ReportDataCacheService } from '../../../services/report-data-cache.service';
 import { ReportService } from '../../../services/report.service';
 import { ConnectionConfigSchema } from '../schemas/connection-config.schema';
@@ -75,10 +79,10 @@ export class LookerStudioConnectorApiService {
     private readonly dataService: LookerStudioConnectorApiDataService,
     private readonly cacheService: ReportDataCacheService,
     private readonly reportService: ReportService,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
-    private readonly projectBalanceService: ProjectBalanceService,
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling,
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly systemTimeService: SystemTimeService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade
@@ -200,7 +204,10 @@ export class LookerStudioConnectorApiService {
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
-      await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
+      const grant = await this.projectBilling.authorizeRun({
+        projectId: report.dataMart.projectId,
+        runKind: RunKind.LOOKER_REPORT_RUN,
+      });
       const context = await this.dataService.prepareStreamingContext(
         request,
         report,
@@ -221,7 +228,7 @@ export class LookerStudioConnectorApiService {
           reportRunLogger
         );
       } else {
-        await this.handleSuccessfulReportRun(reportRun, cachedReader, reportRunLogger);
+        await this.handleSuccessfulReportRun(reportRun, grant, cachedReader, reportRunLogger);
       }
     } catch (e) {
       await this.handleFailedReportRun(reportRun, e, reportRunLogger);
@@ -376,7 +383,10 @@ export class LookerStudioConnectorApiService {
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
-      await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
+      const grant = await this.projectBilling.authorizeRun({
+        projectId: report.dataMart.projectId,
+        runKind: RunKind.LOOKER_REPORT_RUN,
+      });
       const { response, meta } = await this.dataService.getData(request, report, cachedReader);
 
       if (meta.limitExceeded) {
@@ -389,7 +399,7 @@ export class LookerStudioConnectorApiService {
           reportRunLogger
         );
       } else {
-        await this.handleSuccessfulReportRun(reportRun, cachedReader, reportRunLogger);
+        await this.handleSuccessfulReportRun(reportRun, grant, cachedReader, reportRunLogger);
       }
 
       return response;
@@ -432,6 +442,7 @@ export class LookerStudioConnectorApiService {
    */
   private async handleSuccessfulReportRun(
     reportRun: LookerStudioReportRun,
+    grant: RunGrant,
     cachedReader: CachedReaderData,
     reportRunLogger?: ReportRunLogger
   ) {
@@ -447,7 +458,10 @@ export class LookerStudioConnectorApiService {
     const report = reportRun.getReport();
     if (!cachedReader.fromCache) {
       try {
-        await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+        await this.projectBilling.registerConsumption(grant, {
+          kind: RunKind.LOOKER_REPORT_RUN,
+          report,
+        });
       } catch (error) {
         this.logger.warn(
           `Failed to register Looker report consumption for ${report.id}: ${
@@ -482,7 +496,7 @@ export class LookerStudioConnectorApiService {
   ) {
     reportRun.markAsUnsuccessful(error);
     await this.saveReportRunResultSafely(reportRun, reportRunLogger);
-    if (error instanceof ProjectOperationBlockedException) {
+    if (error instanceof RunRestrictedException) {
       this.logger.warn(`Report ${reportRun.getReportId()} execution restricted: ${error.message}`);
     } else {
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);

@@ -33,7 +33,12 @@ import {
 import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { DataMartService } from '../services/data-mart.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunGrant,
+  RunKind,
+} from '../services/project-billing/project-billing';
 import { ReportRunService } from '../services/report-run.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
 import {
@@ -43,7 +48,6 @@ import {
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -107,14 +111,14 @@ export class RunReportService {
     private readonly systemTimeService: SystemTimeService,
     private readonly reportRunService: ReportRunService,
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
-    private readonly projectBalanceService: ProjectBalanceService,
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling,
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
     private readonly reportRunTriggerService: ReportRunTriggerService,
     private readonly reportAccessService: ReportAccessService,
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly consumptionTrackingService: ConsumptionTrackingService
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   /**
@@ -234,7 +238,6 @@ export class RunReportService {
     let processingError: Error | undefined = undefined;
     try {
       signal?.throwIfAborted();
-      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
       // Resolve blending decision up front. When the report has a column
       // config, this produces either a pre-built blended SQL (for cross-DM
@@ -361,6 +364,10 @@ export class RunReportService {
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
+      const grant = await this.projectBilling.authorizeRun({
+        projectId: reportRun.getDataMart().projectId,
+        runKind: this.resolveRunKind(reportRun.getReport()),
+      });
       const finalizeResult = await this.executeReport(
         reportRun.getReport(),
         accessor,
@@ -369,7 +376,7 @@ export class RunReportService {
         reportRun.getDataMartRun()
       );
       const { logs, errors } = reportRunLogger.asArrays();
-      await this.handleReportRunSuccess(reportRun, logs, errors, finalizeResult);
+      await this.handleReportRunSuccess(reportRun, grant, logs, errors, finalizeResult);
     } catch (error) {
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunError(reportRun, error as Error, logs, errors);
@@ -482,6 +489,7 @@ export class RunReportService {
    */
   private async handleReportRunSuccess(
     reportRun: ReportRun,
+    grant: RunGrant,
     logs: string[] = [],
     errors: string[] = [],
     finalizeResult?: ReportWriteFinalizeResult
@@ -494,11 +502,22 @@ export class RunReportService {
     }
 
     this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
-    await this.registerReportRunConsumption(reportRun.getReport(), finalizeResult);
+    await this.registerReportRunConsumption(reportRun.getReport(), grant, finalizeResult);
+  }
+
+  private resolveRunKind(report: Report): RunKind {
+    if (report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS) {
+      return RunKind.SHEETS_REPORT_RUN;
+    }
+    if (isEmailBasedDataDestinationType(report.dataDestination.type)) {
+      return RunKind.EMAIL_BASED_REPORT_RUN;
+    }
+    return RunKind.LOOKER_REPORT_RUN;
   }
 
   private async registerReportRunConsumption(
     report: Report,
+    grant: RunGrant,
     finalizeResult?: ReportWriteFinalizeResult
   ): Promise<void> {
     try {
@@ -511,15 +530,19 @@ export class RunReportService {
           return;
         }
 
-        await this.consumptionTrackingService.registerSheetsReportRunConsumption(
+        await this.projectBilling.registerConsumption(grant, {
+          kind: RunKind.SHEETS_REPORT_RUN,
           report,
-          sheetsDetails
-        );
+          sheetsDetails,
+        });
         return;
       }
 
       if (isEmailBasedDataDestinationType(report.dataDestination.type)) {
-        await this.consumptionTrackingService.registerEmailBasedReportRunConsumption(report);
+        await this.projectBilling.registerConsumption(grant, {
+          kind: RunKind.EMAIL_BASED_REPORT_RUN,
+          report,
+        });
       }
     } catch (error) {
       this.logger.warn(

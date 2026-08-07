@@ -1,4 +1,4 @@
-import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
+import { RunRestrictedException } from '../../common/exceptions/run-restricted.exception';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
@@ -100,7 +100,7 @@ export abstract class BaseReportRun {
    * @param error - Error object or error message string
    */
   markAsUnsuccessful(error: Error | string): void {
-    if (error instanceof ProjectOperationBlockedException) {
+    if (error instanceof RunRestrictedException) {
       this.report.lastRunStatus = ReportRunStatus.RESTRICTED;
       this.dataMartRun.status = DataMartRunStatus.RESTRICTED;
     } else {

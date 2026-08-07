@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
@@ -27,12 +27,11 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
-import { ProjectOperationBlockedException } from '../../../common/exceptions/project-operation-blocked.exception';
+import { RunRestrictedException } from '../../../common/exceptions/run-restricted.exception';
 import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
-import { ConsumptionTrackingService } from '../consumption-tracking.service';
 import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
@@ -40,7 +39,12 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
-import { ProjectBalanceService } from '../project-balance.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunGrant,
+  RunKind,
+} from '../project-billing/project-billing';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
@@ -69,11 +73,11 @@ export class ConnectorExecutorService {
     private readonly credentialInjector: ConnectorCredentialInjectorService,
     private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
     private readonly connectorStateService: ConnectorStateService,
-    private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly systemTimeService: SystemTimeService,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly projectBalanceService: ProjectBalanceService,
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling,
     private readonly dataMartService: DataMartService,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
   ) {}
@@ -93,7 +97,8 @@ export class ConnectorExecutorService {
     const capturedErrors: ConnectorMessage[] = [];
     let hasSuccessfulRun = false;
     let wasCancelled = false;
-    let operationBlockedException: ProjectOperationBlockedException | undefined;
+    let operationBlockedException: RunRestrictedException | undefined;
+    let grant: RunGrant | undefined;
 
     try {
       if (this.gracefulShutdownService.isInShutdownMode()) {
@@ -104,7 +109,10 @@ export class ConnectorExecutorService {
         );
       }
 
-      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+      grant = await this.projectBilling.authorizeRun({
+        projectId: dataMart.projectId,
+        runKind: RunKind.CONNECTOR_RUN,
+      });
 
       // Guarded like the terminal write below: a cancel can land in the window
       // between claimRunSlotAtomically and here (e.g. during the awaited balance
@@ -169,7 +177,7 @@ export class ConnectorExecutorService {
         runId,
         error: errorMessage,
       };
-      if (error instanceof ProjectOperationBlockedException) {
+      if (error instanceof RunRestrictedException) {
         operationBlockedException = error;
         this.logger.warn(
           `Restrict running connector configurations: ${errorMessage}\n${JSON.stringify(errorContext)}`
@@ -196,7 +204,13 @@ export class ConnectorExecutorService {
       );
 
       if (hasSuccessfulRun && statusPersisted) {
-        await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
+        if (grant) {
+          await this.projectBilling.registerConsumption(grant, {
+            kind: RunKind.CONNECTOR_RUN,
+            dataMart,
+            connectorRunId: runId,
+          });
+        }
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -728,7 +742,7 @@ export class ConnectorExecutorService {
     hasSuccessfulRun: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
-    operationBlockedException?: ProjectOperationBlockedException,
+    operationBlockedException?: RunRestrictedException,
     wasCancelled: boolean = false
   ): Promise<boolean> {
     let status = wasCancelled

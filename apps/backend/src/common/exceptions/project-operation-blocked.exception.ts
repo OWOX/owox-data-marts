@@ -1,5 +1,5 @@
 import { ProjectBlockedReason } from '../../data-marts/enums/project-blocked-reason.enum';
-import { BusinessViolationException } from './business-violation.exception';
+import { RunRestrictedException } from './run-restricted.exception';
 
 /**
  * Represents an exception thrown when an operation on a project is blocked due to specific reasons.
@@ -7,9 +7,9 @@ import { BusinessViolationException } from './business-violation.exception';
  *
  * The exception message is dynamically constructed based on the reasons provided in the `blockedReasons` parameter.
  *
- * @extends {BusinessViolationException}
+ * @extends {RunRestrictedException}
  */
-export class ProjectOperationBlockedException extends BusinessViolationException {
+export class ProjectOperationBlockedException extends RunRestrictedException {
   constructor(readonly blockedReasons: ProjectBlockedReason[]) {
     let message = '';
     if (blockedReasons.includes(ProjectBlockedReason.BI_PROJECT_NOT_ACTIVE)) {

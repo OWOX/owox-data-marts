@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
-import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
+import { RunRestrictedException } from '../../common/exceptions/run-restricted.exception';
 import {
   DataQualityCheckCompiler,
   DataQualityCompiledCheck,
@@ -31,8 +31,12 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import {
+  PROJECT_BILLING,
+  ProjectBilling,
+  RunGrant,
+  RunKind,
+} from '../services/project-billing/project-billing';
 import { DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE } from '../services/data-quality-run.service';
 import {
   DataQualitySnapshotStorageMismatchError,
@@ -83,9 +87,9 @@ export class RunDataQualityService {
     private readonly compiler: DataQualityCheckCompiler,
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly systemClock: SystemTimeService,
-    private readonly projectBalanceService: ProjectBalanceService
+    @Inject(PROJECT_BILLING)
+    private readonly projectBilling: ProjectBilling
   ) {}
 
   async executeExistingRun(
@@ -104,10 +108,14 @@ export class RunDataQualityService {
     const parsedResults: DataQualityParsedResult[] = persisted.map(toParsedResult);
     const pendingRules = enabledRules.filter(rule => !persistedKeys.has(rule.key));
 
+    let grant: RunGrant | undefined;
     try {
       signal?.throwIfAborted();
       if (pendingRules.length > 0) {
-        await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+        grant = await this.projectBilling.authorizeRun({
+          projectId: dataMart.projectId,
+          runKind: RunKind.DATA_QUALITY_RUN,
+        });
         const definitionRun = dataMartRun.definitionRun;
         if (!definitionRun) {
           throw new Error(
@@ -214,7 +222,7 @@ export class RunDataQualityService {
         await this.finishRun(dataMartRun, true);
         return;
       }
-      if (error instanceof ProjectOperationBlockedException) {
+      if (error instanceof RunRestrictedException) {
         await this.finishRun(dataMartRun, false, error);
         return;
       }
@@ -234,8 +242,8 @@ export class RunDataQualityService {
       await this.finishRun(dataMartRun, false);
     }
 
-    if (dataMartRun.status === DataMartRunStatus.SUCCESS) {
-      await this.publishConsumption(dataMart, dataMartRun.id);
+    if (grant && dataMartRun.status === DataMartRunStatus.SUCCESS) {
+      await this.publishConsumption(grant, dataMart, dataMartRun.id);
     }
   }
 
@@ -294,12 +302,17 @@ export class RunDataQualityService {
     });
   }
 
-  private async publishConsumption(dataMart: DataMart, dataMartRunId: string): Promise<void> {
+  private async publishConsumption(
+    grant: RunGrant,
+    dataMart: DataMart,
+    dataMartRunId: string
+  ): Promise<void> {
     try {
-      await this.consumptionTrackingService.registerDataQualityRunConsumption(
+      await this.projectBilling.registerConsumption(grant, {
+        kind: RunKind.DATA_QUALITY_RUN,
         dataMart,
-        dataMartRunId
-      );
+        dataMartRunId,
+      });
     } catch (error) {
       this.logger.warn(
         `Failed to publish Data Quality consumption for run ${dataMartRunId}: ${error instanceof Error ? error.message : String(error)}`
@@ -439,7 +452,7 @@ export class RunDataQualityService {
   private async finishRun(
     dataMartRun: DataMartRun,
     cancelled: boolean,
-    restriction?: ProjectOperationBlockedException
+    restriction?: RunRestrictedException
   ): Promise<void> {
     await this.dataSource.transaction(async manager => {
       const runRepository = manager.getRepository(DataMartRun);

@@ -22,6 +22,7 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { RunKind } from '../services/project-billing/project-billing';
 import { ReportExecutionPolicyResolver } from './report-execution-policy.resolver';
 import { RunReportService } from './run-report.service';
 import { RunType } from '../../common/scheduler/shared/types';
@@ -42,9 +43,6 @@ describe('RunReportService', () => {
     };
     const reportWriterResolver = {
       resolve: jest.fn(),
-    };
-    const projectBalanceService = {
-      verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
     };
     const blendedReportDataService = {
       // Default: no columnConfig -> no blending, no filter.
@@ -79,9 +77,11 @@ describe('RunReportService', () => {
     const systemTimeService = {
       now: jest.fn().mockReturnValue(new Date('2026-06-01T10:00:00.000Z')),
     };
-    const consumptionTrackingService = {
-      registerSheetsReportRunConsumption: jest.fn().mockResolvedValue(undefined),
-      registerEmailBasedReportRunConsumption: jest.fn().mockResolvedValue(undefined),
+    const projectBilling = {
+      authorizeRun: jest
+        .fn()
+        .mockImplementation(request => Promise.resolve({ ...request, runKind: request.runKind })),
+      registerConsumption: jest.fn().mockResolvedValue(undefined),
     };
 
     const reportSqlComposerService = {
@@ -97,21 +97,20 @@ describe('RunReportService', () => {
       systemTimeService as never,
       reportRunService as never,
       availableDestinationTypesService as never,
-      projectBalanceService as never,
+      projectBilling as never,
       new ReportExecutionPolicyResolver(),
       reportRunTriggerService as never,
       reportAccessService as never,
       blendedReportDataService as never,
       reportSqlComposerService as never,
-      { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never,
-      consumptionTrackingService as never
+      { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
     );
 
     return {
       service,
       reportReaderResolver,
       reportWriterResolver,
-      projectBalanceService,
+      projectBilling,
       blendedReportDataService,
       dataMartService,
       availableDestinationTypesService,
@@ -119,7 +118,6 @@ describe('RunReportService', () => {
       reportRunTriggerService,
       reportAccessService,
       gracefulShutdownService,
-      consumptionTrackingService,
       reportSqlComposerService,
     };
   };
@@ -175,8 +173,7 @@ describe('RunReportService', () => {
   });
 
   it('limits email-based report reads to 101 rows and truncates overflowing batch', async () => {
-    const { service, reportReaderResolver, reportWriterResolver, projectBalanceService } =
-      createService();
+    const { service, reportReaderResolver, reportWriterResolver } = createService();
     const report = createReport(DataDestinationType.EMAIL);
     const reader = createReader();
     const writer = createWriter(DataDestinationType.EMAIL);
@@ -207,7 +204,6 @@ describe('RunReportService', () => {
       }
     ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
 
-    expect(projectBalanceService.verifyCanPerformOperations).toHaveBeenCalledWith('project-1');
     expect(reader.readReportDataBatch).toHaveBeenNthCalledWith(1, undefined, 101);
     expect(reader.readReportDataBatch).toHaveBeenNthCalledWith(2, 'b2', 31);
     expect(reader.readReportDataBatch).toHaveBeenCalledTimes(2);
@@ -271,7 +267,7 @@ describe('RunReportService', () => {
       reportReaderResolver,
       reportWriterResolver,
       reportRunService,
-      consumptionTrackingService,
+      projectBilling,
     } = createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
     const reader = createReader();
@@ -294,15 +290,23 @@ describe('RunReportService', () => {
     await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
 
     expect(reportRunService.finish).toHaveBeenCalled();
-    expect(consumptionTrackingService.registerSheetsReportRunConsumption).toHaveBeenCalledWith(
+    expect(projectBilling.authorizeRun).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      runKind: RunKind.SHEETS_REPORT_RUN,
+    });
+    expect(projectBilling.authorizeRun.mock.invocationCallOrder[0]).toBeLessThan(
+      reportReaderResolver.resolve.mock.invocationCallOrder[0]
+    );
+    expect(projectBilling.registerConsumption).toHaveBeenCalledWith(expect.anything(), {
+      kind: RunKind.SHEETS_REPORT_RUN,
       report,
-      {
+      sheetsDetails: {
         googleSheetsDocumentTitle: 'Test Spreadsheet',
         googleSheetsListTitle: 'Sheet1',
-      }
-    );
+      },
+    });
     expect(reportRunService.finish.mock.invocationCallOrder[0]).toBeLessThan(
-      consumptionTrackingService.registerSheetsReportRunConsumption.mock.invocationCallOrder[0]
+      projectBilling.registerConsumption.mock.invocationCallOrder[0]
     );
   });
 
@@ -319,7 +323,7 @@ describe('RunReportService', () => {
         reportReaderResolver,
         reportWriterResolver,
         reportRunService,
-        consumptionTrackingService,
+        projectBilling,
       } = createService();
       const report = createReport(destinationType);
       const reader = createReader();
@@ -334,12 +338,12 @@ describe('RunReportService', () => {
       await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
 
       expect(reportRunService.finish).toHaveBeenCalled();
-      expect(
-        consumptionTrackingService.registerEmailBasedReportRunConsumption
-      ).toHaveBeenCalledWith(report);
+      expect(projectBilling.registerConsumption).toHaveBeenCalledWith(expect.anything(), {
+        kind: RunKind.EMAIL_BASED_REPORT_RUN,
+        report,
+      });
       expect(reportRunService.finish.mock.invocationCallOrder[0]).toBeLessThan(
-        consumptionTrackingService.registerEmailBasedReportRunConsumption.mock
-          .invocationCallOrder[0]
+        projectBilling.registerConsumption.mock.invocationCallOrder[0]
       );
     }
   );
@@ -358,7 +362,7 @@ describe('RunReportService', () => {
         reportReaderResolver,
         reportWriterResolver,
         reportRunService,
-        consumptionTrackingService,
+        projectBilling,
       } = createService();
       const report = createReport(destinationType);
       const reader = createReader();
@@ -375,14 +379,8 @@ describe('RunReportService', () => {
             },
           },
         });
-        consumptionTrackingService.registerSheetsReportRunConsumption.mockRejectedValueOnce(
-          new Error('pubsub unavailable')
-        );
-      } else {
-        consumptionTrackingService.registerEmailBasedReportRunConsumption.mockRejectedValueOnce(
-          new Error('pubsub unavailable')
-        );
       }
+      projectBilling.registerConsumption.mockRejectedValueOnce(new Error('pubsub unavailable'));
       reportReaderResolver.resolve.mockResolvedValue(reader);
       reportWriterResolver.resolve.mockResolvedValue(writer);
       reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
@@ -390,13 +388,15 @@ describe('RunReportService', () => {
       await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
 
       expect(reportRunService.finish).toHaveBeenCalled();
-      if (destinationType === DataDestinationType.GOOGLE_SHEETS) {
-        expect(consumptionTrackingService.registerSheetsReportRunConsumption).toHaveBeenCalled();
-      } else {
-        expect(
-          consumptionTrackingService.registerEmailBasedReportRunConsumption
-        ).toHaveBeenCalledWith(report);
-      }
+      expect(projectBilling.registerConsumption).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          kind:
+            destinationType === DataDestinationType.GOOGLE_SHEETS
+              ? RunKind.SHEETS_REPORT_RUN
+              : RunKind.EMAIL_BASED_REPORT_RUN,
+        })
+      );
       expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.SUCCESS);
     }
   );
@@ -407,7 +407,7 @@ describe('RunReportService', () => {
       reportReaderResolver,
       reportWriterResolver,
       reportRunService,
-      consumptionTrackingService,
+      projectBilling,
     } = createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
     const reader = createReader();
@@ -422,7 +422,7 @@ describe('RunReportService', () => {
     await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
 
     expect(reportRunService.finish).toHaveBeenCalled();
-    expect(consumptionTrackingService.registerSheetsReportRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.SUCCESS);
   });
 
@@ -432,7 +432,7 @@ describe('RunReportService', () => {
       reportReaderResolver,
       reportWriterResolver,
       reportRunService,
-      consumptionTrackingService,
+      projectBilling,
     } = createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
     const reader = createReader();
@@ -458,7 +458,7 @@ describe('RunReportService', () => {
     expect(writer.finalize).toHaveBeenCalled();
     expect(reader.finalize).toHaveBeenCalled();
     expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.FAILED);
-    expect(consumptionTrackingService.registerSheetsReportRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -475,7 +475,7 @@ describe('RunReportService', () => {
         reportReaderResolver,
         reportWriterResolver,
         reportRunService,
-        consumptionTrackingService,
+        projectBilling,
       } = createService();
       const report = createReport(destinationType);
       const reader = createReader();
@@ -501,15 +501,7 @@ describe('RunReportService', () => {
       await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
 
       expect(reportRunService.finish).toHaveBeenCalled();
-      if (destinationType === DataDestinationType.GOOGLE_SHEETS) {
-        expect(
-          consumptionTrackingService.registerSheetsReportRunConsumption
-        ).not.toHaveBeenCalled();
-      } else {
-        expect(
-          consumptionTrackingService.registerEmailBasedReportRunConsumption
-        ).not.toHaveBeenCalled();
-      }
+      expect(projectBilling.registerConsumption).not.toHaveBeenCalled();
     }
   );
 
