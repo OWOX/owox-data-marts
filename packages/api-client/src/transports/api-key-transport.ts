@@ -110,12 +110,11 @@ export class ApiKeyTransport implements OWOXTransportWithLowLevelWrites {
     retryOnUnauthorized = true
   ): Promise<Response> {
     // Resolving before the exchange keeps API-key credentials off any caller-supplied URL.
-    const url = resolveAuthenticatedApiUrl(this.apiOrigin, path, options.query);
+    resolveAuthenticatedApiUrl(this.apiOrigin, path, options.query);
     const response = await requestApi({
       apiOrigin: this.apiOrigin,
       fetchImpl: this.fetchImpl,
       path,
-      url,
       method: options.method,
       apiKeyId: this.apiKeyId,
       accessToken: await this.getAccessToken(),

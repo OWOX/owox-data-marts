@@ -36,8 +36,7 @@ const MAX_AUTHENTICATED_API_PATH_LENGTH = 2048;
 /*
  * The host keeps this enforcement local because it validates hostile postMessage input
  * before any transport code runs and must return protocol errors, not API-client errors.
- * Its decisions are locked to the standalone API-client boundary by the shared oracle in
- * `apps/web/src/test/authenticated-api-path-contract.ts`.
+ * Its decisions are covered by the host's credential-boundary conformance table.
  */
 const INVALID_HEADER_VALUE_CHARACTER = /[\0\r\n]/;
 /** Enough for any real plugin; the 33rd concurrent request is a runaway, not a workload. */
@@ -108,10 +107,7 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
 
     const decodedPath = decodePathForValidation(pathBeforeQueryOrHash);
 
-    if (
-      decodedPath.includes('\\') ||
-      decodedPath.split('/').some(segment => segment === '.' || segment === '..')
-    ) {
+    if (hasTraversalSegment(decodedPath)) {
       throw forbidden('Requests must target a root-relative path under /api/');
     }
 
@@ -121,7 +117,10 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
       throw forbidden('Requests must target a root-relative path under /api/');
     }
 
-    decodePathForValidation(url.pathname);
+    const decodedUrlPath = decodePathForValidation(url.pathname);
+    if (hasTraversalSegment(decodedUrlPath)) {
+      throw forbidden('Requests must target a root-relative path under /api/');
+    }
 
     // append, not set: the pairs arrive ordered and may repeat a key, which is how the
     // API client expresses a multi-column selection.
@@ -217,6 +216,25 @@ export function createPluginHostBridge(options: PluginHostBridgeOptions): Plugin
         ok: false,
         error: { code: 'PROTOCOL_ERROR', message: 'The plugin handshake is not complete' },
       });
+      return;
+    }
+
+    // These host-only actions do not occupy API admission slots. Validate their small
+    // envelopes and preserve their fire-and-forget behavior even at API capacity.
+    if (
+      isRecord(candidate) &&
+      (candidate.kind === 'openExternal' || candidate.kind === 'navigate')
+    ) {
+      try {
+        const request = validateRequest(candidate);
+        if (request.kind === 'openExternal') {
+          options.onOpenExternal(request.url);
+        } else if (request.kind === 'navigate') {
+          options.onNavigate(request.path);
+        }
+      } catch (caught) {
+        reply({ id, ok: false, error: asErrorPayload(caught) });
+      }
       return;
     }
 
@@ -523,6 +541,12 @@ function decodePathForValidation(path: string): string {
   } catch {
     throw forbidden('Requests must target a root-relative path under /api/');
   }
+}
+
+function hasTraversalSegment(path: string): boolean {
+  return (
+    path.includes('\\') || path.split('/').some(segment => segment === '.' || segment === '..')
+  );
 }
 
 class PluginTransportRefusal extends Error {

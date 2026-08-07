@@ -2,10 +2,32 @@ import { jest } from '@jest/globals';
 
 import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from './index.js';
 import { requestApi, resolveAuthenticatedApiUrl } from './transport.js';
-import {
-  acceptedAuthenticatedApiPaths,
-  rejectedAuthenticatedApiPaths,
-} from '../../../apps/web/src/test/authenticated-api-path-contract.js';
+
+const acceptedAuthenticatedApiPaths = [
+  ['an ordinary API path', '/api/data-marts'],
+  ['an API path with a query', '/api/data-marts?limit=10'],
+  ['an API path with an encoded Unicode segment', '/api/%E2%9C%93'],
+  ['a path at the 2,048-character limit', `/api/${'a'.repeat(2043)}`],
+] as const;
+
+const rejectedAuthenticatedApiPaths = [
+  ['a protocol-relative host', '//evil.example/x'],
+  ['an absolute foreign URL', 'https://evil.example/x'],
+  ['an absolute API URL', 'https://app.owox.test/api/data-marts'],
+  ['a path outside /api/', '/auth/context'],
+  ['the /api path without its required trailing slash', '/api'],
+  ['a traversal out of /api/', '/api/../auth/context'],
+  ['nested traversal out of /api/', '/api/data-marts/../auth/context'],
+  ['encoded traversal', '/api/%2e%2e/auth/context'],
+  ['fragmented double-encoded traversal', '/api/%25%32%65%25%32%65/auth/context'],
+  ['nested encoded traversal', '/api/%252e%252e/auth/context'],
+  ['a malformed percent escape', '/api/%zz/auth/context'],
+  ['malformed encoded Unicode', '/api/%E0%A4%A'],
+  ['an encoded slash', '/api/data%2fmarts'],
+  ['an encoded backslash', '/api/data%5cmarts'],
+  ['a raw backslash', '/api\\data-marts'],
+  ['a path over the 2,048-character limit', `/api/${'a'.repeat(2044)}`],
+] as const;
 
 type RecordedRequest = {
   method: string;
@@ -275,7 +297,7 @@ describe('OWOXApiClient', () => {
     expect(resolveAuthenticatedApiUrl(apiOrigin, path, undefined).origin).toBe(apiOrigin);
   });
 
-  it('rejects an encoded separator in a supplied authenticated URL before fetching', async () => {
+  it('rejects an encoded separator before fetching', async () => {
     const fetchImpl = jest.fn<typeof fetch>();
 
     await expect(
@@ -283,7 +305,6 @@ describe('OWOXApiClient', () => {
         apiOrigin,
         fetchImpl,
         path: '/api/data%2fmarts',
-        url: new URL('/api/data%2fmarts', apiOrigin),
         method: 'GET',
         apiKeyId,
       })
@@ -291,7 +312,7 @@ describe('OWOXApiClient', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('rejects raw traversal even when a supplied URL normalizes it', async () => {
+  it('rejects raw traversal even though URL construction would normalize it', async () => {
     const fetchImpl = jest.fn<typeof fetch>();
     const path = '/api/data-marts/../auth/context';
 
@@ -300,7 +321,6 @@ describe('OWOXApiClient', () => {
         apiOrigin,
         fetchImpl,
         path,
-        url: new URL(path, apiOrigin),
         method: 'GET',
         apiKeyId,
       })

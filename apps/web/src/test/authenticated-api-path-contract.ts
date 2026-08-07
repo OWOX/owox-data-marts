@@ -1,8 +1,5 @@
 /**
- * Shared conformance oracle for the two credential-bearing path boundaries.
- *
- * The public API client and the iframe host deliberately keep separate adapters and
- * error types, but they must make the same admission decision before acquiring a token.
+ * Host-side conformance cases for the credential-bearing plugin boundary.
  */
 export const acceptedAuthenticatedApiPaths = [
   ['an ordinary API path', '/api/data-marts'],

@@ -545,6 +545,24 @@ describe('plugin host bridge', () => {
       h.bridge.dispose();
       expect(signals.every(signal => signal.aborted)).toBe(true);
     });
+
+    it('keeps fire-and-forget navigation available while API admission is full', async () => {
+      const h = await harness(() => new Promise<Response>(() => undefined));
+
+      for (let index = 0; index < 32; index += 1) {
+        h.tell({ kind: 'api', method: 'GET', path: `/api/data-marts/${String(index)}` });
+      }
+      await vi.waitFor(() => {
+        expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      });
+
+      h.tell({ kind: 'navigate', path: '/ui/j1/data-marts/dm-1' });
+      await flush();
+
+      expect(h.onNavigate).toHaveBeenCalledWith('/ui/j1/data-marts/dm-1');
+      expect(h.fetchMock).toHaveBeenCalledTimes(32);
+      h.bridge.dispose();
+    });
   });
 
   describe('handshake ack', () => {

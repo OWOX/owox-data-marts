@@ -1,12 +1,10 @@
-import type { OWOXTransport } from '@owox/api-client';
+import type { OWOXTransportWithLowLevelWrites } from '@owox/api-client';
 import type {
   PluginErrorPayload,
   PluginRequest,
   PluginRequestInput,
   PluginResponse,
 } from './protocol.js';
-
-type IframeTransport = OWOXTransport & Required<Pick<OWOXTransport, 'patchJson' | 'deleteJson'>>;
 
 /**
  * Matches the shared axios timeout in the OWOX web app rather than inventing another.
@@ -39,7 +37,7 @@ export class PluginTransportError extends Error {
  * Not exported from either package entry point. Plugin code cannot reach this class,
  * cannot construct one, and cannot swap the port underneath it.
  */
-export function createIframeTransport(port: MessagePort): IframeTransport {
+export function createIframeTransport(port: MessagePort): OWOXTransportWithLowLevelWrites {
   const pending = new Map<string, Pending>();
 
   port.onmessage = (event: MessageEvent<PluginResponse>) => {

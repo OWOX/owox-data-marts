@@ -20,7 +20,7 @@ export type OWOXTransport = {
   authenticate?(): Promise<void>;
 };
 
-/** Internal contract for transports shipped with the current client. */
+/** Capability contract for transports that implement all current low-level write methods. */
 export type OWOXTransportWithLowLevelWrites = OWOXTransport &
   Required<Pick<OWOXTransport, 'patchJson' | 'deleteJson'>>;
 
@@ -31,7 +31,6 @@ type ApiRequestOptions = {
   apiOrigin: string;
   fetchImpl: typeof fetch;
   path: string;
-  url?: URL;
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   apiKeyId: string;
   accessToken?: string;
@@ -162,13 +161,7 @@ export function resolveAuthenticatedApiUrl(
 }
 
 export async function requestApi(options: ApiRequestOptions): Promise<Response> {
-  const resolvedUrl = resolveAuthenticatedApiUrl(options.apiOrigin, options.path, options.query);
-  if (options.url && options.url.href !== resolvedUrl.href) {
-    throw unsafeApiPath();
-  }
-
-  const url = options.url ?? resolvedUrl;
-  assertAuthenticatedApiUrl(options.apiOrigin, url);
+  const url = resolveAuthenticatedApiUrl(options.apiOrigin, options.path, options.query);
   const headers = new Headers({
     accept: options.accept ?? 'application/json',
     'x-owox-api-key-id': options.apiKeyId,
