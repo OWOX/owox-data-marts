@@ -952,6 +952,12 @@ function RelationshipCanvasInner({
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
           deleteKeyCode={null}
+          // React Flow's key hooks listen on the whole document and preventDefault their
+          // matches. Monaco's EditContext input is a plain div, which xyflow's is-input check
+          // does not recognize, so with the default Space pan shortcut this embedded canvas
+          // silently ate every space typed into the SQL editor above it. No canvas shortcut
+          // is worth a global key grab on a form page.
+          panActivationKeyCode={null}
           onMove={handleMove}
           onMoveStart={(event: unknown) => {
             if (event) markUserInteracted();

@@ -20,6 +20,7 @@ interface ReactFlowStubProps {
   }[];
   edges?: { id: string; source: string; target: string; selected?: boolean }[];
   deleteKeyCode?: string | null;
+  panActivationKeyCode?: string | null;
   onMove?: (event: unknown, viewport: ViewportStub) => void;
   onMoveStart?: (event: unknown) => void;
   onNodeClick?: (event: unknown, node: { id: string }) => void;
@@ -85,6 +86,19 @@ describe('RelationshipCanvas viewport', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('keeps every global key shortcut disabled on this embedded canvas', async () => {
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps).not.toBeNull();
+    });
+    // React Flow's key hooks listen on the whole document and preventDefault their matches, so
+    // any non-null key code here steals keystrokes from the rest of the page — the default
+    // Space pan shortcut used to eat spaces typed into the SQL editor above this canvas.
+    expect(reactFlowHarness.latestProps?.deleteKeyCode).toBeNull();
+    expect(reactFlowHarness.latestProps?.panActivationKeyCode).toBeNull();
   });
 
   it('opens relationship targets without exposing the opener or referrer', async () => {

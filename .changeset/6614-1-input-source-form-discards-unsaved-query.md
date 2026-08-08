@@ -2,12 +2,10 @@
 'owox': minor
 ---
 
-# Keep an unsaved SQL query when the Data Mart refreshes underneath the editor
+# Stop the Joinable Data Marts diagram from eating spaces typed into the SQL editor
 
-The Input Source form re-read the saved definition whenever the Data Mart object was rebuilt in the page context — schema actualization after a save, a publish, a relationship change — and not only when the user picked another definition type. The SQL editor kept its own copy of the text and synced one way from the form, so that reset pushed the saved query back into Monaco and discarded everything typed since the last save.
+With the Joinable Data Marts section in diagram view, pressing Space in the SQL Query editor inserted nothing. React Flow's default Space pan shortcut listens on the whole document and calls `preventDefault()` on its match; its is-this-an-input check recognizes only `input`/`select`/`textarea`/`contenteditable`, while Monaco's new EditContext input is a plain `div` — so the canvas killed every space before it reached the editor. This is why the symptom appeared only on Data Marts that have relationships (the diagram never mounts otherwise) and looked tied to switching the input source to SQL.
 
-Changing an existing Data Mart's input source to SQL runs schema actualization right after the save; it finishes seconds later, while the user is usually still editing the query, so the keystrokes made in the meantime disappeared.
+Two changes close it: the embedded relationship canvas no longer registers any global key shortcut (`panActivationKeyCode` is disabled, like `deleteKeyCode` already was), and the SQL editor container carries React Flow's `nokey` marker so no canvas on the page can grab keystrokes typed into Monaco.
 
-In the staged type-change state the same reset resolves to an empty definition instead, which left the editor showing a query the form no longer held: Save silently disabled with a valid query on screen.
-
-The form now resets only when the definition type actually changes, and never over unsaved edits. The SQL editor is fully controlled, so the form value and the editor content cannot drift apart.
+Also fixed on the same path: the Input Source form used to re-read the saved definition whenever the Data Mart object was rebuilt in the page context — schema actualization after a save, a publish, a relationship change — discarding everything typed since the last save; in the staged type-change state the same reset left Save silently disabled with a valid query on screen. The form now resets only when the definition type actually changes, and never over unsaved edits; the SQL editor is fully controlled, so the form value and the editor content cannot drift apart.
