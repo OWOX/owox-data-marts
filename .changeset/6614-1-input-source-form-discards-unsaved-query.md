@@ -2,10 +2,11 @@
 'owox': minor
 ---
 
-# Stop the Joinable Data Marts diagram from eating spaces typed into the SQL editor
+# Typing in the SQL editor now works reliably on connected Data Marts
 
-With the Joinable Data Marts section in diagram view, pressing Space in the SQL Query editor inserted nothing. React Flow's default Space pan shortcut listens on the whole document and calls `preventDefault()` on its match; its is-this-an-input check recognizes only `input`/`select`/`textarea`/`contenteditable`, while Monaco's new EditContext input is a plain `div` — so the canvas killed every space before it reached the editor. This is why the symptom appeared only on Data Marts that have relationships (the diagram never mounts otherwise) and looked tied to switching the input source to SQL.
+On Data Marts joined with other Data Marts, the SQL Query editor could refuse to insert spaces: you would type `select * from`, press the spacebar, and nothing would appear. This happened whenever the Joinable Data Marts section was set to the diagram view — the diagram was silently capturing the spacebar for itself. The editor now always receives everything you type, regardless of how the Joinable Data Marts section is displayed.
 
-Two changes close it: the embedded relationship canvas no longer registers any global key shortcut (`panActivationKeyCode` is disabled, like `deleteKeyCode` already was), and the SQL editor container carries React Flow's `nokey` marker so no canvas on the page can grab keystrokes typed into Monaco.
+Two more editing annoyances are gone as well:
 
-Also fixed on the same path: the Input Source form used to re-read the saved definition whenever the Data Mart object was rebuilt in the page context — schema actualization after a save, a publish, a relationship change — discarding everything typed since the last save; in the staged type-change state the same reset left Save silently disabled with a valid query on screen. The form now resets only when the definition type actually changes, and never over unsaved edits; the SQL editor is fully controlled, so the form value and the editor content cannot drift apart.
+- A query you were still writing no longer disappears when the page refreshes its data in the background (for example, right after saving, publishing, or updating the output schema).
+- After picking a different input source type, the Save button no longer stays greyed out while a valid query is on screen.
