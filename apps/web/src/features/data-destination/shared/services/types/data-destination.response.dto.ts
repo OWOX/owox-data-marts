@@ -29,6 +29,11 @@ export interface EmailCredentialsResponse {
   type: DataDestinationCredentialsType.EMAIL_CREDENTIALS;
 }
 
+export interface GoogleChatCredentialsResponse {
+  configured: true;
+  type: DataDestinationCredentialsType.GOOGLE_CHAT_CREDENTIALS;
+}
+
 /**
  * Data destination response data transfer object
  */
@@ -60,7 +65,8 @@ export interface DataDestinationResponseDto {
     | GoogleSheetsCredentialsResponse
     | GoogleSheetsOAuthCredentialsResponse
     | LookerStudioCredentialsResponse
-    | EmailCredentialsResponse;
+    | EmailCredentialsResponse
+    | GoogleChatCredentialsResponse;
 
   /**
    * Creation timestamp

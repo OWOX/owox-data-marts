@@ -1,7 +1,7 @@
 import { FormLabel } from '@owox/ui/components/form';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { isEmailCredentials } from '../../../../../data-destination/shared/model/types/email-credentials.ts';
-import type { DataDestination } from '../../../../../data-destination';
+import { isGoogleChatDataDestination, type DataDestination } from '../../../../../data-destination';
 
 export interface RecipientsDisplayProps {
   destination: DataDestination | null;
@@ -9,6 +9,12 @@ export interface RecipientsDisplayProps {
 
 export const RecipientsDisplay = ({ destination }: RecipientsDisplayProps) => {
   if (!destination) return null;
+  if (
+    isGoogleChatDataDestination(destination) &&
+    destination.credentials.deliveryMethod === 'webhook'
+  ) {
+    return null;
+  }
 
   const creds = destination.credentials;
   const recipients = isEmailCredentials(creds) && creds.to.length ? creds.to.join(', ') : '';

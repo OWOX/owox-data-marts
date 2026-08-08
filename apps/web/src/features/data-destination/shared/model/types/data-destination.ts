@@ -3,6 +3,7 @@ import type { CredentialIdentity, UserProjection } from '../../../../../shared/t
 import type { DataDestinationCredentials } from './credentials.ts';
 import type { EmailCredentials } from './email-credentials.ts';
 import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
+import type { GoogleChatCredentials } from './google-chat-credentials.ts';
 
 export interface BaseDataDestination<T extends DataDestinationCredentials> {
   id: string;
@@ -56,9 +57,9 @@ export interface MsTeamsDataDestination extends BaseDataDestination<EmailCredent
   credentials: EmailCredentials;
 }
 
-export interface GoogleChatDataDestination extends BaseDataDestination<EmailCredentials> {
+export interface GoogleChatDataDestination extends BaseDataDestination<GoogleChatCredentials> {
   type: DataDestinationType.GOOGLE_CHAT;
-  credentials: EmailCredentials;
+  credentials: GoogleChatCredentials;
 }
 
 export type DataDestination =

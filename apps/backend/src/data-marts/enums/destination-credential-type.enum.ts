@@ -3,4 +3,5 @@ export enum DestinationCredentialType {
   GOOGLE_OAUTH = 'google_oauth',
   LOOKER_STUDIO = 'looker_studio',
   EMAIL = 'email',
+  GOOGLE_CHAT_WEBHOOK = 'google_chat_webhook',
 }

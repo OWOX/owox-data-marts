@@ -14,7 +14,7 @@ import { buildConnectGoogleSheetsUiPath } from './mcp-flow-ui-path';
 import { LOOKER_STUDIO_DESTINATION_GUIDE_URL } from './mcp-docs-urls';
 import { joinPublicOrigin } from './mcp-public-url.util';
 
-const EMAIL_BASED_TYPES = ['email', 'slack', 'teams', 'google_chat'];
+const MCP_CHANNEL_EMAIL_TYPES = ['email', 'slack', 'teams', 'google_chat'];
 
 /**
  * Plain, mechanical label for a destination type — used both in agent-facing messages and
@@ -55,7 +55,7 @@ const inputSchema = z
       .array(z.string().email())
       .optional()
       .describe(
-        'Mandatory list of target email addresses/delivery targets. This parameter is STRICTLY REQUIRED for email-based types (email, slack, teams, google_chat). Do NOT attempt to call this tool for email-based types without asking the user for these email addresses first.'
+        'Mandatory list of target email addresses/delivery targets. This parameter is STRICTLY REQUIRED for email, slack, teams, and google_chat through MCP. MCP creates Google Chat destinations using channel-email delivery only; direct webhook delivery must be configured in the OWOX UI/API, and the secret webhook URL must not be sent through MCP/chat.'
       ),
   })
   .strict();
@@ -81,9 +81,11 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     'connectedGoogleAccount matches who the user expected — never pick by createdAt/recency, ' +
     'another destination may be created concurrently by someone else; if more than one ' +
     'entry still matches, ask the user which one they mean instead of guessing; ' +
-    'for email-based types (email, slack, teams, google_chat), creates the destination ' +
-    'directly and requires the emails parameter — no OAuth involved, destination_id is ' +
-    'returned immediately; ' +
+    'for email, slack, and teams, creates the destination directly and requires the emails ' +
+    'parameter; for google_chat, MCP supports channel-email delivery only and also requires ' +
+    'emails — direct webhook delivery is configured in the OWOX UI/API, and its secret URL ' +
+    'must not be sent through MCP/chat; no OAuth is involved and destination_id is returned ' +
+    'immediately; ' +
     'for looker_studio (pull-based connector), creates the destination directly and returns ' +
     'destination_id immediately — no OAuth, no emails needed; the connector credentials ' +
     '(including the Destination Secret Key/Token) are never sent through MCP/chat — the ' +
@@ -125,11 +127,11 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     return inputSchema
       .refine(
         data =>
-          !EMAIL_BASED_TYPES.includes(data.destination_type) ||
+          !MCP_CHANNEL_EMAIL_TYPES.includes(data.destination_type) ||
           (data.emails && data.emails.length > 0),
         {
           message:
-            "The 'emails' parameter is required for creating email-based destination types (email, slack, teams, google_chat). " +
+            "The 'emails' parameter is required for email, slack, teams, and channel-email Google Chat destinations created through MCP. " +
             'Please ask the user to specify one or more email addresses first before calling this tool.',
           path: ['emails'],
         }
@@ -143,7 +145,7 @@ export class AddDestinationTool implements McpToolDefinition<AddDestinationInput
     const humanType = toDisplayLabel(destinationType);
     const title = parsed.title ?? humanType;
 
-    if (EMAIL_BASED_TYPES.includes(destinationType)) {
+    if (MCP_CHANNEL_EMAIL_TYPES.includes(destinationType)) {
       const created = await this.destinations.createDestination({
         projectId: context.projectId,
         userId: context.userId,

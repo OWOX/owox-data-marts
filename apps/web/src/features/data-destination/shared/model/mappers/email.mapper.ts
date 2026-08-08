@@ -15,7 +15,6 @@ export class EmailMapper<T extends DataDestination> implements DestinationMapper
       | DataDestinationType.EMAIL
       | DataDestinationType.SLACK
       | DataDestinationType.MS_TEAMS
-      | DataDestinationType.GOOGLE_CHAT
   ) {}
 
   mapFromDto(dto: DataDestinationResponseDto): T {
