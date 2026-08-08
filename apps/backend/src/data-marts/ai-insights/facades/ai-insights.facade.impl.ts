@@ -143,19 +143,34 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
   async generateDataMartMetadata(
     request: GenerateDataMartMetadataRequest
   ): Promise<GenerateDataMartMetadataResponse> {
-    const measured = await measureExecutionTime(
-      () => this.generateDataMartMetadataOrchestratorService.run(request),
-      {
-        onMeasured: m => {
-          this.logger.log('AiGenerateDataMartMetadataTime', {
-            projectId: request.projectId,
-            dataMartId: request.dataMartId,
-            scope: request.scope,
-            measure: toMeasuredExecutionBaseResult(m),
-          });
-        },
-      }
-    );
-    return measured.result;
+    try {
+      const measured = await measureExecutionTime(
+        () => this.generateDataMartMetadataOrchestratorService.run(request),
+        {
+          onMeasured: m => {
+            this.logger.log('AiGenerateDataMartMetadataTime', {
+              projectId: request.projectId,
+              dataMartId: request.dataMartId,
+              scope: request.scope,
+              measure: toMeasuredExecutionBaseResult(m),
+            });
+          },
+        }
+      );
+      return measured.result;
+    } catch (e: unknown) {
+      // The timing log above only records status=failed; without this entry the actual error
+      // is logged solely by the trigger handler, keyed by trigger id — invisible to a
+      // dataMartId-filtered log search.
+      this.logger.error(
+        `Error generating data mart metadata for ${request.dataMartId} (scope=${request.scope})`,
+        e,
+        {
+          projectId: request.projectId,
+          dataMartId: request.dataMartId,
+        }
+      );
+      throw e;
+    }
   }
 }

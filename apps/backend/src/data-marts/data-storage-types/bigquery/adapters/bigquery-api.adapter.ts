@@ -343,6 +343,19 @@ export class BigQueryApiAdapter {
   }
 
   /**
+   * Checks whether a dataset exists via a `datasets.get` metadata call.
+   *
+   * Needs only `bigquery.datasets.get` on the dataset — unlike `CREATE SCHEMA IF NOT EXISTS`,
+   * which requires project-level `bigquery.datasets.create` even when the dataset already
+   * exists. Callers use this to skip the CREATE for principals with data-only permissions.
+   */
+  public async datasetExists(projectId: string, datasetId: string): Promise<boolean> {
+    const dataset = this.bigQuery.dataset(datasetId, { projectId });
+    const [exists] = await dataset.exists();
+    return exists;
+  }
+
+  /**
    * Checks BigQuery access by running a trivial query (SELECT 1)
    */
   public async checkAccess(): Promise<void> {

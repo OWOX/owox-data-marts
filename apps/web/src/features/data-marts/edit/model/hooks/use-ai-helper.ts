@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import toast from 'react-hot-toast';
 import { extractApiError, type ApiError } from '../../../../../app/api';
+import { showAiHelperCancelledToast, showAiHelperErrorToast } from './ai-helper-toast';
 import { trackEvent } from '../../../../../utils';
 import { TaskStatus } from '../../../../../shared/types/task-status.enum';
 import { dataMartService, DataMartMetadataScope } from '../../../shared';
@@ -121,7 +121,11 @@ export function useAiHelper(): UseAiHelperResult {
 
   useEffect(() => {
     return () => {
+      // Cancelling on unmount is silent by design (the run's results have nowhere to go),
+      // but the user must not come back to untouched fields with no explanation.
+      const activeRun = runStateRef.current;
       cancelCurrentRun();
+      if (activeRun) showAiHelperCancelledToast(activeRun.dataMartId);
     };
   }, [cancelCurrentRun]);
 
@@ -159,7 +163,7 @@ export function useAiHelper(): UseAiHelperResult {
           await sleepWithSignal(POLLING_INTERVAL_MS, signal);
         } catch (error) {
           const message = extractPollErrorMessage(error);
-          if (message) toast.error(message);
+          if (message) showAiHelperErrorToast(dataMartId, message);
           runStateRef.current = null;
           setPendingScope(null);
           return { kind: 'failed' };
@@ -196,7 +200,7 @@ export function useAiHelper(): UseAiHelperResult {
         // `extractApiError` can return undefined for non-axios errors despite its type.
         const apiError = extractApiError(error) as ApiError | undefined;
         const message = apiError?.message;
-        if (message) toast.error(message);
+        if (message) showAiHelperErrorToast(dataMartId, message);
         setPendingScope(null);
         outcome = { kind: 'failed' };
       }
@@ -252,7 +256,10 @@ export function useAiHelper(): UseAiHelperResult {
       const match = outcome.data.fields?.find(f => f.name === fieldName);
       const alias = match?.alias?.trim();
       if (!alias) {
-        toast.error('AI returned no alias suggestion. Try again or fill it in manually.');
+        showAiHelperErrorToast(
+          dataMartId,
+          'AI returned no alias suggestion. Try again or fill it in manually.'
+        );
         return undefined;
       }
       return alias;
@@ -270,7 +277,10 @@ export function useAiHelper(): UseAiHelperResult {
       const match = outcome.data.fields?.find(f => f.name === fieldName);
       const description = match?.description?.trim();
       if (!description) {
-        toast.error('AI returned no description suggestion. Try again or fill it in manually.');
+        showAiHelperErrorToast(
+          dataMartId,
+          'AI returned no description suggestion. Try again or fill it in manually.'
+        );
         return undefined;
       }
       return description;
@@ -286,7 +296,10 @@ export function useAiHelper(): UseAiHelperResult {
       if (outcome.kind !== 'ok') return undefined;
       const fields = outcome.data.fields ?? [];
       if (fields.length === 0) {
-        toast.error('AI returned no field descriptions. Try again or fill them in manually.');
+        showAiHelperErrorToast(
+          dataMartId,
+          'AI returned no field descriptions. Try again or fill them in manually.'
+        );
         return undefined;
       }
       return fields;
@@ -302,7 +315,10 @@ export function useAiHelper(): UseAiHelperResult {
       if (outcome.kind !== 'ok') return undefined;
       const fields = outcome.data.fields ?? [];
       if (fields.length === 0) {
-        toast.error('AI returned no field aliases. Try again or fill them in manually.');
+        showAiHelperErrorToast(
+          dataMartId,
+          'AI returned no field aliases. Try again or fill them in manually.'
+        );
         return undefined;
       }
       return fields;
@@ -318,7 +334,10 @@ export function useAiHelper(): UseAiHelperResult {
       if (outcome.kind !== 'ok') return undefined;
       const fields = outcome.data.fields ?? [];
       if (fields.length === 0) {
-        toast.error('AI returned no field metadata. Try again or fill it in manually.');
+        showAiHelperErrorToast(
+          dataMartId,
+          'AI returned no field metadata. Try again or fill it in manually.'
+        );
         return undefined;
       }
       return fields;
