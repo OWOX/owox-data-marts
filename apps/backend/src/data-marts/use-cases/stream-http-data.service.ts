@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AuthorizationContext } from '../../idp/types/auth.types';
 import {
@@ -161,6 +162,15 @@ export class StreamHttpDataService {
       res,
       runId: randomUUID(),
       startedAt: this.systemTimeService.now(),
+      initialMetadata: {
+        format: HTTP_DATA_FORMAT,
+        columns: [],
+        filter: query.filter,
+        sort: query.sort,
+        aggregation: query.aggregation,
+        dateTrunc: query.dateTrunc,
+        limit,
+      },
       buildPlan: async currentDataMart => {
         const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
           currentDataMart.id,
@@ -224,6 +234,16 @@ export class StreamHttpDataService {
       res,
       runId: randomUUID(),
       startedAt: this.systemTimeService.now(),
+      reportId: report.id,
+      initialMetadata: {
+        format: HTTP_DATA_FORMAT,
+        columns: report.columnConfig ?? [],
+        filter: report.filterConfig ?? undefined,
+        sort: report.sortConfig ?? undefined,
+        aggregation: report.aggregationConfig ?? undefined,
+        dateTrunc: report.dateTruncConfig ?? undefined,
+        limit: limit ?? report.limitConfig ?? undefined,
+      },
       buildPlan: async currentDataMart => {
         // The report's `dataDestination` is deliberately NOT carried into the read plan. Joined-field
         // labels follow the surface that renders them, not the place the report also writes to: this
@@ -260,16 +280,24 @@ export class StreamHttpDataService {
     res: Response;
     runId: string;
     startedAt: Date;
+    initialMetadata: HttpDataRunMetadata;
+    reportId?: string;
     buildPlan: (dataMart: DataMart) => Promise<ExecuteStreamPlan>;
   }): Promise<void> {
-    const { dataMart, accessor, userId, res, runId, startedAt, buildPlan } = params;
+    const { dataMart, accessor, userId, res, runId, startedAt, initialMetadata, buildPlan } =
+      params;
 
     let reader: DataStorageReportReader | null = null;
-    let baseMetadata: HttpDataRunMetadata | null = null;
-    let reportId: string | undefined;
+    let baseMetadata = initialMetadata;
+    let reportId = params.reportId;
     let schemaActualizationInProgress = false;
 
     try {
+      await this.projectBillingService.verifyCanPerformOperations(
+        dataMart.projectId,
+        RunKind.HTTP_DATA_RUN
+      );
+
       schemaActualizationInProgress = true;
       await this.dataMartService.actualizeSchemaInEntityIfExpired(
         dataMart,
@@ -281,17 +309,8 @@ export class StreamHttpDataService {
       const { readPlan } = plan;
       const planContext = deriveStreamPlanContext(plan);
       const { metadataColumns, captureExecutionSql, projectsByResolvedHeaders } = planContext;
-      reportId = planContext.reportId;
+      reportId = planContext.reportId ?? reportId;
 
-      await this.projectBillingService.verifyCanPerformOperations(
-        dataMart.projectId,
-        RunKind.HTTP_DATA_RUN
-      );
-
-      // Seeded here (before blending is resolved) so any failure from this point on — including a
-      // report config-drift error inside resolveBlendingDecision, or the missing-blended-SQL guard
-      // below — records a FAILED run with an x-owox-run-id. Pre-execution gates (buildPlan throwing,
-      // or verifyCanPerformOperations rejecting) still throw before this point and record no run.
       baseMetadata = {
         format: HTTP_DATA_FORMAT,
         columns: metadataColumns,
@@ -431,17 +450,18 @@ export class StreamHttpDataService {
         res,
         schemaActualizationInProgress
       );
-      if (baseMetadata) {
-        await this.recordFailedRun(
-          dataMart,
-          userId,
-          runId,
-          startedAt,
-          { ...baseMetadata, completed: false },
-          mappedError,
-          reportId
-        );
-      }
+      await this.recordFailedRun(
+        dataMart,
+        userId,
+        runId,
+        startedAt,
+        { ...baseMetadata, completed: false },
+        mappedError,
+        error instanceof ProjectOperationBlockedException
+          ? DataMartRunStatus.RESTRICTED
+          : DataMartRunStatus.FAILED,
+        reportId
+      );
       this.handleStreamFailure(res, mappedError);
     } finally {
       if (reader) await this.safelyFinalizeReader(reader);
@@ -553,6 +573,7 @@ export class StreamHttpDataService {
     startedAt: Date,
     metadata: HttpDataRunMetadata,
     error: unknown,
+    status: DataMartRunStatus.FAILED | DataMartRunStatus.RESTRICTED,
     reportId?: string
   ): Promise<void> {
     const message = this.clientFacingErrorMessage(error);
@@ -562,14 +583,14 @@ export class StreamHttpDataService {
         dataMart,
         createdById,
         startedAt,
-        status: DataMartRunStatus.FAILED,
+        status,
         metadata,
         errors: [message],
         reportId,
       });
     } catch (err) {
       this.logger.warn(
-        `Failed to persist FAILED HTTP Data run ${runId}: ${err instanceof Error ? err.message : String(err)}`
+        `Failed to persist ${status} HTTP Data run ${runId}: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }

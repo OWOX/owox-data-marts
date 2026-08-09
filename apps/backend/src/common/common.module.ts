@@ -18,12 +18,15 @@ import { ClsContextService } from './logger/cls-context.service';
     {
       // This provider is used to ensure the AppEditionConfig is initialized before any other service that depends on it.
       provide: AppEditionConfig,
-      useFactory: async (config: ConfigService): Promise<AppEditionConfig> => {
-        const service = new AppEditionConfig(config);
+      useFactory: async (
+        config: ConfigService,
+        publicOriginService: PublicOriginService
+      ): Promise<AppEditionConfig> => {
+        const service = new AppEditionConfig(config, publicOriginService);
         await service.actualizeAppEdition(true);
         return service;
       },
-      inject: [ConfigService],
+      inject: [ConfigService, PublicOriginService],
     },
     AppEditionLicenseRefresherService,
     MarkdownParser,

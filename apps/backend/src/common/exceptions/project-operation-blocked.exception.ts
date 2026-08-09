@@ -19,6 +19,10 @@ export class ProjectOperationBlockedException extends BusinessViolationException
       message +=
         ' You’ve reached the credit limit for this OWOX Data Marts project. Upgrade your plan to get more credits.';
     }
+    if (blockedReasons.includes(ProjectBlockedReason.LICENSE_REQUIRED)) {
+      message +=
+        ' Report Runs require an active OWOX Data Marts Cloud license. Create a managed license key in OWOX Data Marts Cloud Project Settings and set it as LICENSE_KEY to enable execution.';
+    }
     message = message.trim();
 
     if (message.length === 0) {

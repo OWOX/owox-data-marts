@@ -33,6 +33,7 @@ export async function fetchWithBackoff(
       const isTransient =
         msg.includes('EPIPE') ||
         msg.includes('ECONNRESET') ||
+        msg.startsWith('Fetch timeout:') ||
         msg.includes('fetch failed') ||
         msg.includes('socket hang up');
 

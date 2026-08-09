@@ -62,6 +62,26 @@ export class PublicOriginService {
   }
 
   /**
+   * Reduces an origin to `scheme://host[:port]`. Must stay the single normalization
+   * rule shared by license key issuance and license audience validation.
+   *
+   * @param value Raw origin (scheme optional)
+   * @returns Canonical origin string
+   * @throws Error if the value is not a valid http/https URL
+   */
+  normalizeOrigin(value: string): string {
+    const trimmed = value.trim();
+    // Only a missing scheme may be defaulted; `ensureHttp` would otherwise turn
+    // `ftp://host` into `http://ftp` instead of rejecting it.
+    const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
+    const withProtocol = hasScheme ? trimmed : this.ensureHttp(trimmed);
+    if (!this.isValidUrl(withProtocol)) {
+      throw new Error(`Invalid origin: ${value}`);
+    }
+    return new URL(withProtocol).origin;
+  }
+
+  /**
    * Returns a normalized deployment URL for Looker Studio.
    *
    * Priority order:

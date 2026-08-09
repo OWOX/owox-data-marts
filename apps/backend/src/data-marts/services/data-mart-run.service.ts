@@ -85,7 +85,7 @@ export interface HttpDataRunRecord {
   dataMart: DataMart;
   createdById: string;
   startedAt: Date;
-  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED;
+  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.RESTRICTED;
   metadata: HttpDataRunMetadata;
   errors?: string[];
   reportId?: string;
@@ -98,7 +98,11 @@ export interface McpQueryRunRecord {
   dataMart: DataMart;
   createdById: string;
   startedAt: Date;
-  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.CANCELLED;
+  status:
+    | DataMartRunStatus.SUCCESS
+    | DataMartRunStatus.FAILED
+    | DataMartRunStatus.CANCELLED
+    | DataMartRunStatus.RESTRICTED;
   metadata: McpQueryRunMetadata;
   errors?: string[];
 }

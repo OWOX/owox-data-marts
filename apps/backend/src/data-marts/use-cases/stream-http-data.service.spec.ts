@@ -9,7 +9,7 @@ import {
 import type { Response } from 'express';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -23,6 +23,7 @@ import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
 import { AccessDecisionService } from '../services/access-decision/access-decision.service';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
@@ -544,7 +545,12 @@ describe('StreamHttpDataService', () => {
     expect(errorMapper.toStorageReadError).toHaveBeenCalledWith(expect.any(Error), {
       force: true,
     });
-    expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.FAILED,
+        metadata: expect.objectContaining({ completed: false, format: 'ndjson' }),
+      })
+    );
   });
 
   it('defers the 200 response until the first batch read succeeds', async () => {
@@ -1168,19 +1174,43 @@ describe('StreamHttpDataService', () => {
       expect(readerResolver.resolve).not.toHaveBeenCalled();
     });
 
-    it('records no run when the project balance gate rejects', async () => {
-      // baseMetadata is seeded right after verifyCanPerformOperations (see executeStream), so a
-      // rejection here happens BEFORE the seed — unlike every execution-phase failure (config
-      // drift, missing blended SQL, storage errors), this records no run at all.
+    it('records a RESTRICTED run before schema work when authorization denies the project', async () => {
       projectBilling.verifyCanPerformOperations.mockRejectedValueOnce(
-        new BusinessViolationException('Project balance is insufficient to run this operation')
+        new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+      );
+
+      await expect(
+        service.streamReport(fakeReportCommand(), mockResponse())
+      ).rejects.toBeInstanceOf(ProjectOperationBlockedException);
+
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.RESTRICTED,
+          reportId: 'report-1',
+          metadata: expect.objectContaining({ completed: false, format: 'ndjson' }),
+        })
+      );
+      expect(dataMartService.actualizeSchemaInEntityIfExpired).not.toHaveBeenCalled();
+      expect(blended.resolveBlendingDecision).not.toHaveBeenCalled();
+      expect(readerResolver.resolve).not.toHaveBeenCalled();
+    });
+
+    it('records a FAILED run when the authorization service is unavailable', async () => {
+      projectBilling.verifyCanPerformOperations.mockRejectedValueOnce(
+        new ServiceUnavailableException('License authorization is unavailable')
       );
 
       await expect(service.streamReport(fakeReportCommand(), mockResponse())).rejects.toThrow(
-        'Project balance is insufficient to run this operation'
+        'License authorization is unavailable'
       );
 
-      expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
+      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.FAILED,
+          reportId: 'report-1',
+          metadata: expect.objectContaining({ completed: false, format: 'ndjson' }),
+        })
+      );
     });
 
     it('records a FAILED run tagged with reportId when prepareReportData fails', async () => {

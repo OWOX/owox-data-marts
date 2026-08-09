@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { Report } from '../../../entities/report.entity';
 import { GetDataRequest } from '../schemas/get-data.schema';
+import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
+import { ProjectBlockedReason } from '../../../enums/project-blocked-reason.enum';
 
 // Mock external modules before importing service
 jest.mock('@owox/internal-helpers', () => ({
@@ -19,7 +21,10 @@ import { logBlendedSqlIfNeeded } from '../../../report-run-logging/log-blended-s
 import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
-import { ProjectBillingService } from '../../../services/project-billing/project-billing.service';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../../../services/project-billing/project-billing.service';
 import { ReportDataCacheService } from '../../../services/report-data-cache.service';
 import { ReportService } from '../../../services/report.service';
 import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
@@ -150,6 +155,21 @@ describe('LookerStudioConnectorApiService', () => {
     });
 
     describe('sample extraction', () => {
+      it('authorizes before creating or reading the cached sample', async () => {
+        const request = createMockRequest(true);
+        const res = createMockResponse();
+        projectBilling.verifyCanPerformOperations.mockRejectedValueOnce(new Error('blocked'));
+
+        await expect(service.getDataStreaming(request, res as Response)).rejects.toThrow('blocked');
+
+        expect(projectBilling.verifyCanPerformOperations).toHaveBeenCalledWith(
+          'project-1',
+          RunKind.LOOKER_REPORT_RUN
+        );
+        expect(cacheService.getOrCreateCachedReader).not.toHaveBeenCalled();
+        expect(dataService.getData).not.toHaveBeenCalled();
+      });
+
       it('should use non-streaming for sample extraction regardless of feature flag', async () => {
         process.env.LOOKER_STREAMING_ENABLED = 'true';
         const request = createMockRequest(true);
@@ -174,6 +194,32 @@ describe('LookerStudioConnectorApiService', () => {
     });
 
     describe('full extraction with streaming disabled (default)', () => {
+      it('creates a restricted run but does not create a cache reader when authorization denies', async () => {
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const report = createMockReport();
+        const blocked = new ProjectOperationBlockedException([
+          ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED,
+        ]);
+        const reportRun = {
+          markAsUnsuccessful: jest.fn(),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+          getReport: jest.fn().mockReturnValue(report),
+        };
+        reportRunService.create.mockResolvedValue(reportRun as any);
+        projectBilling.verifyCanPerformOperations.mockRejectedValueOnce(blocked);
+
+        await expect(service.getDataStreaming(request, res as Response)).rejects.toBe(blocked);
+
+        expect(reportRunService.create).toHaveBeenCalledWith(report);
+        expect(reportRun.markAsUnsuccessful).toHaveBeenCalledWith(blocked);
+        expect(reportRunService.finish).toHaveBeenCalledWith(reportRun, {
+          logs: [],
+          errors: [],
+        });
+        expect(cacheService.getOrCreateCachedReader).not.toHaveBeenCalled();
+      });
+
       it('should use non-streaming when LOOKER_STREAMING_ENABLED is not set', async () => {
         delete process.env.LOOKER_STREAMING_ENABLED;
         const request = createMockRequest(false);

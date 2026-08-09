@@ -40,8 +40,6 @@ export interface SheetsReportDetails {
 export abstract class ProjectBillingService {
   abstract verifyCanPerformOperations(projectId: string, runKind: RunKind): Promise<void>;
 
-  abstract getBalance(projectId: string): Promise<ProjectBalanceDto>;
-
   abstract registerConnectorRunConsumption(
     dataMart: DataMart,
     connectorRunId: string

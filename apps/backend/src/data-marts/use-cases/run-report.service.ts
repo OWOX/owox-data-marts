@@ -367,9 +367,9 @@ export class RunReportService {
    * Steps:
    * 1. Generates unique process ID for tracking
    * 2. Registers process for graceful shutdown
-   * 3. Actualizes data mart schema
-   * 4. Marks run as started
-   * 5. Executes report data extraction
+   * 3. Authorizes the run
+   * 4. Resolves access and actualizes the data mart schema
+   * 5. Marks run as started and executes report data extraction
    * 6. Handles success/error/cancellation
    * 7. Always unregisters process in finally block
    *
@@ -386,6 +386,10 @@ export class RunReportService {
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
+      await this.projectBillingService.verifyCanPerformOperations(
+        reportRun.getDataMart().projectId,
+        this.resolveRunKind(reportRun.getReport())
+      );
       const accessor = await this.resolveAccessor(runByUserId, reportRun.getDataMart().projectId);
       this.availableDestinationTypesService.verifyIsAllowed(
         reportRun.getReport().dataDestination.type
@@ -393,10 +397,6 @@ export class RunReportService {
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
-      await this.projectBillingService.verifyCanPerformOperations(
-        reportRun.getDataMart().projectId,
-        this.resolveRunKind(reportRun.getReport())
-      );
       const finalizeResult = await this.executeReport(
         reportRun.getReport(),
         accessor,

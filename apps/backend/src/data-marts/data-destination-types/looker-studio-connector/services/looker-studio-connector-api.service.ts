@@ -104,8 +104,12 @@ export class LookerStudioConnectorApiService {
    * @returns Schema response with field definitions
    */
   public async getSchema(request: GetSchemaRequest): Promise<GetSchemaResponse> {
-    // Get report and cached reader centrally
-    const { report, cachedReader } = await this.getReportAndCachedReader(request);
+    const report = await this.getReport(request);
+    await this.projectBillingService.verifyCanPerformOperations(
+      report.dataMart.projectId,
+      RunKind.LOOKER_REPORT_RUN
+    );
+    const cachedReader = await this.getCachedReader(report);
 
     // Pass cached data to schema service
     return this.schemaService.getSchema(request, report, cachedReader);
@@ -128,13 +132,12 @@ export class LookerStudioConnectorApiService {
    * @returns Data response with rows and schema
    */
   public async getData(request: GetDataRequest): Promise<GetDataResponse> {
-    // Get report and cached reader centrally
-    const { report, cachedReader } = await this.getReportAndCachedReader(request);
+    const report = await this.getReport(request);
     const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
 
     return isSampleExtraction
-      ? await this.getSampleDataExtraction(request, report, cachedReader)
-      : await this.getFullDataExtraction(request, report, cachedReader);
+      ? this.getSampleDataExtraction(request, report)
+      : this.getFullDataExtraction(request, report);
   }
 
   /**
@@ -158,12 +161,12 @@ export class LookerStudioConnectorApiService {
    * @param res - Express response object for streaming
    */
   public async getDataStreaming(request: GetDataRequest, res: Response): Promise<void> {
-    const { report, cachedReader } = await this.getReportAndCachedReader(request);
+    const report = await this.getReport(request);
     const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
 
     // Sample extraction always uses non-streaming (only 100 rows)
     if (isSampleExtraction) {
-      const result = await this.getSampleDataExtraction(request, report, cachedReader);
+      const result = await this.getSampleDataExtraction(request, report);
       res.json(result);
       return;
     }
@@ -171,10 +174,10 @@ export class LookerStudioConnectorApiService {
     // Check feature flag for full extraction
     if (this.isStreamingEnabled()) {
       this.logger.log('Using streaming mode for getData (LOOKER_STREAMING_ENABLED=true)');
-      await this.getFullDataExtractionStreaming(request, report, cachedReader, res);
+      await this.getFullDataExtractionStreaming(request, report, res);
     } else {
       // Non-streaming mode (default)
-      const result = await this.getFullDataExtraction(request, report, cachedReader);
+      const result = await this.getFullDataExtraction(request, report);
       res.json(result);
     }
   }
@@ -185,7 +188,6 @@ export class LookerStudioConnectorApiService {
   private async getFullDataExtractionStreaming(
     request: GetDataRequest,
     report: Report,
-    cachedReader: CachedReaderData,
     res: Response
   ): Promise<void> {
     this.logger.log(`Starting streaming report run ${report.id}`);
@@ -195,16 +197,16 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
-    this.recordExecutionSqlQuery(reportRun, cachedReader);
-
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
-    logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
       await this.projectBillingService.verifyCanPerformOperations(
         report.dataMart.projectId,
         RunKind.LOOKER_REPORT_RUN
       );
+      const cachedReader = await this.getCachedReader(report);
+      this.recordExecutionSqlQuery(reportRun, cachedReader);
+      logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
       const context = await this.dataService.prepareStreamingContext(
         request,
         report,
@@ -240,21 +242,16 @@ export class LookerStudioConnectorApiService {
   }
 
   /**
-   * Retrieves and validates report with cached data reader.
+   * Retrieves and validates the requested report.
    *
    * Steps:
    * 1. Validates request structure and authentication secret
    * 2. Fetches report by ID and secret key
-   * 3. Gets or creates cached reader for the report
-   *
    * @param request - getSchema or getData request with authentication
-   * @returns Report entity and cached reader data
+   * @returns Report entity
    * @throws BusinessViolationException if validation fails or report not found
    */
-  private async getReportAndCachedReader(request: GetSchemaRequest | GetDataRequest): Promise<{
-    report: Report;
-    cachedReader: CachedReaderData;
-  }> {
+  private async getReport(request: GetSchemaRequest | GetDataRequest): Promise<Report> {
     // Validate and extract request data
     const { connectionConfig, requestConfig } = this.validateAndExtractRequestData(request);
 
@@ -268,15 +265,17 @@ export class LookerStudioConnectorApiService {
       throw new BusinessViolationException('No report found for the provided secret and reportId');
     }
 
+    return report;
+  }
+
+  private async getCachedReader(report: Report): Promise<CachedReaderData> {
     const accessor = await resolveBlendableSchemaAccessor(
       this.idpProjectionsFacade,
       report.dataMart.projectId,
       report.createdById
     );
 
-    const cachedReader = await this.cacheService.getOrCreateCachedReader(report, accessor);
-
-    return { report, cachedReader };
+    return this.cacheService.getOrCreateCachedReader(report, accessor);
   }
 
   /**
@@ -333,15 +332,18 @@ export class LookerStudioConnectorApiService {
    *
    * @param request - getData request
    * @param report - Report entity
-   * @param cachedReader - Cached data reader
    * @returns Sample data response (max 100 rows)
    */
   private async getSampleDataExtraction(
     request: GetDataRequest,
-    report: Report,
-    cachedReader: CachedReaderData
+    report: Report
   ): Promise<GetDataResponse> {
     try {
+      await this.projectBillingService.verifyCanPerformOperations(
+        report.dataMart.projectId,
+        RunKind.LOOKER_REPORT_RUN
+      );
+      const cachedReader = await this.getCachedReader(report);
       const { response } = await this.dataService.getData(request, report, cachedReader, true);
       return response;
     } catch (error) {
@@ -358,14 +360,12 @@ export class LookerStudioConnectorApiService {
    *
    * @param request - getData request
    * @param report - Report entity
-   * @param cachedReader - Cached data reader
    * @returns Full data response
    * @throws InternalServerErrorException if run creation fails
    */
   private async getFullDataExtraction(
     request: GetDataRequest,
-    report: Report,
-    cachedReader: CachedReaderData
+    report: Report
   ): Promise<GetDataResponse> {
     this.logger.log(`Starting report run ${report.id}`);
 
@@ -374,16 +374,16 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
-    this.recordExecutionSqlQuery(reportRun, cachedReader);
-
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
-    logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
       await this.projectBillingService.verifyCanPerformOperations(
         report.dataMart.projectId,
         RunKind.LOOKER_REPORT_RUN
       );
+      const cachedReader = await this.getCachedReader(report);
+      this.recordExecutionSqlQuery(reportRun, cachedReader);
+      logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
       const { response, meta } = await this.dataService.getData(request, report, cachedReader);
 
       if (meta.limitExceeded) {

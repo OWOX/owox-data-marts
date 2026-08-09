@@ -4,14 +4,16 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
+import { fetchWithBackoff } from '@owox/internal-helpers';
 import { createPublicKey } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 
 /**
  * JWT payload structure for Google Service Account tokens
  */
-interface JwtPayload {
+export interface JwtPayload {
   iss: string;
+  jti?: string;
   payload: unknown;
   [key: string]: unknown;
 }
@@ -58,7 +60,10 @@ export const GoogleJwtBody = createParamDecorator(
  */
 const certsCache = new Map<string, { [kid: string]: string }>();
 const cacheExpiry = new Map<string, number>();
+const refreshes = new Map<string, Promise<void>>();
+const lastForcedRefresh = new Map<string, number>();
 const CACHE_DURATION = 3600000; // 1 hour
+const FORCED_REFRESH_COOLDOWN = 60000; // 1 minute
 
 /**
  * Validates JWT token from Google Service Account
@@ -68,23 +73,39 @@ export async function validateJwt(
   expectedServiceAccount: string,
   audience?: string
 ): Promise<unknown> {
-  try {
-    await ensureCertsCache(expectedServiceAccount);
+  const claims = await verifyJwtClaims(token, expectedServiceAccount, audience);
+  return claims.payload;
+}
 
+/**
+ * Same verification as {@link validateJwt}, but returns the full set of verified
+ * claims instead of only the nested `payload` object.
+ */
+export async function verifyJwtClaims(
+  token: string,
+  expectedServiceAccount: string,
+  audience?: string
+): Promise<JwtPayload> {
+  try {
     const header = jwt.decode(token, { complete: true })?.header;
     if (!header?.kid) {
       throw new UnauthorizedException('JWT header missing kid');
     }
 
+    await ensureCertsCache(expectedServiceAccount);
     const certs = certsCache.get(expectedServiceAccount);
-    const publicKey = certs?.[header.kid];
+    let publicKey = certs?.[header.kid];
+    if (!publicKey) {
+      await ensureCertsCache(expectedServiceAccount, true);
+      publicKey = certsCache.get(expectedServiceAccount)?.[header.kid];
+    }
     if (!publicKey) {
       throw new UnauthorizedException('Public key not found for kid');
     }
 
     const payload = jwt.verify(token, publicKey, {
       algorithms: ['RS256'],
-      audience: audience,
+      audience,
     }) as JwtPayload;
 
     if (payload.iss !== expectedServiceAccount) {
@@ -93,7 +114,7 @@ export async function validateJwt(
       );
     }
 
-    return payload.payload;
+    return payload;
   } catch (error) {
     if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
       throw error;
@@ -105,37 +126,58 @@ export async function validateJwt(
 /**
  * Ensures certificates cache is up to date for the given service account
  */
-async function ensureCertsCache(serviceAccountEmail: string): Promise<void> {
+async function ensureCertsCache(serviceAccountEmail: string, force = false): Promise<void> {
   const now = Date.now();
   const expiry = cacheExpiry.get(serviceAccountEmail) || 0;
 
-  if (now < expiry && certsCache.has(serviceAccountEmail)) {
+  if (!force && now < expiry && certsCache.has(serviceAccountEmail)) {
     return;
   }
 
-  try {
-    const jwkUrl = `https://www.googleapis.com/service_accounts/v1/jwk/${serviceAccountEmail}`;
+  const currentRefresh = refreshes.get(serviceAccountEmail);
+  if (currentRefresh) {
+    return currentRefresh;
+  }
 
-    const response = await fetch(jwkUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch service account JWK: ${response.status}`);
-    }
+  if (force && now - (lastForcedRefresh.get(serviceAccountEmail) ?? 0) < FORCED_REFRESH_COOLDOWN) {
+    return;
+  }
+  if (force) {
+    lastForcedRefresh.set(serviceAccountEmail, now);
+  }
 
-    const jwkSet = (await response.json()) as JwkSet;
+  const refresh = (async () => {
+    try {
+      const jwkUrl = `https://www.googleapis.com/service_accounts/v1/jwk/${serviceAccountEmail}`;
 
-    const certs: { [kid: string]: string } = {};
-    if (jwkSet.keys && Array.isArray(jwkSet.keys)) {
-      for (const key of jwkSet.keys) {
-        if (key.kid && key.kty === 'RSA') {
-          certs[key.kid] = jwkToPem(key);
+      const response = await fetchWithBackoff(jwkUrl, { method: 'GET' });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch service account JWK: ${response.status}`);
+      }
+
+      const jwkSet = (await response.json()) as JwkSet;
+
+      const certs: { [kid: string]: string } = {};
+      if (jwkSet.keys && Array.isArray(jwkSet.keys)) {
+        for (const key of jwkSet.keys) {
+          if (key.kid && key.kty === 'RSA') {
+            certs[key.kid] = jwkToPem(key);
+          }
         }
       }
-    }
 
-    certsCache.set(serviceAccountEmail, certs);
-    cacheExpiry.set(serviceAccountEmail, now + CACHE_DURATION);
-  } catch (error) {
-    throw new Error(`Failed to update service account certificates cache: ${error.message}`);
+      certsCache.set(serviceAccountEmail, certs);
+      cacheExpiry.set(serviceAccountEmail, Date.now() + CACHE_DURATION);
+    } catch (error) {
+      throw new Error(`Failed to update service account certificates cache: ${error.message}`);
+    }
+  })();
+  refreshes.set(serviceAccountEmail, refresh);
+
+  try {
+    await refresh;
+  } finally {
+    refreshes.delete(serviceAccountEmail);
   }
 }
 

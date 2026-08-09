@@ -97,6 +97,9 @@ describe('RunReportService', () => {
       registerSheetsReportRunConsumption: jest.fn().mockResolvedValue(undefined),
       registerEmailBasedReportRunConsumption: jest.fn().mockResolvedValue(undefined),
     };
+    const idpProjectionsFacade = {
+      getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }),
+    };
 
     const reportSqlComposerService = {
       compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
@@ -117,7 +120,7 @@ describe('RunReportService', () => {
       reportAccessService as never,
       blendedReportDataService as never,
       reportSqlComposerService as never,
-      { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never,
+      idpProjectionsFacade as never,
       sourceDataLastUpdatedService as never
     );
 
@@ -126,6 +129,7 @@ describe('RunReportService', () => {
       reportReaderResolver,
       reportWriterResolver,
       projectBilling,
+      idpProjectionsFacade,
       blendedReportDataService,
       dataMartService,
       sourceDataLastUpdatedService,
@@ -284,6 +288,8 @@ describe('RunReportService', () => {
       reportWriterResolver,
       reportRunService,
       projectBilling,
+      idpProjectionsFacade,
+      dataMartService,
     } = createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
     const reader = createReader();
@@ -312,6 +318,15 @@ describe('RunReportService', () => {
     );
     expect(projectBilling.verifyCanPerformOperations.mock.invocationCallOrder[0]).toBeLessThan(
       reportReaderResolver.resolve.mock.invocationCallOrder[0]
+    );
+    expect(projectBilling.verifyCanPerformOperations.mock.invocationCallOrder[0]).toBeLessThan(
+      idpProjectionsFacade.getProjectMemberOrThrow.mock.invocationCallOrder[0]
+    );
+    expect(projectBilling.verifyCanPerformOperations.mock.invocationCallOrder[0]).toBeLessThan(
+      dataMartService.actualizeSchemaInEntity.mock.invocationCallOrder[0]
+    );
+    expect(projectBilling.verifyCanPerformOperations.mock.invocationCallOrder[0]).toBeLessThan(
+      reportRunService.markAsStarted.mock.invocationCallOrder[0]
     );
     expect(projectBilling.registerSheetsReportRunConsumption).toHaveBeenCalledWith(report, {
       googleSheetsDocumentTitle: 'Test Spreadsheet',

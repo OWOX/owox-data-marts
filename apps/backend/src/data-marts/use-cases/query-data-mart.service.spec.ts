@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { QueryDataMartCommand, QueryDataMartService } from './query-data-mart.service';
 import { RunKind } from '../services/project-billing/project-billing.service';
 import { QueryAbortedError, QueryTimeoutError } from '../facades/mcp-data-marts.facade';
@@ -1801,8 +1805,9 @@ describe('QueryDataMartService', () => {
   });
 
   describe('billing gate (Task 9)', () => {
-    it('throws ProjectOperationBlockedException when authorization rejects with OVERDRAFT_LIMIT_EXCEEDED', async () => {
-      const { service, projectBilling } = createService();
+    it('records RESTRICTED before query work when authorization rejects the project', async () => {
+      const { service, projectBilling, dataMartRunService, composer, readerResolver } =
+        createService();
       projectBilling.verifyCanPerformOperations.mockRejectedValue(
         new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
       );
@@ -1819,6 +1824,42 @@ describe('QueryDataMartService', () => {
           })
         )
       ).rejects.toThrow(ProjectOperationBlockedException);
+
+      expect(dataMartRunService.recordMcpQueryRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.RESTRICTED,
+          metadata: expect.objectContaining({ columns: [], rowCount: 0, truncated: false }),
+        })
+      );
+      expect(composer.compose).not.toHaveBeenCalled();
+      expect(readerResolver.resolve).not.toHaveBeenCalled();
+    });
+
+    it('records FAILED when the authorization service is unavailable', async () => {
+      const { service, projectBilling, dataMartRunService } = createService();
+      projectBilling.verifyCanPerformOperations.mockRejectedValue(
+        new ServiceUnavailableException('License authorization is unavailable')
+      );
+
+      await expect(
+        service.run(
+          new QueryDataMartCommand({
+            projectId: 'p1',
+            userId: 'u1',
+            roles: ['admin'],
+            dataMartId: 'dm1',
+            fields: ['channel'],
+            limit: 100,
+          })
+        )
+      ).rejects.toThrow('License authorization is unavailable');
+
+      expect(dataMartRunService.recordMcpQueryRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DataMartRunStatus.FAILED,
+          metadata: expect.objectContaining({ columns: [], rowCount: 0, truncated: false }),
+        })
+      );
     });
 
     it('authorizes the run with the project id', async () => {
