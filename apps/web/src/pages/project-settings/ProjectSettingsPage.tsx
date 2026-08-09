@@ -37,6 +37,7 @@ export function ProjectSettingsPage() {
   const isAdmin = useIsAdmin();
   const { flags } = useFlags();
   const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
+  const licenseKeysEnabled = checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags);
   const [contexts, setContexts] = useState<ContextDto[]>([]);
   const [members, setMembers] = useState<MemberWithScopeDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +124,7 @@ export function ProjectSettingsPage() {
           { name: 'Subscription', path: 'subscription', end: false },
         ]
       : []),
+    ...(licenseKeysEnabled ? [{ name: 'License keys', path: 'license-keys', end: false }] : []),
     { name: 'Notifications', path: 'notifications', end: false },
   ];
 

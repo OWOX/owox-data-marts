@@ -4,6 +4,7 @@ import {
   Gem,
   KeyRound,
   Settings,
+  ShieldCheck,
   Tags,
   Users,
   type LucideIcon,
@@ -64,6 +65,14 @@ const settingsItems: SettingsSubItem[] = [
     buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/subscription`,
     icon: BriefcaseBusiness,
     isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
+  },
+  {
+    kind: 'internal',
+    title: 'License keys',
+    path: 'license-keys',
+    icon: ShieldCheck,
+    isVisible: (_isOwoxIdpProvider, flags) =>
+      checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags),
   },
   { kind: 'internal', title: 'Notifications', path: 'notifications', icon: Bell },
   { kind: 'separator' },
