@@ -910,6 +910,8 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
   ],
   exports: [
     PLUGIN_ENTITY_AUTHORIZATION_FACADE,
+    InternalProjectBillingService,
+    UserProjectionsFetcherService,
     MCP_DATA_MARTS_FACADE,
     MCP_DATA_DESTINATIONS_FACADE,
     MCP_REPORTS_FACADE,

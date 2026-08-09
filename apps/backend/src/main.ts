@@ -25,7 +25,7 @@ export async function main() {
     app.set('trust proxy', 1);
     app.get('/api/flags', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');
-      res.json({});
+      res.json({ LICENSE_ISSUANCE_ENABLED: process.env.LICENSE_ISSUANCE_ENABLED });
     });
     await setupIdp(app);
 
