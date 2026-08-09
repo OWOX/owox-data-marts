@@ -24,10 +24,9 @@ import { ConnectorCredentialInjectorService } from './connector-credential-injec
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
-import { ConsumptionTrackingService } from '../consumption-tracking.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
-import { ProjectBalanceService } from '../project-balance.service';
+import { ProjectBillingService } from '../project-billing/project-billing.service';
 import { DataMartService } from '../data-mart.service';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -105,10 +104,6 @@ describe('ConnectorExecutorService', () => {
       updateState: jest.fn().mockResolvedValue(undefined),
     } as unknown as ConnectorStateService;
 
-    const consumptionTracker = {
-      registerConnectorRunConsumption: jest.fn().mockResolvedValue(undefined),
-    } as unknown as ConsumptionTrackingService;
-
     const gracefulShutdownService = {
       registerActiveProcess: jest.fn(),
       unregisterActiveProcess: jest.fn(),
@@ -124,9 +119,10 @@ describe('ConnectorExecutorService', () => {
       publishExternal: jest.fn().mockResolvedValue(undefined),
     };
 
-    const projectBalanceService = {
-      verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
-    } as unknown as ProjectBalanceService;
+    const projectBilling = {
+      verifyCanPerformOperations: jest.fn(),
+      registerConnectorRunConsumption: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ProjectBillingService;
 
     const dataMartService = {
       actualizeSchema: jest.fn().mockResolvedValue(undefined),
@@ -146,11 +142,10 @@ describe('ConnectorExecutorService', () => {
       credentialInjector,
       outputCaptureService,
       connectorStateService,
-      consumptionTracker,
       gracefulShutdownService,
       systemTimeService,
       eventDispatcher as unknown as OwoxEventDispatcher,
-      projectBalanceService,
+      projectBilling,
       dataMartService,
       connectorSourceCredentialsService
     );
@@ -164,11 +159,10 @@ describe('ConnectorExecutorService', () => {
       credentialInjector,
       outputCaptureService,
       connectorStateService,
-      consumptionTracker,
       gracefulShutdownService,
       systemTimeService,
       eventDispatcher,
-      projectBalanceService,
+      projectBilling,
       dataMartService,
       emitSuccessMessage,
       emitInProgressMessage,
@@ -215,7 +209,7 @@ describe('ConnectorExecutorService', () => {
   };
 
   it('executes successfully and updates status to SUCCESS', async () => {
-    const { service, dataMartRunRepository, consumptionTracker, eventDispatcher, dataMartService } =
+    const { service, dataMartRunRepository, projectBilling, eventDispatcher, dataMartService } =
       createService();
 
     await service.executeInBackground(createDataMart(), createRun(), null);
@@ -224,7 +218,7 @@ describe('ConnectorExecutorService', () => {
       { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.RUNNING })
     );
-    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
+    expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
     const successUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls.findIndex(
@@ -381,7 +375,7 @@ describe('ConnectorExecutorService', () => {
       service,
       dataMartRunRepository,
       processSpawner,
-      consumptionTracker,
+      projectBilling,
       eventDispatcher,
       emitInProgressMessage,
     } = createService();
@@ -395,7 +389,7 @@ describe('ConnectorExecutorService', () => {
       { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.FAILED })
     );
-    expect(consumptionTracker.registerConnectorRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({ status: 'unsuccessfully' }),
@@ -432,7 +426,7 @@ describe('ConnectorExecutorService', () => {
       service,
       dataMartRunRepository,
       processSpawner,
-      consumptionTracker,
+      projectBilling,
       eventDispatcher,
       emitSuccessMessage,
     } = createService();
@@ -453,7 +447,7 @@ describe('ConnectorExecutorService', () => {
     expect(state.statusHistory).toEqual([DataMartRunStatus.RUNNING, DataMartRunStatus.CANCELLED]);
     // And since the persisted status is CANCELLED, the project must not be billed
     // and no success/failure webhook may fire for this run.
-    expect(consumptionTracker.registerConnectorRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerConnectorRunConsumption).not.toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
   });
 
@@ -510,10 +504,10 @@ describe('ConnectorExecutorService', () => {
   });
 
   it('handles balance check failure', async () => {
-    const { service, projectBalanceService, dataMartRunRepository } = createService();
+    const { service, projectBilling, dataMartRunRepository } = createService();
     const { ProjectOperationBlockedException } =
       await import('../../../common/exceptions/project-operation-blocked.exception');
-    (projectBalanceService.verifyCanPerformOperations as jest.Mock).mockRejectedValue(
+    (projectBilling.verifyCanPerformOperations as jest.Mock).mockRejectedValue(
       new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
     );
 
@@ -830,7 +824,7 @@ describe('ConnectorExecutorService', () => {
       service,
       dataMartRunRepository,
       processSpawner,
-      consumptionTracker,
+      projectBilling,
       eventDispatcher,
       emitSuccessMessage,
     } = createService();
@@ -846,7 +840,7 @@ describe('ConnectorExecutorService', () => {
       { id: 'run-1', status: expect.anything() },
       expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
-    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(
+    expect(projectBilling.registerConnectorRunConsumption).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'dm-1' }),
       'run-1'
     );

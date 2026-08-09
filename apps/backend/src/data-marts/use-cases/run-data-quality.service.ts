@@ -31,8 +31,10 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataQualityCheckStatus } from '../enums/data-quality-check-status.enum';
 import { DataQualityScope } from '../enums/data-quality-scope.enum';
 import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../services/project-billing/project-billing.service';
 import { DATA_QUALITY_RUN_EXECUTION_ERROR_MESSAGE } from '../services/data-quality-run.service';
 import {
   DataQualitySnapshotStorageMismatchError,
@@ -83,9 +85,8 @@ export class RunDataQualityService {
     private readonly compiler: DataQualityCheckCompiler,
     private readonly queryExecutor: DataQualityQueryExecutorService,
     private readonly resultParser: DataQualityResultParser,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly systemClock: SystemTimeService,
-    private readonly projectBalanceService: ProjectBalanceService
+    private readonly projectBillingService: ProjectBillingService
   ) {}
 
   async executeExistingRun(
@@ -107,7 +108,10 @@ export class RunDataQualityService {
     try {
       signal?.throwIfAborted();
       if (pendingRules.length > 0) {
-        await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+        await this.projectBillingService.verifyCanPerformOperations(
+          dataMart.projectId,
+          RunKind.DATA_QUALITY_RUN
+        );
         const definitionRun = dataMartRun.definitionRun;
         if (!definitionRun) {
           throw new Error(
@@ -234,7 +238,7 @@ export class RunDataQualityService {
       await this.finishRun(dataMartRun, false);
     }
 
-    if (dataMartRun.status === DataMartRunStatus.SUCCESS) {
+    if (pendingRules.length > 0 && dataMartRun.status === DataMartRunStatus.SUCCESS) {
       await this.publishConsumption(dataMart, dataMartRun.id);
     }
   }
@@ -296,10 +300,7 @@ export class RunDataQualityService {
 
   private async publishConsumption(dataMart: DataMart, dataMartRunId: string): Promise<void> {
     try {
-      await this.consumptionTrackingService.registerDataQualityRunConsumption(
-        dataMart,
-        dataMartRunId
-      );
+      await this.projectBillingService.registerDataQualityRunConsumption(dataMart, dataMartRunId);
     } catch (error) {
       this.logger.warn(
         `Failed to publish Data Quality consumption for run ${dataMartRunId}: ${error instanceof Error ? error.message : String(error)}`

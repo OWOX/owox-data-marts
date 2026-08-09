@@ -16,9 +16,11 @@ import {
 import { resolveBlendableSchemaAccessor } from '../../../services/blendable-schema.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
 import { IdpProjectionsFacade } from '../../../../idp/facades/idp-projections.facade';
-import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../../../services/project-billing/project-billing.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
-import { ProjectBalanceService } from '../../../services/project-balance.service';
 import { ReportDataCacheService } from '../../../services/report-data-cache.service';
 import { ReportService } from '../../../services/report.service';
 import { ConnectionConfigSchema } from '../schemas/connection-config.schema';
@@ -75,10 +77,9 @@ export class LookerStudioConnectorApiService {
     private readonly dataService: LookerStudioConnectorApiDataService,
     private readonly cacheService: ReportDataCacheService,
     private readonly reportService: ReportService,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
-    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly projectBillingService: ProjectBillingService,
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly systemTimeService: SystemTimeService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade
@@ -200,7 +201,10 @@ export class LookerStudioConnectorApiService {
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
-      await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
+      await this.projectBillingService.verifyCanPerformOperations(
+        report.dataMart.projectId,
+        RunKind.LOOKER_REPORT_RUN
+      );
       const context = await this.dataService.prepareStreamingContext(
         request,
         report,
@@ -376,7 +380,10 @@ export class LookerStudioConnectorApiService {
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
-      await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
+      await this.projectBillingService.verifyCanPerformOperations(
+        report.dataMart.projectId,
+        RunKind.LOOKER_REPORT_RUN
+      );
       const { response, meta } = await this.dataService.getData(request, report, cachedReader);
 
       if (meta.limitExceeded) {
@@ -447,7 +454,7 @@ export class LookerStudioConnectorApiService {
     const report = reportRun.getReport();
     if (!cachedReader.fromCache) {
       try {
-        await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+        await this.projectBillingService.registerLookerReportRunConsumption(report);
       } catch (error) {
         this.logger.warn(
           `Failed to register Looker report consumption for ${report.id}: ${

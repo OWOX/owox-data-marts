@@ -26,10 +26,9 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { AccessDecisionService } from '../services/access-decision/access-decision.service';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import { ProjectBillingService } from '../services/project-billing/project-billing.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { ReportService } from '../services/report.service';
 import { ReportTotalsService } from '../services/report-totals.service';
@@ -183,8 +182,7 @@ describe('StreamHttpDataService', () => {
   let blendableSchema: jest.Mocked<BlendableSchemaService>;
   let blended: jest.Mocked<BlendedReportDataService>;
   let sqlComposer: jest.Mocked<ReportSqlComposerService>;
-  let balance: jest.Mocked<ProjectBalanceService>;
-  let consumption: jest.Mocked<ConsumptionTrackingService>;
+  let projectBilling: jest.Mocked<ProjectBillingService>;
   let gracefulShutdown: jest.Mocked<GracefulShutdownService>;
   let systemTime: jest.Mocked<SystemTimeService>;
   let reader: jest.Mocked<DataStorageReportReader>;
@@ -282,13 +280,10 @@ describe('StreamHttpDataService', () => {
       () => "SELECT * FROM t WHERE date >= DATE '2026-01-01'"
     ) as never;
 
-    balance = {
-      verifyCanPerformOperations: jest.fn(async () => undefined),
-    } as unknown as jest.Mocked<ProjectBalanceService>;
-
-    consumption = {
+    projectBilling = {
+      verifyCanPerformOperations: jest.fn(async request => request),
       registerHttpDataRunConsumption: jest.fn(async () => undefined),
-    } as unknown as jest.Mocked<ConsumptionTrackingService>;
+    } as unknown as jest.Mocked<ProjectBillingService>;
 
     reader = {
       prepareReportData: jest.fn(
@@ -356,8 +351,7 @@ describe('StreamHttpDataService', () => {
       blendableSchema,
       blended,
       sqlComposer,
-      balance,
-      consumption,
+      projectBilling,
       gracefulShutdown,
       systemTime,
       readerResolver,
@@ -384,7 +378,7 @@ describe('StreamHttpDataService', () => {
         metadata: expect.objectContaining({ rowCount: 2, completed: true }),
       })
     );
-    expect(consumption.registerHttpDataRunConsumption).toHaveBeenCalled();
+    expect(projectBilling.registerHttpDataRunConsumption).toHaveBeenCalled();
     expect(reader.finalize).toHaveBeenCalled();
   });
 
@@ -614,11 +608,11 @@ describe('StreamHttpDataService', () => {
     expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
       expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
     );
-    expect(consumption.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+    expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
   });
 
   it('still resolves when consumption tracking throws after a SUCCESS run', async () => {
-    consumption.registerHttpDataRunConsumption.mockRejectedValueOnce(new Error('pubsub down'));
+    projectBilling.registerHttpDataRunConsumption.mockRejectedValueOnce(new Error('pubsub down'));
     const res = mockResponse();
 
     await expect(service.stream(fakeCommand(), res)).resolves.toBeUndefined();
@@ -1178,7 +1172,7 @@ describe('StreamHttpDataService', () => {
       // baseMetadata is seeded right after verifyCanPerformOperations (see executeStream), so a
       // rejection here happens BEFORE the seed — unlike every execution-phase failure (config
       // drift, missing blended SQL, storage errors), this records no run at all.
-      balance.verifyCanPerformOperations.mockRejectedValueOnce(
+      projectBilling.verifyCanPerformOperations.mockRejectedValueOnce(
         new BusinessViolationException('Project balance is insufficient to run this operation')
       );
 

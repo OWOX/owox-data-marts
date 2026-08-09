@@ -22,8 +22,10 @@ import { ReportTotalsService } from '../services/report-totals.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 import { unavailableSourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { DataMartRunService } from '../services/data-mart-run.service';
-import { ProjectBalanceService } from '../services/project-balance.service';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../services/project-billing/project-billing.service';
 import {
   McpQueryDataMartRequest,
   McpQueryDataMartResponse,
@@ -68,8 +70,7 @@ export class QueryDataMartService {
     private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService,
     private readonly dataMartRunService: DataMartRunService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly projectBalanceService: ProjectBalanceService,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    private readonly projectBillingService: ProjectBillingService,
     @Optional() private readonly queryDeadlineMs: number = DEFAULT_QUERY_DEADLINE_MS,
     @Optional()
     private readonly dataLastUpdatedGraceMs: number = DEFAULT_DATA_LAST_UPDATED_GRACE_MS
@@ -129,7 +130,7 @@ export class QueryDataMartService {
       throw new NotFoundException(`Data Mart not found`);
     }
 
-    await this.projectBalanceService.verifyCanPerformOperations(r.projectId);
+    await this.projectBillingService.verifyCanPerformOperations(r.projectId, RunKind.MCP_QUERY_RUN);
 
     const accessor: BlendableSchemaAccessor = { userId: r.userId, roles: r.roles };
 
@@ -378,7 +379,7 @@ export class QueryDataMartService {
       // Never bill a run with no audit record — that charge would resolve to nothing (untraceable).
       if (runRecorded) {
         try {
-          await this.consumptionTrackingService.registerMcpQueryRunConsumption(dataMart, runId);
+          await this.projectBillingService.registerMcpQueryRunConsumption(dataMart, runId);
         } catch (consumptionErr) {
           this.logger.warn(
             `Failed to register MCP Query run consumption ${runId}: ${consumptionErr instanceof Error ? consumptionErr.message : String(consumptionErr)}`

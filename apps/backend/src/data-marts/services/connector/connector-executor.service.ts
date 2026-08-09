@@ -32,7 +32,6 @@ import { ConnectorMessage } from '../../connector-types/connector-message/schema
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
-import { ConsumptionTrackingService } from '../consumption-tracking.service';
 import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
@@ -40,7 +39,7 @@ import { ConnectorExecutionError } from '../../errors/connector-execution.error'
 import { CredentialsExpiredException } from '../../exceptions/google-oauth.exceptions';
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
-import { ProjectBalanceService } from '../project-balance.service';
+import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
@@ -72,11 +71,10 @@ export class ConnectorExecutorService {
     private readonly credentialInjector: ConnectorCredentialInjectorService,
     private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
     private readonly connectorStateService: ConnectorStateService,
-    private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly systemTimeService: SystemTimeService,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly projectBillingService: ProjectBillingService,
     private readonly dataMartService: DataMartService,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
   ) {}
@@ -108,7 +106,10 @@ export class ConnectorExecutorService {
         );
       }
 
-      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+      await this.projectBillingService.verifyCanPerformOperations(
+        dataMart.projectId,
+        RunKind.CONNECTOR_RUN
+      );
 
       // Guarded like the terminal write below: a cancel can land in the window
       // between claimRunSlotAtomically and here (e.g. during the awaited balance
@@ -232,7 +233,7 @@ export class ConnectorExecutorService {
       );
 
       if (hasSuccessfulRun && statusPersisted) {
-        await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
+        await this.projectBillingService.registerConnectorRunConsumption(dataMart, runId);
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,

@@ -14,7 +14,10 @@ import {
   RootWithAdditional,
   TagRenderedResult,
 } from '../../../../common/template/types/render-template.types';
-import { ProjectBalanceService } from '../../../services/project-balance.service';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../../../services/project-billing/project-billing.service';
 import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
 import {
   DataMartAdditionalParams,
@@ -36,7 +39,7 @@ export class PromptTagHandler implements TagHandler<
   constructor(
     @Inject(AI_INSIGHTS_FACADE)
     private readonly aiInsightFacade: AiInsightsFacade,
-    private readonly projectBalanceService: ProjectBalanceService
+    private readonly projectBillingService: ProjectBillingService
   ) {}
 
   buildPayload(args: unknown[], options: HelperOptions, context: unknown): PromptTagPayload {
@@ -66,7 +69,10 @@ export class PromptTagHandler implements TagHandler<
 
   async handle(input: PromptTagPayload): Promise<TagRenderedResult<PromptTagMeta>> {
     try {
-      await this.projectBalanceService.verifyCanPerformOperations(input.projectId);
+      await this.projectBillingService.verifyCanPerformOperations(
+        input.projectId,
+        RunKind.AI_PROCESS_RUN
+      );
     } catch (error) {
       if (error instanceof ProjectOperationBlockedException) {
         return {

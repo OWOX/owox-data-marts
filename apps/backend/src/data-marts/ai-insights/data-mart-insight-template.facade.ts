@@ -4,7 +4,7 @@ import {
   TEMPLATE_RENDER_FACADE,
   TemplateRenderInput,
 } from '../../common/template/types/render-template.types';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
+import { ProjectBillingService } from '../services/project-billing/project-billing.service';
 import {
   DataMartAdditionalParams,
   DataMartInsightTemplateFacade,
@@ -32,7 +32,7 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       DataMartAdditionalParams
     >,
     private readonly promptHandler: PromptTagHandler,
-    private readonly consumptionTracker: ConsumptionTrackingService,
+    private readonly projectBillingService: ProjectBillingService,
     private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
@@ -66,15 +66,13 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
           p => !isPromptAnswerError(p.meta.status) && !isPromptAnswerRestricted(p.meta.status)
         )
         .forEach(p => {
-          try {
-            const llmCalls = p.meta.telemetry?.llmCalls ?? [];
-            void this.consumptionTracker.registerAiProcessRunConsumption(
+          const llmCalls = p.meta.telemetry?.llmCalls ?? [];
+          void this.projectBillingService
+            .registerAiProcessRunConsumption(
               getPromptTotalUsage(llmCalls).totalTokens,
               consumptionContext
-            );
-          } catch (error) {
-            this.logger.error('Failed to register consumption:', error);
-          }
+            )
+            .catch(error => this.logger.error('Failed to register consumption:', error));
         });
     }
 

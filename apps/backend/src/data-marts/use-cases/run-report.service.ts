@@ -34,7 +34,10 @@ import {
 import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { DataMartService } from '../services/data-mart.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
-import { ProjectBalanceService } from '../services/project-balance.service';
+import {
+  ProjectBillingService,
+  RunKind,
+} from '../services/project-billing/project-billing.service';
 import { ReportRunService } from '../services/report-run.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
 import {
@@ -48,7 +51,6 @@ import {
   SourceDataLastUpdated,
   unavailableSourceDataLastUpdated,
 } from '../dto/schemas/source-data-last-updated.schema';
-import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import { SourceDataLastUpdatedService } from '../services/source-data-last-updated.service';
 
 const ERROR_NAMES = {
@@ -113,14 +115,13 @@ export class RunReportService {
     private readonly systemTimeService: SystemTimeService,
     private readonly reportRunService: ReportRunService,
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
-    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly projectBillingService: ProjectBillingService,
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
     private readonly reportRunTriggerService: ReportRunTriggerService,
     private readonly reportAccessService: ReportAccessService,
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly sourceDataLastUpdatedService: SourceDataLastUpdatedService
   ) {}
 
@@ -241,7 +242,6 @@ export class RunReportService {
     let processingError: Error | undefined = undefined;
     try {
       signal?.throwIfAborted();
-      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
       // Resolve blending decision up front. When the report has a column
       // config, this produces either a pre-built blended SQL (for cross-DM
@@ -393,6 +393,10 @@ export class RunReportService {
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
+      await this.projectBillingService.verifyCanPerformOperations(
+        reportRun.getDataMart().projectId,
+        this.resolveRunKind(reportRun.getReport())
+      );
       const finalizeResult = await this.executeReport(
         reportRun.getReport(),
         accessor,
@@ -571,12 +575,23 @@ export class RunReportService {
     await this.registerReportRunConsumption(reportRun.getReport(), finalizeResult);
   }
 
+  private resolveRunKind(report: Report): RunKind {
+    const destinationType = report.dataDestination.type;
+    if (destinationType === DataDestinationType.GOOGLE_SHEETS) {
+      return RunKind.SHEETS_REPORT_RUN;
+    }
+    if (isEmailBasedDataDestinationType(destinationType)) {
+      return RunKind.EMAIL_BASED_REPORT_RUN;
+    }
+    throw new Error(`No billing run kind for destination type ${destinationType}`);
+  }
+
   private async registerReportRunConsumption(
     report: Report,
     finalizeResult?: ReportWriteFinalizeResult
   ): Promise<void> {
     try {
-      if (report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS) {
+      if (this.resolveRunKind(report) === RunKind.SHEETS_REPORT_RUN) {
         const sheetsDetails = finalizeResult?.consumption?.googleSheets;
         if (!sheetsDetails) {
           this.logger.warn(
@@ -584,17 +599,11 @@ export class RunReportService {
           );
           return;
         }
-
-        await this.consumptionTrackingService.registerSheetsReportRunConsumption(
-          report,
-          sheetsDetails
-        );
+        await this.projectBillingService.registerSheetsReportRunConsumption(report, sheetsDetails);
         return;
       }
 
-      if (isEmailBasedDataDestinationType(report.dataDestination.type)) {
-        await this.consumptionTrackingService.registerEmailBasedReportRunConsumption(report);
-      }
+      await this.projectBillingService.registerEmailBasedReportRunConsumption(report);
     } catch (error) {
       this.logger.warn(
         `Failed to register report consumption for ${report.id}: ${

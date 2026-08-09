@@ -18,9 +18,8 @@ jest.mock('../../../report-run-logging/log-blended-sql', () => ({
 import { logBlendedSqlIfNeeded } from '../../../report-run-logging/log-blended-sql';
 import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
-import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
-import { ProjectBalanceService } from '../../../services/project-balance.service';
+import { ProjectBillingService } from '../../../services/project-billing/project-billing.service';
 import { ReportDataCacheService } from '../../../services/report-data-cache.service';
 import { ReportService } from '../../../services/report.service';
 import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
@@ -34,8 +33,7 @@ describe('LookerStudioConnectorApiService', () => {
   let cacheService: jest.Mocked<ReportDataCacheService>;
   let reportService: jest.Mocked<ReportService>;
   let reportRunService: jest.Mocked<LookerStudioReportRunService>;
-  let consumptionTrackingService: jest.Mocked<ConsumptionTrackingService>;
-  let projectBalanceService: jest.Mocked<ProjectBalanceService>;
+  let projectBilling: jest.Mocked<ProjectBillingService>;
   let eventDispatcher: jest.Mocked<{ publishExternal: jest.Mock }>;
   let blendedReportDataService: jest.Mocked<BlendedReportDataService>;
   let systemTimeService: jest.Mocked<SystemTimeService>;
@@ -65,13 +63,10 @@ describe('LookerStudioConnectorApiService', () => {
       finish: jest.fn(),
     } as unknown as jest.Mocked<LookerStudioReportRunService>;
 
-    consumptionTrackingService = {
-      registerLookerReportRunConsumption: jest.fn(),
-    } as unknown as jest.Mocked<ConsumptionTrackingService>;
-
-    projectBalanceService = {
+    projectBilling = {
       verifyCanPerformOperations: jest.fn(),
-    } as unknown as jest.Mocked<ProjectBalanceService>;
+      registerLookerReportRunConsumption: jest.fn(),
+    } as unknown as jest.Mocked<ProjectBillingService>;
 
     eventDispatcher = {
       publishExternal: jest.fn(),
@@ -92,10 +87,9 @@ describe('LookerStudioConnectorApiService', () => {
       dataService,
       cacheService,
       reportService,
-      consumptionTrackingService,
       eventDispatcher as any,
       reportRunService,
-      projectBalanceService,
+      projectBilling,
       blendedReportDataService,
       systemTimeService,
       { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
@@ -250,9 +244,7 @@ describe('LookerStudioConnectorApiService', () => {
         await service.getDataStreaming(request, res as Response);
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
-        expect(
-          consumptionTrackingService.registerLookerReportRunConsumption
-        ).not.toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).not.toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
@@ -282,7 +274,7 @@ describe('LookerStudioConnectorApiService', () => {
         await service.getDataStreaming(request, res as Response);
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
-        expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
@@ -314,9 +306,7 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(reportRunService.finish).toHaveBeenCalled();
-        expect(
-          consumptionTrackingService.registerLookerReportRunConsumption
-        ).not.toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).not.toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
       });
 
@@ -442,9 +432,7 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(reportRunService.finish).toHaveBeenCalled();
-        expect(
-          consumptionTrackingService.registerLookerReportRunConsumption
-        ).not.toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).not.toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
@@ -477,7 +465,7 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(reportRunService.finish).toHaveBeenCalled();
-        expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
@@ -505,7 +493,7 @@ describe('LookerStudioConnectorApiService', () => {
           bytesWritten: 10,
           limitReason: undefined,
         } as any);
-        consumptionTrackingService.registerLookerReportRunConsumption.mockRejectedValueOnce(
+        projectBilling.registerLookerReportRunConsumption.mockRejectedValueOnce(
           new Error('pubsub unavailable')
         );
 
@@ -514,7 +502,7 @@ describe('LookerStudioConnectorApiService', () => {
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(mockReportRun.markAsUnsuccessful).not.toHaveBeenCalled();
         expect(reportRunService.finish).toHaveBeenCalled();
-        expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
         expect((service as any).logger.warn).toHaveBeenCalledWith(
           'Failed to register Looker report consumption for report-1: pubsub unavailable'
@@ -551,9 +539,7 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(reportRunService.finish).toHaveBeenCalled();
-        expect(
-          consumptionTrackingService.registerLookerReportRunConsumption
-        ).not.toHaveBeenCalled();
+        expect(projectBilling.registerLookerReportRunConsumption).not.toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
       });
 
