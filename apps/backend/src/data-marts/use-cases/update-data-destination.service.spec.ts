@@ -132,9 +132,6 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     const credentialsProcessor = {
       processCredentials: jest.fn().mockResolvedValue({}),
     };
-    const availableDestinationTypesService = {
-      verifyIsAllowed: jest.fn().mockReturnValue(undefined),
-    };
     const dataDestinationCredentialService = {
       create: jest.fn(),
       update: jest.fn(),
@@ -182,7 +179,6 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       dataDestinationMapper as never,
       credentialsValidator as never,
       credentialsProcessor as never,
-      availableDestinationTypesService as never,
       dataDestinationCredentialService as never,
       googleOAuthClientService as never,
       copyCredentialService,
@@ -201,7 +197,6 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       dataDestinationMapper,
       credentialsValidator,
       credentialsProcessor,
-      availableDestinationTypesService,
       dataDestinationCredentialService,
       googleOAuthClientService,
       folderValidator,

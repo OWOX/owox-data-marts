@@ -1,7 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DataDestination } from '../entities/data-destination.entity';
 import { Repository } from 'typeorm';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
@@ -40,7 +39,6 @@ export class UpdateDataDestinationService {
     private readonly dataDestinationMapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly copyCredentialService: CopyCredentialService,
@@ -132,8 +130,6 @@ export class UpdateDataDestinationService {
         throw new ForbiddenException('You do not have permission to edit this Destination');
       }
     }
-
-    this.availableDestinationTypesService.verifyIsAllowed(entity.type);
 
     // Mutual exclusion: sourceDestinationId vs credentials
     if (command.sourceDestinationId && command.hasCredentials()) {

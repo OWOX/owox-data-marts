@@ -15,10 +15,6 @@ jest.mock('../data-destination-types/facades/data-destination-access-validator.f
   DataDestinationAccessValidatorFacade: jest.fn(),
 }));
 
-jest.mock('../data-destination-types/available-destination-types.service', () => ({
-  AvailableDestinationTypesService: jest.fn(),
-}));
-
 jest.mock('../utils/sync-owners', () => ({
   syncOwners: jest.fn().mockResolvedValue(undefined),
 }));
@@ -83,9 +79,6 @@ describe('UpdateReportService', () => {
           })
         ),
     };
-    const availableDestinationTypesService = {
-      verifyIsAllowed: jest.fn(),
-    };
     const userProjectionsFetcherService = {
       fetchUserProjectionsList: jest.fn().mockResolvedValue({
         getByUserId: jest.fn().mockReturnValue(null),
@@ -120,7 +113,6 @@ describe('UpdateReportService', () => {
       dataDestinationService as never,
       dataDestinationAccessValidationFacade as never,
       mapper as never,
-      availableDestinationTypesService as never,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       reportOwnerRepository as never,

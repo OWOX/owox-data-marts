@@ -7,7 +7,6 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
 import { DataDestination } from '../entities/data-destination.entity';
 import { ReportMapper } from '../mappers/report.mapper';
@@ -37,7 +36,6 @@ export class UpdateReportService {
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
     private readonly mapper: ReportMapper,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(ReportOwner)
@@ -96,8 +94,6 @@ export class UpdateReportService {
         }
       }
     }
-
-    this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
 
     // Validate access to the data destination
     await this.dataDestinationAccessValidationFacade.checkAccess(

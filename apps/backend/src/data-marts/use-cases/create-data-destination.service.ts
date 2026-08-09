@@ -1,4 +1,3 @@
-import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -40,7 +39,6 @@ export class CreateDataDestinationService {
     private readonly mapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly dataDestinationService: DataDestinationService,
@@ -57,7 +55,6 @@ export class CreateDataDestinationService {
 
   @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
-    this.availableDestinationTypesService.verifyIsAllowed(command.type);
     const availableForUse = command.availableForUse ?? true;
 
     // Mutual exclusion: sourceDestinationId vs credentials/credentialId

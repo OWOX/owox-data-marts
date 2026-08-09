@@ -25,10 +25,6 @@ jest.mock(
   })
 );
 
-jest.mock('../data-destination-types/available-destination-types.service', () => ({
-  AvailableDestinationTypesService: jest.fn(),
-}));
-
 jest.mock('../services/credential-type-resolver', () => ({
   resolveDestinationCredentialType: jest.fn().mockReturnValue('service-account'),
   extractDestinationIdentity: jest.fn().mockReturnValue('test@test.com'),
@@ -70,9 +66,6 @@ describe('CreateDataDestinationService', () => {
     const credentialsProcessor = {
       processCredentials: jest.fn().mockResolvedValue({ type: 'looker-studio-credentials' }),
     };
-    const availableDestinationTypesService = {
-      verifyIsAllowed: jest.fn(),
-    };
     const dataDestinationCredentialService = {
       create: jest.fn().mockResolvedValue({ id: 'cred-1' }),
       getById: jest.fn(),
@@ -104,7 +97,6 @@ describe('CreateDataDestinationService', () => {
       mapper as never,
       credentialsValidator as never,
       credentialsProcessor as never,
-      availableDestinationTypesService as never,
       dataDestinationCredentialService as never,
       googleOAuthClientService as never,
       dataDestinationService as never,

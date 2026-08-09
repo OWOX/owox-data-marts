@@ -22,6 +22,9 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { ProjectBlockedReason } from '../enums/project-blocked-reason.enum';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
+import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { RunKind } from '../services/project-billing/project-billing.service';
 import { ReportExecutionPolicyResolver } from './report-execution-policy.resolver';
 import { RunReportService } from './run-report.service';
@@ -68,9 +71,6 @@ describe('RunReportService', () => {
         sources: [],
       }),
     };
-    const availableDestinationTypesService = {
-      verifyIsAllowed: jest.fn(),
-    };
     const reportRunService = {
       createPending: jest.fn(),
       loadByDataMartRunId: jest.fn(),
@@ -113,7 +113,6 @@ describe('RunReportService', () => {
       gracefulShutdownService as never,
       systemTimeService as never,
       reportRunService as never,
-      availableDestinationTypesService as never,
       projectBilling as never,
       new ReportExecutionPolicyResolver(),
       reportRunTriggerService as never,
@@ -133,7 +132,6 @@ describe('RunReportService', () => {
       blendedReportDataService,
       dataMartService,
       sourceDataLastUpdatedService,
-      availableDestinationTypesService,
       reportRunService,
       reportRunTriggerService,
       reportAccessService,
@@ -423,6 +421,32 @@ describe('RunReportService', () => {
           : projectBilling.registerEmailBasedReportRunConsumption;
       expect(consumptionMock).toHaveBeenCalled();
       expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.SUCCESS);
+    }
+  );
+
+  it.each([
+    [DataDestinationType.GOOGLE_SHEETS, RunKind.SHEETS_REPORT_RUN],
+    [DataDestinationType.EMAIL, RunKind.EMAIL_BASED_REPORT_RUN],
+    [DataDestinationType.SLACK, RunKind.EMAIL_BASED_REPORT_RUN],
+  ])(
+    'finishes a %s run as RESTRICTED when billing blocks the %s kind',
+    async (destinationType, runKind) => {
+      const { service, reportReaderResolver, reportRunService, projectBilling } = createService();
+      const report = createReport(destinationType);
+      const reportRun = ReportRun.create(report, createDataMartRun(report));
+
+      projectBilling.verifyCanPerformOperations.mockRejectedValue(
+        new ProjectOperationBlockedException([ProjectBlockedReason.LICENSE_REQUIRED])
+      );
+      reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+      await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
+
+      expect(projectBilling.verifyCanPerformOperations).toHaveBeenCalledWith('project-1', runKind);
+      expect(reportReaderResolver.resolve).not.toHaveBeenCalled();
+      expect(report.lastRunStatus).toBe(ReportRunStatus.RESTRICTED);
+      expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.RESTRICTED);
+      expect(reportRunService.finish).toHaveBeenCalled();
     }
   );
 

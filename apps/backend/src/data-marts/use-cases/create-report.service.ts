@@ -3,7 +3,6 @@ import { Transactional } from 'typeorm-transactional';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
-import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
 import { ReportCreatedEvent } from '../events/report-created.event';
 import { ReportMapper } from '../mappers/report.mapper';
@@ -36,7 +35,6 @@ export class CreateReportService {
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
     private readonly mapper: ReportMapper,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
@@ -94,7 +92,6 @@ export class CreateReportService {
       command.projectId
     );
 
-    this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
     await this.dataDestinationAccessValidationFacade.checkAccess(
       dataDestination.type,
       command.destinationConfig,

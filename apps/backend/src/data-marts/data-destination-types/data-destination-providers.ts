@@ -1,6 +1,5 @@
 import { ModuleRef } from '@nestjs/core';
 import { TypeResolver } from '../../common/resolver/type-resolver';
-import { AvailableDestinationTypesService } from './available-destination-types.service';
 import {
   EmailReportWriter,
   MsTeamsReportWriter,
@@ -106,7 +105,6 @@ const publicCredentialsProviders = [
 ];
 
 export const dataDestinationResolverProviders = [
-  AvailableDestinationTypesService,
   ...accessValidatorProviders,
   ...credentialsValidatorProviders,
   ...credentialsProcessorProviders,
@@ -124,58 +122,32 @@ export const dataDestinationResolverProviders = [
   LookerStudioTypeMapperService,
   {
     provide: DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER,
-    useFactory: (
-      available: AvailableDestinationTypesService,
-      ...validators: DataDestinationAccessValidator[]
-    ) => {
-      const allowed = validators.filter(v => available.isAllowed(v.type));
-      return new TypeResolver<DataDestinationType, DataDestinationAccessValidator>(allowed);
-    },
-    inject: [AvailableDestinationTypesService, ...accessValidatorProviders],
+    useFactory: (...validators: DataDestinationAccessValidator[]) =>
+      new TypeResolver<DataDestinationType, DataDestinationAccessValidator>(validators),
+    inject: accessValidatorProviders,
   },
   {
     provide: DATA_DESTINATION_CREDENTIALS_VALIDATOR_RESOLVER,
-    useFactory: (
-      available: AvailableDestinationTypesService,
-      ...validators: DataDestinationCredentialsValidator[]
-    ) => {
-      const allowed = validators.filter(v => available.isAllowed(v.type));
-      return new TypeResolver<DataDestinationType, DataDestinationCredentialsValidator>(allowed);
-    },
-    inject: [AvailableDestinationTypesService, ...credentialsValidatorProviders],
+    useFactory: (...validators: DataDestinationCredentialsValidator[]) =>
+      new TypeResolver<DataDestinationType, DataDestinationCredentialsValidator>(validators),
+    inject: credentialsValidatorProviders,
   },
   {
     provide: DATA_DESTINATION_CREDENTIALS_PROCESSOR_RESOLVER,
-    useFactory: (
-      available: AvailableDestinationTypesService,
-      ...processors: DataDestinationCredentialsProcessor[]
-    ) => {
-      const allowed = processors.filter(p => available.isAllowed(p.type));
-      return new TypeResolver<DataDestinationType, DataDestinationCredentialsProcessor>(allowed);
-    },
-    inject: [AvailableDestinationTypesService, ...credentialsProcessorProviders],
+    useFactory: (...processors: DataDestinationCredentialsProcessor[]) =>
+      new TypeResolver<DataDestinationType, DataDestinationCredentialsProcessor>(processors),
+    inject: credentialsProcessorProviders,
   },
   {
     provide: DATA_DESTINATION_REPORT_WRITER_RESOLVER,
-    useFactory: (
-      moduleRef: ModuleRef,
-      available: AvailableDestinationTypesService,
-      ...writers: DataDestinationReportWriter[]
-    ) => {
-      const allowed = writers.filter(w => available.isAllowed(w.type));
-      return new TypeResolver<DataDestinationType, DataDestinationReportWriter>(allowed, moduleRef);
-    },
-    inject: [ModuleRef, AvailableDestinationTypesService, ...reportWriterProviders],
+    useFactory: (moduleRef: ModuleRef, ...writers: DataDestinationReportWriter[]) =>
+      new TypeResolver<DataDestinationType, DataDestinationReportWriter>(writers, moduleRef),
+    inject: [ModuleRef, ...reportWriterProviders],
   },
   {
     provide: DATA_DESTINATION_SECRET_KEY_ROTATOR_RESOLVER,
-    useFactory: (
-      available: AvailableDestinationTypesService,
-      ...rotators: DataDestinationSecretKeyRotator[]
-    ) => {
-      const allowed = rotators.filter(r => available.isAllowed(r.type));
-      return new TypeResolver<DataDestinationType, DataDestinationSecretKeyRotator>(allowed);
-    },
-    inject: [AvailableDestinationTypesService, ...secretKeyRotatorProviders],
+    useFactory: (...rotators: DataDestinationSecretKeyRotator[]) =>
+      new TypeResolver<DataDestinationType, DataDestinationSecretKeyRotator>(rotators),
+    inject: secretKeyRotatorProviders,
   },
 ];
