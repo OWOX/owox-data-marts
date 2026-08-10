@@ -94,41 +94,10 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     // CASE 2 — not fully qualified → use internal dataset per location
     const datasetId = this.buildInternalDatasetId(location);
 
-    await this.ensureInternalDatasetExists(adapter, projectId, datasetId, location);
-
-    return `${projectId}.${datasetId}.${viewName}`;
-  }
-
-  /**
-   * Issues `CREATE SCHEMA` only when the internal dataset is actually missing.
-   *
-   * `CREATE SCHEMA IF NOT EXISTS` requires project-level `bigquery.datasets.create` even when
-   * the dataset already exists, and OAuth-based storages run with the end user's own grants —
-   * a user with data-only permissions failed the whole AI-helper/sample flow on this DDL
-   * (production incident 2026-08-05, work item 6815). The existence check needs only
-   * `bigquery.datasets.get`, so such users pass as long as the dataset was pre-created.
-   * When the check itself fails we still fall back to the CREATE attempt: its error names the
-   * missing permission, which is the most actionable message for the admin.
-   */
-  private async ensureInternalDatasetExists(
-    adapter: ReturnType<BigQueryApiAdapterFactory['create']>,
-    projectId: string,
-    datasetId: string,
-    location: string
-  ): Promise<void> {
-    try {
-      if (await adapter.datasetExists(projectId, datasetId)) {
-        return;
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Failed to check existence of dataset ${projectId}.${datasetId}, falling back to CREATE SCHEMA IF NOT EXISTS`,
-        error
-      );
-    }
-
     const ddlDataset = this.buildCreateSchemaQuery(projectId, datasetId, location);
     await adapter.executeQuery(ddlDataset);
+
+    return `${projectId}.${datasetId}.${viewName}`;
   }
 
   private buildInternalDatasetId(location: string): string {

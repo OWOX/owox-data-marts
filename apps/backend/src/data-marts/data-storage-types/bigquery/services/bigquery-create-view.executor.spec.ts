@@ -19,7 +19,6 @@ describe('BigQueryCreateViewExecutor', () => {
   const mockAdapter = {
     executeDryRunQuery: jest.fn(),
     executeQuery: jest.fn(),
-    datasetExists: jest.fn(),
   };
 
   const mockAdapterFactory = {
@@ -32,8 +31,6 @@ describe('BigQueryCreateViewExecutor', () => {
   beforeEach(() => {
     mockAdapter.executeDryRunQuery.mockReset();
     mockAdapter.executeQuery.mockReset();
-    mockAdapter.datasetExists.mockReset();
-    mockAdapter.datasetExists.mockResolvedValue(false);
     mockAdapter.executeQuery.mockResolvedValue({ jobId: 'job-id' });
     mockAdapter.executeDryRunQuery.mockResolvedValue({
       totalBytesProcessed: 0,
@@ -152,54 +149,6 @@ describe('BigQueryCreateViewExecutor', () => {
     expect(result).toEqual({
       fullyQualifiedName: 'test-project.owox_internal_us_central1.my_view',
     });
-  });
-
-  it('should skip CREATE SCHEMA when the internal dataset already exists', async () => {
-    mockAdapter.datasetExists.mockResolvedValueOnce(true);
-    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
-
-    const result = await service.createView(credentials, config, 'my_view', sql);
-
-    expect(mockAdapter.datasetExists).toHaveBeenCalledWith('test-project', 'owox_internal_eu');
-    expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(1);
-    expect(mockAdapter.executeQuery).toHaveBeenCalledWith(
-      'CREATE OR REPLACE VIEW `test-project.owox_internal_eu.my_view` AS SELECT 1'
-    );
-    expect(result).toEqual({ fullyQualifiedName: 'test-project.owox_internal_eu.my_view' });
-  });
-
-  it('should fall back to CREATE SCHEMA when the existence check fails', async () => {
-    mockAdapter.datasetExists.mockRejectedValueOnce(new Error('permission denied'));
-    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
-
-    const result = await service.createView(credentials, config, 'my_view', sql);
-
-    expect(loggerWarnSpy).toHaveBeenCalledWith(
-      'Failed to check existence of dataset test-project.owox_internal_eu, falling back to CREATE SCHEMA IF NOT EXISTS',
-      expect.any(Error)
-    );
-    expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
-      1,
-      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_eu` OPTIONS(location='EU')"
-    );
-    expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
-      2,
-      'CREATE OR REPLACE VIEW `test-project.owox_internal_eu.my_view` AS SELECT 1'
-    );
-    expect(result).toEqual({ fullyQualifiedName: 'test-project.owox_internal_eu.my_view' });
-  });
-
-  it('should not create the dataset for a fully qualified view name', async () => {
-    const config: BigQueryConfig = { projectId: 'test-project', location: 'EU' };
-
-    const result = await service.createView(credentials, config, 'proj.dataset.my_view', sql);
-
-    expect(mockAdapter.datasetExists).not.toHaveBeenCalled();
-    expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(1);
-    expect(mockAdapter.executeQuery).toHaveBeenCalledWith(
-      'CREATE OR REPLACE VIEW `proj.dataset.my_view` AS SELECT 1'
-    );
-    expect(result).toEqual({ fullyQualifiedName: 'proj.dataset.my_view' });
   });
 
   it('should fallback to US when dry run location cannot be resolved', async () => {
