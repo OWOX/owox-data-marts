@@ -40,10 +40,6 @@ export class CreatePluginCollectionTables1785931300000 implements MigrationInter
           isUnique: true,
         }),
         new TableIndex({
-          name: 'idx_plugin_collection_document_list',
-          columnNames: ['namespaceKey', 'documentKey'],
-        }),
-        new TableIndex({
           name: 'idx_plugin_collection_document_parent',
           columnNames: ['namespaceKey', 'parentId'],
         }),

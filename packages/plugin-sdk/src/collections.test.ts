@@ -6,7 +6,7 @@ function createRequester() {
   return {
     getJson: vi.fn(),
     putJson: vi.fn(),
-    postJson: vi.fn(),
+    deleteJson: vi.fn(),
   };
 }
 
@@ -80,10 +80,10 @@ describe('PluginCollection', () => {
     );
   });
 
-  it('omits parentId for an unbound collection and deletes via POST', async () => {
+  it('omits parentId for an unbound collection and deletes via DELETE', async () => {
     const requester = createRequester();
     requester.putJson.mockResolvedValue({});
-    requester.postJson.mockResolvedValue(undefined);
+    requester.deleteJson.mockResolvedValue(undefined);
     const collection = createPluginCollection(requester, 'settings');
 
     await collection.put('shared', { theme: 'dark' });
@@ -93,9 +93,8 @@ describe('PluginCollection', () => {
       '/api/plugins/runtime/collections/settings/documents/shared',
       { document: { theme: 'dark' } }
     );
-    expect(requester.postJson).toHaveBeenCalledWith(
-      '/api/plugins/runtime/collections/settings/documents/shared/delete',
-      {}
+    expect(requester.deleteJson).toHaveBeenCalledWith(
+      '/api/plugins/runtime/collections/settings/documents/shared'
     );
   });
 

@@ -63,15 +63,19 @@ export async function applyDump() {
 
   try {
     const claimedFiles = new Set<string>();
+    const filesBySource = new Map<string, string[]>();
     for (const { name, dataSource } of sources) {
       const tableNames = new Set(dataSource.entityMetadatas.map(entity => entity.tableName));
       const sourceFiles = files.filter(file => tableNames.has(path.basename(file, FILE_EXT)));
+      filesBySource.set(name, sourceFiles);
       sourceFiles.forEach(file => claimedFiles.add(file));
-      await applyFiles(dataSource, sourceFiles, name);
     }
     const unknownFiles = files.filter(file => !claimedFiles.has(file));
     if (unknownFiles.length) {
       throw new Error(`No configured data source owns dump files: ${unknownFiles.join(', ')}`);
+    }
+    for (const { name, dataSource } of sources) {
+      await applyFiles(dataSource, filesBySource.get(name) ?? [], name);
     }
     logger.log(`All entities applied successfully`);
   } finally {

@@ -57,6 +57,7 @@ function errorForLogging(exception: unknown): Error {
     const code = safeDetails.code ?? safeDetails.sqlState ?? safeDetails.errno;
     const error = new Error(`Database query failed${code ? ` (${String(code)})` : ''}`);
     error.name = QueryFailedError.name;
+    error.stack = exception.stack;
     Object.assign(error, safeDetails);
     return error;
   }

@@ -1,4 +1,8 @@
 import 'reflect-metadata';
+import { ConfigService } from '@nestjs/config';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DataSource, EntityManager } from 'typeorm';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
 import {
@@ -8,6 +12,8 @@ import {
   StorageDriver,
   Transactional,
 } from 'typeorm-transactional';
+import { createDataSourceOptions } from './data-source-options.config';
+import { createPluginCollectionsDataSourceOptions } from './plugin-collections-data-source-options.config';
 import { serializeSqliteTransactions } from './sqlite-transaction-serializer';
 
 describe('serializeSqliteTransactions', () => {
@@ -153,6 +159,50 @@ describe('serializeSqliteTransactions', () => {
 
     await Promise.all([first, second]);
     expect(order).toEqual(['main:start', 'main:end', 'collections:start', 'collections:end']);
+  });
+
+  it('serializes real connections when collections fall back to the main SQLite file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'owox-plugin-collections-'));
+    const database = join(directory, 'owox.sqlite');
+    const config = new ConfigService({ DB_TYPE: 'sqlite', SQLITE_DB_PATH: database });
+    const mainOptions = createDataSourceOptions(config);
+    const collectionOptions = createPluginCollectionsDataSourceOptions(config);
+    const main = new DataSource({ ...mainOptions, entities: [], migrations: [] });
+    const collections = new DataSource({ ...collectionOptions, entities: [], migrations: [] });
+
+    expect(mainOptions).toMatchObject({ database });
+    expect(collectionOptions).toMatchObject({ database });
+
+    try {
+      await Promise.all([main.initialize(), collections.initialize()]);
+      await main.query('CREATE TABLE shared_writes (value TEXT NOT NULL)');
+      serializeSqliteTransactions(main);
+      serializeSqliteTransactions(collections);
+      const order: string[] = [];
+
+      const first = main.transaction(async manager => {
+        order.push('main:start');
+        await manager.query('INSERT INTO shared_writes (value) VALUES (?)', ['main']);
+        await wait(20);
+        order.push('main:end');
+      });
+      const second = collections.transaction(async manager => {
+        order.push('collections:start');
+        await manager.query('INSERT INTO shared_writes (value) VALUES (?)', ['collections']);
+        order.push('collections:end');
+      });
+
+      await expect(Promise.all([first, second])).resolves.toBeDefined();
+      await expect(main.query('SELECT value FROM shared_writes ORDER BY rowid')).resolves.toEqual([
+        { value: 'main' },
+        { value: 'collections' },
+      ]);
+      expect(order).toEqual(['main:start', 'main:end', 'collections:start', 'collections:end']);
+    } finally {
+      if (collections.isInitialized) await collections.destroy();
+      if (main.isInitialized) await main.destroy();
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('serializes @Transactional methods through the registered sqlite data source', async () => {

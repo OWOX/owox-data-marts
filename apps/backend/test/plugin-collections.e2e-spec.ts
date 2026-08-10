@@ -110,7 +110,7 @@ describe('Plugin collections (e2e)', () => {
   const request = (user = 'user-1') => ({
     get: (path: string) => agent.get(path).set('x-owox-authorization', user),
     put: (path: string) => agent.put(path).set('x-owox-authorization', user),
-    post: (path: string) => agent.post(path).set('x-owox-authorization', user),
+    delete: (path: string) => agent.delete(path).set('x-owox-authorization', user),
   });
 
   it('rejects a normal member token on the plugin-only API', async () => {
@@ -160,7 +160,9 @@ describe('Plugin collections (e2e)', () => {
     // so a caller cannot probe an inaccessible document id via 400 vs 403 responses.
     await request().put(path).send({ document: {}, parentId: 'mart-2' }).expect(403);
     await request().get(path).expect(404);
+    await request().delete(path).expect(404);
     deniedParents.delete('mart-1');
+    await request().get(path).expect(200);
   });
 
   it('isolates member-scoped namespaces', async () => {
@@ -295,7 +297,7 @@ describe('Plugin collections (e2e)', () => {
 
   it('deletes data and keeps counters and body-free audit records consistent', async () => {
     const path = '/api/plugins/runtime/collections/dashboards/documents/two';
-    await request().post(`${path}/delete`).send({}).expect(204);
+    await request().delete(path).expect(204);
     await request().get(path).expect(404);
 
     const documents = app.get<Repository<PluginCollectionDocument>>(

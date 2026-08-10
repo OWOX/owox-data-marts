@@ -11,7 +11,6 @@ import {
 @Index('UQ_plugin_collection_document_namespace_key', ['namespaceKey', 'documentKey'], {
   unique: true,
 })
-@Index('idx_plugin_collection_document_list', ['namespaceKey', 'documentKey'])
 @Index('idx_plugin_collection_document_parent', ['namespaceKey', 'parentId'])
 export class PluginCollectionDocument {
   @PrimaryGeneratedColumn('uuid') id: string;

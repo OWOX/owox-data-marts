@@ -424,14 +424,14 @@ describe('SyncPluginReleasesService', () => {
   describe('throttling', () => {
     it('reports the throttle to whoever asked for the sync', async () => {
       const s = setup();
-      s.pluginService.tryClaimSyncSlot.mockResolvedValue(false);
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue(null);
 
       await expect(run(s)).rejects.toBeInstanceOf(PluginSyncRateLimitedError);
     });
 
     it('returns the stored report unchanged for a background sweep', async () => {
       const s = setup();
-      s.pluginService.tryClaimSyncSlot.mockResolvedValue(false);
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue(null);
       const stored = {
         syncedAt: '2026-07-01T00:00:00.000Z',
         accessMode: GithubAccessMode.ANONYMOUS,

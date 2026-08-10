@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { GetPluginCollectionCommand } from '../dto/domain/plugin-collection.types';
-import { PluginCollectionAuthorizationDeniedError } from '../errors/plugin-collection.errors';
+import {
+  PluginCollectionAuthorizationDeniedError,
+  PluginCollectionNotFoundError,
+} from '../errors/plugin-collection.errors';
 import { PluginCollectionAuditService } from '../services/plugin-collection-audit.service';
 import { PluginCollectionDeclarationService } from '../services/plugin-collection-declaration.service';
 import { PluginCollectionPersistenceService } from '../services/plugin-collection-persistence.service';
@@ -26,7 +29,7 @@ export class DeletePluginCollectionDocumentService {
         action: 'DELETE',
         outcome: 'AUTHORIZATION_DENIED',
       });
-      throw error;
+      throw new PluginCollectionNotFoundError();
     }
   }
 }

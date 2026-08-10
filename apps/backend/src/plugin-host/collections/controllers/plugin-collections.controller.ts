@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Put, Query } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, RequirePluginAuth, type AuthorizationContext } from '../../../idp';
 import { Role, Strategy } from '../../../idp/types/role-config.types';
@@ -60,7 +60,7 @@ export class PluginCollectionsController {
     return this.putDocument.run(this.mapper.toPutCommand(collectionName, documentId, dto, context));
   }
 
-  @Post(':collectionName/documents/:documentId/delete')
+  @Delete(':collectionName/documents/:documentId')
   @HttpCode(204)
   @ApiNoContentResponse()
   async delete(

@@ -247,7 +247,9 @@ Collections store non-secret JSON only. Do not put credentials, access tokens, r
 or other secrets in a document. Platform limits are 1 MiB per document, 10,000 documents and
 100 MiB per namespace, 500 MiB per plugin and project, and 2 GiB across collections in a
 project. JSON may contain at most 100 nested containers. List pages contain at most 100
-documents and 4 MiB of JSON.
+documents and 4 MiB of JSON. Entity-bound collections inspect at most 10 stored documents per
+request so authorization checks stay bounded. Such a page can contain fewer items than requested,
+or no items, while still returning a non-null `nextCursor`; continue until the cursor is null.
 
 Collection data survives uninstall, suspension, and recoverable deletion. Documents bound to
 a recoverably deleted parent are inaccessible until the parent is restored. There is no

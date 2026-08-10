@@ -37,7 +37,7 @@ export interface PluginCollection<T> {
   delete(id: string): Promise<void>;
 }
 
-type CollectionRequester = Pick<OWOXApiClient, 'getJson' | 'putJson' | 'postJson'>;
+type CollectionRequester = Pick<OWOXApiClient, 'getJson' | 'putJson' | 'deleteJson'>;
 
 function safePathSegment(value: string, label: string): string {
   if (value === '.' || value === '..') {
@@ -85,7 +85,7 @@ export function createPluginCollection<T>(
       }),
 
     async delete(id: string) {
-      await requester.postJson<unknown>(`${documentPath(id)}/delete`, {});
+      await requester.deleteJson(documentPath(id));
     },
   };
 }

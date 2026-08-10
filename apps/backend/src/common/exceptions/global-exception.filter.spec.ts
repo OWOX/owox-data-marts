@@ -135,6 +135,7 @@ describe('GlobalExceptionFilter', () => {
           errno: 5,
         })
       );
+      const originalStack = error.stack;
 
       filter.catch(error, hostFor(json));
 
@@ -146,6 +147,7 @@ describe('GlobalExceptionFilter', () => {
         message: 'Database query failed (SQLITE_BUSY)',
         code: 'SQLITE_BUSY',
         errno: 5,
+        stack: originalStack,
       });
     });
 

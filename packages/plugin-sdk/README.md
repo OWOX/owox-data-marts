@@ -119,7 +119,10 @@ await dashboards.delete('executive-summary');
 
 For an entity-bound collection, pass `parentId` on every `put`. It cannot be changed by a later
 update. `get` returns `null` when the document is absent or inaccessible, and `list` returns only
-documents whose parents the current member may read.
+documents whose parents the current member may read. To bound authorization work, each list request
+for an entity-bound collection inspects at most 10 stored documents. Its `items` may therefore be
+shorter than the requested limit, or empty, while `nextCursor` is still non-null. Continue paging
+until `nextCursor` is null rather than treating a short page as the end.
 
 Collections survive plugin uninstall, suspension and recoverable deletion. They are subject to
 deployment-wide document, collection and project limits. Store JSON application state only:
