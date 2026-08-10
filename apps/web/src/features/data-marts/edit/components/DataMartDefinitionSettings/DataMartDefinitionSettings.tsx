@@ -203,7 +203,10 @@ export function DataMartDefinitionSettings({
         try {
           await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
           setShouldActualizeSchema(true);
-          reset(data);
+          // Re-baseline dirtiness on the snapshot that was actually saved, but keep the live
+          // values: anything typed while the request was in flight stays in the editor and
+          // simply leaves the form dirty again instead of being snapped back to the snapshot.
+          reset(data, { keepValues: true });
         } catch (error) {
           console.error('Failed to update data mart definition:', error);
         }

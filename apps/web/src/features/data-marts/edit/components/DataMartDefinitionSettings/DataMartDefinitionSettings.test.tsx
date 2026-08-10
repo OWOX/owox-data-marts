@@ -298,6 +298,35 @@ describe('DataMartDefinitionSettings — changing the input source type', () => 
     expect(testState.runSchemaActualization).not.toHaveBeenCalled();
   });
 
+  it('keeps keystrokes typed while a save request is in flight', async () => {
+    let resolveSave!: () => void;
+    testState.updateDataMartDefinition.mockReturnValue(
+      new Promise<void>(resolve => {
+        resolveSave = resolve;
+      })
+    );
+    renderSettings(DataMartDefinitionType.SQL, DataMartDefinitionType.SQL);
+
+    fireEvent.change(screen.getByLabelText('SQL query'), { target: { value: 'select 1' } });
+    await clickSaveWhenEnabled();
+    // The user keeps editing while the request is on the wire.
+    fireEvent.change(screen.getByLabelText('SQL query'), {
+      target: { value: 'select 1 where x' },
+    });
+
+    resolveSave();
+
+    // Settling the save re-baselines dirtiness on the submitted snapshot but must not snap the
+    // editor back to it — the newer text stays, and Save re-enables for it.
+    await waitFor(() => {
+      expect(testState.runSchemaActualization).toHaveBeenCalled();
+    });
+    expect(screen.getByLabelText('SQL query')).toHaveValue('select 1 where x');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+  });
+
   it('keeps an unsaved query when the Data Mart is refreshed underneath the editor', async () => {
     const { refreshDataMart } = renderSettings(
       DataMartDefinitionType.SQL,
