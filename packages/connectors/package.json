@@ -1,6 +1,6 @@
 {
   "name": "@owox/connectors",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "description": "Connectors and storages for different data sources",
   "license": "MIT",
   "publishConfig": {
@@ -47,7 +47,7 @@
     "@aws-sdk/lib-storage": "^3.983.0",
     "@databricks/sql": "^1.12.0",
     "@google-cloud/bigquery": "^8.0.0",
-    "adm-zip": "0.5.16",
+    "adm-zip": "^0.6.0",
     "snowflake-sdk": "^2.3.3"
   },
   "devDependencies": {

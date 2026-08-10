@@ -336,8 +336,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   }
 
   registerRoutes(app: Express): void {
-    app.use(e.json());
-    app.use(e.urlencoded({ extended: true }));
+    app.use(AUTH_BASE_PATH, e.json());
+    app.use(AUTH_BASE_PATH, e.urlencoded({ extended: true }));
     app.use(cookieParser());
 
     this.betterAuthProxyHandler.setupBetterAuthHandler(app);
@@ -713,6 +713,25 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       refreshToken: response.refreshToken,
       accessTokenExpiresIn: response.accessTokenExpiresIn,
       refreshTokenExpiresIn: response.refreshTokenExpiresIn,
+    };
+  }
+
+  async issueAccessTokenForPluginRuntime(
+    pluginId: string,
+    installationId: string,
+    userId: string,
+    projectId: string
+  ): Promise<AuthResult> {
+    const response = await this.identityClient.issueAccessTokenForPluginRuntime({
+      pluginId,
+      installationId,
+      userId,
+      projectId,
+    });
+
+    return {
+      accessToken: response.accessToken,
+      accessTokenExpiresIn: response.accessTokenExpiresIn,
     };
   }
 

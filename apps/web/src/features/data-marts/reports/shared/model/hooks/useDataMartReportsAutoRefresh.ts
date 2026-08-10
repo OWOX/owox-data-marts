@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../../edit/model/context/types';
 import { useReport } from './useReport';
 import { useAutoRefresh } from '../../../../../../hooks/useAutoRefresh';

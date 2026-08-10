@@ -138,12 +138,12 @@ var campaignStatsFields = {
   },
   'video_views': {
     'description': 'Video Views (for Video campaigns)',
-    'apiName': 'metrics.video_views',
+    'apiName': 'metrics.video_trueview_views',
     'type': DATA_TYPES.NUMBER
   },
   'video_view_rate': {
     'description': 'Video View Rate',
-    'apiName': 'metrics.video_view_rate',
+    'apiName': 'metrics.video_trueview_view_rate',
     'type': DATA_TYPES.NUMBER
   }
 };

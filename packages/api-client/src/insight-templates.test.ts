@@ -91,7 +91,7 @@ describe('Insight Templates API', () => {
         {
           ...insightTemplates.insights[0],
           createdByUser: {
-            ...insightTemplates.insights[0].createdByUser!,
+            ...insightTemplates.insights[0]!.createdByUser!,
             email: '',
             avatar: '/avatars/user-1',
           },
@@ -152,7 +152,7 @@ describe('Insight Templates API', () => {
 
   it('accepts absent optional creator metadata and a null render timestamp', async () => {
     const { createdByUser: _createdByUser, ...insightWithoutCreator } =
-      insightTemplates.insights[0];
+      insightTemplates.insights[0]!;
     const response = {
       insights: [{ ...insightWithoutCreator, lastRenderedTemplateUpdatedAt: null }],
     };

@@ -152,6 +152,7 @@ describe('ProjectDataMartRunsController OpenAPI', () => {
         'finishedAt',
         'additionalParams',
         'totals',
+        'qualitySummary',
         'dataMart',
         'createdByUser',
       ],

@@ -1,7 +1,7 @@
 {
   "name": "@owox/ctl",
   "description": "OWOX Data Marts Control CLI",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
@@ -16,7 +16,8 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@owox/api-client": "*",
-    "@owox/internal-helpers": "*"
+    "@owox/internal-helpers": "*",
+    "undici": "^6.26.0"
   },
   "devDependencies": {
     "@owox/eslint-config": "*",
@@ -28,7 +29,7 @@
     "ts-jest": "^29.4.6"
   },
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.22.0"
   },
   "files": [
     "./README.md",

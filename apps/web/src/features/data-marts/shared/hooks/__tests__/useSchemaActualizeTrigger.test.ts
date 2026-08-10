@@ -27,9 +27,11 @@ vi.mock('../../../../data-storage/shared/services/data-storage-health-status.ser
   invalidateDataStorageHealthStatus: vi.fn(),
 }));
 
+import toast from 'react-hot-toast';
 import { dataMartService } from '../../services/data-mart.service';
 import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
 import { useSchemaActualizeTrigger } from '../useSchemaActualizeTrigger';
+import { DataMartSchemaFieldStatus } from '../../types/data-mart-schema.types';
 
 describe('useSchemaActualizeTrigger', () => {
   beforeEach(() => {
@@ -175,5 +177,57 @@ describe('useSchemaActualizeTrigger', () => {
     });
 
     expect(dataMartService.abortSchemaActualizeTrigger).toHaveBeenCalledWith('dm-5', 's5');
+  });
+
+  // The Input Source flow reaches the user through this hook, so the schema summary has to be
+  // emitted here — not only where the schema is fetched.
+  it('reports the refreshed schema in the success toast when onSuccess returns the Data Mart', async () => {
+    (dataMartService.createSchemaActualizeTrigger as any).mockResolvedValue({ triggerId: 's-sum' });
+    (dataMartService.getSchemaActualizeTriggerStatus as any).mockResolvedValueOnce(
+      TaskStatus.SUCCESS
+    );
+    (dataMartService.getSchemaActualizeTriggerResponse as any).mockResolvedValue({ success: true });
+
+    const onSuccess = vi.fn().mockResolvedValue({
+      schema: {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'a', status: DataMartSchemaFieldStatus.CONNECTED },
+          { name: 'b', status: DataMartSchemaFieldStatus.CONNECTED },
+          { name: 'c', status: DataMartSchemaFieldStatus.DISCONNECTED },
+        ],
+      },
+    });
+
+    const { result: hook } = renderHook(() => useSchemaActualizeTrigger('dm-1', onSuccess));
+
+    await act(async () => {
+      hook.current.run();
+    });
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        'Output schema actualized: 3 fields, 1 disconnected',
+        expect.anything()
+      );
+    });
+  });
+
+  it('falls back to the plain message when onSuccess returns nothing', async () => {
+    (dataMartService.createSchemaActualizeTrigger as any).mockResolvedValue({ triggerId: 's-pln' });
+    (dataMartService.getSchemaActualizeTriggerStatus as any).mockResolvedValueOnce(
+      TaskStatus.SUCCESS
+    );
+    (dataMartService.getSchemaActualizeTriggerResponse as any).mockResolvedValue({ success: true });
+
+    const { result: hook } = renderHook(() => useSchemaActualizeTrigger('dm-1', vi.fn()));
+
+    await act(async () => {
+      hook.current.run();
+    });
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Output schema actualized', expect.anything());
+    });
   });
 });

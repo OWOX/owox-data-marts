@@ -8,7 +8,7 @@ import {
   DropdownMenuPortal,
   DropdownMenuSeparator,
 } from '@owox/ui/components/dropdown-menu';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router';
 import { Input } from '@owox/ui/components/input';
 import { useAuth } from '../../../features/idp';
 import { useProjects } from '../../../features/idp/hooks/useProjects.ts';

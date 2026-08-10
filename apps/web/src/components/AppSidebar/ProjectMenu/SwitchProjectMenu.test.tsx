@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequestStatus } from '../../../shared/types/request-status.ts';
 import { SwitchProjectMenu } from './SwitchProjectMenu';
 
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async importOriginal => {
-  const original = await importOriginal<typeof import('react-router-dom')>();
+vi.mock('react-router', async importOriginal => {
+  const original = await importOriginal<typeof import('react-router')>();
   return {
     ...original,
     useNavigate: () => mockNavigate,

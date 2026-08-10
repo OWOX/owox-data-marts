@@ -1,7 +1,7 @@
 import { Button } from '@owox/ui/components/button';
 import { CalendarClock, FileText, History, Sparkles } from 'lucide-react';
 import { useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { storageService } from '../../../../services';
 

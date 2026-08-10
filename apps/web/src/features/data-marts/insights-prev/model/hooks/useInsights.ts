@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { InsightsActionType } from '../reducer/insights.actions';
 import { insightsService } from '../services';
 import {

@@ -21,6 +21,38 @@ export {
   type TraverseDataRelativeDatePreset,
   type TraverseDataSortRule,
 } from './data-marts.js';
+export {
+  type OWOXCompactDataQualitySummary,
+  type OWOXDataMartRun,
+  type OWOXDataMartRunDetail,
+  type OWOXDataMartRunListOptions,
+  type OWOXDataMartRunStartOptions,
+  type OWOXDataMartRunsResponse,
+  type OWOXDataMartRunStatus,
+  type OWOXDataMartRunTriggerType,
+  type OWOXDataMartRunType,
+  type OWOXDataMartRunUser,
+  type OWOXDataQualityCategory,
+  type OWOXDataQualityCheckStatus,
+  type OWOXDataQualityRunDetail,
+  type OWOXDataQualityRule,
+  type OWOXDataQualityScope,
+  type OWOXDataQualitySeverity,
+  type OWOXDataQualitySummary,
+  type OWOXDataQualitySummaryState,
+  type OWOXRunDataMartResponse,
+} from './data-mart-runs.js';
+export {
+  type OWOXDeploymentAudience,
+  type OWOXPluginPublication,
+  type OWOXPluginPublicationScope,
+  type OWOXPluginPublisherDiagnostics,
+  type OWOXPluginSuspension,
+  type OWOXPluginUpdateResult,
+  type OWOXPublishPluginInput,
+  type OWOXReleaseRejection,
+} from './plugins.js';
+export { type OWOXTransport, type OWOXTransportWithLowLevelWrites } from './transport.js';
 export { type OWOXStorage } from './storages.js';
 export { type OWOXDestination } from './destinations.js';
 export {
@@ -46,6 +78,7 @@ export {
   type OWOXProjectDataMartRunType,
   type OWOXProjectDataMartRunUser,
   type OWOXProjectRunHistoryOptions,
+  type OWOXDataMartRunsScope,
 } from './runs.js';
 export {
   type OWOXProjectSettings,

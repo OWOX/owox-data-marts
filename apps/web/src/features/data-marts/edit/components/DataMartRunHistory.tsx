@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '../../../../shared/components/Button';

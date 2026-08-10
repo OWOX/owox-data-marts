@@ -8,6 +8,9 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enum';
+
+const SAFE_DATA_QUALITY_RUN_ERROR = 'Data Quality run failed during execution';
 
 describe('DataMartMapper', () => {
   let mapper: DataMartMapper;
@@ -20,6 +23,7 @@ describe('DataMartMapper', () => {
           provide: DataStorageMapper,
           useValue: {
             toDomainDto: jest.fn().mockReturnValue({}),
+            toApiResponse: jest.fn().mockResolvedValue({}),
           },
         },
         {
@@ -33,6 +37,15 @@ describe('DataMartMapper', () => {
   });
 
   describe('Data Mart list items', () => {
+    it('keeps Data Quality state out of the generic list item response', () => {
+      const response = mapper.toListItemResponse({
+        id: 'data-mart-1',
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+      } as never);
+
+      expect(response).not.toHaveProperty('qualitySummary');
+    });
+
     it('preserves a persisted null definition type for a draft', () => {
       const definitionState = {
         definitionType: null,
@@ -84,6 +97,28 @@ describe('DataMartMapper', () => {
 
       expect(mapper.toDomainDto(entity).definitionType).toBeUndefined();
     });
+  });
+
+  it('keeps Data Quality state out of the generic Data Mart response', async () => {
+    const response = await mapper.toResponse({
+      id: 'data-mart-1',
+      title: 'Orders',
+      status: DataMartStatus.PUBLISHED,
+      storage: {},
+      createdAt: new Date('2026-07-23T12:00:00.000Z'),
+      modifiedAt: new Date('2026-07-23T12:00:00.000Z'),
+      triggersCount: 0,
+      reportsCount: 0,
+      createdByUser: null,
+      businessOwnerUsers: [],
+      technicalOwnerUsers: [],
+      availableForReporting: true,
+      availableForMaintenance: true,
+      contexts: [],
+      qualitySummary: { state: DataQualitySummaryState.PASSED },
+    } as never);
+
+    expect(response).not.toHaveProperty('qualitySummary');
   });
 
   describe('toBatchHealthStatusDomainResponse', () => {
@@ -142,9 +177,218 @@ describe('DataMartMapper', () => {
 
       expect(mappedItem.insight).toBeNull();
     });
+
+    it('does not classify DATA_QUALITY as report health', () => {
+      const userProjections = new UserProjectionsListDto([]);
+      const latestRuns = [
+        {
+          id: 'dq-run',
+          dataMartId: 'mart-1',
+          type: DataMartRunType.DATA_QUALITY,
+          createdAt: new Date(),
+        },
+      ] as DataMartRunEntity[];
+
+      const [item] = mapper.toBatchHealthStatusDomainResponse(
+        ['mart-1'],
+        latestRuns,
+        userProjections
+      ).items;
+
+      expect(item.report).toBeNull();
+    });
+
+    it('preserves the existing fallback report health classification for MCP query runs', () => {
+      const userProjections = new UserProjectionsListDto([]);
+      const mcpRun = {
+        id: 'mcp-run',
+        dataMartId: 'mart-1',
+        type: DataMartRunType.MCP_QUERY,
+        createdAt: new Date(),
+      } as DataMartRunEntity;
+
+      const [item] = mapper.toBatchHealthStatusDomainResponse(
+        ['mart-1'],
+        [mcpRun],
+        userProjections
+      ).items;
+
+      expect(item.report?.id).toBe('mcp-run');
+    });
+  });
+
+  describe('Data Quality run history summary', () => {
+    it('maps the compact summary from the DataMartRun row', () => {
+      const entity = {
+        id: 'run-dq',
+        status: 'SUCCESS',
+        type: DataMartRunType.DATA_QUALITY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+        finishedAt: new Date('2026-05-28T10:01:00Z'),
+        dataQualitySummary: {
+          state: DataQualitySummaryState.ISSUES,
+          enabledChecks: 2,
+          totalChecks: 2,
+          passedChecks: 1,
+          failedChecks: 1,
+          notApplicableChecks: 0,
+          errorChecks: 0,
+          noticeFindings: 0,
+          warningFindings: 1,
+          errorFindings: 0,
+          violationCount: 4,
+          highestSeverity: 'warning',
+        },
+      } as unknown as DataMartRunEntity;
+
+      expect(mapper.toDataMartRunDto(entity).qualitySummary).toMatchObject({
+        dataMartRunId: 'run-dq',
+        lastRunAt: new Date('2026-05-28T10:01:00Z'),
+        state: DataQualitySummaryState.ISSUES,
+      });
+    });
+
+    it('keeps the summary null for non-DQ history rows', () => {
+      const entity = {
+        id: 'run-report',
+        status: 'SUCCESS',
+        type: DataMartRunType.EMAIL,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        createdAt: new Date(),
+      } as unknown as DataMartRunEntity;
+      expect(mapper.toDataMartRunDto(entity).qualitySummary).toBeNull();
+    });
+
+    it('keeps heavy DQ detail out of Data Mart and project list rows', async () => {
+      const dataQuality = {
+        snapshot: { config: { rules: [] }, relationships: [] },
+        summary: { state: DataQualitySummaryState.PASSED },
+        results: [{ ruleKey: 'empty_table:data_mart', sql: 'SELECT secret' }],
+      };
+      const run = {
+        id: 'run-dq',
+        status: 'SUCCESS',
+        type: DataMartRunType.DATA_QUALITY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        definitionRun: { type: 'table' },
+        reportId: null,
+        reportDefinition: null,
+        insightId: null,
+        insightDefinition: null,
+        insightTemplateId: null,
+        insightTemplateDefinition: null,
+        aiSourceDefinition: null,
+        logs: [],
+        errors: [SAFE_DATA_QUALITY_RUN_ERROR],
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+        startedAt: null,
+        finishedAt: null,
+        createdByUser: null,
+        additionalParams: null,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+        dataQuality,
+      } as never;
+
+      const [dataMartList, projectList] = await Promise.all([
+        mapper.toRunsResponse([run]),
+        mapper.toProjectRunsResponse([
+          { run, dataMart: { id: 'dm-1', title: 'Data Mart' } } as never,
+        ]),
+      ]);
+
+      expect(dataMartList.runs[0]).toMatchObject({
+        type: DataMartRunType.DATA_QUALITY,
+        errors: [SAFE_DATA_QUALITY_RUN_ERROR],
+        totals: null,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+      });
+      expect(dataMartList.runs[0]).not.toHaveProperty('dataQuality');
+      expect(dataMartList.runs[0]).not.toHaveProperty('snapshot');
+      expect(dataMartList.runs[0]).not.toHaveProperty('results');
+      expect(projectList.runs[0]).toMatchObject({
+        type: DataMartRunType.DATA_QUALITY,
+        errors: [SAFE_DATA_QUALITY_RUN_ERROR],
+        totals: null,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+      });
+      expect(projectList.runs[0]).not.toHaveProperty('dataQuality');
+      expect(projectList.runs[0]).not.toHaveProperty('snapshot');
+      expect(projectList.runs[0]).not.toHaveProperty('results');
+    });
+
+    it('includes full DQ data only in the exact-run detail response', async () => {
+      const dataQuality = {
+        snapshot: { config: { rules: [] }, relationships: [] },
+        summary: { state: DataQualitySummaryState.PASSED },
+        results: [
+          {
+            ruleKey: 'empty_table:data_mart',
+            error: {
+              code: 'WAREHOUSE_DENIED',
+              message: 'SELECT credential FROM private_schema.secret_table',
+            },
+          },
+        ],
+      };
+      const run = {
+        id: 'run-dq',
+        status: 'SUCCESS',
+        type: DataMartRunType.DATA_QUALITY,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        definitionRun: { type: 'table' },
+        reportId: null,
+        reportDefinition: null,
+        insightId: null,
+        insightDefinition: null,
+        insightTemplateId: null,
+        insightTemplateDefinition: null,
+        aiSourceDefinition: null,
+        logs: [],
+        errors: [SAFE_DATA_QUALITY_RUN_ERROR],
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+        startedAt: null,
+        finishedAt: null,
+        createdByUser: null,
+        additionalParams: null,
+        qualitySummary: { state: DataQualitySummaryState.PASSED },
+        dataQuality,
+      } as never;
+
+      await expect(mapper.toRunResponse(run)).resolves.not.toHaveProperty('dataQuality');
+      await expect(mapper.toRunDetailResponse(run)).resolves.toMatchObject({
+        errors: [SAFE_DATA_QUALITY_RUN_ERROR],
+        dataQuality,
+      });
+    });
   });
 
   describe('totals (top-level) + additionalParams masking (via toRunResponse)', () => {
+    it('preserves the run creator in the shared run response contract', async () => {
+      const entity = {
+        id: 'run-with-creator',
+        status: 'SUCCESS',
+        type: DataMartRunType.CONNECTOR,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+      const createdByUser = {
+        userId: 'user-1',
+        fullName: 'Ada Lovelace',
+        email: 'ada@example.com',
+        avatar: null,
+      };
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity, createdByUser));
+
+      expect(response.createdByUser).toEqual(createdByUser);
+    });
+
     it('exposes only the httpData subtree for HTTP_DATA runs; totals null when absent', async () => {
       const entity = {
         id: 'run-1',

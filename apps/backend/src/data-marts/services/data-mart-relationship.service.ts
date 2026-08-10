@@ -94,6 +94,17 @@ export class DataMartRelationshipService {
     return [...new Set(rows.map(row => row.sourceDataMartId))];
   }
 
+  /**
+   * Counts relationship records pointing at a data mart. Row count, not distinct sources: one
+   * source may join the same target under several aliases (the unique key is source + alias),
+   * and each of those joins is a dependency in its own right.
+   */
+  async countByTargetDataMartId(targetDataMartId: string, projectId: string): Promise<number> {
+    return this.repository.count({
+      where: { targetDataMart: { id: targetDataMartId }, projectId },
+    });
+  }
+
   async findByStorageId(storageId: string, projectId: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
       where: { dataStorage: { id: storageId }, projectId },

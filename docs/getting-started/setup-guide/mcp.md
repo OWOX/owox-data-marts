@@ -1,76 +1,44 @@
 # MCP Server
 
-OWOX Data Marts exposes a Model Context Protocol (MCP) server that lets AI assistants and MCP-compatible clients connect to your project data using standard OAuth authorization.
+OWOX Data Marts exposes a Model Context Protocol (MCP) server. It lets AI assistants and MCP-compatible clients connect to your project data using standard OAuth authorization.
 
-Use the MCP server when you want an AI assistant — such as Claude or ChatGPT — to explore the [data marts](../core-concepts.md) in your OWOX project in plain language, without leaving the assistant. The assistant can summarize the available catalog, inspect data mart fields, run bounded queries, list destinations and reports, set up report delivery, manage report schedules, and start report runs for supported push destinations. See [Available tools](#available-tools) for exactly what it can and cannot do.
+Use the MCP server to explore your [data marts](../core-concepts.md) in plain language with an AI assistant like Claude or ChatGPT. You never have to leave the assistant. The assistant can summarize the available catalog and inspect data mart fields. It can run bounded queries, list destinations and reports, and set up report delivery. It can also manage report schedules and start report runs for supported push destinations. See [Available tools](#available-tools) for exactly what it can and cannot do.
 
 ## Prerequisites
 
 - An active OWOX Data Marts project with at least one data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart.
-- One of the supported clients: Claude Desktop, Claude web (claude.ai), or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
-- A client plan that allows MCP connectors. Adding an MCP server like OWOX may require a paid plan in Claude or ChatGPT; check your client's current plan requirements.
+- One of the supported clients: Claude Desktop or Claude web (claude.ai) — the recommended way to connect — or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
+- A client plan that allows MCP connectors. Adding an MCP server like OWOX may require a paid plan in Claude or ChatGPT. Check your client's current plan requirements.
 
 ## Step 1: Connect your AI assistant
 
-Set up whichever assistant you use — you only need one. The client discovers the OAuth endpoints and registers itself automatically: there is no client ID, secret, or token to copy.
+Set up whichever assistant you use — you only need one. We recommend Claude Desktop or Claude web as the default client. Connect to the shared MCP server, `https://mcp.owox.com/mcp`: the client discovers its OAuth endpoints and registers itself automatically, so there is no client ID, secret, or token to copy. You select your project during authorization — see [Step 2](#step-2-authorize-access).
 
-You can use either MCP server URL:
+> **Note:** Connecting to multiple projects, or scripting the setup from a URL your OWOX UI or API already gave you? See [Use a project-specific URL](#use-a-project-specific-url) below.
 
-- **Shared MCP server:** `https://mcp.owox.com/mcp` — choose this when you want to select the project during authorization.
-- **Project-specific MCP server:** `https://{projectId}.mcp.owox.com/mcp` — choose this when OWOX UI or API gives you the project URL directly. The `projectId` is already in MD5 format; it is only a stable URL identifier and does not grant access by itself.
+### Claude Desktop (recommended)
 
-Both URLs use the same OAuth flow and the same MCP tools. A project-specific URL skips the project selection screen, but authorization still succeeds only if the signed-in user is an active member of that project.
+1. Open Claude and go to **Settings → Connectors**.
+2. Click **Add → Browse connectors**.
 
-If you connect project-specific MCP servers for multiple projects, give each connection a unique, recognizable name, such as `Marketing` or `Finance`. This makes it easier to select the right server and tell your assistant which project's MCP tools to use.
+   ![Claude Desktop Connectors settings with an arrow pointing from the Connectors sidebar item to Browse connectors in the Add menu](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b0f101ff-724e-4210-7c29-37682c40de00/public)
 
-### Claude Desktop
+3. Find **OWOX Data Marts** and click **Connect**.
 
-Newer versions of Claude Desktop add remote MCP servers through the in-app **Connectors** settings:
-
-1. Open Claude Desktop and go to **Settings → Connectors**.
-2. Click **Add custom connector**.
-3. Enter the MCP server URL. Use the shared URL below, or replace it with your project-specific URL from OWOX:
-
-   ```text
-   https://mcp.owox.com/mcp
-   ```
+   ![OWOX Data Marts connector page in Claude's connector directory, with an arrow pointing to the Connect button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e940efd9-6548-47dd-bd76-82326dde1b00/public)
 
 4. Claude opens a browser window to complete authorization. Follow the steps in [Step 2](#step-2-authorize-access).
 
-If your version does not show a **Connectors** screen, add the server to the configuration file instead:
+To confirm your MCP server is configured correctly, open the Connectors section and check that OWOX Data Marts is enabled.
 
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-Add the `owox` entry to your existing `mcpServers` (create the file if it does not exist yet — keep any servers already listed):
-
-```json
-{
-  "mcpServers": {
-    "owox": {
-      "url": "https://mcp.owox.com/mcp"
-    }
-  }
-}
-```
-
-Save the file and restart Claude Desktop. On restart, Claude detects the server and opens a browser window to authorize it. Follow the steps in [Step 2](#step-2-authorize-access).
+![Claude's Connectors menu showing the OWOX Data Marts toggle switched on](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3e4b21ca-11b2-44ef-af3a-407014e17f00/public)
 
 ### Claude web (claude.ai)
 
 1. Open [claude.ai](https://claude.ai) and go to **Settings → Connectors**.
-2. Click **Add custom connector**.
-3. Enter the MCP server URL. Use the shared URL below, or replace it with your project-specific URL from OWOX:
-
-   ```text
-   https://mcp.owox.com/mcp
-   ```
-
-4. Claude will open an authorization flow in the same browser. Follow the steps in [Step 2](#step-2-authorize-access).
-
-![Claude web Connectors settings with the Add custom integration dialog and the OWOX MCP server URL entered](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/fbdcb18c-4d48-4142-8ee0-a913734a4100/public)
-
-![The OWOX integration connected and listed in Claude web Connectors settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4521c763-a151-453c-18a7-006ff6536200/public)
+2. Click **Add → Browse connectors**.
+3. Find **OWOX Data Marts** and click **Connect**.
+4. Claude opens an authorization flow in the same browser. Follow the steps in [Step 2](#step-2-authorize-access).
 
 ### ChatGPT
 
@@ -87,16 +55,24 @@ Save the file and restart Claude Desktop. On restart, Claude detects the server 
 
 ![ChatGPT chat composer with the OWOX Data Marts plugin available for a new chat](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/55bbd278-3784-40b0-fe98-4a16d1006c00/public)
 
+### Use a project-specific URL
+
+The steps above connect the shared MCP server and let you pick a project during authorization. If OWOX UI or API already gave you a project's URL — `https://{projectId}.mcp.owox.com/mcp` — you can connect that instead: add it as a custom connector rather than picking OWOX Data Marts from the client's connector directory (in Claude, use **Add → Add custom connector**). The `projectId` is already in MD5 format; it is only a stable URL identifier and does not grant access by itself.
+
+A project-specific URL uses the same OAuth flow and the same MCP tools as the shared one, but it skips the project selection screen in [Step 2](#step-2-authorize-access) — authorization still succeeds only if the signed-in user is an active member of that project.
+
+If you connect project-specific MCP servers for multiple projects, give each connection a unique name, such as `Marketing` or `Finance`. This makes it easier to select the right server and tell your assistant which project's MCP tools to use.
+
 ## Step 2: Authorize access
 
-When the MCP client connects for the first time, it opens a browser window to complete the OAuth 2.0 authorization flow. You only complete two interactive steps:
+When the MCP client first connects, it opens a browser window to complete OAuth 2.0 authorization. You only complete two interactive steps:
 
 1. **Sign in** to your OWOX account if you do not already have an active session.
 2. **Select a project** — for `https://mcp.owox.com/mcp`, if you belong to more than one project, a selection screen appears. Choose the project you want this MCP connection to use and click **Next**. If you use `https://{projectId}.mcp.owox.com/mcp`, this screen is skipped because the project is already part of the server URL.
 
-There is no separate permissions-consent screen. Once you sign in and select a project, the client receives an access token and uses it automatically for all subsequent requests. The token is bound to the project you selected and to the requested scope.
+There is no separate permissions-consent screen. Once you sign in and select a project, the client receives an access token. It uses that token automatically for all subsequent requests. The token is bound to the project you selected and to the requested scope.
 
-Access tokens are short-lived, and the client refreshes them automatically in the background — you stay connected without signing in again. You only need to reconnect manually if the refresh fails (for example, after your OWOX session is revoked) or when you want to switch projects.
+Access tokens are short-lived, and the client refreshes them automatically in the background — you stay connected without signing in again. You only need to reconnect manually if the refresh fails — for example, after your OWOX session is revoked. You also reconnect manually when you want to switch projects.
 
 ### Add project context for your assistant
 
@@ -114,7 +90,7 @@ The assistant calls the `get_project_context` tool and replies with your project
 
 ## Switch projects or disconnect
 
-Project selection is fixed when you authorize, so switching projects means reconnecting with the shared server and selecting another project, or reconnecting with another project-specific server URL. Where you manage the connection depends on the client:
+Project selection is fixed when you authorize. Switching projects means reconnecting with the shared server and selecting another project, or reconnecting with a different project-specific server URL. Where you manage the connection depends on the client:
 
 - **Claude Desktop / Claude web:** **Settings → Connectors**, then open the OWOX connector to disconnect or reconnect it.
 - **ChatGPT:** **Settings → Apps**, then open the OWOX app to disconnect or reconnect it.
@@ -270,12 +246,33 @@ For a “how many” question, use `COUNT` or `COUNT_DISTINCT` (when the user me
 | `truncated`          | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
 | `truncation`         | Present only when truncated; `reasons` is `row_limit`, `payload_byte_cap`, or both                                                         |
 | `totals`             | Server-side totals over all matching rows, ignoring the row limit                                                                           |
+| `data_last_updated`  | When the source tables behind this result last changed in the warehouse — see below                                                        |
 | `source`             | The id, title, and OWOX link of the Data Mart that supplied the response                                                                    |
-| `calculation_origin` | Marks rows as taken from OWOX and totals as calculated by OWOX when available                                                               |
+| `calculation_origin` | Marks rows as taken from OWOX, and totals and `data_last_updated` as produced by OWOX when available                                        |
 
 Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable. For more on how aggregations and totals are computed, see [Report Aggregations and Totals](./report-aggregations.md); for why a given aggregation may be rejected on a field, see [Report Output Controls](./output-controls.md).
 
 When presenting results, the assistant must name the source Data Mart. It must distinguish OWOX-provided values from any arithmetic it performs itself. If `truncated` is true, it must explicitly tell the user that returned rows are incomplete; server-provided totals remain valid for all matching rows, but any number calculated from returned rows can be incomplete.
+
+#### Data last updated
+
+`data_last_updated` answers "how current is what I am looking at?". Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call's own credits cover it. A non-blended query (no joined fields) also saves the measurement as the Data Mart's last-known value. The same value appears across the OWOX UI — see [Data Last Updated](./data-last-updated.md).
+
+| Field                  | Description                                                                                                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_last_updated_at` | ISO-8601 UTC time when the newest source table last changed, or `null` when the warehouse does not report it                                                          |
+| `computed_at`          | When this measurement was taken                                                                                                                                       |
+| `coverage`             | `complete`, `partial` (some sources unreadable — the real time can only be more recent), or `unavailable` (nothing could be determined)                               |
+| `sources`              | Per-table detail, each with its own time and an optional `note` explaining a gap                                                                                       |
+
+Read the value precisely. It is a **storage** timestamp, not a statement about the data's content:
+
+- It says when something last **wrote to** the source tables. A backfill can rewrite a table today with figures from 2021, so "updated today" does not mean "covers today". For this reason the field is *data last updated*, not *freshness*.
+- `null` means **unknown** — neither fresh nor stale. The assistant should say OWOX could not determine it, without implying either.
+- With `coverage: "partial"`, treat the timestamp as "at least as recent as" and say the picture is incomplete.
+- The assistant is asked to present the timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC") — converted to the user's time zone when the conversation establishes one, otherwise in UTC with the zone named — never as a raw ISO-8601 string. The machine-readable ISO-8601 value stays in the structured response.
+
+Coverage is best effort per storage. Google BigQuery works first, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data.
 
 ### `list_destinations`
 

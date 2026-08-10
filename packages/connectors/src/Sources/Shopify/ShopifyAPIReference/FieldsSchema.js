@@ -9,7 +9,7 @@ var ShopifyFieldsSchema = {
   "abandoned-checkouts": {
     "overview": "Abandoned Checkouts",
     "description": "Checkout sessions that did not complete — customer info, items, and pricing for recovery campaigns.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/queries/abandonedcheckouts",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/queries/abandonedcheckouts",
     "fields": abandonedCheckoutsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "createdAt", "updatedAt", "completedAt", "totalPriceSet", "lineItemsQuantity", "customerId", "customerEmail", "shippingAddressCity", "shippingAddressCountry"],
@@ -22,7 +22,7 @@ var ShopifyFieldsSchema = {
   "articles": {
     "overview": "Articles",
     "description": "Blog articles — title, author, publication status, and timestamps.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Article",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Article",
     "fields": articlesFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "title", "handle", "blogId", "blogTitle", "isPublished", "publishedAt", "authorName", "createdAt", "updatedAt"],
@@ -34,7 +34,7 @@ var ShopifyFieldsSchema = {
   "blogs": {
     "overview": "Blogs",
     "description": "Blogs in the store — title, handle, and template settings.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Blog",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Blog",
     "fields": blogsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "title", "handle", "templateSuffix", "createdAt", "updatedAt"],
@@ -46,7 +46,7 @@ var ShopifyFieldsSchema = {
   "collections": {
     "overview": "Collections",
     "description": "Product collections — title, sort order, product count, and last updated.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Collection",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Collection",
     "fields": collectionsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "title", "handle", "description", "sortOrder", "productsCount", "updatedAt"],
@@ -58,7 +58,7 @@ var ShopifyFieldsSchema = {
   "customers": {
     "overview": "Customers",
     "description": "Customer accounts — contact info, marketing consent, order history, and lifetime spend.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Customer",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Customer",
     "fields": customersFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "displayName", "email", "phone", "state", "numberOfOrders", "amountSpent", "emailMarketingConsentState", "defaultAddressCity", "defaultAddressCountry", "createdAt", "updatedAt"],
@@ -71,7 +71,7 @@ var ShopifyFieldsSchema = {
   "discount-codes": {
     "overview": "Discount Codes",
     "description": "Discount codes — type, status, usage limits, and validity window.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/DiscountCodeNode",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/DiscountCodeNode",
     "fields": discountCodesFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "code", "discountType", "title", "status", "startsAt", "endsAt", "usageLimit", "asyncUsageCount"],
@@ -85,7 +85,7 @@ var ShopifyFieldsSchema = {
   "fulfillment-orders": {
     "overview": "Fulfillment Orders",
     "description": "Fulfillment orders — items to ship, assigned location, delivery method, and status.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/FulfillmentOrder",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/FulfillmentOrder",
     "fields": fulfillmentOrdersFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "status", "requestStatus", "orderId", "orderName", "assignedLocationId", "assignedLocationName", "deliveryMethod", "createdAt", "updatedAt"],
@@ -97,7 +97,7 @@ var ShopifyFieldsSchema = {
   "inventory-items": {
     "overview": "Inventory Items",
     "description": "Inventory items (SKUs) — tracking status, shipping requirements, and country of origin.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/InventoryItem",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/InventoryItem",
     "fields": inventoryItemsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "sku", "tracked", "requiresShipping", "variantId", "countryCodeOfOrigin", "createdAt", "updatedAt"],
@@ -109,7 +109,7 @@ var ShopifyFieldsSchema = {
   "locations": {
     "overview": "Locations",
     "description": "Physical and virtual store locations — activity status, fulfillment capabilities, and address.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Location",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Location",
     "fields": locationsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "name", "isActive", "isPrimary", "fulfillsOnlineOrders", "city", "country", "createdAt", "updatedAt"],
@@ -121,7 +121,7 @@ var ShopifyFieldsSchema = {
   "orders": {
     "overview": "Orders",
     "description": "Orders placed in the store — financial and fulfillment status, customer info, totals, and timestamps.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Order",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Order",
     "fields": ordersFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "name", "displayFinancialStatus", "displayFulfillmentStatus", "customerId", "customerEmail", "currencyCode", "totalPrice", "totalTax", "totalShippingPrice", "totalDiscounts", "totalRefunded", "processedAt", "createdAt", "updatedAt"],
@@ -134,7 +134,7 @@ var ShopifyFieldsSchema = {
   "products": {
     "overview": "Products",
     "description": "Products in the store catalog — vendor, type, status, inventory, and price range.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Product",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Product",
     "fields": productsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "title", "handle", "vendor", "productType", "status", "totalInventory", "variantsCount", "priceRangeMinAmount", "priceRangeMaxAmount", "publishedAt", "createdAt", "updatedAt"],
@@ -147,7 +147,7 @@ var ShopifyFieldsSchema = {
   "product-variants": {
     "overview": "Product Variants",
     "description": "Product variants — SKU, price, inventory quantity, and availability.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/ProductVariant",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/ProductVariant",
     "fields": productVariantsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "displayName", "sku", "productId", "productTitle", "price", "compareAtPrice", "inventoryQuantity", "availableForSale", "createdAt", "updatedAt"],
@@ -159,7 +159,7 @@ var ShopifyFieldsSchema = {
   "pages": {
     "overview": "Pages",
     "description": "Static store pages — title, handle, publication status, and timestamps.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Page",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Page",
     "fields": pagesFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "title", "handle", "isPublished", "publishedAt", "createdAt", "updatedAt"],
@@ -171,7 +171,7 @@ var ShopifyFieldsSchema = {
   "shop": {
     "overview": "Shop",
     "description": "Store settings — domain, currency, timezone, and plan details.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Shop",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Shop",
     "fields": shopFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "name", "email", "myshopifyDomain", "primaryDomain", "currencyCode", "ianaTimezone", "plan", "createdAt"],
@@ -184,7 +184,7 @@ var ShopifyFieldsSchema = {
   "tender-transactions": {
     "overview": "Tender Transactions",
     "description": "Payment tender transactions — amount, currency, order reference, and processing time.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/TenderTransaction",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/TenderTransaction",
     "fields": tenderTransactionsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "amount", "currencyCode", "orderId", "remoteReference", "test", "processedAt"],
@@ -196,7 +196,7 @@ var ShopifyFieldsSchema = {
   "metafield-articles": {
     "overview": "Article Metafields",
     "description": "Custom metadata attached to articles — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -208,7 +208,7 @@ var ShopifyFieldsSchema = {
   "metafield-blogs": {
     "overview": "Blog Metafields",
     "description": "Custom metadata attached to blogs — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -220,7 +220,7 @@ var ShopifyFieldsSchema = {
   "metafield-collections": {
     "overview": "Collection Metafields",
     "description": "Custom metadata attached to collections — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -232,7 +232,7 @@ var ShopifyFieldsSchema = {
   "metafield-customers": {
     "overview": "Customer Metafields",
     "description": "Custom metadata attached to customers — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -244,7 +244,7 @@ var ShopifyFieldsSchema = {
   "metafield-locations": {
     "overview": "Location Metafields",
     "description": "Custom metadata attached to locations — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -256,7 +256,7 @@ var ShopifyFieldsSchema = {
   "metafield-orders": {
     "overview": "Order Metafields",
     "description": "Custom metadata attached to orders — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -268,7 +268,7 @@ var ShopifyFieldsSchema = {
   "metafield-pages": {
     "overview": "Page Metafields",
     "description": "Custom metadata attached to pages — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -280,7 +280,7 @@ var ShopifyFieldsSchema = {
   "metafield-product-variants": {
     "overview": "Product Variant Metafields",
     "description": "Custom metadata attached to product variants — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -292,7 +292,7 @@ var ShopifyFieldsSchema = {
   "metafield-products": {
     "overview": "Product Metafields",
     "description": "Custom metadata attached to products — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],
@@ -304,7 +304,7 @@ var ShopifyFieldsSchema = {
   "metafield-shops": {
     "overview": "Shop Metafields",
     "description": "Custom metadata attached to the shop — namespace, key, value, and type.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Metafield",
+    "documentation": "https://shopify.dev/docs/api/admin-graphql/2026-07/objects/Metafield",
     "fields": metafieldsFields,
     "uniqueKeys": ["id"],
     "defaultFields": ["id", "namespace", "key", "value", "type", "ownerId", "ownerType", "createdAt", "updatedAt"],

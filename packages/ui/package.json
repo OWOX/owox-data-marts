@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "lint": "eslint . --config ./eslint.config.js",
@@ -57,7 +57,7 @@
   "peerDependencies": {
     "@dnd-kit/sortable": "^8",
     "@dnd-kit/utilities": "^3",
-    "react-router-dom": "^7"
+    "react-router": "^8"
   },
   "devDependencies": {
     "@owox/eslint-config": "../eslint-config",

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ArrowRight, CalendarClock, FileText, History, Bookmark } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { useProjectRoute } from '../../../shared/hooks';

@@ -81,12 +81,3 @@ export class MsTeamsAccessValidator extends BaseEmailAccessValidator {
     super();
   }
 }
-
-@Injectable()
-export class GoogleChatAccessValidator extends BaseEmailAccessValidator {
-  protected readonly logger = new Logger(GoogleChatAccessValidator.name);
-  readonly type = DataDestinationType.GOOGLE_CHAT;
-  constructor(protected readonly credentialsResolver: DataDestinationCredentialsResolver) {
-    super();
-  }
-}

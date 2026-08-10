@@ -41,6 +41,10 @@ import {
   OwoxProjectMembersResponseSchema,
   ProjectMemberApiKeyAuthFlowRequest,
   ProjectMemberApiKeyAuthFlowRequestSchema,
+  PluginRuntimeAuthFlowRequest,
+  PluginRuntimeAuthFlowRequestSchema,
+  PluginRuntimeAuthFlowResponse,
+  PluginRuntimeAuthFlowResponseSchema,
   OwoxCreateNewProjectResponse,
   OwoxCreateNewProjectResponseSchema,
   OwoxRequestProjectAccessRequestSchema,
@@ -152,6 +156,32 @@ export class IdentityOwoxClient {
       return TokenResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { req }, 'Failed to issue project member API key token');
+    }
+  }
+
+  /**
+   * POST /idp/auth-flow/plugin-runtime
+   */
+  async issueAccessTokenForPluginRuntime(
+    req: PluginRuntimeAuthFlowRequest
+  ): Promise<PluginRuntimeAuthFlowResponse> {
+    const parsed = PluginRuntimeAuthFlowRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('issue plugin runtime token', {
+      projectId: parsed.projectId,
+      userId: parsed.userId,
+      pluginId: parsed.pluginId,
+      installationId: parsed.installationId,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/auth-flow/plugin-runtime`,
+        parsed,
+        { headers: authHeader }
+      );
+      return PluginRuntimeAuthFlowResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to issue plugin runtime token');
     }
   }
 

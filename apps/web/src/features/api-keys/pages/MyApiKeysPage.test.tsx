@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router';
 import { MyApiKeysPage } from './MyApiKeysPage';
 import type { ProjectMemberApiKey } from '../types';
 

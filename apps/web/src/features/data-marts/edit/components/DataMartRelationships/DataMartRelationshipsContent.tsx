@@ -7,6 +7,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@owox/ui/components/empty';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@owox/ui/components/select';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { GitMerge, Link2, List, Network, Plus } from 'lucide-react';
@@ -36,10 +43,29 @@ import type {
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
 
+import { storageService } from '../../../../../services/localstorage.service';
+import {
+  parseCanvasDirection,
+  type CanvasDirection,
+} from '../../../shared/canvas/canvas-direction';
+import type { ErdCardField } from '../../../shared/canvas/erd-fields';
+import {
+  parseObjectLabelsHidden,
+  serializeObjectLabelsHidden,
+  type ObjectLabelsHidden,
+} from '../../../shared/canvas/object-labels';
+import { parseCanvasViewMode, type CanvasViewMode } from '../../../shared/canvas/view-mode';
+import {
+  filterTransientRows,
+  parseRelationshipStatusFilter,
+  RELATIONSHIP_STATUS_FILTER_OPTIONS,
+  type RelationshipStatusFilter,
+} from './relationship-filters';
 import { cleanBlendedFieldOverride } from './blended-field-override.utils';
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
+import { useRelationshipDefinitionTypes } from './useRelationshipDefinitionTypes';
 import { useTransientRelationships } from './useTransientRelationships';
 
 // Load React Flow and the graph renderer only when the user switches to graph
@@ -56,6 +82,13 @@ const CanvasSuspenseFallback = (
 
 const VIEW_MODE_KEY = 'relationship-view-mode';
 const CONTENT_MIN_H = 480;
+
+// Canvas view settings are per-browser preferences (not per data mart),
+// mirroring the Models canvas keys (model-canvas-*).
+const CANVAS_VIEW_MODE_KEY = 'relationship-canvas-view-mode';
+const CANVAS_LAYOUT_KEY = 'relationship-canvas-layout';
+const CANVAS_JOIN_FIELDS_KEY = 'relationship-canvas-show-join-fields';
+const CANVAS_OBJECT_LABELS_KEY = 'relationship-canvas-object-labels';
 
 const DEFAULT_BLENDED_FIELDS_CONFIG: BlendedFieldsConfig = { sources: [] };
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -195,7 +228,10 @@ export function DataMartRelationshipsContent({
           if (schemaRequestIdRef.current !== requestId) return;
           setBlendableSchema(data);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          // Without the schema the Detailed canvas view falls back to compact
+          // cards with no rows — leave a trace so that state is diagnosable.
+          console.error('Failed to load blendable schema', error);
           if (schemaRequestIdRef.current !== requestId) return;
           setBlendableSchema(null);
         })
@@ -233,15 +269,114 @@ export function DataMartRelationshipsContent({
   const { rows: transientRows, isLoading: isLoadingTransient } =
     useTransientRelationships(relationshipGraph);
 
+  // Enrichment fetches full data-mart details — only worth it when the
+  // diagram is actually on screen (the list view never renders badges).
+  const definitionTypes = useRelationshipDefinitionTypes(
+    relationshipGraph,
+    relationships,
+    viewMode === 'graph'
+  );
+
+  // Toolbar filters apply to both the list and the diagram (and keep the
+  // inline and fullscreen canvas instances in sync); keys are scoped per data
+  // mart because a filter useful on one mart would silently truncate another's.
+  const showLoopedKey = `relationship-canvas-show-looped:${dataMartId}`;
+  const statusFilterKey = `relationship-canvas-status-filter:${dataMartId}`;
+  const [showLooped, setShowLooped] = useState(
+    () => storageService.get(showLoopedKey, 'boolean') ?? false
+  );
+  const [statusFilter, setStatusFilter] = useState<RelationshipStatusFilter>(() =>
+    parseRelationshipStatusFilter(storageService.get(statusFilterKey))
+  );
+
+  const handleShowLoopedChange = useCallback(
+    (checked: boolean) => {
+      setShowLooped(checked);
+      storageService.set(showLoopedKey, checked);
+    },
+    [showLoopedKey]
+  );
+
+  const handleStatusFilterChange = useCallback(
+    (next: RelationshipStatusFilter) => {
+      setStatusFilter(next);
+      storageService.set(statusFilterKey, next);
+    },
+    [statusFilterKey]
+  );
+
+  // Canvas view settings (gear popover) live here so the inline and
+  // fullscreen canvas instances stay in sync, like the filters above.
+  const [canvasViewMode, setCanvasViewMode] = useState<CanvasViewMode>(() =>
+    parseCanvasViewMode(storageService.get(CANVAS_VIEW_MODE_KEY))
+  );
+  const [canvasDirection, setCanvasDirection] = useState<CanvasDirection>(() =>
+    parseCanvasDirection(storageService.get(CANVAS_LAYOUT_KEY))
+  );
+  const [showJoinFields, setShowJoinFields] = useState(
+    () => storageService.get(CANVAS_JOIN_FIELDS_KEY, 'boolean') ?? false
+  );
+  const [objectLabels, setObjectLabels] = useState<ObjectLabelsHidden>(() =>
+    parseObjectLabelsHidden(storageService.get(CANVAS_OBJECT_LABELS_KEY))
+  );
+
+  const handleCanvasViewModeChange = useCallback((next: CanvasViewMode) => {
+    setCanvasViewMode(next);
+    storageService.set(CANVAS_VIEW_MODE_KEY, next);
+  }, []);
+
+  const handleCanvasDirectionChange = useCallback((next: CanvasDirection) => {
+    setCanvasDirection(next);
+    storageService.set(CANVAS_LAYOUT_KEY, next);
+  }, []);
+
+  const handleShowJoinFieldsChange = useCallback((checked: boolean) => {
+    setShowJoinFields(checked);
+    storageService.set(CANVAS_JOIN_FIELDS_KEY, checked);
+  }, []);
+
+  const handleObjectLabelsChange = useCallback((next: ObjectLabelsHidden) => {
+    setObjectLabels(next);
+    storageService.set(CANVAS_OBJECT_LABELS_KEY, serializeObjectLabelsHidden(next));
+  }, []);
+
+  // ERD rows for the Detailed canvas view, keyed by aliasPath. The root
+  // mart's native fields are untyped in the schema payload, so the root card
+  // stays compact. Primary-key info is not part of the blendable schema —
+  // rows render without key icons.
+  const canvasFieldsByAliasPath = useMemo(() => {
+    const map = new Map<string, ErdCardField[]>();
+    if (!blendableSchema) return map;
+    for (const field of blendableSchema.blendedFields) {
+      // Mirror connectedFieldCounts: UNKNOWN-typed fields are not connected,
+      // and a row the field-count badge does not count would make the card
+      // contradict itself.
+      if (field.type === 'UNKNOWN') continue;
+      const rows = map.get(field.aliasPath) ?? [];
+      if (!map.has(field.aliasPath)) map.set(field.aliasPath, rows);
+      rows.push({
+        name: field.originalFieldName,
+        // The configured blend alias when set — the same fallback the Models
+        // canvas mapper applies (alias?.trim() ? alias : name).
+        alias: field.alias.trim() ? field.alias : field.originalFieldName,
+        type: field.sourceFieldType ?? field.type,
+        isPrimaryKey: false,
+        isHidden: field.isHidden,
+      });
+    }
+    return map;
+  }, [blendableSchema]);
+
   const filteredRows = useMemo(() => {
-    if (!searchQuery) return transientRows;
+    const rows = filterTransientRows(transientRows, { showLooped, statusFilter });
+    if (!searchQuery) return rows;
     const q = searchQuery.toLowerCase();
-    return transientRows.filter(
+    return rows.filter(
       row =>
         row.relationship.targetDataMart.title.toLowerCase().includes(q) ||
         row.relationship.targetAlias.toLowerCase().includes(q)
     );
-  }, [transientRows, searchQuery]);
+  }, [transientRows, showLooped, statusFilter, searchQuery]);
 
   // Backend enforces (sourceDataMartId, targetAlias) uniqueness. Precompute
   // sibling aliases per relationship so each row gets a stable reference and
@@ -399,10 +534,14 @@ export function DataMartRelationshipsContent({
   const dmTitle = dataMart.title;
   const dmDescription = dataMart.description;
   const dmStatusCode = dataMart.status.code;
+  const dmDefinitionType = dataMart.definitionType;
 
   function renderToolbar() {
+    // flex-wrap: the block also renders in narrow layouts (~600px), where the
+    // search + selects + view toggle cannot fit one row — controls must stay
+    // reachable, so they wrap instead of overflowing.
     return (
-      <div className='flex items-center justify-between gap-2 pb-4'>
+      <div className='flex min-w-0 flex-wrap items-center gap-2 pb-4'>
         <SearchInput
           id='search-relationships'
           placeholder='Search data marts'
@@ -412,7 +551,38 @@ export function DataMartRelationshipsContent({
           className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
           aria-label='Search data marts'
         />
-        <div className='flex items-center gap-2'>
+        <Select
+          value={statusFilter}
+          onValueChange={value => {
+            handleStatusFilterChange(value as RelationshipStatusFilter);
+          }}
+        >
+          <SelectTrigger className='w-[180px] min-w-[150px]' aria-label='Status'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RELATIONSHIP_STATUS_FILTER_OPTIONS.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={showLooped ? 'show' : 'hide'}
+          onValueChange={value => {
+            handleShowLoopedChange(value === 'show');
+          }}
+        >
+          <SelectTrigger className='w-[220px] min-w-[180px]' aria-label='Looped data marts'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='hide'>Hide looped data marts</SelectItem>
+            <SelectItem value='show'>Show looped data marts</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className='ml-auto flex items-center gap-2'>
           {transientRows.length > 0 && (
             <span className='text-muted-foreground mr-2 flex items-center gap-1 text-sm'>
               <GitMerge className='h-3.5 w-3.5' />
@@ -450,10 +620,23 @@ export function DataMartRelationshipsContent({
             dataMartTitle={dmTitle}
             dataMartDescription={dmDescription}
             dataMartStatus={dmStatusCode}
+            dataMartDefinitionType={dmDefinitionType}
+            definitionTypes={definitionTypes}
             relationships={relationships}
             relationshipGraph={relationshipGraph}
             connectedFieldCounts={connectedFieldCounts}
             searchQuery={searchQuery}
+            showLooped={showLooped}
+            statusFilter={statusFilter}
+            viewMode={canvasViewMode}
+            onViewModeChange={handleCanvasViewModeChange}
+            direction={canvasDirection}
+            onDirectionChange={handleCanvasDirectionChange}
+            showJoinFields={showJoinFields}
+            onShowJoinFieldsChange={handleShowJoinFieldsChange}
+            objectLabels={objectLabels}
+            onObjectLabelsChange={handleObjectLabelsChange}
+            fieldsByAliasPath={canvasFieldsByAliasPath}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -472,10 +655,10 @@ export function DataMartRelationshipsContent({
       );
     }
 
-    if (filteredRows.length === 0 && searchQuery) {
+    if (filteredRows.length === 0) {
       return (
         <div className='text-muted-foreground px-4 py-6 text-sm'>
-          No relationships match your search.
+          No relationships match your search or filters.
         </div>
       );
     }
@@ -629,10 +812,23 @@ export function DataMartRelationshipsContent({
                 dataMartTitle={dataMart.title}
                 dataMartDescription={dataMart.description}
                 dataMartStatus={dataMart.status.code}
+                dataMartDefinitionType={dataMart.definitionType}
+                definitionTypes={definitionTypes}
                 relationships={relationships}
                 relationshipGraph={relationshipGraph}
                 connectedFieldCounts={connectedFieldCounts}
                 searchQuery={searchQuery}
+                showLooped={showLooped}
+                statusFilter={statusFilter}
+                viewMode={canvasViewMode}
+                onViewModeChange={handleCanvasViewModeChange}
+                direction={canvasDirection}
+                onDirectionChange={handleCanvasDirectionChange}
+                showJoinFields={showJoinFields}
+                onShowJoinFieldsChange={handleShowJoinFieldsChange}
+                objectLabels={objectLabels}
+                onObjectLabelsChange={handleObjectLabelsChange}
+                fieldsByAliasPath={canvasFieldsByAliasPath}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

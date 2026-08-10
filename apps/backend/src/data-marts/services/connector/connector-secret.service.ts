@@ -845,6 +845,9 @@ export class ConnectorSecretService {
       );
     }
 
+    const { copySecretsByValue } = this.connectorService.getConnectorCapabilities(
+      incoming.connector.source.name
+    );
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
     const sourceSecretsIds = sourceDefinition.connector.source.configuration
       .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
@@ -895,6 +898,9 @@ export class ConnectorSecretService {
       // scoped 1:1 to the source DataMart's own config item, and reusing it
       // would alias both DataMarts' manual credentials to the same record.
       delete mergedItem._secrets_id;
+      if (copySecretsByValue) {
+        delete mergedItem._secrets_id;
+      }
       mergedItem._id = randomUUID();
       // The generated refresh token is not copied either. It is a rotating
       // value minted at run time and bound to the source's own credentials

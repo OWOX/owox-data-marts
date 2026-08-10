@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useRouteError, isRouteErrorResponse, Link } from 'react-router-dom';
+import { useRouteError, isRouteErrorResponse, Link } from 'react-router';
 import { Button } from '@owox/ui/components/button';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { logRouteError } from './logRouteError';

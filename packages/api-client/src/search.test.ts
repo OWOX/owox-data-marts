@@ -60,8 +60,8 @@ const searchResults: OWOXSearchResult[] = [
     vecScore: null,
   },
 ];
-const { description: _description, ...resultWithoutDescription } = searchResults[0];
-const { vecScore: _vecScore, ...resultWithoutVecScore } = searchResults[0];
+const { description: _description, ...resultWithoutDescription } = searchResults[0]!;
+const { vecScore: _vecScore, ...resultWithoutVecScore } = searchResults[0]!;
 
 describe('Search API', () => {
   it('searches project entities with the backend query serialization', async () => {

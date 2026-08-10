@@ -67,6 +67,9 @@ export async function createTestApp(
   const { setupGlobalPipes } = await import(
     /* webpackIgnore: true */ '../../../../apps/backend/src/config/global-pipes.config'
   );
+  const { setupBodyParsers } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/config/body-parser.config'
+  );
   const { PROTOCOL_ROUTE_EXCLUSIONS } = await import(
     /* webpackIgnore: true */ '../../../../apps/backend/src/config/protocol-route-exclusions.config'
   );
@@ -91,7 +94,8 @@ export async function createTestApp(
 
   const moduleRef = await builder.compile();
 
-  const app: INestApplication = moduleRef.createNestApplication(new ExpressAdapter(expressApp));
+  const app = moduleRef.createNestApplication(new ExpressAdapter(expressApp));
+  setupBodyParsers(app);
   app.setGlobalPrefix('api', {
     exclude: PROTOCOL_ROUTE_EXCLUSIONS,
   });

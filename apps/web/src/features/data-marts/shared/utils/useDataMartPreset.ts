@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { getDataMartPreset } from './data-mart-presets';
 
 export function useDataMartPreset() {

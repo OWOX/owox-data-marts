@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { buildProjectPath } from '../../../utils/path';
 import { useAuthState, useUser } from '../hooks';

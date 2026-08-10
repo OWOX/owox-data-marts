@@ -18,6 +18,7 @@ describe('data-mart-validation', () => {
   const createMockDataMart = (overrides?: Partial<DataMart>): DataMart => ({
     id: 'test-id',
     title: 'Test Data Mart',
+    dataLastUpdated: null,
     description: 'Test description',
     status: {
       code: DataMartStatus.DRAFT,

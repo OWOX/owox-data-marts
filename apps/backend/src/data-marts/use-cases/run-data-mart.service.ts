@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
@@ -11,6 +11,7 @@ import { DataStorageCredentialsResolver } from '../data-storage-types/data-stora
 import { ValidationResultCode } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
 import { isBigQueryOAuthCredentials } from '../data-storage-types/data-storage-credentials.guards';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 @Injectable()
 export class RunDataMartService {
@@ -44,7 +45,13 @@ export class RunDataMartService {
     }
 
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
-      throw new Error('Only data marts with connector definition type can be run manually');
+      throw new BadRequestException(
+        'Only data marts with connector definition type can be run manually'
+      );
+    }
+
+    if (command.runType === RunType.manual && dataMart.status !== DataMartStatus.PUBLISHED) {
+      throw new BadRequestException('Only published data marts can be run manually');
     }
 
     // Pre-check is for user-initiated runs only, where it surfaces an immediate, clear error.

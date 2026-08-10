@@ -42,6 +42,10 @@ import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
 import { isStorageOAuthRefreshError } from '../../../shared/utils/storage-oauth-refresh-error.utils';
+import {
+  describeSchemaFieldSummary,
+  summarizeSchemaFields,
+} from '../../../shared/utils/schema-field-summary';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -72,6 +76,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         context: dataMart.id,
         value: dataMart.title,
       });
+      // Returned so callers that need the freshly loaded state (rather than waiting a render for
+      // it to reach context) can read it directly.
+      return dataMart;
     } catch (error) {
       dispatch({
         type: 'FETCH_DATA_MART_ERROR',
@@ -387,6 +394,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           context: id,
           error: apiError.message,
         });
+        // Rethrown so the caller can tell a rejected save from a successful one — the definition
+        // form must keep the user's input and skip schema actualization when nothing was saved.
+        throw error;
       }
     },
     [state.dataMart?.storage.id]
@@ -519,8 +529,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           context: request.id,
         });
 
-        await dataMartService.runDataMart(request.id, request.payload);
-        dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
+        const response = await dataMartService.runDataMart(request.id, request.payload);
+        dispatch({ type: 'RUN_DATA_MART_SUCCESS', payload: response.runId });
+        return response.runId;
       } catch (error) {
         toast.dismiss(toastId);
         const apiError = extractApiError(error);
@@ -537,6 +548,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           context: request.id,
           error: apiError.message,
         });
+        return null;
       }
     },
     [state.dataMart?.storage.id]
@@ -584,22 +596,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     [getDataMartRuns]
   );
 
-  // Get a data mart run by ID
-  const getDataMartRunById = useCallback(async (dataMartId: string, runId: string) => {
-    try {
-      return await dataMartService.getDataMartRunById(dataMartId, runId);
-    } catch (error) {
-      const apiError = extractApiError(error);
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'FetchRunDetailsError',
-        error: apiError.message,
-      });
-      throw error;
-    }
-  }, []);
-
   // Actualize data mart schema
   const actualizeDataMartSchema = useCallback(async (id: string) => {
     try {
@@ -607,7 +603,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const response = await dataMartService.actualizeDataMartSchema(id);
       const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
-      toast.success('Output schema actualized');
+      // Report what the refreshed schema looks like, not just that it ran. After an input source
+      // change this is how the user learns which fields the new source no longer provides.
+      toast.success(describeSchemaFieldSummary(summarizeSchemaFields(dataMart.schema)));
       trackEvent({
         event: 'data_mart_schema_actualized',
         category: 'DataMart',
@@ -706,7 +704,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     actualizeDataMartSchema,
     updateDataMartSchema,
     getDataMartRuns,
-    getDataMartRunById,
     loadMoreDataMartRuns,
     getErrorMessage,
     resetManualRunTriggered,

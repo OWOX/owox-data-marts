@@ -21,14 +21,19 @@ import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-da
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
+import { DataMartInputSourceChangeImpactResponseApiDto } from '../../dto/presentation/data-mart-input-source-change-impact-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
-import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunDetailResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-request-api.dto';
+import { RunDataMartResponseApiDto } from '../../dto/presentation/run-data-mart-response-api.dto';
 import { UpdateDataMartAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { UpdateEntityContextsRequestApiDto } from '../../dto/presentation/context-api.dto';
 import { DATA_MARTS_PAGE_SIZE } from '../../use-cases/list-data-marts.service';
+import { BatchDataMartDataLastUpdatedResponseApiDto } from '../../dto/presentation/data-mart-data-last-updated-response-api.dto';
+import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
+import { DEFAULT_PROJECT_LIST_LIMIT } from '../../utils/normalize-project-list-pagination';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -58,6 +63,30 @@ export function GetDataMartSpec() {
     ApiOperation({ summary: 'Get a DataMart by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiResponse({ status: 200, type: DataMartResponseApiDto })
+  );
+}
+
+export function GetDataMartInputSourceChangeImpactSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Count what depends on a DataMart before its input source is changed',
+      description:
+        'Returns how many relationships reference this DataMart in each direction and how many reports are built on it, so the caller can show the blast radius of repointing it at another input source.',
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ type: DataMartInputSourceChangeImpactResponseApiDto })
+  );
+}
+
+export function RefreshDataMartDataLastUpdatedSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Refresh the Data Last Updated snapshot for one or more DataMarts',
+      description:
+        'Measures live, against the warehouse, when the source tables behind each DataMart last changed, and persists what resolves as the last-known value. Ids sharing a storage are measured together, so that storage’s client is built once. Free of consumption; best effort — ids that could not be measured are simply absent from the response and keep their previous value.',
+    }),
+    ApiBody({ type: RefreshDataMartDataLastUpdatedRequestApiDto }),
+    ApiOkResponse({ type: BatchDataMartDataLastUpdatedResponseApiDto })
   );
 }
 
@@ -141,24 +170,23 @@ export function DeleteDataMartSpec() {
 
 export function RunDataMartSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Manual run DataMart' }),
-    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOperation({
+      summary: 'Start a manual Data Mart run',
+      description:
+        'Starts a connector Data Mart run. Technical User access to the Data Mart is required.',
+    }),
+    ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiBody({ type: RunDataMartRequestApiDto, required: false }),
     ApiResponse({
       status: 201,
       description: 'DataMart run created',
-      schema: {
-        type: 'object',
-        required: ['runId'],
-        properties: {
-          runId: {
-            type: 'string',
-            format: 'uuid',
-            example: '123e4567-e89b-12d3-a456-426614174000',
-          },
-        },
-      },
-    })
+      type: RunDataMartResponseApiDto,
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'Invalid payload, unsupported Data Mart type, or unpublished Data Mart',
+    }),
+    ApiResponse({ status: 404, description: 'Data Mart not found' })
   );
 }
 
@@ -181,32 +209,47 @@ export function UpdateDataMartSchemaSpec() {
 
 export function GetDataMartRunsSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Get DataMart run history' }),
-    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOperation({
+      summary: 'List Data Mart runs',
+      description:
+        'Returns newest-first run history for one visible Data Mart. Business User access is required.',
+    }),
+    ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiQuery({
       name: 'limit',
       required: false,
       type: Number,
-      example: 100,
-      description: 'Maximum number of runs to return. Defaults to 100.',
+      default: DEFAULT_PROJECT_LIST_LIMIT,
+      description: 'Maximum number of runs to return. Defaults to 100 when omitted.',
     }),
     ApiQuery({
       name: 'offset',
       required: false,
       type: Number,
-      example: 0,
-      description: 'Number of runs to skip before returning results',
+      default: 0,
+      description: 'Number of runs to skip. Defaults to zero when omitted.',
     }),
-    ApiOkResponse({ type: DataMartRunsResponseApiDto })
+    ApiOkResponse({
+      description: 'Newest-first page of Data Mart runs.',
+      type: DataMartRunsResponseApiDto,
+    }),
+    ApiResponse({ status: 404, description: 'Data Mart not found' })
   );
 }
 
 export function CancelDataMartRunSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Cancel a DataMart run' }),
-    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOperation({
+      summary: 'Cancel a Data Mart run',
+      description:
+        'Cancels an active connector, standard report, or Data Quality run. Technical User access to the Data Mart is required.',
+    }),
+    ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
-    ApiNoContentResponse({ description: 'DataMart run cancelled' })
+    ApiNoContentResponse({ description: 'Data Mart run cancelled' }),
+    ApiResponse({ status: 400, description: 'The run type cannot be cancelled' }),
+    ApiResponse({ status: 404, description: 'Data Mart or run not found' }),
+    ApiResponse({ status: 409, description: 'The run is no longer active' })
   );
 }
 
@@ -220,10 +263,15 @@ export function ListDataMartsByConnectorNameSpec() {
 
 export function GetDataMartRunByIdSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Get DataMart run by ID' }),
-    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOperation({
+      summary: 'Get a Data Mart run',
+      description:
+        'Returns one run belonging to a visible Data Mart, including Data Quality detail when applicable. Business User access is required.',
+    }),
+    ApiParam({ name: 'id', description: 'Data Mart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
-    ApiOkResponse({ type: DataMartRunResponseApiDto })
+    ApiOkResponse({ type: DataMartRunDetailResponseApiDto }),
+    ApiResponse({ status: 404, description: 'Data Mart or run not found' })
   );
 }
 

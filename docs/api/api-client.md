@@ -4,15 +4,22 @@
 
 Use `owox-ctl` for terminal commands. Use `@owox/api-client` for code-level integrations.
 
-## Install
+> **Building a plugin?** The same API-client abstractions are available through `ctx.owox`,
+> supplied by [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk). A plugin does
+> not install `@owox/api-client` directly and does not create or receive an API key. See the
+> [plugin authoring guide](../plugins/authoring-guide.md#use-the-plugin-sdk).
+
+## Install for an external application or script
 
 ```bash
 npm install @owox/api-client
 ```
 
-## Create an API key
+## Authenticate an external application or script
 
-Before using `@owox/api-client`, create an API key. See [API Keys](./api-keys/).
+Direct use of `@owox/api-client` outside a
+[plugin](../plugins/authoring-guide.md#use-the-plugin-sdk) requires an API key. See
+[API Keys](./api-keys/).
 
 ## Basic usage
 
@@ -34,6 +41,57 @@ const client = new OWOXApiClient({
 const dataMarts = await client.dataMarts.list();
 
 console.log(dataMarts);
+```
+
+## Use low-level API methods
+
+Prefer typed resources such as `dataMarts`, `project`, and `reports`. Use the low-level
+methods only as an escape hatch for an API-key-compatible endpoint that does not yet have
+a typed abstraction:
+
+| Method                             | Purpose                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| `getJson<T>(path, query?)`         | GET a JSON response.                                 |
+| `postJson<T>(path, body, accept?)` | POST a JSON body, optionally with an `Accept` value. |
+| `putJson<T>(path, body)`           | PUT a JSON body.                                     |
+| `patchJson<T>(path, body)`         | PATCH a JSON body.                                   |
+| `deleteJson<T = void>(path)`       | DELETE and read an optional JSON response.           |
+| `getStream(path, query?)`          | GET a streaming `Response`.                          |
+
+The generic is caller-owned TypeScript typing only: a low-level call does not validate
+the response at runtime. Validate the returned data yourself before using it. Typed
+resources remain preferred because they model and validate their responses.
+
+All paths must be root-relative `/api/...` paths, and each `path` argument is limited to
+2,048 characters. The client refuses unsafe or redirecting paths, including absolute URLs
+and paths that resolve away from the API origin. API-key clients exchange and attach
+authentication internally; do not add credentials to a path, query, or body.
+
+Custom transports built against the previous interface remain compatible and may add PATCH and
+DELETE support independently. Existing resources continue to work without those methods; calling
+an unsupported new method rejects with `OWOXConfigError`.
+
+```ts
+type Renamed = { id: string; title: string };
+
+const renamed = await client.patchJson<Renamed>('/api/example-resource/item-123', {
+  title: 'Updated title',
+});
+```
+
+Use an explicit response type only when the endpoint returns JSON that you will validate:
+
+```ts
+type Deleted = { deleted: true };
+
+const deleted = await client.deleteJson<Deleted>('/api/example-resource/item-123');
+```
+
+For an endpoint with an empty or `204 No Content` DELETE response, omit the generic; it
+defaults to `void`:
+
+```ts
+await client.deleteJson('/api/example-resource/item-123');
 ```
 
 ## Get auth context
@@ -123,6 +181,9 @@ creator ID or the corresponding user projection is unavailable. When an author i
 
 `definitionRun` is always present but can be `null` when a historical definition snapshot is
 unavailable.
+
+`qualitySummary` is either the compact Data Quality summary or `null`. It is optional for
+compatibility with older self-hosted deployments that did not return the field.
 
 `@owox/api-client` validates the response shape, enum values, nested references and author data,
 nullable fields, logs and errors, totals, and the backend's RFC3339 timestamp profile: uppercase
@@ -241,6 +302,77 @@ unknown enum value, malformed user, storage, or context, invalid timestamp, miss
 field, or invalid pagination value with `OWOXApiError`. Invalid list options are rejected before
 authentication or any network request.
 
+## Manage Data Mart runs
+
+Create a Data-Mart-scoped run client with `runs.forDataMart(dataMartId)`. Its `start(options)` method
+starts a manual connector run and requires Technical User access to the Data Mart. Omit the options,
+or set `runType` to `INCREMENTAL` without `data`, for an incremental run. To send connector-specific
+backfill fields in `data`, set `runType` to `MANUAL_BACKFILL`; connectors without backfill fields can
+omit `data`. The API client rejects `data` on implicit or explicit incremental runs before
+authentication or any network request. The backend HTTP endpoint separately tolerates retained
+object-valued `data` on incremental requests for compatibility with existing run forms. The method
+returns the new run ID. The serialized options must not exceed 1 MB.
+
+Data Mart and run IDs must not be blank, dot segments, or contain `/`, `\`, or `%`. The client
+rejects invalid scoped IDs before authentication or any network request.
+
+```ts
+const dataMartRuns = client.runs.forDataMart('data-mart-id');
+
+const { runId } = await dataMartRuns.start({
+  runType: 'MANUAL_BACKFILL',
+  data: {
+    StartDate: '2026-07-01',
+    EndDate: '2026-07-31',
+  },
+});
+```
+
+Business Users can inspect runs for a Data Mart they can see. The scoped `list()` method returns a
+newest-first page, while `get(runId)` returns one run and includes full Data Quality detail when the
+run is a Data Quality run.
+
+```ts
+const history = await dataMartRuns.list({
+  limit: 50,
+  offset: 0,
+});
+
+const [latest] = history.runs;
+if (latest) {
+  const run = await dataMartRuns.get(latest.id);
+  console.log(run.status, run.qualitySummary, run.dataQuality);
+}
+```
+
+The existing `client.runs.list()` method remains the project-wide run history and includes each
+run's Data Mart reference. The scoped `dataMartRuns.list()` method uses the Data-Mart-specific route
+and omits that redundant reference.
+
+The scoped list endpoint defaults to 100 runs when `limit` is omitted and does not silently cap a
+valid caller-provided limit or offset. The client accepts positive safe integer limits and
+non-negative safe integer offsets, and rejects invalid list options before authentication or any
+network request. The response has no total or next-page marker. Increment `offset` by the number of
+returned runs and stop when a page contains fewer runs than the requested limit. New runs can shift
+offset pages, so deduplicate by `run.id` while paging.
+
+Use the scoped `cancel(runId)` method to cancel an active connector, standard report, or Data Quality
+run. Technical User access is required. The method resolves with no value after the API returns
+`204 No Content`. A cancellable run that is already terminal returns a conflict error; a run type
+that does not support cancellation returns a bad-request error.
+
+```ts
+await dataMartRuns.cancel(runId);
+```
+
+The package exports `OWOXDataMartRun`, `OWOXDataMartRunDetail`,
+`OWOXDataMartRunListOptions`, `OWOXDataMartRunStartOptions`, `OWOXDataMartRunsResponse`,
+`OWOXDataMartRunsScope`, and the run and Data Quality enum and nested-object types. The client
+validates response field presence, nullability, enums, RFC 3339 timestamps, totals, author metadata,
+compact Data Quality summaries, and full Data Quality detail. An incompatible response throws
+`OWOXApiError`. Scoped list and detail methods normalize Data Quality fields omitted by older
+self-hosted deployments to `null`.
+
 ## Read the Models canvas
 
 Use `models.getDataMarts()` to read one page of the data marts visible to the current project
@@ -273,7 +405,10 @@ The method returns stream metadata and exposes `rowChunks()` as the traversal pr
 ```ts
 const data = await client.dataMarts.traverseData('dm_123', {
   column: ['Event Date (local)', 'Revenue: net = USD'],
-  filter: [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }],
+  filter: [
+    { column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' },
+    { column: 'Country', operator: 'in', value: ['Germany', 'Ukraine'] },
+  ],
   sort: [{ column: 'Event Date (local)', direction: 'asc' }],
   aggregation: [{ column: 'Revenue: net = USD', function: 'SUM' }],
   dateTrunc: [{ column: 'Event Date (local)', unit: 'MONTH' }],
@@ -303,6 +438,22 @@ Column selection uses two separate fields:
 Do not pass comma-separated column lists. Column names are opaque strings and may contain commas, equals signs, spaces, quotes, or other symbols.
 
 Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` only with a resolved blended column name; the rule's `column` identifies the joined source to filter before it is joined into the result.
+
+Each filter rule is `{ column, operator, value? }`. The shape of `value` depends on the operator:
+
+| Operators                                                                                                           | `value` shape                                                           | Example                                                                               |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `eq`, `neq`, `contains`, `not_contains`, `starts_with`, `ends_with`, `gt`, `lt`, `gte`, `lte`, `regex`, `not_regex` | Single string or number (boolean conditions use `is_true` / `is_false`) | `{ column: 'Country', operator: 'eq', value: 'Germany' }`                             |
+| `in`, `not_in`                                                                                                      | Array of values — match any of / none of the listed values              | `{ column: 'Country', operator: 'in', value: ['Germany', 'Ukraine'] }`                |
+| `between`                                                                                                           | `{ from, to }` bounds of the same type                                  | `{ column: 'Revenue', operator: 'between', value: { from: 100, to: 500 } }`           |
+| `relative_date`                                                                                                     | A preset object, see below                                              | `{ column: 'Date', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }` |
+| `is_empty`, `is_not_empty`, `is_null`, `is_not_null`, `is_true`, `is_false`                                         | No `value`                                                              | `{ column: 'Country', operator: 'is_null' }`                                          |
+
+`in` and `not_in` take an **array** of 1 to 500 values, never a comma-separated string — `value: 'Germany, Ukraine'` is rejected, exactly like comma-separated column lists, because stored values are opaque and may themselves contain commas. All values in one list must be the same type (all strings or all numbers); booleans are not allowed — use `is_true` / `is_false` instead. The whole encoded `filter` parameter is also capped at 8192 base64url characters (about 6 KB of JSON) on the wire, so with long values — UUIDs, URLs — that length cap can bind well before the 500-value cap does; the rejection is then a parameter-length error, not a value-count one. Which operators a given column accepts depends on its field type; the API rejects a mismatched operator with a 400 validation error (code `INVALID_OPERATOR_FOR_TYPE`) naming the column, its field type, and the rejected operator.
+
+`relative_date` presets: `{ kind }` with `today`, `yesterday`, `this_week`, `last_week`, `this_month`, `last_month`, `this_quarter`, `last_quarter`, or `this_year`, and `{ kind, n }` with `last_n_days`, `last_n_months`, or `next_n_days` (`n` is a positive integer, up to 3650). Weeks are ISO weeks (Monday start) on every storage, and `last_n_days` / `next_n_days` both include today.
+
+The negative operators `neq`, `not_contains`, `not_regex`, and `not_in` are NULL-inclusive: they keep rows where the column is `NULL`, treating a missing value as "not equal to". Add a separate `is_not_null` (or `is_not_empty`) rule on the same column to also drop missing values.
 
 To filter an aggregated value after grouping, set the filter rule's `function` to the same aggregate function used for that `column` in `aggregation`. For example, `{ column: 'revenue', function: 'SUM', operator: 'gt', value: 1000 }` applies a `HAVING SUM(revenue) > 1000` condition. The `(column, function)` pair must match an aggregation rule, and a filter with `function` cannot use `placement: 'pre-join'`.
 

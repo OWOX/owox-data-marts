@@ -226,12 +226,21 @@ export class ReportService {
   }
 
   /**
-   * Persists Report entity changes.
+   * Persists the final run outcome (status + error) as a targeted column update.
    *
-   * @param report - Report entity to save
+   * Deliberately NOT a full entity save: Report's `dataMart`/`dataDestination` relations are
+   * eager and cascade-enabled, so `repository.save(report)` diffs the run-start in-memory
+   * snapshots against the current DB rows and writes the stale snapshot back — reverting any
+   * column another writer changed during the run (e.g. `DataMart.dataLastUpdated`, which the
+   * run itself refreshes). A run's finish only ever changes the Report's own scalars.
+   *
+   * @param report - Report entity carrying the final lastRunStatus/lastRunError
    */
-  async saveReport(report: Report): Promise<void> {
-    await this.repository.save(report);
+  async updateLastRunOutcome(report: Report): Promise<void> {
+    await this.repository.update(report.id, {
+      lastRunStatus: report.lastRunStatus,
+      lastRunError: report.lastRunError ? report.lastRunError : () => 'NULL',
+    });
   }
 
   /**
@@ -297,6 +306,21 @@ export class ReportService {
    * @param dataMartId - DataMart identifier
    * @param projectId - Project identifier for ownership validation
    */
+  /**
+   * Counts reports built on a data mart. Used to tell the user how much depends on it before a
+   * change that could disconnect the fields those reports read.
+   */
+  async countByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<number> {
+    return this.repository.count({
+      where: {
+        dataMart: {
+          id: dataMartId,
+          projectId,
+        },
+      },
+    });
+  }
+
   async deleteAllByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<void> {
     const reports = await this.repository.find({
       where: {

@@ -7,6 +7,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
@@ -176,6 +178,7 @@ describe('StreamHttpDataService', () => {
   let streamWriter: HttpDataStreamWriter;
   let dataMartRunService: jest.Mocked<DataMartRunService>;
   let dataMartService: jest.Mocked<DataMartService>;
+  let sourceDataLastUpdated: { resolveForSql: jest.Mock; resolveForDefinition: jest.Mock };
   let access: jest.Mocked<AccessDecisionService>;
   let blendableSchema: jest.Mocked<BlendableSchemaService>;
   let blended: jest.Mocked<BlendedReportDataService>;
@@ -237,7 +240,23 @@ describe('StreamHttpDataService', () => {
     dataMartService = {
       getByIdAndProjectId: jest.fn(async () => dm),
       actualizeSchemaInEntityIfExpired: jest.fn(async (entity: typeof dm) => entity),
+      updateDataLastUpdated: jest.fn(async () => undefined),
     } as unknown as jest.Mocked<DataMartService>;
+
+    sourceDataLastUpdated = {
+      resolveForSql: jest.fn().mockResolvedValue({
+        dataLastUpdatedAt: null,
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'unavailable',
+        sources: [],
+      }),
+      resolveForDefinition: jest.fn().mockResolvedValue({
+        dataLastUpdatedAt: null,
+        computedAt: '2026-07-31T00:00:00.000Z',
+        coverage: 'unavailable',
+        sources: [],
+      }),
+    };
 
     gracefulShutdown = {
       isInShutdownMode: jest.fn(() => false),
@@ -344,7 +363,8 @@ describe('StreamHttpDataService', () => {
       readerResolver,
       errorMapperResolver,
       reportTotals,
-      reportService
+      reportService,
+      sourceDataLastUpdated as never
     );
   });
 
@@ -384,6 +404,57 @@ describe('StreamHttpDataService', () => {
       expect.objectContaining({
         status: DataMartRunStatus.SUCCESS,
         metadata: expect.objectContaining({ totals }),
+      })
+    );
+  });
+
+  it('journals data last updated into run metadata and persists it for a non-blended stream', async () => {
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete',
+      sources: [{ table: 'p.d.t', dataLastUpdatedAt: '2026-07-30T08:00:00.000Z' }],
+    };
+    sourceDataLastUpdated.resolveForDefinition.mockResolvedValueOnce(measured);
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ dataLastUpdated: measured }),
+      })
+    );
+    // Non-blended stream reads exactly this Data Mart's own sources → safe to save.
+    expect(dataMartService.updateDataLastUpdated).toHaveBeenCalledWith('dm-1', 'proj-1', measured);
+  });
+
+  it('journals but does NOT persist data last updated for a blended stream', async () => {
+    const measured = {
+      dataLastUpdatedAt: '2026-07-30T08:00:00.000Z',
+      computedAt: '2026-07-31T00:00:00.000Z',
+      coverage: 'complete',
+      sources: [],
+    };
+    sourceDataLastUpdated.resolveForSql.mockResolvedValueOnce(measured);
+    blended.resolveBlendingDecision.mockResolvedValueOnce({
+      needsBlending: true,
+      blendedSql: 'SELECT blended',
+      params: [],
+    } as never);
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    // Blended SQL spans several Data Marts — measured against it, journaled, never saved.
+    expect(sourceDataLastUpdated.resolveForSql).toHaveBeenCalledWith(
+      expect.objectContaining({ sql: 'SELECT blended' })
+    );
+    expect(sourceDataLastUpdated.resolveForDefinition).not.toHaveBeenCalled();
+    expect(dataMartService.updateDataLastUpdated).not.toHaveBeenCalled();
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ dataLastUpdated: measured }),
       })
     );
   });
@@ -1058,6 +1129,32 @@ describe('StreamHttpDataService', () => {
           }),
         })
       );
+    });
+
+    it('does not carry the report destination into the read plan (joined labels follow this surface)', async () => {
+      // Joined-field labels belong to the surface that renders them, not to the place the report
+      // also writes to. A Google Sheets report suffixes them (`revenue (Orders)`) to survive a
+      // narrow header cell; this endpoint emits NDJSON, where the prefix reads fine. Forwarding
+      // `dataDestination` would make two reports on the same Data Mart, with identical column
+      // configs, return different titles here purely because one writes to a spreadsheet.
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: null,
+        limitConfig: null,
+      } as never);
+
+      await service.streamReport(fakeReportCommand(), mockResponse());
+
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect(readPlan).not.toHaveProperty('dataDestination');
+      expect(usesSuffixedJoinedFieldNames(readPlan)).toBe(false);
     });
 
     it('rejects with NotFoundException for a report belonging to another project, and does no work', async () => {

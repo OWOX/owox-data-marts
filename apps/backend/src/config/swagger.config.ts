@@ -49,13 +49,22 @@ export function createSwaggerDocument(app: INestApplication): OpenAPIObject {
   for (const path of Object.values(document.paths)) {
     for (const method of HTTP_METHODS) {
       const operation = path[method];
-      if (operation && usesOwoxAuthorization(operation)) {
-        applyOwoxAuthenticationContract(operation);
+      if (operation) {
+        if (usesOwoxAuthorization(operation)) {
+          applyOwoxAuthenticationContract(operation);
+        }
+        applyRequestBodySizeContract(operation);
       }
     }
   }
 
   return document;
+}
+
+function applyRequestBodySizeContract(operation: OperationObject): void {
+  if (operation.requestBody && !operation.responses['413']) {
+    operation.responses['413'] = { description: 'Request body too large' };
+  }
 }
 
 function usesOwoxAuthorization(operation: OperationObject): boolean {

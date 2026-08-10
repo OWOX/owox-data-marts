@@ -5,6 +5,8 @@ import { extractApiError, type ApiError } from '../../../../app/api';
 import { dataMartService } from '../services/data-mart.service';
 import { invalidateDataStorageHealthStatus } from '../../../data-storage/shared/services/data-storage-health-status.service';
 import { isStorageOAuthRefreshError } from '../utils/storage-oauth-refresh-error.utils';
+import { describeSchemaFieldSummary, summarizeSchemaFields } from '../utils/schema-field-summary';
+import type { DataMartSchema } from '../types/data-mart-schema.types';
 
 interface UseSchemaActualizeTriggerReturn {
   run: () => Promise<void>;
@@ -50,9 +52,19 @@ function invalidateStorageHealthForError(error: SchemaActualizeError, storageId?
   invalidateDataStorageHealthStatus(storageId);
 }
 
+/**
+ * `onSuccess` refreshes the Data Mart and may return it. When it does, the success toast reports
+ * what the refreshed schema actually looks like instead of only confirming that the run finished.
+ */
+type SchemaActualizeSuccessResult = { schema?: DataMartSchema | null } | undefined;
+
+type SchemaActualizeSuccessHandler = () =>
+  | SchemaActualizeSuccessResult
+  | Promise<SchemaActualizeSuccessResult>;
+
 export function useSchemaActualizeTrigger(
   dataMartId: string,
-  onSuccess?: () => void,
+  onSuccess?: SchemaActualizeSuccessHandler,
   storageId?: string
 ): UseSchemaActualizeTriggerReturn {
   const [isLoading, setIsLoading] = useState(false);
@@ -129,8 +141,11 @@ export function useSchemaActualizeTrigger(
 
               toast.dismiss(triggerId);
               if (response.success) {
-                onSuccessRef.current?.();
-                toast.success('Output schema actualized', { duration: undefined, id: triggerId });
+                const refreshed = await onSuccessRef.current?.();
+                const message = refreshed
+                  ? describeSchemaFieldSummary(summarizeSchemaFields(refreshed.schema))
+                  : 'Output schema actualized';
+                toast.success(message, { duration: undefined, id: triggerId });
               } else {
                 const error = {
                   message: response.error ?? 'Schema actualization failed',

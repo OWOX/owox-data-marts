@@ -109,8 +109,8 @@ export class BetterAuthProvider
 
   registerRoutes(app: Express): void {
     // Setup middleware
-    app.use(express.json()); // Add JSON parsing middleware
-    app.use(express.urlencoded({ extended: true }));
+    app.use('/auth', express.json()); // Add JSON parsing middleware
+    app.use('/auth', express.urlencoded({ extended: true }));
 
     // Setup Better Auth handler
     this.requestHandlerService.setupBetterAuthHandler(app);
@@ -277,6 +277,35 @@ export class BetterAuthProvider
       projectTitle: this.getProjectTitle(projectId),
       authFlow: 'api_key',
       apiKeyId,
+    });
+  }
+
+  async issueAccessTokenForPluginRuntime(
+    pluginId: string,
+    installationId: string,
+    userId: string,
+    projectId: string
+  ): Promise<AuthResult> {
+    const user = await this.store.getUserById(userId);
+    if (!user) {
+      throw new AuthenticationError('Plugin runtime user not found');
+    }
+
+    const currentRole = this.toRoleOrNull(await this.userManagementService.getUserRole(userId));
+    if (!currentRole) {
+      throw new AuthorizationError('Plugin runtime user is not an active project member');
+    }
+
+    return this.tokenService.issuePluginRuntimeAccessToken({
+      userId,
+      projectId,
+      email: user.email,
+      fullName: user.name || user.email,
+      roles: [currentRole],
+      projectTitle: this.getProjectTitle(projectId),
+      authFlow: 'plugin',
+      pluginId,
+      installationId,
     });
   }
 
@@ -463,7 +492,7 @@ export class BetterAuthProvider
     }
 
     const currentRole = this.toRoleOrNull(await this.userManagementService.getUserRole(user.id));
-    if (payload.authFlow === 'api_key' && !currentRole) {
+    if ((payload.authFlow === 'api_key' || payload.authFlow === 'plugin') && !currentRole) {
       return null;
     }
 

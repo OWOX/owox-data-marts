@@ -1,10 +1,16 @@
 import { jest } from '@jest/globals';
 
 import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from './index.js';
+import { requestApi, resolveAuthenticatedApiUrl } from './transport.js';
+import {
+  acceptedAuthenticatedApiPaths,
+  rejectedAuthenticatedApiPaths,
+} from '../../../test/contracts/authenticated-api-path-contract.mjs';
 
 type RecordedRequest = {
   method: string;
   url: string;
+  redirect: RequestRedirect;
   headers: Record<string, string>;
   body: unknown;
 };
@@ -14,7 +20,7 @@ type FetchMock = {
   requests: RecordedRequest[];
 };
 
-const apiOrigin = 'https://example.test';
+const apiOrigin = 'https://app.owox.test';
 
 function createApiKey(payload: {
   apiOrigin: string;
@@ -57,6 +63,7 @@ function createFetchMock(
     const recordedRequest: RecordedRequest = {
       method: request.method,
       url: `${parsedUrl.pathname}${parsedUrl.search}`,
+      redirect: request.redirect,
       headers,
       body: await readRequestBody(request),
     };
@@ -189,6 +196,137 @@ describe('OWOXApiClient', () => {
     });
 
     await client.dataMarts.list();
+  });
+
+  it('sends a JSON PATCH request with authenticated redirect handling', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'PATCH' && request.url === '/api/data-marts/dm-1') {
+        expect(request.headers['content-type']).toBe('application/json');
+        expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
+        expect(request.redirect).toBe('error');
+        expect(request.body).toEqual({ title: 'Renamed data mart' });
+        return createJsonResponse(200, { id: 'dm-1', title: 'Renamed data mart' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await expect(
+      client.patchJson('/api/data-marts/dm-1', { title: 'Renamed data mart' })
+    ).resolves.toEqual({ id: 'dm-1', title: 'Renamed data mart' });
+  });
+
+  it('rejects an undefined PATCH body before exchanging an access token', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.patchJson('/api/data-marts/dm-1', undefined)).rejects.toBeInstanceOf(
+      OWOXConfigError
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([Symbol('body'), () => undefined])(
+    'rejects a PATCH body that serializes to undefined before exchanging an access token',
+    async jsonBody => {
+      const fetchImpl = jest.fn<typeof fetch>();
+      const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+      await expect(client.patchJson('/api/data-marts/dm-1', jsonBody)).rejects.toBeInstanceOf(
+        OWOXConfigError
+      );
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  );
+
+  it('returns a JSON response from a DELETE request without a request body', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'DELETE' && request.url === '/api/data-marts/dm-1') {
+        expect(request.body).toBeUndefined();
+        expect(request.headers['content-type']).toBeUndefined();
+        return createJsonResponse(200, { id: 'dm-1', deleted: true });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await expect(client.deleteJson('/api/data-marts/dm-1')).resolves.toEqual({
+      id: 'dm-1',
+      deleted: true,
+    });
+  });
+
+  it('returns undefined from an empty successful DELETE response', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'DELETE' && request.url === '/api/data-marts/dm-1') {
+        return new Response(null, { status: 204 });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+
+    await expect(client.deleteJson('/api/data-marts/dm-1')).resolves.toBeUndefined();
+  });
+
+  it.each(rejectedAuthenticatedApiPaths)(
+    'rejects %s before exchanging an access token',
+    async (_label, path) => {
+      const fetchImpl = jest.fn<typeof fetch>();
+      const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+      await expect(client.getJson(path)).rejects.toBeInstanceOf(OWOXConfigError);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(acceptedAuthenticatedApiPaths)('accepts %s', (_label, path) => {
+    expect(resolveAuthenticatedApiUrl(apiOrigin, path, undefined).origin).toBe(apiOrigin);
+  });
+
+  it('rejects an encoded separator before fetching', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+
+    await expect(
+      requestApi({
+        apiOrigin,
+        fetchImpl,
+        path: '/api/data%2fmarts',
+        method: 'GET',
+        apiKeyId,
+      })
+    ).rejects.toBeInstanceOf(OWOXConfigError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects raw traversal even though URL construction would normalize it', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+    const path = '/api/data-marts/../auth/context';
+
+    await expect(
+      requestApi({
+        apiOrigin,
+        fetchImpl,
+        path,
+        method: 'GET',
+        apiKeyId,
+      })
+    ).rejects.toBeInstanceOf(OWOXConfigError);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('gets the API key auth context without exposing the API key secret', async () => {
@@ -526,7 +664,10 @@ describe('OWOXApiClient', () => {
     });
   });
 
-  it('configures default stream requests without standard Undici streaming timeouts', async () => {
+  // The no-timeout dispatcher now comes from the consumer instead of being baked in:
+  // naming undici here would put a Node-only import into a package that has to build
+  // for a plugin iframe. owox-ctl supplies one; see BaseCommand.createClient.
+  it('passes a caller-supplied stream dispatcher through to the stream request', async () => {
     let streamRequestInit: RequestInit | undefined;
     const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const request = new Request(input, init);
@@ -551,15 +692,14 @@ describe('OWOXApiClient', () => {
     });
 
     try {
-      const client = new OWOXApiClient({
-        apiKey,
-      });
+      const streamDispatcher = { marker: 'caller-supplied' };
+      const client = new OWOXApiClient({ apiKey, streamDispatcher });
 
       await client.dataMarts.traverseData('dm-1');
 
-      expect(
-        (streamRequestInit as RequestInit & { dispatcher?: unknown }).dispatcher
-      ).toBeDefined();
+      expect((streamRequestInit as RequestInit & { dispatcher?: unknown }).dispatcher).toBe(
+        streamDispatcher
+      );
     } finally {
       fetchSpy.mockRestore();
     }

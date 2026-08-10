@@ -1,6 +1,6 @@
 import { Button } from '@owox/ui/components/button';
 import { ExternalLinkIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 interface OpenIssueLinkProps {
   label: string;

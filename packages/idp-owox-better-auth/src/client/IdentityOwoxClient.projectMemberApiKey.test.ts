@@ -115,3 +115,44 @@ describe('IdentityOwoxClient project member API key auth flow', () => {
     );
   });
 });
+
+describe('IdentityOwoxClient plugin runtime auth flow', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getIdTokenMock.mockResolvedValue('id-token');
+    httpMock.post.mockResolvedValue({
+      data: {
+        accessToken: 'plugin-runtime-access-token',
+        accessTokenExpiresIn: 900,
+      },
+    });
+  });
+
+  it('issues an access-only token through the normalized C2C backchannel', async () => {
+    const result = await createClient().issueAccessTokenForPluginRuntime({
+      projectId: 'project-1',
+      userId: 'user-1',
+      pluginId: 'plugin-1',
+      installationId: 'installation-1',
+    });
+
+    expect(getIdTokenMock).toHaveBeenCalledWith(
+      'service@example.iam.gserviceaccount.com',
+      'https://idp.example.com/internal'
+    );
+    expect(httpMock.post).toHaveBeenCalledWith(
+      '/internal/idp/auth-flow/plugin-runtime',
+      {
+        projectId: 'project-1',
+        userId: 'user-1',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      },
+      { headers: { Authorization: 'Bearer id-token' } }
+    );
+    expect(result).toEqual({
+      accessToken: 'plugin-runtime-access-token',
+      accessTokenExpiresIn: 900,
+    });
+  });
+});

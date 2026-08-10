@@ -7,12 +7,13 @@ import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/bat
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
-import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunDetailResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { ListDataMartsQueryApiDto } from '../dto/presentation/list-data-marts-query-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
+import { RunDataMartResponseApiDto } from '../dto/presentation/run-data-mart-response-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
@@ -26,6 +27,8 @@ import { CreateDataMartService } from '../use-cases/create-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
 import { GetDataMartRunService } from '../use-cases/get-data-mart-run.service';
 import { GetDataMartService } from '../use-cases/get-data-mart.service';
+import { GetDataMartInputSourceChangeImpactService } from '../use-cases/get-data-mart-input-source-change-impact.service';
+import { DataMartInputSourceChangeImpactResponseApiDto } from '../dto/presentation/data-mart-input-source-change-impact-response-api.dto';
 import { ListDataMartRunsService } from '../use-cases/list-data-mart-runs.service';
 import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
@@ -42,12 +45,16 @@ import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-ava
 import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { RefreshDataMartDataLastUpdatedService } from '../use-cases/refresh-data-mart-data-last-updated.service';
+import { BatchDataMartDataLastUpdatedResponseApiDto } from '../dto/presentation/data-mart-data-last-updated-response-api.dto';
+import { RefreshDataMartDataLastUpdatedRequestApiDto } from '../dto/presentation/refresh-data-mart-data-last-updated-request-api.dto';
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { AiInsightsConfigService } from '../../common/ai-insights/services/ai-insights-config.service';
 import { ContextAccessService } from '../services/context/context-access.service';
 import { UpdateEntityContextsRequestApiDto } from '../dto/presentation/context-api.dto';
 import {
   BatchDataMartHealthStatusSpec,
+  RefreshDataMartDataLastUpdatedSpec,
   CancelDataMartRunSpec,
   CreateDataMartSpec,
   DeleteDataMartSpec,
@@ -56,6 +63,7 @@ import {
   GetDataMartRunByIdSpec,
   GetDataMartRunsSpec,
   GetDataMartSpec,
+  GetDataMartInputSourceChangeImpactSpec,
   ListDataMartsByConnectorNameSpec,
   ListDataMartsSpec,
   PublishDataMartSpec,
@@ -79,6 +87,7 @@ export class DataMartController {
     private readonly createDataMartService: CreateDataMartService,
     private readonly listDataMartsService: ListDataMartsService,
     private readonly getDataMartService: GetDataMartService,
+    private readonly getInputSourceChangeImpactService: GetDataMartInputSourceChangeImpactService,
     private readonly updateDefinitionService: UpdateDataMartDefinitionService,
     private readonly updateTitleService: UpdateDataMartTitleService,
     private readonly updateDescriptionService: UpdateDataMartDescriptionService,
@@ -99,7 +108,8 @@ export class DataMartController {
     private readonly getBlendableSchemaService: GetBlendableSchemaService,
     private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService,
     private readonly contextAccessService: ContextAccessService,
-    private readonly aiInsightsConfig: AiInsightsConfigService
+    private readonly aiInsightsConfig: AiInsightsConfigService,
+    private readonly refreshDataLastUpdatedService: RefreshDataMartDataLastUpdatedService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -150,6 +160,19 @@ export class DataMartController {
   @DataMartAiHelperAvailabilitySpec()
   getAiHelperAvailability(): DataMartAiHelperAvailabilityResponseApiDto {
     return { enabled: this.aiInsightsConfig.isInsightsEnabled() };
+  }
+
+  // Declared before ':id' would otherwise be reached, since a literal suffix on the same
+  // parameterised path still needs its own route.
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Get(':id/input-source-change-impact')
+  @GetDataMartInputSourceChangeImpactSpec()
+  async getInputSourceChangeImpact(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataMartInputSourceChangeImpactResponseApiDto> {
+    const command = this.mapper.toGetInputSourceChangeImpactCommand(id, context);
+    return this.getInputSourceChangeImpactService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -263,7 +286,7 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
     @Body() dto: RunDataMartRequestApiDto
-  ): Promise<{ runId: string }> {
+  ): Promise<RunDataMartResponseApiDto> {
     const command = this.mapper.toRunCommand(id, context, dto.payload);
     const runId = await this.runDataMartService.run(command);
     return { runId };
@@ -341,10 +364,23 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
     @Param('runId') runId: string
-  ): Promise<DataMartRunResponseApiDto> {
+  ): Promise<DataMartRunDetailResponseApiDto> {
     const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
     const runDto = await this.getDataMartRunService.run(command);
-    return this.mapper.toRunResponse(runDto);
+    return this.mapper.toRunDetailResponse(runDto);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Post('data-last-updated/refresh')
+  @HttpCode(200)
+  @RefreshDataMartDataLastUpdatedSpec()
+  async refreshDataLastUpdated(
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto: RefreshDataMartDataLastUpdatedRequestApiDto
+  ): Promise<BatchDataMartDataLastUpdatedResponseApiDto> {
+    const command = this.mapper.toRefreshDataLastUpdatedCommand(dto, context);
+    const results = await this.refreshDataLastUpdatedService.run(command);
+    return this.mapper.toBatchDataLastUpdatedResponse(results);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

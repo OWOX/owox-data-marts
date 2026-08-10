@@ -1,5 +1,5 @@
 import { UserPlus, HelpCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { cn } from '@owox/ui/lib/utils';
 import { useProjectRoute } from '../../hooks';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@owox/ui/components/tooltip';

@@ -1,4 +1,4 @@
-import { Buffer } from 'node:buffer';
+import { encodeBase64Url } from './base64url.js';
 
 import { OWOXApiError } from './errors.js';
 import {
@@ -14,7 +14,7 @@ import { isRecord, isRfc3339DateTimeString, isUserProjection } from './validatio
 const DATA_MART_STATUS_VALUES = ['DRAFT', 'PUBLISHED'] as const;
 export type OWOXDataMartStatus = (typeof DATA_MART_STATUS_VALUES)[number];
 
-const DATA_MART_DEFINITION_TYPE_VALUES = [
+export const DATA_MART_DEFINITION_TYPE_VALUES = [
   'SQL',
   'TABLE',
   'VIEW',
@@ -97,11 +97,16 @@ export type TraverseDataAggregateFunction =
 export type TraverseDataRelativeDatePreset =
   | { kind: 'today' }
   | { kind: 'yesterday' }
+  | { kind: 'this_week' }
+  | { kind: 'last_week' }
   | { kind: 'this_month' }
   | { kind: 'last_month' }
+  | { kind: 'this_quarter' }
+  | { kind: 'last_quarter' }
   | { kind: 'this_year' }
   | { kind: 'last_n_days'; n: number }
-  | { kind: 'last_n_months'; n: number };
+  | { kind: 'last_n_months'; n: number }
+  | { kind: 'next_n_days'; n: number };
 
 type TraverseDataScalarValue = string | number | boolean;
 type TraverseDataFilterPlacement = {
@@ -133,8 +138,17 @@ export type TraverseDataFilterRule = (
     }
   | {
       column: string;
+      operator: 'in' | 'not_in';
+      // The API accepts 1..500 values (backend IN_LIST_MAX_VALUES); booleans
+      // are rejected — use is_true/is_false instead.
+      value: string[] | number[];
+    }
+  | {
+      column: string;
       operator: 'between';
-      value: { from: TraverseDataScalarValue; to: TraverseDataScalarValue };
+      // Bounds must share one type; booleans are rejected — use
+      // is_true/is_false instead.
+      value: { from: string; to: string } | { from: number; to: number };
     }
   | {
       column: string;
@@ -260,7 +274,7 @@ function parsePage(response: unknown): DataMartsPage {
 }
 
 function encodeBase64UrlJson(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+  return encodeBase64Url(JSON.stringify(value));
 }
 
 function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams | undefined {

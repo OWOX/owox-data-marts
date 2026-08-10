@@ -25,3 +25,12 @@ export const REPORT_AGGREGATE_FUNCTION_LABELS: Record<ReportAggregateFunction, s
 export function aggregateFunctionLabel(fn: ReportAggregateFunction): string {
   return REPORT_AGGREGATE_FUNCTION_LABELS[fn];
 }
+
+/**
+ * Synthetic output-column labels. Mirror of the backend `ROW_COUNT_LABEL` /
+ * `UNIQUE_COUNT_LABEL` (same backend module as the map above). The backend emits these
+ * as the literal SQL `AS` alias and as the `ReportDataHeader.name`, so a drift here means
+ * the web references a column the query never produces. Pinned by the drift-guard test.
+ */
+export const ROW_COUNT_LABEL = 'Row Count';
+export const UNIQUE_COUNT_LABEL = 'Unique Count';

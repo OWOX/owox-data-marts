@@ -18,7 +18,7 @@ import {
   type DataStorageFilterKey,
 } from './DataStorageTableFilters.config';
 import { DataStorageTableFilters } from './DataStorageTableFilters';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { InviteTeammatesCard } from '../../../../../shared/components/InviteTeammatesCard';
 
 interface DataStorageTableProps<TData, TValue> {

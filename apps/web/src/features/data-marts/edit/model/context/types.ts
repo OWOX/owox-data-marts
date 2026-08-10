@@ -23,6 +23,7 @@ export interface DataMartState {
   error: ApiError | null;
   runs: DataMartRunItem[];
   isManualRunTriggered: boolean;
+  manualRunId: string | null;
   hasMoreRunsToLoad: boolean;
   hasActiveRuns: boolean;
 }
@@ -57,7 +58,7 @@ export type DataMartAction =
   | { type: 'PUBLISH_DATA_MART_SUCCESS'; payload: DataMart }
   | { type: 'PUBLISH_DATA_MART_ERROR'; payload: ApiError }
   | { type: 'RUN_DATA_MART_START' }
-  | { type: 'RUN_DATA_MART_SUCCESS' }
+  | { type: 'RUN_DATA_MART_SUCCESS'; payload: string }
   | { type: 'RUN_DATA_MART_ERROR'; payload: ApiError }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_START' }
   | { type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS'; payload: DataMart }
@@ -78,7 +79,8 @@ export type DataMartAction =
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
-  getDataMart: (id: string) => Promise<void>;
+  /** Resolves with the freshly loaded Data Mart, or undefined when the load failed. */
+  getDataMart: (id: string) => Promise<DataMart | undefined>;
   syncDataMartFromResponse: (response: DataMartResponseDto) => Promise<void>;
   refreshDataMart: (id: string) => Promise<void>;
   createDataMart: (data: CreateDataMartRequestDto) => Promise<Pick<DataMart, 'id' | 'title'>>;
@@ -93,7 +95,7 @@ export interface DataMartContextType extends DataMartState {
     definition: DataMartDefinitionConfig
   ) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
-  runDataMart: (data: RunDataMartRequestDto) => Promise<void>;
+  runDataMart: (data: RunDataMartRequestDto) => Promise<string | null>;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
   updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;
@@ -103,7 +105,6 @@ export interface DataMartContextType extends DataMartState {
     offset?: number,
     options?: { silent?: boolean }
   ) => Promise<DataMartRunItem[]>;
-  getDataMartRunById: (dataMartId: string, runId: string) => Promise<DataMartRunItem>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
   updateDataMartOwners: (
     id: string,

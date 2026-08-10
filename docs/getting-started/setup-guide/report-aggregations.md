@@ -44,7 +44,7 @@ The supported menu and on-by-default subset per type:
 | --------------- | ----------------------- | ----------------------------------------------- |
 | Numeric         | `SUM`, `AVG`, `MIN`, `MAX` | percentiles (`P25`/`P50`/`P75`/`P95`), `ANY_VALUE` |
 | Date / time     | `MIN`, `MAX`            | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` |
-| Text            | `COUNT`, `COUNT_DISTINCT` | `MIN`, `MAX`, `STRING_AGG`, `ANY_VALUE`        |
+| Text            | `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, `ANY_VALUE` | `MIN`, `MAX`               |
 | Boolean         | `COUNT`, `COUNT_DISTINCT` | `ANY_VALUE`                                    |
 | Other (JSON, geography, array, struct, …) | `COUNT` | `ANY_VALUE`                                    |
 

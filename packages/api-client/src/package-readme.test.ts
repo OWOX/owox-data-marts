@@ -15,6 +15,9 @@ describe('package README', () => {
     expect(readme).toContain('https://docs.owox.com/docs/api/api-client/');
     expect(readme).toContain('https://docs.owox.com/docs/api/api-keys/');
     expect(readme).toContain('https://docs.owox.com/docs/api/openapi/');
+    expect(readme).toContain('patchJson');
+    expect(readme).toContain('deleteJson');
+    expect(readme).toContain('does not validate the response at runtime');
     expect(readme).toContain('new OWOXApiClient');
     expect(readme).toContain('apiKey: process.env.OWOX_API_KEY!');
     expect(readme).not.toContain('github.com/OWOX/owox-data-marts/blob/main/docs');

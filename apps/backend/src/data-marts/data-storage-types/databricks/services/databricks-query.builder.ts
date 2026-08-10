@@ -18,7 +18,6 @@ import {
   escapeDatabricksIdentifier,
   escapeFullyQualifiedIdentifier,
 } from '../utils/databricks-identifier.utils';
-import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { DatabricksClauseRenderer } from './databricks-clause-renderer';
 import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 
@@ -62,44 +61,47 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
-    // Databricks inlines every literal — no path carries bound params. Fail fast if a
-    // fragment ever emitted one (the reader rejects parameterized sqlOverride).
-    const paramCount = where.params.length + orderBy.params.length + limit.params.length;
-    if (paramCount > 0) {
-      throw new Error(
-        `DatabricksQueryBuilder expected zero bound params (literals are inlined) but got ${paramCount}`
-      );
-    }
+    this.assertNoParams(where.params.length + orderBy.params.length + limit.params.length);
 
     if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
-      const agg = this.clauseRenderer.renderAggregatedSelect(
-        queryOptions?.columns ?? [],
+      const built = this.clauseRenderer.renderAggregatedQuery({
+        fromClause,
+        columns: queryOptions?.columns ?? [],
         aggregations,
-        buildDateTruncUnitMap(dateTruncs),
-        {
-          includeRowCount: rowCount,
-          includeUniqueCount: uniqueCount,
-          primaryKeyColumns: queryOptions?.primaryKeyColumns,
-          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
-          typeByColumn: columnTypes,
-        }
-      );
-      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
-      const aggOrderBy = this.clauseRenderer.renderOrderBy(
-        queryOptions?.sort ?? [],
-        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
-      );
-      // Databricks inlines literals, so HAVING carries no bound params (same as WHERE above).
-      const having = this.clauseRenderer.renderHaving(
-        queryOptions?.filters ?? [],
-        undefined,
-        'h',
-        resolveColumnType
-      );
-      return `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`;
+        dateTruncs,
+        filters: queryOptions?.filters ?? [],
+        sort: queryOptions?.sort ?? [],
+        limit: queryOptions?.limit ?? null,
+        rowCount,
+        uniqueCount,
+        primaryKeyColumns: queryOptions?.primaryKeyColumns,
+        groupRestriction: queryOptions?.groupRestriction,
+        // Bare column names: the FROM is not aliased. The restriction subquery projects private
+        // key aliases, so nothing it exposes can make an outer reference ambiguous.
+        qualifyColumn: undefined,
+        qualifyProjection: undefined,
+        typeByColumn: columnTypes,
+        resolveColumnType: resolveColumnType,
+      });
+      this.assertNoParams(built.params.length);
+      return built.sql;
     }
 
     return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+  }
+
+  /**
+   * Databricks inlines every literal, so no fragment may carry a bound param — nothing would bind
+   * it (the reader rejects parameterized sqlOverride). Checked per fragment group rather than once
+   * over a fixed list, so a fragment added later (as the kept-groups restriction was) cannot slip
+   * past a check written before it existed.
+   */
+  private assertNoParams(count: number): void {
+    if (count > 0) {
+      throw new Error(
+        `DatabricksQueryBuilder expected zero bound params (literals are inlined) but got ${count}`
+      );
+    }
   }
 
   private buildPlainQuery(

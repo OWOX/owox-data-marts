@@ -1,4 +1,5 @@
 export * from './data-mart.response.dto';
+export * from './data-mart-data-last-updated.dto';
 export * from './data-mart-list-item-storage.dto';
 export * from './data-mart-list-item.response.dto';
 export * from './data-mart-list.response.dto';
@@ -10,3 +11,4 @@ export * from './batch-data-mart-health-status.response.dto';
 export * from './generate-data-mart-metadata.response.dto';
 export * from './ai-helper-trigger.response.dto';
 export * from './data-mart-ai-helper-availability.response.dto';
+export * from './data-mart-input-source-change-impact.response.dto';

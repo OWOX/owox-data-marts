@@ -3,10 +3,11 @@ import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AvailableDestinationTypesService } from './available-destination-types.service';
 import {
   EmailReportWriter,
-  GoogleChatReportWriter,
   MsTeamsReportWriter,
   SlackReportWriter,
 } from './ee/email/services/email-report-writer';
+import { GoogleChatReportWriter } from './ee/google-chat/services/google-chat-report-writer';
+import { GoogleChatWebhookClient } from './ee/google-chat/services/google-chat-webhook.client';
 import { DataDestinationType } from './enums/data-destination-type.enum';
 import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
 import { GoogleSheetsReportCreatedListener } from './google-sheets/listeners/google-sheets-report-created.listener';
@@ -38,16 +39,16 @@ import { LookerStudioAggregationMapperService } from './looker-studio-connector/
 import { LookerStudioTypeMapperService } from './looker-studio-connector/services/looker-studio-type-mapper.service';
 import {
   EmailAccessValidator,
-  GoogleChatAccessValidator,
   MsTeamsAccessValidator,
   SlackAccessValidator,
 } from './ee/email/services/email-access-validator';
+import { GoogleChatAccessValidator } from './ee/google-chat/services/google-chat-access-validator';
 import {
   EmailCredentialsValidator,
-  GoogleChatCredentialsValidator,
   MsTeamsCredentialsValidator,
   SlackCredentialsValidator,
 } from './ee/email/services/email-credentials-validator';
+import { GoogleChatCredentialsValidator } from './ee/google-chat/services/google-chat-credentials-validator';
 
 export const DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER'
@@ -113,6 +114,7 @@ export const dataDestinationResolverProviders = [
   ...reportWriterProviders,
   ...googleSheetsUtilityProviders,
   ...publicCredentialsProviders,
+  GoogleChatWebhookClient,
   GoogleSheetsApiAdapterFactory,
   LookerStudioConnectorApiConfigService,
   LookerStudioConnectorApiSchemaService,

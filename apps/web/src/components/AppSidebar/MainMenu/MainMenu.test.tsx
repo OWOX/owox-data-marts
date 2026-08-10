@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { SidebarProvider } from '@owox/ui/components/sidebar';
 import { describe, expect, it, vi } from 'vitest';
 import { MainMenu } from './MainMenu';

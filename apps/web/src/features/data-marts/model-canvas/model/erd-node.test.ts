@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CARD_META_ROW_HEIGHT,
+  CARD_STATUS_ROW_HEIGHT,
   COMPACT_NODE_HEIGHT,
   ERD_COLLAPSED_ROWS,
   ERD_EXPAND_ROW_HEIGHT,
@@ -42,6 +44,11 @@ describe('collapsedRowCount', () => {
 });
 
 describe('computeNodeHeight', () => {
+  it('reserves space for the third Data Quality header row', () => {
+    expect(COMPACT_NODE_HEIGHT).toBe(116);
+    expect(ERD_HEADER_HEIGHT).toBe(88);
+  });
+
   it('returns the compact height outside ERD mode', () => {
     expect(computeNodeHeight({ fields: [field('a')] }, 'compact')).toBe(COMPACT_NODE_HEIGHT);
   });
@@ -49,6 +56,26 @@ describe('computeNodeHeight', () => {
   it('returns the compact height for ERD nodes without enriched fields', () => {
     expect(computeNodeHeight({ fields: undefined }, 'erd')).toBe(COMPACT_NODE_HEIGHT);
     expect(computeNodeHeight({ fields: [] }, 'erd')).toBe(COMPACT_NODE_HEIGHT);
+  });
+
+  it('shrinks by the meta row height when object labels hide the whole meta row', () => {
+    expect(computeNodeHeight({ fields: [] }, 'compact', true)).toBe(
+      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT
+    );
+    const fields = [field('a')];
+    expect(computeNodeHeight({ fields }, 'erd', true)).toBe(
+      ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT + ERD_ROW_HEIGHT
+    );
+  });
+
+  it('also shrinks by the status icons row in title-only mode', () => {
+    expect(computeNodeHeight({ fields: [] }, 'compact', true, true)).toBe(
+      COMPACT_NODE_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT
+    );
+    const fields = [field('a')];
+    expect(computeNodeHeight({ fields }, 'erd', true, true)).toBe(
+      ERD_HEADER_HEIGHT - CARD_META_ROW_HEIGHT - CARD_STATUS_ROW_HEIGHT + ERD_ROW_HEIGHT
+    );
   });
 
   it('sums header and visible rows, adding the expand row only when collapsed rows remain', () => {

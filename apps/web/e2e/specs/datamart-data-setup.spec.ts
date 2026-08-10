@@ -290,3 +290,48 @@ test.describe('Data Setup - Connector Definition', () => {
     expect(dmData.definition?.connector?.source?.name).toBe('BankOfCanada');
   });
 });
+
+// ---------------------------------------------------------------------------
+// DSET-08: Input source type changes that must be refused. The successful
+// transition (and the survival of relationships and reports across it) lives in
+// the backend e2e suite, where the storage validator can be stubbed — a real
+// transition validates the new target against the warehouse, which this harness
+// has no access to.
+// ---------------------------------------------------------------------------
+test.describe('Data Setup - Change input source type', () => {
+  test('refuses a new source the storage cannot resolve and rolls back (DSET-08)', async ({
+    apiHelpers,
+  }) => {
+    const storage = await apiHelpers.createStorage();
+    const dm = await apiHelpers.createDataMart(storage.id, `Unresolvable DM ${Date.now()}`);
+    await apiHelpers.setDefinition(dm.id);
+
+    // Switching types validates the new target against the storage first. This storage has no
+    // usable configuration, so the change must be refused rather than half-applied.
+    const changed = await apiHelpers.updateDefinition(dm.id, 'TABLE', {
+      fullyQualifiedName: 'test_dataset.missing_table',
+    });
+    expect(changed.ok).toBeFalsy();
+
+    const after = await apiHelpers.getDataMart(dm.id);
+    expect(after.definitionType).toBe('SQL');
+    expect(after.definition?.sqlQuery).toBe('SELECT 1 AS test_column');
+  });
+
+  test('rejects switching a connector Data Mart to another input source type (DSET-08)', async ({
+    apiHelpers,
+  }) => {
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart(
+      `Connector DM ${Date.now()}`
+    );
+
+    const changed = await apiHelpers.updateDefinition(datamart.id, 'TABLE', {
+      fullyQualifiedName: 'test_dataset.some_table',
+    });
+
+    expect(changed.ok).toBeFalsy();
+
+    const dm = await apiHelpers.getDataMart(datamart.id);
+    expect(dm.definitionType).toBe('CONNECTOR');
+  });
+});

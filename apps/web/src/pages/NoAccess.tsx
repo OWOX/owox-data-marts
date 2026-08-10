@@ -1,5 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ShieldAlert, ChevronRight } from 'lucide-react';
 
 function NoAccess() {

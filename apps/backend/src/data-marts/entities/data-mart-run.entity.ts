@@ -16,6 +16,15 @@ import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-m
 import { DataMartRunInsightDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../dto/schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
+import { createZodTransformer } from '../../common/zod/zod-transformer';
+import {
+  DataQualityRunSnapshot,
+  DataQualityRunSnapshotSchema,
+  DataQualityStoredCheckResult,
+  DataQualityStoredCheckResultsSchema,
+  DataQualitySummary,
+  DataQualitySummarySchema,
+} from '../dto/schemas/data-quality/data-quality-run.schema';
 
 @Entity()
 export class DataMartRun implements CreatorAwareEntity {
@@ -82,4 +91,33 @@ export class DataMartRun implements CreatorAwareEntity {
 
   @Column({ type: 'json', nullable: true })
   additionalParams?: Record<string, unknown> | null;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    select: false,
+    transformer: createZodTransformer<DataQualityRunSnapshot | null>(
+      DataQualityRunSnapshotSchema,
+      false
+    ),
+  })
+  dataQualitySnapshot?: DataQualityRunSnapshot | null;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    transformer: createZodTransformer<DataQualitySummary | null>(DataQualitySummarySchema, false),
+  })
+  dataQualitySummary?: DataQualitySummary | null;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    select: false,
+    transformer: createZodTransformer<DataQualityStoredCheckResult[] | null>(
+      DataQualityStoredCheckResultsSchema,
+      false
+    ),
+  })
+  dataQualityResults?: DataQualityStoredCheckResult[] | null;
 }

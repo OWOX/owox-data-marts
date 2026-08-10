@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { Plus } from 'lucide-react';
 import { useProjectRoute } from '../../../shared/hooks';
 

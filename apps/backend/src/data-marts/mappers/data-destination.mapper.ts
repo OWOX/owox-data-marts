@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ClsService } from 'nestjs-cls';
 import { AuthorizationContext } from '../../idp';
+import { AUTH_CONTEXT } from '../../idp/guards/idp.guard';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import {
   CreateDataDestinationCommand,
@@ -46,8 +48,29 @@ export class DataDestinationMapper {
   constructor(
     private readonly credentialsUtils: DataDestinationCredentialsUtils,
     private readonly publicOriginService: PublicOriginService,
-    private readonly dataDestinationCredentialService: DataDestinationCredentialService
+    private readonly dataDestinationCredentialService: DataDestinationCredentialService,
+    private readonly cls: ClsService
   ) {}
+
+  /**
+   * Whether this response is being built for a plugin runtime token.
+   *
+   * A plugin runs as untrusted third-party code with the member's own authority, so
+   * everything it reads it can forward to its vendor. That is accepted for business data
+   * and not for credentials: a Looker Studio destination stores a secret key, and the
+   * member-facing UI shows it because the member has to paste it into Looker Studio --
+   * which is a reason for it to reach a browser, not a reason for it to reach a plugin.
+   *
+   * Read from CLS rather than threaded through every caller: reports embed a destination
+   * too, and a rule that only some call sites remember is the one that gets forgotten.
+   */
+  private isPluginRuntimeCall(): boolean {
+    if (!this.cls?.isActive()) {
+      return false;
+    }
+
+    return this.cls.get<{ authFlow?: string }>(AUTH_CONTEXT)?.authFlow === 'plugin';
+  }
 
   private buildCreateCommand(
     context: AuthorizationContext,
@@ -284,9 +307,15 @@ export class DataDestinationMapper {
   private async resolvePublicCredentials(
     dto: DataDestinationDto
   ): Promise<DataDestinationResponseApiDto['credentials']> {
+    // No stored credential of any type reaches a plugin. The same empty shape the
+    // orphaned-credential paths below already return, so every consumer handles it.
+    if (this.isPluginRuntimeCall()) {
+      return {} as DataDestinationResponseApiDto['credentials'];
+    }
+
     if (!dto.credentialId) {
       this.logger.warn(`Destination ${dto.id} has no credentialId`);
-      return {} as DataDestinationCredentials;
+      return {} as DataDestinationResponseApiDto['credentials'];
     }
 
     const credential = await this.dataDestinationCredentialService.getById(dto.credentialId);
@@ -294,7 +323,7 @@ export class DataDestinationMapper {
       this.logger.warn(
         `Credential ${dto.credentialId} not found for destination ${dto.id} (possibly orphaned after soft-delete)`
       );
-      return {} as DataDestinationCredentials;
+      return {} as DataDestinationResponseApiDto['credentials'];
     }
 
     switch (credential.type) {
@@ -305,7 +334,10 @@ export class DataDestinationMapper {
         };
 
       case DestinationCredentialType.LOOKER_STUDIO: {
-        const creds = credential.credentials as DataDestinationCredentials;
+        const creds = credential.credentials as Extract<
+          DataDestinationCredentials,
+          { type: 'looker-studio-credentials' }
+        >;
         return {
           ...creds,
           destinationId: dto.id,
@@ -325,7 +357,18 @@ export class DataDestinationMapper {
       }
 
       case DestinationCredentialType.EMAIL:
-        return credential.credentials as DataDestinationCredentials;
+        return credential.credentials as Extract<
+          DataDestinationCredentials,
+          { type: 'email-credentials' }
+        >;
+
+      case DestinationCredentialType.GOOGLE_CHAT_WEBHOOK:
+        // Incoming webhook URLs include a secret token. The UI only needs to know that a
+        // webhook is configured; a replacement URL can be pasted without reading the old one.
+        return {
+          type: 'google-chat-credentials' as const,
+          configured: true as const,
+        };
 
       default:
         throw new Error(

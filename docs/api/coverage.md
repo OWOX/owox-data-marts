@@ -18,10 +18,17 @@ means the dimension has not been evaluated and does not imply a gap.
 
 | API-key endpoints | Fully covered | OpenAPI covered | API client covered | Unassessed |
 | ----------------: | ------------: | ---------------: | -----------------: | ---------: |
-|               139 |    12/139 (9%) |      12/139 (9%) |        12/139 (9%) |        127 |
+|               139 |  16/139 (12%) |    16/139 (12%) |       16/139 (12%) |        123 |
 
 Fully covered means both OpenAPI and API client coverage are complete. All
 percentages use the complete endpoint inventory below as their denominator.
+
+## Coverage policy
+
+Low-level `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, and `getStream`
+calls are an escape hatch, not typed endpoint coverage. They never change an endpoint's
+API-client coverage status; only a typed resource with runtime response validation counts
+as API-client coverage.
 
 ## Authentication
 
@@ -108,12 +115,12 @@ percentages use the complete endpoint inventory below as their denominator.
 | `PUT /api/data-marts/{id}/contexts` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/definition` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/description` | Unassessed | Unassessed |
-| `POST /api/data-marts/{id}/manual-run` | Unassessed | Unassessed |
+| `POST /api/data-marts/{id}/manual-run` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_manualRun) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
 | `PUT /api/data-marts/{id}/owners` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/publish` | Unassessed | Unassessed |
-| `GET /api/data-marts/{id}/runs` | Unassessed | Unassessed |
-| `GET /api/data-marts/{id}/runs/{runId}` | Unassessed | Unassessed |
-| `POST /api/data-marts/{id}/runs/{runId}/cancel` | Unassessed | Unassessed |
+| `GET /api/data-marts/{id}/runs` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_getRunHistory) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
+| `GET /api/data-marts/{id}/runs/{runId}` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_getRunById) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
+| `POST /api/data-marts/{id}/runs/{runId}/cancel` | [Covered](https://app.owox.com/api/swagger-ui#/DataMarts/DataMartController_cancelRun) · 2026-08-07 | [Covered](./api-client/#manage-data-mart-runs) · 2026-08-07 |
 | `PUT /api/data-marts/{id}/schema` | Unassessed | Unassessed |
 | `PUT /api/data-marts/{id}/title` | Unassessed | Unassessed |
 | `POST /api/data-marts/{id}/validate-definition` | Unassessed | Unassessed |

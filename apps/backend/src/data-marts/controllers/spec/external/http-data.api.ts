@@ -8,6 +8,7 @@ import {
   ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
+import { IN_LIST_MAX_VALUES } from '../../../dto/schemas/filter-config.schema';
 import { HTTP_DATA_MAX_ENCODED_PARAM_LENGTH } from '../../../dto/schemas/http-data-query.schema';
 
 const ENCODED_HTTP_DATA_QUERY_SCHEMA = {
@@ -76,7 +77,11 @@ export function StreamHttpDataSpec() {
         'applied server-side before streaming. Encode the JSON array with base64url ' +
         '(URL-safe base64: `-`/`_` instead of `+`/`/`, no `=` padding) so it survives the query string. ' +
         'Example JSON: `[{"column":"date","operator":"gte","value":"2026-01-01"}]` → ' +
-        'base64url `W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d`.',
+        'base64url `W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d`. ' +
+        `\`in\`/\`not_in\` rules take an array of 1..${String(IN_LIST_MAX_VALUES)} same-type values (never a comma-separated ` +
+        'string): `[{"column":"country","operator":"in","value":["Germany","Ukraine"]}]`. ' +
+        `The whole encoded parameter is capped at ${String(HTTP_DATA_MAX_ENCODED_PARAM_LENGTH)} characters ` +
+        '(~6 KB of JSON), so with long values that length cap can bind before the value-count cap does.',
       required: false,
       schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
       example: 'W3siY29sdW1uIjoiZGF0ZSIsIm9wZXJhdG9yIjoiZ3RlIiwidmFsdWUiOiIyMDI2LTAxLTAxIn1d',

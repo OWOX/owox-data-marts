@@ -372,15 +372,17 @@ describe('CreateRelationshipRequestApiDto validation', () => {
 });
 
 describe('UpdateRelationshipRequestApiDto validation', () => {
-  it('should fail validation when joinConditions is an empty array', async () => {
+  // An empty array is a supported DRAFT state on create, so forbidding it here meant a draft
+  // could be created but never returned to. Saving is permissive; a relationship with no
+  // conditions is refused where it is USED (BlendCteBuilder.buildTree), which is the only place
+  // that can explain what to fix.
+  it('accepts an empty joinConditions array — the same draft state create allows', async () => {
     const dto = plainToInstance(UpdateRelationshipRequestApiDto, {
       joinConditions: [],
     });
 
     const errors = await validate(dto);
-    const joinConditionsError = errors.find(e => e.property === 'joinConditions');
-    expect(joinConditionsError).toBeDefined();
-    expect(joinConditionsError?.constraints).toHaveProperty('arrayMinSize');
+    expect(errors.find(e => e.property === 'joinConditions')).toBeUndefined();
   });
 
   it('should pass validation when joinConditions has at least one item', async () => {

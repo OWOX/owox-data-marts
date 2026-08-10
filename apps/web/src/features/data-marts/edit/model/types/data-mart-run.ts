@@ -6,6 +6,7 @@ import type { DataMartRunInsightTemplateDefinition } from './data-mart-run-insig
 import type { DataMartRunAiAssistantDefinition } from './data-mart-run-ai-assistant-definition.ts';
 import { DataMartRunStatus } from '../../../shared';
 import type { UserProjection } from '../../../../../shared/types';
+import type { DataQualityCompactSummary } from '../../../shared/types';
 
 export interface DataMartRunItem {
   id: string;
@@ -31,6 +32,7 @@ export interface DataMartRunItem {
    * aggregations, excluding ANY_VALUE/STRING_AGG); values may be numbers or strings; null when
    * none. */
   totals: Record<string, number | string | boolean | null> | null;
+  qualitySummary: DataQualityCompactSummary | null;
 }
 
 export interface DataMartRunDataMartRef {

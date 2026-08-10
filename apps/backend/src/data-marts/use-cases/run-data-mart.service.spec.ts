@@ -1,15 +1,17 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { RunDataMartService } from './run-data-mart.service';
 import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ValidationResultCode } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 describe('RunDataMartService', () => {
   const mockDataMart = {
     id: 'dm-1',
     projectId: 'proj-1',
     definitionType: DataMartDefinitionType.CONNECTOR,
+    status: DataMartStatus.PUBLISHED,
     storage: {
       id: 'storage-1',
       type: 'GOOGLE_BIGQUERY',
@@ -93,6 +95,46 @@ describe('RunDataMartService', () => {
     );
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns a bad request when a manual run targets a non-connector Data Mart', async () => {
+    const { service, dataMartService, connectorExecutionService } = createService();
+    dataMartService.getByIdAndProjectId.mockResolvedValue({
+      ...mockDataMart,
+      definitionType: DataMartDefinitionType.SQL,
+    });
+
+    const command = new RunDataMartCommand(
+      'dm-1',
+      'proj-1',
+      'user-1',
+      'manual' as never,
+      undefined,
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
+    expect(connectorExecutionService.run).not.toHaveBeenCalled();
+  });
+
+  it('returns a bad request instead of dispatching an unpublished connector Data Mart', async () => {
+    const { service, dataMartService, connectorExecutionService } = createService();
+    dataMartService.getByIdAndProjectId.mockResolvedValue({
+      ...mockDataMart,
+      status: DataMartStatus.DRAFT,
+    });
+
+    const command = new RunDataMartCommand(
+      'dm-1',
+      'proj-1',
+      'user-1',
+      'manual' as never,
+      undefined,
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
+    expect(connectorExecutionService.run).not.toHaveBeenCalled();
   });
 
   it('should skip access check for scheduled runs (roles=[])', async () => {

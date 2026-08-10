@@ -29,6 +29,12 @@ export class AuthContextResponseApiDto {
   @ApiPropertyOptional({ nullable: true })
   apiKeyId?: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  pluginId?: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  installationId?: string;
+
   @ApiPropertyOptional({
     nullable: true,
     description:

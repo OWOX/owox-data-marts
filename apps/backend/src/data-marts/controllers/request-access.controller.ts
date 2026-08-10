@@ -6,6 +6,7 @@ import {
   AuthContext,
   AuthorizationContext,
   RejectApiKeyAuth,
+  RejectPluginAuth,
   Role,
   Strategy,
 } from '../../idp';
@@ -27,6 +28,7 @@ import {
 @Controller('user-provisioning')
 @ApiTags('User Provisioning')
 @RejectApiKeyAuth()
+@RejectPluginAuth()
 export class RequestAccessController {
   constructor(
     private readonly getRequestAccessContext: GetRequestAccessContextService,

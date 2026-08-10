@@ -96,7 +96,7 @@ Your data never leaves your infrastructure. Once normalized into your warehouse,
 **OWOX Data Marts** can be run just about anywhere in minutes.  
 Here’s how to get started locally on your machine:
 
-(1) **Install Node.js** 22.16.0+ [download](https://nodejs.org)
+(1) **Install Node.js** 22.22.0+ [download](https://nodejs.org)
 
 (2) **Install OWOX Data Marts**
 

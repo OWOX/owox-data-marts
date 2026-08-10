@@ -99,6 +99,35 @@ for (const { type, label, prefix } of DESTINATION_TYPES) {
       await expect(page.getByText(updatedTitle)).toBeVisible();
     });
 
+    if (type === 'GOOGLE_CHAT') {
+      test('preserves a legacy Google Chat channel email when editing the title', async ({
+        page,
+        apiHelpers,
+      }) => {
+        const legacyEmail = 'legacy-space@example.com';
+        const legacyTitle = `Legacy Google Chat ${Date.now()}`;
+        const destination = await apiHelpers.createDestination('GOOGLE_CHAT', legacyTitle, {
+          type: 'email-credentials',
+          to: [legacyEmail],
+        });
+
+        await page.goto('/ui/0/data-destinations');
+        await page.getByText(legacyTitle).click();
+
+        const sheet = page.getByTestId(TESTIDS.destEditSheet);
+        await sheet.getByLabel('Title').fill(`Updated ${legacyTitle}`);
+        await sheet.getByRole('button', { name: 'Save' }).click();
+        await expect(sheet).not.toBeVisible();
+
+        const response = await page.request.get(`/api/data-destinations/${destination.id}`);
+        expect(response.ok()).toBeTruthy();
+        expect((await response.json()).credentials).toEqual({
+          type: 'email-credentials',
+          to: [legacyEmail],
+        });
+      });
+    }
+
     test(`deletes ${label} destination`, async ({ page, radix }) => {
       await page.goto('/ui/0/data-destinations');
       await expect(page.getByTestId(TESTIDS.destTab)).toBeVisible();

@@ -28,13 +28,19 @@ var campaignFields = {
   },
   'campaign_start_date': {
     'description': 'Campaign Start Date',
-    'apiName': 'campaign.start_date',
-    'type': DATA_TYPES.STRING
+    'apiName': 'campaign.start_date_time',
+    'type': DATA_TYPES.STRING,
+    // v25 returns "yyyy-MM-dd HH:mm:ss" (zeroed to 00:00:00 for daily-granularity
+    // campaigns); v21's campaign.start_date returned a bare "yyyy-MM-dd".
+    'dateOnly': true
   },
   'campaign_end_date': {
     'description': 'Campaign End Date',
-    'apiName': 'campaign.end_date',
-    'type': DATA_TYPES.STRING
+    'apiName': 'campaign.end_date_time',
+    'type': DATA_TYPES.STRING,
+    // Same as campaign_start_date: v25 returns "yyyy-MM-dd HH:mm:ss" (23:59:59 for
+    // daily-granularity campaigns) where v21's campaign.end_date was a bare date.
+    'dateOnly': true
   },
   'campaign_bidding_strategy_type': {
     'description': 'Bidding Strategy Type (MANUAL_CPC, TARGET_CPA, TARGET_ROAS, etc.)',

@@ -30,6 +30,10 @@ describe('ConnectorSecretService', () => {
 
     const specService = {
       getConnectorSpecification: jest.fn().mockResolvedValue([...baseFields, ...fieldsWithOneOf]),
+      getConnectorCapabilities: jest.fn().mockReturnValue({
+        singleConfiguration: false,
+        copySecretsByValue: false,
+      }),
     } as unknown as ConnectorService;
 
     const credentialsService = {
@@ -45,11 +49,14 @@ describe('ConnectorSecretService', () => {
     return { service, specService, credentialsService };
   };
 
-  const makeDefinition = (configItems: Array<Record<string, unknown>>): ConnectorDefinition => {
+  const makeDefinition = (
+    configItems: Array<Record<string, unknown>>,
+    connectorName = 'FacebookMarketing'
+  ): ConnectorDefinition => {
     return {
       connector: {
         source: {
-          name: 'FacebookMarketing',
+          name: connectorName,
           configuration: configItems,
           node: 'ad-account-user',
           fields: ['id'],
@@ -635,8 +642,12 @@ describe('ConnectorSecretService', () => {
       expect(cfg[1]._id).not.toBe('source-id-3');
     });
 
-    it('copies source secrets from externalized secrets', async () => {
-      const { service, credentialsService } = createService(['RefreshToken']);
+    it('copies secrets by value without retaining the source secret record', async () => {
+      const { service, specService, credentialsService } = createService(['ServiceAccountKey']);
+      (specService.getConnectorCapabilities as jest.Mock).mockReturnValue({
+        singleConfiguration: false,
+        copySecretsByValue: true,
+      });
 
       (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
         new Map([
@@ -645,29 +656,54 @@ describe('ConnectorSecretService', () => {
             {
               id: 'secrets-1',
               credentials: {
-                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
-                generated_refresh_token: 'generated-refresh-token',
+                'AuthType.service_account.ServiceAccountKey': 'stored-service-account-key',
               },
             },
           ],
         ])
       );
 
-      const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
-      ]);
+      const sourceDefinition = makeDefinition(
+        [{ _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { service_account: {} } }],
+        'CopyByValueConnector'
+      );
 
+      const incoming = makeDefinition(
+        [
+          {
+            _secrets_id: 'secrets-1',
+            AuthType: { service_account: { ServiceAccountKey: SECRET_MASK } },
+            _copiedFrom: { configId: 'source-id-1' },
+          },
+        ],
+        'CopyByValueConnector'
+      );
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+      expect(authType.service_account.ServiceAccountKey).toBe('stored-service-account-key');
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
+    });
+
+    it('preserves the existing copied-secret behavior for other connectors', async () => {
+      const { service } = createService(['AccessToken']);
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', _secrets_id: 'secrets-1', AccessToken: 'stored-token' },
+      ]);
       const incoming = makeDefinition([
         {
-          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
+          _secrets_id: 'secrets-1',
+          AccessToken: SECRET_MASK,
           _copiedFrom: { configId: 'source-id-1' },
         },
       ]);
 
       const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
-      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
+      expect(cfg[0]._secrets_id).toBe('secrets-1');
       expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
       // The rotating generated token stays with the source's own record: two
       // records rotating the same value would invalidate each other.

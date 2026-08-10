@@ -1,5 +1,210 @@
 # owox
 
+## 0.31.0
+
+### Minor Changes 0.31.0
+
+![OWOX Data Marts – v0.30.0](https://github.com/user-attachments/assets/a994aa1a-554a-4475-aa53-94369f8429e7)
+
+- 61fc1bc: **Add Data Quality checks**
+
+  Configurable manual and scheduled Data Quality runs for BigQuery, Legacy BigQuery, Athena, Snowflake, Redshift, and Databricks Data Marts. The new Data Quality workspace supports 11 table, field, and relationship checks, stores reproducible SQL and examples, and surfaces compact results in Output Schema, Models, and Run History.
+
+- e8ae62c: **Data Last Updated Date**
+
+  You can now see when the source tables behind a Data Mart last changed in the warehouse — in the UI and through MCP.
+
+  - **In the UI** — the Data Mart page shows a **Data Last Updated** tile with a **Check now** button, the Data Marts list gains a sortable **Data Last Updated** column, and the model canvas shows the value on every node with an **Actions → Check Data Last Updated** entry that measures everything currently visible in one go. Checking reads warehouse metadata only: it registers no consumption and records no run.
+  - **In MCP** — `query_data_mart` returns a `data_last_updated` block alongside the rows and totals, reporting when the source tables behind the result last changed, which tables were checked, and how complete that picture is. It is measured live as part of the same call — never cached, never charged separately — and against the fully composed query, so a blended result covers every joined Data Mart's tables, not just the primary one. Each MCP query run also records the block in Run History.
+  - **On every run** — every run that delivers data measures the value on the way out: report runs (manual and scheduled), HTTP Data requests, and MCP queries all record it in Run History. When a run reads only the Data Mart's own sources, the measurement also becomes the Data Mart's saved value, so the list, canvas, and Data Mart page stay current without anyone pressing a button. A run spanning several joined Data Marts records the measurement in its history entry only, because a blended reading would overstate any single Data Mart.
+
+  Google BigQuery is supported first: `TABLE`, `VIEW`, `SQL`, `TABLE_PATTERN`, and connector-backed Data Marts all resolve through to their underlying base tables, including nested views and sharded/wildcard table sets. Other storages report `unavailable` until their support lands.
+
+  Read the timestamp precisely: it says when the source tables were last **written to**, not which period the data covers — which is why the field is called _data last updated_ rather than _freshness_, and the tool instructs the assistant to phrase it that way. A `null` timestamp means unknown, neither fresh nor stale; `coverage: "partial"` means some sources could not be read, so the real time can only be more recent than reported. Views are excluded from the per-table detail, because a view's modification time reflects a change to its definition rather than to any data.
+
+- db60962: **Google Sheets source connector**
+
+  A new Google Sheets source connector imports one sheet into a table in the user's Storage and makes it available as a Data Mart. It supports Service Account authentication, dynamic header-based field inference, and full refreshes across supported storages, so the materialized table reflects the current sheet contents, including schema changes.
+
+- c6c0d7b: **Models canvas redesigned as an ERD, Joinable Data Marts diagram to match**
+
+  The Data Marts **Models** canvas now renders ERD cards instead of plain title boxes. Each card shows a definition-type badge and accent color (`SQL` / `View` / `Table` / `Pattern` / `Connector`), a published/draft status dot, and — in the new **Detailed** view — typed field rows with a primary-key indicator, primary keys first, and hidden-for-reporting fields dimmed. Long field lists collapse to 4 rows with an in-place "+N more fields" toggle. Switch between **Compact** (default) and **Detailed** in the canvas settings; the choice is remembered per browser.
+
+  Cards are draggable and their positions persist per storage in your browser across reloads (picking a layout algorithm re-flows from scratch). A new **Object labels** setting toggles what every card shows — input-source badge, field count, status dot — with "Check all" / "Uncheck all" shortcuts. Relationship lines are smooth bezier curves, neutral gray at rest and brand-blue when selected: click a single line, or click a card to light up all of its connections. The minimap colors nodes by definition type. The canvas renders immediately from the list data and enriches cards with fields as details load, so large models appear without delay.
+
+  The **Joinable Data Marts** diagram on the Data Mart page uses the same ERD card design, and its gear popover gains two filters: **Show looped Data Marts** (off by default — self-referencing loop stubs no longer blow up the graph) and a **Status** filter (All / Published / Draft).
+
+  Thanks to @ikrasovytskyi for contributing the redesign!
+
+- be313d1: **Export the Models canvas as SVG, PNG, JSON, or an OKF bundle**
+
+  The Models canvas now exports the data model through **Actions → Export**, in four formats:
+  - **Image (SVG)** — a vector snapshot of the whole visible model, crisp at any zoom.
+  - **Image (PNG)** — the same snapshot rasterized at 2× scale, for chats and tools that do not render SVG.
+  - **JSON** — the model graph (Data Marts, schemas, joins, canvas positions) in the OWOX Model Canvas format, sanitized of project identifiers.
+  - **OKF (Markdown)** — a zip with one cross-linked Markdown document per Data Mart plus an index: an overview, the schema table, and the join list per mart. Works well as context for AI assistants.
+
+  The export covers exactly what the canvas shows — the same filtered set the other Actions target — and captures the whole model regardless of the current pan and zoom. Image backgrounds follow the active theme, so dark-theme exports stay readable outside the app.
+
+  The canvas also got leaner: the **Actions** menu moved from a canvas overlay into the toolbar above the canvas, so it no longer covers content; the field count now shares a row with the Data Quality and Data Last Updated indicators, making every card one row shorter; and the Object labels settings list dropped its decorative glyphs.
+
+- 398e908: **Plugin Gallery: publish, install and run plugins described by GitHub releases**
+
+  Plugins are web apps hosted elsewhere, described by a GitHub repository's releases, listed in a per-member Gallery and opened inside OWOX Data Marts in a sandboxed cross-origin iframe. A plugin holds no credential of its own: it can only ask the host page to make calls the host has already decided are allowed, acting with the authority of the member who installed it.
+
+  - **Publishing and installing are separate.** A publication controls what a member sees in the Gallery, at three independent levels — deployment, project and member — combined into one deduplicated list with no precedence between them. Installing is each member's own decision, uninstalling is soft, and a previous installer can restore from history even after the plugin stops being published to them. Unpublishing removes a listing without uninstalling anyone.
+  - **Updates are managed by the deployment, daily.** Every published or installed plugin is checked once a day for a newer valid release, each at its own time of day. When a check finds a valid higher version it becomes current for everyone using that plugin — versions cannot be pinned, chosen or rolled back, and the plugin page says so along with when the next check happens. **Check now** brings that check forward for anyone who can reach the page; it never decides whether an update happens. A failed check leaves the working version active until the next daily slot.
+  - **Plugin identity is the GitHub repository**, held by its stable numeric id, so renaming or transferring a repository resolves to the same plugin. Versions are immutable and anchored to an exact commit: moving, deleting or recreating a tag cannot rewrite an existing version, and an invalid release never displaces a working one.
+  - **Emergency control.** An allowlisted publisher key can suspend a plugin across the deployment. Suspension blocks opening, installing and restoring while leaving uninstalling and update checking available, so a corrective version can still become current before the plugin is resumed. It changes no publication or installation record.
+
+  Plugin authors build against the new `@owox/plugin-sdk`, which owns the host handshake and hands the plugin a working OWOX Data Marts API client. `owox-ctl` gains `plugins publish`, `unpublish`, `publications list`, `update`, `suspend` and `resume`.
+
+  New deployment variables: `OWOX_DEPLOYMENT_PLUGIN_PUBLISHER_API_KEY_IDS`, `GITHUB_TOKEN`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_API_BASE_URL`, `PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC`, `PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS`. The origin a vendor may name in `frame-ancestors` is the existing `PUBLIC_ORIGIN`, not a plugin-specific setting.
+
+  **Behaviour change in `@owox/api-client`.** The package no longer depends on `undici`, so it can build for a browser and back a plugin's `ctx.owox`. As a result it no longer supplies a no-timeout dispatcher for streaming reads by default — pass one via the new `streamDispatcher` option if you call `traverseData` and need reads to run unbounded:
+
+  ```ts
+  new OWOXApiClient({ apiKey, streamDispatcher: new Agent({ bodyTimeout: 0, headersTimeout: 0 }) });
+  ```
+
+  `owox-ctl` does this already. `OWOXApiClient` additionally accepts `{ transport }` instead of `{ apiKey }`, which is how a plugin receives a working client while holding no credential of its own. Errors now carry the backend's stable machine-readable code, so a caller can branch on the failure instead of matching message text, and `error.details` carries the payload directly rather than the whole response body.
+
+- 071b429: **Change the Input Source of an existing Data Mart**
+
+  The Input Source type of a Data Mart can now be changed after setup — a table can become a SQL query, a view can be repointed at a real table, and so on, within the same storage. Previously the type was frozen once saved, so the only way to switch was to rebuild the Data Mart from scratch and recreate everything attached to it.
+
+  The Data Mart keeps its identity through the change: relationships in both directions, reports and their column configuration, and field-level metadata such as aliases, descriptions and aggregation roles all stay in place. Fields missing from the new source are marked as disconnected and fields whose type changed are flagged, the same way they already are when a source of the same type is edited.
+
+  Because a change can disconnect fields that reports and relationships rely on, it is confirmed in a dialog stating what is preserved, what may break, and how many relationships and reports depend on this Data Mart. A published Data Mart stays published. The new source is checked against the storage before the change is saved, so an unreachable table or an invalid query is refused instead of replacing a working definition and failing later. The schema is refreshed automatically right after the change, and refreshing the output schema now reports what it found — how many fields are connected, and how many came back disconnected or with a type mismatch — instead of only confirming that it ran.
+
+  Data Marts based on a connector are not affected: their Input Source type stays fixed, and no other type can be switched to a connector.
+
+- 66ac952: **HTTP Data on report level**
+
+  Adds `GET /api/external/http-data/reports/{reportId}.ndjson` — stream an existing report's data as NDJSON, applying the report's saved filters, aggregations, date buckets, unique count, and sort, without reconstructing query parameters by hand. An optional `limit` query parameter overrides the report's saved limit. The [`@owox/api-client`](../../docs/api/api-client.md) `reports.traverseData()` method exposes the same endpoint.
+
+  The response carries an `x-owox-run-id` header (consistent with the Data Mart HTTP Data endpoint); on a successful stream the referenced run is a `HTTP_DATA` run tagged with the reportId. When the report applies a filter, aggregation, sort, date bucket, row limit, or unique count — or blends fields across Data Marts — the run also records the exact executed SQL via `additionalParams.httpData.executionSqlQuery`, discoverable through the run history endpoint. (A plain column selection with none of those controls streams the Data Mart's own query and records no separate executed SQL.) Grand totals — one per selected metric, aggregated over the full result — are recorded in the run history whenever the report selects an eligible metric, computed as a separate best-effort query.
+
+  Failed MCP `query_data_mart` calls create no run-history entry; both HTTP Data endpoints (Data Mart and report level) record a `FAILED` run for any failure encountered during query execution.
+
+- ace4697: **Guide AI queries with a field type → operators/aggregations matrix**
+
+  The MCP tools now tell an AI assistant up front which filter operators and aggregation functions each field supports, instead of letting it find out through failed queries:
+  - `get_data_mart_details_by_id` enriches every native and joined field with its type `category` and the effective `allowedAggregations` a query may apply to it, and returns an `operators_by_category` matrix for the filter/slice operators each field-type category accepts.
+  - The `query_data_mart` tool description embeds a field-type matrix generated from the same constants the validator enforces.
+  - Operator/type mismatches (for example `contains` on a number) now return a targeted `invalid_operator_for_type` error listing the operators the field does accept, instead of a generic failure that sent assistants re-fetching the schema in a loop; `date_buckets` misuse gets equally specific `invalid_date_bucket` errors.
+  - Boolean fields are now filterable: `eq`/`neq` with a boolean `true`/`false` value translate to the internal `is_true`/`is_false` operators.
+  - New `in`/`not_in` filter operators (match any of / none of a value list, up to 500 values) are supported natively across BigQuery, Athena, Redshift, Snowflake, and Databricks. They are available in the report filter/slice UI as "is any of" / "is none of" (comma-separated values) for string, number, date, and time columns, and in `query_data_mart` filters/slices; `is_empty`/`is_not_empty` are now also accepted by `query_data_mart` for string fields.
+  - Malformed operands for supported operators (empty `in` list, bad `between` shape) now return a precise `invalid_filter_value` error instead of a generic failure.
+  - New relative-date presets on every storage, in the report UI, and in `query_data_mart`: **This week / Last week** (ISO weeks, Monday-based on all storages — BigQuery uses `ISOWEEK`, Snowflake computes the Monday independently of the session `WEEK_START`), **This quarter / Last quarter**, and **Next N days** (includes today, mirroring Last N days). With these, every operator advertised by `query_data_mart` is now executable — nothing maps to `unsupported_operator` anymore.
+
+- edb1a40: **List draft Data Marts through MCP**
+
+  MCP clients can now explicitly list draft Data Marts with `list_data_marts`, while published Data Marts remain the default catalog state.
+
+- be2e29f: **Combined and Sample are now on by default for text fields**
+
+  Text columns now offer `Combined` (`STRING_AGG`) and `Sample` (`ANY_VALUE`) out of the box, alongside `Count` and `Count Unique`. Previously both were supported but switched off, so you had to enable them field by field before a report could use them.
+
+  Existing Data Marts pick this up automatically — a field only keeps a narrower list if you explicitly chose one for it. Numeric, date, time, boolean, and complex-type fields are unchanged, and neither function is ever included in Totals.
+
+- 5e9b076: **Sort by Unique Count**
+
+  Reports can now sort by the Unique Count metric. Previously, enabling Unique Count added the column to a report but the Sort section had no way to reference it. Once Unique Count is enabled, it now shows up as a sort option like any other column, ascending or descending.
+
+- 04bf74d: **Joined field names read better in Google Sheets**
+
+  Columns from a joined Data Mart used to lead with the Data Mart name — `RFM_SEGMENT Recency Score` — pushing the part you actually look for out of view in every header cell. Google Sheets now writes the Data Mart name after the field name, in parentheses: `Recency Score (RFM_SEGMENT)`. For a chain of joins the name is the Data Mart the field actually comes from, not the whole path. Fields from the report's own Data Mart are unchanged, and a blank Output Alias still produces a bare field name.
+
+  Existing sheets pick the new headers up on their next refresh. Row 1 is rewritten in place — no column is added, removed or reordered, and nothing shifts under your own content to the right of the imported range.
+
+  Data Studio, email-based destinations, the HTTP data endpoint and MCP field metadata keep the Data Mart name as a prefix — the position follows the surface that renders the label, not the report, so reading a Google Sheets report through the HTTP data endpoint still returns the prefixed form. Match columns on the technical field name, which is identical everywhere.
+
+  Labels are also no longer padded: an Output Alias or field alias typed with a leading or trailing space used to leak that space into the column name, and a whitespace-only alias produced a column that looked unnamed. And a Google Sheets report that would write two columns under the same header now fails with a clear message naming the header, instead of writing the duplicate silently — previously the refresh after it blanked one column, inserted a spare, and pushed your own content further right. Rename one of the two columns, or the Output Alias of the joined Data Mart one of them comes from.
+
+- ce982a5: **New Data Marts are shared for maintenance by default**
+
+  A newly created Data Mart now starts with both sharing toggles on: **Shared for reporting** and **Shared for maintenance**. Other Technical Users can join it to their own Data Marts straight away, instead of first having to find the owner and ask them to share it.
+
+  Data Marts that already exist are not changed. The owner can still turn **Shared for maintenance** off on any Data Mart in one click — non-owners then keep reporting access and lose the ability to edit or join it. Storages and Destinations keep their current defaults: shared for use, not shared for maintenance.
+
+- 9e0434a: **Cleaner connector run logs: warnings for issues you can fix yourself**
+
+  Failures now split into warnings and errors, so you can tell at a glance what needs you to act. Warnings mark issues you can fix yourself — like expired credentials or a canceled run. Errors mark issues our support team can help you resolve. Logs are also easier to scan: each crash appears as a single entry instead of several, and duplicate entries are gone.
+
+- 562bbe2: **Clearer Data Warehouse selection during onboarding**
+
+  The Data Warehouse step in onboarding now shows an interactive preview for the selected supported warehouse, illustrating how OWOX takes data from input sources, processes it in the chosen warehouse, and delivers it to destinations such as Google Sheets, Excel, email, Slack, and Looker Studio. The step also gains a responsive two-column layout, updated selection states, and a short animation. The preview is hidden when you select **Other** or **I don't know**.
+
+- 5452659: **Copy a link to a Destination or Storage**
+
+  Destinations and Storages now have a **Copy link** button in their configuration panel, so you can grab a direct link and share it with a teammate instead of explaining which item to click through the list to find.
+
+- c97264b: **Easier access to service account details**
+
+  When viewing Google service account credentials, you can now copy the service account email with one click or open its details in Google Cloud Console. The email remains visible and can still be selected manually when you only need part of it.
+
+- 970bcee: **Correct COUNT DISTINCT, SUM, AVG, percentiles, and Combined across joined Data Marts (fan-out fix)**
+
+  `COUNT DISTINCT`, `SUM`, `AVG`, the percentile metrics (`P25`, `Median`, `P75`, `P95`), and `Combined` on a joined Data Mart are now computed correctly at the report grain, including across multi-hop bridges (a joined Data Mart reached through another joined Data Mart). Previously each was pre-aggregated on the join key and then re-aggregated, which over- or under-counted (`COUNT DISTINCT`), over-summed (`SUM`), produced an unweighted average-of-averages (`AVG`), weighted a percentile by how many times the join repeated each value, or repeated the same text in `Combined` once per matching row, whenever the same entity was reachable through more than one path. Each metric now uses a dedicated "sleeve" pass that carries the raw identity to the report grain. These are symmetric (non-additive) aggregates: an entity reachable under two dimension values is counted once in each group but once overall, so a column's per-group values need not sum to its Totals value — that is correct, not a discrepancy. Applies to BigQuery, Athena, Redshift, Snowflake, and Databricks. **Numbers will change for any saved report using one of these metrics on a joined Data Mart whose join fans out.**
+
+  - **Deduplication key.** For `SUM`, `AVG`, and the percentiles, the value is de-duplicated by the joined field's pre-join group key, or — when the field is a raw passthrough (pre-join `ANY_VALUE`) — by the joined Data Mart's own declared primary key. Two rows agreeing on that key and on the value are the same row the join returned twice and are counted once; two rows agreeing on the key but not on the value stay separate, so contradictory data is never silently resolved to one version. A joined Data Mart with no declared primary key falls back to a per-row surrogate, which cannot tell a genuine duplicate from two distinct rows. A declared key is trusted: a key that is not in fact unique will merge rows — and so will one whose column is empty on more than one row. Declare a key only on a column that is genuinely unique and always filled.
+  - **`MIN` and `MAX`** on a joined Data Mart are computed the same way, over the same rows. They used to read the value the pre-join roll-up had already collapsed, which measured a different set from `AVG` on the very same column and could leave `MIN` above the average. **`COUNT` is deliberately unchanged**: it counts the rows that survive the join, which is a different question rather than a distorted one. The main-side Unique Count (by primary key) is unchanged.
+  - **`COUNT` and `COUNT DISTINCT` are no longer shown side by side on a JOINED field.** They are computed at different grains, so together they can invert `COUNT DISTINCT <= COUNT`. **A report that selects both on a joined field now shows only `COUNT DISTINCT`** — the report is not rejected, and `COUNT` on its own keeps working exactly as before. Totals stop offering the pair for the same reason. A non-joined field is unaffected.
+  - **Deterministic "any value" roll-up.** A joined field whose pre-join roll-up is "any value" is now rolled up deterministically. That roll-up is read twice — once for the report's grouping and again inside the fan-out correction — and an engine free to evaluate the two separately could return different values, which made the correction silently produce empty results. Applies to text, number, date and time fields; other types are unchanged.
+  - **Joined `COUNT DISTINCT` on a pre-rolled-up field** (e.g. a text field pre-aggregated with `STRING_AGG` before the join) now counts distinct raw values at the report grain, not distinct rolled-up values. This is more correct — the previous behavior could conflate different raw values that rolled up into the same combined result — but the number can change for a saved report using such a field.
+  - **Known limitation:** a metric (`HAVING`) filter on any of these joined metrics — `COUNT DISTINCT`, `SUM`, `AVG`, `MIN`, `MAX`, `Combined`, or a percentile — is not yet supported and is rejected with a clear error; filter on a main-side column or a different metric instead. **A previously-saved report carrying such a filter will be rejected on its next run.**
+  - **Totals now honour metric (`HAVING`) filters.** A Totals row has no grouping, so a per-group constraint used to be dropped, and Totals then summarised rows the report itself hides. Totals are now computed over the rows of the groups that pass the filter, and stay symmetric while doing so. **Totals will change for any saved report that carries a metric filter.**
+  - **Totals that cannot be computed are now reported instead of silently omitted.** They are still best-effort — a failure never costs the query its rows — but an empty Totals block used to be indistinguishable from a report with no totals at all, which invites summing the returned rows instead (wrong for any non-additive metric). The reason travels with the response and is recorded in Run History; AI callers are told only that totals failed, since a warehouse message quotes the query and its table and column names.
+  - **Incomplete or unusable relationships are rejected with an explanation** instead of failing at the warehouse. That covers a relationship saved with no join conditions (a supported draft state — it is refused when a report tries to use it, not when you save it), and one joining on a nested field such as `address.city`, which the query engine cannot express and which was previously accepted and then failed with a raw database error. Editing a relationship no longer requires filling in the join conditions, matching what creating one already allowed.
+  - **Redshift identifier collisions are caught at save time.** Redshift lower-cases and truncates long identifiers, so two report columns differing only in case, or only past 127 bytes, arrive as one. Such a pair is now rejected when the report is saved, on every warehouse. **An already-saved report carrying such a pair is rejected on its next run** — on Redshift it was returning data from the wrong column.
+  - **Reserved internal names.** A joined Data Mart with a source column named `__owox_rid`, or a report that groups by a field (or output alias) named `_oid`/`_oid_<n>`, `_oid_key_<n>`, `_val`/`_val_<n>`, or `_dedup` alongside a joined `SUM`/`AVG`/percentile metric, is now rejected with an error naming the column instead of silently returning a corrupted value — rename the field or its alias.
+  - **Rejected requests now say what was actually wrong.** Every failed validation rule — across the whole API, not only reports — reached the caller as the single word "Bad Request Exception", with each per-field reason dropped before the response left the server. Each reason now travels with the response and is shown in the interface. A server error also shows a message identifying the request instead of failing silently.
+
+- 2680781: **Keep NULL rows for "is not" / "is none of" / "does not contain" report filters**
+
+  Negative filter operators (`is not`, `is none of`, `does not contain`, `does not match regex`) no longer drop rows where the filtered column is NULL. SQL three-valued logic previously excluded those rows; filters and slices now keep them so missing values behave like "not equal to X". Add `is not null` or `is not empty` when you want to exclude NULLs. Applies to BigQuery, Athena, Redshift, Snowflake, and Databricks.
+
+  In blended reports this also changes post-join negative filters on `LEFT JOIN`ed columns: a filter like `crm.status is not Churned` now keeps source rows with no join match at all, where it previously acted as an implicit inner join. Add an `is not null` filter on the joined column to drop unmatched rows. Metric (`HAVING`) filters share the same logic, so a negative metric filter such as `SUM(amount) ≠ 0` now also keeps groups whose aggregate is NULL (e.g. all-NULL input).
+
+- 122ce35: **More reliable connector runs during cancellation and long backfills**
+
+  Previously, cancelling a connector run could fail to stick: the run reappeared as running minutes later, and its logs were lost. Long BigQuery backfills on OAuth also stopped after about an hour with an "Invalid Credentials" error. Now cancelled runs stay cancelled and keep their logs, and BigQuery refreshes its access token mid-run so long backfills continue.
+
+  A run can still fail with "Invalid Credentials" if its saved token expired before the run started. Reconnect the BigQuery destination, or use a service account, until token saving arrives.
+
+- 8724c41: **Fix dropped characters and lost focus in connector settings**
+
+  Previously, typing into a field on the "Configure Settings" step dropped characters, so text seemed to appear only on the second try, and pasted values could revert. Credential fields also lost focus after the first character, forcing users to click back into the field. Both problems are fixed — fields now keep focus and accept every character, whether typed quickly or pasted.
+
+  Nested credential fields now also show their readable labels everywhere. Some tabs previously showed the raw field name, such as "ServiceAccountKey" instead of "Service Account Key (JSON)".
+
+- e02ff15: **Preview SQL no longer requires edit access**
+
+  Opening **Preview SQL** on a report used to fail with "edit access to the source data mart is required" for anyone without maintenance access — including Business Users on a Data Mart shared for reporting, and Technical Users who are not owners of it. Reading the query a report runs is now tied to seeing the report: if a Data Mart is visible to you, you can open the generated SQL of any report on it and copy it to the clipboard.
+
+  The two actions in that dialog that genuinely need maintenance access — the SQL validator (dry run) and **Copy as Data Mart** — are now hidden for users without it instead of failing on click. Reports that join a Data Mart the viewer cannot access still refuse to render SQL, naming the inaccessible Data Mart.
+
+- e5d26a0: **No more leftover columns when switching Data Marts in Google Sheets**
+
+  When creating a report in the Google Sheets extension, switching to another Data Mart now resets the column selection. Previously, columns picked for the first Data Mart stuck around and showed up as "Disconnected columns" under the new one — and could even reach the created report and make it fail.
+
+- a54bf5d: **API surface maintenance**
+
+  - **Project search API** — `GET /api/search` now publishes the integer range and comma-separated serialization of its optional filters in OpenAPI. `@owox/api-client` adds `search.query(query, options)` and exports `OWOXSearchResult`, `OWOXSearchEntityType`, and `OWOXSearchOptions` for discovering visible Data Marts, data storages, and data destinations. Existing viewer access and search behavior are unchanged.
+  - **Project run history contract reconciled** — `GET /api/data-marts/runs` now publishes the complete project-wide run-history contract, including viewer visibility, pagination normalization, enums, field presence and nullability, and the backend's RFC3339 timestamp profile. `createdByUser` is the nullable run-author field; when present it includes `userId` and may include nullable `fullName`, `email`, and `avatar`. `definitionRun` remains present but can be `null` when a historical definition snapshot is unavailable. `@owox/api-client` validates this contract and exposes it as `runs.list({ limit, offset })` — **consumers using the previously released `runs.getHistory(...)` must rename those calls to `runs.list(...)`**; the response and option type exports remain available.
+  - **HTTP Data streaming contracts strengthened** — `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier, and failure contract in OpenAPI. `@owox/api-client` provides typed filter, sort, aggregation, and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media type before traversal. Consumers passing controls through `unknown[]` or widened variables must adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline calls remain unchanged.
+  - **Data Mart list contract actualized** — `GET /api/data-marts` now publishes viewer visibility, non-negative integer offset validation, owner-presence filtering, 1,000-item pages, and the complete nested list-item response contract, including nullable draft definition types and optional nullable user metadata strings. `@owox/api-client` validates every returned page and exposes the full `OWOXDataMart` shape; `dataMarts.list({ offset, ownerFilter })` can start from an offset, filter by `has_owners` or `no_owners`, and follows subsequent pages automatically. The package exports `OWOXDataMartListOptions`, `OWOXDataMartOwnerFilter`, and the nested Data Mart enum and object types, and rejects invalid list options before sending a request. Existing `dataMarts.list()` calls remain compatible.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.31.0
+- @owox/idp-protocol@0.31.0
+- @owox/idp-better-auth@0.31.0
+- @owox/idp-owox-better-auth@0.31.0
+- @owox/backend@0.31.0
+- @owox/web@0.31.0
+
 ## 0.30.1
 
 ### Patch Changes 0.30.1

@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router';
 import { useAuth } from '../features/idp';
 import { AuthStatus } from '../features/idp/types';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';

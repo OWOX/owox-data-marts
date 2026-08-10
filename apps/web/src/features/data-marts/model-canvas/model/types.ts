@@ -1,5 +1,8 @@
+import type { ErdCardField } from '../../shared/canvas/erd-fields';
 import type { DataMartStatus } from '../../shared/enums';
 import type { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
+import type { DataQualityCompactSummary } from '../../shared/types';
+import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
 
 export interface ModelCanvasJoinCondition {
   sourceFieldName: string;
@@ -8,17 +11,10 @@ export interface ModelCanvasJoinCondition {
 
 /**
  * A single field rendered as a row inside an ERD node card.
- * Derived from a Data Mart's actualized schema.
+ * Derived from a Data Mart's actualized schema. The shape itself is the
+ * canvas-agnostic `ErdCardField` shared with the Joinable Data Marts diagram.
  */
-export interface CanvasNodeField {
-  name: string;
-  /** Human-friendly alias (businessName / displayName) when set, else the raw name. */
-  alias: string;
-  type: string;
-  isPrimaryKey: boolean;
-  /** Hidden-for-reporting fields (usually surrogate join keys). */
-  isHidden: boolean;
-}
+export type CanvasNodeField = ErdCardField;
 
 export interface ModelCanvasNode {
   id: string;
@@ -33,7 +29,13 @@ export interface ModelCanvasNode {
    */
   definitionType?: DataMartDefinitionType | null;
   fields?: CanvasNodeField[];
+  /** Physical reference (table/view path, pattern) or SQL text — enriched client-side. */
+  definition?: string | null;
+  qualitySummary: DataQualityCompactSummary;
+  dataLastUpdated: DataLastUpdatedDto | null;
 }
+
+export type ModelCanvasTopologyNode = Omit<ModelCanvasNode, 'qualitySummary'>;
 
 export interface ModelCanvasEdge {
   id: string;
@@ -44,5 +46,10 @@ export interface ModelCanvasEdge {
 
 export interface ModelCanvasData {
   nodes: ModelCanvasNode[];
+  edges: ModelCanvasEdge[];
+}
+
+export interface ModelCanvasTopologyData {
+  nodes: ModelCanvasTopologyNode[];
   edges: ModelCanvasEdge[];
 }

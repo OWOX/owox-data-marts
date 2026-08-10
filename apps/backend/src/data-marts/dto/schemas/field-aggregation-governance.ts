@@ -1,4 +1,4 @@
-import { ReportAggregateFunction } from './aggregate-function.schema';
+import { ReportAggregateFunction, SLEEVE_ROUTED_FUNCTIONS } from './aggregate-function.schema';
 import { categorizeFieldType, FieldTypeCategory } from './field-type-category';
 
 export type AggregationRole = 'dimension' | 'metric';
@@ -45,13 +45,15 @@ const SUPPORTED_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]
 
 /**
  * The subset of aggregations turned ON by default per type (2026-06-29 meeting, point 3),
- * used when a field carries no explicit `allowedAggregations` override. ANY_VALUE is
- * supported (above) but never a default. Single source so the governance map and any UI
- * hint cannot diverge.
+ * used when a field carries no explicit `allowedAggregations` override. Single source so
+ * the governance map and any UI hint cannot diverge.
  */
 const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, CategoryDefault> = {
   number: { role: 'metric', allowedAggregations: ['SUM', 'AVG', 'MIN', 'MAX'] },
-  string: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
+  string: {
+    role: 'dimension',
+    allowedAggregations: ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG', 'ANY_VALUE'],
+  },
   date: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   time: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   boolean: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
@@ -111,4 +113,22 @@ function intersectWithSupported(
 ): ReportAggregateFunction[] {
   const supported = new Set(supportedAggregationsForType(fieldType));
   return requested.filter(fn => supported.has(fn));
+}
+
+/**
+ * Drops `COUNT` from a JOINED column's allowed set when `COUNT_DISTINCT` is there and
+ * sleeve-routed. The two are computed at different grains — `COUNT_DISTINCT` reads the raw path
+ * before the join's fan-out is collapsed, `COUNT` counts the rows that survive it — so side by
+ * side they can invert `COUNT DISTINCT <= COUNT`, which both people and LLM callers assume.
+ *
+ * Derived from `SLEEVE_ROUTED_FUNCTIONS`, so if either function's routing changes the rule turns
+ * itself off rather than hiding a metric that no longer disagrees.
+ */
+export function withoutCountBesideSleevedCountDistinct(
+  allowed: ReportAggregateFunction[]
+): ReportAggregateFunction[] {
+  const grainsDiffer =
+    SLEEVE_ROUTED_FUNCTIONS.has('COUNT_DISTINCT') && !SLEEVE_ROUTED_FUNCTIONS.has('COUNT');
+  if (!grainsDiffer || !allowed.includes('COUNT_DISTINCT')) return allowed;
+  return allowed.filter(fn => fn !== 'COUNT');
 }

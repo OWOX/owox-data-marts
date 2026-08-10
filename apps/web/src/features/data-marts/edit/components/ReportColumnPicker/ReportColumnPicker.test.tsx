@@ -1037,6 +1037,242 @@ describe('ReportColumnPicker Unique count virtual row', () => {
     // uniqueCountConfig must remain unchanged
     expect(onOutputConfigChange).not.toHaveBeenCalled();
   });
+
+  it('keeps a sort by "Unique Count" connected (not disconnected) while the toggle is on', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+
+    expect(screen.getByText('Unique Count')).not.toHaveClass('line-through');
+    expect(screen.queryByLabelText('Column not found in schema')).not.toBeInTheDocument();
+  });
+
+  it('flags a sort by "Unique Count" as disconnected once the toggle is off', () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+
+    expect(screen.getByText('Unique Count')).toHaveClass('line-through');
+    expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
+  });
+
+  // Per-row icons reuse these accessible names, so scope to the FieldSearchPicker
+  // trigger — it is the only one that opens a listbox.
+  const openPicker = (name: RegExp) => {
+    const trigger = screen
+      .getAllByRole('button', { name })
+      .find(b => b.getAttribute('aria-haspopup') === 'listbox');
+    fireEvent.click(trigger!);
+  };
+
+  // Unique Count is sortable ONLY. It is not a real projected column, so a filter or an
+  // aggregation on it would be rejected by backend validation — it must never be offered
+  // in those pickers, even while the toggle is on.
+  it('offers "Unique Count" in the Add sort by picker while the toggle is on', async () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('Unique Count')).toBeInTheDocument();
+  });
+
+  it('does NOT offer "Unique Count" in the Add filter picker while the toggle is on', async () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add filter/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('id')).toBeInTheDocument();
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  it('does NOT offer "Unique Count" in the Add aggregation picker while the toggle is on', async () => {
+    renderPicker(pkSchema(), ['id', 'name'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    openPicker(/Add aggregation/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('id')).toBeInTheDocument();
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  // A real schema field can legitimately be named "Unique Count" (quoted identifiers on
+  // Snowflake/Redshift/Athena allow spaces) — the backend has a dedicated
+  // OUTPUT_COLUMN_NAME_COLLISION error for exactly this. The synthetic-metric special
+  // cases must not hijack the name from a real field that owns it.
+  const collisionSchema = () =>
+    buildSchema({
+      nativeFields: [
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'Unique Count', type: 'STRING' },
+      ] as unknown[],
+    });
+
+  it('does not flag a sort on a REAL field named "Unique Count" as disconnected when the toggle is off', () => {
+    renderPicker(collisionSchema(), ['id', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+  });
+
+  it('still flags a sort on an UNSELECTED real field named "Unique Count" when the toggle is off', () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'asc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+  });
+
+  it('does not offer a duplicate "Unique Count" entry when a real field already owns the name', async () => {
+    renderPicker(collisionSchema(), ['id', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getAllByText('Unique Count')).toHaveLength(1);
+  });
+
+  // An UNSELECTED real field owning the name would make `ORDER BY "Unique Count"` ambiguous
+  // between the outer alias and the base column, so the synthetic is suppressed there too.
+  it('does not offer the synthetic when an UNSELECTED real field owns the name', async () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: { ...baseOutputConfig, uniqueCountConfig: true },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    openPicker(/Add sort by/);
+
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).queryByText('Unique Count')).not.toBeInTheDocument();
+  });
+
+  // The badge and the sort row must agree: when the synthetic is suppressed because a real
+  // field owns the name, an unselected real field's rule is genuinely broken and both the
+  // struck-through row and the badge must say so.
+  it('reports a sort as disconnected when the synthetic is suppressed by an UNSELECTED real field', () => {
+    renderPicker(collisionSchema(), ['id'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange: vi.fn(),
+    });
+
+    expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    expect(screen.getByLabelText('Column not found in schema')).toBeInTheDocument();
+  });
+
+  // The PK-loss auto-heal must prune the stranded sort rule in the SAME update that clears
+  // the flag — otherwise validateSort rejects the leftover rule on every save and run.
+  it('prunes a stranded "Unique Count" sort rule when the schema loses its primary key', () => {
+    const onOutputConfigChange = vi.fn();
+    renderPicker(noPkSchema(), ['col_a'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [
+          { column: 'col_a', direction: 'asc' },
+          { column: 'Unique Count', direction: 'desc' },
+        ],
+      },
+      onOutputConfigChange,
+    });
+
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'col_a', direction: 'asc' }],
+      })
+    );
+  });
+
+  it('leaves a "Unique Count" sort rule alone on PK loss when a real field owns the name', () => {
+    const onOutputConfigChange = vi.fn();
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'col_a', type: 'STRING' },
+        { name: 'Unique Count', type: 'STRING' },
+      ] as unknown[],
+    });
+    renderPicker(schema, ['col_a', 'Unique Count'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        ...baseOutputConfig,
+        uniqueCountConfig: true,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      },
+      onOutputConfigChange,
+    });
+
+    // The flag is still cleared (no PK), but the real field's sort rule survives.
+    expect(onOutputConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueCountConfig: false,
+        sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+      })
+    );
+  });
 });
 
 describe('ReportColumnPicker search', () => {

@@ -3,7 +3,7 @@ import {
   DestinationCard,
   EmptyDataMartDestinationsState,
 } from '../../../features/data-marts/reports/list/components';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import {

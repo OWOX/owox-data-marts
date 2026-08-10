@@ -37,7 +37,9 @@ describe('LegacyBigQueryBlendedQueryBuilder', () => {
 
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
-    expect(sql).toContain("STRING_AGG(CAST(order_name AS STRING), ', ') AS order_names");
+    expect(sql).toContain(
+      "STRING_AGG(CAST(order_name AS STRING), ', ' ORDER BY CAST(order_name AS STRING)) AS order_names"
+    );
     expect(sql).not.toContain('LISTAGG');
   });
 });

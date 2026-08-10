@@ -1,13 +1,18 @@
-import { getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { useId } from 'react';
+import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
 import {
   DIMMED_OPACITY,
+  EDGE_NEUTRAL_COLOR,
+  EDGE_SELECTED_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
   EDGE_WARNING_DASH,
   OWOX_BLUE,
   WARNING_COLOR,
 } from '../../shared/canvas/constants';
-import type { CanvasDirection } from '../model/graph/canvas-direction';
-import type { EdgeCardinality } from '../model/graph/edge-cardinality';
+import { EdgeArrowMarkers } from '../../shared/canvas/edge-arrow';
+import { EdgeJoinLabel } from '../../shared/canvas/edge-join-label';
+import { edgeMarkerId } from '../../shared/canvas/edge-marker-id';
+import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 
 export interface ModelCanvasFlowEdgeData {
   bowOffset: number;
@@ -15,7 +20,7 @@ export interface ModelCanvasFlowEdgeData {
   joinLabel: string[];
   dimmed: boolean;
   direction: CanvasDirection;
-  cardinality: EdgeCardinality | null;
+  bidirectional: boolean;
 }
 
 export type ModelCanvasFlowEdgeType = Edge<
@@ -68,17 +73,17 @@ function getBowedBezier(
 }
 
 export default function ModelCanvasFlowEdge({
+  id,
   sourceX,
   sourceY,
   targetX,
   targetY,
   sourcePosition,
   targetPosition,
-  markerStart,
-  markerEnd,
+  selected,
   data,
 }: EdgeProps<ModelCanvasFlowEdgeType>) {
-  const { bowOffset, warning, joinLabel, dimmed, direction, cardinality } = data;
+  const { bowOffset, warning, joinLabel, dimmed, direction, bidirectional } = data;
 
   let geometry: BezierGeometry;
   if (bowOffset !== 0) {
@@ -95,73 +100,37 @@ export default function ModelCanvasFlowEdge({
     geometry = { path, labelX, labelY };
   }
 
-  const color = warning ? WARNING_COLOR : OWOX_BLUE;
+  const color = warning ? WARNING_COLOR : selected ? OWOX_BLUE : EDGE_NEUTRAL_COLOR;
+  // useId is unique per rendered edge element, so two mounted canvases (e.g.
+  // inline + fullscreen) can never emit duplicate SVG marker ids — a duplicate
+  // would make url(#…) resolve to the *other* instance's marker and freeze the
+  // arrowhead color there.
+  const instanceId = useId();
+  const markerId = edgeMarkerId('mc-arrow', instanceId);
 
   return (
     <>
-      <path
-        d={geometry.path}
-        fill='none'
-        strokeWidth={EDGE_STROKE_WIDTH}
-        stroke={color}
-        strokeDasharray={warning ? EDGE_WARNING_DASH : undefined}
-        opacity={dimmed ? DIMMED_OPACITY : 1}
-        markerEnd={markerEnd}
-        markerStart={markerStart}
-        style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
+      <EdgeArrowMarkers markerId={markerId} color={color} withStart={bidirectional} />
+      <BaseEdge
+        id={id}
+        path={geometry.path}
+        markerEnd={`url(#${markerId}-end)`}
+        markerStart={bidirectional ? `url(#${markerId}-start)` : undefined}
+        style={{
+          stroke: color,
+          strokeWidth: selected ? EDGE_SELECTED_STROKE_WIDTH : EDGE_STROKE_WIDTH,
+          strokeDasharray: warning ? EDGE_WARNING_DASH : undefined,
+          opacity: dimmed ? DIMMED_OPACITY : 1,
+          transition: 'opacity 0.2s, stroke 0.2s',
+        }}
       />
-      {joinLabel.length > 0 && (
-        <foreignObject
-          x={geometry.labelX}
-          y={geometry.labelY}
-          width={1}
-          height={1}
-          style={{ overflow: 'visible' }}
-        >
-          <div
-            style={{
-              transform: 'translate(-50%, -50%)',
-              width: 'max-content',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'var(--background)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '3px 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              lineHeight: 1.5,
-              color: 'var(--foreground)',
-              pointerEvents: 'none',
-              opacity: dimmed ? DIMMED_OPACITY : 1,
-              transition: 'opacity 0.2s',
-              boxShadow: '0 1px 3px 0 rgba(0,0,0,0.08)',
-            }}
-          >
-            <div>
-              {joinLabel.map(line => (
-                <div key={line}>{line}</div>
-              ))}
-            </div>
-            {cardinality && (
-              <span
-                style={{
-                  flexShrink: 0,
-                  borderRadius: 4,
-                  padding: '0 5px',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
-                  color: 'var(--primary)',
-                }}
-              >
-                {cardinality}
-              </span>
-            )}
-          </div>
-        </foreignObject>
-      )}
+      <EdgeJoinLabel
+        x={geometry.labelX}
+        y={geometry.labelY}
+        lines={joinLabel}
+        selected={selected ?? false}
+        dimmed={dimmed}
+      />
     </>
   );
 }

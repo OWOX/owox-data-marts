@@ -466,6 +466,17 @@ describe('SqlClauseRenderer', () => {
       expect(out.params).toEqual([{ name: 'h0', value: 'x' }]);
     });
   });
+
+  it('renderNullSafeJoinOn joins each pair NULL-safely with AND', () => {
+    const sql = r.renderNullSafeJoinOn([
+      { left: '"main"."country"', right: '"sleeve_x"."country"' },
+      { left: '"main"."device"', right: '"sleeve_x"."device"' },
+    ]);
+    expect(sql).toBe(
+      '("main"."country" = "sleeve_x"."country" OR ("main"."country" IS NULL AND "sleeve_x"."country" IS NULL)) ' +
+        'AND ("main"."device" = "sleeve_x"."device" OR ("main"."device" IS NULL AND "sleeve_x"."device" IS NULL))'
+    );
+  });
 });
 
 // Terminal allow-list at the render boundary — the date-trunc unit and time zone are INLINED
@@ -483,7 +494,6 @@ describe('renderDateTrunc — terminal injection guard (all dialects)', () => {
   for (const [name, renderer] of dialects) {
     it(`${name}: rejects an out-of-enum date-trunc unit`, () => {
       expect(() =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         renderer.renderAggregatedSelect(['d'], [], new Map([['d', 'DAY); DROP TABLE t--' as any]]))
       ).toThrow(/date.trunc unit/i);
     });
@@ -504,4 +514,23 @@ describe('renderDateTrunc — terminal injection guard (all dialects)', () => {
       ).not.toThrow();
     });
   }
+});
+
+describe('renderNullSafeJoinOn — NaN-safe leg', () => {
+  const renderer = new BigQueryClauseRenderer();
+
+  it('emits the plain NULL-safe form for an unmarked pair', () => {
+    expect(renderer.renderNullSafeJoinOn([{ left: 'a.x', right: 'b.x' }])).toBe(
+      '(a.x = b.x OR (a.x IS NULL AND b.x IS NULL))'
+    );
+  });
+
+  // GROUP BY buckets all NaNs together while `NaN = NaN` is FALSE on BigQuery and Trino, so a
+  // float dimension holding NaN forms an outer group that matches no sleeve row — the metric
+  // then reads NULL, or 0 once the COUNT DISTINCT pull coalesces.
+  it('adds the NaN leg for a pair marked nanSafe', () => {
+    expect(renderer.renderNullSafeJoinOn([{ left: 'a.x', right: 'b.x', nanSafe: true }])).toBe(
+      '(a.x = b.x OR (a.x IS NULL AND b.x IS NULL) OR (a.x != a.x AND b.x != b.x))'
+    );
+  });
 });

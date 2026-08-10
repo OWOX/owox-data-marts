@@ -7,6 +7,12 @@ import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-
 import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunAiSourceDefinition } from '../schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
+import { DataQualityRunDetailsDto } from '../domain/data-quality.dto';
+import {
+  CompactDataQualitySummaryApiDto,
+  DataQualityRunDetailsResponseApiDto,
+} from './data-quality-api.dto';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export type DataMartRunAiSourceResponseDefinition = Omit<DataMartRunAiSourceDefinition, 'trace'>;
 export type DataMartRunTotals = Record<string, number | string | boolean | null> | null;
@@ -188,6 +194,9 @@ export class DataMartRunResponseApiDto {
   })
   finishedAt: string | Date | null;
 
+  @ApiProperty({ type: UserProjectionDto, nullable: true })
+  createdByUser: UserProjectionDto | null;
+
   @ApiProperty({
     type: Object,
     additionalProperties: true,
@@ -198,6 +207,14 @@ export class DataMartRunResponseApiDto {
   })
   additionalParams: Record<string, unknown> | null;
 
-  @DataMartRunTotalsApiProperty()
+  @DataMartRunTotalsApiProperty(true)
   totals: DataMartRunTotals;
+
+  @ApiProperty({ type: CompactDataQualitySummaryApiDto, nullable: true })
+  qualitySummary: CompactDataQualitySummaryApiDto | null;
+}
+
+export class DataMartRunDetailResponseApiDto extends DataMartRunResponseApiDto {
+  @ApiProperty({ type: DataQualityRunDetailsResponseApiDto, nullable: true })
+  dataQuality: DataQualityRunDetailsDto | null;
 }

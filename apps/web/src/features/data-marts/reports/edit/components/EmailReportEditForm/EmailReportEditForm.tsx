@@ -3,7 +3,7 @@ import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
 import { focusFirstInvalidField } from '../../../../../../utils';
 import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
 import { useUser } from '../../../../../idp/hooks/useAuthState';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import { Edit2, Eye, FileCode, ExternalLink, Sparkles, Plus } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { useProjectRoute } from '../../../../../../shared/hooks';

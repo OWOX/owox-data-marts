@@ -1,6 +1,6 @@
 {
   "name": "@owox/idp-protocol",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
@@ -9,7 +9,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22.16.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "build": "tsc",

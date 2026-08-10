@@ -171,8 +171,25 @@ describe('Connector Specification (e2e)', () => {
     });
   });
 
+  describe('Google Sheets specification', () => {
+    it('GET /api/connectors/GoogleSheets/specification - requires header row >= 1', async () => {
+      const res = await agent.get('/api/connectors/GoogleSheets/specification').set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+
+      const headerRowField = res.body.find(
+        (item: Record<string, unknown>) => item.name === 'HeaderRow'
+      );
+
+      expect(headerRowField).toBeDefined();
+      expect(headerRowField.required).toBe(true);
+      expect(headerRowField.default).toBe(1);
+      expect(headerRowField.minimum).toBe(1);
+    });
+  });
+
   // ---------------------------------------------------------------------------
-  // CAPI-09: All 14 connectors have well-formed specification schemas
+  // CAPI-09: All connectors have well-formed specification schemas
   // ---------------------------------------------------------------------------
   describe('All connectors well-formed (CAPI-09)', () => {
     it.each([...ALL_CONNECTORS])(

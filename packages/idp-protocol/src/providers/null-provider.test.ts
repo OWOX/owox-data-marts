@@ -143,6 +143,33 @@ describe('NullIdpProvider project member API keys', () => {
   });
 });
 
+describe('NullIdpProvider plugin runtime', () => {
+  it('issues an access-only token with installation identity claims and lifetime', async () => {
+    const provider = new NullIdpProvider();
+
+    const result = await provider.issueAccessTokenForPluginRuntime(
+      'plugin-1',
+      'installation-1',
+      'user-1',
+      'project-1'
+    );
+
+    expect(result).toEqual({
+      accessToken: 'pluginRuntimeAccessToken:installation-1',
+      accessTokenExpiresIn: 900,
+    });
+    await expect(provider.introspectToken(result.accessToken)).resolves.toEqual(
+      expect.objectContaining({
+        userId: 'user-1',
+        projectId: 'project-1',
+        authFlow: 'plugin',
+        pluginId: 'plugin-1',
+        installationId: 'installation-1',
+      })
+    );
+  });
+});
+
 describe('NullIdpProvider MCP OAuth', () => {
   it('does not issue MCP OAuth authorization codes or tokens', async () => {
     const provider = new NullIdpProvider();

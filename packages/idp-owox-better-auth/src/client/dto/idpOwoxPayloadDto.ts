@@ -28,6 +28,8 @@ export const IdpOwoxPayloadSchema = z
     signinProvider: z.string().optional().nullable(),
     authFlow: z.string().optional().nullable(),
     apiKeyId: z.string().optional().nullable(),
+    pluginId: z.string().optional().nullable(),
+    installationId: z.string().optional().nullable(),
     viewOnly: z.boolean().optional(),
   })
   .passthrough();

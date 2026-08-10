@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router';
 import { cn } from '@owox/ui/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle } from 'lucide-react';

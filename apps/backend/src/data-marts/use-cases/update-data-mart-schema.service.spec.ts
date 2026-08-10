@@ -27,7 +27,6 @@ describe('UpdateDataMartSchemaService', () => {
     const searchIndexInvalidation = {
       scheduleDataMartSchemaChanged: jest.fn().mockResolvedValue(undefined),
     };
-
     const service = new UpdateDataMartSchemaService(
       dataMartService as never,
       schemaParserFacade as never,

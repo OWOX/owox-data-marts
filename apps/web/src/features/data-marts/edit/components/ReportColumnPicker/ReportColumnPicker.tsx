@@ -39,6 +39,7 @@ import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { AggregationSettingsButton } from './AggregationSettingsButton';
 import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
 import { fieldDisplayLabel } from './output-controls-display';
+import { UNIQUE_COUNT_LABEL } from '../../../shared/utils/aggregation-labels';
 import { RowFilterIcon } from './RowFilterIcon';
 import { RowAggregationIcon } from './RowAggregationIcon';
 import { isFilterableType } from './output-controls-operators';
@@ -482,19 +483,6 @@ export function ReportColumnPicker({
     [nativeFields]
   );
 
-  // Unique Count requires a primary key. If the mart's PK is later removed, the toggle
-  // (rendered only under hasPrimaryKey) disappears, yet a stored `true` keeps
-  // round-tripping on every save and the backend rejects it — a trap the user cannot
-  // escape through the UI. Once the schema has loaded WITHOUT a PK, auto-clear the
-  // stranded flag so the report stays editable. Gated on `schema` so the empty
-  // pre-load field list never clears a legitimately PK-backed config.
-  useEffect(() => {
-    if (!schema || hasPrimaryKey || !onOutputConfigChange) return;
-    if (effectiveOutputConfig.uniqueCountConfig) {
-      onOutputConfigChange({ ...effectiveOutputConfig, uniqueCountConfig: false });
-    }
-  }, [schema, hasPrimaryKey, onOutputConfigChange, effectiveOutputConfig]);
-
   const includedPaths = useMemo(() => {
     if (!schema?.availableSources) return new Set<string>();
     return new Set(schema.availableSources.filter(s => s.isIncluded).map(s => s.aliasPath));
@@ -527,6 +515,33 @@ export function ReportColumnPicker({
     }
     return names;
   }, [nativeFields, schema]);
+
+  // Unique Count requires a primary key. If the mart's PK is later removed, the toggle
+  // (rendered only under hasPrimaryKey) disappears, yet a stored `true` keeps
+  // round-tripping on every save and the backend rejects it — a trap the user cannot
+  // escape through the UI. Once the schema has loaded WITHOUT a PK, auto-clear the
+  // stranded flag so the report stays editable. Gated on `schema` so the empty
+  // pre-load field list never clears a legitimately PK-backed config.
+  //
+  // A `Unique Count` sort rule is stranded by the SAME schema change and must be pruned in
+  // the same update: with the flag cleared, validateSort no longer accepts the label, so
+  // leaving the rule behind fails every save and every scheduled run. Skipped when a real
+  // field owns the name — then the rule refers to that field, not the synthetic metric.
+  useEffect(() => {
+    if (!schema || hasPrimaryKey || !onOutputConfigChange) return;
+    const strandedSort = knownFieldNames.has(UNIQUE_COUNT_LABEL)
+      ? []
+      : effectiveOutputConfig.sortConfig.filter(r => r.column === UNIQUE_COUNT_LABEL);
+    if (!effectiveOutputConfig.uniqueCountConfig && strandedSort.length === 0) return;
+    onOutputConfigChange({
+      ...effectiveOutputConfig,
+      uniqueCountConfig: false,
+      sortConfig:
+        strandedSort.length > 0
+          ? effectiveOutputConfig.sortConfig.filter(r => r.column !== UNIQUE_COUNT_LABEL)
+          : effectiveOutputConfig.sortConfig,
+    });
+  }, [schema, hasPrimaryKey, onOutputConfigChange, effectiveOutputConfig, knownFieldNames]);
 
   const unresolvedColumns = useMemo(
     () => (schema ? effectiveValue.filter(name => !knownFieldNames.has(name)) : []),
@@ -793,6 +808,41 @@ export function ReportColumnPicker({
     [dropdownColumns, effectiveValueSet]
   );
 
+  // Whether the synthetic Unique Count metric is actually part of the output. Same gate as
+  // the toggle row below, so the two can never disagree.
+  const hasUniqueCountMetric =
+    hasPrimaryKey && outputControlsAvailable && effectiveOutputConfig.uniqueCountConfig;
+
+  // Whether the SYNTHETIC metric is the thing a `Unique Count` sort resolves to. False when a
+  // real schema field owns the name: if it is selected it owns the sort outright, and if it is
+  // merely present, emitting the label would produce an `ORDER BY "Unique Count"` ambiguous
+  // between the outer SELECT alias and the base column (precedence unspecified across
+  // dialects). Shared by the sort list and the disconnected-controls badge so a suppressed
+  // synthetic can never be reported as still supplying the column.
+  const syntheticUniqueCountAvailable =
+    hasUniqueCountMetric && !knownFieldNames.has(UNIQUE_COUNT_LABEL);
+
+  // Sort-ONLY column list. Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a
+  // projected field: it can be ordered by (the ORDER BY resolves to the SELECT alias), but a
+  // filter or aggregation on it has no column to bind to and the backend rejects it. So it
+  // must stay out of dropdownColumns / selectedDropdownColumns, which feed those surfaces.
+  const sortColumns = useMemo(() => {
+    // A real schema field may legitimately be named "Unique Count" (the backend has a
+    // dedicated OUTPUT_COLUMN_NAME_COLLISION error for it). Whenever ANY real field owns the
+    // name the real field wins and the synthetic is suppressed: if it is selected, appending
+    // the synthetic would duplicate the picker entry and collide on FieldSearchPicker's
+    // `key={item.value}`; if it is merely present but unselected, emitting the label would
+    // produce an `ORDER BY "Unique Count"` that is ambiguous between the outer SELECT alias
+    // and the base column, whose resolution precedence is not specified across dialects.
+    if (!syntheticUniqueCountAvailable) {
+      return selectedDropdownColumns;
+    }
+    return [
+      ...selectedDropdownColumns,
+      { name: UNIQUE_COUNT_LABEL, type: 'INTEGER', label: UNIQUE_COUNT_LABEL },
+    ];
+  }, [selectedDropdownColumns, syntheticUniqueCountAvailable]);
+
   const controlsCount = useMemo(() => {
     return (
       effectiveOutputConfig.filterConfig.length +
@@ -891,12 +941,18 @@ export function ReportColumnPicker({
       }
     }
 
-    return effectiveOutputConfig.sortConfig.some(
-      rule => !effectiveValueSet.has(rule.column) || !knownFieldNames.has(rule.column)
-    );
+    return effectiveOutputConfig.sortConfig.some(rule => {
+      // A real selected field resolves the sort regardless of its name — check that first so
+      // a schema field literally named "Unique Count" is never hijacked by the synthetic case.
+      if (effectiveValueSet.has(rule.column) && knownFieldNames.has(rule.column)) return false;
+      // Otherwise the synthetic metric can still supply the column, matching the backend's
+      // validateSort (which adds the label to the selected set when uniqueCountConfig is on).
+      return !(rule.column === UNIQUE_COUNT_LABEL && syntheticUniqueCountAvailable);
+    });
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
+    syntheticUniqueCountAvailable,
     knownFieldNames,
     knownSliceKeys,
     effectiveValueSet,
@@ -1147,7 +1203,7 @@ export function ReportColumnPicker({
           <OutputSettingsDropdown
             value={effectiveOutputConfig}
             onChange={onOutputConfigChange}
-            selectedColumns={selectedDropdownColumns}
+            sortColumns={sortColumns}
             allColumns={dropdownColumns}
             joinedSources={joinedSources}
           />

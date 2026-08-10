@@ -1,6 +1,6 @@
 import { INestApplication, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import { OpenAPIObject } from '@nestjs/swagger';
 
 jest.mock('@owox/connectors', () => ({
   AvailableConnectors: {},
@@ -34,12 +34,19 @@ jest.mock('../use-cases/batch-data-mart-health-status.service', () => ({
   BatchDataMartHealthStatusService: jest.fn(),
 }));
 
-import { Role, Strategy } from '../../idp';
+import { Role, Strategy, type AuthorizationContext } from '../../idp';
 import { DataMartController } from './data-mart.controller';
+import { createSwaggerDocument } from '../../config/swagger.config';
 
 describe('DataMartController list OpenAPI', () => {
   let app: INestApplication;
   let document: OpenAPIObject;
+  let controller: DataMartController;
+  const mapper = {
+    toGetDataMartRunsCommand: jest.fn(),
+    toRunsResponse: jest.fn().mockReturnValue({ runs: [] }),
+  };
+  const getDataMartRunsService = { run: jest.fn().mockResolvedValue([]) };
 
   beforeAll(async () => {
     const dependencies = [
@@ -50,14 +57,14 @@ describe('DataMartController list OpenAPI', () => {
       providers: dependencies.map(provide => ({ provide, useValue: {} })),
     }).compile();
 
+    controller = moduleRef.get(DataMartController);
+    Object.assign(controller, { mapper, getDataMartRunsService });
+
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
 
-    document = SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder().setTitle('Test API').setVersion('1.0').build()
-    );
+    document = createSwaggerDocument(app);
   });
 
   afterAll(async () => {
@@ -152,9 +159,11 @@ describe('DataMartController list OpenAPI', () => {
       'contexts',
       'availableForReporting',
       'availableForMaintenance',
+      'dataLastUpdated',
     ]);
     expect(itemSchema.required).not.toContain('definitionType');
     expect(itemSchema.required).not.toContain('connectorSourceName');
+    expect(itemSchema.properties).not.toHaveProperty('qualitySummary');
     expect(itemSchema.properties).toMatchObject({
       status: {
         type: 'string',
@@ -222,5 +231,196 @@ describe('DataMartController list OpenAPI', () => {
         name: { type: 'string' },
       },
     });
+  });
+
+  it('preserves the shared run-history item contract and keeps DQ detail separate', () => {
+    const listOperation = document.paths['/api/data-marts/{id}/runs']?.get;
+    expect(listOperation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/DataMartRunsResponseApiDto' },
+        },
+      },
+    });
+
+    const listSchema = resolveRef('#/components/schemas/DataMartRunsResponseApiDto');
+    expect(listSchema.properties.runs).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/DataMartRunResponseApiDto' },
+    });
+
+    const runSchema = resolveRef('#/components/schemas/DataMartRunResponseApiDto');
+    expect(runSchema.required).toContain('createdByUser');
+    expect(runSchema.properties.status).not.toHaveProperty('nullable');
+    expect(runSchema.properties.type).not.toHaveProperty('nullable');
+    expect(runSchema.properties.runType).not.toHaveProperty('nullable');
+    expect(runSchema.properties).toMatchObject({
+      status: {
+        allOf: [{ $ref: '#/components/schemas/DataMartRunStatus' }],
+      },
+      type: {
+        allOf: [{ $ref: '#/components/schemas/DataMartRunType' }],
+      },
+      runType: {
+        allOf: [{ $ref: '#/components/schemas/RunType' }],
+      },
+      createdByUser: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/UserProjectionDto' }],
+      },
+      qualitySummary: {
+        nullable: true,
+        allOf: [{ $ref: '#/components/schemas/CompactDataQualitySummaryApiDto' }],
+      },
+    });
+    expect(runSchema.properties).not.toHaveProperty('dataQuality');
+    expect(resolveRef('#/components/schemas/DataMartRunStatus').enum).toEqual(
+      expect.arrayContaining(['PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED'])
+    );
+    expect(resolveRef('#/components/schemas/DataMartRunType').enum).toEqual(
+      expect.arrayContaining(['CONNECTOR', 'DATA_QUALITY'])
+    );
+    expect(resolveRef('#/components/schemas/RunType').enum).toEqual(
+      expect.arrayContaining(['manual', 'scheduled'])
+    );
+
+    const detailOperation = document.paths['/api/data-marts/{id}/runs/{runId}']?.get;
+    expect(detailOperation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/DataMartRunDetailResponseApiDto' },
+        },
+      },
+    });
+    expect(
+      resolveRef('#/components/schemas/DataMartRunDetailResponseApiDto').properties
+    ).toHaveProperty('dataQuality');
+  });
+
+  it('publishes the complete Data Mart run lifecycle with stable operation identities', () => {
+    const manualRun = document.paths['/api/data-marts/{id}/manual-run']?.post;
+    const listRuns = document.paths['/api/data-marts/{id}/runs']?.get;
+    const getRun = document.paths['/api/data-marts/{id}/runs/{runId}']?.get;
+    const cancelRun = document.paths['/api/data-marts/{id}/runs/{runId}/cancel']?.post;
+
+    expect(manualRun).toMatchObject({
+      operationId: 'DataMartController_manualRun',
+      summary: 'Start a manual Data Mart run',
+      tags: ['DataMarts'],
+    });
+    expect(manualRun?.description).toMatch(/technical user/i);
+    expect(manualRun?.requestBody).toMatchObject({
+      required: false,
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/RunDataMartRequestApiDto' },
+        },
+      },
+    });
+    const requestSchema = resolveRef('#/components/schemas/RunDataMartRequestApiDto');
+    expect(requestSchema.properties.payload).toMatchObject({
+      oneOf: [
+        { $ref: '#/components/schemas/IncrementalRunDataMartPayloadApiDto' },
+        { $ref: '#/components/schemas/ManualBackfillRunDataMartPayloadApiDto' },
+      ],
+    });
+    expect(resolveRef('#/components/schemas/IncrementalRunDataMartPayloadApiDto')).toMatchObject({
+      additionalProperties: false,
+      properties: {
+        runType: { type: 'string', enum: ['INCREMENTAL'] },
+        data: { type: 'object', additionalProperties: true },
+      },
+    });
+    expect(resolveRef('#/components/schemas/ManualBackfillRunDataMartPayloadApiDto')).toMatchObject(
+      {
+        additionalProperties: false,
+        required: ['runType'],
+        properties: {
+          runType: { type: 'string', enum: ['MANUAL_BACKFILL'] },
+          data: { type: 'object', additionalProperties: true },
+        },
+      }
+    );
+    expect(manualRun?.responses['201']).toMatchObject({
+      description: expect.stringMatching(/created/i),
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/RunDataMartResponseApiDto' },
+        },
+      },
+    });
+    expect(manualRun?.responses['413']).toEqual({ description: 'Request body too large' });
+    expect(resolveRef('#/components/schemas/RunDataMartResponseApiDto')).toMatchObject({
+      required: ['runId'],
+      properties: { runId: { type: 'string', format: 'uuid' } },
+    });
+
+    expect(listRuns).toMatchObject({
+      operationId: 'DataMartController_getRunHistory',
+      summary: 'List Data Mart runs',
+      tags: ['DataMarts'],
+    });
+    expect(listRuns?.description).toMatch(/business user/i);
+    const listParameters = Object.fromEntries(
+      (listRuns?.parameters ?? []).map(parameter => {
+        if ('$ref' in parameter) {
+          throw new Error('Data Mart run list parameters must be declared inline');
+        }
+        return [parameter.name, parameter];
+      })
+    );
+    expect(listParameters.limit).toMatchObject({
+      in: 'query',
+      required: false,
+      schema: { type: 'number', default: 100 },
+    });
+    expect(listParameters.limit.schema).not.toHaveProperty('minimum');
+    expect(listParameters.limit.schema).not.toHaveProperty('maximum');
+    expect(listParameters.offset).toMatchObject({
+      in: 'query',
+      required: false,
+      schema: { type: 'number', default: 0 },
+    });
+    expect(listParameters.offset.schema).not.toHaveProperty('minimum');
+    expect(listParameters.offset.schema).not.toHaveProperty('maximum');
+
+    expect(getRun).toMatchObject({
+      operationId: 'DataMartController_getRunById',
+      summary: 'Get a Data Mart run',
+      tags: ['DataMarts'],
+    });
+    expect(getRun?.description).toMatch(/business user/i);
+
+    expect(cancelRun).toMatchObject({
+      operationId: 'DataMartController_cancelRun',
+      summary: 'Cancel a Data Mart run',
+      tags: ['DataMarts'],
+    });
+    expect(cancelRun?.description).toMatch(/technical user/i);
+    expect(cancelRun?.responses['204']).toEqual({ description: 'Data Mart run cancelled' });
+  });
+
+  it('preserves caller-provided scoped run-history pagination values', async () => {
+    const context = {
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+    } as AuthorizationContext;
+    mapper.toGetDataMartRunsCommand.mockReturnValue({ kind: 'list-runs' });
+
+    await controller.getRunHistory(context, 'dm-1', 500, 100_001);
+
+    expect(mapper.toGetDataMartRunsCommand).toHaveBeenCalledWith('dm-1', context, 500, 100_001);
+  });
+
+  it('marks mapper-owned nullable Data Quality fields as present in every run response', () => {
+    const runSchema = resolveRef('#/components/schemas/DataMartRunResponseApiDto');
+    const detailSchema = resolveRef('#/components/schemas/DataMartRunDetailResponseApiDto');
+
+    expect(runSchema.required).toContain('qualitySummary');
+    expect(runSchema.required).toContain('totals');
+    expect(runSchema.properties.qualitySummary).toMatchObject({ nullable: true });
+    expect(detailSchema.required).toContain('dataQuality');
+    expect(detailSchema.properties.dataQuality).toMatchObject({ nullable: true });
   });
 });

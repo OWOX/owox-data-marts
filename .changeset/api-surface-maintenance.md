@@ -4,45 +4,43 @@
 
 # API surface maintenance
 
-## Add project search API contract and client support
+## Low-level API client transport methods
 
-`GET /api/search` now publishes the integer range and comma-separated serialization of its
-optional filters in OpenAPI. `@owox/api-client` adds `search.query(query, options)` and exports
-`OWOXSearchResult`, `OWOXSearchEntityType`, and `OWOXSearchOptions` for discovering visible Data
-Marts, data storages, and data destinations with validated response data. Existing viewer access
-and search behavior are unchanged, and consumers can adopt the client method without a migration.
+OWOX API clients can now use `patchJson()` and `deleteJson()` alongside
+`getJson()`, `postJson()`, `putJson()`, and `getStream()` for `/api/...`
+endpoints that do not yet have typed resource abstractions. Authenticated
+low-level requests accept only root-relative `/api/...` paths up to 2,048
+characters and refuse unsafe paths and redirects, preventing credentials from
+being sent to an unintended destination. Existing custom transports remain
+source-compatible and can add PATCH and DELETE support independently; calling
+an unsupported new method rejects with `OWOXConfigError`.
 
-## Reconcile the project run history contract
+The existing plugin protocol adds PATCH and DELETE through `ctx.owox` as an
+additive capability while preserving compatibility with existing plugins.
+Low-level JSON return values are caller-typed and are not runtime-validated;
+consumers should prefer typed resource abstractions when available.
 
-`GET /api/data-marts/runs` now publishes the complete project-wide run-history contract, including
-viewer visibility, pagination normalization, enums, field presence and nullability, and the
-backend's RFC3339 timestamp profile. `createdByUser` is the nullable run-author field; when present
-it includes `userId` and may include nullable `fullName`, `email`, and `avatar` values.
-`definitionRun` remains present but can be `null` when a historical definition snapshot is
-unavailable.
+## Manage Data Mart run lifecycles through the API client
 
-`@owox/api-client` validates this contract and exposes it as `runs.list({ limit, offset })`.
-Consumers using the previously released `runs.getHistory(...)` method must rename those calls to
-`runs.list(...)`; the response and option type exports remain available.
+`@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through
+the Data-Mart-scoped `runs.forDataMart(id)` client and its `start()`, `list()`, `get()`, and `cancel()`
+methods. Starting and cancelling require Technical User access; listing and inspecting require
+Business User access. `start()` accepts typed incremental or manual-backfill options, including
+connector-specific fields. Manual-backfill `data` is optional for connectors without backfill
+fields. The API client requires an explicit `MANUAL_BACKFILL` run type whenever `data` is supplied
+and rejects `data` on implicit or explicit incremental runs before sending a request. The backend
+HTTP endpoint separately accepts retained object-valued `data` on incremental requests so existing
+run forms remain compatible. The client also rejects empty, dot-segment, or separator-bearing Data
+Mart and run IDs before sending a request. Serialized manual-run options are limited to 1 MiB by
+both the client and HTTP API; requests above the HTTP transport ceiling return `413` instead of an
+internal-server error. Packaged authentication middleware now limits its body parsers to `/auth`,
+so it no longer overrides the backend API's 2 MiB transport ceiling.
 
-## Strengthen HTTP Data streaming contracts
-
-`GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column
-projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier,
-and failure contract in OpenAPI. `@owox/api-client` now provides typed filter, sort, aggregation,
-and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media
-type before traversal. Consumers passing controls through `unknown[]` or widened variables must
-adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline
-calls remain unchanged.
-
-## Actualize the Data Mart list contract
-
-`GET /api/data-marts` now publishes viewer visibility, non-negative integer offset validation,
-owner-presence filtering, 1,000-item pages, and the complete nested list-item response contract,
-including nullable draft definition types and optional nullable user metadata strings.
-`@owox/api-client` validates every returned page and exposes the full `OWOXDataMart` shape;
-`dataMarts.list({ offset, ownerFilter })` can start from an offset, filter by
-`has_owners` or `no_owners`, and follows subsequent pages automatically. The package exports
-`OWOXDataMartListOptions`, `OWOXDataMartOwnerFilter`, and the nested Data Mart enum and object
-types, and rejects invalid list options before sending a request. Existing `dataMarts.list()`
-calls remain compatible and require no migration.
+Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
+and offsets without silently capping them. The scoped list method rejects unknown, zero or negative
+limits, negative offsets, non-integer values, non-finite values, and integers outside JavaScript's
+safe range before authentication or network access. Project-wide `runs.list()` pagination remains
+unchanged and relies on server normalization.
+Project-wide and Data-Mart-scoped run methods remain compatible with older self-hosted deployments
+that omit Data Quality fields, and Data Quality response validation tolerates additive server fields
+while still checking known values. Existing typed integrations need no migration.

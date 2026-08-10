@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { InsightsProvider } from '../../../features/data-marts/insights-prev/model';
 
 export default function DataMartInsightsContent() {
