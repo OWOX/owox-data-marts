@@ -63,21 +63,37 @@ describe('useAiHelper — unmount with a run in flight', () => {
   });
 });
 
-describe('useAiHelper — trigger finished with ERROR', () => {
+describe('useAiHelper — generation failed', () => {
   const ACCESS_DENIED =
     'Access Denied: Project owox-test: User does not have bigquery.datasets.create permission in project owox-test.';
 
   beforeEach(() => {
     vi.mocked(showAiHelperErrorToast).mockClear();
     mockedService.createAiHelperTrigger.mockResolvedValue({ triggerId: 'trigger-err' });
+  });
+
+  it('shows the persistent error toast for SUCCESS status with an { error } body — the real backend contract', async () => {
+    // The trigger handler swallows generation errors into uiResponse and the scheduler
+    // runner then flips the trigger to SUCCESS, so a failed run arrives as status
+    // SUCCESS + HTTP 200 with { error }. This exact path was silent in production.
+    mockedService.getAiHelperTriggerStatus.mockResolvedValue(TaskStatus.SUCCESS);
+    mockedService.getAiHelperTriggerResponse.mockResolvedValue({ error: ACCESS_DENIED });
+
+    const { result } = renderHook(() => useAiHelper());
+
+    await act(async () => {
+      await result.current.generateAllFieldMetadata('dm-1');
+    });
+
+    expect(showAiHelperErrorToast).toHaveBeenCalledWith('dm-1', ACCESS_DENIED);
+  });
+
+  it('shows the persistent error toast for ERROR status with an HTTP 400 { error } response', async () => {
     mockedService.getAiHelperTriggerStatus.mockResolvedValue(TaskStatus.ERROR);
-    // Mirrors the backend contract: ERROR trigger → HTTP 400 with `{ error }` body.
     mockedService.getAiHelperTriggerResponse.mockRejectedValue({
       response: { status: 400, data: { error: ACCESS_DENIED } },
     });
-  });
 
-  it('shows the persistent error toast with the backend message', async () => {
     const { result } = renderHook(() => useAiHelper());
 
     await act(async () => {

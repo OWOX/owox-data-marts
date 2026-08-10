@@ -151,9 +151,18 @@ export function useAiHelper(): UseAiHelperResult {
                 dataMartId,
                 triggerId
               );
-              outcome = response.result
-                ? { kind: 'ok', data: response.result }
-                : { kind: 'cancelled' };
+              if (response.result) {
+                outcome = { kind: 'ok', data: response.result };
+              } else if (response.error) {
+                // A failed generation arrives HERE, as HTTP 200 with `{ error }`: the handler
+                // swallows the error into uiResponse and the scheduler runner then flips the
+                // trigger to SUCCESS unconditionally. The 400 path in the catch below only
+                // covers CANCELLED and transport-level failures.
+                showAiHelperErrorToast(dataMartId, response.error);
+                outcome = { kind: 'failed' };
+              } else {
+                outcome = { kind: 'cancelled' };
+              }
             }
             runStateRef.current = null;
             setPendingScope(null);

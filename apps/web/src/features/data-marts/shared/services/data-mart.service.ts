@@ -456,7 +456,11 @@ export class DataMartService extends ApiService {
 
   /**
    * Fetch the trigger response when generation is complete.
-   * Backend returns HTTP 400 with `{ error }` if the trigger errored.
+   *
+   * A failed generation normally arrives as HTTP 200 with `{ error }`: the trigger
+   * handler swallows the error into `uiResponse` and the scheduler runner then flips
+   * the trigger to SUCCESS. HTTP 400 with `{ error }` occurs only for triggers that
+   * reached a terminal ERROR/CANCELLED status (e.g. stuck-run recovery, abort).
    */
   async getAiHelperTriggerResponse(
     id: string,
