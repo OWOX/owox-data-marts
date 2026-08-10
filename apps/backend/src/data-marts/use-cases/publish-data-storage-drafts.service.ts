@@ -80,7 +80,7 @@ export class PublishDataStorageDraftsService {
       return new PublishDataStorageDraftsResultDto(0, 0);
     }
 
-    const roles = command.userId ? await this.resolvePublisherRoles(command) : [];
+    const roles = await this.resolvePublisherRoles(command);
 
     let successCount = 0;
     let failedCount = 0;
@@ -102,7 +102,7 @@ export class PublishDataStorageDraftsService {
       } catch (error) {
         this.logger.warn(
           `Failed to publish draft ${draftId}: ${error instanceof Error ? error.message : String(error)}`,
-          error instanceof Error ? error.stack : undefined
+          { stack: error instanceof Error ? error.stack : undefined }
         );
         failureReasons.add(this.toUserFacingReason(error));
         ++failedCount;
@@ -123,7 +123,7 @@ export class PublishDataStorageDraftsService {
         this.logger.warn(
           `Published draft ${draftId} but failed to schedule schema actualization: ` +
             (error instanceof Error ? error.message : String(error)),
-          error instanceof Error ? error.stack : undefined
+          { stack: error instanceof Error ? error.stack : undefined }
         );
       }
     }
@@ -142,19 +142,40 @@ export class PublishDataStorageDraftsService {
    * all-fail this service was fixed to eliminate. Fail loudly instead.
    */
   private async resolvePublisherRoles(command: PublishDataStorageDraftsCommand): Promise<string[]> {
+    // Without a userId, PublishDataMartService skips its access check entirely
+    // (`if (command.userId)`), which would publish every draft unauthorized.
+    // The trigger column is non-nullable, so this is a guard, not a code path.
+    if (!command.userId) {
+      this.logger.error(
+        `Publish drafts trigger for storage ${command.dataStorageId} has no userId; refusing to publish unauthorized`
+      );
+      throw new BusinessViolationException(UNRESOLVED_ROLES_ERROR);
+    }
+
     const project = await this.idpProjectionsFacade
       .getProjectForUser(command.userId, command.projectId)
       .catch((error: unknown) => {
+        // 403/404 from Identity are definitive (identity blocked, or the user
+        // was removed from the project between trigger creation and
+        // processing); telling those users to retry would loop forever.
+        const status = (error as { status?: number } | null)?.status;
+        const isDefinitive = status === 403 || status === 404;
+
         this.logger.warn(
           `Failed to resolve roles for user ${command.userId} in project ${command.projectId}: ` +
             (error instanceof Error ? error.message : String(error)),
-          error instanceof Error ? error.stack : undefined
+          { stack: error instanceof Error ? error.stack : undefined, status }
         );
-        throw new BusinessViolationException(PERMISSIONS_LOOKUP_FAILED_ERROR);
+        throw new BusinessViolationException(
+          isDefinitive ? UNRESOLVED_ROLES_ERROR : PERMISSIONS_LOOKUP_FAILED_ERROR
+        );
       });
 
     if (!project?.roles?.length) {
-      this.logger.warn(
+      // Error, not warn: Identity answered successfully but omitted roles, which
+      // means every bulk publish in this deployment will fail. That is a contract
+      // problem worth surfacing, not routine noise.
+      this.logger.error(
         `No roles resolved for user ${command.userId} in project ${command.projectId}; ` +
           'refusing to publish drafts as an implicit viewer'
       );

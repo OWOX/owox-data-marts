@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
@@ -10,6 +10,28 @@ import { PublishDataStorageDraftsService } from '../use-cases/publish-data-stora
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
 
 const GENERIC_TRIGGER_ERROR = 'Publishing Data Mart drafts failed. Please try again.';
+
+/** The storage was deleted while the trigger was pending; retrying cannot help. */
+const STORAGE_GONE_ERROR = 'This Storage no longer exists. No Data Mart drafts were published.';
+
+/**
+ * The response is readable by any project viewer, so only text this codebase
+ * authored may travel on it.
+ *
+ * PublishDataStorageDraftsService raises BusinessViolationException only with
+ * its own wording. NotFoundException is mapped separately because it is a
+ * permanent condition — its own message is not reused, since it embeds storage
+ * and project ids.
+ */
+function toTriggerErrorMessage(error: unknown): string {
+  if (error instanceof NotFoundException) {
+    return STORAGE_GONE_ERROR;
+  }
+  if (error instanceof BusinessViolationException) {
+    return error.message;
+  }
+  return GENERIC_TRIGGER_ERROR;
+}
 
 @Injectable()
 export class PublishDraftsTriggerHandlerService
@@ -48,16 +70,12 @@ export class PublishDraftsTriggerHandlerService
     } catch (e) {
       this.logger.warn(
         `Trigger ${trigger.id} failed: ${e instanceof Error ? e.message : 'Unknown error'}`,
-        e instanceof Error ? e.stack : undefined
+        { stack: e instanceof Error ? e.stack : undefined }
       );
       trigger.uiResponse = {
         successCount: 0,
         failedCount: 0,
-        // PublishDataStorageDraftsService only raises BusinessViolationException
-        // with text it authored itself. Anything else reaching here is
-        // infrastructure (TypeORM, NotFound, a bug) whose message can carry
-        // internal detail, and this response is readable by any project viewer.
-        error: e instanceof BusinessViolationException ? e.message : GENERIC_TRIGGER_ERROR,
+        error: toTriggerErrorMessage(e),
       };
       trigger.onError();
       await this.repository.save(trigger);

@@ -111,6 +111,37 @@ describe('PublishDataStorageDraftsService', () => {
     expect(publishDataMartService.run).not.toHaveBeenCalled();
   });
 
+  it('refuses to publish when the trigger carries no userId', async () => {
+    const { service, publishDataMartService, idpProjectionsFacade } = createService();
+
+    // An empty userId would make PublishDataMartService skip its access check.
+    await expect(
+      service.run(new PublishDataStorageDraftsCommand('storage-1', 'project-1', ''))
+    ).rejects.toThrow('Could not determine your project permissions');
+
+    expect(idpProjectionsFacade.getProjectForUser).not.toHaveBeenCalled();
+    expect(publishDataMartService.run).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [403, 'identity blocked'],
+    [404, 'user removed from the project'],
+  ])('does not tell the user to retry a definitive %s from Identity', async (status, _why) => {
+    const { service, idpProjectionsFacade } = createService();
+    idpProjectionsFacade.getProjectForUser.mockRejectedValue(
+      Object.assign(new Error('Upstream resource not found'), { status })
+    );
+
+    const error: unknown = await service
+      .run(new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1'))
+      .catch((e: unknown) => e);
+
+    expect((error as Error).message).toBe(
+      'Could not determine your project permissions. No Data Mart drafts were published.'
+    );
+    expect((error as Error).message).not.toContain('try again');
+  });
+
   // Guards the regression this service was created to fix: an unresolved role
   // list must not degrade to [], which AccessDecisionService reads as VIEWER.
   it.each([

@@ -24,6 +24,23 @@ describe('buildPublishFailureMessage', () => {
     );
   });
 
+  // A trigger completed by a pre-deploy backend has no reasons at all; saying
+  // "due to different errors" would be a claim we cannot support.
+  it('omits the cause entirely when no reasons are known', () => {
+    const message = buildPublishFailureMessage(3, []);
+
+    expect(message).toBe(
+      'Failed to publish 3 Data Mart drafts. Review them in the Data Marts list and try again.'
+    );
+    expect(message).not.toContain('different errors');
+  });
+
+  it('uses a singular pronoun for a single draft', () => {
+    expect(buildPublishFailureMessage(1, ['Data Mart has no definition'])).toContain(
+      'Review it in the Data Marts list'
+    );
+  });
+
   it('reports the server count, not the number of distinct reasons', () => {
     expect(buildPublishFailureMessage(11, ['Data Mart has no definition'])).toContain(
       'Failed to publish 11 Data Mart drafts'
