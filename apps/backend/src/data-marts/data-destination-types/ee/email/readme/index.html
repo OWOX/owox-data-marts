@@ -112,14 +112,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     }
   })();
 </script><script type="module">function e(){let e=document.getElementById(`sidebar-toggle`),t=document.getElementById(`page-sidebar`),n=document.querySelector(`.right-sidebar-container`),r=document.querySelector(`.main-pane`);!e||!t||!n||!r||(document.documentElement.classList.remove(`sidebar-initially-collapsed`),localStorage.getItem(`sidebar-collapsed`)===`true`&&(e.classList.add(`collapsed`),t.classList.add(`collapsed`),n.classList.add(`collapsed`),r.classList.add(`sidebar-collapsed`)),e.addEventListener(`click`,()=>{let i=e.classList.toggle(`collapsed`);t.classList.toggle(`collapsed`),n.classList.toggle(`collapsed`),r.classList.toggle(`sidebar-collapsed`),localStorage.setItem(`sidebar-collapsed`,String(i))}))}document.addEventListener(`DOMContentLoaded`,e),document.addEventListener(`astro:page-load`,e);</script></div></aside><div class="main-pane astro-53ofsbnw"><main data-pagefind-body class="astro-c7sbpxca" lang="en" dir="ltr"><div class="content-panel astro-4ywm4itr"><div class="sl-container astro-4ywm4itr"><h1 id="_top" class="astro-b2jrgpyf">Email destination — transitional note</h1></div></div><div class="content-panel astro-4ywm4itr"><div class="sl-container astro-4ywm4itr"><div class="sl-markdown-content"><ul>
-<li>Currently, the Email destination uses the common logic that is shared by four destination types:
+<li>Currently, the Email destination uses the common logic that is shared by three destination types:
 <ul>
 <li>EMAIL</li>
 <li>SLACK</li>
 <li>MS_TEAMS</li>
-<li>GOOGLE_CHAT</li>
 </ul>
 </li>
-<li>In the future, all destination types except Email are expected to receive their own type‑specific implementations and be extracted from here.</li>
+<li>Google Chat has a type-specific implementation that supports both incoming webhooks and the
+existing channel-email delivery method. Channel email reuses the shared email writer.</li>
+<li>In the future, Slack and Microsoft Teams are expected to receive their own type-specific
+implementations and be extracted from here.</li>
 </ul>
 <p>This README clarifies the current transitional state until those extractions are completed.</p></div><footer class="sl-flex astro-oyje6n2t"><div class="meta sl-flex astro-oyje6n2t"></div><div class="pagination-links print:hidden astro-r2lufgrr" dir="ltr"></div></footer></div></div></main></div></div></div></div></body></html>
