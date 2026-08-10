@@ -349,15 +349,6 @@ export class ConnectorSecretService {
         }
         this.removeGeneratedRefreshTokenRecursively(configItem);
 
-        // If no secrets found, return as-is. Secret fields left holding a mask
-        // have no value behind them — the credentials record is gone, or the
-        // copy source had none — so drop them rather than persisting the
-        // placeholder as if it were the credential itself.
-        if (Object.keys(secrets).length === 0) {
-          this.removeMaskedSecretsRecursively(configItem, secretFieldNames);
-          return configItem;
-        }
-
         const existingSecretsId = configItem._secrets_id as string | undefined;
         const existingSecrets = existingSecretsId
           ? await this.connectorSourceCredentialsService.getCredentialsById(existingSecretsId)
@@ -382,8 +373,26 @@ export class ConnectorSecretService {
         if (belongsToAnotherDataMart) {
           this.logger.warn(
             `Configuration ${configId} of DataMart ${dataMartId} referenced secrets ${existingSecretsId} ` +
-              `owned by DataMart ${existingSecrets?.dataMartId}. Creating a separate secrets record.`
+              `owned by DataMart ${existingSecrets?.dataMartId}. ` +
+              (Object.keys(secrets).length === 0
+                ? 'Dropping the foreign reference.'
+                : 'Creating a separate secrets record.')
           );
+          // The foreign pointer is dropped before the no-secrets early return
+          // below: a caller-supplied _secrets_id must buy nothing, even when
+          // every secret field is masked and there is nothing to re-home —
+          // otherwise the stored pointer would be dereferenced at run time
+          // with another DataMart's credentials behind it.
+          delete configItem._secrets_id;
+        }
+
+        // If no secrets found, return as-is. Secret fields left holding a mask
+        // have no value behind them — the credentials record is gone, or the
+        // copy source had none — so drop them rather than persisting the
+        // placeholder as if it were the credential itself.
+        if (Object.keys(secrets).length === 0) {
+          this.removeMaskedSecretsRecursively(configItem, secretFieldNames);
+          return configItem;
         }
 
         if (existingSecrets && !belongsToAnotherDataMart) {

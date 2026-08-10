@@ -548,6 +548,37 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]._secrets_id).toBe('mock-secrets-id');
     });
 
+    it('drops a foreign pointer even when every secret field is masked', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+      (credentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secrets-of-dm-2',
+        projectId: 'proj-1',
+        dataMartId: 'dm-2',
+      });
+
+      // A hand-crafted request: a pointer lifted from another DataMart, no
+      // _copiedFrom, secret fields left as the mask. With no values to extract
+      // there is nothing to fork, but the pointer must not survive either —
+      // stored as-is it would be dereferenced at run time with the other
+      // DataMart's credentials behind it.
+      const definition = makeDefinition([
+        { _id: 'config-1', _secrets_id: 'secrets-of-dm-2', AccessToken: SECRET_MASK },
+      ]);
+
+      const processed = await service.extractAndSaveSecrets(
+        'dm-1',
+        'proj-1',
+        'FacebookMarketing',
+        definition
+      );
+      const cfg = processed.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
+      expect(cfg[0]).not.toHaveProperty('AccessToken');
+      expect(credentialsService.createSecretsForConfig).not.toHaveBeenCalled();
+      expect(credentialsService.updateSecretsForConfig).not.toHaveBeenCalled();
+    });
+
     it('still rejects a pointer into another project', async () => {
       const { service, credentialsService } = createService(['AccessToken']);
       (credentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
