@@ -502,9 +502,13 @@ describe('ConnectorSecretService', () => {
       );
       const cfg = processed.connector.source.configuration as Array<Record<string, unknown>>;
 
-      expect(credentialsService.updateSecretsForConfig).toHaveBeenCalledWith('secrets-1', 'proj-1', {
-        AccessToken: 'token',
-      });
+      expect(credentialsService.updateSecretsForConfig).toHaveBeenCalledWith(
+        'secrets-1',
+        'proj-1',
+        {
+          AccessToken: 'token',
+        }
+      );
       expect(credentialsService.createSecretsForConfig).not.toHaveBeenCalled();
       expect(cfg[0]._secrets_id).toBe('secrets-1');
     });
@@ -687,27 +691,47 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]).not.toHaveProperty('_secrets_id');
     });
 
-    it('preserves the existing copied-secret behavior for other connectors', async () => {
-      const { service } = createService(['AccessToken']);
+    it('seeds the copy with the source generated refresh token in its own record', async () => {
+      const { service, credentialsService } = createService(['RefreshToken']);
+
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+        new Map([
+          [
+            'secrets-1',
+            {
+              id: 'secrets-1',
+              credentials: {
+                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
+                generated_refresh_token: 'generated-refresh-token',
+              },
+            },
+          ],
+        ])
+      );
+
       const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', _secrets_id: 'secrets-1', AccessToken: 'stored-token' },
+        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
       ]);
+
       const incoming = makeDefinition([
         {
           _secrets_id: 'secrets-1',
-          AccessToken: SECRET_MASK,
+          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
           _copiedFrom: { configId: 'source-id-1' },
         },
       ]);
 
       const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
 
-      expect(cfg[0]._secrets_id).toBe('secrets-1');
+      // The copy keeps the same auth chain, so it takes the rotated token as
+      // the seed of its own record — Microsoft does not revoke a redeemed
+      // refresh token, so the two records rotate independent lineages — but it
+      // never keeps the pointer to the source's record.
       expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
-      // The rotating generated token stays with the source's own record: two
-      // records rotating the same value would invalidate each other.
-      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+      expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
     });
 
     it('does not copy source generated refresh token when incoming copied refresh token changes', async () => {
@@ -878,7 +902,12 @@ describe('ConnectorSecretService', () => {
       // Production shape: the source's secret value lives in the credentials
       // record, not inline in the definition.
       (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
-        new Map([['source-secrets-id', { id: 'source-secrets-id', credentials: { AccessToken: 'access1' } }]])
+        new Map([
+          [
+            'source-secrets-id',
+            { id: 'source-secrets-id', credentials: { AccessToken: 'access1' } },
+          ],
+        ])
       );
 
       const sourceDefinition = makeDefinition([
@@ -1065,7 +1094,11 @@ describe('ConnectorSecretService', () => {
 
       await service.deleteOrphanedSecrets('datamart-1', currentDefinition, previousDefinition);
 
-      expect(deletedSecretsIds(credentialsService)).toEqual(['secrets-1', 'secrets-3', 'secrets-4']);
+      expect(deletedSecretsIds(credentialsService)).toEqual([
+        'secrets-1',
+        'secrets-3',
+        'secrets-4',
+      ]);
     });
 
     it('does not delete a secrets record that belongs to a different DataMart', async () => {

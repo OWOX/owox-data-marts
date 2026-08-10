@@ -845,9 +845,6 @@ export class ConnectorSecretService {
       );
     }
 
-    const { copySecretsByValue } = this.connectorService.getConnectorCapabilities(
-      incoming.connector.source.name
-    );
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
     const sourceSecretsIds = sourceDefinition.connector.source.configuration
       .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
@@ -883,6 +880,8 @@ export class ConnectorSecretService {
       >;
       const secretsId = sourceConfigWithSecrets._secrets_id as string | undefined;
       const secretsEntity = secretsId ? sourceSecretsMap.get(secretsId) : undefined;
+      const generatedRefreshToken =
+        secretsEntity?.credentials?.[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
       if (secretsEntity?.credentials) {
         this.injectSecretsAtPaths(sourceConfigWithSecrets, secretsEntity.credentials);
       }
@@ -898,16 +897,23 @@ export class ConnectorSecretService {
       // scoped 1:1 to the source DataMart's own config item, and reusing it
       // would alias both DataMarts' manual credentials to the same record.
       delete mergedItem._secrets_id;
-      if (copySecretsByValue) {
-        delete mergedItem._secrets_id;
-      }
       mergedItem._id = randomUUID();
-      // The generated refresh token is not copied either. It is a rotating
-      // value minted at run time and bound to the source's own credentials
-      // record: handing the same one to two records lets each rotate it
-      // independently, and the first rotation silently breaks the other. The
-      // copy re-mints its own from the refresh token it was given.
+      // The rotated (generated) refresh token is carried into the copy as a
+      // seed for its own credentials record. Microsoft keeps a redeemed
+      // refresh token valid when it issues a new one, so the source and the
+      // copy rotate independent token lineages from the shared seed; without
+      // it the copy would start from the user-supplied token, which may have
+      // already expired. The seed travels only while the copy authenticates
+      // with the source's exact refresh token and is not managed OAuth.
       delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+      if (
+        typeof generatedRefreshToken === 'string' &&
+        generatedRefreshToken &&
+        !this.hasSourceCredentialIdRecursively(mergedItem) &&
+        this.hasSameRefreshToken(sourceConfigWithSecrets, mergedItem)
+      ) {
+        mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] = generatedRefreshToken;
+      }
 
       return mergedItem;
     });
@@ -924,4 +930,47 @@ export class ConnectorSecretService {
     } as ConnectorDefinition;
   }
 
+  private hasSameRefreshToken(
+    sourceConfig: Record<string, unknown>,
+    mergedConfig: unknown
+  ): boolean {
+    const sourceRefreshToken = this.getRefreshTokenValue(sourceConfig);
+    const mergedRefreshToken = this.getRefreshTokenValue(mergedConfig);
+
+    return (
+      typeof sourceRefreshToken === 'string' &&
+      sourceRefreshToken !== '' &&
+      !this.isSecretMask(sourceRefreshToken) &&
+      mergedRefreshToken === sourceRefreshToken
+    );
+  }
+
+  private getRefreshTokenValue(value: unknown): unknown {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nestedValue = this.getRefreshTokenValue(item);
+        if (nestedValue !== undefined) {
+          return nestedValue;
+        }
+      }
+      return undefined;
+    }
+
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (key === 'refresh_token' || key === 'RefreshToken' || key.endsWith('.RefreshToken')) {
+        return nestedValue;
+      }
+
+      const nestedRefreshToken = this.getRefreshTokenValue(nestedValue);
+      if (nestedRefreshToken !== undefined) {
+        return nestedRefreshToken;
+      }
+    }
+
+    return undefined;
+  }
 }

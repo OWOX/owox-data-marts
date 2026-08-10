@@ -532,7 +532,7 @@ describe('UpdateDataMartDefinitionService', () => {
       expect(connectorSecretService.extractAndSaveSecrets).toHaveBeenCalled();
       expect(connectorSecretService.deleteOrphanedSecrets).toHaveBeenCalledWith(
         'dm-1',
-        new Set(['cfg-2']),
+        nextDefinition,
         existingDefinition
       );
       expect(dataMart.definitionType).toBe(DataMartDefinitionType.CONNECTOR);
