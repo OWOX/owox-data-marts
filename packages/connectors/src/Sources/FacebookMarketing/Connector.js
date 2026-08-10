@@ -115,27 +115,47 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       // start requesting data day by day from startDate to startDate + daysToFetch
       for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
 
+        let skippedAccounts = [];
+        let lastAccountError = null;
 
         // itterating accounts
         for (let accountId of accountsIds) {
 
-          // itteration nodes to fetch data
-          for(var nodeName in timeSeriesNodes) {
+          try {
 
-            this.config.logMessage(`Start importing data for ${DateUtils.formatDate(startDate)}: ${accountId}/${nodeName}`);
+            // itteration nodes to fetch data
+            for(var nodeName in timeSeriesNodes) {
 
-            // fetching new data from a data source
-            let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
+              this.config.logMessage(`Start importing data for ${DateUtils.formatDate(startDate)}: ${accountId}/${nodeName}`);
 
-            if( data.length || this.config.CreateEmptyTables?.value ) {
-              const storage = await this.getStorageByNode(nodeName);
-              await storage.saveData(data);
+              // fetching new data from a data source
+              let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
+
+              if( data.length || this.config.CreateEmptyTables?.value ) {
+                const storage = await this.getStorageByNode(nodeName);
+                await storage.saveData(data);
+              }
+
+              this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
+
             }
 
-            this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
+          // an account the token can no longer access must not abort the whole import
+          } catch( error ) {
+
+            skippedAccounts.push( accountId );
+            lastAccountError = error;
+            this.config.logMessage(`Skipped account ${accountId}: ${error?.message || error}`);
 
           }
 
+        }
+
+        // Every account failing points to a global cause, such as an expired access token, rather
+        // than to individual accounts losing access. Reporting success here would hide the outage:
+        // the run would be marked as successful while importing nothing at all.
+        if( accountsIds.length && skippedAccounts.length === accountsIds.length ) {
+          throw new Error(`All ${accountsIds.length} accounts were skipped for ${DateUtils.formatDate(startDate)}, so nothing was imported. This usually means a global failure, like an expired access token, rather than individual accounts being inaccessible. Last error: ${lastAccountError?.message || lastAccountError}`);
         }
 
         // Only update LastRequestedDate for incremental runs
