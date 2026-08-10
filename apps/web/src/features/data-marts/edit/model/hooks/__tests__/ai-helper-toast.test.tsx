@@ -95,7 +95,9 @@ describe('showAiHelperErrorToast', () => {
     showAiHelperErrorToast('dm-1', 'AI returned no field aliases.');
     renderLastErrorToast();
 
-    expect(screen.queryByRole('button', { name: 'Show technical details' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Show technical details' })
+    ).not.toBeInTheDocument();
   });
 });
 
