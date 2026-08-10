@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 /**
  * BigQuery access errors arrive as raw API strings like
@@ -40,22 +40,42 @@ export function humanizeAiHelperError(raw: string): HumanizedAiHelperError {
   return { message: raw };
 }
 
-/** Mirrors the app's error-toast palette (see shared/components/Toaster) so AI helper
- * failures read as errors, not neutral cards. */
-const ERROR_TOAST_STYLE: React.CSSProperties = {
-  background: '#FEE2E2',
-  color: '#991B1B',
-  border: '1px solid #EAD1D1',
-};
+/** Same dedicated close button the app's persistent API-error toasts use
+ * (see shared/utils/showApiErrorToast.ts) — text stays selectable, dismissal is explicit. */
+// eslint-disable-next-line react-refresh/only-export-components -- toast content, not a route component
+function DismissButton({ toastId, label }: { toastId: string; label: string }) {
+  return (
+    <button
+      type='button'
+      aria-label={label}
+      onClick={() => {
+        toast.dismiss(toastId);
+      }}
+      style={{
+        cursor: 'pointer',
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        margin: 0,
+        font: 'inherit',
+        color: 'inherit',
+        flexShrink: 0,
+      }}
+    >
+      ✕
+    </button>
+  );
+}
 
 /**
- * Persistent (no auto-dismiss) error toast for AI helper failures. A transient toast
- * proved invisible in practice — the presenter on the 2026-08-05 client demo never saw
- * the failure and retried blindly. Keyed per data mart so retries collapse onto one toast.
+ * Persistent (no auto-dismiss) error toast for AI helper failures, rendered through the
+ * same react-hot-toast error style the rest of the app uses (red, top-center) — a
+ * transient toast proved invisible in practice: the presenter on the 2026-08-05 client
+ * demo never saw the failure and retried blindly. Keyed per data mart so retries
+ * collapse onto one toast.
  *
- * The technical details expand by re-issuing the toast (same id) rather than via a native
- * `<details>` element: sonner measures the card height when the toast renders, so content
- * that grows without a re-render overflows the card.
+ * The technical details expand by re-issuing the toast under the same id rather than via
+ * a native `<details>` element, so the toast re-renders and re-measures its height.
  */
 export function showAiHelperErrorToast(dataMartId: string, rawMessage: string): void {
   renderErrorToast(dataMartId, humanizeAiHelperError(rawMessage), false);
@@ -68,25 +88,54 @@ function renderErrorToast(
 ): void {
   const { message, details } = humanized;
 
-  toast.error(message, {
-    id: `ai-helper-error-${dataMartId}`,
-    duration: Infinity,
-    closeButton: true,
-    style: ERROR_TOAST_STYLE,
-    description: details ? (
-      detailsExpanded ? (
-        <div className='mt-1 text-xs break-words whitespace-pre-wrap opacity-80'>{details}</div>
-      ) : (
-        <button
-          type='button'
-          className='mt-1 cursor-pointer text-xs underline underline-offset-2 opacity-80'
-          onClick={() => renderErrorToast(dataMartId, humanized, true)}
-        >
-          Show technical details
-        </button>
-      )
-    ) : undefined,
-  });
+  toast.error(
+    t => (
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span>
+          {message}
+          {details &&
+            (detailsExpanded ? (
+              <span
+                style={{
+                  display: 'block',
+                  marginTop: '0.25rem',
+                  fontSize: '0.75rem',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                  opacity: 0.85,
+                }}
+              >
+                {details}
+              </span>
+            ) : (
+              <button
+                type='button'
+                onClick={() => {
+                  renderErrorToast(dataMartId, humanized, true);
+                }}
+                style={{
+                  display: 'block',
+                  marginTop: '0.25rem',
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  font: 'inherit',
+                  fontSize: '0.75rem',
+                  color: 'inherit',
+                  textDecoration: 'underline',
+                  opacity: 0.85,
+                }}
+              >
+                Show technical details
+              </button>
+            ))}
+        </span>
+        <DismissButton toastId={t.id} label='Dismiss error' />
+      </span>
+    ),
+    { duration: Infinity, id: `ai-helper-error-${dataMartId}` }
+  );
 }
 
 /**
@@ -94,12 +143,16 @@ function renderErrorToast(
  * back to untouched fields with no explanation of whether the run succeeded.
  */
 export function showAiHelperCancelledToast(dataMartId: string): void {
-  toast.info(
-    'AI suggestion generation was cancelled because you left the page. Run it again when you are ready.',
-    {
-      id: `ai-helper-cancelled-${dataMartId}`,
-      duration: Infinity,
-      closeButton: true,
-    }
+  toast(
+    t => (
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span>
+          AI suggestion generation was cancelled because you left the page. Run it again when you
+          are ready.
+        </span>
+        <DismissButton toastId={t.id} label='Dismiss notice' />
+      </span>
+    ),
+    { duration: Infinity, id: `ai-helper-cancelled-${dataMartId}` }
   );
 }
