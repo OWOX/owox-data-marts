@@ -1,8 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useAiHelper } from '../use-ai-helper';
-import { showAiHelperCancelledToast } from '../ai-helper-toast';
+import { showAiHelperCancelledToast, showAiHelperErrorToast } from '../ai-helper-toast';
 import { dataMartService } from '../../../../shared';
+import { TaskStatus } from '../../../../../../shared/types/task-status.enum';
 
 vi.mock('../ai-helper-toast', () => ({
   showAiHelperErrorToast: vi.fn(),
@@ -59,5 +60,30 @@ describe('useAiHelper — unmount with a run in flight', () => {
     unmount();
 
     expect(showAiHelperCancelledToast).not.toHaveBeenCalled();
+  });
+});
+
+describe('useAiHelper — trigger finished with ERROR', () => {
+  const ACCESS_DENIED =
+    'Access Denied: Project owox-test: User does not have bigquery.datasets.create permission in project owox-test.';
+
+  beforeEach(() => {
+    vi.mocked(showAiHelperErrorToast).mockClear();
+    mockedService.createAiHelperTrigger.mockResolvedValue({ triggerId: 'trigger-err' });
+    mockedService.getAiHelperTriggerStatus.mockResolvedValue(TaskStatus.ERROR);
+    // Mirrors the backend contract: ERROR trigger → HTTP 400 with `{ error }` body.
+    mockedService.getAiHelperTriggerResponse.mockRejectedValue({
+      response: { status: 400, data: { error: ACCESS_DENIED } },
+    });
+  });
+
+  it('shows the persistent error toast with the backend message', async () => {
+    const { result } = renderHook(() => useAiHelper());
+
+    await act(async () => {
+      await result.current.generateAllFieldMetadata('dm-1');
+    });
+
+    expect(showAiHelperErrorToast).toHaveBeenCalledWith('dm-1', ACCESS_DENIED);
   });
 });
