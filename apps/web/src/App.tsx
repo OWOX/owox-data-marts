@@ -18,8 +18,28 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * OAuth callback pages run in a short-lived popup and only forward the
+ * authorization result to the opener window. They must not boot the
+ * authenticated app: the auth bootstrap calls /auth/access-token, which
+ * rotates the single-use refresh-token cookie and races the opener tab's
+ * session (intermittent auth failures), and on failure redirects the popup
+ * to sign-in.
+ */
+function isOAuthCallbackWindow(): boolean {
+  return window.location.pathname.startsWith('/oauth/');
+}
+
 function App() {
   const router = createBrowserRouter(routes);
+
+  if (isOAuthCallbackWindow()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

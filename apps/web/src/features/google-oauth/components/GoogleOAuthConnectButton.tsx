@@ -28,8 +28,8 @@ const GoogleLogo = () => (
 
 interface OAuthCallbackData {
   type: string;
-  success: boolean;
-  credentialId?: string;
+  code?: string;
+  state?: string;
   error?: string;
 }
 
@@ -130,11 +130,6 @@ export function GoogleOAuthConnectButton({
         state = result.state;
       }
 
-      // Use sessionStorage (tab-scoped) to avoid multi-tab collisions
-      sessionStorage.setItem('oauth_state', state);
-      sessionStorage.setItem('oauth_resource_type', resourceType);
-      sessionStorage.setItem('oauth_resource_id', resourceId ?? '');
-
       const width = 600;
       const height = 700;
       const left = Math.round(window.screenX + (window.outerWidth - width) / 2);
@@ -145,44 +140,74 @@ export function GoogleOAuthConnectButton({
         `width=${String(width)},height=${String(height)},left=${String(left)},top=${String(top)},resizable=yes,scrollbars=yes`
       );
 
+      // The popup only forwards the authorization code back here; the exchange
+      // runs in THIS window with the same session that generated the state.
+      // The popup itself never authenticates, so it cannot race the rotating
+      // refresh-token cookie or land in a different project context.
+      const bc = new BroadcastChannel(`oauth_channel_${state}`);
+      let completed = false;
+
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+        bc.close();
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
+
+      const processCallbackData = (data: OAuthCallbackData) => {
+        if (data.type !== 'OAUTH_CALLBACK') return;
+        if (completed) return;
+        completed = true;
+        cleanup();
+
+        void (async () => {
+          try {
+            if (data.error || !data.code) {
+              throw new Error(data.error ?? 'No authorization code received from Google');
+            }
+            if (data.state !== state) {
+              throw new Error('Invalid state token. Please try again.');
+            }
+
+            const result =
+              resourceType === 'storage'
+                ? await storageOAuthApi.exchangeOAuthCode(data.code, data.state)
+                : await destinationOAuthApi.exchangeOAuthCode(data.code, data.state);
+
+            setConnecting(false);
+            setCurrentCredentialId(result.credentialId);
+            onSuccess?.(result.credentialId);
+            void fetchStatus();
+          } catch (error) {
+            console.error('Google OAuth connection failed', error);
+            setConnecting(false);
+            setConnectError(
+              error instanceof Error && error.message
+                ? error.message
+                : 'Failed to connect your Google account. Please try again.'
+            );
+          }
+        })();
+      };
+
+      const handleMessage = (event: MessageEvent<OAuthCallbackData>) => {
+        if (event.origin !== window.location.origin) return;
+        processCallbackData(event.data);
+      };
+      window.addEventListener('message', handleMessage);
+      bc.onmessage = (event: MessageEvent<OAuthCallbackData>) => {
+        processCallbackData(event.data);
+      };
+
       if (!popup) {
+        cleanup();
         throw new Error('Popup was blocked. Please allow popups for this site and try again.');
       }
       popupRef.current = popup;
 
-      const handleMessage = (event: MessageEvent<OAuthCallbackData>) => {
-        if (event.origin !== window.location.origin) return;
-        if (event.data.type !== 'OAUTH_CALLBACK') return;
-
-        window.removeEventListener('message', handleMessage);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setConnecting(false);
-
-        if (event.data.success) {
-          const credentialId = event.data.credentialId;
-          if (!credentialId) {
-            setConnectError(
-              'Connection succeeded but no credential was returned. Please try again.'
-            );
-            return;
-          }
-          setCurrentCredentialId(credentialId);
-          onSuccess?.(credentialId);
-          void fetchStatus();
-        } else {
-          console.error('Google OAuth callback reported failure', event.data.error);
-          setConnectError(
-            event.data.error ?? 'Failed to connect your Google account. Please try again.'
-          );
-        }
-      };
-      window.addEventListener('message', handleMessage);
-
       intervalRef.current = setInterval(() => {
         try {
-          if (popup.closed) {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            window.removeEventListener('message', handleMessage);
+          if (popup.closed && !completed) {
+            cleanup();
             setConnecting(false);
           }
         } catch {

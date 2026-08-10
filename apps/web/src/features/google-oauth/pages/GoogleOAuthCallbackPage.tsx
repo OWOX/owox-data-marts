@@ -1,21 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { storageOAuthApi, destinationOAuthApi } from '../api/google-oauth-api.service';
 
-function sendToOpener(data: object): boolean {
+/**
+ * Message sent from the OAuth popup back to the window that opened it.
+ * On success carries the authorization code and state; on failure carries an error.
+ * The opener performs the code exchange with its own session, so this page
+ * never calls the API and never needs the app's auth bootstrap.
+ */
+export interface GoogleOAuthCallbackMessage {
+  type: 'OAUTH_CALLBACK';
+  code?: string;
+  state?: string;
+  error?: string;
+}
+
+function sendToOpener(
+  data: Omit<GoogleOAuthCallbackMessage, 'type'>,
+  state: string | null
+): boolean {
+  const message: GoogleOAuthCallbackMessage = { type: 'OAUTH_CALLBACK', ...data };
   const opener = window.opener as Window | null;
   if (opener) {
-    opener.postMessage({ type: 'OAUTH_CALLBACK', ...data }, window.location.origin);
+    opener.postMessage(message, window.location.origin);
+    window.close();
+    return true;
+  }
+  // COOP on the provider side can sever window.opener; fall back to a
+  // state-scoped BroadcastChannel the opener also listens on.
+  if (state) {
+    const bc = new BroadcastChannel(`oauth_channel_${state}`);
+    bc.postMessage(message);
+    bc.close();
     window.close();
     return true;
   }
   return false;
-}
-
-function clearOAuthSessionData() {
-  sessionStorage.removeItem('oauth_state');
-  sessionStorage.removeItem('oauth_resource_type');
-  sessionStorage.removeItem('oauth_resource_id');
 }
 
 export function GoogleOAuthCallbackPage() {
@@ -27,90 +46,33 @@ export function GoogleOAuthCallbackPage() {
     if (processed.current) return;
     processed.current = true;
 
-    const handleCallback = async () => {
-      try {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const errorParam = searchParams.get('error');
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    const errorParam = searchParams.get('error');
 
-        if (errorParam) {
-          clearOAuthSessionData();
-          if (!sendToOpener({ success: false, error: `OAuth error: ${errorParam}` })) {
-            setFallbackMessage(`Authentication failed: ${errorParam}. You can close this window.`);
-          }
-          return;
-        }
-
-        if (!code || !state) {
-          clearOAuthSessionData();
-          if (!sendToOpener({ success: false, error: 'Missing authorization code or state' })) {
-            setFallbackMessage(
-              'Missing authorization code. You can close this window and try again.'
-            );
-          }
-          return;
-        }
-
-        // Client-side state check (tab-scoped via sessionStorage).
-        // The real CSRF protection is the server-side JWT signature in the state token.
-        const storedState = sessionStorage.getItem('oauth_state');
-
-        if (state !== storedState) {
-          clearOAuthSessionData();
-          if (
-            !sendToOpener({
-              success: false,
-              error: 'Invalid state token. Possible CSRF attack. Please try again.',
-            })
-          ) {
-            setFallbackMessage('Invalid state token. You can close this window and try again.');
-          }
-          return;
-        }
-
-        const resourceType = sessionStorage.getItem('oauth_resource_type');
-
-        if (!resourceType || (resourceType !== 'storage' && resourceType !== 'destination')) {
-          clearOAuthSessionData();
-          if (
-            !sendToOpener({
-              success: false,
-              error: 'Missing resource information. Please try connecting again.',
-            })
-          ) {
-            setFallbackMessage(
-              'Missing resource information. You can close this window and try again.'
-            );
-          }
-          return;
-        }
-
-        // Exchange code for tokens
-        const result =
-          resourceType === 'storage'
-            ? await storageOAuthApi.exchangeOAuthCode(code, state)
-            : await destinationOAuthApi.exchangeOAuthCode(code, state);
-
-        clearOAuthSessionData();
-
-        if (!sendToOpener({ success: true, credentialId: result.credentialId })) {
-          setFallbackMessage(
-            'Authentication complete. You can close this window and return to the application.'
-          );
-        }
-      } catch (err) {
-        clearOAuthSessionData();
-        const message =
-          err instanceof Error ? err.message : 'Failed to connect your Google account';
-        if (!sendToOpener({ success: false, error: message })) {
-          setFallbackMessage(
-            `Authentication failed: ${message}. You can close this window and try again.`
-          );
-        }
+    if (errorParam) {
+      if (!sendToOpener({ error: `OAuth error: ${errorParam}` }, state)) {
+        setFallbackMessage(`Authentication failed: ${errorParam}. You can close this window.`);
       }
-    };
+      return;
+    }
 
-    void handleCallback();
+    if (!code || !state) {
+      if (!sendToOpener({ error: 'Missing authorization code or state' }, state)) {
+        setFallbackMessage('Missing authorization code. You can close this window and try again.');
+      }
+      return;
+    }
+
+    // The opener validates the state against the value it generated and then
+    // exchanges the code using its own authenticated session. The server-side
+    // JWT signature on the state token remains the real CSRF protection.
+    if (!sendToOpener({ code, state }, state)) {
+      setFallbackMessage(
+        'The window that started the connection is no longer available. ' +
+          'Please close this window and try connecting again.'
+      );
+    }
   }, [searchParams]);
 
   if (fallbackMessage) {
