@@ -15,6 +15,7 @@ interface DataMartDefinitionFormProps {
   storageId: string;
   storageConfig: DataStorageConfigDto | null;
   preset?: string;
+  connectorName?: string | null;
   initialDefinitionType?: DataMartDefinitionType | null;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
@@ -25,6 +26,7 @@ export function DataMartDefinitionForm({
   storageId,
   storageConfig,
   preset,
+  connectorName,
   initialDefinitionType,
   saveDataMartDefinition,
 }: DataMartDefinitionFormProps) {
@@ -47,8 +49,13 @@ export function DataMartDefinitionForm({
       definitionType === DataMartDefinitionType.TABLE_PATTERN && isDifferentFromInitial
     );
 
-    setShouldAutoOpenConnector(definitionType === DataMartDefinitionType.CONNECTOR && !preset);
-  }, [definitionType, initialDefinitionType, preset]);
+    // connectorName and preset each drive their own preselect-and-open effect
+    // further down in DataMartConnectorView, so the generic auto-open here
+    // must stay off for both to avoid competing with that preselected open.
+    setShouldAutoOpenConnector(
+      definitionType === DataMartDefinitionType.CONNECTOR && !preset && !connectorName
+    );
+  }, [definitionType, initialDefinitionType, preset, connectorName]);
 
   return (
     <div className='space-y-2'>
@@ -91,6 +98,7 @@ export function DataMartDefinitionForm({
           control={control}
           storageType={storageType}
           preset={preset}
+          connectorName={connectorName}
           autoOpen={shouldAutoOpenConnector}
           saveDataMartDefinition={saveDataMartDefinition}
         />

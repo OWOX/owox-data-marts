@@ -123,6 +123,7 @@ export class DataMartMapper {
   ): DataMartDto {
     return new DataMartDto(
       entity.id,
+      entity.projectId,
       entity.title,
       entity.status,
       this.dataStorageMapper.toDomainDto(entity.storage),
@@ -160,7 +161,10 @@ export class DataMartMapper {
   async toResponse(dto: DataMartDto): Promise<DataMartResponseApiDto> {
     const maskedDefinition =
       dto.definitionType === DataMartDefinitionType.CONNECTOR
-        ? await this.connectorSecretService.mask(dto.definition as ConnectorDefinition)
+        ? await this.connectorSecretService.mask(
+            dto.projectId,
+            dto.definition as ConnectorDefinition
+          )
         : dto.definition;
     return {
       id: dto.id,
@@ -797,7 +801,7 @@ export class DataMartMapper {
     definitionRun?: DataMartDefinition | null
   ): Promise<DataMartDefinition | undefined> {
     if (definitionRun && isConnectorDefinition(definitionRun)) {
-      return this.connectorSecretService.mask(definitionRun);
+      return this.connectorSecretService.mask(undefined, definitionRun);
     }
 
     return undefined;

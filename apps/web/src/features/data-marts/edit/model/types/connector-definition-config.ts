@@ -5,6 +5,7 @@ export interface ConnectorSourceConfig {
   configuration: Record<string, unknown>[];
   node: string;
   fields: string[];
+  version?: number;
 }
 
 export interface ConnectorStorageConfig {

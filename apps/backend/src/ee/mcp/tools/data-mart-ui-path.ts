@@ -14,3 +14,7 @@ export function buildDataDestinationsUiPath(projectId: string, destinationId?: s
 export function buildReportSchedulesUiPath(projectId: string): string {
   return `/ui/${encodeURIComponent(projectId)}/data-marts/schedules`;
 }
+
+export function buildConnectorBuilderPath(projectId: string, connectorId: string): string {
+  return `/ui/${encodeURIComponent(projectId)}/connectors/builder/${encodeURIComponent(connectorId)}`;
+}

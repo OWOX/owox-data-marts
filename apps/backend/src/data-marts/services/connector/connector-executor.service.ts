@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
 const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
@@ -19,9 +19,27 @@ const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
  * kept safely under the smallest common MySQL max_allowed_packet (16MB).
  * Entry sizes are measured on the JSON-serialized form so quote escaping and
  * multibyte characters count toward the real packet size.
+ *
+ * The entry cap also derives the bound on the in-memory buffers, so they stop where the
+ * persisted array stops: `capMergedEntries` discards everything past it at the terminal
+ * write, so a buffer that grew beyond it was accumulating entries that could never be
+ * stored — and paying for them on every intermediate flush, which rewrites the whole
+ * JSON column.
  */
-const MAX_MERGED_RUN_OUTPUT_ENTRIES = 10000;
+export const MAX_MERGED_RUN_OUTPUT_ENTRIES = 10000;
 const MAX_MERGED_RUN_OUTPUT_BYTES = 6 * 1024 * 1024;
+
+/**
+ * Bound on each in-memory message buffer of a single execution.
+ *
+ * One less than the merged cap because `addMessageToArray` spends an entry saying the
+ * cap was reached, exactly as `capMergedEntries` reserves one for its own truncation
+ * notice. At the merged cap the two would compose into cap + 1 entries, and the terminal
+ * write would then trim that single entry and label a first attempt
+ * "earlier entries from previous attempts were truncated" — reporting a resume that
+ * never happened.
+ */
+const MAX_RUN_BUFFER_ENTRIES = MAX_MERGED_RUN_OUTPUT_ENTRIES - 1;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -40,6 +58,7 @@ import { CredentialsExpiredException } from '../../exceptions/google-oauth.excep
 import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBillingService, RunKind } from '../project-billing/project-billing.service';
+import { ConnectorDefinitionService } from './connector-definition.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
@@ -47,6 +66,19 @@ import { ConnectorCredentialInjectorService } from './connector-credential-injec
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
 import { NON_TERMINAL_DATA_MART_RUN_STATUSES } from '../../utils/data-mart-run-cancellation';
+import { createRunLogSnapshotReader, RunLogFlusher, RunLogSnapshot } from './run-log-flusher';
+
+/**
+ * `addMessageToArray` with this file's entry bound always applied.
+ *
+ * Every run-scoped buffer goes through it rather than calling `addMessageToArray`
+ * directly: the cap is optional in that helper, and when each of these call sites
+ * decided for itself, all of them omitted it and every buffer grew for the lifetime of
+ * the run. One function is also one place to grep to prove no unbounded buffer is left.
+ */
+function addBoundedMessage(array: ConnectorMessage[], message: ConnectorMessage): void {
+  addMessageToArray(array, message, MAX_RUN_BUFFER_ENTRIES);
+}
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -76,7 +108,9 @@ export class ConnectorExecutorService {
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly projectBillingService: ProjectBillingService,
     private readonly dataMartService: DataMartService,
-    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
+    private readonly connectorDefinitionService: ConnectorDefinitionService,
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
+    private readonly configService: ConfigService
   ) {}
 
   async executeInBackground(
@@ -87,13 +121,17 @@ export class ConnectorExecutorService {
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
+    const mergeWithExisting = run.status === DataMartRunStatus.INTERRUPTED;
 
     this.gracefulShutdownService.registerActiveProcess(processId);
 
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
     let configurationResults: ConfigurationExecutionResult[] = [];
-    let hasSuccessfulRun = false;
+    const liveLogs: ConnectorMessage[] = [];
+    const liveErrors: ConnectorMessage[] = [];
+    let logFlusher: RunLogFlusher | null = null;
+    let allConfigurationsSucceeded = false;
     let wasCancelled = false;
     let operationBlockedException: ProjectOperationBlockedException | undefined;
 
@@ -138,31 +176,52 @@ export class ConnectorExecutorService {
         return;
       }
 
+      logFlusher = this.createRunLogFlusher(runId, liveLogs, liveErrors, mergeWithExisting);
+      logFlusher?.start();
+
       configurationResults = await this.runConnectorConfigurations(
         runId,
         processId,
         dataMart,
         payload,
-        signal
+        signal,
+        liveLogs,
+        liveErrors
       );
 
       configurationResults.forEach(result => {
-        result.logs.forEach(log => addMessageToArray(capturedLogs, log));
-        result.errors.forEach(error => addMessageToArray(capturedErrors, error));
+        result.logs.forEach(log => addBoundedMessage(capturedLogs, log));
+        result.errors.forEach(error => addBoundedMessage(capturedErrors, error));
       });
 
       const successCount = configurationResults.filter(r => r.success).length;
       const totalCount = configurationResults.length;
-      hasSuccessfulRun = successCount > 0;
-      wasCancelled = signal?.aborted === true && !hasSuccessfulRun;
+      // A run is SUCCESS only when EVERY configuration succeeded. A run executes
+      // one configuration per account, so one account importing while four failed
+      // is a partial import, not a completed one — reporting it green hid the four
+      // from run history, from the failure notification, and (worst) from the
+      // recovery sweep, which then never imported them at all. `totalCount > 0`
+      // keeps the rule from being vacuously satisfied by a run that executed
+      // nothing: that stays a failure, as it was before.
+      allConfigurationsSucceeded = totalCount > 0 && successCount === totalCount;
+      // The user stopped a run that did not finish all its work. Still conditioned
+      // on the full-success flag, but that flag now means "all", so a cancel that
+      // lands mid-run is CANCELLED even when earlier configurations completed —
+      // only a run that had already finished everything is left SUCCESS, because
+      // then the abort cancelled nothing.
+      wasCancelled = signal?.aborted === true && !allConfigurationsSucceeded;
       this.logger.log(
         `Connector execution completed: ${successCount}/${totalCount} configurations successful`,
         { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, successCount, totalCount }
       );
     } catch (error) {
-      wasCancelled = signal?.aborted === true && !hasSuccessfulRun;
+      // Nothing reaching here can have produced configuration results (the only
+      // throw sites are before the per-configuration loop; inside it, failures are
+      // captured per configuration), so the full-success flag is still false and
+      // an aborted run is unambiguously CANCELLED.
+      wasCancelled = signal?.aborted === true && !allConfigurationsSucceeded;
       const errorMessage = error instanceof Error ? error.message : String(error);
-      addMessageToArray(capturedErrors, {
+      addBoundedMessage(capturedErrors, {
         type: ConnectorMessageType.ERROR,
         at: this.systemTimeService.now().toISOString(),
         error: errorMessage,
@@ -197,7 +256,7 @@ export class ConnectorExecutorService {
         const fieldsUpdateError = error instanceof Error ? error.message : String(error);
         const warning =
           'Connector data was imported, but the source field list could not be synchronized. It will be retried on the next run.';
-        addMessageToArray(capturedLogs, {
+        addBoundedMessage(capturedLogs, {
           type: ConnectorMessageType.WARNING,
           at: this.systemTimeService.now().toISOString(),
           warning,
@@ -219,20 +278,27 @@ export class ConnectorExecutorService {
         await this.actualizeSchemaAfterConnectorExecution(dataMart, runId);
       }
 
+      await logFlusher?.stop();
+      // Read after stop(), which awaits every started flush: this is exactly what this
+      // execution's flusher put in the row, and the terminal write is about to re-supply
+      // all of it. Subtracted there so nothing is stored twice.
+      const flushedSnapshot = logFlusher?.persistedSnapshot() ?? null;
+
       // When the terminal status write is skipped (the run was cancelled
       // concurrently and CANCELLED must win), billing and outcome events must
       // be skipped too: the persisted status is CANCELLED, and charging the
       // project or publishing a success/failure webhook would contradict it.
       const statusPersisted = await this.updateRunStatus(
         runId,
-        hasSuccessfulRun,
+        allConfigurationsSucceeded,
         capturedLogs,
         capturedErrors,
         operationBlockedException,
-        wasCancelled
+        wasCancelled,
+        flushedSnapshot
       );
 
-      if (hasSuccessfulRun && statusPersisted) {
+      if (allConfigurationsSucceeded && statusPersisted) {
         await this.projectBillingService.registerConnectorRunConsumption(dataMart, runId);
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
@@ -307,11 +373,20 @@ export class ConnectorExecutorService {
     processId: string,
     dataMart: DataMart,
     payload?: Record<string, unknown> | null,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    liveLogs: ConnectorMessage[] = [],
+    liveErrors: ConnectorMessage[] = []
   ): Promise<ConfigurationExecutionResult[]> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
     const configurationResults: ConfigurationExecutionResult[] = [];
+
+    const customManifest = await this.connectorDefinitionService.tryResolveManifest(
+      dataMart.projectId,
+      connector.source.name,
+      connector.source.version
+    );
+    const manifestForRunner = customManifest ? this.stripManifestForRunner(customManifest) : null;
 
     for (const [configIndex, config] of connector.source.configuration.entries()) {
       const configId = (config as Record<string, unknown>)._id as string;
@@ -357,7 +432,8 @@ export class ConnectorExecutorService {
         (message: ConnectorMessage) => {
           switch (message.type) {
             case ConnectorMessageType.ERROR:
-              addMessageToArray(configErrors, message);
+              addBoundedMessage(configErrors, message);
+              addBoundedMessage(liveErrors, message);
               this.logger.error(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
@@ -369,7 +445,7 @@ export class ConnectorExecutorService {
               // Still counts as a run failure (goes into configErrors, same as ERROR) so the
               // "finished without terminal success status" fallback below doesn't also fire —
               // it's just not paged as an ERROR-severity log.
-              addMessageToArray(configErrors, message);
+              addBoundedMessage(configErrors, message);
               this.logger.warn(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
@@ -378,6 +454,8 @@ export class ConnectorExecutorService {
               });
               break;
             case ConnectorMessageType.REQUESTED_DATE:
+              addBoundedMessage(configLogs, message);
+              addBoundedMessage(liveLogs, message);
               this.connectorStateService
                 .updateState(dataMart.id, configId, {
                   state: { date: message.date },
@@ -415,7 +493,8 @@ export class ConnectorExecutorService {
                 // ERROR row next to a run whose only real failure is a warning — and the
                 // "finished without terminal success status" fallback below already
                 // covers the case where no detail message arrives at all.
-                addMessageToArray(configLogs, message);
+                addBoundedMessage(configLogs, message);
+                addBoundedMessage(liveLogs, message);
                 this.logger.warn(`${message.toFormattedString()}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
@@ -424,7 +503,8 @@ export class ConnectorExecutorService {
                 });
               } else if (this.isSuccessfulConnectorStatus(message.status)) {
                 success = true;
-                addMessageToArray(configLogs, message);
+                addBoundedMessage(configLogs, message);
+                addBoundedMessage(liveLogs, message);
                 this.logger.log(`${message.status}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
@@ -432,7 +512,8 @@ export class ConnectorExecutorService {
                   configId,
                 });
               } else {
-                addMessageToArray(configLogs, message);
+                addBoundedMessage(configLogs, message);
+                addBoundedMessage(liveLogs, message);
                 this.logger.log(`${message.status}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
@@ -442,7 +523,8 @@ export class ConnectorExecutorService {
               }
               break;
             default:
-              addMessageToArray(configLogs, message);
+              addBoundedMessage(configLogs, message);
+              addBoundedMessage(liveLogs, message);
               this.logger.log(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
@@ -495,8 +577,17 @@ export class ConnectorExecutorService {
           configuration,
           runConfig,
           logCaptureConfig,
-          signal
+          signal,
+          manifestForRunner
         );
+
+        // A connector can emit a terminal IMPORT_DONE yet ALSO log a hard error
+        // (e.g. a per-account 429 after retries are exhausted) — that is a
+        // failed/incomplete import, not a success. Any captured error demotes the
+        // config from success, regardless of the order the status/error arrived.
+        if (success && configErrors.length > 0) {
+          success = false;
+        }
 
         if (success) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
@@ -524,7 +615,7 @@ export class ConnectorExecutorService {
             configIndex,
           };
 
-          addMessageToArray(
+          addBoundedMessage(
             configErrors,
             wasInterrupted
               ? {
@@ -566,7 +657,7 @@ export class ConnectorExecutorService {
           error: errorMessage,
         };
 
-        addMessageToArray(
+        addBoundedMessage(
           configErrors,
           isWarning
             ? {
@@ -591,7 +682,7 @@ export class ConnectorExecutorService {
       } finally {
         if (credentialUpdates) {
           try {
-            await this.saveConnectorCredentials(
+            const credentialsPersisted = await this.saveConnectorCredentials(
               configForCredentialUpdates,
               credentialUpdates,
               expectedCredentialValues,
@@ -599,11 +690,27 @@ export class ConnectorExecutorService {
               runId,
               configId
             );
+            if (!credentialsPersisted) {
+              // Logs, not errors: the import itself completed, so this must not demote a
+              // successful run (any entry in configErrors does). It belongs in run history
+              // all the same — it is the only warning of an authentication failure that
+              // will otherwise arrive, unexplained, on the NEXT run. Same shape as the
+              // fields-update warning above, for the same reason.
+              const warning =
+                'Connector data was imported, but the refreshed credential could not be saved. ' +
+                'If the next run fails to authenticate, reconnect this source.';
+              addBoundedMessage(configLogs, {
+                type: ConnectorMessageType.WARNING,
+                at: this.systemTimeService.now().toISOString(),
+                warning,
+                toFormattedString: () => `[WARNING] ${warning}`,
+              });
+            }
           } catch (error) {
             success = false;
             const errorMessage = error instanceof Error ? error.message : String(error);
             const credentialErrorMessage = `Failed to update connector credentials: ${errorMessage}`;
-            addMessageToArray(configErrors, {
+            addBoundedMessage(configErrors, {
               type: ConnectorMessageType.ERROR,
               at: this.systemTimeService.now().toISOString(),
               error: credentialErrorMessage,
@@ -661,6 +768,12 @@ export class ConnectorExecutorService {
     return Array.from(new Set(fields.map(field => field.trim()).filter(field => field.length > 0)));
   }
 
+  /**
+   * @returns false when a rotated credential was NOT stored because the guarded write
+   * matched no row. Not a throw: the import succeeded and another writer legitimately
+   * owns the credential now, but the caller has to be able to say so in run history —
+   * this is the reason the next run will fail to authenticate.
+   */
   private async saveConnectorCredentials(
     config: Record<string, unknown>,
     credentials: Record<string, unknown>,
@@ -668,7 +781,7 @@ export class ConnectorExecutorService {
     dataMart: DataMart,
     runId: string,
     configId: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const credentialUpdates = this.getAllowedCredentialUpdates(credentials);
       const droppedCredentialKeys = Object.keys(credentials).filter(
@@ -686,35 +799,49 @@ export class ConnectorExecutorService {
       }
 
       if (Object.keys(credentialUpdates).length === 0) {
-        return;
+        return true;
       }
 
       const credentialId = this.getCredentialIdForConfig(config);
       if (!credentialId) {
-        this.logger.debug(`Skipping connector credential update: no credential reference found`, {
+        this.logger.warn(
+          `Rotated credential was not persisted: this connector has no stored credential. ` +
+            `Configure it with a stored credential so the rotated token survives the next run.`,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            configId,
+            credentialKeys: Object.keys(credentials),
+          }
+        );
+        return false;
+      }
+
+      const result = expectedCredentialValues
+        ? await this.connectorSourceCredentialsService.updateCredentialFields(
+            credentialId,
+            dataMart.projectId,
+            credentialUpdates,
+            expectedCredentialValues
+          )
+        : await this.connectorSourceCredentialsService.updateCredentialFields(
+            credentialId,
+            dataMart.projectId,
+            credentialUpdates
+          );
+
+      if (!result.updated) {
+        this.logger.warn(`Rotated connector credential was not persisted`, {
           dataMartId: dataMart.id,
           projectId: dataMart.projectId,
           runId,
           configId,
-          credentialKeys: Object.keys(credentials),
+          credentialId,
         });
-        return;
       }
 
-      if (expectedCredentialValues) {
-        await this.connectorSourceCredentialsService.updateCredentialFields(
-          credentialId,
-          dataMart.projectId,
-          credentialUpdates,
-          expectedCredentialValues
-        );
-      } else {
-        await this.connectorSourceCredentialsService.updateCredentialFields(
-          credentialId,
-          dataMart.projectId,
-          credentialUpdates
-        );
-      }
+      return result.updated;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -835,6 +962,47 @@ export class ConnectorExecutorService {
     return status === Core.EXECUTION_STATUS.IMPORT_DONE;
   }
 
+  private stripManifestForRunner(manifest: Record<string, unknown>): Record<string, unknown> {
+    // The runner does not need display-only fields; dropping `logo` keeps the
+    // OW_MANIFEST env var small.
+    const { logo: _logo, ...rest } = manifest as Record<string, unknown> & { logo?: unknown };
+    return rest;
+  }
+
+  /**
+   * Build the incremental log flusher for a run, or `null` when incremental
+   * streaming is disabled. Disabled for resumed runs (`mergeWithExisting`) so the
+   * terminal merge path is never double-counted, and when the configured interval
+   * is non-positive. The snapshot serializes the run-scoped live buffers exactly as
+   * the terminal write does; status/finishedAt are left to `updateRunStatus`.
+   */
+  private createRunLogFlusher(
+    runId: string,
+    liveLogs: ConnectorMessage[],
+    liveErrors: ConnectorMessage[],
+    mergeWithExisting: boolean
+  ): RunLogFlusher | null {
+    if (mergeWithExisting) return null;
+    const intervalMs = this.configService.get<number>('CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS', 2000);
+    if (intervalMs <= 0) return null;
+    return new RunLogFlusher(
+      intervalMs,
+      createRunLogSnapshotReader(liveLogs, liveErrors),
+      async ({ logs, errors }) => {
+        await this.dataMartRunRepository.update(runId, {
+          logs: logs.length > 0 ? logs : null,
+          errors: errors.length > 0 ? errors : null,
+        });
+      },
+      error =>
+        this.logger.warn(
+          `Incremental log flush failed for run ${runId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+    );
+  }
+
   /**
    * Writes the run's terminal status, guarded so a concurrently committed
    * terminal status (a cancel) always wins.
@@ -845,20 +1013,31 @@ export class ConnectorExecutorService {
    */
   private async updateRunStatus(
     runId: string,
-    hasSuccessfulRun: boolean,
+    allConfigurationsSucceeded: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
     operationBlockedException?: ProjectOperationBlockedException,
-    wasCancelled: boolean = false
+    wasCancelled: boolean = false,
+    flushedSnapshot: RunLogSnapshot | null = null
   ): Promise<boolean> {
     let status = wasCancelled
       ? DataMartRunStatus.CANCELLED
-      : hasSuccessfulRun
+      : allConfigurationsSucceeded
         ? DataMartRunStatus.SUCCESS
         : operationBlockedException
           ? DataMartRunStatus.RESTRICTED
           : DataMartRunStatus.FAILED;
-    if (!wasCancelled && !hasSuccessfulRun && this.gracefulShutdownService.isInShutdownMode()) {
+    // Shutdown cut the run short, so the sweep must resume it. This is gated on
+    // *all* configurations having succeeded, never on merely some: a run that got
+    // one account in before the pod stopped still has the rest left to import, and
+    // marking it SUCCESS put it out of the sweep's reach so those accounts were
+    // silently never imported. Cancellation still wins over INTERRUPTED — a run
+    // the user stopped must not be resurrected.
+    if (
+      !wasCancelled &&
+      !allConfigurationsSucceeded &&
+      this.gracefulShutdownService.isInShutdownMode()
+    ) {
       status = DataMartRunStatus.INTERRUPTED;
     }
 
@@ -873,7 +1052,8 @@ export class ConnectorExecutorService {
     const { logs: logsToSave, errors: errorsToSave } = await this.mergeWithPersistedOutput(
       runId,
       newLogStrings,
-      newErrorStrings
+      newErrorStrings,
+      flushedSnapshot
     );
 
     // Only claim the run if it has not already reached a terminal status: a
@@ -917,15 +1097,30 @@ export class ConnectorExecutorService {
    * Concatenates this execution's captured output onto whatever is already
    * persisted for the run, so a resumed or superseded attempt extends the log
    * trail instead of replacing it.
+   *
+   * `flushedSnapshot` is what THIS execution's incremental flusher already wrote, and
+   * `newLogStrings`/`newErrorStrings` re-supply all of it. It is discounted from the
+   * persisted baseline so the run does not store each of those messages twice — which
+   * doubled run history, reached the merged-output cap at half the real volume, and
+   * repeated every error in the failure notification.
    */
   private async mergeWithPersistedOutput(
     runId: string,
     newLogStrings: string[],
-    newErrorStrings: string[]
+    newErrorStrings: string[],
+    flushedSnapshot: RunLogSnapshot | null = null
   ): Promise<{ logs: string[] | null; errors: string[] | null }> {
     const existing = await this.dataMartRunRepository.findOne({ where: { id: runId } });
-    const existingLogs = (existing?.logs as string[] | null) ?? [];
-    const existingErrors = (existing?.errors as string[] | null) ?? [];
+    const existingLogs = this.discountFlushedEntries(
+      (existing?.logs as string[] | null) ?? [],
+      flushedSnapshot?.logs,
+      newLogStrings
+    );
+    const existingErrors = this.discountFlushedEntries(
+      (existing?.errors as string[] | null) ?? [],
+      flushedSnapshot?.errors,
+      newErrorStrings
+    );
 
     const mergedLogs = this.capMergedEntries([...existingLogs, ...newLogStrings]);
     const mergedErrors = this.capMergedEntries([...existingErrors, ...newErrorStrings]);
@@ -934,6 +1129,41 @@ export class ConnectorExecutorService {
       logs: mergedLogs.length > 0 ? mergedLogs : null,
       errors: mergedErrors.length > 0 ? mergedErrors : null,
     };
+  }
+
+  /**
+   * Removes this execution's own intermediate flush from the persisted baseline.
+   *
+   * The flusher REPLACES the column with a full snapshot of the live buffers, so its
+   * entries sit at the tail of what is stored; anything before them belongs to an
+   * earlier attempt and must survive. Only an exact tail match is removed — if another
+   * writer has since changed the row, the baseline is kept whole, because storing a
+   * message twice is a far smaller fault than losing it.
+   *
+   * The same reasoning drives the `replacement` guard: this execution's terminal payload
+   * is a superset of what it flushed, so a shorter payload means the two are not the
+   * same output and nothing may be discounted.
+   */
+  private discountFlushedEntries(
+    persisted: string[],
+    flushed: string[] | undefined,
+    replacement: string[]
+  ): string[] {
+    if (!flushed?.length || flushed.length > persisted.length) {
+      return persisted;
+    }
+    if (flushed.length > replacement.length) {
+      return persisted;
+    }
+
+    const start = persisted.length - flushed.length;
+    for (let i = 0; i < flushed.length; i++) {
+      if (persisted[start + i] !== flushed[i]) {
+        return persisted;
+      }
+    }
+
+    return persisted.slice(0, start);
   }
 
   /**

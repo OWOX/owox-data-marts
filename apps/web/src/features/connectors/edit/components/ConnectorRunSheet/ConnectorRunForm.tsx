@@ -20,7 +20,10 @@ import {
   FormRadioGroup,
   FormSection,
 } from '@owox/ui/components/form';
-import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
+import type {
+  ConnectorRunFormData,
+  ConnectorListItem,
+} from '../../../shared/model/types/connector';
 import { RequiredType } from '../../../shared/api';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
 import { ConnectorStateSection } from './ConnectorStateSection';
@@ -46,18 +49,30 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const { dataMart } = useDataMartContext();
 
   const loadSpecificationSafely = useCallback(
-    async (connectorName: string) => {
-      if (!loadedSpecifications.has(connectorName) && !loadingSpecification) {
-        setLoadedSpecifications(prev => new Set(prev).add(connectorName));
-        await fetchConnectorSpecification(connectorName);
+    async (connector: ConnectorListItem) => {
+      if (!loadedSpecifications.has(connector.name) && !loadingSpecification) {
+        setLoadedSpecifications(prev => new Set(prev).add(connector.name));
+        await fetchConnectorSpecification(connector);
       }
     },
     [loadedSpecifications, loadingSpecification, fetchConnectorSpecification]
   );
 
   useEffect(() => {
-    if (configuration?.connector.source.name) {
-      void loadSpecificationSafely(configuration.connector.source.name);
+    const name = configuration?.connector.source.name;
+    if (name) {
+      // Prefer the resolved connector info (carries isCustom/id/version for custom
+      // connectors) so the specification is fetched from the custom-by-id endpoint;
+      // fall back to a minimal item for bundled connectors.
+      void loadSpecificationSafely(
+        configuration.connector.info ?? {
+          name,
+          displayName: name,
+          description: '',
+          logoBase64: null,
+          docUrl: null,
+        }
+      );
     }
   }, [configuration, loading, loadSpecificationSafely]);
 

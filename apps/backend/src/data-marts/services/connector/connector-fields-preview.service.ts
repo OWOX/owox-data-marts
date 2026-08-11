@@ -8,7 +8,6 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Connectors, Core } from '@owox/connectors';
 import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-schema';
 import { AuthorizationContext } from '../../../idp';
@@ -21,31 +20,6 @@ import {
 const PREVIEW_TIMEOUT_MS = 15_000;
 
 class PreviewTimeoutError extends Error {}
-
-class ConnectorFieldsPreviewConfig extends Core.AbstractConfig {
-  private readonly logger: Logger;
-
-  constructor(configData: Record<string, unknown>, logger: Logger) {
-    super(configData);
-    this.logger = logger;
-  }
-
-  handleStatusUpdate(): void {}
-
-  updateLastImportDate(): void {}
-
-  updateLastRequstedDate(): void {}
-
-  isInProgress(): boolean {
-    return false;
-  }
-
-  addWarningToCurrentStatus(): void {}
-
-  logMessage(message: string): void {
-    this.logger.debug(message);
-  }
-}
 
 @Injectable()
 export class ConnectorFieldsPreviewService {
@@ -83,7 +57,9 @@ export class ConnectorFieldsPreviewService {
     const source = this.createSource(connectorName, configWithCredentials);
 
     try {
-      source.config.validate();
+      // Parameters are registered by the source constructor, so validation runs on the
+      // context that now owns them rather than on the retired config object.
+      source.context.validate();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new BadRequestException({ message });
@@ -101,12 +77,17 @@ export class ConnectorFieldsPreviewService {
 
   private createSource(connectorName: string, configuration: Record<string, unknown>) {
     const SourceClass = Connectors[connectorName][`${connectorName}Source`];
-    const sourceConfig = new Core.SourceConfigDto({
-      name: connectorName,
-      config: configuration,
+    // Preview runs the source in-process purely to read its field schema: no storage is
+    // written and no run exists, so both are stubbed out the same way the manifest-backed
+    // specification lookup does it.
+    const context = new Core.AbstractContext({
+      source: { name: connectorName, config: configuration },
+      storage: { name: 'unused', config: {} },
+      runConfig: {},
+      env: { datamartId: null, runId: null },
     });
 
-    return new SourceClass(new ConnectorFieldsPreviewConfig(sourceConfig.config, this.logger));
+    return new SourceClass(context);
   }
 
   private async withTimeout<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {

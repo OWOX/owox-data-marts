@@ -5,33 +5,38 @@
  * file that was distributed with this source code.
  */
 
-var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
-  constructor(config) {
-    super(config.mergeParameters({
+import { AbstractSource } from '../../Core/AbstractSource.js';
+
+export class GoogleAdsSource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       CustomerId: {
         isRequired: true,
-        requiredType: "string", 
-        label: "Customer ID",
-        description: "Google Ads Customer ID (format: 123-456-7890 or 1234567890)",
-        placeholder: "Enter Customer ID"
+        requiredType: 'string',
+        label: 'Customer ID',
+        description: 'Google Ads Customer ID (format: 123-456-7890 or 1234567890)',
+        placeholder: 'Enter Customer ID',
       },
       LoginCustomerId: {
-        requiredType: "string",
-        label: "Login Customer ID",
-        description: "Optional when authenticating as the same account. Provide the manager account ID (format: 123-456-7890 or 1234567890) when acting on behalf of other accounts.",
-        placeholder: "Enter Login Customer ID",
-        attributes: [CONFIG_ATTRIBUTES.PINNED]
+        requiredType: 'string',
+        label: 'Login Customer ID',
+        description:
+          'Optional when authenticating as the same account. Provide the manager account ID (format: 123-456-7890 or 1234567890) when acting on behalf of other accounts.',
+        placeholder: 'Enter Login Customer ID',
+        attributes: [CONFIG_ATTRIBUTES.PINNED],
       },
       AuthType: {
-        requiredType: "object",
-        label: "Auth Type",
-        description: "Authentication type",
+        requiredType: 'object',
+        label: 'Auth Type',
+        description: 'Authentication type',
         isRequired: true,
         oneOf: [
           {
-            label: "OAuth2",
-            value: "oauth2",
-            requiredType: "object",
+            label: 'OAuth2',
+            value: 'oauth2',
+            requiredType: 'object',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -40,164 +45,186 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                   required: true,
                   store: 'env',
                   key: 'OAUTH_GOOGLE_ADS_CLIENT_ID',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
                 },
                 ClientSecret: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_GOOGLE_ADS_CLIENT_SECRET',
-                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
                 },
                 RedirectUri: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_GOOGLE_ADS_REDIRECT_URI',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
                 },
                 DeveloperToken: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN',
-                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
-                }
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
+                },
               },
               mapping: {
                 RefreshToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'refresh_token'
+                  key: 'refresh_token',
                 },
                 AccessToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'access_token'
+                  key: 'access_token',
                 },
                 ClientId: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'client_id'
+                  key: 'client_id',
                 },
                 ClientSecret: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'client_secret'
+                  key: 'client_secret',
                 },
                 DeveloperToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'developer_token'
-                }
-              }
+                  key: 'developer_token',
+                },
+              },
             },
             items: {
               RefreshToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Refresh Token",
-                description: "OAuth2 Refresh Token",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Refresh Token',
+                description: 'OAuth2 Refresh Token',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               ClientId: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Client ID",
-                description: "OAuth2 Client ID"
+                requiredType: 'string',
+                label: 'Client ID',
+                description: 'OAuth2 Client ID',
               },
               ClientSecret: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Client Secret",
-                description: "OAuth2 Client Secret",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Client Secret',
+                description: 'OAuth2 Client Secret',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               DeveloperToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Developer Token",
-                description: "Google Ads API Developer Token",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
-              }
-            }
+                requiredType: 'string',
+                label: 'Developer Token',
+                description: 'Google Ads API Developer Token',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
+              },
+            },
           },
-          { 
-            label: "Service Account", 
-            value: "service_account", 
-            requiredType: "object",
+          {
+            label: 'Service Account',
+            value: 'service_account',
+            requiredType: 'object',
             items: {
               ServiceAccountKey: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Service Account Key (JSON)",
-                description: "Google Service Account JSON key file content",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Service Account Key (JSON)',
+                description: 'Google Service Account JSON key file content',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               DeveloperToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Developer Token",
-                description: "Google Ads API Developer Token",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
-              }
-            }
-          }
-        ]
+                requiredType: 'string',
+                label: 'Developer Token',
+                description: 'Google Ads API Developer Token',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
+              },
+            },
+          },
+        ],
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       Fields: {
         isRequired: true,
-        label: "Fields",
-        description: "List of fields to fetch from Google Ads API"
+        label: 'Fields',
+        description: 'List of fields to fetch from Google Ads API',
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API (true/false)",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Create Empty Tables',
+        description:
+          'Create tables with all columns even if no data is returned from API (true/false)',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CleanUpToKeepWindow: {
-        requiredType: "number",
-        label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }));
-    
+        requiredType: 'number',
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleaning up',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+
     this.fieldsSchema = GoogleAdsFieldsSchema;
     this.accessToken = null;
     this.tokenExpiryTime = null;
+    // Track global resources already fetched: skip on subsequent accounts to avoid redundant calls
+    this._globalResourcesProcessed = new Set();
+  }
+
+  // Time-series Google Ads queries filter by `segments.date = 'YYYY-MM-DD'` — one day per call.
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.DAY_BY_DAY;
+  }
+
+  getAccounts(context) {
+    const customerIdParam = context.getParameter('CustomerId');
+    if (!customerIdParam?.value) return [null];
+    return FormatUtils.parseIds(customerIdParam.value, { stripCharacters: '-' }).map(id => ({
+      id,
+    }));
   }
 
   async exchangeOauthCredentials(credentials, variables) {
     try {
-      const tokenUrl = "https://oauth2.googleapis.com/token";
+      const tokenUrl = 'https://oauth2.googleapis.com/token';
 
       const payload = {
         client_id: variables.ClientId,
@@ -212,35 +239,35 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: Object.entries(payload)
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&')
+          .join('&'),
       };
 
-      const resp = await HttpUtils.fetch(tokenUrl, options);
-      const data = await resp.getAsJson();
+      const resp = await fetch(tokenUrl, options);
+      const data = await resp.json();
 
       if (data.error) {
         throw new OauthFlowException({
           message: `Token exchange failed: ${data.error_description || data.error}`,
-          payload: data
+          payload: data,
         });
       }
 
       // Guard: refuse to store credentials without refresh_token
       if (!data.refresh_token) {
         throw new OauthFlowException({
-          message: 'No refresh_token returned. Please revoke access at https://myaccount.google.com/permissions and try again.',
-          payload: data
+          message:
+            'No refresh_token returned. Please revoke access at https://myaccount.google.com/permissions and try again.',
+          payload: data,
         });
       }
 
       // Fetch user email (graceful fallback if fails)
       let userData = { id: 'unknown', name: null };
       try {
-        const userResp = await HttpUtils.fetch(
-          'https://www.googleapis.com/oauth2/v2/userinfo',
-          { headers: { Authorization: `Bearer ${data.access_token}` } }
-        );
-        const userInfo = await userResp.getAsJson();
+        const userResp = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        });
+        const userInfo = await userResp.json();
         if (userInfo.id) {
           userData = { id: userInfo.id, name: userInfo.email };
         }
@@ -257,19 +284,18 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
           access_token: data.access_token,
           client_id: variables.ClientId,
           client_secret: variables.ClientSecret,
-          developer_token: variables.DeveloperToken
+          developer_token: variables.DeveloperToken,
         })
         .withExpiresIn(expiresIn)
         .build()
         .toObject();
-
     } catch (error) {
       if (error instanceof OauthFlowException) {
         throw error;
       }
       throw new OauthFlowException({
         message: 'Failed to exchange Google Ads tokens',
-        payload: error.message
+        payload: error.message,
       });
     }
   }
@@ -284,33 +310,33 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       return this.accessToken;
     }
 
-    const authType = this.config.AuthType?.value;
+    const authTypeParam = this.context.getParameter('AuthType');
+    const authType = authTypeParam?.value;
     if (!authType) {
-      throw new Error("AuthType not configured");
+      throw new Error('AuthType not configured');
     }
 
-    const authConfig = this.config.AuthType.items;
+    const authConfig = authTypeParam.items;
     let accessToken;
 
     try {
-      if (authType === "oauth2") {
+      if (authType === 'oauth2') {
         accessToken = await OAuthUtils.getAccessToken({
-          config: this.config,
-          tokenUrl: "https://oauth2.googleapis.com/token",
+          context: this.context,
+          tokenUrl: 'https://oauth2.googleapis.com/token',
           formData: {
             grant_type: 'refresh_token',
             client_id: authConfig.ClientId.value,
             client_secret: authConfig.ClientSecret.value,
-            refresh_token: authConfig.RefreshToken.value
-          }
+            refresh_token: authConfig.RefreshToken.value,
+          },
         });
-      } else if (authType === "service_account") {
-
+      } else if (authType === 'service_account') {
         accessToken = await OAuthUtils.getServiceAccountToken({
-          config: this.config,
-          tokenUrl: "https://oauth2.googleapis.com/token",
+          context: this.context,
+          tokenUrl: 'https://oauth2.googleapis.com/token',
           serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
-          scope: "https://www.googleapis.com/auth/adwords"
+          scope: 'https://www.googleapis.com/auth/adwords',
         });
       } else {
         throw new Error(`Unknown authentication type: ${authType}`);
@@ -321,26 +347,35 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
       return this.accessToken;
     } catch (error) {
-      this.config.logMessage(`❌ Authentication failed: ${error.message}`);
+      this.context.log(LOG_LEVEL.ERROR, `Authentication failed: ${error.message}`);
       const wrapped = new Error(`Authentication failed: ${error.message}`);
+      // Rewrapping loses the classification unless it is handed over explicitly, and a
+      // dead refresh token would then page as an error.
       wrapped.isWarning = error.isWarning;
       throw wrapped;
     }
   }
 
   /**
-   * Fetch data from Google Ads API
-   * Single entry point for all fetches
-   * @param {string} nodeName - Name of the node (campaigns, ad_groups, ads, keywords)
-   * @param {string|number} customerId - Google Ads Customer ID
-   * @param {Object} options - Fetch options
-   * @param {Array<string>} options.fields - Fields to fetch
-   * @param {Date} [options.startDate] - Start date for time series data
-   * @returns {Array<Object>} - Fetched data
+   * Fetch data from Google Ads API. AbstractConnector calls us with
+   * { nodeName, fields, accountId, startDate, endDate } per (account × node × day).
    */
-  async fetchData(nodeName, customerId, options) {
-    console.log('Fetching data from Google Ads API for customer:', customerId);
-    const { fields, startDate } = options;
+  async fetchData({ nodeName, fields, accountId, startDate, endDate }) {
+    const customerId = accountId;
+
+    // Global resources return identical data for any customer ID — fetch once.
+    const schema = this.fieldsSchema[nodeName];
+    if (schema?.isGlobalResource) {
+      if (this._globalResourcesProcessed.has(nodeName)) {
+        return [];
+      }
+      this._globalResourcesProcessed.add(nodeName);
+    }
+
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Fetching data from Google Ads API for customer: ${customerId}`
+    );
     const query = this._buildQuery({ nodeName, fields, startDate });
     const response = await this.makeRequest({ customerId, query, nodeName, fields });
     return response;
@@ -348,9 +383,6 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
   /**
    * Convert field names to API field names
-   * @param {Array<string>} fields - Field names
-   * @param {string} nodeName - Name of the node
-   * @returns {Array<string>} - API field names
    * @private
    */
   _getAPIFields(fields, nodeName) {
@@ -359,8 +391,6 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
   /**
    * Get Google Ads resource name by node name
-   * @param {string} nodeName - Name of the node
-   * @returns {string} - Resource name for GAQL FROM clause
    * @private
    */
   _getResourceName(nodeName) {
@@ -387,75 +417,64 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
   }
 
   /**
-   * Build GAQL query based on node type
-   * For time series nodes, adds a WHERE segments.date filter for the given date.
+   * Build GAQL query based on node type.
+   * For time series nodes, adds WHERE segments.date filter for the given date.
    * For catalog nodes with a whereClause defined in the schema, appends it as a static WHERE filter.
-   * @param {Object} options - Query options
-   * @param {string} options.nodeName - Name of the node
-   * @param {Array<string>} options.fields - Field names to fetch
-   * @param {Date} [options.startDate] - Start date for time series data
-   * @returns {string} - GAQL query
    * @private
    */
   _buildQuery({ nodeName, fields, startDate }) {
     const apiFields = this._getAPIFields(fields, nodeName);
     const resourceName = this._getResourceName(nodeName);
     let query = `SELECT ${apiFields.join(', ')} FROM ${resourceName}`;
-    
+
     if (startDate && this.fieldsSchema[nodeName].isTimeSeries) {
-      const formattedDate = DateUtils.formatDate(startDate);
-      query += ` WHERE segments.date = '${formattedDate}'`;
+      // startDate comes as YYYY-MM-DD from AbstractConnector under 'day-by-day'.
+      query += ` WHERE segments.date = '${startDate}'`;
     } else if (this.fieldsSchema[nodeName].whereClause) {
       query += ` WHERE ${this.fieldsSchema[nodeName].whereClause}`;
     }
-    
+
     return query;
   }
 
   /**
    * Make a request to Google Ads API with pagination support
-   * @param {Object} options - Request options
-   * @param {string|number} options.customerId - Google Ads Customer ID
-   * @param {string} options.query - GAQL query  
-   * @param {string} options.nodeName - Name of the node for field mapping
-   * @param {Array<string>} options.fields - Fields that were requested
-   * @returns {Array<Object>} - API response data
    */
   async makeRequest({ customerId, query, nodeName, fields }) {
     const accessToken = await this.getAccessToken();
     const url = `https://googleads.googleapis.com/v25/customers/${customerId}/googleAds:search`;
-    
-    console.log(`Google Ads API Request URL: ${url}`);
-    console.log(`GAQL Query: ${query}`);
-    
+
+    this.context.log(LOG_LEVEL.INFO, `Google Ads API Request URL: ${url}`);
+    this.context.log(LOG_LEVEL.INFO, `GAQL Query: ${query}`);
+
     let allData = [];
     let nextPageToken = null;
-    
+
+    const authTypeParam = this.context.getParameter('AuthType');
+    const authItems = authTypeParam?.items || {};
+
     do {
-      // Note: Google Ads API does not support custom pageSize
-      // It always returns pages of 10000 rows maximum
-      const requestBody = {
-        query: query
-      };
-      
+      const requestBody = { query };
       if (nextPageToken) {
         requestBody.pageToken = nextPageToken;
       }
-      
-      const topLevelLoginCustomerId = this.config.LoginCustomerId?.value;
+      // Manager-account header: prefer a top-level LoginCustomerId (how prod
+      // stores it), falling back to the nested AuthType.oauth2.LoginCustomerId.
+      const topLevelLoginCustomerId = this.context.getParameter('LoginCustomerId')?.value;
       const loginCustomerIdRaw =
         topLevelLoginCustomerId !== undefined
           ? topLevelLoginCustomerId
-          : this.config.AuthType?.items?.LoginCustomerId?.value;
+          : authItems.LoginCustomerId?.value;
       const loginCustomerId = loginCustomerIdRaw
         ? FormatUtils.parseIds(loginCustomerIdRaw, { stripCharacters: '-' })[0]
         : null;
-      const shouldIncludeLoginCustomerIdHeader =
-        loginCustomerId && loginCustomerId !== customerId;
+      const shouldIncludeLoginCustomerIdHeader = loginCustomerId && loginCustomerId !== customerId;
+
       const headers = {
-        'Authorization': `Bearer ${accessToken}`,
-        'developer-token': this.config.AuthType.items?.DeveloperToken?.value || process.env.OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${accessToken}`,
+        'developer-token':
+          authItems.DeveloperToken?.value || process.env.OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN,
+        'Content-Type': 'application/json',
       };
 
       if (shouldIncludeLoginCustomerIdHeader) {
@@ -465,60 +484,60 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       const options = {
         method: 'POST',
         headers,
-        payload: JSON.stringify(requestBody),
         body: JSON.stringify(requestBody),
-        muteHttpExceptions: true
       };
-      let response
-      try { 
+
+      let response;
+      try {
         response = await this.urlFetchWithRetry(url, options);
       } catch (error) {
         if (error.payload?.error) {
-          this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(error.payload.error, null, 2)}`);
+          this.context.log(
+            LOG_LEVEL.ERROR,
+            `Google Ads API error payload: ${JSON.stringify(error.payload.error, null, 2)}`
+          );
         }
         throw error;
       }
-      const text = await response.getContentText();
+      const text = await response.text();
       const jsonData = JSON.parse(text);
-      // At this point the HTTP status was successful so jsonData.error should not exist,
-      // but keep the defensive check to surface unexpected API responses.
+      // At this point HTTP was successful; this is a defensive check for unexpected API responses.
       if (jsonData.error) {
-        this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(jsonData.error, null, 2)}`);
+        this.context.log(
+          LOG_LEVEL.ERROR,
+          `Google Ads API error payload: ${JSON.stringify(jsonData.error, null, 2)}`
+        );
         throw new Error(`Google Ads API error: ${jsonData.error.message}`);
       }
-      
+
       if (jsonData.results) {
-        const processedResults = jsonData.results.map(result => this._mapResultToColumns(result, nodeName, fields));
+        const processedResults = jsonData.results.map(result =>
+          this._mapResultToColumns(result, nodeName, fields)
+        );
         allData = allData.concat(processedResults);
       }
-      
+
       nextPageToken = jsonData.nextPageToken || null;
-      console.log(`Fetched ${allData.length} records so far...`);
-      
+      this.context.log(LOG_LEVEL.INFO, `Fetched ${allData.length} records so far...`);
     } while (nextPageToken);
-    
+
     return allData;
   }
 
   /**
    * Map API result to requested column names
-   * @param {Object} result - API response result
-   * @param {string} nodeName - Name of the node for schema lookup
-   * @param {Array<string>} requestedFields - Fields that were requested (e.g. ['ad_group_id', 'campaign_id'])
-   * @returns {Object} - Mapped result with column names as keys
    * @private
    */
   _mapResultToColumns(result, nodeName, requestedFields) {
     const mapped = {};
-    
+
     for (const fieldName of requestedFields) {
-      // Get apiName from schema (e.g. 'ad_group_criterion.criterion_id')
       const fieldConfig = this.fieldsSchema[nodeName].fields[fieldName];
       if (!fieldConfig) {
         mapped[fieldName] = null;
         continue;
       }
-      
+
       // Convert apiName path to camelCase path for API response
       // 'ad_group_criterion.criterion_id' -> 'adGroupCriterion.criterionId'
       const camelPath = fieldConfig.apiName
@@ -542,24 +561,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     return mapped;
   }
 
-  /**
-   * Convert snake_case to camelCase
-   * @param {string} str - Snake case string
-   * @returns {string} - CamelCase string
-   * @private
-   */
   _snakeToCamel(str) {
     return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
   }
-  
-  /**
-   * Get nested value from object using dot-notation path
-   * @param {Object} obj - Object to search in
-   * @param {string} path - Dot-notation path (e.g. 'adGroupCriterion.criterionId')
-   * @returns {*} - Value at path or undefined
-   * @private
-   */
+
   _getNestedValue(obj, path) {
     return path.split('.').reduce((current, key) => current?.[key], obj);
   }
-};
+}

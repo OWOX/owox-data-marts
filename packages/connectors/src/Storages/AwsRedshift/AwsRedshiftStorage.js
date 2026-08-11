@@ -26,10 +26,14 @@ function createSnapshotTableNames(tableName) {
 
   return {
     stagingTableName: `${baseName}${stagingSuffix}`,
-    backupTableName: `${baseName}${backupSuffix}`
+    backupTableName: `${baseName}${backupSuffix}`,
   };
 }
 
+/**
+ * Redshift measures its 127-character identifier limit in bytes, so a name is
+ * truncated by UTF-8 length and never in the middle of a character.
+ */
 function truncateUtf8(value, maxBytes) {
   let result = '';
   let bytes = 0;
@@ -46,6 +50,8 @@ function truncateUtf8(value, maxBytes) {
   return result;
 }
 
+// The Data API rejects statements above 100 KB; stay under it with room for the
+// INSERT preamble the row estimate does not include.
 const REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES = 90 * 1024;
 
 function utf8ByteLength(value) {
@@ -74,6 +80,10 @@ function utf8ByteLength(value) {
   return bytes;
 }
 
+/**
+ * Split rows so every generated statement stays under both the row count and
+ * the byte ceiling. A single row that cannot fit is an error, not a silent drop.
+ */
 function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQuery) {
   const batches = [];
   let batch = [];
@@ -105,7 +115,9 @@ function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQue
 }
 
 function normalizeRedshiftType(type) {
-  const normalized = String(type || '').toUpperCase().replace(/\(.+\)$/, '');
+  const normalized = String(type || '')
+    .toUpperCase()
+    .replace(/\(.+\)$/, '');
   if (['CHARACTER VARYING', 'CHAR', 'TEXT', 'VARCHAR'].includes(normalized)) {
     return 'VARCHAR';
   }
@@ -122,59 +134,56 @@ function normalizeRedshiftType(type) {
 }
 
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
+  static parameters = {
+    AWSRegion: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    AWSAccessKeyId: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    AWSSecretAccessKey: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    Database: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    WorkgroupName: {
+      isRequired: false,
+      requiredType: 'string',
+    },
+    ClusterIdentifier: {
+      isRequired: false,
+      requiredType: 'string',
+    },
+    Schema: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DestinationTableName: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    MaxBufferSize: {
+      isRequired: true,
+      default: 250,
+    },
+  };
+
   //---- constructor -------------------------------------------------
   /**
    * Class for managing data in AWS Redshift using Data API
    *
-   * @param config (object) instance of AbstractConfig
+   * @param context (object) instance of AbstractContext
    * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
    * @param schema (object) object with structure like {fieldName: {type: "string", description: "smth" } }
    * @param description (string) string with storage description
    */
-  constructor(config, uniqueKeyColumns, schema = null, description = null) {
-    super(
-      config.mergeParameters({
-        AWSRegion: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        AWSAccessKeyId: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        AWSSecretAccessKey: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        Database: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        WorkgroupName: {
-          isRequired: false,
-          requiredType: "string"
-        },
-        ClusterIdentifier: {
-          isRequired: false,
-          requiredType: "string"
-        },
-        Schema: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        DestinationTableName: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        MaxBufferSize: {
-          isRequired: true,
-          default: 250
-        }
-      }),
-      uniqueKeyColumns,
-      schema,
-      description
-    );
+  constructor(context, uniqueKeyColumns, schema = null, description = null) {
+    super(context, uniqueKeyColumns, schema, description);
 
     this.initAWS();
 
@@ -188,7 +197,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    */
   async init() {
     await this.checkConnection();
-    this.config.logMessage('Connection to Redshift established');
+    this.context.log(LOG_LEVEL.INFO, 'Connection to Redshift established');
     await this.loadTableSchema();
   }
   //----------------------------------------------------------------
@@ -211,12 +220,17 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //----------------------------------------------------------------
 
   //---- getAListOfExistingColumns ----------------------------------
+  /**
+   * @param {boolean} useConfiguredTypes - report the type the schema declares rather
+   *   than the one the cluster reports. Snapshot schema comparison passes FALSE so it
+   *   compares what is actually in the table against what staging would publish.
+   */
   async getAListOfExistingColumns(useConfiguredTypes = true) {
     // Strip surrounding double-quotes that may be present in config values.
     // Prefer exact matching first because quoted Redshift identifiers can be
     // case-sensitive; fall back to LOWER() for clusters that fold identifiers.
-    const rawSchema = stripQuotes(this.config.Schema.value);
-    const rawTable = stripQuotes(this.config.DestinationTableName.value);
+    const rawSchema = stripQuotes(this.context.getParameter('Schema')?.value);
+    const rawTable = stripQuotes(this.context.getParameter('DestinationTableName')?.value);
 
     const exactSql = `SELECT column_name, data_type
       FROM information_schema.columns
@@ -257,12 +271,14 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const columns = {};
     for (const row of rows) {
       const columnName = row.column_name;
-      const schemaKey = (this.schema && columnName in this.schema)
-        ? columnName
-        : (schemaKeyByLower[columnName.toLowerCase()] || columnName);
-      columns[schemaKey] = (useConfiguredTypes && this.schema && schemaKey in this.schema)
-        ? this.getColumnType(schemaKey)
-        : row.data_type;
+      const schemaKey =
+        this.schema && columnName in this.schema
+          ? columnName
+          : schemaKeyByLower[columnName.toLowerCase()] || columnName;
+      columns[schemaKey] =
+        useConfiguredTypes && this.schema && schemaKey in this.schema
+          ? this.getColumnType(schemaKey)
+          : row.data_type;
     }
     return columns;
   }
@@ -272,12 +288,14 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async executeQueryWithResults(sql) {
     const params = {
       Sql: sql,
-      Database: this.config.Database.value
+      Database: this.context.getParameter('Database')?.value,
     };
-    if (this.config.WorkgroupName.value) {
-      params.WorkgroupName = this.config.WorkgroupName.value;
-    } else if (this.config.ClusterIdentifier.value) {
-      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    const workgroupName = this.context.getParameter('WorkgroupName')?.value;
+    const clusterIdentifier = this.context.getParameter('ClusterIdentifier')?.value;
+    if (workgroupName) {
+      params.WorkgroupName = workgroupName;
+    } else if (clusterIdentifier) {
+      params.ClusterIdentifier = clusterIdentifier;
     }
 
     const command = new ExecuteStatementCommand(params);
@@ -289,9 +307,11 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     do {
       const resultParams = { Id: response.Id };
       if (nextToken) resultParams.NextToken = nextToken;
-      const result = await this.redshiftDataClient.send(new GetStatementResultCommand(resultParams));
+      const result = await this.redshiftDataClient.send(
+        new GetStatementResultCommand(resultParams)
+      );
       const columnNames = (result.ColumnMetadata || []).map(col => col.name);
-      for (const record of (result.Records || [])) {
+      for (const record of result.Records || []) {
         const row = {};
         columnNames.forEach((colName, i) => {
           const field = record[i];
@@ -319,17 +339,17 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     try {
       // Configure AWS credentials
       const clientConfig = {
-        region: this.config.AWSRegion.value,
+        region: this.context.getParameter('AWSRegion')?.value,
         credentials: {
-          accessKeyId: this.config.AWSAccessKeyId.value,
-          secretAccessKey: this.config.AWSSecretAccessKey.value
-        }
+          accessKeyId: this.context.getParameter('AWSAccessKeyId')?.value,
+          secretAccessKey: this.context.getParameter('AWSSecretAccessKey')?.value,
+        },
       };
 
       // Initialize Redshift Data client
       this.redshiftDataClient = new RedshiftDataClient(clientConfig);
 
-      this.config.logMessage('AWS SDK initialized successfully');
+      this.context.log(LOG_LEVEL.INFO, 'AWS SDK initialized successfully');
     } catch (error) {
       throw new Error(`Failed to initialize AWS SDK: ${error.message}`);
     }
@@ -344,13 +364,16 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async checkConnection() {
     const params = {
       Sql: 'SELECT 1',
-      Database: this.config.Database.value
+      Database: this.context.getParameter('Database')?.value,
     };
 
-    if (this.config.WorkgroupName.value) {
-      params.WorkgroupName = this.config.WorkgroupName.value;
-    } else if (this.config.ClusterIdentifier.value) {
-      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    const workgroupName = this.context.getParameter('WorkgroupName')?.value;
+    const clusterIdentifier = this.context.getParameter('ClusterIdentifier')?.value;
+
+    if (workgroupName) {
+      params.WorkgroupName = workgroupName;
+    } else if (clusterIdentifier) {
+      params.ClusterIdentifier = clusterIdentifier;
     } else {
       throw new Error('Either WorkgroupName or ClusterIdentifier must be provided');
     }
@@ -376,13 +399,16 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async executeQuery(sql, type = 'dml') {
     const params = {
       Sql: sql,
-      Database: this.config.Database.value
+      Database: this.context.getParameter('Database')?.value,
     };
 
-    if (this.config.WorkgroupName.value) {
-      params.WorkgroupName = this.config.WorkgroupName.value;
-    } else if (this.config.ClusterIdentifier.value) {
-      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    const workgroupName = this.context.getParameter('WorkgroupName')?.value;
+    const clusterIdentifier = this.context.getParameter('ClusterIdentifier')?.value;
+
+    if (workgroupName) {
+      params.WorkgroupName = workgroupName;
+    } else if (clusterIdentifier) {
+      params.ClusterIdentifier = clusterIdentifier;
     }
 
     try {
@@ -393,23 +419,33 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
       return response.Id;
     } catch (error) {
-      this.config.logMessage(`Query execution failed: ${error.message}`, 'error');
+      this.context.log(LOG_LEVEL.ERROR, `Query execution failed: ${error.message}`);
       throw error;
     }
   }
   //----------------------------------------------------------------
 
   //---- executeTransaction ------------------------------------------
+  /**
+   * Run several statements as one Data API batch, which the service executes
+   * inside a single transaction — the snapshot swap must not be observable
+   * half-applied.
+   * @param {Array<string>} sqlStatements
+   * @returns {Promise}
+   */
   async executeTransaction(sqlStatements) {
     const params = {
       Sqls: sqlStatements,
-      Database: this.config.Database.value,
+      Database: this.context.getParameter('Database')?.value,
     };
 
-    if (this.config.WorkgroupName.value) {
-      params.WorkgroupName = this.config.WorkgroupName.value;
-    } else if (this.config.ClusterIdentifier.value) {
-      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    const workgroupName = this.context.getParameter('WorkgroupName')?.value;
+    const clusterIdentifier = this.context.getParameter('ClusterIdentifier')?.value;
+
+    if (workgroupName) {
+      params.WorkgroupName = workgroupName;
+    } else if (clusterIdentifier) {
+      params.ClusterIdentifier = clusterIdentifier;
     }
 
     const response = await this.redshiftDataClient.send(new BatchExecuteStatementCommand(params));
@@ -463,7 +499,6 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     }
 
     switch (field.type) {
-
       case DATA_TYPES.INTEGER:
         return 'BIGINT';
 
@@ -498,14 +533,14 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async createSchemaIfNotExist() {
-    const schemaName = stripQuotes(this.config.Schema.value);
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
     if (!schemaName) {
       throw new Error('Schema name is required but not provided');
     }
     const createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
 
     await this.executeQuery(createSchemaQuery, 'ddl');
-    this.config.logMessage(`Schema "${schemaName}" ensured`);
+    this.context.log(LOG_LEVEL.INFO, `Schema "${schemaName}" ensured`);
   }
   //----------------------------------------------------------------
 
@@ -542,8 +577,9 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     // Build primary key constraint
     const pkColumns = this.uniqueKeyColumns.map(col => `"${col}"`).join(', ');
 
-    const schemaName = stripQuotes(this.config.Schema.value);
-    const tableName = stripQuotes(this.config.DestinationTableName.value);
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
+    const tableName = stripQuotes(this.context.getParameter('DestinationTableName')?.value);
+
     const query = `
       CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (
         ${columnDefinitions.join(',\n        ')},
@@ -552,7 +588,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     `;
 
     await this.executeQuery(query, 'ddl');
-    this.config.logMessage(`Table "${schemaName}"."${tableName}" created`);
+    this.context.log(LOG_LEVEL.INFO, `Table "${schemaName}"."${tableName}" created`);
     await this.applyColumnComments(Object.keys(existingColumns));
     this.existingColumns = existingColumns;
 
@@ -570,8 +606,9 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     await this.checkConnection();
     await this.createSchemaIfNotExist();
 
-    const schemaName = stripQuotes(this.config.Schema.value);
-    const configuredTableName = this.config.DestinationTableName.value;
+    const destinationTableParam = this.context.getParameter('DestinationTableName');
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
+    const configuredTableName = destinationTableParam.value;
     const liveTableName = stripQuotes(configuredTableName);
     const { stagingTableName, backupTableName } = createSnapshotTableNames(liveTableName);
     const originalExistingColumns = this.existingColumns;
@@ -580,12 +617,20 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     let published = false;
 
     try {
-      this.config.DestinationTableName.value = stagingTableName;
+      // The whole write path reads the destination from config, so staging is
+      // entered by repointing that parameter rather than threading a table
+      // name through every method. _snapshotLiveTableName keeps analytics
+      // attributed to the configured table while the swap is in flight.
+      this._snapshotLiveTableName = liveTableName;
+      destinationTableParam.value = stagingTableName;
       this.existingColumns = {};
       const stagedColumns = await this.createTable();
 
       if (data.length) {
-        const batchSize = Math.max(1, Number(this.config.MaxBufferSize?.value) || 250);
+        const batchSize = Math.max(
+          1,
+          Number(this.context.getParameter('MaxBufferSize')?.value) || 250
+        );
         const batches = this.createSnapshotBatches(data, batchSize);
         for (const batch of batches) {
           await this.saveData(batch);
@@ -594,16 +639,20 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
       await this.validateSnapshotRowCount(stagingTableName, data.length);
 
-      this.config.DestinationTableName.value = configuredTableName;
+      destinationTableParam.value = configuredTableName;
 
       let publicationStatements;
       if (this.hasSameSchema(liveColumns, stagedColumns, normalizeRedshiftType)) {
+        // Same schema: keep the live table object so views, grants and any
+        // dependent objects survive; only its rows are exchanged.
         const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
         publicationStatements = [
           `DELETE FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)}`,
-          `INSERT INTO ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} (${columns}) SELECT ${columns} FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)}`
+          `INSERT INTO ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} (${columns}) SELECT ${columns} FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)}`,
         ];
       } else {
+        // Schema changed: the staging table takes the live name, so its grants
+        // must be replayed onto it first — a rename carries none of them over.
         const grantStatements = liveTableExists
           ? await this.getTableGrantStatements(liveTableName, stagingTableName)
           : [];
@@ -614,10 +663,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
           ? [
               `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)} RENAME TO ${quoteIdentifier(backupTableName)}`,
               `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`,
-              `DROP TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(backupTableName)}`
+              `DROP TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(backupTableName)}`,
             ]
           : [
-              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`
+              `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(stagingTableName)} RENAME TO ${quoteIdentifier(liveTableName)}`,
             ];
       }
 
@@ -625,11 +674,13 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       this.existingColumns = stagedColumns;
       published = true;
 
-      this.config.logMessage(
+      this.context.log(
+        LOG_LEVEL.INFO,
         `Snapshot import completed for ${quoteIdentifier(schemaName)}.${quoteIdentifier(liveTableName)}: ${data.length} rows`
       );
     } finally {
-      this.config.DestinationTableName.value = configuredTableName;
+      destinationTableParam.value = configuredTableName;
+      this._snapshotLiveTableName = null;
       if (!published) {
         this.existingColumns = originalExistingColumns;
       }
@@ -640,8 +691,9 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
           'ddl'
         );
       } catch (cleanupError) {
-        this.config.logMessage(
-          `Warning: Failed to clean up snapshot staging table ${quoteIdentifier(stagingTableName)}: ${cleanupError.message}`
+        this.context.log(
+          LOG_LEVEL.WARN,
+          `Failed to clean up snapshot staging table ${quoteIdentifier(stagingTableName)}: ${cleanupError.message}`
         );
       }
     }
@@ -649,24 +701,37 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //----------------------------------------------------------------
 
   //---- createSnapshotBatches --------------------------------------
+  /**
+   * Group snapshot rows into batches that respect both the buffer size and the
+   * Data API statement byte limit.
+   * @param {Array} data
+   * @param {number} maxRows
+   * @param {number} maxBytes
+   * @returns {Array<Array>}
+   */
   createSnapshotBatches(data, maxRows, maxBytes = REDSHIFT_SNAPSHOT_MAX_QUERY_BYTES) {
     const selectedFields = this.getSelectedFields();
     const dataKeys = Object.keys(data[0] || {});
     const columns = dataKeys.filter(key => selectedFields.includes(key));
-    const estimateTableName = `temp_${stripQuotes(this.config.DestinationTableName.value)}_${Date.now()}`;
+    const tableName = stripQuotes(this.context.getParameter('DestinationTableName')?.value);
+    const estimateTableName = `temp_${tableName}_${Date.now()}`;
 
-    return splitSnapshotRowsByQuerySize(
-      data,
-      Math.max(1, maxRows),
-      maxBytes,
-      row => this.buildInsertBatchQuery(estimateTableName, columns, [row])
+    return splitSnapshotRowsByQuerySize(data, Math.max(1, maxRows), maxBytes, row =>
+      this.buildInsertBatchQuery(estimateTableName, columns, [row])
     );
   }
   //----------------------------------------------------------------
 
   //---- validateSnapshotRowCount ------------------------------------
+  /**
+   * Refuse to publish a staging table whose row count does not match the data
+   * we set out to write — a short load must never silently truncate the live table.
+   * @param {string} tableName - staging table to count
+   * @param {number} expectedRowCount
+   * @returns {Promise<number>}
+   */
   async validateSnapshotRowCount(tableName, expectedRowCount) {
-    const schemaName = stripQuotes(this.config.Schema.value);
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
     const rows = await this.executeQueryWithResults(
       `SELECT COUNT(*) AS row_count FROM ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}`
     );
@@ -685,14 +750,24 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //----------------------------------------------------------------
 
   //---- getTableGrantStatements -------------------------------------
+  /**
+   * Read the live table's grants and render them as GRANT statements against
+   * the staging table, so a schema-changing publication does not silently drop
+   * everyone's access.
+   * @param {string} sourceTableName - table whose grants to read
+   * @param {string} targetTableName - table to grant onto
+   * @returns {Promise<Array<string>>}
+   */
   async getTableGrantStatements(sourceTableName, targetTableName) {
-    const schemaName = stripQuotes(this.config.Schema.value);
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
     const escapedSchemaName = escapeSqlLiteral(schemaName);
     const escapedSourceTableName = escapeSqlLiteral(sourceTableName);
     const selectPrivileges = `
       SELECT identity_name, identity_type, privilege_type, admin_option
       FROM svv_relation_privileges`;
     const orderPrivileges = 'ORDER BY identity_type, identity_name, privilege_type';
+    // Exact match first, because quoted Redshift identifiers can be case-sensitive;
+    // fall back to LOWER() for clusters that fold identifiers.
     const exactSql = `${selectPrivileges}
       WHERE namespace_name = '${escapedSchemaName}'
         AND relation_name = '${escapedSourceTableName}'
@@ -714,6 +789,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       const privilege = String(row.privilege_type ?? row.PRIVILEGE_TYPE).toUpperCase();
       const adminOption = row.admin_option ?? row.ADMIN_OPTION;
 
+      // The privilege name is interpolated into DDL unquoted, so only accept
+      // the shape Redshift actually reports rather than trusting the catalog.
       if (!/^[A-Z ]+$/.test(privilege)) {
         throw new Error(`Unsupported Redshift table privilege: ${privilege}`);
       }
@@ -731,9 +808,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
         throw new Error(`Unsupported Redshift grant identity type: ${identityType}`);
       }
 
-      const withGrantOption = adminOption === true || String(adminOption).toLowerCase() === 'true'
-        ? ' WITH GRANT OPTION'
-        : '';
+      const withGrantOption =
+        adminOption === true || String(adminOption).toLowerCase() === 'true'
+          ? ' WITH GRANT OPTION'
+          : '';
       return `GRANT ${privilege} ON TABLE ${targetTable} TO ${grantee}${withGrantOption}`;
     });
   }
@@ -757,11 +835,14 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     }
 
     if (columnsToAdd.length > 0) {
-      const tableRef = `"${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}"`;
+      const tableRef = `"${stripQuotes(this.context.getParameter('Schema')?.value)}"."${stripQuotes(this.context.getParameter('DestinationTableName')?.value)}"`;
       for (const columnDef of columnsToAdd) {
         await this.executeQuery(`ALTER TABLE ${tableRef} ADD COLUMN ${columnDef}`, 'ddl');
       }
-      this.config.logMessage(`Columns '${newColumns.join(',')}' were added to ${tableRef}`);
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Columns '${newColumns.join(',')}' were added to ${tableRef}`
+      );
 
       await this.applyColumnComments(newColumns);
       return newColumns;
@@ -777,8 +858,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @param {Array<string>} columns - columns to process
    */
   async applyColumnComments(columns) {
-    const schemaName = stripQuotes(this.config.Schema.value);
-    const tableName = stripQuotes(this.config.DestinationTableName.value);
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
+    const tableName = stripQuotes(this.context.getParameter('DestinationTableName')?.value);
 
     for (let columnName of columns) {
       const field = this.schema[columnName];
@@ -793,7 +874,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       try {
         await this.executeQuery(query, 'ddl');
       } catch (error) {
-        this.config.logMessage(
+        this.context.log(
+          LOG_LEVEL.INFO,
           `Could not set comment for column "${columnName}" on "${schemaName}"."${tableName}": ${error.message}`
         );
       }
@@ -824,7 +906,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     if (!data || data.length === 0) {
       // Only create the table for an empty batch when explicitly requested —
       // some connectors pass empty batches without checking CreateEmptyTables first.
-      if (Object.keys(this.existingColumns).length === 0 && this.config.CreateEmptyTables?.value) {
+      if (
+        Object.keys(this.existingColumns).length === 0 &&
+        this.context.getParameter('CreateEmptyTables')?.value
+      ) {
         await this.createTable();
       }
       return Promise.resolve();
@@ -848,25 +933,31 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const columnsToInsert = dataKeys.filter(key => selectedFields.includes(key));
 
     // Build MERGE statement
-    const tempTableName = `temp_${stripQuotes(this.config.DestinationTableName.value)}_${Date.now()}`;
-    const schemaName = stripQuotes(this.config.Schema.value);
+    const destinationTableName = stripQuotes(
+      this.context.getParameter('DestinationTableName')?.value
+    );
+    const tempTableName = `temp_${destinationTableName}_${Date.now()}`;
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
 
     if (!schemaName) {
       throw new Error('Schema name is required but not provided');
     }
 
     // Create temp table in the same schema (Redshift Data API doesn't support TEMP tables across statements)
-    const tempColumns = columnsToInsert.map(col =>
-      `"${col}" ${this.existingColumns[col] || this.getColumnType(col)}`
-    ).join(', ');
+    const tempColumns = columnsToInsert
+      .map(col => `"${col}" ${this.existingColumns[col] || this.getColumnType(col)}`)
+      .join(', ');
 
-    await this.executeQuery(`
+    await this.executeQuery(
+      `
       CREATE TABLE "${schemaName}"."${tempTableName}" (${tempColumns})
-    `, 'ddl');
+    `,
+      'ddl'
+    );
 
     try {
       // Insert data into temp table in batches
-      const batchSize = this.config.MaxBufferSize.value;
+      const batchSize = this.context.getParameter('MaxBufferSize')?.value;
       for (let i = 0; i < data.length; i += batchSize) {
         const batch = data.slice(i, i + batchSize);
         await this.insertBatch(tempTableName, columnsToInsert, batch);
@@ -878,13 +969,16 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       // Always clean up temp table, even if there's an error
       try {
         await this.executeQuery(`DROP TABLE "${schemaName}"."${tempTableName}"`, 'ddl');
-        this.config.logMessage(`Temp table "${tempTableName}" cleaned up`);
+        this.context.log(LOG_LEVEL.INFO, `Temp table "${tempTableName}" cleaned up`);
       } catch (dropError) {
-        this.config.logMessage(`Warning: Failed to drop temp table "${tempTableName}": ${dropError.message}`);
+        this.context.log(
+          LOG_LEVEL.INFO,
+          `Warning: Failed to drop temp table "${tempTableName}": ${dropError.message}`
+        );
       }
     }
 
-    this.config.logMessage(`Successfully saved ${data.length} records`);
+    this.context.log(LOG_LEVEL.INFO, `Successfully saved ${data.length} records`);
 
     return data.length;
   }
@@ -900,58 +994,73 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    */
   async insertBatch(tableName, columns, records) {
     await this.executeQuery(this.buildInsertBatchQuery(tableName, columns, records), 'dml');
+    this._reportRowsWritten(records.length);
   }
   //----------------------------------------------------------------
 
   //---- buildInsertBatchQuery --------------------------------------
+  /**
+   * Render the INSERT for a batch. Split out from insertBatch() so snapshot
+   * batching can measure a statement's size without executing it.
+   * @param {string} tableName - Table name
+   * @param {Array} columns - Column names
+   * @param {Array} records - Records to insert
+   * @returns {string}
+   */
   buildInsertBatchQuery(tableName, columns, records) {
-    const values = records.map(record => {
-      const vals = columns.map(col => {
-        const value = record[col];
+    const values = records
+      .map(record => {
+        const vals = columns
+          .map(col => {
+            const value = record[col];
 
-        if (value === null || value === undefined) {
-          return 'NULL';
-        }
+            if (value === null || value === undefined) {
+              return 'NULL';
+            }
 
-        if (typeof value === 'boolean') {
-          return value ? 'TRUE' : 'FALSE';
-        }
+            if (typeof value === 'boolean') {
+              return value ? 'TRUE' : 'FALSE';
+            }
 
-        if (typeof value === 'number') {
-          // Check for NaN and Infinity
-          if (isNaN(value) || !isFinite(value)) {
-            return 'NULL';
-          }
-          return value;
-        }
+            if (typeof value === 'number') {
+              // Check for NaN and Infinity
+              if (isNaN(value) || !isFinite(value)) {
+                return 'NULL';
+              }
+              return value;
+            }
 
-        if (value instanceof Date) {
-          const columnType = this.existingColumns[col] || this.getColumnType(col);
+            if (value instanceof Date) {
+              const columnType = this.existingColumns[col] || this.getColumnType(col);
 
-          if (columnType === 'DATE') {
-            // Format as YYYY-MM-DD for DATE type
-            const formattedDate = DateUtils.formatDate(value);
-            return `'${formattedDate}'`;
-          } else if (columnType === 'TIMESTAMP') {
-            // Format as YYYY-MM-DD HH:MM:SS for TIMESTAMP type
-            const isoString = value.toISOString();
-            const formattedTimestamp = isoString.replace('T', ' ').substring(0, 19);
-            return `'${formattedTimestamp}'`;
-          }
-        }
+              if (columnType === 'DATE') {
+                // Format as YYYY-MM-DD for DATE type
+                const formattedDate = DateUtils.formatDate(value);
+                return `'${formattedDate}'`;
+              } else if (columnType === 'TIMESTAMP') {
+                // Format as YYYY-MM-DD HH:MM:SS for TIMESTAMP type
+                const isoString = value.toISOString();
+                const formattedTimestamp = isoString.replace('T', ' ').substring(0, 19);
+                return `'${formattedTimestamp}'`;
+              }
+            }
 
-        // Escape single quotes in strings
-        const stringValue = String(value).replace(/'/g, "''");
-        return `'${stringValue}'`;
-      }).join(', ');
+            // Escape single quotes in strings
+            const stringValue = String(value).replace(/'/g, "''");
+            return `'${stringValue}'`;
+          })
+          .join(', ');
 
-      return `(${vals})`;
-    }).join(',\n      ');
+        return `(${vals})`;
+      })
+      .join(',\n      ');
 
     const columnList = columns.map(col => `"${col}"`).join(', ');
 
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
+
     return `
-      INSERT INTO "${stripQuotes(this.config.Schema.value)}"."${tableName}" (${columnList})
+      INSERT INTO "${schemaName}"."${tableName}" (${columnList})
       VALUES ${values}
     `;
   }
@@ -965,19 +1074,22 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async mergeTempTable(tempTableName, columns) {
-    const targetTable = `"${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}"`;
-    const sourceTable = `"${stripQuotes(this.config.Schema.value)}"."${tempTableName}"`;
+    const schemaName = stripQuotes(this.context.getParameter('Schema')?.value);
+    const destinationTableName = stripQuotes(
+      this.context.getParameter('DestinationTableName')?.value
+    );
+
+    const targetTable = `"${schemaName}"."${destinationTableName}"`;
+    const sourceTable = `"${schemaName}"."${tempTableName}"`;
 
     // Build ON clause for matching
-    const onClause = this.uniqueKeyColumns.map(col =>
-      `${targetTable}."${col}" = ${sourceTable}."${col}"`
-    ).join(' AND ');
+    const onClause = this.uniqueKeyColumns
+      .map(col => `${targetTable}."${col}" = ${sourceTable}."${col}"`)
+      .join(' AND ');
 
     // Build UPDATE SET clause
     const updateColumns = columns.filter(col => !this.uniqueKeyColumns.includes(col));
-    const updateSet = updateColumns.map(col =>
-      `"${col}" = ${sourceTable}."${col}"`
-    ).join(', ');
+    const updateSet = updateColumns.map(col => `"${col}" = ${sourceTable}."${col}"`).join(', ');
 
     // Build INSERT columns and values
     const insertColumns = columns.map(col => `"${col}"`).join(', ');

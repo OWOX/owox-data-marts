@@ -220,7 +220,9 @@ export const parseDate = (dateString: string): Date => {
 };
 
 export const formatDuration = (startedAt: Date, finishedAt: Date): string => {
-  const durationMs = finishedAt.getTime() - startedAt.getTime();
+  // Clamp to 0 under clock skew (e.g. finishedAt/now resolves slightly before
+  // startedAt) — a negative duration is never meaningful to display.
+  const durationMs = Math.max(0, finishedAt.getTime() - startedAt.getTime());
   const seconds = Math.floor(durationMs / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);

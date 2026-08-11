@@ -11,6 +11,7 @@ import ModelCanvasPage from '../pages/data-marts/model-canvas/ModelCanvasPage.ts
 import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
+import { ConnectorsListPage } from '../pages/connectors/ConnectorsListPage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { ProjectSettingsPage } from '../pages/project-settings/ProjectSettingsPage';
 import { ProjectNotificationsPage } from '../pages/notifications/project';
@@ -27,6 +28,8 @@ import { ConnectFlowLayout } from '../layouts/ConnectFlowLayout';
 import { ConnectGoogleSheetsPage } from '../pages/connect/ConnectGoogleSheetsPage';
 import { ConnectGoogleSheetsDonePage } from '../pages/connect/ConnectGoogleSheetsDonePage';
 import { pluginsRoutes } from './plugins/routes';
+import ConnectorBuilderCreatePage from '../pages/connectors/builder/CreatePage';
+import ConnectorBuilderEditPage from '../pages/connectors/builder/EditPage';
 
 const routes: RouteObject[] = [
   {
@@ -103,6 +106,11 @@ const routes: RouteObject[] = [
         errorElement: <LayoutErrorBoundary />,
       },
       {
+        path: 'connectors',
+        element: <ConnectorsListPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
         errorElement: <LayoutErrorBoundary />,
@@ -139,6 +147,16 @@ const routes: RouteObject[] = [
       {
         path: 'notifications',
         element: <ProjectNotificationsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'connectors/builder/new',
+        element: <ConnectorBuilderCreatePage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'connectors/builder/:id',
+        element: <ConnectorBuilderEditPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {

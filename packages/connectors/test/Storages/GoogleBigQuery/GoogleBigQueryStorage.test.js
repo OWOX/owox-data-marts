@@ -3,9 +3,9 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
+import { AbstractStorage } from '../../../src/Core/AbstractStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const abstractStoragePath = path.join(__dirname, '../../../src/Core/AbstractStorage.js');
 const storagePath = path.join(
   __dirname,
   '../../../src/Storages/GoogleBigQuery/GoogleBigQueryStorage.js'
@@ -16,16 +16,18 @@ const storagePath = path.join(
 // has no `require` of its own, so we provide the real one here too — this
 // exercises the actual OAuth2Client, not a stand-in for it.
 globalThis.require = createRequire(import.meta.url);
+// AbstractStorage is an ES module here, so it cannot be vm-evaluated the way the storage
+// file can: import it and expose it as the bare global that file resolves against.
+globalThis.AbstractStorage = AbstractStorage;
 
-loadGasClass(abstractStoragePath);
 loadGasClass(storagePath);
 const proto = globalThis.GoogleBigQueryStorage.prototype;
 
 const configValue = value => ({ value });
 
-const fakeStorage = (configOverrides = {}) => ({
-  _bigqueryClient: null,
-  config: {
+const fakeStorage = (configOverrides = {}) => {
+  // Parameters are read through the context, not a config object.
+  const parameters = {
     OAuthAccessToken: configValue('access-token'),
     OAuthRefreshToken: configValue('refresh-token'),
     OAuthClientId: configValue('client-id'),
@@ -33,8 +35,13 @@ const fakeStorage = (configOverrides = {}) => ({
     OAuthAccessTokenExpiry: configValue(1234567890),
     ProjectID: configValue('gcp-project'),
     ...configOverrides,
-  },
-});
+  };
+
+  return {
+    _bigqueryClient: null,
+    context: { getParameter: name => parameters[name] },
+  };
+};
 
 describe('getBigQueryClient', () => {
   let capturedAuthClients;
