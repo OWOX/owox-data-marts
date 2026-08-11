@@ -5,207 +5,219 @@
  * file that was distributed with this source code.
  */
 
-var GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES = 127;
-var GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
-var GOOGLE_SHEETS_MAX_IMPORT_ROWS = 100000;
-var GOOGLE_SHEETS_MAX_IMPORT_COLUMNS = 1598;
-var GOOGLE_SHEETS_MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
-var GOOGLE_SHEETS_MAX_RETRY_AFTER_MS = 300000;
-var GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES = [
+// Only the base class is imported, matching every other source: CONFIG_ATTRIBUTES,
+// DATA_TYPES, LOG_LEVEL, PARAMETER_OWNER, HTTP_STATUS, OAUTH_CONSTANTS, OAuthUtils,
+// AsyncUtils, OauthCredentialsDto and the exception classes are bare globals the built
+// bundle supplies. Every name used here must be one the bundle actually defines —
+// an undefined global is only a runtime ReferenceError, never a build or lint error.
+import { AbstractSource } from '../../Core/AbstractSource.js';
+
+const GOOGLE_SHEETS_MAX_IDENTIFIER_BYTES = 127;
+const GOOGLE_SHEETS_PREVIEW_SAMPLE_ROWS = 100;
+const GOOGLE_SHEETS_MAX_IMPORT_ROWS = 100000;
+const GOOGLE_SHEETS_MAX_IMPORT_COLUMNS = 1598;
+const GOOGLE_SHEETS_MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
+const GOOGLE_SHEETS_MAX_RETRY_AFTER_MS = 300000;
+const GOOGLE_SHEETS_REQUIRED_OAUTH_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
 ];
 
-var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
-  constructor(config) {
-    const inferTypesDefault = config.InferTypes?.value === false ? false : true;
-    const importAllColumnsDefault = config.ImportAllColumns?.value === false ? false : true;
+export class GoogleSheetsSource extends AbstractSource {
+  constructor(context) {
+    super(context);
 
-    super(
-      config.mergeParameters({
-        AuthType: {
-          requiredType: 'object',
-          label: 'Auth Type',
-          description: 'Authentication type',
-          isRequired: true,
-          oneOf: [
-            {
-              label: 'OAuth2',
-              value: 'oauth2',
-              requiredType: 'object',
-              attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
-              oauthParams: {
-                vars: {
-                  ClientId: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_CLIENT_ID',
-                    attributes: [
-                      OAUTH_CONSTANTS.UI,
-                      OAUTH_CONSTANTS.SECRET,
-                      OAUTH_CONSTANTS.REQUIRED,
-                    ],
-                  },
-                  ClientSecret: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_CLIENT_SECRET',
-                    attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
-                  },
-                  RedirectUri: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_REDIRECT_URI',
-                    attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
-                  },
-                  PickerApiKey: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_PICKER_API_KEY',
-                    attributes: [
-                      OAUTH_CONSTANTS.UI,
-                      OAUTH_CONSTANTS.SECRET,
-                      OAUTH_CONSTANTS.REQUIRED,
-                    ],
-                  },
-                  ProjectNumber: {
-                    type: 'string',
-                    required: true,
-                    store: 'env',
-                    key: 'OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER',
-                    attributes: [
-                      OAUTH_CONSTANTS.UI,
-                      OAUTH_CONSTANTS.SECRET,
-                      OAUTH_CONSTANTS.REQUIRED,
-                    ],
-                  },
-                },
-                mapping: {
-                  RefreshToken: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'refresh_token',
-                  },
-                  AccessToken: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'access_token',
-                  },
-                  ClientId: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'client_id',
-                  },
-                  ClientSecret: {
-                    type: 'string',
-                    required: true,
-                    store: 'secret',
-                    key: 'client_secret',
-                  },
-                },
-              },
-              items: {
-                RefreshToken: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Refresh Token',
-                  description: 'OAuth2 Refresh Token',
-                  attributes: [CONFIG_ATTRIBUTES.SECRET],
-                },
+    // Read before registration: registerParameters() applies the declared default
+    // to a param the user left empty, so an explicit `false` has to be captured first.
+    const inferTypesDefault = context.getParameter('InferTypes')?.value === false ? false : true;
+    const importAllColumnsDefault =
+      context.getParameter('ImportAllColumns')?.value === false ? false : true;
+
+    this.parameters = {
+      AuthType: {
+        requiredType: 'object',
+        label: 'Auth Type',
+        description: 'Authentication type',
+        isRequired: true,
+        oneOf: [
+          {
+            label: 'OAuth2',
+            value: 'oauth2',
+            requiredType: 'object',
+            attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+            oauthParams: {
+              vars: {
                 ClientId: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Client ID',
-                  description: 'OAuth2 Client ID',
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_SHEETS_CLIENT_ID',
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
                 },
                 ClientSecret: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Client Secret',
-                  description: 'OAuth2 Client Secret',
-                  attributes: [CONFIG_ATTRIBUTES.SECRET],
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_SHEETS_CLIENT_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
+                },
+                RedirectUri: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_SHEETS_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
+                },
+                PickerApiKey: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_SHEETS_PICKER_API_KEY',
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
+                },
+                ProjectNumber: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_SHEETS_PROJECT_NUMBER',
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
+                },
+              },
+              mapping: {
+                RefreshToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'refresh_token',
+                },
+                AccessToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'access_token',
+                },
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_id',
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_secret',
                 },
               },
             },
-            {
-              label: 'Service Account',
-              value: 'service_account',
-              requiredType: 'object',
-              items: {
-                ServiceAccountKey: {
-                  isRequired: true,
-                  requiredType: 'string',
-                  label: 'Service Account Key (JSON)',
-                  description:
-                    'Paste a JSON key from a service account that has access to the selected spreadsheet.',
-                  placeholder: 'Paste the full service account JSON key',
-                  attributes: [CONFIG_ATTRIBUTES.SECRET],
-                },
+            items: {
+              RefreshToken: {
+                isRequired: true,
+                requiredType: 'string',
+                label: 'Refresh Token',
+                description: 'OAuth2 Refresh Token',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
+              },
+              ClientId: {
+                isRequired: true,
+                requiredType: 'string',
+                label: 'Client ID',
+                description: 'OAuth2 Client ID',
+              },
+              ClientSecret: {
+                isRequired: true,
+                requiredType: 'string',
+                label: 'Client Secret',
+                description: 'OAuth2 Client Secret',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
             },
-          ],
-        },
-        SpreadsheetId: {
-          isRequired: true,
-          requiredType: 'string',
-          label: 'Spreadsheet ID or URL',
-          description:
-            'Choose a spreadsheet with Google Picker for OAuth, or enter its ID or URL for a service account.',
-        },
-        SheetName: {
-          isRequired: true,
-          requiredType: 'string',
-          label: 'Sheet Name',
-          description: 'Name of the sheet tab to import. One Data Mart imports one sheet tab.',
-        },
-        Range: {
-          requiredType: 'string',
-          default: '',
-          label: 'Range',
-          description:
-            'Optional A1 range inside the selected sheet, for example A:D. Leave empty to import the used range.',
-        },
-        HeaderRow: {
-          isRequired: true,
-          requiredType: 'number',
-          default: 1,
-          minimum: 1,
-          label: 'Header Row',
-          description:
-            'One-based row number containing column names. The rows below it are imported as data.',
-        },
-        InferTypes: {
-          requiredType: 'boolean',
-          default: inferTypesDefault,
-          label: 'Infer Types',
-          description:
-            'Infer warehouse column types from sheet values. Mixed columns fall back to STRING.',
-          attributes: [CONFIG_ATTRIBUTES.ADVANCED],
-        },
-        ImportAllColumns: {
-          requiredType: 'boolean',
-          default: importAllColumnsDefault,
-          label: 'Import All Columns',
-          description:
-            'Import every current sheet column, including columns added after setup. Disable to use the explicit Fields selection.',
-          attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
-        },
-        Fields: {
-          requiredType: 'string',
-          default: 'sheet _owox_row_number',
-          label: 'Fields',
-          description: 'Generated at runtime from the selected sheet headers',
-          attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
-        },
-      })
-    );
+          },
+          {
+            label: 'Service Account',
+            value: 'service_account',
+            requiredType: 'object',
+            items: {
+              ServiceAccountKey: {
+                isRequired: true,
+                requiredType: 'string',
+                label: 'Service Account Key (JSON)',
+                description:
+                  'Paste a JSON key from a service account that has access to the selected spreadsheet.',
+                placeholder: 'Paste the full service account JSON key',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
+              },
+            },
+          },
+        ],
+      },
+      SpreadsheetId: {
+        isRequired: true,
+        requiredType: 'string',
+        label: 'Spreadsheet ID or URL',
+        description:
+          'Choose a spreadsheet with Google Picker for OAuth, or enter its ID or URL for a service account.',
+      },
+      SheetName: {
+        isRequired: true,
+        requiredType: 'string',
+        label: 'Sheet Name',
+        description: 'Name of the sheet tab to import. One Data Mart imports one sheet tab.',
+      },
+      Range: {
+        requiredType: 'string',
+        default: '',
+        label: 'Range',
+        description:
+          'Optional A1 range inside the selected sheet, for example A:D. Leave empty to import the used range.',
+      },
+      HeaderRow: {
+        isRequired: true,
+        requiredType: 'number',
+        default: 1,
+        minimum: 1,
+        label: 'Header Row',
+        description:
+          'One-based row number containing column names. The rows below it are imported as data.',
+      },
+      InferTypes: {
+        requiredType: 'boolean',
+        default: inferTypesDefault,
+        label: 'Infer Types',
+        description:
+          'Infer warehouse column types from sheet values. Mixed columns fall back to STRING.',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+      ImportAllColumns: {
+        requiredType: 'boolean',
+        default: importAllColumnsDefault,
+        label: 'Import All Columns',
+        description:
+          'Import every current sheet column, including columns added after setup. Disable to use the explicit Fields selection.',
+        attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
+      },
+      Fields: {
+        requiredType: 'string',
+        default: 'sheet _owox_row_number',
+        label: 'Fields',
+        description: 'Generated at runtime from the selected sheet headers',
+        attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
 
     this.fieldsSchema = this._buildPlaceholderFieldsSchema();
     this.accessToken = null;
@@ -223,14 +235,33 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         redirect_uri: variables.RedirectUri,
       };
 
-      const response = await HttpUtils.fetch(tokenUrl, {
+      // Bare fetch, matching GoogleAds and MicrosoftAds, rather than
+      // this.urlFetchWithRetry(). Three reasons, all specific to this method:
+      //   - `code` is a single-use authorization code. Retrying a failed exchange
+      //     cannot succeed, and this runs synchronously inside the user's OAuth
+      //     callback, where isValidToRetry()'s 5s/10s backoff is dead wait.
+      //   - Google reports OAuth failures as HTTP 400 with the reason in the body
+      //     ({"error":"invalid_grant",...}). urlFetchWithRetry throws on non-ok
+      //     before the `data.error` branch below could turn that into a message
+      //     naming the actual problem.
+      //   - urlFetchWithRetry reads this.context (getParameter/emit/log). `this`
+      //     IS the source here — connector.service.ts calls this as a method — but
+      //     on an instance built purely to make this call, whose context carries an
+      //     empty config and no run. Depending on it would be depending on a
+      //     placeholder; the tests construct the source with no context at all.
+      // It also loses nothing: urlFetchWithRetry only re-validates redirects when
+      // given a `validate` callback, and bundled sources pass none — without one it
+      // delegates to the same undici transparent follow that bare fetch uses.
+      const response = await fetch(tokenUrl, {
         method: 'post',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: Object.entries(payload)
           .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
           .join('&'),
       });
-      const data = await response.getAsJson();
+      // Deliberately not gated on response.ok: a non-2xx body is exactly where the
+      // provider's error code lives, and the `data.error` check below reads it.
+      const data = await response.json();
 
       if (data.error) {
         throw new OauthFlowException({
@@ -265,11 +296,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
       let userInfo;
       try {
-        const userResponse = await HttpUtils.fetch(
-          'https://www.googleapis.com/oauth2/v2/userinfo',
-          { headers: { Authorization: `Bearer ${data.access_token}` } }
-        );
-        userInfo = await userResponse.getAsJson();
+        // Bare fetch for the same reasons as the token exchange above. A failure
+        // here — transport, non-2xx, or a non-JSON body — is caught below and
+        // reported as an unverifiable account, which is the actionable message.
+        const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        });
+        userInfo = await userResponse.json();
       } catch (error) {
         throw new OauthFlowException({
           message: 'Could not verify the Google account connected to Google Sheets',
@@ -329,15 +362,15 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       this.tokenExpiryTime = null;
     }
 
-    const authType = this.config.AuthType?.value;
+    const authType = this.context.getParameter('AuthType')?.value;
     if (!authType) {
       throw new ConnectorConfigurationException('AuthType not configured');
     }
 
-    const authConfig = this.config.AuthType.items;
+    const authConfig = this.context.getParameter('AuthType')?.items;
     if (authType === 'oauth2') {
       this.accessToken = await OAuthUtils.getAccessToken({
-        config: this.config,
+        context: this.context,
         tokenUrl: 'https://oauth2.googleapis.com/token',
         formData: {
           grant_type: 'refresh_token',
@@ -348,7 +381,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       });
     } else if (authType === 'service_account') {
       this.accessToken = await OAuthUtils.getServiceAccountToken({
-        config: this.config,
+        context: this.context,
         tokenUrl: 'https://oauth2.googleapis.com/token',
         serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
@@ -383,7 +416,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   async _fetchSheetValues({ preview = false, signal } = {}) {
-    const spreadsheetId = this._extractSpreadsheetId(this.config.SpreadsheetId.value);
+    const spreadsheetId = this._extractSpreadsheetId(
+      this.context.getParameter('SpreadsheetId')?.value
+    );
     const encodedSpreadsheetId = encodeURIComponent(spreadsheetId);
     const range = this._buildA1Range({ preview });
     const encodedRange = encodeURIComponent(range);
@@ -398,13 +433,13 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           forceRefresh: authorizationAttempt > 0,
         });
         const response = await this._fetchSheetResponse(url, accessToken, signal);
-        const contentLength = Number(response.getHeaders?.()['content-length']);
+        const contentLength = Number(response.headers?.get?.('content-length'));
         if (Number.isFinite(contentLength) && contentLength > GOOGLE_SHEETS_MAX_RESPONSE_BYTES) {
           throw new ConnectorConfigurationException(
             'Google Sheets response exceeds the 50 MB import limit. Narrow the Range and try again.'
           );
         }
-        const responseText = await response.getContentText();
+        const responseText = await response.text();
         const responseBytes =
           typeof Buffer === 'undefined'
             ? responseText.length
@@ -422,7 +457,8 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         }
 
         if (error?.statusCode === HTTP_STATUS.UNAUTHORIZED && authorizationAttempt === 0) {
-          this.config.logMessage(
+          this.context.log(
+            LOG_LEVEL.INFO,
             'Google Sheets access token was rejected; refreshing it and retrying once'
           );
           continue;
@@ -442,14 +478,29 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   async _fetchSheetResponse(url, accessToken, signal) {
-    for (let attempt = 1; attempt <= this.config.MaxFetchRetries.value; attempt += 1) {
+    // Read through the base helper, not getParameter() directly: MaxFetchRetries is
+    // not one of this source's declared parameters, so an unset one would come back
+    // undefined and `attempt <= undefined` would skip the loop entirely — zero
+    // requests, and a bare "retry loop ended unexpectedly" instead of the real error.
+    const maxAttempts = this._getRetryParam('MaxFetchRetries', 3);
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       let response;
 
       try {
         signal?.throwIfAborted();
-        response = await HttpUtils.fetch(url, {
+        // Bare fetch, matching GoogleAds, rather than this.urlFetchWithRetry():
+        // this method IS the retry loop, and nesting urlFetchWithRetry's own loop
+        // inside it would multiply the attempt budget (3 x 3) and hide every inner
+        // attempt from the Retry-After and abort handling below. urlFetchWithRetry's
+        // other extras do not apply here — its SSRF and redirect re-validation run
+        // only when a `validate` callback is passed, which bundled sources never do,
+        // and the host is the hardcoded sheets.googleapis.com (the spreadsheet id is
+        // regex-validated and both id and range are percent-encoded).
+        //
+        // Non-2xx is not a throw for native fetch, so the status check that
+        // _fetchSheetValues and _shouldRetry depend on is explicit below.
+        response = await fetch(url, {
           headers: { Authorization: `Bearer ${accessToken}` },
-          muteHttpExceptions: true,
           signal,
         });
         return await this._validateResponse(response);
@@ -462,18 +513,80 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           throw error;
         }
 
-        if (!this._shouldRetry(error, attempt)) {
+        if (!this._shouldRetry(error, attempt, maxAttempts)) {
           throw error;
         }
 
         const retryAfterMs = this._getRetryAfterMs(response);
         const delay = retryAfterMs ?? this.calculateBackoff(attempt);
-        this.config.logMessage(`Retrying Google Sheets request after ${Math.round(delay / 1000)}s`);
+        this.context.log(
+          LOG_LEVEL.INFO,
+          `Retrying Google Sheets request after ${Math.round(delay / 1000)}s`
+        );
         await this._delayWithAbort(delay, signal);
       }
     }
 
     throw new Error('Google Sheets request retry loop ended unexpectedly');
+  }
+
+  /**
+   * Turns a non-2xx response into the HttpRequestException the callers expect.
+   *
+   * main's AbstractSource supplied this; the class was not carried over when HTTP
+   * moved into this branch's AbstractSource, whose urlFetchWithRetry throws on
+   * non-ok itself. This source drives its own fetch loop, so it needs its own
+   * check — and everything downstream reads `statusCode` off the thrown error:
+   * _fetchSheetValues refreshes the token on 401, isValidToRetry() retries 429 and
+   * 5xx, and _buildSheetRequestErrorMessage() maps 400/403/404 to guidance.
+   *
+   * @param {Response} response
+   * @return {Response} the same response, when it succeeded
+   * @throws {HttpRequestException}
+   */
+  async _validateResponse(response) {
+    const code = response.status;
+
+    if (code >= HTTP_STATUS.SUCCESS_MIN && code <= HTTP_STATUS.SUCCESS_MAX) {
+      return response;
+    }
+
+    const errorInfo = await this._extractErrorInfo(response);
+    throw new HttpRequestException({
+      message: errorInfo.message,
+      statusCode: code,
+      payload: errorInfo.json,
+    });
+  }
+
+  /**
+   * Pulls the most specific message an error body offers, falling back to the raw
+   * text. Reading the body is what turns a bare "HTTP 400" into Google's own
+   * "Unable to parse range: ...".
+   *
+   * @param {Response} response
+   * @return {Promise<{message: string, json: Object|null}>}
+   */
+  async _extractErrorInfo(response) {
+    const text = await response.text();
+    let parsedJson = null;
+    let message = text;
+
+    try {
+      parsedJson = JSON.parse(text);
+      message =
+        parsedJson?.error?.message ||
+        parsedJson?.message ||
+        parsedJson?.errorMessage ||
+        parsedJson?.error_message ||
+        (Array.isArray(parsedJson?.errors) && parsedJson.errors[0]?.message) ||
+        text;
+    } catch (_) {
+      // Not JSON (an HTML error page, an empty body): the raw text is already the
+      // best message available, and a parse failure must not mask the HTTP status.
+    }
+
+    return { message, json: parsedJson };
   }
 
   async _delayWithAbort(delay, signal) {
@@ -497,15 +610,14 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getRetryAfterMs(response) {
-    const headers = response?.getHeaders?.() || {};
-    const retryAfterEntry = Object.entries(headers).find(
-      ([headerName]) => headerName.toLowerCase() === 'retry-after'
-    );
-    if (!retryAfterEntry) {
+    // Headers.get() is already case-insensitive, which is what the manual
+    // lower-cased scan over a plain headers object used to provide.
+    const retryAfterValue = response?.headers?.get?.('retry-after');
+    if (retryAfterValue == null) {
       return null;
     }
 
-    const retryAfter = String(retryAfterEntry[1]).trim();
+    const retryAfter = String(retryAfterValue).trim();
     const seconds = Number(retryAfter);
     const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
 
@@ -541,7 +653,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     if (detectedColumns.length === 0) {
       throw new ConnectorConfigurationException(
-        `No columns found at header row ${headerRowNumber} of '${this.config.SheetName.value}'. ` +
+        `No columns found at header row ${headerRowNumber} of '${this.context.getParameter('SheetName')?.value}'. ` +
           'Check the sheet tab name, optional range, and header row.'
       );
     }
@@ -596,12 +708,35 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
     );
   }
 
+  /**
+   * Whether another attempt is worth making. This source drives its own fetch
+   * loop rather than AbstractSource.fetch() — it needs Retry-After handling and
+   * an abort signal — so it carries the attempt-budget check that the base
+   * class applies internally.
+   *
+   * @param {Error} error - the failure being judged
+   * @param {number} attempt - 1-based attempt that just failed
+   * @param {number} maxAttempts - total attempts allowed
+   * @return {boolean}
+   */
+  _shouldRetry(error, attempt, maxAttempts) {
+    if (attempt >= maxAttempts) {
+      this.context.log(LOG_LEVEL.INFO, `Maximum retry attempts (${maxAttempts}) reached.`);
+      return false;
+    }
+
+    const retryable = this.isValidToRetry(error);
+    this.context.log(LOG_LEVEL.INFO, `Attempt ${attempt}: isValidToRetry = ${retryable}`);
+
+    return retryable;
+  }
+
   _buildSheetRequestErrorMessage(error) {
     const statusCode = error?.statusCode;
     const message = error instanceof Error ? error.message : String(error);
 
     if (statusCode === 403) {
-      if (this.config.AuthType?.value === 'oauth2') {
+      if (this.context.getParameter('AuthType')?.value === 'oauth2') {
         return (
           `Google Sheets access denied: ${message}. ` +
           'Reconnect Google Sheets and choose the spreadsheet with Google Picker.'
@@ -628,7 +763,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getConfiguredServiceAccountEmail() {
-    const authConfig = this.config.AuthType?.items || {};
+    const authConfig = this.context.getParameter('AuthType')?.items || {};
     const configuredEmail = authConfig.ServiceAccountEmail?.value;
     if (configuredEmail) {
       return configuredEmail;
@@ -650,6 +785,10 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         documentation:
           'The connector infers fields from the selected sheet header row during each refresh.',
         destinationName: 'google_sheets',
+        // Routes this node through AbstractConnector.processFullRefreshNode:
+        // a sheet's rows and columns can disappear between runs, and only a
+        // snapshot replacement removes them downstream too.
+        isFullRefresh: true,
         uniqueKeys: ['_owox_row_number'],
         defaultFields: ['_owox_row_number'],
         fields: {
@@ -694,9 +833,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _buildA1Range({ preview = false } = {}) {
-    const configuredRange = String(this.config.Range?.value || '').trim();
+    const configuredRange = String(this.context.getParameter('Range')?.value || '').trim();
     const gridRange = this._getConfiguredGridRange(configuredRange);
-    const sheetPrefix = `${this._quoteSheetName(this.config.SheetName.value)}!`;
+    const sheetPrefix = `${this._quoteSheetName(this.context.getParameter('SheetName')?.value)}!`;
     const bounds = this._getRangeBounds(gridRange);
     const headerRow = this._getHeaderRowNumber();
     this._validateHeaderWithinRange(headerRow, bounds);
@@ -732,7 +871,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getHeaderRowNumber() {
-    const headerRowNumber = Number(this.config.HeaderRow.value);
+    const headerRowNumber = Number(this.context.getParameter('HeaderRow')?.value);
     if (!Number.isInteger(headerRowNumber) || headerRowNumber < 1) {
       throw new ConnectorConfigurationException(
         'Header Row must be a whole number greater than or equal to 1'
@@ -742,7 +881,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getConfiguredRangeBounds() {
-    const configuredRange = String(this.config.Range?.value || '').trim();
+    const configuredRange = String(this.context.getParameter('Range')?.value || '').trim();
     const gridRange = this._getConfiguredGridRange(configuredRange);
 
     return this._getRangeBounds(gridRange);
@@ -776,7 +915,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       .slice(0, separatorIndex)
       .replace(/^'(.*)'$/, '$1')
       .replace(/''/g, "'");
-    const selectedSheetName = String(this.config.SheetName.value);
+    const selectedSheetName = String(this.context.getParameter('SheetName')?.value);
     if (rangeSheetName !== selectedSheetName) {
       throw new ConnectorConfigurationException(
         `Range must use the selected sheet '${selectedSheetName}', not '${rangeSheetName}'`
@@ -928,7 +1067,8 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
 
     if (missingFields.length) {
       const availableColumns = this._formatAvailableColumns(columns);
-      this.config.logMessage(
+      this.context.log(
+        LOG_LEVEL.INFO,
         `Warning: selected columns no longer found in the sheet and will be skipped: ` +
           `${missingFields.join(', ')}. Available columns: ${availableColumns}`
       );
@@ -942,7 +1082,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getSelectedSheetFieldNames() {
-    const fieldsValue = this.config.Fields?.value;
+    const fieldsValue = this.context.getParameter('Fields')?.value;
     if (!fieldsValue) {
       return [];
     }
@@ -959,7 +1099,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _importsAllColumns() {
-    const value = this.config.ImportAllColumns?.value;
+    const value = this.context.getParameter('ImportAllColumns')?.value;
 
     // Older persisted configurations and external callers can represent booleans
     // as SQLite-style numbers or strings. Treat every explicit false value as subset mode.
@@ -1075,7 +1215,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
         .filter(value => value !== null && value !== undefined);
 
       fields[column.name] = {
-        type: this.config.InferTypes.value ? this._inferType(values) : DATA_TYPES.STRING,
+        type: this.context.getParameter('InferTypes')?.value
+          ? this._inferType(values)
+          : DATA_TYPES.STRING,
         description: this._buildFieldDescription(column),
       };
     }
@@ -1088,7 +1230,7 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
   }
 
   _getConfiguredFieldNames() {
-    const fieldsValue = this.config.Fields?.value;
+    const fieldsValue = this.context.getParameter('Fields')?.value;
     if (!fieldsValue) {
       return [];
     }
@@ -1146,4 +1288,4 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
       Math.abs(value) <= Number.MAX_SAFE_INTEGER
     );
   }
-};
+}

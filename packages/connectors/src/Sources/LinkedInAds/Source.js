@@ -5,19 +5,23 @@
  * file that was distributed with this source code.
  */
 
-var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
-  constructor(config) {
-    super(config.mergeParameters({
+import { AbstractSource } from '../../Core/AbstractSource.js';
+
+export class LinkedInAdsSource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       AuthType: {
-        requiredType: "object",
-        label: "Auth Type",
-        description: "Authentication type",
+        requiredType: 'object',
+        label: 'Auth Type',
+        description: 'Authentication type',
         isRequired: true,
         oneOf: [
           {
-            label: "OAuth2",
-            value: "oauth2",
-            requiredType: "object",
+            label: 'OAuth2',
+            value: 'oauth2',
+            requiredType: 'object',
             attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
             oauthParams: {
               vars: {
@@ -26,168 +30,223 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
                   required: true,
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_ADS_CLIENT_ID',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [
+                    OAUTH_CONSTANTS.UI,
+                    OAUTH_CONSTANTS.SECRET,
+                    OAUTH_CONSTANTS.REQUIRED,
+                  ],
                 },
                 ClientSecret: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_ADS_CLIENT_SECRET',
-                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED],
                 },
                 RedirectUri: {
                   type: 'string',
                   required: true,
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_ADS_REDIRECT_URI',
-                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED],
                 },
                 Scopes: {
                   type: 'string',
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_ADS_SCOPE',
                   default: 'r_ads,r_ads_reporting',
-                  attributes: [OAUTH_CONSTANTS.UI]
-                }
+                  attributes: [OAUTH_CONSTANTS.UI],
+                },
               },
               mapping: {
                 RefreshToken: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'refresh_token'
+                  key: 'refresh_token',
                 },
                 ClientId: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'client_id'
+                  key: 'client_id',
                 },
                 ClientSecret: {
                   type: 'string',
                   required: true,
                   store: 'secret',
-                  key: 'client_secret'
+                  key: 'client_secret',
                 },
                 AccessToken: {
                   type: 'string',
                   required: false,
                   store: 'secret',
-                  key: 'access_token'
-                }
-              }
+                  key: 'access_token',
+                },
+              },
             },
             items: {
               ClientId: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Client ID",
-                description: "LinkedIn API Client ID for authentication"
+                requiredType: 'string',
+                label: 'Client ID',
+                description: 'LinkedIn API Client ID for authentication',
               },
               ClientSecret: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Primary Client Secret",
-                description: "LinkedIn API Primary Client Secret for authentication",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Primary Client Secret',
+                description: 'LinkedIn API Primary Client Secret for authentication',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               RefreshToken: {
                 isRequired: true,
-                requiredType: "string",
-                label: "Refresh Token",
-                description: "LinkedIn API Refresh Token for authentication",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                requiredType: 'string',
+                label: 'Refresh Token',
+                description: 'LinkedIn API Refresh Token for authentication',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
               },
               AccessToken: {
-                requiredType: "string",
-                label: "Access Token",
-                description: "LinkedIn API Access Token (auto-generated)",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
-              }
-            }
-          }
-        ]
+                requiredType: 'string',
+                label: 'Access Token',
+                description: 'LinkedIn API Access Token (auto-generated)',
+                attributes: [CONFIG_ATTRIBUTES.SECRET],
+              },
+            },
+          },
+        ],
       },
       ClientID: {
         isRequired: false,
-        requiredType: "string",
-        label: "Client ID",
-        description: "LinkedIn API Client ID for authentication",
-        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Client ID',
+        description: 'LinkedIn API Client ID for authentication',
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       ClientSecret: {
         isRequired: false,
-        requiredType: "string",
-        label: "Primary Client Secret",
-        description: "LinkedIn API Primary Client Secret for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Primary Client Secret',
+        description: 'LinkedIn API Primary Client Secret for authentication',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       RefreshToken: {
         isRequired: false,
-        requiredType: "string",
-        label: "Refresh Token",
-        description: "LinkedIn API Refresh Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'string',
+        label: 'Refresh Token',
+        description: 'LinkedIn API Refresh Token for authentication',
+        attributes: [
+          CONFIG_ATTRIBUTES.SECRET,
+          CONFIG_ATTRIBUTES.DEPRECATED,
+          CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM,
+        ],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CleanUpToKeepWindow: {
-        requiredType: "number",
-        label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        requiredType: 'number',
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleaning up',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       Fields: {
         isRequired: true,
-        label: "Fields",
-        description: "List of fields to fetch from LinkedIn API"
+        label: 'Fields',
+        description: 'List of fields to fetch from LinkedIn API',
       },
       AccountURNs: {
         isRequired: true,
-        label: "Account URNs",
-        description: "LinkedIn Ads Account URNs to fetch data from"
+        label: 'Account URNs',
+        description: 'LinkedIn Ads Account URNs to fetch data from',
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }));
-    
+        label: 'Create Empty Tables',
+        description: 'Create tables with all columns even if no data is returned from API',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+
     this.fieldsSchema = LinkedInAdsFieldsSchema;
     this.MAX_FIELDS_PER_REQUEST = 20;
+    // adAnalytics has no pagination and caps every response at this many elements, so a
+    // response that reaches it was silently cut short rather than being all there is.
     this.MAX_RESPONSE_ELEMENTS = 15000;
-    this.MAX_TRUNCATED_DAYS_IN_WARNING = 10;
-    // urn -> [YYYY-MM-DD] days whose adAnalytics response hit MAX_RESPONSE_ELEMENTS.
-    // Filled per fetchAdAnalytics call; the connector reports it once per account per run.
-    this.truncatedAnalyticsDays = {};
-    this.BASE_URL = "https://api.linkedin.com/rest/";
-  
+    this.BASE_URL = 'https://api.linkedin.com/rest/';
+  }
+
+  /**
+   * Day by day, not RANGE, and the difference is data loss rather than pacing.
+   *
+   * The adAnalytics endpoint does not paginate: it answers with at most
+   * MAX_RESPONSE_ELEMENTS rows and says nothing about the ones it dropped. A whole
+   * window in one request therefore returns a silently truncated slice of a busy
+   * account, and the run reports success on incomplete data. One request per day keeps
+   * each response far below the cap, and the engine's per-day checkpoint makes an
+   * interrupted range resumable instead of restarting it.
+   *
+   * adAnalytics is the only isTimeSeries node here, so it is the only node this is
+   * consulted for; the catalog nodes are planned as plain nodes and never see a date.
+   */
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.DAY_BY_DAY;
+  }
+
+  /**
+   * Retry transient LinkedIn failures: rate limits (429), server errors (5xx) and
+   * network-level errors (no status code). Auth errors (401/403) are permanent for the
+   * run and are not retried.
+   *
+   * Without this the AbstractSource default refuses every retry, so a single 429 during
+   * a long backfill failed the whole run.
+   *
+   * @param {HttpRequestException} error - The error to check
+   * @returns {boolean} True if the request should be retried
+   */
+  isValidToRetry(error) {
+    return (
+      !error?.statusCode ||
+      error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN ||
+      error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS
+    );
+  }
+
+  getAccounts(context) {
+    const urnsParam = context.getParameter('AccountURNs');
+    if (!urnsParam?.value) return [null];
+    return FormatUtils.parseIds(urnsParam.value, { prefix: 'urn:li:sponsoredAccount:' }).map(
+      id => ({ id })
+    );
   }
 
   async exchangeOauthCredentials(credentials, variables) {
     try {
-      const tokenUrl = "https://www.linkedin.com/oauth/v2/accessToken";
+      const tokenUrl = 'https://www.linkedin.com/oauth/v2/accessToken';
       const payload = {
         grant_type: 'authorization_code',
         code: credentials.code,
@@ -199,20 +258,23 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       const options = {
         method: 'post',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: Object.entries(payload)
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&')
+          .join('&'),
       };
 
-      const response = await HttpUtils.fetch(tokenUrl, options);
-      const data = await response.getAsJson();
+      const response = await fetch(tokenUrl, options);
+      const data = await response.json();
 
       if (data.error || !data.refresh_token) {
         throw new OauthFlowException({
-          message: data.error_description || data.error || 'Failed to exchange LinkedIn authorization code',
-          payload: data
+          message:
+            data.error_description ||
+            data.error ||
+            'Failed to exchange LinkedIn authorization code',
+          payload: data,
         });
       }
 
@@ -224,7 +286,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
           refresh_token: data.refresh_token,
           access_token: data.access_token,
           client_id: variables.ClientId,
-          client_secret: variables.ClientSecret
+          client_secret: variables.ClientSecret,
         })
         .withExpiresIn(expiresIn)
         .build()
@@ -235,124 +297,121 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       }
       throw new OauthFlowException({
         message: 'Failed to exchange LinkedIn Ads authorization code',
-        payload: error.message
+        payload: error.message,
       });
     }
   }
 
   _getOAuthConfig() {
-    const authTypeConfig = this.config.AuthType || {};
-    const isOAuth2 = this.config.AuthType?.value === 'oauth2';
-    return isOAuth2 ? (authTypeConfig.items || {}) : {};
+    const authTypeParam = this.context.getParameter('AuthType');
+    const isOAuth2 = authTypeParam?.value === 'oauth2';
+    return isOAuth2 ? authTypeParam.items || {} : {};
   }
 
   _getClientId() {
     const oauthConfig = this._getOAuthConfig();
-    return oauthConfig.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_LINKEDIN_ADS_CLIENT_ID;
+    return (
+      oauthConfig.ClientId?.value ||
+      this.context.getParameter('ClientID')?.value ||
+      process.env.OAUTH_LINKEDIN_ADS_CLIENT_ID
+    );
   }
 
   _getClientSecret() {
     const oauthConfig = this._getOAuthConfig();
-    return oauthConfig.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_LINKEDIN_ADS_CLIENT_SECRET;
+    return (
+      oauthConfig.ClientSecret?.value ||
+      this.context.getParameter('ClientSecret')?.value ||
+      process.env.OAUTH_LINKEDIN_ADS_CLIENT_SECRET
+    );
   }
 
   _getRefreshToken() {
     const oauthConfig = this._getOAuthConfig();
-    return oauthConfig.RefreshToken?.value || this.config.RefreshToken?.value;
+    return oauthConfig.RefreshToken?.value || this.context.getParameter('RefreshToken')?.value;
   }
 
   /**
-   * Main entry point for fetching data from LinkedIn Ads API
-   * @param {string} nodeName - Type of resource to fetch (e.g., adAccounts, adCampaigns)
-   * @param {string} urn - Resource identifier
-   * @param {Object} params - Additional parameters for the request
-   * @returns {Array} - Array of fetched data objects
+   * Main entry point for fetching data from LinkedIn Ads API.
+   * AbstractConnector calls us per (account × node × date-range).
+   * accountId is the numeric ad account ID.
    */
-  async fetchData(nodeName, urn, params = {}) {
-    const fields = params.fields || [];
+  async fetchData({ nodeName, fields = [], accountId, startDate, endDate }) {
+    const urn = accountId;
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-    
+
     if (missingKeys.length > 0) {
-      throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
+      throw new Error(
+        `Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`
+      );
     }
-    
+
     switch (nodeName) {
-      case "adAccounts":
-        return await this.fetchSingleResource({ urn, resourceType: 'adAccounts', params });
-      case "adCampaignGroups":
-        return await this.fetchAdResource({ urn, resourceType: 'adCampaignGroups', params });
-      case "adCampaigns":
-        return await this.fetchAdResource({ urn, resourceType: 'adCampaigns', params });
-      case "creatives":
-        return await this.fetchAdResource({ urn, resourceType: 'creatives', params, queryType: 'criteria' });
-      case "adAnalytics":
-        return await this.fetchAdAnalytics(urn, params);
+      case 'adAccounts':
+        return await this.fetchSingleResource({ urn, resourceType: 'adAccounts', fields });
+      case 'adCampaignGroups':
+        return await this.fetchAdResource({ urn, resourceType: 'adCampaignGroups', fields });
+      case 'adCampaigns':
+        return await this.fetchAdResource({ urn, resourceType: 'adCampaigns', fields });
+      case 'creatives':
+        return await this.fetchAdResource({
+          urn,
+          resourceType: 'creatives',
+          fields,
+          queryType: 'criteria',
+        });
+      case 'adAnalytics':
+        return await this.fetchAdAnalytics({ urn, fields, startDate, endDate });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
   }
 
   /**
-   * Fetch a single resource by ID
-   * @param {Object} options - Request options
-   * @param {string} options.urn - Resource identifier
-   * @param {string} options.resourceType - Type of resource to fetch
-   * @param {Object} options.params - Additional parameters for the request
-   * @returns {Array} - Array containing the single resource
+   * Fetch a single resource by URN
    */
-  async fetchSingleResource({ urn, resourceType, params }) {
+  async fetchSingleResource({ urn, resourceType, fields }) {
     let url = `${this.BASE_URL}${resourceType}/${encodeURIComponent(urn)}`;
-    url += `?fields=${this.formatFields(params.fields)}`;
+    url += `?fields=${this.formatFields(fields)}`;
 
     const result = await this.makeRequest(url);
-    return [result]; // Return as array to match other endpoints
+    return [result];
   }
 
   /**
    * Fetch a collection of resources for an account
-   * @param {Object} options - Request options
-   * @param {string} options.urn - Account identifier
-   * @param {string} options.resourceType - Type of resources to fetch
-   * @param {Object} options.params - Additional parameters for the request
-   * @param {string} [options.queryType='search'] - Query type parameter
-   * @returns {Array} - Array of fetched resources
    */
-  async fetchAdResource({ urn, resourceType, params, queryType = 'search' }) {
+  async fetchAdResource({ urn, resourceType, fields, queryType = 'search' }) {
     let url = `${this.BASE_URL}adAccounts/${encodeURIComponent(urn)}/${resourceType}?q=${queryType}&pageSize=100`;
-    url += `&fields=${this.formatFields(params.fields)}`;
+    url += `&fields=${this.formatFields(fields)}`;
 
     return await this.fetchWithPagination(url);
   }
 
   /**
-   * Fetch analytics data for one day, handling field limits and data merging.
-   * The connector calls this once per day on purpose: the adAnalytics endpoint does not
-   * support pagination and caps each response at MAX_RESPONSE_ELEMENTS elements, so a
-   * wider range would be silently truncated. A response that still reaches the cap is
-   * recorded in truncatedAnalyticsDays for the connector to report once per account.
-   * @param {string} urn - Account identifier
-   * @param {Object} params - Request parameters
-   * @param {Date} params.startDate - The day to fetch (UTC midnight)
-   * @param {Date} params.endDate - The same day as startDate
-   * @param {Array} params.fields - Fields to fetch
-   * @returns {Array} - Combined array of analytics data
+   * Fetch analytics data, handling field limits and data merging
    */
-  async fetchAdAnalytics(urn, params) {
-    const startDate = new Date(params.startDate);
-    const endDate = new Date(params.endDate);
-    const encodedUrn = encodeURIComponent(`urn:li:sponsoredAccount:${urn}`);
-    const uniqueApiFields = this.convertFieldsForApi(params.fields || []);
+  async fetchAdAnalytics({ urn, fields, startDate, endDate }) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const accountUrn = `urn:li:sponsoredAccount:${urn}`;
+    const encodedUrn = encodeURIComponent(accountUrn);
+    let allResults = [];
+    const uniqueApiFields = this.convertFieldsForApi(fields || []);
 
-    // LinkedIn API has a limitation - it allows a maximum of fields per request
-    // To overcome this, split fields into chunks and make multiple requests
+    // LinkedIn API caps fields per request — split and merge.
     const fieldChunks = this.prepareAnalyticsFieldChunks(uniqueApiFields);
 
-    let rows = [];
     let isTruncated = false;
 
     for (const fieldChunk of fieldChunks) {
-      const url = this.buildAdAnalyticsUrl({ startDate, endDate, encodedUrn, fields: fieldChunk });
+      const url = this.buildAdAnalyticsUrl({
+        startDate: start,
+        endDate: end,
+        encodedUrn,
+        fields: fieldChunk,
+      });
       const res = await this.makeRequest(url);
       const elements = res.elements || [];
 
@@ -360,40 +419,24 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         isTruncated = true;
       }
 
-      // Merge results from different chunks into a single dataset
-      // Each chunk contains the same rows but different fields
-      rows = this.mergeAnalyticsResults(rows, elements);
+      allResults = this.mergeAnalyticsResults(allResults, elements);
     }
 
+    // getDateStrategy keeps this to one day per call, which puts the cap far out of
+    // reach for an ordinary account -- so reaching it is worth saying out loud rather
+    // than counting. The rows already fetched are still returned: they are real, there
+    // are simply more of them than LinkedIn would hand over.
     if (isTruncated) {
-      const day = this.formatDateFromLinkedInObject(this.toLinkedInDateObject(startDate));
-      this.truncatedAnalyticsDays[urn] = [...(this.truncatedAnalyticsDays[urn] || []), day];
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `adAnalytics response for account ${urn} reached LinkedIn's ${this.MAX_RESPONSE_ELEMENTS}-element ` +
+          `limit on ${start.toISOString().slice(0, 10)}; data for that day may be incomplete`
+      );
     }
 
-    // Transform complex dateRange objects to simple Date objects
-    return this.transformAnalyticsDateRanges(rows);
+    return this.transformAnalyticsDateRanges(allResults);
   }
 
-  /**
-   * Build the user-facing warning for days whose adAnalytics response hit the element cap
-   * @param {string} urn - Account identifier
-   * @param {Array<string>} truncatedDays - Affected days as YYYY-MM-DD strings
-   * @returns {string} - Warning message listing the affected days (bounded)
-   */
-  buildTruncationWarning(urn, truncatedDays) {
-    const listedDays = truncatedDays.slice(0, this.MAX_TRUNCATED_DAYS_IN_WARNING).join(', ');
-    const hiddenCount = truncatedDays.length - this.MAX_TRUNCATED_DAYS_IN_WARNING;
-    const moreSuffix = hiddenCount > 0 ? ` and ${hiddenCount} more` : '';
-
-    return `adAnalytics responses for account ${urn} reached LinkedIn's ${this.MAX_RESPONSE_ELEMENTS}-element limit ` +
-      `on ${truncatedDays.length} day(s): ${listedDays}${moreSuffix}; data for those days may be incomplete`;
-  }
-
-  /**
-   * Convert custom date fields to LinkedIn API compatible fields
-   * @param {Array} fields - Original list of fields from user selection
-   * @returns {Array} - Fields converted for LinkedIn API with duplicates removed
-   */
   convertFieldsForApi(fields) {
     const apiFields = fields.map(field => {
       if (field === 'dateRangeStart' || field === 'dateRangeEnd') {
@@ -401,117 +444,85 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       }
       return field;
     });
-    
     return [...new Set(apiFields)];
   }
 
-  /**
-   * Prepare field chunks for analytics API requests
-   * @param {Array} fields - Original list of fields to request
-   * @returns {Array} - Array of field chunks, each respecting the API field limit
-   */
   prepareAnalyticsFieldChunks(fields) {
-    // These fields are required in all requests for proper merging
     const requiredFields = ['dateRange', 'pivotValues'];
-    
-    // Remove duplicates and required fields from the user fields
-    // Add required fields to each chunk separately
     const uniqueFields = [...new Set(fields)].filter(field => !requiredFields.includes(field));
-    
+
     const maxCustomFieldsPerChunk = this.MAX_FIELDS_PER_REQUEST - requiredFields.length;
     const fieldChunks = [];
-    
+
     for (let i = 0; i < uniqueFields.length; i += maxCustomFieldsPerChunk) {
       const customFields = uniqueFields.slice(i, i + maxCustomFieldsPerChunk);
-      const chunk = [...requiredFields, ...customFields];
-      
-      fieldChunks.push(chunk);
+      fieldChunks.push([...requiredFields, ...customFields]);
     }
-    
-    // Handle the case when there are no custom fields at all
+
     if (fieldChunks.length === 0) {
       fieldChunks.push([...requiredFields]);
     }
-    
+
     return fieldChunks;
   }
 
-  /**
-   * Build URL for analytics API request
-   * @param {Object} options - URL building options
-   * @param {Date} options.startDate - Start date for analytics data
-   * @param {Date} options.endDate - End date for analytics data
-   * @param {string} options.encodedUrn - URL-encoded account URN
-   * @param {Array} options.fields - Fields to request
-   * @returns {string} - Complete API request URL
-   */
   buildAdAnalyticsUrl({ startDate, endDate, encodedUrn, fields }) {
-    // Construct the URL for the LinkedIn Analytics API
-    return `${this.BASE_URL}adAnalytics?q=statistics` +
+    return (
+      `${this.BASE_URL}adAnalytics?q=statistics` +
       `&dateRange=(start:${this.formatDateForUrl(startDate)},` +
       `end:${this.formatDateForUrl(endDate)})` +
       `&pivots=List(CREATIVE,CAMPAIGN,CAMPAIGN_GROUP,ACCOUNT)` +
       `&timeGranularity=DAILY` +
       `&accounts=List(${encodedUrn})` +
-      `&fields=${this.formatFields(fields)}`;
+      `&fields=${this.formatFields(fields)}`
+    );
   }
 
   /**
-    * Format date for LinkedIn API URL parameters
-    * @param {Date} date - Date object
-    * @return {string} Formatted date string for LinkedIn API
-    */
-  formatDateForUrl(date) {
-    const { year, month, day } = this.toLinkedInDateObject(date);
-    return `(year:${year},month:${month},day:${day})`;
-  }
-
-  /**
-   * Split a Date into the year/month/day parts LinkedIn uses for dates.
-   * Reads the UTC parts: run dates are UTC midnight and the connector logs and checkpoints
-   * them with the UTC DateUtils.formatDate, so the request, the log and the cursor must all
-   * name the same day whatever the runner's time zone.
-   * @param {Date} date - Date object
-   * @return {{year: number, month: number, day: number}} LinkedIn date object (month is 1-based)
+   * Splits a Date into the year/month/day parts LinkedIn wants.
+   *
+   * Reads the UTC parts, not the local ones. A run date arrives here as UTC midnight, and
+   * the engine checkpoints and logs it through the UTC formatter — so on a runner west of
+   * UTC the local getters name the PREVIOUS day, and the request, the log and the cursor
+   * stop agreeing about which day was imported.
    */
   toLinkedInDateObject(date) {
     return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
   }
 
-  /**
-   * Format an array of field names for use in API URLs
-   * @param {Array<string>} fields - Array of field names
-   * @return {string} Comma-separated string of URL-encoded field names
-   */
-  formatFields(fields) {
-    return fields.map(field => encodeURIComponent(field)).join(",");
+  formatDateForUrl(date) {
+    const { year, month, day } = this.toLinkedInDateObject(date);
+    return `(year:${year},month:${month},day:${day})`;
   }
 
-  /**
-   * Merge results from multiple analytics API requests
-   * @param {Array} existingResults - The existing results array
-   * @param {Array} newElements - New elements to merge
-   * @returns {Array} - The combined results array
-   */
-  mergeAnalyticsResults(existingResults, newElements) {
-    // dateRange and pivotValues uniquely identify a row; elements with the same key come
-    // from different field chunks and are combined into one record, others are appended.
-    const keyOf = element => JSON.stringify([element.dateRange, element.pivotValues]);
-    const mergedByKey = new Map(existingResults.map(element => [keyOf(element), element]));
+  formatFields(fields) {
+    return fields.map(field => encodeURIComponent(field)).join(',');
+  }
 
-    for (const newElement of newElements) {
-      const key = keyOf(newElement);
-      mergedByKey.set(key, { ...mergedByKey.get(key), ...newElement });
+  mergeAnalyticsResults(existingResults, newElements) {
+    if (existingResults.length === 0) {
+      return [...newElements];
     }
 
-    return [...mergedByKey.values()];
+    const mergedResults = [...existingResults];
+
+    newElements.forEach(newElem => {
+      const existingIndex = mergedResults.findIndex(
+        existing =>
+          JSON.stringify(existing.dateRange) === JSON.stringify(newElem.dateRange) &&
+          JSON.stringify(existing.pivotValues) === JSON.stringify(newElem.pivotValues)
+      );
+
+      if (existingIndex >= 0) {
+        mergedResults[existingIndex] = { ...mergedResults[existingIndex], ...newElem };
+      } else {
+        mergedResults.push(newElem);
+      }
+    });
+
+    return mergedResults;
   }
 
-  /**
-   * Transform complex dateRange objects to separate dateRangeStart and dateRangeEnd fields
-   * @param {Array} analyticsData - Array of analytics data records
-   * @returns {Array} - Transformed analytics data
-   */
   transformAnalyticsDateRanges(analyticsData) {
     if (!analyticsData || !analyticsData.length) {
       return analyticsData;
@@ -533,11 +544,6 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     });
   }
 
-  /**
-   * Format LinkedIn date object to YYYY-MM-DD string
-   * @param {Object} dateObj - LinkedIn date object with year, month, day properties
-   * @returns {string} - Formatted date string (YYYY-MM-DD)
-   */
   formatDateFromLinkedInObject(dateObj) {
     const { year, month, day } = dateObj;
     const pad = n => String(n).padStart(2, '0');
@@ -545,39 +551,38 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
   }
 
   /**
-   * Make a request to LinkedIn API with proper headers and auth
-   * @param {string} url - Full API endpoint URL
-   * @param {Object} headers - Optional additional headers
-   * @returns {Object} - API response parsed from JSON
+   * Exchanges the refresh token for an access token, once per run.
+   *
+   * Cached because the exchange used to happen on every single request, and fetching
+   * adAnalytics a day at a time turns a 90-day backfill into 90+ requests per account —
+   * each one paying for a token LinkedIn had already issued, and each one a chance to hit
+   * the token endpoint's own rate limit.
+   *
+   * @param {{clientId: string, clientSecret: string, refreshToken: string}} credentials
+   * @returns {Promise<string>} the access token for this run
    */
-  async makeRequest(url) {
-    console.log(`LinkedIn Ads API Request URL:`, url);
-    const accessToken = await this.getAccessToken();
+  async getAccessToken({ clientId, clientSecret, refreshToken }) {
+    if (this._accessToken) return this._accessToken;
 
-    const headers = {
-      "LinkedIn-Version": "202607",
-      "X-RestLi-Protocol-Version": "2.0.0",
-    };
+    this._accessToken = await OAuthUtils.getAccessToken({
+      context: this.context,
+      tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+      formData: {
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      },
+    });
 
-    const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${accessToken}`;
-
-    const response = await this.urlFetchWithRetry(authUrl, { headers });
-    const text = await response.getContentText();
-
-    return JSON.parse(text);
+    return this._accessToken;
   }
 
   /**
-   * Get the access token for this run, exchanging the refresh token on first use only.
-   * LinkedIn access tokens are valid for 60 days, so one exchange per run is enough;
-   * exchanging on every request doubled the request count of the per-day analytics loop.
-   * @returns {Promise<string>} - Access token
+   * Make a request to LinkedIn API with proper headers and auth
    */
-  async getAccessToken() {
-    if (this._isAccessTokenRefreshed) {
-      return this.config.AccessToken.value;
-    }
-
+  async makeRequest(url) {
+    this.context.log(LOG_LEVEL.INFO, `LinkedIn Ads API Request URL: ${url}`);
     const clientId = this._getClientId();
     const clientSecret = this._getClientSecret();
     const refreshToken = this._getRefreshToken();
@@ -586,38 +591,22 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       throw new Error('LinkedIn Ads OAuth credentials are not configured');
     }
 
-    const accessToken = await OAuthUtils.getAccessToken({
-      config: this.config,
-      tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
-      formData: {
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret
-      }
-    });
-    this._isAccessTokenRefreshed = true;
+    const accessToken = await this.getAccessToken({ clientId, clientSecret, refreshToken });
 
-    return accessToken;
+    const headers = {
+      'LinkedIn-Version': '202607',
+      'X-RestLi-Protocol-Version': '2.0.0',
+    };
+
+    const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${accessToken}`;
+
+    const response = await this.urlFetchWithRetry(authUrl, { headers });
+    const text = await response.text();
+    return JSON.parse(text);
   }
 
-  /**
-   * Retry transient LinkedIn failures: rate limits (429), server errors (5xx) and
-   * network-level errors (no status code). Auth errors (401/403) are not retried.
-   * @param {HttpRequestException} error - The error to check
-   * @returns {boolean} True if the request should be retried
-   */
-  isValidToRetry(error) {
-    return !error?.statusCode
-      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
-      || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
-  }
-  
   /**
    * Fetch resources with pagination support
-   * @param {string} baseUrl - Base API endpoint URL
-   * @param {Object} headers - Optional additional headers
-   * @returns {Array} - Combined array of results from all pages
    */
   async fetchWithPagination(baseUrl) {
     let allResults = [];
@@ -639,4 +628,4 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
 
     return allResults;
   }
-};
+}

@@ -6,19 +6,25 @@ import { loadGasClass } from '../support/loadGasClass.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadGasClass(path.join(__dirname, '../../src/Core/Utils/OAuthUtils.js'));
 const OAuthUtils = globalThis.OAuthUtils;
+// LOG_LEVEL is a bare global in production, referenced only inside method bodies.
+globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
 
+// The token endpoint is reached through the global fetch, and the caller is handed a
+// context rather than a config.
 const stubFetch = json => {
-  globalThis.HttpUtils = {
-    fetch: async () => ({ getContentText: async () => JSON.stringify(json) }),
-  };
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 400,
+    text: async () => JSON.stringify(json),
+  });
 };
 
-const config = { logMessage: () => {} };
+const context = { log: () => {}, sourceConfig: {} };
 
 describe('getAccessToken', () => {
   it('flags invalid_grant as a warning and keeps the flag through the rewrap', async () => {
     stubFetch({ error: 'invalid_grant' });
-    const error = await OAuthUtils.getAccessToken({ config, tokenUrl: 'x', formData: {} }).catch(
+    const error = await OAuthUtils.getAccessToken({ context, tokenUrl: 'x', formData: {} }).catch(
       e => e
     );
     expect(error.message).toBe('Failed to get access token: Token error: invalid_grant');
@@ -27,7 +33,7 @@ describe('getAccessToken', () => {
 
   it('does not flag other token errors as warnings', async () => {
     stubFetch({ error: 'invalid_client' });
-    const error = await OAuthUtils.getAccessToken({ config, tokenUrl: 'x', formData: {} }).catch(
+    const error = await OAuthUtils.getAccessToken({ context, tokenUrl: 'x', formData: {} }).catch(
       e => e
     );
     expect(error.isWarning).toBeFalsy();
@@ -44,7 +50,7 @@ describe('getServiceAccountToken', () => {
     const utils = { ...OAuthUtils, createJWT: () => 'stub.jwt.token' };
     const error = await utils
       .getServiceAccountToken({
-        config,
+        context,
         tokenUrl: 'x',
         serviceAccountKeyJson: JSON.stringify({ client_email: 'a@b.c', private_key: 'k' }),
         scope: 's',

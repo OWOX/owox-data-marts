@@ -30,7 +30,7 @@ async function processShortLinks(data, { shortLinkField, urlFieldName }) {
 //---- _collectUniqueShortLinks -------------------------------------------
 /**
  * Collects unique short links from data
- * 
+ *
  * @param {Array} data - Data records
  * @param {string} shortLinkField - Field that contains URLs
  * @param {string} urlFieldName - Name of the URL field within the object
@@ -48,17 +48,17 @@ function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
 
     uniqueLinks.set(url, {
       originalUrl: url,
-      resolvedUrl: null
+      resolvedUrl: null,
     });
   });
 
   return Array.from(uniqueLinks.values());
 }
 
-//---- _isPotentialShortLink ---------------------------------------------- 
+//---- _isPotentialShortLink ----------------------------------------------
 /**
  * Determines if URL is a potential short link
- * 
+ *
  * @param {string} url - URL to check
  * @return {boolean} True if potentially a short link
  * @private
@@ -67,7 +67,11 @@ function _isPotentialShortLink(url) {
   if (!url || typeof url !== 'string') return false;
 
   // Skip URLs with query parameters or UTM parameters
-  const hasParams = url.includes('?') || ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].some(param => url.includes(param));
+  const hasParams =
+    url.includes('?') ||
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].some(param =>
+      url.includes(param)
+    );
   if (hasParams) return false;
 
   // Check for simple structure: https://hostname.com/path (no subpaths)
@@ -85,20 +89,21 @@ function _isPotentialShortLink(url) {
 async function _resolveShortLinks(shortLinks) {
   const promises = shortLinks.map(async linkObj => {
     try {
-      const response = await HttpUtils.fetch(linkObj.originalUrl, {
-        method: 'GET'
+      const response = await fetch(linkObj.originalUrl, {
+        method: 'GET',
       });
 
       return {
         originalUrl: linkObj.originalUrl,
-        resolvedUrl: response.getUrl()
+        resolvedUrl: response.url || linkObj.originalUrl,
       };
-
     } catch (error) {
-      console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
+      // Context-less helper: write to stderr (not stdout) so this best-effort
+      // diagnostic is not picked up by the host's stdout message parser.
+      console.warn(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
       return {
         originalUrl: linkObj.originalUrl,
-        resolvedUrl: linkObj.originalUrl
+        resolvedUrl: linkObj.originalUrl,
       };
     }
   });
@@ -109,7 +114,7 @@ async function _resolveShortLinks(shortLinks) {
 //---- _populateDataWithResolvedUrls -------------------------------------
 /**
  * Populates data with resolved URLs
- * 
+ *
  * @param {Array} data - Original data
  * @param {Array} resolvedShortLinks - Resolved short links
  * @param {string} shortLinkField - Field containing URLs
@@ -120,24 +125,24 @@ async function _resolveShortLinks(shortLinks) {
 function _populateDataWithResolvedUrls(data, resolvedShortLinks, shortLinkField, urlFieldName) {
   return data.map(record => {
     const urlAsset = record[shortLinkField];
-    
+
     if (!urlAsset || !urlAsset[urlFieldName]) {
       return record;
     }
-    
+
     const originalUrl = urlAsset[urlFieldName];
-    
+
     const linkMatch = resolvedShortLinks.find(link => link.originalUrl === originalUrl);
     const resolvedUrl = linkMatch ? linkMatch.resolvedUrl : originalUrl;
-    
+
     if (resolvedUrl === originalUrl) {
       return record;
     }
-    
+
     const newRecord = Object.assign({}, record);
     const newUrlAsset = Object.assign({}, urlAsset);
     newUrlAsset.parsed_url = resolvedUrl;
-    
+
     newRecord[shortLinkField] = newUrlAsset;
     return newRecord;
   });

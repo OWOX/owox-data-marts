@@ -6,6 +6,9 @@ export interface ConnectorListItem {
   description: string;
   logoBase64: string | null;
   docUrl: string | null;
+  isCustom?: boolean;
+  id?: string;
+  version?: number;
 }
 
 export interface ConnectorRunFormData {

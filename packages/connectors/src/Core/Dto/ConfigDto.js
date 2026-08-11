@@ -1,4 +1,11 @@
 /**
+ * Copyright (c) OWOX, Inc.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+/**
  * This is a helper function to transform the value of a configuration object to a format that can be used by the connector runner.
  *
  * NEED TO BE REPLACED WITH A MORE EFFICIENT SOLUTION WHEN WE HAVE A BETTER CONFIGURATION FORMAT

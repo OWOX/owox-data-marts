@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
 import { DataMartDefinitionType } from '../../../shared';
@@ -114,12 +115,16 @@ const renderSettings = (
     runSchemaActualization: testState.runSchemaActualization,
   } as unknown as DataMartContextType;
 
+  // The connector definition field resolves project-scoped links, so the tree
+  // reaches useLocation() and needs a router around it.
   const { rerender } = render(
-    <DataMartDefinitionSettings
-      definitionType={definitionType}
-      initialDefinitionType={initialDefinitionType}
-      setDefinitionType={setDefinitionType}
-    />
+    <MemoryRouter>
+      <DataMartDefinitionSettings
+        definitionType={definitionType}
+        initialDefinitionType={initialDefinitionType}
+        setDefinitionType={setDefinitionType}
+      />
+    </MemoryRouter>
   );
 
   /**
@@ -133,11 +138,13 @@ const renderSettings = (
     } as unknown as DataMartContextType;
 
     rerender(
-      <DataMartDefinitionSettings
-        definitionType={nextDefinitionType}
-        initialDefinitionType={initialDefinitionType}
-        setDefinitionType={setDefinitionType}
-      />
+      <MemoryRouter>
+        <DataMartDefinitionSettings
+          definitionType={nextDefinitionType}
+          initialDefinitionType={initialDefinitionType}
+          setDefinitionType={setDefinitionType}
+        />
+      </MemoryRouter>
     );
   };
 

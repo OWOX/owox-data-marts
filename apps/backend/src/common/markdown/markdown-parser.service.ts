@@ -57,6 +57,37 @@ export enum COLOR_THEME {
 @Injectable()
 export class MarkdownParser {
   public async parseToHtml(markdown: string, theme = COLOR_THEME.DYNAMIC): Promise<string> {
+    const html = await this.runPipeline(markdown);
+
+    const content = `<div class="markdown-body">${html}</div>`;
+
+    return juice.inlineContent(content, this.getColorThemeCss(theme), {
+      preserveMediaQueries: true,
+      applyAttributesTableElements: true,
+      applyWidthAttributes: true,
+      applyHeightAttributes: true,
+      resolveCSSVariables: true,
+    });
+  }
+
+  /**
+   * Parse Markdown into a sanitized HTML fragment WITHOUT the GitHub Markdown CSS
+   * or `juice` inlining. Use this when the rendered HTML is injected into an app
+   * page that already provides its own styling (e.g. an in-app chat bubble): the
+   * heavy inline styles and the preserved `<style>` media-query block that
+   * `parseToHtml` emits would otherwise leak into the host page or fight its
+   * design system. The output is the same XSS-safe, GFM-capable HTML, just bare.
+   */
+  public async parseToFragment(markdown: string): Promise<string> {
+    return this.runPipeline(markdown);
+  }
+
+  /**
+   * The shared remark → rehype → sanitize → stringify chain. Both `parseToHtml`
+   * and `parseToFragment` go through this so the sanitization (and thus the
+   * security posture) is identical regardless of how the result is styled.
+   */
+  private async runPipeline(markdown: string): Promise<string> {
     const html = await remark()
       .use(remarkParse)
       .use(remarkGfm)
@@ -67,15 +98,7 @@ export class MarkdownParser {
       .use(rehypeStringify)
       .process(markdown);
 
-    const content = `<div class="markdown-body">${String(html)}</div>`;
-
-    return juice.inlineContent(content, this.getColorThemeCss(theme), {
-      preserveMediaQueries: true,
-      applyAttributesTableElements: true,
-      applyWidthAttributes: true,
-      applyHeightAttributes: true,
-      resolveCSSVariables: true,
-    });
+    return String(html);
   }
 
   private getColorThemeCss(theme: COLOR_THEME): string {

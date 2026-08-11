@@ -12,6 +12,7 @@ interface DataMartConnectorViewProps {
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
   preset?: string;
+  connectorName?: string | null;
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -23,6 +24,7 @@ export const DataMartConnectorView = ({
   configurationOnly = false,
   existingConnector = null,
   preset,
+  connectorName,
   isOpen: externalIsOpen,
   onClose: externalOnClose,
 }: DataMartConnectorViewProps) => {
@@ -49,9 +51,11 @@ export const DataMartConnectorView = ({
     externalOnClose?.();
   };
 
-  // Auto-open logic based on preset
+  // Auto-open logic based on preset.
+  // connectorName (below) takes priority when both are present, so this is
+  // skipped in that case rather than racing with the connectorName effect.
   useEffect(() => {
-    if (!preset) return;
+    if (!preset || connectorName) return;
 
     if (preset === 'connector') {
       setPreselectedConnector(undefined);
@@ -62,7 +66,19 @@ export const DataMartConnectorView = ({
       setInitialStep(2);
       setIsSheetOpen(true);
     }
-  }, [preset]);
+  }, [preset, connectorName]);
+
+  // Auto-open logic based on connectorName. Parallel to the preset effect
+  // above, but wins when both preset and connectorName are set: connectorName
+  // is a precise connector source name (no "connector"-only ambiguity), so it
+  // always jumps straight to step 2 pre-selected.
+  useEffect(() => {
+    if (!connectorName) return;
+
+    setPreselectedConnector(connectorName);
+    setInitialStep(2);
+    setIsSheetOpen(true);
+  }, [connectorName]);
 
   return (
     <>

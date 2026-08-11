@@ -67,6 +67,10 @@ All events share the same envelope:
 
 Triggered when a data mart run fails.
 
+A connector data mart can have several configurations — for example, one per advertising account — and a single run executes all of them. The run is reported as failed unless **every** configuration succeeded. A partially-successful run, where some configurations imported and others did not, fires this event and not `run.successful`. A run that executed no configurations at all is also reported as failed.
+
+A `run.failed` event therefore does not mean that nothing was imported: the configurations that did succeed have already written their data. The `errors` array carries the failures from every configuration that did not succeed.
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -99,6 +103,8 @@ Triggered when a data mart run fails.
 ### `owox.data-marts.webhook.data_mart.run.successful`
 
 Triggered when a data mart run completes successfully.
+
+For a connector run this means **every** configuration succeeded. If even one of them failed, `run.failed` is sent instead — see above.
 
 ```json
 {

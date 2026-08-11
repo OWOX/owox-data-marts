@@ -24,30 +24,39 @@ export class ConnectorOutputCaptureService {
   }
 
   private captureMessage(message: string): ConnectorMessage[] {
-    return this.cleanMessage(message).map(line => {
-      const parsedMessage = this.connectorMessageParserService.parse(line);
-      return parsedMessage;
-    });
+    return this.cleanMessage(message)
+      .map(line => this.connectorMessageParserService.parse(line))
+      .filter((parsed): parsed is ConnectorMessage => parsed !== null);
   }
 
   private captureError(message: string): ConnectorMessage[] {
-    return this.cleanMessage(message).map(line => {
-      const parsedMessage = this.connectorMessageParserService.parse(line);
-      // A structured JSON envelope on stderr (e.g. a classified error/warning from the
-      // connector runner's crash handler) carries its own real type — only unparsed raw
-      // text (stack traces, leftover console.error calls) gets wrapped as a plain ERROR.
-      if (parsedMessage.type !== ConnectorMessageType.UNKNOWN) {
-        return parsedMessage;
-      }
-      return {
-        type: ConnectorMessageType.ERROR,
-        at: parsedMessage.at,
-        error: parsedMessage.toFormattedString(),
-        toFormattedString: () => `[ERROR] ${parsedMessage.toFormattedString()}`,
-      };
-    });
+    return this.cleanMessage(message)
+      .map(line => this.connectorMessageParserService.parse(line))
+      .filter((parsed): parsed is ConnectorMessage => parsed !== null)
+      .map(parsedMessage =>
+        // A structured JSON envelope on stderr (e.g. a classified error/warning from the
+        // connector runner's crash handler) carries its own real type — only unparsed raw
+        // text (stack traces, leftover console.error calls) gets wrapped as a plain ERROR.
+        parsedMessage.type !== ConnectorMessageType.UNKNOWN
+          ? parsedMessage
+          : {
+              type: ConnectorMessageType.ERROR,
+              at: parsedMessage.at,
+              error: parsedMessage.toFormattedString(),
+              toFormattedString: () => `[ERROR] ${parsedMessage.toFormattedString()}`,
+            }
+      );
   }
 
+  /**
+   * The spawner (`ConnectorProcessSpawnerService.createLineBuffer`) already
+   * frames stdout/stderr into individual `\n`-delimited lines before either
+   * `onStdout`/`onStderr` here is called, so `message` is one line — but a
+   * connector can write several envelopes back to back within it. Splitting is
+   * therefore brace-aware (`splitJsonObjects`): a heuristic byte-split on literal
+   * `}{` would corrupt a single valid line whose JSON string VALUE happens to
+   * contain that substring (e.g. a log message describing `}{` in some data).
+   */
   private cleanMessage(message: string): string[] {
     const trimmed = message.trim();
     if (trimmed === '') {

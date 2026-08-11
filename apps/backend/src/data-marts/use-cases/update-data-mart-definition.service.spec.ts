@@ -3,8 +3,9 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UpdateDataMartDefinitionService } from './update-data-mart-definition.service';
+import { ConnectorService } from '../services/connector/connector.service';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -53,7 +54,7 @@ describe('UpdateDataMartDefinitionService', () => {
       publishExternal: jest.fn(),
     };
     const connectorService = {
-      getConnectorCapabilities: jest.fn().mockReturnValue({
+      resolveConnectorCapabilities: jest.fn().mockResolvedValue({
         singleConfiguration: false,
         copySecretsByValue: false,
       }),
@@ -198,10 +199,12 @@ describe('UpdateDataMartDefinitionService', () => {
     await service.run(command);
 
     expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
+      'proj-1',
       incomingDefinition,
       sourceDataMart.definition
     );
     expect(connectorSecretService.mergeDefinitionSecrets).toHaveBeenCalledWith(
+      'proj-1',
       mergedFromSource,
       previousDefinition
     );
@@ -233,7 +236,7 @@ describe('UpdateDataMartDefinitionService', () => {
 
   it('rejects multiple configurations when the connector requires exactly one', async () => {
     const { service, dataMartService, connectorService } = createService();
-    connectorService.getConnectorCapabilities.mockReturnValue({
+    connectorService.resolveConnectorCapabilities.mockResolvedValue({
       singleConfiguration: true,
       copySecretsByValue: false,
     });
@@ -298,7 +301,7 @@ describe('UpdateDataMartDefinitionService', () => {
   it('requires edit access when connector secrets are copied by value', async () => {
     const { service, accessDecisionService, connectorSecretService, connectorService } =
       createService();
-    connectorService.getConnectorCapabilities.mockReturnValue({
+    connectorService.resolveConnectorCapabilities.mockResolvedValue({
       singleConfiguration: false,
       copySecretsByValue: true,
     });
@@ -382,7 +385,7 @@ describe('UpdateDataMartDefinitionService', () => {
 
   it('rejects an unowned secret reference for connectors that copy secrets by value', async () => {
     const { service, dataMart, connectorSecretService, connectorService } = createService();
-    connectorService.getConnectorCapabilities.mockReturnValue({
+    connectorService.resolveConnectorCapabilities.mockResolvedValue({
       singleConfiguration: false,
       copySecretsByValue: true,
     });
@@ -462,7 +465,7 @@ describe('UpdateDataMartDefinitionService', () => {
   it('allows a secret reference from an authorized copy source', async () => {
     const { service, dataMartService, connectorSecretService, connectorService, dataMart } =
       createService();
-    connectorService.getConnectorCapabilities.mockReturnValue({
+    connectorService.resolveConnectorCapabilities.mockResolvedValue({
       singleConfiguration: false,
       copySecretsByValue: true,
     });
@@ -515,6 +518,7 @@ describe('UpdateDataMartDefinitionService', () => {
 
     await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
     expect(connectorSecretService.mergeDefinitionSecretsFromSource).toHaveBeenCalledWith(
+      'proj-1',
       definition,
       sourceDefinition
     );
@@ -604,6 +608,7 @@ describe('UpdateDataMartDefinitionService', () => {
       await service.run(commandFor(DataMartDefinitionType.CONNECTOR, nextDefinition));
 
       expect(connectorSecretService.mergeDefinitionSecrets).toHaveBeenCalledWith(
+        'proj-1',
         nextDefinition,
         existingDefinition
       );
@@ -723,5 +728,144 @@ describe('UpdateDataMartDefinitionService', () => {
       const events = eventDispatcher.publishExternal.mock.calls.map(([event]) => event.name);
       expect(events).not.toContain('data-mart.definition-type.changed');
     });
+  });
+});
+
+// The suite above mocks ConnectorService wholesale, so it cannot see that the
+// capabilities lookup is bundled-only — which is how pointing a Data Mart at a
+// published custom connector shipped returning 404. Here the real ConnectorService
+// is wired in and only its DB lookup (tryResolveManifest) is stubbed.
+describe('UpdateDataMartDefinitionService with the real ConnectorService', () => {
+  // GoogleSheets is the one bundled connector that declares capabilities, which
+  // makes it the probe for "bundled capabilities are still read and enforced".
+  const BUNDLED_CONNECTOR = 'GoogleSheets';
+
+  const CUSTOM_MANIFEST = {
+    version: '1.0',
+    name: 'MyCustomApi',
+    baseUrl: 'https://api.example.com',
+    parameters: { Token: { requiredType: 'string', isRequired: true, label: 'API Token' } },
+    // Unvalidated user JSON: a stored manifest must not be able to declare
+    // capabilities that relax validation of the definition being saved.
+    capabilities: { singleConfiguration: true, copySecretsByValue: true },
+    nodes: {
+      items: {
+        fields: { id: { type: 'string' } },
+        uniqueKeys: ['id'],
+        request: { method: 'GET', path: '/items' },
+        recordSelector: { recordPath: [] },
+      },
+    },
+  };
+
+  const createHarness = () => {
+    const dataMart = {
+      id: 'dm-1',
+      projectId: 'proj-1',
+      createdById: 'user-1',
+      storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
+      definitionType: undefined as DataMartDefinitionType | undefined,
+      definition: undefined as unknown,
+    };
+
+    const dataMartService = {
+      getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
+      save: jest.fn().mockResolvedValue(dataMart),
+    };
+    const connectorSecretService = {
+      mergeDefinitionSecretsFromSource: jest.fn(),
+      mergeDefinitionSecrets: jest.fn(async (_projectId: string, incoming: unknown) => incoming),
+      extractAndSaveSecrets: jest.fn(
+        async (_id: string, _projectId: string, _name: string, merged: unknown) => merged
+      ),
+      deleteOrphanedSecrets: jest.fn(),
+    };
+
+    const tryResolveManifest = jest.fn();
+    const connectorService = new ConnectorService({} as never, { tryResolveManifest } as never);
+
+    const service = new UpdateDataMartDefinitionService(
+      dataMartService as never,
+      { toDomainDto: jest.fn().mockReturnValue({ id: 'dm-1' }) } as never,
+      connectorSecretService as never,
+      { updateQuery: jest.fn() } as never,
+      { canAccess: jest.fn().mockResolvedValue(true) } as never,
+      { checkIsValid: jest.fn().mockResolvedValue(undefined) } as never,
+      { publishExternal: jest.fn() } as never,
+      connectorService
+    );
+
+    return { service, dataMartService, dataMart, tryResolveManifest };
+  };
+
+  const connectorCommand = (
+    name: string,
+    configuration: Array<Record<string, unknown>>,
+    version?: number
+  ): UpdateDataMartDefinitionCommand =>
+    new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      {
+        connector: {
+          source: { name, version, configuration, node: 'items', fields: ['id'] },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      } as never,
+      undefined,
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+  const savedConfiguration = (dataMart: { definition: unknown }) =>
+    (dataMart.definition as { connector: { source: { configuration: unknown[] } } }).connector
+      .source.configuration;
+
+  it('saves a definition naming a published custom connector, with more than one configuration', async () => {
+    const { service, dataMartService, dataMart, tryResolveManifest } = createHarness();
+    tryResolveManifest.mockResolvedValue(CUSTOM_MANIFEST);
+
+    const result = await service.run(
+      connectorCommand('MyCustomApi', [{ _id: 'c-1' }, { _id: 'c-2' }], 3)
+    );
+
+    expect(tryResolveManifest).toHaveBeenCalledWith('proj-1', 'MyCustomApi', 3);
+    expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
+    // A custom connector declares no capabilities, so the singleConfiguration
+    // restriction must not be invented for it — nor read out of its manifest.
+    expect(savedConfiguration(dataMart)).toHaveLength(2);
+    expect(result).toEqual({ id: 'dm-1' });
+  });
+
+  it('throws NotFoundException and saves nothing for a name that is neither bundled nor custom', async () => {
+    const { service, dataMartService, tryResolveManifest } = createHarness();
+    tryResolveManifest.mockResolvedValue(null);
+
+    await expect(
+      service.run(connectorCommand('NoSuchConnector', [{ _id: 'c-1' }]))
+    ).rejects.toThrow(NotFoundException);
+
+    expect(dataMartService.save).not.toHaveBeenCalled();
+  });
+
+  it('resolves a bundled connector without any DB lookup', async () => {
+    const { service, dataMartService, tryResolveManifest } = createHarness();
+
+    await service.run(connectorCommand(BUNDLED_CONNECTOR, [{ _id: 'c-1' }]));
+
+    expect(tryResolveManifest).not.toHaveBeenCalled();
+    expect(dataMartService.save).toHaveBeenCalled();
+  });
+
+  it('still enforces singleConfiguration declared by a bundled connector', async () => {
+    const { service, dataMartService } = createHarness();
+
+    await expect(
+      service.run(connectorCommand(BUNDLED_CONNECTOR, [{ _id: 'c-1' }, { _id: 'c-2' }]))
+    ).rejects.toThrow(BadRequestException);
+
+    expect(dataMartService.save).not.toHaveBeenCalled();
   });
 });
