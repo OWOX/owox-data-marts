@@ -1,5 +1,6 @@
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { BigQueryIdentifierEscaper } from '../data-storage-types/bigquery/services/bigquery-identifier.escaper';
+import { LegacyBigQueryIdentifierEscaper } from '../data-storage-types/bigquery/services/legacy/legacy-bigquery-identifier.escaper';
 import { SnowflakeIdentifierEscaper } from '../data-storage-types/snowflake/services/snowflake-identifier.escaper';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { IdentifierEscaperFacade } from '../data-storage-types/facades/identifier-escaper.facade';
@@ -8,17 +9,18 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartSampleDataService } from './data-mart-sample-data.service';
 
 describe('DataMartSampleDataService', () => {
-  const createDataMart = (storageType: DataStorageType): DataMart =>
+  const createDataMart = (storageType: DataStorageType, definition?: unknown): DataMart =>
     ({
       id: 'data-mart-1',
       projectId: 'project-1',
+      definition,
       storage: {
         type: storageType,
       },
     }) as unknown as DataMart;
 
-  const createService = (storageType = DataStorageType.GOOGLE_BIGQUERY) => {
-    const dataMart = createDataMart(storageType);
+  const createService = (storageType = DataStorageType.GOOGLE_BIGQUERY, definition?: unknown) => {
+    const dataMart = createDataMart(storageType, definition);
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
     };
@@ -31,6 +33,7 @@ describe('DataMartSampleDataService', () => {
     const identifierEscaperFacade = new IdentifierEscaperFacade(
       new TypeResolver<DataStorageType, IdentifierEscaper>([
         new BigQueryIdentifierEscaper(),
+        new LegacyBigQueryIdentifierEscaper(),
         new SnowflakeIdentifierEscaper(),
       ])
     );
@@ -76,6 +79,116 @@ describe('DataMartSampleDataService', () => {
       expect.anything(),
       'SELECT `report_date`, `amount` FROM `test-project`.`TestDataset`.`another-dashed-table` LIMIT 10',
       { limit: 10 }
+    );
+  });
+
+  it('inlines a SQL data mart as a derived table without touching the technical view', async () => {
+    const { service, dataMart, dataMartSqlTableService, dataMartTableReferenceService } =
+      createService(DataStorageType.GOOGLE_BIGQUERY, {
+        sqlQuery: '  SELECT report_date, amount FROM `src.dataset.orders` ; ',
+      });
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      dataMart,
+      'SELECT `report_date` FROM (SELECT report_date, amount FROM `src.dataset.orders`) AS owox_sample_source LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it.each([DataStorageType.GOOGLE_BIGQUERY, DataStorageType.LEGACY_GOOGLE_BIGQUERY])(
+    'inlines a WITH/CTE SQL data mart as a derived table on %s',
+    async storageType => {
+      const { service, dataMart, dataMartSqlTableService, dataMartTableReferenceService } =
+        createService(storageType, {
+          sqlQuery: 'WITH src AS (SELECT 1 AS report_date) SELECT * FROM src;',
+        });
+
+      await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+      expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
+      expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+        dataMart,
+        'SELECT `report_date` FROM (WITH src AS (SELECT 1 AS report_date) SELECT * FROM src) AS owox_sample_source LIMIT 5',
+        { limit: 5 }
+      );
+    }
+  );
+
+  it('keeps the technical-view path for WITH/CTE SQL on a storage without CTE-in-derived-table support', async () => {
+    const { service, dataMartSqlTableService, dataMartTableReferenceService } = createService(
+      DataStorageType.SNOWFLAKE,
+      { sqlQuery: 'WITH src AS (SELECT 1 AS report_date) SELECT * FROM src' }
+    );
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartTableReferenceService.resolveTableName).toHaveBeenCalledWith(
+      'data-mart-1',
+      'project-1'
+    );
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      expect.anything(),
+      'SELECT "report_date" FROM "test-project"."TestDataset"."dashed-table-name" LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it('inlines a plain SELECT on a non-BigQuery storage', async () => {
+    const { service, dataMart, dataMartSqlTableService, dataMartTableReferenceService } =
+      createService(DataStorageType.SNOWFLAKE, {
+        sqlQuery: 'SELECT report_date FROM orders',
+      });
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      dataMart,
+      'SELECT "report_date" FROM (SELECT report_date FROM orders) AS owox_sample_source LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it('keeps the technical-view path for SQL that is neither SELECT nor WITH', async () => {
+    const { service, dataMartSqlTableService, dataMartTableReferenceService } = createService(
+      DataStorageType.GOOGLE_BIGQUERY,
+      { sqlQuery: 'DECLARE x INT64; SELECT x AS report_date' }
+    );
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartTableReferenceService.resolveTableName).toHaveBeenCalledWith(
+      'data-mart-1',
+      'project-1'
+    );
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      expect.anything(),
+      'SELECT `report_date` FROM `test-project`.`TestDataset`.`dashed-table-name` LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it('prefers an explicitly provided table name over inlining the SQL definition', async () => {
+    const { service, dataMartSqlTableService, dataMartTableReferenceService } = createService(
+      DataStorageType.GOOGLE_BIGQUERY,
+      { sqlQuery: 'SELECT 1 AS report_date' }
+    );
+
+    await service.sampleColumns(
+      'data-mart-1',
+      'project-1',
+      ['report_date'],
+      'test-project.TestDataset.explicit-table'
+    );
+
+    expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      expect.anything(),
+      'SELECT `report_date` FROM `test-project`.`TestDataset`.`explicit-table` LIMIT 5',
+      { limit: 5 }
     );
   });
 
