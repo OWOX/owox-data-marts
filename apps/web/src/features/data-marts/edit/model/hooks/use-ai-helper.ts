@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { extractApiError, type ApiError } from '../../../../../app/api';
-import { showAiHelperCancelledToast, showAiHelperErrorToast } from './ai-helper-toast';
+import {
+  dismissAiHelperToasts,
+  showAiHelperCancelledToast,
+  showAiHelperErrorToast,
+} from './ai-helper-toast';
 import { trackEvent } from '../../../../../utils';
 import { TaskStatus } from '../../../../../shared/types/task-status.enum';
 import { dataMartService, DataMartMetadataScope } from '../../../shared';
@@ -187,6 +191,9 @@ export function useAiHelper(): UseAiHelperResult {
   const generate = useCallback(
     async (dataMartId: string, pending: PendingScope): Promise<GenerateOutcome> => {
       cancelCurrentRun();
+      // A retry supersedes this data mart's stale persistent toasts — the previous
+      // error (or cancellation notice) must not linger next to a fresh attempt.
+      dismissAiHelperToasts(dataMartId);
       setPendingScope(pending);
 
       const fieldName = isFieldScopedPending(pending) ? pending.fieldName : undefined;

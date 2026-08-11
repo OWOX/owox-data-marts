@@ -139,6 +139,16 @@ function renderErrorToast(
 }
 
 /**
+ * Clears this data mart's persistent AI helper toasts. Called when a new run starts:
+ * a user who fixed the permission and retries must not keep seeing the old error, and
+ * a stale cancellation notice is obsolete the moment a fresh attempt begins.
+ */
+export function dismissAiHelperToasts(dataMartId: string): void {
+  toast.dismiss(`ai-helper-error-${dataMartId}`);
+  toast.dismiss(`ai-helper-cancelled-${dataMartId}`);
+}
+
+/**
  * Leaving the page aborts an in-flight generation; without this notice the user comes
  * back to untouched fields with no explanation of whether the run succeeded.
  */

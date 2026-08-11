@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
+  dismissAiHelperToasts,
   humanizeAiHelperError,
   showAiHelperCancelledToast,
   showAiHelperErrorToast,
@@ -109,5 +110,16 @@ describe('showAiHelperCancelledToast', () => {
       duration: Infinity,
       id: 'ai-helper-cancelled-dm-2',
     });
+  });
+});
+
+describe('dismissAiHelperToasts', () => {
+  it('dismisses both persistent toasts of the data mart', () => {
+    vi.mocked(toast.dismiss).mockClear();
+
+    dismissAiHelperToasts('dm-3');
+
+    expect(toast.dismiss).toHaveBeenCalledWith('ai-helper-error-dm-3');
+    expect(toast.dismiss).toHaveBeenCalledWith('ai-helper-cancelled-dm-3');
   });
 });

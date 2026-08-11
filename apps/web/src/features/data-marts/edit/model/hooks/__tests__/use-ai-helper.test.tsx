@@ -1,13 +1,18 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useAiHelper } from '../use-ai-helper';
-import { showAiHelperCancelledToast, showAiHelperErrorToast } from '../ai-helper-toast';
+import {
+  dismissAiHelperToasts,
+  showAiHelperCancelledToast,
+  showAiHelperErrorToast,
+} from '../ai-helper-toast';
 import { dataMartService } from '../../../../shared';
 import { TaskStatus } from '../../../../../../shared/types/task-status.enum';
 
 vi.mock('../ai-helper-toast', () => ({
   showAiHelperErrorToast: vi.fn(),
   showAiHelperCancelledToast: vi.fn(),
+  dismissAiHelperToasts: vi.fn(),
 }));
 
 vi.mock('../../../../../../utils', () => ({
@@ -86,6 +91,21 @@ describe('useAiHelper — generation failed', () => {
     });
 
     expect(showAiHelperErrorToast).toHaveBeenCalledWith('dm-1', ACCESS_DENIED);
+  });
+
+  it('dismisses stale persistent toasts when a new run starts', async () => {
+    mockedService.getAiHelperTriggerStatus.mockResolvedValue(TaskStatus.SUCCESS);
+    mockedService.getAiHelperTriggerResponse.mockResolvedValue({
+      result: { fields: [{ name: 'id', alias: 'ID' }] },
+    });
+
+    const { result } = renderHook(() => useAiHelper());
+
+    await act(async () => {
+      await result.current.generateAllFieldAliases('dm-1');
+    });
+
+    expect(dismissAiHelperToasts).toHaveBeenCalledWith('dm-1');
   });
 
   it('shows the persistent error toast for ERROR status with an HTTP 400 { error } response', async () => {
