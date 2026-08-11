@@ -3,6 +3,7 @@ import type { DestinationConfigDto, ReportResponseDto } from '../../services';
 import { mapDataDestinationFromDto } from '../../../../../data-destination/shared/model/mappers/data-destination.mapper';
 import { mapDataStorageFromDto } from '../../../../../data-storage/shared/model/mappers';
 import { DestinationConfigMapperFactory } from './destination-config-mapper.factory.ts';
+import { MAIN_UNIQUE_COUNT_SOURCE } from '../../../../shared/types/output-config';
 
 /**
  * Maps a DestinationConfigDto object to a DestinationConfig entity using the appropriate mapper.
@@ -40,7 +41,12 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     limitConfig: reportDto.limitConfig ?? null,
     aggregationConfig: reportDto.aggregationConfig ?? null,
     dateTruncConfig: reportDto.dateTruncConfig ?? null,
-    uniqueCountConfig: reportDto.uniqueCountConfig === true,
+    uniqueCountConfig:
+      reportDto.uniqueCountConfig === true
+        ? [MAIN_UNIQUE_COUNT_SOURCE]
+        : Array.isArray(reportDto.uniqueCountConfig)
+          ? reportDto.uniqueCountConfig
+          : [],
     lastRunDate: reportDto.lastRunAt ? new Date(reportDto.lastRunAt) : null,
     lastRunStatus: reportDto.lastRunStatus,
     lastRunError: reportDto.lastRunError,

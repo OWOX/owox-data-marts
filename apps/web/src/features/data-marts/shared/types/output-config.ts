@@ -162,13 +162,58 @@ export interface JoinedSource {
   columns: readonly JoinedSourceColumn[];
 }
 
+/** Mirror of the backend `MAIN_UNIQUE_COUNT_SOURCE`: '' denotes the main Data Mart. */
+export const MAIN_UNIQUE_COUNT_SOURCE = '';
+
 export interface OutputConfig {
   filterConfig: FilterRule[];
   sortConfig: SortRule[];
   limitConfig: number | null;
   aggregationConfig: AggregationRule[];
   dateTruncConfig: DateTruncRule[];
-  uniqueCountConfig: boolean;
+  /** Source keys wanting a Unique Count metric: a joined source's `aliasPath`, or '' for the main mart. */
+  uniqueCountConfig: string[];
+}
+
+export type OutputConfigKey = keyof OutputConfig;
+
+/**
+ * Every key of an `OutputConfig`, for a consumer that has to write all of them. Derived from a
+ * `Record<OutputConfigKey, true>` so a seventh key is a compile error here rather than a key the
+ * three edit forms silently stop writing — this list is now their only writer.
+ */
+const OUTPUT_CONFIG_KEY_SET = {
+  filterConfig: true,
+  sortConfig: true,
+  limitConfig: true,
+  aggregationConfig: true,
+  dateTruncConfig: true,
+  uniqueCountConfig: true,
+} satisfies Record<OutputConfigKey, true>;
+
+export const OUTPUT_CONFIG_KEYS: readonly OutputConfigKey[] = Object.keys(
+  OUTPUT_CONFIG_KEY_SET
+) as OutputConfigKey[];
+
+/**
+ * How a config change was produced. A repair the picker made on its own initiative must not be
+ * counted as an edit — and must not touch a key it did not repair either: a consumer that stores
+ * the config per key (a form) would otherwise take the whole config as its new state, replacing
+ * "the user never opened this control" with an empty list.
+ */
+export interface OutputConfigRepairOptions {
+  isRepair: true;
+  /** Exactly the keys the repair rewrote. */
+  changed: readonly OutputConfigKey[];
+}
+
+/**
+ * The same distinction for the COLUMN list, which the picker owns through its own `onChange`
+ * rather than through `OutputConfig`. No `changed` list: such a repair touches `columnConfig` and
+ * nothing else, by definition.
+ */
+export interface ColumnConfigRepairOptions {
+  isRepair: true;
 }
 
 export const EMPTY_OUTPUT_CONFIG: OutputConfig = {
@@ -177,7 +222,7 @@ export const EMPTY_OUTPUT_CONFIG: OutputConfig = {
   limitConfig: null,
   aggregationConfig: [],
   dateTruncConfig: [],
-  uniqueCountConfig: false,
+  uniqueCountConfig: [],
 };
 
 export function hasAnyOutputControls(config: OutputConfig): boolean {
@@ -187,7 +232,7 @@ export function hasAnyOutputControls(config: OutputConfig): boolean {
     config.limitConfig != null ||
     config.aggregationConfig.length > 0 ||
     config.dateTruncConfig.length > 0 ||
-    config.uniqueCountConfig
+    config.uniqueCountConfig.length > 0
   );
 }
 

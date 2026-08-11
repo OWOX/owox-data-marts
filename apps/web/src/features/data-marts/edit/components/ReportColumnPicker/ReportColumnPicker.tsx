@@ -9,13 +9,14 @@ import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { AlertTriangle, ChevronDown, ChevronRight, Sigma, TriangleAlert } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 import type {
   AvailableSource,
+  BlendableSchema,
   BlendedField,
   BlendedGroup,
   NativeField,
@@ -25,11 +26,15 @@ import { DataStorageType } from '../../../../data-storage/shared/model/types/dat
 import {
   EMPTY_OUTPUT_CONFIG,
   hasAnyOutputControls,
+  MAIN_UNIQUE_COUNT_SOURCE,
   type DateTruncUnit,
   type FilterRule,
   type JoinedSource,
   type JoinedSourceColumn,
+  type ColumnConfigRepairOptions,
   type OutputConfig,
+  type OutputConfigKey,
+  type OutputConfigRepairOptions,
 } from '../../../shared/types/output-config';
 import { supportsOutputControls } from '../../../shared/utils/output-controls-support';
 import { FieldInfoTooltip } from './FieldInfoTooltip';
@@ -39,7 +44,22 @@ import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { AggregationSettingsButton } from './AggregationSettingsButton';
 import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
 import { fieldDisplayLabel } from './output-controls-display';
-import { UNIQUE_COUNT_LABEL } from '../../../shared/utils/aggregation-labels';
+import {
+  buildJoinedUniqueCountColumnName,
+  UNIQUE_COUNT_LABEL,
+} from '../../../shared/utils/aggregation-labels';
+import {
+  canKeepUniqueCount,
+  canOfferUniqueCount,
+  classifyMainUniqueCountAvailability,
+  uniqueCountDescription,
+  mainUniqueCountState,
+  readJoinedUniqueCountState,
+  type JoinedUniqueCountState,
+  type MainUniqueCountState,
+  type UniqueCountSourceState,
+} from '../../../shared/utils/unique-count-availability';
+import { UniqueCountRow } from './UniqueCountRow';
 import { RowFilterIcon } from './RowFilterIcon';
 import { RowAggregationIcon } from './RowAggregationIcon';
 import { isFilterableType } from './output-controls-operators';
@@ -78,6 +98,23 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
   return result;
 }
 
+/**
+ * The SQL output name of a source's Unique Count metric — what a sort rule stores and what the
+ * backend emits as the column. The main mart's metric IS the label; a joined source's is derived
+ * from its alias path, never from its free-form display prefix.
+ */
+function uniqueCountColumnName(source: string): string {
+  return source === MAIN_UNIQUE_COUNT_SOURCE
+    ? UNIQUE_COUNT_LABEL
+    : buildJoinedUniqueCountColumnName(source);
+}
+
+/**
+ * Display label of the main Data Mart's row — searched by, not the SQL name it emits. Same casing
+ * as `UNIQUE_COUNT_LABEL` because the sort chip and the produced column both read `Unique Count`.
+ */
+const MAIN_UNIQUE_COUNT_ROW_LABEL = UNIQUE_COUNT_LABEL;
+
 export interface ReportColumnSelectionCount {
   selected: number;
   total: number;
@@ -96,9 +133,22 @@ export interface ReportColumnPickerProps {
   dataMartId: string;
   storageType?: DataStorageType;
   value: string[] | null;
-  onChange: (value: string[] | null) => void;
+  /**
+   * `isRepair` carries the same meaning as on `onOutputConfigChange`: the picker materialised the
+   * implicit "all native columns" projection on its own initiative, because a stored joined Unique
+   * Count cannot be saved without an explicit one. Forms must apply it without dirtying.
+   */
+  onChange: (value: string[] | null, options?: ColumnConfigRepairOptions) => void;
   outputConfig?: OutputConfig;
-  onOutputConfigChange?: (config: OutputConfig) => void;
+  /**
+   * `isRepair` marks a change the picker made on its OWN initiative — reconciling a stored config
+   * against a schema that moved under it, not an edit the user performed. Forms must apply it
+   * without marking themselves dirty, or merely opening a report raises an "unsaved changes" guard.
+   * It carries the keys it actually rewrote: the whole config is always passed, but a form that
+   * stores each key separately must not take an untouched one from it — the picker widens an
+   * unset control to `[]` for its own use, and writing that back is a change the user never made.
+   */
+  onOutputConfigChange?: (config: OutputConfig, options?: OutputConfigRepairOptions) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
 }
 
@@ -343,6 +393,17 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   );
 });
 
+/** Everything the group needs to render its source's Unique Count row; absent → no row. */
+interface GroupUniqueCount {
+  label: string;
+  description?: string;
+  dataMartName?: string;
+  state: UniqueCountSourceState | undefined;
+  checked: boolean;
+  isEmitted: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
 interface BlendedGroupItemProps {
   group: BlendedGroup;
   selectedSet: Set<string>;
@@ -356,6 +417,7 @@ interface BlendedGroupItemProps {
   aggregationByColumn?: Map<string, ColumnAggregation>;
   onApplyAggregation?: ApplyAggregationFn;
   hasSearchQuery?: boolean;
+  uniqueCount?: GroupUniqueCount;
 }
 
 function BlendedGroupItem({
@@ -371,8 +433,13 @@ function BlendedGroupItem({
   aggregationByColumn,
   onApplyAggregation,
   hasSearchQuery = false,
+  uniqueCount,
 }: BlendedGroupItemProps) {
-  const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
+  // Also open when the source's Unique Count is on: an excluded source contributes no selected
+  // field, so a collapsed group would hide the only control that can clear it.
+  const [isOpen, setIsOpen] = useState(
+    () => group.selectedCount > 0 || group.uniqueCount?.checked === true
+  );
   const inaccessible = !group.isAccessibleForReporting;
   const Chevron = isOpen ? ChevronDown : ChevronRight;
   const accentClass = inaccessible ? 'text-destructive' : 'text-muted-foreground';
@@ -440,6 +507,19 @@ function BlendedGroupItem({
             />
           );
         })}
+        {/* Inaccessible groups may only clear existing references, never create new ones. */}
+        {uniqueCount && (!inaccessible || uniqueCount.checked) && (
+          <UniqueCountRow
+            label={uniqueCount.label}
+            description={uniqueCount.description}
+            dataMartName={uniqueCount.dataMartName}
+            state={uniqueCount.state}
+            checked={uniqueCount.checked}
+            isEmitted={uniqueCount.isEmitted}
+            onCheckedChange={uniqueCount.onCheckedChange}
+            hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
+          />
+        )}
       </CollapsibleContent>
     </Collapsible>
   );
@@ -469,7 +549,21 @@ export function ReportColumnPicker({
 
   const { data: schema, isLoading } = useQuery({
     queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
-    queryFn: () => dataMartRelationshipService.getBlendableSchema(dataMartId),
+    // `getBlendableSchema` CASTS its response rather than mapping it, so the declared shape is a
+    // claim about the wire, not a fact: an older or partial payload arrives with an array missing
+    // and the first unguarded `for…of` takes the whole picker down through the error boundary.
+    // Normalized once here so every reader below can trust the three arrays it is typed to hold.
+    queryFn: async (): Promise<BlendableSchema> => {
+      const raw = (await dataMartRelationshipService.getBlendableSchema(
+        dataMartId
+      )) as Partial<BlendableSchema>;
+      return {
+        ...raw,
+        nativeFields: raw.nativeFields ?? [],
+        blendedFields: raw.blendedFields ?? [],
+        availableSources: raw.availableSources ?? [],
+      } as BlendableSchema;
+    },
     enabled: !!dataMartId,
   });
 
@@ -478,15 +572,76 @@ export function ReportColumnPicker({
     [schema]
   );
 
-  const hasPrimaryKey = useMemo(
-    () => nativeFields.some(f => f.isPrimaryKey === true),
+  // Mirror of the backend `getReportablePrimaryKeyFields`, which is what BOTH main-mart gates read — the
+  // save-time UNIQUE_COUNT_REQUIRES_PRIMARY_KEY check and the SQL composer: `flattenNativeFields`
+  // prunes exactly the hidden/disconnected fields it prunes and keeps nested paths the same way.
+  const mainPrimaryKeyFields = useMemo(
+    () => nativeFields.filter(f => f.isPrimaryKey === true).map(f => f.name),
     [nativeFields]
+  );
+  const hasReportablePrimaryKey = mainPrimaryKeyFields.length > 0;
+
+  // Why each source can or cannot offer the Unique Count metric. Kept in two separately-typed
+  // holders, not one map: the main mart and a joined source are decided by different backend rules
+  // that share vocabulary, and only the tagged states keep one from being stored as the other.
+  // Absent (no schema / not in `availableSources`) = absent from the schema, which is what pruning
+  // acts on. Excluded sources stay on purpose — pruning is for a source the SCHEMA lost, and an
+  // exclusion is reversible. Unlike a selected COLUMN of an excluded source (still projected), the
+  // excluded source's Unique Count IS dropped by the backend, so its row keeps rendering (see
+  // groupedBlendedFields) to say so and to let the user clear it.
+  const mainUniqueCount = useMemo<MainUniqueCountState | undefined>(
+    () =>
+      schema
+        ? mainUniqueCountState(classifyMainUniqueCountAvailability(hasReportablePrimaryKey))
+        : undefined,
+    [schema, hasReportablePrimaryKey]
+  );
+
+  const joinedUniqueCountBySource = useMemo(() => {
+    const map = new Map<string, JoinedUniqueCountState>();
+    if (!schema) return map;
+    for (const source of schema.availableSources) {
+      map.set(source.aliasPath, readJoinedUniqueCountState(source.uniqueCountAvailability));
+    }
+    return map;
+  }, [schema]);
+
+  const uniqueCountStateFor = useCallback(
+    (source: string): UniqueCountSourceState | undefined =>
+      source === MAIN_UNIQUE_COUNT_SOURCE ? mainUniqueCount : joinedUniqueCountBySource.get(source),
+    [mainUniqueCount, joinedUniqueCountBySource]
+  );
+
+  // Whether the client has any reason to believe the source still supplies the metric — the gate
+  // for KEEPING a stored selection. Deliberately wider than `uniqueCountIsEmitted` below: an
+  // unrecognised payload value and an excluded source both stay, only a recognised failure or a
+  // source the schema dropped entirely go.
+  const uniqueCountCanKeep = useCallback(
+    (source: string): boolean => canKeepUniqueCount(uniqueCountStateFor(source)),
+    [uniqueCountStateFor]
+  );
+
+  const uniqueCountCanOffer = useCallback(
+    (source: string): boolean => canOfferUniqueCount(uniqueCountStateFor(source)),
+    [uniqueCountStateFor]
   );
 
   const includedPaths = useMemo(() => {
     if (!schema?.availableSources) return new Set<string>();
     return new Set(schema.availableSources.filter(s => s.isIncluded).map(s => s.aliasPath));
   }, [schema]);
+
+  // Whether a source's Unique Count actually reaches the SELECT. Mirror of the backend
+  // `resolveUniqueCountSources`, which drops a source that lost its primary key OR is excluded from
+  // reporting — and of the validator's `emittablePaths`, the same predicate. The single source of
+  // truth for the sort entries offered, the stale sort rules pruned, and the not-emitted marking on
+  // the row: a name the picker refuses to offer is one it repairs and one no row promises.
+  const uniqueCountIsEmitted = useCallback(
+    (source: string): boolean =>
+      uniqueCountCanKeep(source) &&
+      (source === MAIN_UNIQUE_COUNT_SOURCE || includedPaths.has(source)),
+    [uniqueCountCanKeep, includedPaths]
+  );
 
   const includedBlendedFields = useMemo(() => {
     if (!schema) return [];
@@ -516,32 +671,82 @@ export function ReportColumnPicker({
     return names;
   }, [nativeFields, schema]);
 
-  // Unique Count requires a primary key. If the mart's PK is later removed, the toggle
-  // (rendered only under hasPrimaryKey) disappears, yet a stored `true` keeps
-  // round-tripping on every save and the backend rejects it — a trap the user cannot
-  // escape through the UI. Once the schema has loaded WITHOUT a PK, auto-clear the
-  // stranded flag so the report stays editable. Gated on `schema` so the empty
-  // pre-load field list never clears a legitimately PK-backed config.
+  // Unique Count requires a primary key. If a source's PK is later removed, its row goes
+  // disabled, yet the stored source key keeps round-tripping on every save and the backend
+  // rejects (main) or silently drops (joined) it — a trap the user cannot escape through the UI.
+  // Once the schema has loaded, drop the sources that can no longer supply the metric and KEEP
+  // the rest: clearing the whole list would wipe selections that are still perfectly valid.
+  // Gated on `schema` so the empty pre-load field list never clears a legitimate config, and on
+  // `uniqueCountCanKeep` so an availability value the client cannot read never removes anything.
   //
-  // A `Unique Count` sort rule is stranded by the SAME schema change and must be pruned in
-  // the same update: with the flag cleared, validateSort no longer accepts the label, so
-  // leaving the rule behind fails every save and every scheduled run. Skipped when a real
-  // field owns the name — then the rule refers to that field, not the synthetic metric.
+  // A sort rule on a source this repair DROPS is stranded and goes with it: once the name leaves
+  // `uniqueCountConfig` the validator stops treating it as selected, so every later save 400s.
+  // Keyed off the DROPPED sources and nothing else. An EXCLUDED source keeps its config entry
+  // (above), the validator keeps accepting its name deliberately, and the run path drops the rule
+  // in memory per run without persisting — so pruning that one here would silently delete a rule
+  // the user never asked to lose and cannot restore by re-including the source.
+  // Skipped when a real field owns the name — then the rule refers to that field, not the metric.
+  //
+  // Flagged `isRepair` because none of this is a user edit: it happens on open, before anyone has
+  // touched the form. Marking the form dirty for it both raises a false "unsaved changes" guard and
+  // stages a deletion the user never made. The row itself already explains why the metric is gone
+  // (disabled with a hint on key loss, "not generated" when the source is excluded).
   useEffect(() => {
-    if (!schema || hasPrimaryKey || !onOutputConfigChange) return;
-    const strandedSort = knownFieldNames.has(UNIQUE_COUNT_LABEL)
-      ? []
-      : effectiveOutputConfig.sortConfig.filter(r => r.column === UNIQUE_COUNT_LABEL);
-    if (!effectiveOutputConfig.uniqueCountConfig && strandedSort.length === 0) return;
-    onOutputConfigChange({
-      ...effectiveOutputConfig,
-      uniqueCountConfig: false,
-      sortConfig:
-        strandedSort.length > 0
-          ? effectiveOutputConfig.sortConfig.filter(r => r.column !== UNIQUE_COUNT_LABEL)
+    if (!schema || !onOutputConfigChange) return;
+    const keptSources = effectiveOutputConfig.uniqueCountConfig.filter(uniqueCountCanKeep);
+    const strandedColumns = new Set(
+      effectiveOutputConfig.uniqueCountConfig
+        .filter(source => !uniqueCountCanKeep(source))
+        .map(uniqueCountColumnName)
+        .filter(name => !knownFieldNames.has(name))
+    );
+    const hasStrandedSort = effectiveOutputConfig.sortConfig.some(r =>
+      strandedColumns.has(r.column)
+    );
+    const prunesSources = keptSources.length !== effectiveOutputConfig.uniqueCountConfig.length;
+    // A JOINED source's Unique Count is built by the blended query builder, which needs an EXPLICIT
+    // column projection — the backend refuses to save a null one. The toggle handler materializes it
+    // for a source the user just enabled, but a report created through the API or MCP arrives with
+    // the source already stored and a null projection, and only finds out on the failed save. Read
+    // off the KEPT sources: materializing for one this very repair is dropping stages a change the
+    // report does not need.
+    const needsColumnProjection =
+      value === null && keptSources.some(source => source !== MAIN_UNIQUE_COUNT_SOURCE);
+    if (!prunesSources && !hasStrandedSort && !needsColumnProjection) {
+      return;
+    }
+    if (needsColumnProjection) {
+      onChange(effectiveValue, { isRepair: true });
+    }
+    if (!prunesSources && !hasStrandedSort) {
+      return;
+    }
+    // Named per key rather than left for the form to diff: the config passed alongside carries all
+    // six, and five of them are only there because the picker needed a value to read.
+    const changed: OutputConfigKey[] = [
+      ...(prunesSources ? (['uniqueCountConfig'] as const) : []),
+      ...(hasStrandedSort ? (['sortConfig'] as const) : []),
+    ];
+    onOutputConfigChange(
+      {
+        ...effectiveOutputConfig,
+        uniqueCountConfig: keptSources,
+        sortConfig: hasStrandedSort
+          ? effectiveOutputConfig.sortConfig.filter(r => !strandedColumns.has(r.column))
           : effectiveOutputConfig.sortConfig,
-    });
-  }, [schema, hasPrimaryKey, onOutputConfigChange, effectiveOutputConfig, knownFieldNames]);
+      },
+      { isRepair: true, changed }
+    );
+  }, [
+    schema,
+    uniqueCountCanKeep,
+    onOutputConfigChange,
+    onChange,
+    value,
+    effectiveValue,
+    effectiveOutputConfig,
+    knownFieldNames,
+  ]);
 
   const unresolvedColumns = useMemo(
     () => (schema ? effectiveValue.filter(name => !knownFieldNames.has(name)) : []),
@@ -736,6 +941,28 @@ export function ReportColumnPicker({
     [effectiveOutputConfig, onOutputConfigChange]
   );
 
+  const toggleUniqueCountSource = useCallback(
+    (source: string, checked: boolean) => {
+      if (!onOutputConfigChange) return;
+      const current = effectiveOutputConfig.uniqueCountConfig;
+      if (checked === current.includes(source)) return;
+      onOutputConfigChange({
+        ...effectiveOutputConfig,
+        uniqueCountConfig: checked
+          ? [...current, source]
+          : current.filter(existing => existing !== source),
+      });
+      // A JOINED source's Unique Count is built by the blended query builder, which requires an
+      // EXPLICIT column projection: the backend rejects a null columnConfig with one. While
+      // columns are still implicit ("all selected" = null — the default of a brand-new report),
+      // materialize them to the current explicit selection so the report stays runnable.
+      if (checked && source !== MAIN_UNIQUE_COUNT_SOURCE && value === null) {
+        onChange(effectiveValue);
+      }
+    },
+    [effectiveOutputConfig, onOutputConfigChange, value, onChange, effectiveValue]
+  );
+
   const joinedSources = useMemo<JoinedSource[]>(() => {
     if (!schema) return [];
     const byPath = new Map<string, JoinedSource & { columns: JoinedSourceColumn[] }>();
@@ -808,40 +1035,74 @@ export function ReportColumnPicker({
     [dropdownColumns, effectiveValueSet]
   );
 
-  // Whether the synthetic Unique Count metric is actually part of the output. Same gate as
-  // the toggle row below, so the two can never disagree.
-  const hasUniqueCountMetric =
-    hasPrimaryKey && outputControlsAvailable && effectiveOutputConfig.uniqueCountConfig;
+  // The sources whose Unique Count is CONFIGURED and still able to supply the metric — what the
+  // rows render as ticked. Deliberately wider than `uniqueCountIsEmitted`: an excluded source stays
+  // here so its row keeps rendering and stays clearable, and its row is marked not-emitted instead.
+  const activeUniqueCountSources = useMemo(() => {
+    if (!outputControlsAvailable) return new Set<string>();
+    return new Set(effectiveOutputConfig.uniqueCountConfig.filter(uniqueCountCanKeep));
+  }, [outputControlsAvailable, effectiveOutputConfig.uniqueCountConfig, uniqueCountCanKeep]);
 
-  // Whether the SYNTHETIC metric is the thing a `Unique Count` sort resolves to. False when a
-  // real schema field owns the name: if it is selected it owns the sort outright, and if it is
-  // merely present, emitting the label would produce an `ORDER BY "Unique Count"` ambiguous
-  // between the outer SELECT alias and the base column (precedence unspecified across
-  // dialects). Shared by the sort list and the disconnected-controls badge so a suppressed
-  // synthetic can never be reported as still supplying the column.
-  const syntheticUniqueCountAvailable =
-    hasUniqueCountMetric && !knownFieldNames.has(UNIQUE_COUNT_LABEL);
+  // The synthetic Unique Count columns a sort rule may resolve to — one per source whose metric is
+  // actually emitted, keyed by the SQL name and shown under the display label. Same
+  // `uniqueCountIsEmitted` gate the pruning effect above uses, so a name this list refuses to offer
+  // is always one that effect clears.
+  //
+  // A source whose SQL name a real schema field already owns is skipped on top of that (the backend
+  // has a dedicated OUTPUT_COLUMN_NAME_COLLISION error for it): if that field is selected, appending
+  // the synthetic would duplicate the entry and collide on FieldSearchPicker's `key={item.value}`;
+  // if it is merely present, emitting the name would produce an ORDER BY ambiguous between the outer
+  // SELECT alias and the base column, whose precedence is unspecified across dialects.
+  const syntheticSortColumns = useMemo<OutputSettingsDropdownColumn[]>(() => {
+    const cols: OutputSettingsDropdownColumn[] = [];
+    // Two sources CAN land on one SQL name — the alias path `a.b` and a top-level alias `a_b` both
+    // build `a_b__unique_count`. The backend refuses that save with OUTPUT_COLUMN_NAME_COLLISION,
+    // but the picker still renders first, and two entries under one `key={item.value}` take
+    // FieldSearchPicker down through the error boundary before the user can read the message.
+    const taken = new Set<string>();
+    for (const source of activeUniqueCountSources) {
+      if (!uniqueCountIsEmitted(source)) continue;
+      const name = uniqueCountColumnName(source);
+      if (knownFieldNames.has(name) || taken.has(name)) continue;
+      taken.add(name);
+      const joined =
+        source === MAIN_UNIQUE_COUNT_SOURCE ? undefined : availableSourceByPath.get(source);
+      cols.push({
+        name,
+        type: 'INTEGER',
+        // Bare, like the picker row. This list is FLAT, so the source is named on the second line
+        // instead — same shape an ordinary joined field's entry has. Two joins to one Data Mart
+        // share a display alias, so the alias path is what tells their entries apart.
+        label: UNIQUE_COUNT_LABEL,
+        ...(joined
+          ? {
+              dataMartName: joined.defaultAlias.trim() || joined.title,
+              path: [...source.split('.'), UNIQUE_COUNT_LABEL],
+            }
+          : {}),
+      });
+    }
+    return cols;
+  }, [activeUniqueCountSources, uniqueCountIsEmitted, knownFieldNames, availableSourceByPath]);
+
+  // Shared with the disconnected-controls badge so a suppressed synthetic can never be reported
+  // as still supplying the column.
+  const syntheticSortColumnNames = useMemo(
+    () => new Set(syntheticSortColumns.map(c => c.name)),
+    [syntheticSortColumns]
+  );
 
   // Sort-ONLY column list. Unique Count is a synthetic COUNT(DISTINCT <pk>) metric, not a
   // projected field: it can be ordered by (the ORDER BY resolves to the SELECT alias), but a
   // filter or aggregation on it has no column to bind to and the backend rejects it. So it
   // must stay out of dropdownColumns / selectedDropdownColumns, which feed those surfaces.
-  const sortColumns = useMemo(() => {
-    // A real schema field may legitimately be named "Unique Count" (the backend has a
-    // dedicated OUTPUT_COLUMN_NAME_COLLISION error for it). Whenever ANY real field owns the
-    // name the real field wins and the synthetic is suppressed: if it is selected, appending
-    // the synthetic would duplicate the picker entry and collide on FieldSearchPicker's
-    // `key={item.value}`; if it is merely present but unselected, emitting the label would
-    // produce an `ORDER BY "Unique Count"` that is ambiguous between the outer SELECT alias
-    // and the base column, whose resolution precedence is not specified across dialects.
-    if (!syntheticUniqueCountAvailable) {
-      return selectedDropdownColumns;
-    }
-    return [
-      ...selectedDropdownColumns,
-      { name: UNIQUE_COUNT_LABEL, type: 'INTEGER', label: UNIQUE_COUNT_LABEL },
-    ];
-  }, [selectedDropdownColumns, syntheticUniqueCountAvailable]);
+  const sortColumns = useMemo(
+    () =>
+      syntheticSortColumns.length === 0
+        ? selectedDropdownColumns
+        : [...selectedDropdownColumns, ...syntheticSortColumns],
+    [selectedDropdownColumns, syntheticSortColumns]
+  );
 
   const controlsCount = useMemo(() => {
     return (
@@ -945,14 +1206,14 @@ export function ReportColumnPicker({
       // A real selected field resolves the sort regardless of its name — check that first so
       // a schema field literally named "Unique Count" is never hijacked by the synthetic case.
       if (effectiveValueSet.has(rule.column) && knownFieldNames.has(rule.column)) return false;
-      // Otherwise the synthetic metric can still supply the column, matching the backend's
-      // validateSort (which adds the label to the selected set when uniqueCountConfig is on).
-      return !(rule.column === UNIQUE_COUNT_LABEL && syntheticUniqueCountAvailable);
+      // Otherwise a synthetic metric can still supply the column, matching the backend's
+      // validateSort (which adds each enabled source's name to the selected set).
+      return !syntheticSortColumnNames.has(rule.column);
     });
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
-    syntheticUniqueCountAvailable,
+    syntheticSortColumnNames,
     knownFieldNames,
     knownSliceKeys,
     effectiveValueSet,
@@ -1049,7 +1310,50 @@ export function ReportColumnPicker({
       }
     }
 
-    return Array.from(groupMap.values()).filter(g => g.visibleFields.length > 0);
+    // The Unique Count row belongs to the SOURCE, not to any of its fields, so it is attached
+    // here rather than left to whichever field group happened to survive: otherwise the metric
+    // vanishes under "Show selected only" and from search, and an EXCLUDED source (which has no
+    // fields here at all) leaves a stored selection the backend drops with no row to clear it.
+    if (outputControlsAvailable) {
+      for (const source of schema?.availableSources ?? []) {
+        const checked = activeUniqueCountSources.has(source.aliasPath);
+        // An unchecked row is an offer — never make one on a source the report may not use, on one
+        // whose verdict the client cannot read (it could neither invite nor explain), and hide it
+        // under "Show selected only" like any unselected field.
+        const offerable =
+          source.isIncluded &&
+          source.isAccessibleForReporting &&
+          !showSelectedOnly &&
+          uniqueCountCanOffer(source.aliasPath);
+        if (!checked && !offerable) continue;
+        let group = groupMap.get(source.aliasPath);
+        if (!group) {
+          group = {
+            aliasPath: source.aliasPath,
+            title: source.title,
+            alias: source.defaultAlias,
+            description: source.description,
+            isAccessibleForReporting: source.isAccessibleForReporting,
+            visibleFields: [],
+            selectedCount: 0,
+          };
+          groupMap.set(source.aliasPath, group);
+        }
+        const sourceName = source.defaultAlias.trim() || source.title;
+        group.uniqueCount = {
+          // Bare: the group header directly above already names the source.
+          label: UNIQUE_COUNT_LABEL,
+          description: uniqueCountDescription(sourceName, source.uniqueCountKeyFields ?? []),
+          dataMartName: sourceName,
+          checked,
+          isEmitted: uniqueCountIsEmitted(source.aliasPath),
+        };
+      }
+    }
+
+    return Array.from(groupMap.values()).filter(
+      g => g.visibleFields.length > 0 || g.uniqueCount !== undefined
+    );
   }, [
     includedBlendedFields,
     showSelectedOnly,
@@ -1057,6 +1361,11 @@ export function ReportColumnPicker({
     availableSourceByPath,
     referencedFieldNames,
     referencedPreJoinKeys,
+    outputControlsAvailable,
+    schema,
+    activeUniqueCountSources,
+    uniqueCountIsEmitted,
+    uniqueCountCanOffer,
   ]);
 
   // Search query state and derived search results.
@@ -1098,12 +1407,25 @@ export function ReportColumnPicker({
     [searchedNativeFields, searchedBlendedGroups]
   );
 
+  const mainUniqueCountChecked = activeUniqueCountSources.has(MAIN_UNIQUE_COUNT_SOURCE);
+
+  // The main Data Mart's row obeys the same two filters as every field row and every joined
+  // Unique Count row: an unchecked one is an offer, so it goes under "Show selected only", and it
+  // is matched by its own label. Without `schema` no availability has been established and the row
+  // would claim a missing primary key it knows nothing about.
+  const showMainUniqueCountRow =
+    outputControlsAvailable &&
+    !!schema &&
+    (mainUniqueCountChecked || !showSelectedOnly) &&
+    matchesColumnSearch(MAIN_UNIQUE_COUNT_ROW_LABEL, searchQuery);
+
   const hasVisibleColumns =
     searchedNativeFields.length > 0 ||
     searchedBlendedGroups.length > 0 ||
     visibleUnresolvedColumns.length > 0 ||
     visibleUnresolvedFilterOnlyColumns.length > 0 ||
-    visibleUnresolvedSlices.length > 0;
+    visibleUnresolvedSlices.length > 0 ||
+    showMainUniqueCountRow;
 
   if (isLoading) {
     return (
@@ -1353,54 +1675,54 @@ export function ReportColumnPicker({
           />
         ))}
 
-        {hasPrimaryKey && outputControlsAvailable && (
-          <label className='group hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
-            <Checkbox
-              checked={effectiveOutputConfig.uniqueCountConfig}
-              onCheckedChange={checked => {
-                onOutputConfigChange?.({
-                  ...effectiveOutputConfig,
-                  uniqueCountConfig: checked === true,
-                });
-              }}
-            />
-            <span className='min-w-0 truncate font-mono text-xs'>Unique count</span>
-            {effectiveOutputConfig.uniqueCountConfig && (
-              <span className='ml-auto flex items-center'>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='flex h-6 w-6 cursor-default items-center justify-center rounded text-blue-500'>
-                      <Sigma className='h-4 w-4' />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-xs'>
-                    Auto-generated column — counts the distinct values of the primary key.
-                  </TooltipContent>
-                </Tooltip>
-                {/* Spacer matching the field rows' filter-icon slot so this Σ aligns with native rows. */}
-                <span className='h-6 w-6' aria-hidden='true' />
-              </span>
-            )}
-          </label>
+        {showMainUniqueCountRow && (
+          <UniqueCountRow
+            label={MAIN_UNIQUE_COUNT_ROW_LABEL}
+            // No Data Mart name to give it: the picker is never told the report's own mart title,
+            // and no group header names it either.
+            description={uniqueCountDescription(undefined, mainPrimaryKeyFields)}
+            state={uniqueCountStateFor(MAIN_UNIQUE_COUNT_SOURCE)}
+            checked={mainUniqueCountChecked}
+            onCheckedChange={checked => {
+              toggleUniqueCountSource(MAIN_UNIQUE_COUNT_SOURCE, checked);
+            }}
+          />
         )}
 
-        {searchedBlendedGroups.map(group => (
-          <BlendedGroupItem
-            key={group.aliasPath}
-            group={group}
-            selectedSet={effectiveValueSet}
-            onToggleField={toggleField}
-            filterableTypeFor={filterableTypeFor}
-            filtersByColumn={filtersByColumn}
-            onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
-            onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
-            onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
-            preJoinByAliasPathColumn={preJoinByAliasPathColumn}
-            aggregationByColumn={aggregationByColumn}
-            onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
-            hasSearchQuery={hasSearchQuery}
-          />
-        ))}
+        {searchedBlendedGroups.map(group => {
+          return (
+            <BlendedGroupItem
+              key={group.aliasPath}
+              group={group}
+              selectedSet={effectiveValueSet}
+              onToggleField={toggleField}
+              filterableTypeFor={filterableTypeFor}
+              filtersByColumn={filtersByColumn}
+              onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
+              onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
+              onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
+              preJoinByAliasPathColumn={preJoinByAliasPathColumn}
+              aggregationByColumn={aggregationByColumn}
+              onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
+              hasSearchQuery={hasSearchQuery}
+              uniqueCount={
+                group.uniqueCount
+                  ? {
+                      label: group.uniqueCount.label,
+                      description: group.uniqueCount.description,
+                      dataMartName: group.uniqueCount.dataMartName,
+                      state: uniqueCountStateFor(group.aliasPath),
+                      checked: group.uniqueCount.checked,
+                      isEmitted: group.uniqueCount.isEmitted,
+                      onCheckedChange: checked => {
+                        toggleUniqueCountSource(group.aliasPath, checked);
+                      },
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
       </div>
 
       {selectedNativeCount === 0 && selectedBlendedCount > 0 && (

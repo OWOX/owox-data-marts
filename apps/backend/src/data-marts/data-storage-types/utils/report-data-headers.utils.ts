@@ -32,6 +32,11 @@ import {
  *   to equal SELECT column order, and on the blended path it does not: a metric-sleeve pull
  * (joined COUNT DISTINCT / SUM / AVG,) is appended after `Row Count`, while the
  *   header for it sits at its own column's position.
+ * - `uniqueCountSources` appends one header per joined source, after the main Data Mart's
+ *   `Unique Count`. Its `name` is the SQL-safe `outputLabel` (`orders__unique_count`) the sleeve
+ *   aliased, and its display alias is the free-form `displayLabel` (`Orders Unique Count`) — the
+ *   same name/alias split every blended column header already uses. It is the SAME list the blended
+ *   builder rendered its sleeves from, so a source dropped there has no header here either.
  * - When `aggregationConfig` is non-empty, a synthetic `Row Count` header (matching the
  *   `COUNT(*) AS "Row Count"` output column) is appended last. Row Count is automatic
  *   for aggregated reports, unless `options.rowCount === false` (the Totals reader opts
@@ -44,10 +49,17 @@ export function resolveReportDataHeaders(
 ): ReportDataHeader[] {
   const filter = options?.columnFilter;
   const aggregations = options?.aggregationConfig ?? [];
+  const uniqueCountSources = options?.uniqueCountSources ?? [];
+  // The SAME predicate the SQL builder uses to emit `COUNT(DISTINCT pk)`: a primary key removed
+  // after the report was saved drops the column, so it must drop the header too (F4).
+  const mainUniqueCount =
+    options?.uniqueCount === true && (options?.primaryKeyColumns?.length ?? 0) > 0;
   // A metrics-only query has no projected dimensions: the SELECT emits only the
   // synthetic metric / Row Count / Unique Count columns. This is the totals query and the
-  // uniqueCount-only report.
-  const metricsOnly = aggregations.length > 0 || options?.uniqueCount === true;
+  // uniqueCount-only report. It reads the GATED `mainUniqueCount`, not the raw flag: with the
+  // key gone the SQL emits no metric and falls back to a plain SELECT, so a metrics-only header
+  // list here would leave the report with no columns at all for a result full of them.
+  const metricsOnly = aggregations.length > 0 || mainUniqueCount || uniqueCountSources.length > 0;
 
   let headers: ReportDataHeader[];
   if (filter && filter.length > 0) {
@@ -114,12 +126,25 @@ export function resolveReportDataHeaders(
     ];
   }
 
-  if (options?.uniqueCount) {
+  if (mainUniqueCount) {
     headers = [
       ...headers,
       new ReportDataHeader(
         UNIQUE_COUNT_LABEL,
         undefined,
+        undefined,
+        integerTypeFor(storageType),
+        'COUNT_DISTINCT'
+      ),
+    ];
+  }
+
+  for (const source of uniqueCountSources) {
+    headers = [
+      ...headers,
+      new ReportDataHeader(
+        source.outputLabel,
+        source.displayLabel,
         undefined,
         integerTypeFor(storageType),
         'COUNT_DISTINCT'

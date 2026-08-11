@@ -25,7 +25,8 @@ export interface ReportResponseDto {
   limitConfig?: number | null;
   aggregationConfig?: AggregationRule[] | null;
   dateTruncConfig?: DateTruncRule[] | null;
-  uniqueCountConfig?: boolean | null;
+  // Legacy reports (and non-web clients) still persist the boolean form; the mapper normalises it.
+  uniqueCountConfig?: boolean | string[] | null;
   lastRunAt: string | null;
   lastRunStatus: ReportStatusEnum | null;
   lastRunError: string | null;

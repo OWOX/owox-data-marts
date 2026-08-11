@@ -3,8 +3,16 @@ import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema
 import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { SortConfig } from '../dto/schemas/sort-config.schema';
 import type { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
+import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
 
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
+
+/**
+ * The SQL-safe suffix every `McpUniqueCountSourceDto.name` ends with, e.g. `orders__unique_count`.
+ * Published here, next to the DTO that carries those names, so a consumer can recognise one without
+ * re-deriving the naming rule from this module's internals (#6792).
+ */
+export const MCP_UNIQUE_COUNT_FIELD_SUFFIX = `__${UNIQUE_COUNT_FIELD_TOKEN}`;
 
 export type McpDataMartCatalogStatus = 'published' | 'draft';
 
@@ -60,12 +68,25 @@ export interface McpJoinedFieldDto {
   allowedAggregations?: string[];
 }
 
+/**
+ * A joined source's Unique Count pseudo-field, keyed by the SAME SQL-safe `name` that
+ * appears in `McpDataMartDetailsResponse.joinedFields` — internal only, never serialized
+ * back to an MCP client. `query_data_mart` uses `aliasPath` to translate a selected
+ * pseudo-field back into `McpQueryDataMartRequest.uniqueCountConfig`.
+ */
+export interface McpUniqueCountSourceDto {
+  aliasPath: string;
+  name: string;
+  displayName: string;
+}
+
 export interface McpDataMartDetailsResponse {
   id: string;
   name: string;
   description: string;
   fields: Array<Record<string, unknown>>;
   joinedFields: McpJoinedFieldDto[];
+  uniqueCountSources: McpUniqueCountSourceDto[];
 }
 
 export interface McpQueryDataMartRequest {
@@ -79,6 +100,8 @@ export interface McpQueryDataMartRequest {
   dateTruncConfig?: DateTruncConfig;
   sortConfig?: SortConfig;
   limit: number;
+  /** aliasPaths of joined sources to include a `<Prefix> Unique Count` column for. */
+  uniqueCountConfig?: string[];
 }
 
 export interface McpQueryDataMartResponse {

@@ -183,7 +183,7 @@ describe('AthenaClauseRenderer — percentile and STRING_AGG aggregations', () =
         primaryKeyColumns: ['c1', 'c2'],
       });
       expect(out.selectSql).toContain(
-        `COUNT(DISTINCT CONCAT(COALESCE(CAST("c1" AS VARCHAR), ''), '␟', COALESCE(CAST("c2" AS VARCHAR), ''))) AS "${UNIQUE_COUNT_LABEL}"`
+        `COUNT(DISTINCT CASE WHEN "c1" IS NULL OR "c2" IS NULL THEN NULL ELSE CONCAT(CAST(LENGTH(CAST("c1" AS VARCHAR)) AS VARCHAR), '␟', CAST("c1" AS VARCHAR), CAST(LENGTH(CAST("c2" AS VARCHAR)) AS VARCHAR), '␟', CAST("c2" AS VARCHAR)) END) AS "${UNIQUE_COUNT_LABEL}"`
       );
     });
   });

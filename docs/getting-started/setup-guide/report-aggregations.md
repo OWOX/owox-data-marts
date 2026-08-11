@@ -10,7 +10,7 @@ Summarize Data Mart data directly in a report — group by dimensions, apply agg
 - Apply **more than one** function to the same column — each becomes its own output column.
 - **Group by** the remaining columns automatically (every non-aggregated selected column becomes a grouping key).
 - **Bucket a date/timestamp** by day, week, month, quarter, or year (with an optional time zone).
-- Add a **Unique count** metric (`COUNT(DISTINCT primary key)`).
+- Add a **Unique Count** metric (`COUNT(DISTINCT primary key)`) — for the report's own Data Mart and for each joined one.
 - Get **Totals** for numeric fields and any aggregated metric — each by its allowed functions — returned as a separate block.
 - Govern, at the Data Mart level, which functions each field may use.
 
@@ -93,25 +93,44 @@ To answer questions like *"revenue by month"* or *"sessions by week"*, bucket a 
 
 ![Edit report panel with a popover open on the order_timestamp column. "Group by bucket" is set to WEEK and "Time zone (optional)" to America/New_York, with "Or aggregate by" Min/Max checkboxes below. An arrow points to the Group by bucket dropdown.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3230bcf4-f40a-478e-b174-be28be8d6a00/public)
 
-## Unique count
+## Unique Count
 
-The **Unique count** row (at the bottom of the Data Mart's field list) adds a `COUNT(DISTINCT <primary key>)` metric to the report. It counts unique entities by the Data Mart's primary key, including composite keys.
+The **Unique Count** row (at the bottom of the Data Mart's field list) adds a `COUNT(DISTINCT <primary key>)` metric to the report. It counts unique entities by the Data Mart's primary key, including composite keys.
 
-> Not to be confused with the per-column **Count Unique** (`COUNT_DISTINCT`) aggregation above — Unique count is a single report-wide metric keyed on the primary key, not applied to an individual column.
+> Not to be confused with the per-column **Count Unique** (`COUNT_DISTINCT`) aggregation above — Unique Count is a single report-wide metric keyed on the primary key, not applied to an individual column.
 >
-> ⚠️ Unique count requires the Data Mart to have a primary key. If no primary key is defined, the option is not offered.
+> ⚠️ Unique Count requires the Data Mart to have a primary key. Without one the row is shown disabled, with a tooltip explaining what to fix.
 
-![Create new report panel with the column list scrolled to the bottom. A checked "Unique count" row appears below the fields with a Σ icon, and a tooltip reads "Auto-generated column — counts the distinct values of the primary key." An arrow points to the Unique count checkbox.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/28565768-b0c0-4f3b-c17c-51b224b56f00/public)
+![Create new report panel with the column list scrolled to the bottom. A checked "Unique Count" row appears below the fields with a Σ icon, and a tooltip reads "Auto-generated column — counts the distinct values of the primary key." An arrow points to the Unique Count checkbox.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/28565768-b0c0-4f3b-c17c-51b224b56f00/public)
+
+### Unique Count per Joined Data Mart
+
+Every [joined Data Mart](./joinable-data-marts.md) offers a Unique Count of its own, at the bottom of that Data Mart's group in the **Columns** picker. In the picker it is simply `Unique Count` — the group heading above already names the Data Mart — with a tooltip naming that Data Mart and the key columns being counted. In the produced file it carries the Data Mart's name like any other joined field: `Unique Count (Orders)` in Google Sheets, `Orders Unique Count` everywhere else. It counts distinct records of **that** Data Mart by **its** primary key, composite keys included.
+
+This answers questions the join alone cannot: *"how many orders per customer"*, or *"how many unique products across a customer's orders"* — without adding the order or product key to the report as a column. Select as many as you need; each joined Data Mart contributes its own column.
+
+> ⚠️ A joined Unique Count can be **selected** and **sorted by**, like the report's own Data Mart's Unique Count. It cannot be filtered or aggregated on.
+
+When a joined Data Mart cannot offer the metric, the row is still shown, disabled, with a tooltip naming that Data Mart and explaining why. The primary key is defined on that Data Mart's **Data Setup** page:
+
+| Why it is disabled                                        | What to fix                                                                  |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| No primary key is set on that Data Mart                   | Mark the key field(s) as **PK** in that Data Mart's output schema.           |
+| Part of the primary key is disconnected                   | Reconnect the missing key field, or actualize that Data Mart's schema.       |
+| The primary key is a nested field (for example `user.id`) | Unique Count cannot key on a nested field — declare a top-level key instead. |
+| The primary key is nested **and** part of it is disconnected | Both need fixing — a top-level key, all of whose fields are connected. |
 
 ## Auto Row Count
 
 Whenever a report is aggregated, OWOX automatically adds a **`Row Count`** column (`COUNT(*)`) — the number of underlying rows in each group. There is no toggle; it is included because it is almost always useful when reading aggregated output.
 
+`Row Count` follows the **aggregate functions**, not the grouping. A report whose only metric is a Unique Count — its own Data Mart's or a joined one's — applies no aggregate function, so it gets no `Row Count` column even though it is grouped.
+
 ## Totals
 
 **Totals** are a per-column summary over the full filtered dataset, with no grouping. Totals cover every selected **numeric** field — aggregated by **all of its allowed functions** (for example `Sum`, `Average`, `Min`, and `Max` of `revenue`) — plus any **non-numeric field the report aggregates as a metric** (for example `Count Unique` on a text `country` column, giving its distinct count). `Sample` (`ANY_VALUE`) and `Combined` (`STRING_AGG`) are **never** part of Totals: a single representative value or a full-column concatenation is not a meaningful grand total. Totals are computed **in the warehouse** by a separate query and returned as a **separate block**, so they stay accurate and are never recomputed from the displayed rows.
 
-Totals are produced even when the report itself is not grouped, and fields from joined Data Marts are included on the same basis (numeric fields automatically; non-numeric ones when the report aggregates them). `Row Count` and `Unique count` are not part of Totals.
+Totals are produced even when the report itself is not grouped, and fields from joined Data Marts are included on the same basis (numeric fields automatically; non-numeric ones when the report aggregates them). `Row Count` and `Unique Count` are not part of Totals.
 
 > ⚠️ Totals are returned in the report **data API** (used by the MCP server and HTTP destinations), not written into Google Sheets or Looker Studio report output.
 
@@ -129,6 +148,9 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - `Count Unique` (`COUNT_DISTINCT`) and `Combined` (`STRING_AGG`) are not available for complex column types (JSON, geography, array, struct, and similar) — those values are neither comparable nor reliably text-convertible across warehouses, so only `Count` and `Sample` apply.
 - A date bucket's time zone affects only the bucketing. Date **filters** on the same field are evaluated in the warehouse's session time zone, so rows near midnight can land on different sides of a bucket boundary than of a filter boundary. Keep this in mind when combining a non-session time-zone bucket with a date filter on the same field.
 - Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, and Databricks, so the same percentile can differ slightly between storages.
+- A Unique Count — the report's own Data Mart's or a **joined** one's — can be selected as a column and used as a sort column, but not in a filter or as the input to another aggregation.
+- Unique Count ignores rows whose primary key is **empty** — an empty key is not an identity, so such rows are neither counted nor merged together. Declare a primary key only on columns that are genuinely unique and always filled.
+- **Turning on any Unique Count makes the report aggregated.** The remaining selected columns become `GROUP BY` keys, so a report that returned one row per underlying record now returns one row per combination of those columns. That is what makes the count meaningful per group, but it is not announced: unlike an aggregate function, a Unique Count adds no `Row Count` column to show how many records each row now stands for.
 - For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).
 - **Totals over joined fields are approximate**, because they re-aggregate the per-join roll-up rather than raw rows: `AVG`/percentiles are unweighted (an average of per-join averages), and a `Count Unique` over a joined **text** field counts distinct rolled-up values (by default a concatenation of the joined rows), not distinct raw values. Totals over the Data Mart's own (native) fields are exact.
 

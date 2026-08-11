@@ -20,6 +20,8 @@ import {
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { BigQueryBlendedQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-blended-query-builder';
+import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
 
 function makeReport(overrides: Partial<Report> = {}): Report {
   const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
@@ -155,7 +157,7 @@ describe('BlendedReportDataService', () => {
         roles: ['admin'],
       });
 
-      expect(result).toEqual({ needsBlending: false });
+      expect(result).toEqual({ needsBlending: false, primaryKeyColumns: [] });
       expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
     });
 
@@ -167,7 +169,7 @@ describe('BlendedReportDataService', () => {
         roles: ['admin'],
       });
 
-      expect(result).toEqual({ needsBlending: false });
+      expect(result).toEqual({ needsBlending: false, primaryKeyColumns: [] });
     });
 
     it('returns needsBlending=false with columnFilter when no blended columns match', async () => {
@@ -187,6 +189,7 @@ describe('BlendedReportDataService', () => {
         needsBlending: false,
         columnFilter: columnConfig,
         blendedDataHeaders: [],
+        primaryKeyColumns: [],
       });
       expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
         'dm-1',
@@ -1697,6 +1700,7 @@ describe('BlendedReportDataService', () => {
           needsBlending: false,
           columnFilter: ['native_only'],
           blendedDataHeaders: [],
+          primaryKeyColumns: [],
         });
         expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
       });
@@ -2523,6 +2527,595 @@ describe('BlendedReportDataService', () => {
         expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
           expect.objectContaining({ uniqueCountConfig: true })
         );
+      });
+    });
+
+    describe('joined Unique Count sources (#6792)', () => {
+      interface JoinedSourceSpec {
+        aliasPath: string;
+        defaultAlias: string;
+        relationshipId: string;
+        primaryKey?: string[];
+        accessible?: boolean;
+        included?: boolean;
+      }
+
+      const ORDERS: JoinedSourceSpec = {
+        aliasPath: 'orders',
+        defaultAlias: 'Orders',
+        relationshipId: 'rel-orders',
+        primaryKey: ['order_id'],
+      };
+      const ITEMS: JoinedSourceSpec = {
+        aliasPath: 'orders.items',
+        defaultAlias: 'Items',
+        relationshipId: 'rel-items',
+        primaryKey: ['item_id'],
+      };
+
+      function makeJoinedReport(
+        overrides: Partial<Report>,
+        sources: JoinedSourceSpec[],
+        mainPrimaryKey: string[] = ['user_id']
+      ): Report {
+        const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
+        const dataMart = {
+          id: 'dm-1',
+          title: 'Main DM',
+          projectId: 'project-1',
+          storage,
+          definition: { sqlQuery: 'SELECT 1' },
+          schema: {
+            fields: [
+              { name: 'customer_email', type: 'STRING' },
+              ...mainPrimaryKey.map(name => ({ name, type: 'STRING', isPrimaryKey: true })),
+            ],
+          },
+        } as unknown as DataMart;
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: sources.map((s, i) => ({
+            aliasPath: s.aliasPath,
+            title: `${s.defaultAlias} DM`,
+            defaultAlias: s.defaultAlias,
+            depth: s.aliasPath.split('.').length,
+            fieldCount: 1,
+            isIncluded: s.included ?? true,
+            isAccessibleForReporting: s.accessible ?? true,
+            relationshipId: s.relationshipId,
+            dataMartId: `dm-${i}`,
+          })),
+          blendedFields: sources.map(s => {
+            const field = new BlendedFieldDto();
+            field.name = `${s.aliasPath.split('.').join('_')}__status`;
+            field.sourceRelationshipId = s.relationshipId;
+            field.sourceDataMartId = 'dm-x';
+            field.sourceDataMartTitle = `${s.defaultAlias} DM`;
+            field.targetAlias = s.aliasPath.split('.').slice(-1)[0];
+            field.originalFieldName = 'status';
+            field.type = 'STRING';
+            field.isHidden = false;
+            field.aggregateFunction = 'STRING_AGG';
+            field.transitiveDepth = 1;
+            field.aliasPath = s.aliasPath;
+            field.outputPrefix = s.defaultAlias;
+            return field;
+          }),
+        });
+
+        const relationships = sources.map(
+          s =>
+            ({
+              id: s.relationshipId,
+              targetAlias: s.aliasPath.split('.').slice(-1)[0],
+              sourceDataMart: { id: 'dm-1' },
+              targetDataMart: {
+                id: `dm-${s.relationshipId}`,
+                title: `${s.defaultAlias} DM`,
+                schema: {
+                  fields: (s.primaryKey ?? []).map(name => ({
+                    name,
+                    type: 'STRING',
+                    isPrimaryKey: true,
+                  })),
+                },
+              },
+              joinConditions: [{ sourceFieldName: 'customer_id', targetFieldName: 'customer_id' }],
+            }) as unknown as DataMartRelationship
+        );
+        relationshipService.findBySourceDataMartId.mockResolvedValue(relationships);
+        relationshipService.findByIds.mockResolvedValue(relationships);
+        tableReferenceService.resolveTableName.mockResolvedValue('`p.d.t`');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT 1');
+
+        return {
+          id: 'report-1',
+          title: 'Test Report',
+          dataMart,
+          columnConfig: ['customer_email'],
+          ...overrides,
+        } as Report;
+      }
+
+      function capturedContext() {
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        return context;
+      }
+
+      // The headline case: the ONLY blended content is a joined Unique Count. Nothing else drags
+      // the report onto the blended path, so every seeding site has to let it through.
+      it('blends a report whose only blended content is a joined Unique Count', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders'] }, [ORDERS]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(result.chains?.map(c => c.cteName)).toEqual(['orders']);
+        expect(capturedContext()?.uniqueCountSources).toEqual([
+          {
+            aliasPath: 'orders',
+            cteName: 'orders',
+            pkColumns: ['order_id'],
+            outputLabel: 'orders__unique_count',
+            displayLabel: 'Orders Unique Count',
+          },
+        ]);
+      });
+
+      // query_data_mart's pseudo-field split (#6792) can leave `fields` — this report's
+      // `columnConfig` — as an explicit EMPTY array (e.g. "how many unique orders in total",
+      // where the pseudo-field was the only requested field). That must NOT take the
+      // `columnConfig === null` branch above (which requires an explicit column selection and
+      // throws for a blended reference) — `[]` already IS an explicit selection, just an empty
+      // one, and the joined Unique Count is a synthetic column that needs no companion dimension.
+      it('blends on an explicit EMPTY columnConfig ([], not null) when the only content is a joined Unique Count', async () => {
+        const report = makeJoinedReport({ columnConfig: [], uniqueCountConfig: ['orders'] }, [
+          ORDERS,
+        ]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(result.uniqueCountSources?.map(s => s.aliasPath)).toEqual(['orders']);
+      });
+
+      it('the decision and the query context share ONE source list (no second derivation)', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders'] }, [ORDERS]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources).toBe(capturedContext()?.uniqueCountSources);
+      });
+
+      it('pulls a nested source ancestor into the chains and labels it with its OWN prefix', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders.items'] }, [ORDERS, ITEMS]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.chains?.map(c => c.cteName)).toEqual(['orders', 'orders_items']);
+        expect(result.uniqueCountSources).toEqual([
+          {
+            aliasPath: 'orders.items',
+            cteName: 'orders_items',
+            pkColumns: ['item_id'],
+            outputLabel: 'orders_items__unique_count',
+            displayLabel: 'Items Unique Count',
+          },
+        ]);
+      });
+
+      // `defaultAlias` is free-form and set per relationship, so two joined sources can carry the
+      // same one and both headers then read `Orders Unique Count`. That is the convention, not a
+      // defect: a uniqueness-driven label makes a column's header depend on which OTHER columns
+      // happen to be selected. Every ordinary joined field of those two sources already collides
+      // the same way. The SQL names — what a reader binds by — stay distinct.
+      it('labels two sources sharing a display prefix alike, keeping the SQL names distinct', async () => {
+        const LEGACY: JoinedSourceSpec = {
+          aliasPath: 'legacy_orders',
+          defaultAlias: 'Orders',
+          relationshipId: 'rel-legacy',
+          primaryKey: ['order_id'],
+        };
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders', 'legacy_orders'] }, [
+          ORDERS,
+          LEGACY,
+        ]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources?.map(s => s.displayLabel)).toEqual([
+          'Orders Unique Count',
+          'Orders Unique Count',
+        ]);
+        expect(result.uniqueCountSources?.map(s => s.outputLabel)).toEqual([
+          'orders__unique_count',
+          'legacy_orders__unique_count',
+        ]);
+      });
+
+      // A relationship saved without a display alias has no Data Mart name to attach, and the
+      // formatter never emits `Unique Count ()` or a leading space — the bare metric name is
+      // exactly what an ordinary joined field with a blank prefix falls back to.
+      it('never labels a source with a blank prefix', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders'] }, [
+          { ...ORDERS, defaultAlias: '' },
+        ]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources?.[0].displayLabel).toBe('Unique Count');
+      });
+
+      // The metric is a joined field like any other, so its header follows the SAME per-destination
+      // convention (`formatBlendedFieldDisplayName`): Google Sheets writes it into a narrow cell
+      // and puts the Data Mart name last, everything else keeps it in front.
+      it.each([
+        {
+          case: 'a Google Sheets destination',
+          destinationType: DataDestinationType.GOOGLE_SHEETS,
+          expected: 'Unique Count (Orders)',
+        },
+        {
+          case: 'a Looker Studio destination',
+          destinationType: DataDestinationType.LOOKER_STUDIO,
+          expected: 'Orders Unique Count',
+        },
+        {
+          case: 'no destination at all',
+          destinationType: undefined,
+          expected: 'Orders Unique Count',
+        },
+      ])(
+        'labels the joined Unique Count header for $case',
+        async ({ destinationType, expected }) => {
+          const report = makeJoinedReport(
+            {
+              uniqueCountConfig: ['orders'],
+              ...(destinationType ? { dataDestination: { type: destinationType } } : {}),
+            } as Partial<Report>,
+            [ORDERS]
+          );
+
+          const result = await service.resolveBlendingDecision(report, {
+            userId: 'user-1',
+            roles: ['admin'],
+          });
+
+          expect(result.uniqueCountSources?.[0].displayLabel).toBe(expected);
+          // The SQL name never moves — readers bind result rows to headers by it.
+          expect(result.uniqueCountSources?.[0].outputLabel).toBe('orders__unique_count');
+        }
+      );
+
+      it('drops a source whose primary key is gone, keeping the others (F4 at source level)', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders', 'orders.items'] }, [
+          { ...ORDERS, primaryKey: [] },
+          ITEMS,
+        ]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources?.map(s => s.aliasPath)).toEqual(['orders.items']);
+      });
+
+      it('drops a source whose alias path no longer exists', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['ghost'] }, [ORDERS]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources).toEqual([]);
+      });
+
+      it('rejects a Unique Count on a source the user cannot read', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders'] }, [
+          { ...ORDERS, accessible: false },
+        ]);
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toThrow(/missing access to data marts/);
+      });
+
+      it('keeps the main Unique Count on its own route (no joined source, no sleeve list)', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['', 'orders'] }, [ORDERS]);
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(capturedContext()?.uniqueCount).toBe(true);
+        expect(capturedContext()?.primaryKeyColumns).toEqual(['user_id']);
+        expect(capturedContext()?.uniqueCountSources?.map(s => s.aliasPath)).toEqual(['orders']);
+      });
+
+      it('keeps the free-form source title out of the SQL name (dots would break BigQuery)', () => {
+        // `defaultAlias` is `sourceConfig?.alias ?? targetDataMart.title` — free-form, and
+        // blendable-schema.service.ts states it "must never flow into SQL identifiers". A Data Mart
+        // titled `GA4.Events` must still yield a legal output column.
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders'] }, [
+          { ...ORDERS, defaultAlias: 'GA4.Events' },
+        ]);
+
+        return service
+          .resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+          .then(result => {
+            expect(result.uniqueCountSources?.[0].outputLabel).toBe('orders__unique_count');
+            expect(result.uniqueCountSources?.[0].displayLabel).toBe('GA4.Events Unique Count');
+          });
+      });
+
+      it('drops a source excluded from reporting', async () => {
+        const report = makeJoinedReport({ uniqueCountConfig: ['orders', 'orders.items'] }, [
+          { ...ORDERS, included: false },
+          ITEMS,
+        ]);
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources?.map(s => s.aliasPath)).toEqual(['orders.items']);
+      });
+
+      // `columnConfig: null` means "every native column", which the blended builder cannot express
+      // — it needs an explicit list. The metric must not vanish without a word.
+      it('fails loudly for a joined Unique Count with no explicit column selection', async () => {
+        const report = makeJoinedReport({ columnConfig: null, uniqueCountConfig: ['orders'] }, [
+          ORDERS,
+        ]);
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toThrow(/require an explicit column selection/);
+      });
+
+      // A stale source used to buy a schema lookup and a quiet `needsBlending: false` here. That
+      // leniency could never run: validateForReport is called unconditionally above and refuses a
+      // null projection for ANY joined Unique Count source, live or stale
+      // (JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG), so the decision is taken before this point.
+      it('does not special-case a STALE source on a null projection', async () => {
+        const report = makeJoinedReport({ columnConfig: null, uniqueCountConfig: ['ghost'] }, [
+          ORDERS,
+        ]);
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toThrow(/require an explicit column selection/);
+        expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+          expect.objectContaining({ columnConfig: null, uniqueCountConfig: ['ghost'] })
+        );
+      });
+
+      // End to end for #6764's promise that Unique Count sorts "like any other column": the sort
+      // rule survives the decision, reaches the builder, and renders against the outer SELECT
+      // alias — the raw CTEs must never be asked for a column named after a synthetic metric.
+      it('carries a sort on a joined Unique Count through to runnable SQL', async () => {
+        const report = makeJoinedReport(
+          {
+            columnConfig: ['customer_email'],
+            uniqueCountConfig: ['orders'],
+            sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          },
+          [ORDERS]
+        );
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(capturedContext()?.sort).toEqual([
+          { column: 'orders__unique_count', direction: 'desc' },
+        ]);
+        const { sql } = new BigQueryBlendedQueryBuilder(
+          new BigQueryClauseRenderer()
+        ).buildBlendedQuery(capturedContext()!);
+
+        expect(sql).toContain(
+          'COALESCE(ANY_VALUE(sleeve_uc_orders.orders__unique_count), 0) AS orders__unique_count'
+        );
+        expect(sql).toContain('ORDER BY\n  `orders__unique_count` DESC');
+        const mainCte = /main AS \(([\s\S]+?)\n {2}\)/m.exec(sql);
+        expect(mainCte).not.toBeNull();
+        expect(mainCte![1]).not.toContain('orders__unique_count');
+      });
+
+      // A scheduled run never reopens the editor that prunes the stale rule, so the sort has to
+      // degrade with the metric it points at — otherwise ORDER BY names an alias the SELECT lost.
+      it.each([
+        ['its primary key is gone', { ...ORDERS, primaryKey: [] }],
+        ['it is excluded from reporting', { ...ORDERS, included: false }],
+      ])('drops a sort on a joined Unique Count when %s', async (_case, source) => {
+        const report = makeJoinedReport(
+          {
+            columnConfig: ['customer_email'],
+            uniqueCountConfig: ['orders'],
+            sortConfig: [
+              { column: 'orders__unique_count', direction: 'desc' },
+              { column: 'customer_email', direction: 'asc' },
+            ],
+          },
+          [source]
+        );
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.uniqueCountSources).toEqual([]);
+        expect(capturedContext()?.sort).toEqual([{ column: 'customer_email', direction: 'asc' }]);
+        const { sql } = new BigQueryBlendedQueryBuilder(
+          new BigQueryClauseRenderer()
+        ).buildBlendedQuery(capturedContext()!);
+        expect(sql).not.toContain('orders__unique_count');
+      });
+
+      // The pseudo-metric's name can be owned by a REAL field (#6792) — then the rule sorts by that
+      // field and survives the source being dropped.
+      it('keeps the sort when a real joined field owns the Unique Count name', async () => {
+        const report = makeJoinedReport(
+          {
+            columnConfig: ['orders__status'],
+            uniqueCountConfig: ['orders'],
+            sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          },
+          [{ ...ORDERS, primaryKey: [] }]
+        );
+        const schema = await blendableSchemaService.computeBlendableSchema(
+          'dm-1',
+          'project-1',
+          {} as never
+        );
+        const realField = new BlendedFieldDto();
+        Object.assign(realField, schema.blendedFields[0], { name: 'orders__unique_count' });
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          ...schema,
+          blendedFields: [...schema.blendedFields, realField],
+        });
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(capturedContext()?.sort).toEqual([
+          { column: 'orders__unique_count', direction: 'desc' },
+        ]);
+      });
+
+      // A source `resolveUniqueCountSources` dropped still had its CTE and LEFT JOIN emitted: a
+      // paid warehouse scan feeding a column nobody reads.
+      describe('a dropped source must not still be joined (F11)', () => {
+        it.each([
+          ['its primary key is gone', { ...ORDERS, primaryKey: [] }],
+          ['it is excluded from reporting', { ...ORDERS, included: false }],
+        ])(
+          'drops the chain of a source seeded ONLY by a Unique Count, when %s',
+          async (_case, source) => {
+            const report = makeJoinedReport(
+              { columnConfig: ['customer_email'], uniqueCountConfig: ['orders'] },
+              [source]
+            );
+
+            const result = await service.resolveBlendingDecision(report, {
+              userId: 'user-1',
+              roles: ['admin'],
+            });
+
+            expect(result.uniqueCountSources).toEqual([]);
+            expect(result.chains).toEqual([]);
+            expect(capturedContext()?.chains).toEqual([]);
+          }
+        );
+
+        // The narrowness that makes this safe: `buildRelationshipChains` is deliberately NOT
+        // filtered by `isIncluded`, and an excluded source's fields stay selectable, filterable and
+        // sortable — they resolve precisely BECAUSE the join is built unconditionally. Dropping a
+        // dead Unique Count's chain must never take an ordinary reference down with it.
+        it.each([
+          ['sorted', { sortConfig: [{ column: 'orders__status', direction: 'asc' }] }],
+          [
+            'post-join filtered',
+            {
+              filterConfig: [
+                { column: 'orders__status', operator: 'eq', value: 'x', placement: 'post-join' },
+              ],
+            },
+          ],
+          ['selected', { columnConfig: ['customer_email', 'orders__status'] }],
+        ])(
+          'keeps the chain when an ordinary field of that source is still %s',
+          async (_case, overrides) => {
+            const report = makeJoinedReport(
+              {
+                columnConfig: ['customer_email'],
+                uniqueCountConfig: ['orders'],
+                ...(overrides as Partial<Report>),
+              },
+              [{ ...ORDERS, included: false }]
+            );
+
+            const result = await service.resolveBlendingDecision(report, {
+              userId: 'user-1',
+              roles: ['admin'],
+            });
+
+            expect(result.uniqueCountSources).toEqual([]);
+            expect(result.chains?.map(c => c.cteName)).toEqual(['orders']);
+          }
+        );
+
+        // A surviving nested source still needs its ancestor joined, even though that ancestor's
+        // OWN Unique Count was dropped and nothing else references it.
+        it('keeps an ancestor a SURVIVING nested Unique Count still needs', async () => {
+          const report = makeJoinedReport(
+            { columnConfig: ['customer_email'], uniqueCountConfig: ['orders', 'orders.items'] },
+            [{ ...ORDERS, primaryKey: [] }, ITEMS]
+          );
+
+          const result = await service.resolveBlendingDecision(report, {
+            userId: 'user-1',
+            roles: ['admin'],
+          });
+
+          expect(result.uniqueCountSources?.map(s => s.aliasPath)).toEqual(['orders.items']);
+          expect(result.chains?.map(c => c.cteName)).toEqual(['orders', 'orders_items']);
+        });
+
+        it('leaves the chains untouched when every configured source survives', async () => {
+          const report = makeJoinedReport(
+            { columnConfig: ['customer_email'], uniqueCountConfig: ['orders', 'orders.items'] },
+            [ORDERS, ITEMS]
+          );
+
+          const result = await service.resolveBlendingDecision(report, {
+            userId: 'user-1',
+            roles: ['admin'],
+          });
+
+          expect(result.chains?.map(c => c.cteName)).toEqual(['orders', 'orders_items']);
+        });
+      });
+
+      it('emits byte-identical SQL for a legacy uniqueCountConfig: true report', async () => {
+        const buildSql = async (uniqueCountConfig: Report['uniqueCountConfig']) => {
+          blendedQueryBuilderFacade.buildBlendedQuery.mockClear();
+          const report = makeJoinedReport(
+            { columnConfig: ['customer_email', 'orders__status'], uniqueCountConfig },
+            [ORDERS]
+          );
+          await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+          // The facade is mocked, so render the captured context through the REAL BigQuery
+          // builder — the same pure function production runs.
+          return new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer()).buildBlendedQuery(
+            capturedContext()!
+          );
+        };
+
+        const legacy = await buildSql(true);
+        const listed = await buildSql(['']);
+
+        expect(listed).toEqual(legacy);
+        expect(JSON.stringify(listed)).toBe(JSON.stringify(legacy));
       });
     });
   });

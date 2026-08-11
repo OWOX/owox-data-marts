@@ -1108,6 +1108,88 @@ describe('McpReportsFacadeImpl.updateReport', () => {
     );
   });
 
+  describe('fields ["*"] on a report carrying a joined Unique Count (#6792)', () => {
+    const reportWithJoinedUniqueCount = {
+      ...currentReport,
+      columnConfig: null,
+      uniqueCountConfig: ['orders'],
+      dataMart: {
+        id: 'dm-1',
+        schema: {
+          fields: [
+            { name: 'channel', type: 'STRING' },
+            {
+              name: 'customer',
+              type: 'RECORD',
+              fields: [{ name: 'id', type: 'STRING' }],
+            },
+            { name: 'internal_only', type: 'STRING', isHiddenForReporting: true },
+            { name: 'gone', type: 'STRING', status: 'DISCONNECTED' },
+          ],
+        },
+      },
+    } as unknown as ReportDto;
+
+    it('materializes the explicit column list from the data mart schema', async () => {
+      const built = buildUpdateFacade();
+      built.getReportService.run.mockResolvedValue(reportWithJoinedUniqueCount);
+
+      await built.facade.updateReport({ ...updateRequest, fields: ['*'] });
+
+      // Same walk the web picker materializes with: nested paths included, hidden and
+      // disconnected fields pruned.
+      expect(built.updateReportService.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          columnConfig: ['channel', 'customer', 'customer.id'],
+          uniqueCountConfig: ['orders'],
+        })
+      );
+    });
+
+    it('keeps an explicit field list untouched', async () => {
+      const built = buildUpdateFacade();
+      built.getReportService.run.mockResolvedValue(reportWithJoinedUniqueCount);
+
+      await built.facade.updateReport({ ...updateRequest, fields: ['channel'] });
+
+      expect(built.updateReportService.run).toHaveBeenCalledWith(
+        expect.objectContaining({ columnConfig: ['channel'] })
+      );
+    });
+
+    // An empty expansion is an explicit "project nothing", which the validator accepts as a
+    // metrics-only selection — so "all fields" saved as "no dimensions", silently.
+    it.each([
+      ['the schema is absent entirely', undefined],
+      ['every field is pruned as hidden or disconnected', { fields: [] }],
+    ])('refuses fields ["*"] it cannot expand — %s', async (_case, schema) => {
+      const built = buildUpdateFacade();
+      built.getReportService.run.mockResolvedValue({
+        ...reportWithJoinedUniqueCount,
+        dataMart: { id: 'dm-1', title: 'Orders DM', schema },
+      } as unknown as ReportDto);
+
+      await expect(built.facade.updateReport({ ...updateRequest, fields: ['*'] })).rejects.toThrow(
+        /cannot be expanded.*Orders DM/s
+      );
+      expect(built.updateReportService.run).not.toHaveBeenCalled();
+    });
+
+    it('leaves fields ["*"] as no projection when only the MAIN mart Unique Count is on', async () => {
+      const built = buildUpdateFacade();
+      built.getReportService.run.mockResolvedValue({
+        ...reportWithJoinedUniqueCount,
+        uniqueCountConfig: true,
+      } as unknown as ReportDto);
+
+      await built.facade.updateReport({ ...updateRequest, fields: ['*'] });
+
+      expect(built.updateReportService.run).toHaveBeenCalledWith(
+        expect.objectContaining({ columnConfig: null })
+      );
+    });
+  });
+
   it('replaces the row filters while preserving the name and columns', async () => {
     const { facade, updateReportService } = buildUpdateFacade();
 

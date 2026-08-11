@@ -7,6 +7,7 @@ import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
 import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
+import { normalizeUniqueCountSources } from '../schemas/unique-count-sources';
 import { usesSuffixedJoinedFieldNames as usesSuffixedJoinedFieldNamesFor } from '../../data-destination-types/enums/data-destination-type.enum';
 
 // Must stay structurally compatible with the subset of `Report` fields read by
@@ -78,6 +79,6 @@ export function hasOutputControls(report: ReportLike): boolean {
     (report.aggregationConfig?.length ?? 0) > 0 ||
     (report.dateTruncConfig?.length ?? 0) > 0 ||
     report.limitConfig != null ||
-    report.uniqueCountConfig === true
+    normalizeUniqueCountSources(report.uniqueCountConfig).length > 0
   );
 }

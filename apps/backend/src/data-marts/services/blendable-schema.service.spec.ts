@@ -15,6 +15,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { buildBlendedFieldUnifiedName } from './blended-field-name';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { AvailableSourceDto } from '../dto/domain/blendable-schema.dto';
 
 const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
 
@@ -980,6 +981,142 @@ describe('BlendableSchemaService', () => {
 
       expect(result.blendedFields).toHaveLength(1);
       expect(result.blendedFields[0].originalFieldName).toBe('visible');
+    });
+
+    describe('uniqueCountAvailability', () => {
+      // Wires a single joined source with the given RAW target schema fields and returns the
+      // corresponding availableSources[0], the way Task 8's picker will read it.
+      async function computeJoinedAvailableSource(
+        fields: Array<Record<string, unknown>>
+      ): Promise<AvailableSourceDto> {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+        const relationship = makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'target',
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            title: 'Target',
+            schema: { type: 'bigquery-data-mart-schema', fields } as unknown as DataMart['schema'],
+          }),
+        });
+        relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        return result.availableSources[0];
+      }
+
+      it.each([
+        [[{ name: 'id', type: 'INTEGER', isPrimaryKey: true }], 'available'],
+        [[{ name: 'id', type: 'INTEGER' }], 'no-primary-key'],
+        [
+          [{ name: 'id', type: 'INTEGER', isPrimaryKey: true, isHiddenForReporting: true }],
+          'available',
+        ],
+      ])('classifies %j as %s', async (fields, expected) => {
+        const availableSource = await computeJoinedAvailableSource(fields);
+        expect(availableSource.uniqueCountAvailability).toBe(expected);
+      });
+
+      // The trap: `targetSchemaFields` inside the service is already filtered by
+      // isHiddenForReporting for the reporting menu. Classifying from that filtered list would
+      // wrongly report no-primary-key for a target whose key merely happens to be hidden — the
+      // classifier must be fed the RAW schema, not the locally-filtered one.
+      it('reports available for a hidden primary key even when other fields are visible', async () => {
+        const availableSource = await computeJoinedAvailableSource([
+          { name: 'visible', type: 'STRING' },
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, isHiddenForReporting: true },
+        ]);
+
+        expect(availableSource.uniqueCountAvailability).toBe('available');
+        // The hidden PK is still excluded from the reporting-menu field/blended-field list.
+        expect(availableSource.fieldCount).toBe(1);
+      });
+
+      it('reports disconnected-primary-key when the declared key is DISCONNECTED', async () => {
+        const availableSource = await computeJoinedAvailableSource([
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, status: 'DISCONNECTED' },
+        ]);
+        expect(availableSource.uniqueCountAvailability).toBe('disconnected-primary-key');
+      });
+
+      it('reports nested-primary-key when the declared key lives inside a nested container', async () => {
+        const availableSource = await computeJoinedAvailableSource([
+          {
+            name: 'meta',
+            type: 'RECORD',
+            fields: [{ name: 'inner_id', type: 'INTEGER', isPrimaryKey: true }],
+          },
+        ]);
+        expect(availableSource.uniqueCountAvailability).toBe('nested-primary-key');
+      });
+    });
+
+    // What the picker's tooltip names as the columns being counted. The SAME columns the sleeve
+    // counts by, so the explanation can never describe a key the query does not use.
+    describe('uniqueCountKeyFields', () => {
+      async function computeJoinedAvailableSource(
+        fields: Array<Record<string, unknown>>
+      ): Promise<AvailableSourceDto> {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+        relationshipService.findByStorageId.mockResolvedValue([
+          makeRelationship({
+            id: 'rel-1',
+            targetAlias: 'target',
+            targetDataMart: makeDataMart({
+              id: 'dm-2',
+              title: 'Target',
+              schema: {
+                type: 'bigquery-data-mart-schema',
+                fields,
+              } as unknown as DataMart['schema'],
+            }),
+          }),
+        ]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        return result.availableSources[0];
+      }
+
+      it('lists every component of a multi-column key, in schema order', async () => {
+        const source = await computeJoinedAvailableSource([
+          { name: 'date', type: 'DATE', isPrimaryKey: true },
+          { name: 'revenue', type: 'FLOAT' },
+          { name: 'campaign', type: 'STRING', isPrimaryKey: true },
+        ]);
+
+        expect(source.uniqueCountKeyFields).toEqual(['date', 'campaign']);
+      });
+
+      // A hidden key still keys the join, so the tooltip names it — the metric IS counted by it.
+      it('includes a key hidden from reporting', async () => {
+        const source = await computeJoinedAvailableSource([
+          { name: 'visible', type: 'STRING' },
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, isHiddenForReporting: true },
+        ]);
+
+        expect(source.uniqueCountKeyFields).toEqual(['id']);
+      });
+
+      it.each([
+        ['no key at all', [{ name: 'id', type: 'INTEGER' }]],
+        [
+          'a disconnected key',
+          [{ name: 'id', type: 'INTEGER', isPrimaryKey: true, status: 'DISCONNECTED' }],
+        ],
+        [
+          'a nested key',
+          [
+            {
+              name: 'meta',
+              type: 'RECORD',
+              fields: [{ name: 'inner_id', type: 'INTEGER', isPrimaryKey: true }],
+            },
+          ],
+        ],
+      ])('is empty for %s — there is nothing the metric would count', async (_case, fields) => {
+        const source = await computeJoinedAvailableSource(fields);
+
+        expect(source.uniqueCountKeyFields).toEqual([]);
+      });
     });
 
     it('should expose nativeDescription and availableSources[i].description for the reporting UI', async () => {

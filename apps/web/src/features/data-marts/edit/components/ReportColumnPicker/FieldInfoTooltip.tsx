@@ -13,7 +13,9 @@ export function FieldInfoTooltip({ text, compact }: FieldInfoTooltipProps) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className='text-muted-foreground/50 hover:text-muted-foreground inline-flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100'
+          // Both the bare `group` (field rows, group headers) and the named `group/row`, so a row
+          // that must not join an ancestor's anonymous group can declare only the latter.
+          className='text-muted-foreground/50 hover:text-muted-foreground inline-flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-hover/row:opacity-100'
           onClick={e => {
             // Prevent parent <label>/<button> from toggling the checkbox or
             // collapsing the group when the user clicks the info icon.

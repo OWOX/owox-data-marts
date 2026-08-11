@@ -1082,4 +1082,52 @@ describe('RunReportService', () => {
       expect.not.objectContaining({ uniqueCount: true })
     );
   });
+
+  // Drop any one of these and the SQL emits a column the header list has no entry for —
+  // the header/column desync that silently shifts every value in a scheduled run.
+  it('forwards the blending decision primaryKeyColumns and uniqueCountSources to prepareReportData', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, blendedReportDataService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.uniqueCountConfig = ['', 'orders'];
+
+    const uniqueCountSources = [
+      {
+        aliasPath: 'orders',
+        cteName: 'orders_cte',
+        pkColumns: ['order_id'],
+        outputLabel: 'orders__unique_count',
+        displayLabel: 'Orders Unique Count',
+      },
+    ];
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
+      needsBlending: false,
+      primaryKeyColumns: ['id'],
+      uniqueCountSources,
+    });
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] }
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
+
+    expect(reader.prepareReportData).toHaveBeenCalledWith(
+      report,
+      expect.objectContaining({
+        uniqueCount: true,
+        primaryKeyColumns: ['id'],
+        uniqueCountSources,
+      })
+    );
+  });
 });

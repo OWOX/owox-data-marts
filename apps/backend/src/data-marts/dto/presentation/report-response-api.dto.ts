@@ -81,8 +81,10 @@ export class ReportResponseApiDto {
   @ApiProperty({
     nullable: true,
     required: false,
-    description: 'Unique Count config',
-    type: Boolean,
+    description:
+      'Unique Count sources. `true` (legacy) counts distinct primary keys of the main Data Mart; ' +
+      'an array lists source alias paths, where an empty string denotes the main Data Mart.',
+    oneOf: [{ type: 'boolean' }, { type: 'array', items: { type: 'string' } }],
   })
   uniqueCountConfig?: UniqueCountConfig;
 

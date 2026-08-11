@@ -231,11 +231,13 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
+    const uniqueCountSources = context.uniqueCountSources ?? [];
     const aggregated =
       (context.aggregations?.length ?? 0) > 0 ||
       (context.dateTruncs?.length ?? 0) > 0 ||
       context.rowCount === true ||
-      (context.uniqueCount === true && (context.primaryKeyColumns?.length ?? 0) > 0);
+      (context.uniqueCount === true && (context.primaryKeyColumns?.length ?? 0) > 0) ||
+      uniqueCountSources.length > 0;
 
     // Capability guard first — storages without a clauseRenderer can't honour any controls.
     const hasOutputControls =
@@ -271,13 +273,18 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       ...(context.groupRestriction?.dimensions ?? []),
       ...(context.groupRestriction?.having ?? []).map(rule => rule.column),
     ]);
-    // Row Count / Unique Count are OUTER-SELECT aliases, not columns of any CTE. A sort (or
-    // HAVING) on one would otherwise flow through collectMainReferences into the main raw CTE
-    // and emit `SELECT "Unique Count" FROM <main table>` — a column that does not exist, so
-    // every run and Generated SQL preview fails in the warehouse. Dropped here rather than
-    // per-source so filters and any future ref source are covered too. A real column that
-    // legitimately owns the name arrives via `columns`, so keep it when it is selected.
-    for (const label of [UNIQUE_COUNT_LABEL, ROW_COUNT_LABEL]) {
+    // Row Count / Unique Count — and each joined source's `<source>__unique_count` — are
+    // OUTER-SELECT aliases, not columns of any CTE. A sort (or HAVING) on one would otherwise flow
+    // through collectMainReferences into the main raw CTE and emit
+    // `SELECT "Unique Count" FROM <main table>` — a column that does not exist, so every run and
+    // Generated SQL preview fails in the warehouse. Dropped here rather than per-source so filters
+    // and any future ref source are covered too. A real column that legitimately owns the name
+    // arrives via `columns`, so keep it when it is selected.
+    for (const label of [
+      UNIQUE_COUNT_LABEL,
+      ROW_COUNT_LABEL,
+      ...uniqueCountSources.map(s => s.outputLabel),
+    ]) {
       if (!columnSet.has(label)) referencedColumns.delete(label);
     }
 
@@ -322,14 +329,19 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       outputAliasToRoot,
       context
     );
+    // A joined Unique Count counts `<cte>_raw.<key>`, and a declared key is frequently referenced
+    // by nothing else — so it rides the same projection path the value sleeve's identity uses.
+    const uniqueCountKeyColumns = new Map<string, readonly string[]>(
+      uniqueCountSources.map(s => [s.cteName, s.pkColumns])
+    );
 
     for (const root of roots) {
-      const { ctes, params } = cteBuilder.buildSubtreeCtes(
-        root,
+      const { ctes, params } = cteBuilder.buildSubtreeCtes(root, {
         preJoinByCte,
         resolveColumnType,
-        valueSleeveOwners
-      );
+        valueSleeveOwners,
+        uniqueCountKeyColumns,
+      });
       cteBlocks.push(...ctes);
       cteParams.push(...params);
     }
@@ -470,7 +482,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       // SELECT item) but the join-back below is still one per CTE — that shared join-back is
       // the point of merging.
       //
-      // a COUNT_DISTINCT sleeve pull is wrapped in COALESCE(..., 0). The sleeve
+      // a counting sleeve pull is wrapped in COALESCE(..., 0). The sleeve
       // itself always computes the right value (COUNT is a counting function — 0 over zero
       // rows, never NULL), but the OUTER pull reads it through ANY_VALUE over the join-back
       // (CROSS JOIN for a grand total, LEFT JOIN per group) — and ANY_VALUE, like AVG, returns
@@ -480,12 +492,14 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       // COALESCE restores the sleeve's own already-correct value. SUM and AVG are LEFT bare:
       // NULL-over-empty is the correct SQL aggregate semantics for those (no data is not the
       // same as a genuine zero), so coalescing them would misrepresent "no data" as "zero".
+      // Which shape a pull is, is decided where it is BUILT (`SleevePull.coalesceEmptyToZero`) —
+      // a joined Unique Count counts too but carries no aggregation rule to re-derive it from.
       const sleeveSelect = sleeves.flatMap(s =>
         s.pulls.map(p => {
           const pulled = this.buildAnyValue(
             `${this.quoteIdentifier(s.cteName)}.${this.quoteIdentifier(p.alias)}`
           );
-          const value = p.metric.function === 'COUNT_DISTINCT' ? `COALESCE(${pulled}, 0)` : pulled;
+          const value = p.coalesceEmptyToZero ? `COALESCE(${pulled}, 0)` : pulled;
           return `${value} AS ${this.quoteIdentifier(p.alias)}`;
         })
       );

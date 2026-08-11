@@ -23,6 +23,7 @@ vi.mock('./destination-config-mapper.factory.ts', () => ({
 import { mapReportDtoToEntity } from './report.mapper';
 import type { ReportResponseDto } from '../../services';
 import { DestinationTypeConfigEnum } from '../../enums/destination-type-config.enum';
+import { MAIN_UNIQUE_COUNT_SOURCE } from '../../../../shared/types/output-config';
 
 function buildMinimalDto(overrides: Partial<ReportResponseDto> = {}): ReportResponseDto {
   return {
@@ -64,25 +65,32 @@ beforeEach(() => {
 });
 
 describe('mapReportDtoToEntity — uniqueCountConfig', () => {
-  it('maps true → true', () => {
+  it('maps the legacy true → the main Data Mart source key', () => {
     const entity = mapReportDtoToEntity(buildMinimalDto({ uniqueCountConfig: true }));
-    expect(entity.uniqueCountConfig).toBe(true);
+    expect(entity.uniqueCountConfig).toEqual([MAIN_UNIQUE_COUNT_SOURCE]);
   });
 
-  it('maps false → false', () => {
+  it('maps the legacy false → []', () => {
     const entity = mapReportDtoToEntity(buildMinimalDto({ uniqueCountConfig: false }));
-    expect(entity.uniqueCountConfig).toBe(false);
+    expect(entity.uniqueCountConfig).toEqual([]);
   });
 
-  it('maps null → false', () => {
+  it('maps null → []', () => {
     const entity = mapReportDtoToEntity(buildMinimalDto({ uniqueCountConfig: null }));
-    expect(entity.uniqueCountConfig).toBe(false);
+    expect(entity.uniqueCountConfig).toEqual([]);
   });
 
-  it('maps absent (undefined) → false', () => {
+  it('maps absent (undefined) → []', () => {
     const dto = buildMinimalDto();
     delete (dto as Partial<ReportResponseDto>).uniqueCountConfig;
     const entity = mapReportDtoToEntity(dto);
-    expect(entity.uniqueCountConfig).toBe(false);
+    expect(entity.uniqueCountConfig).toEqual([]);
+  });
+
+  it('passes a source list through unchanged', () => {
+    const entity = mapReportDtoToEntity(
+      buildMinimalDto({ uniqueCountConfig: ['', 'orders', 'orders.items'] })
+    );
+    expect(entity.uniqueCountConfig).toEqual(['', 'orders', 'orders.items']);
   });
 });

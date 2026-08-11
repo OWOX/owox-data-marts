@@ -12,7 +12,7 @@ const EMPTY_CONFIG: OutputConfig = {
   limitConfig: null,
   aggregationConfig: [],
   dateTruncConfig: [],
-  uniqueCountConfig: false,
+  uniqueCountConfig: [],
 };
 
 describe('OutputSettingsDropdown disconnected controls', () => {
@@ -31,7 +31,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       limitConfig: null,
       aggregationConfig: [],
       dateTruncConfig: [],
-      uniqueCountConfig: false,
+      uniqueCountConfig: [],
     };
 
     render(
@@ -65,7 +65,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       limitConfig: null,
       aggregationConfig: [],
       dateTruncConfig: [],
-      uniqueCountConfig: false,
+      uniqueCountConfig: [],
     };
 
     render(
@@ -94,7 +94,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       limitConfig: null,
       aggregationConfig: [],
       dateTruncConfig: [],
-      uniqueCountConfig: false,
+      uniqueCountConfig: [],
     };
 
     render(
@@ -131,7 +131,7 @@ describe('OutputSettingsDropdown readable labels', () => {
       limitConfig: null,
       aggregationConfig: [],
       dateTruncConfig: [],
-      uniqueCountConfig: false,
+      uniqueCountConfig: [],
     };
 
     render(
@@ -156,7 +156,7 @@ describe('OutputSettingsDropdown readable labels', () => {
       limitConfig: null,
       aggregationConfig: [],
       dateTruncConfig: [],
-      uniqueCountConfig: false,
+      uniqueCountConfig: [],
     };
 
     render(

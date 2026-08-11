@@ -17,6 +17,7 @@ import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { hasOutputControls } from '../dto/domain/report-like-read-plan';
+import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportSqlComposerService } from './report-sql-composer.service';
 
 /**
@@ -69,7 +70,9 @@ export class ReportDataCacheService {
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
         aggregationConfig: decision.aggregations ?? report.aggregationConfig ?? undefined,
-        uniqueCount: report.uniqueCountConfig ?? undefined,
+        uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
+        primaryKeyColumns: decision.primaryKeyColumns,
+        uniqueCountSources: decision.uniqueCountSources,
       },
       decision,
     };

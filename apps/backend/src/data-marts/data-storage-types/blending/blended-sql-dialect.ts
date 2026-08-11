@@ -12,6 +12,10 @@ import { ColumnRefResolver, SqlClauseRenderer } from '../utils/sql-clause-render
  * Re-aggregation policy and logging are NOT here — they are the same for every warehouse, and a
  * port that carries them invites the sixth dialect to override something it should not.
  *
+ * No text cast and no string concatenation: every sleeve carries a row identity as SEPARATE TUPLE
+ * SLOTS, so nothing in the blended path reduces a key to one text scalar. Only the FLAT
+ * main-Data-Mart `COUNT(DISTINCT …)` does, and it reads `SqlClauseRenderer` directly.
+ *
  * `clauseRenderer` is a FUNCTION, not a property: every dialect implements it as a getter over
  * an instance field, so it must be read at call time — an eagerly captured value would be
  * `undefined` for a subclass whose field initializer has not run yet.

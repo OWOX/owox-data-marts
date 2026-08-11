@@ -7,6 +7,8 @@ import { RedshiftFieldType } from '../data-storage-types/redshift/enums/redshift
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { buildBlendedFieldIndex } from './blended-field-index';
+import { MAIN_UNIQUE_COUNT_SOURCE } from '../dto/schemas/unique-count-sources';
+import { JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES } from '../data-storage-types/data-mart-schema.utils';
 
 describe('OutputControlsValidatorService', () => {
   const svc = new OutputControlsValidatorService(undefined as never, undefined as never);
@@ -3035,6 +3037,32 @@ describe('OutputControlsValidatorService', () => {
       const errors = svc.validateOutputColumnNames(['channel', 'revenue'], [], false, false);
       expect(errors).toEqual([]);
     });
+
+    // A joined Unique Count name is built from the alias path and is NOT cut to the identifier
+    // limit when it is built. Redshift's max_identifier_length is 127 BYTES and it TRUNCATES an
+    // over-long alias instead of rejecting it, so two deep paths would come back as one result
+    // column — this comparison is what stops that pair ever reaching a warehouse.
+    it('rejects two joined Unique Count names that collide once cut to the identifier limit', () => {
+      const deep = 'a'.repeat(130);
+
+      const errors = svc.validateOutputColumnNames(['channel'], [], false, false, [
+        `${deep}1__unique_count`,
+        `${deep}2__unique_count`,
+      ]);
+
+      expect(errors).toEqual([
+        { code: 'OUTPUT_COLUMN_NAME_COLLISION', label: `${deep}2__unique_count` },
+      ]);
+    });
+
+    it('accepts joined Unique Count names that stay distinct within that limit', () => {
+      const errors = svc.validateOutputColumnNames(['channel'], [], false, false, [
+        'orders__unique_count',
+        'products__unique_count',
+      ]);
+
+      expect(errors).toEqual([]);
+    });
   });
 
   describe('validateForReport — aggregationConfig', () => {
@@ -3462,12 +3490,13 @@ describe('OutputControlsValidatorService', () => {
     });
 
     const makeBlendableSchemaService = (
-      nativeFields: { name: string; type: string; isPrimaryKey?: boolean }[] = []
+      nativeFields: { name: string; type: string; isPrimaryKey?: boolean }[] = [],
+      availableSources: { aliasPath: string }[] = []
     ) => ({
       computeBlendableSchema: jest.fn().mockResolvedValue({
         nativeFields,
         blendedFields: [],
-        availableSources: [],
+        availableSources,
       }),
     });
 
@@ -3744,6 +3773,595 @@ describe('OutputControlsValidatorService', () => {
       expect(caught).toBeInstanceOf(BadRequestException);
       const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
       expect(response.details.errors.some(e => e.code === 'SORT_COLUMN_NOT_SELECTED')).toBe(true);
+    });
+
+    // Array-form config (#6792): a joined-only source still counts as an output control, but the
+    // MAIN-only checks (PK requirement, sort/column-name gating) key off hasMainUniqueCount, not
+    // the array's mere presence.
+    it('is treated as having output controls when uniqueCountConfig is a joined-only array (capability check runs)', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: ['orders'],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      expect(capabilitySvc.isSupported).toHaveBeenCalled();
+    });
+
+    it('does not emit UNIQUE_COUNT_REQUIRES_PRIMARY_KEY for a joined-only array (main not requested)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'name', type: 'STRING' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          // Explicit: a joined Unique Count requires one (see the columnConfig block below).
+          columnConfig: ['name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: ['orders'],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a joined Unique Count with NO column projection (would fail every run)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          // The default state of a brand-new report: "all native columns".
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: ['orders'],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG')
+      ).toBe(true);
+      // The MAIN metric was never requested, so its PK requirement must stay quiet.
+      expect(
+        response.details.errors.some(e => e.code === 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY')
+      ).toBe(false);
+    });
+
+    it('accepts a joined Unique Count with an EXPLICIT EMPTY projection (metrics-only read)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      // `[]` is not the same as null: the blended builder handles an explicitly empty projection,
+      // which is what query_data_mart sends for a Unique-Count-only request.
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: [],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: ['orders'],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a real field whose name collides with a joined source’s Unique Count column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          // A real flat field called `unique_count` on `orders` unifies to this exact name.
+          columnConfig: ['id', 'orders__unique_count'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: ['orders'],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; label?: string }[] };
+      };
+      expect(
+        response.details.errors.some(
+          e => e.code === 'OUTPUT_COLUMN_NAME_COLLISION' && e.label === 'orders__unique_count'
+        )
+      ).toBe(true);
+    });
+
+    it('rejects the main source in an array config when the data mart has NO primary-key fields', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'name', type: 'STRING' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE, 'orders'],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY')
+      ).toBe(true);
+    });
+  });
+
+  // #6792 + #6764: a joined source's `<aliasPath>__unique_count` is sortable exactly like the main
+  // `Unique Count` — a sort resolves to the outer SELECT alias. Filters and aggregations on it stay
+  // rejected: a filter has no CTE column to bind to, and aggregating an aggregate is meaningless.
+  describe('validateForReport — sorting by a joined Unique Count', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+
+    type SourceOverride = {
+      aliasPath: string;
+      isIncluded?: boolean;
+      uniqueCountAvailability?: string;
+    };
+
+    const makeValidator = (sources: SourceOverride[] = [{ aliasPath: 'orders' }]) =>
+      new OutputControlsValidatorService(
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: [{ name: 'id', type: 'INTEGER', isPrimaryKey: true }],
+            blendedFields: [],
+            availableSources: sources.map(s => ({
+              isIncluded: true,
+              uniqueCountAvailability: 'available',
+              title: 'Orders DM',
+              defaultAlias: 'Orders',
+              ...s,
+            })),
+          }),
+        } as never
+      );
+
+    const validateWith = (
+      validator: OutputControlsValidatorService,
+      overrides: Partial<Parameters<OutputControlsValidatorService['validateForReport']>[0]>
+    ) =>
+      validator.validateForReport({
+        storageType: supportedStorageType,
+        dataMartId: 'dm-1',
+        projectId: 'proj-1',
+        columnConfig: ['id'],
+        filterConfig: null,
+        sortConfig: null,
+        limitConfig: null,
+        aggregationConfig: null,
+        accessor: { userId: 'user-1', roles: ['admin'] },
+        ...overrides,
+      });
+
+    const catchError = async (promise: Promise<void>): Promise<unknown> => {
+      try {
+        await promise;
+      } catch (e) {
+        return e;
+      }
+      return undefined;
+    };
+
+    it('accepts a sort on a joined source’s Unique Count when that source is enabled', async () => {
+      await expect(
+        validateWith(makeValidator(), {
+          sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          uniqueCountConfig: ['orders'],
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('accepts a sort on a NESTED source’s Unique Count', async () => {
+      await expect(
+        validateWith(makeValidator([{ aliasPath: 'orders' }, { aliasPath: 'orders.items' }]), {
+          sortConfig: [{ column: 'orders_items__unique_count', direction: 'asc' }],
+          uniqueCountConfig: ['orders.items'],
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    // The defect this closes: unticking a source used to route the leftover sort rule to the
+    // "contact your analyst to restore the schema" message, which names the wrong cause.
+    it('classifies a stale sort left after unticking the source as SORT_COLUMN_NOT_SELECTED', async () => {
+      const caught = await catchError(
+        validateWith(makeValidator(), {
+          sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          uniqueCountConfig: null,
+        })
+      );
+
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = (caught as BadRequestException).getResponse() as {
+        details: { errors: { code: string; column?: string }[] };
+      };
+      expect(
+        response.details.errors.some(
+          e => e.code === 'SORT_COLUMN_NOT_SELECTED' && e.column === 'orders__unique_count'
+        )
+      ).toBe(true);
+    });
+
+    // The run path DROPS a source that lost its key or its reporting inclusion, and the stale sort
+    // rule with it (BlendedReportDataService) — so holding the rule against the report here would
+    // 400 every scheduled run of a report no editor is ever opened on. Sortability is decided by
+    // the configured sources, exactly as the main metric's is decided by its own toggle.
+    it.each([
+      [
+        'its primary key is gone',
+        { aliasPath: 'orders', uniqueCountAvailability: 'no-primary-key' },
+      ],
+      ['it is excluded from reporting', { aliasPath: 'orders', isIncluded: false }],
+    ])('does not fail the SORT rule of a joined Unique Count when %s', async (_case, source) => {
+      const caught = await catchError(
+        validateWith(makeValidator([source]), {
+          sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          uniqueCountConfig: ['orders'],
+        })
+      );
+
+      const errors =
+        caught instanceof BadRequestException
+          ? ((caught.getResponse() as { details?: { errors?: { code: string }[] } }).details
+              ?.errors ?? [])
+          : [];
+      expect(errors.some(e => e.code === 'SORT_COLUMN_NOT_SELECTED')).toBe(false);
+    });
+
+    it('classifies a sort on a source that is NOT in the schema at all as disconnected', async () => {
+      const caught = await catchError(
+        validateWith(makeValidator(), {
+          sortConfig: [{ column: 'ghosts__unique_count', direction: 'desc' }],
+          uniqueCountConfig: ['orders'],
+        })
+      );
+
+      expectDisconnectedColumnsError(caught, ['ghosts__unique_count']);
+    });
+
+    // Rejecting is right; blaming the schema was not. The rule used to fall through as an unknown
+    // filter column and land on "restore the disconnected link", telling the user to repair
+    // something that is not broken — the metric exists, it just cannot carry a predicate.
+    it.each([
+      ['a joined source', 'orders__unique_count', ['orders'] as string[] | boolean],
+      ['the main Data Mart', 'Unique Count', true],
+    ])(
+      'names the real reason a FILTER on %s Unique Count is refused',
+      async (_case, column, uniqueCountConfig) => {
+        const caught = await catchError(
+          validateWith(makeValidator(), {
+            filterConfig: [{ column, operator: 'eq', value: 5 }],
+            uniqueCountConfig,
+          })
+        );
+
+        expect(caught).toBeInstanceOf(BadRequestException);
+        const errors = (
+          (caught as BadRequestException).getResponse() as {
+            details: { errors: { code: string; column?: string; message?: string }[] };
+          }
+        ).details.errors;
+        const refusal = errors.find(e => e.code === 'UNIQUE_COUNT_FILTER_UNSUPPORTED');
+        expect(refusal).toMatchObject({ column });
+        expect(refusal?.message).toContain('selected and sorted by, but not filtered');
+        expect(errors.some(e => e.code === 'FILTER_COLUMN_UNKNOWN')).toBe(false);
+      }
+    );
+
+    it('refuses a pre-join SLICE on a joined Unique Count the same way', async () => {
+      const caught = await catchError(
+        validateWith(makeValidator(), {
+          filterConfig: [
+            {
+              column: 'orders__unique_count',
+              operator: 'eq',
+              value: 5,
+              placement: 'pre-join',
+            },
+          ],
+          uniqueCountConfig: ['orders'],
+        })
+      );
+
+      const errors = (
+        (caught as BadRequestException).getResponse() as {
+          details: { errors: { code: string; column?: string }[] };
+        }
+      ).details.errors;
+      expect(
+        errors.some(
+          e => e.code === 'UNIQUE_COUNT_FILTER_UNSUPPORTED' && e.column === 'orders__unique_count'
+        )
+      ).toBe(true);
+    });
+
+    // A REAL field may legitimately be called `orders__unique_count`; the name clash is the
+    // OUTPUT_COLUMN_NAME_COLLISION check's business, not a reason to refuse a filter on a column
+    // that genuinely exists.
+    it('leaves a filter on a real field of the same name alone', async () => {
+      const validator = new OutputControlsValidatorService(
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: [{ name: 'orders__unique_count', type: 'INTEGER' }],
+            blendedFields: [],
+            availableSources: [
+              {
+                aliasPath: 'orders',
+                isIncluded: true,
+                uniqueCountAvailability: 'available',
+                title: 'Orders DM',
+                defaultAlias: 'Orders',
+              },
+            ],
+          }),
+        } as never
+      );
+
+      await expect(
+        validateWith(validator, {
+          columnConfig: ['orders__unique_count'],
+          filterConfig: [{ column: 'orders__unique_count', operator: 'eq', value: 5 }],
+          uniqueCountConfig: null,
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('still rejects an AGGREGATION on a joined Unique Count (aggregating an aggregate)', async () => {
+      const caught = await catchError(
+        validateWith(makeValidator(), {
+          aggregationConfig: [{ column: 'orders__unique_count', function: 'SUM' }],
+          uniqueCountConfig: ['orders'],
+        })
+      );
+
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = (caught as BadRequestException).getResponse() as {
+        details: { errors: { code: string; column?: string }[] };
+      };
+      expect(
+        response.details.errors.some(
+          e => e.code === 'AGGREGATION_COLUMN_NOT_SELECTED' && e.column === 'orders__unique_count'
+        )
+      ).toBe(true);
+    });
+
+    // Legacy `true` is the MAIN metric only — it must not start selecting joined names.
+    it('leaves the legacy uniqueCountConfig: true report untouched', async () => {
+      const validator = makeValidator();
+
+      await expect(
+        validateWith(validator, {
+          sortConfig: [{ column: 'Unique Count', direction: 'desc' }],
+          uniqueCountConfig: true,
+        })
+      ).resolves.toBeUndefined();
+
+      const caught = await catchError(
+        validateWith(makeValidator(), {
+          sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          uniqueCountConfig: true,
+        })
+      );
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = (caught as BadRequestException).getResponse() as {
+        details: { errors: { code: string }[] };
+      };
+      expect(response.details.errors.some(e => e.code === 'SORT_COLUMN_NOT_SELECTED')).toBe(true);
+    });
+
+    // #6792 F8: a source that can never emit its column is silence today — accepted at save and
+    // dropped at run. Only the SAVE paths reject it: the run path is where the drop is by design.
+    describe('rejectUnavailableUniqueCountSources (save paths)', () => {
+      const errorsOf = (caught: unknown) =>
+        caught instanceof BadRequestException
+          ? ((
+              caught.getResponse() as {
+                details?: { errors?: { code: string; message?: string }[] };
+              }
+            ).details?.errors ?? [])
+          : [];
+
+      it.each([
+        [
+          'its primary key is gone',
+          { aliasPath: 'orders', uniqueCountAvailability: 'no-primary-key' },
+        ],
+        [
+          'its primary key is disconnected',
+          { aliasPath: 'orders', uniqueCountAvailability: 'disconnected-primary-key' },
+        ],
+        [
+          'its primary key is nested',
+          { aliasPath: 'orders', uniqueCountAvailability: 'nested-primary-key' },
+        ],
+        [
+          'its primary key is nested AND disconnected',
+          {
+            aliasPath: 'orders',
+            uniqueCountAvailability: 'nested-and-disconnected-primary-key',
+          },
+        ],
+      ])(
+        'rejects a save whose joined Unique Count source cannot emit — %s',
+        async (_case, source) => {
+          const caught = await catchError(
+            validateWith(makeValidator([source]), {
+              uniqueCountConfig: ['orders'],
+              rejectUnavailableUniqueCountSources: true,
+            })
+          );
+
+          const errors = errorsOf(caught);
+          const error = errors.find(e => e.code === 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE');
+          expect(error).toBeDefined();
+          expect(error!.message).toContain('Orders');
+        }
+      );
+
+      // The table above is hand-maintained; this reads the vocabulary itself, so a verdict added
+      // later without a reason string fails here instead of silently permitting the save.
+      it('has a stated reason for EVERY non-available verdict', async () => {
+        const unavailable = JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES.filter(v => v !== 'available');
+        expect(unavailable.length).toBeGreaterThan(0);
+
+        for (const uniqueCountAvailability of unavailable) {
+          const caught = await catchError(
+            validateWith(makeValidator([{ aliasPath: 'orders', uniqueCountAvailability }]), {
+              uniqueCountConfig: ['orders'],
+              rejectUnavailableUniqueCountSources: true,
+            })
+          );
+
+          const error = errorsOf(caught).find(
+            e => e.code === 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE'
+          );
+          expect(`${uniqueCountAvailability}: ${error?.message ?? 'NOT REJECTED'}`).toContain(
+            'cannot supply its Unique Count:'
+          );
+        }
+      });
+
+      it('rejects a save whose joined Unique Count source is not in the schema at all', async () => {
+        const caught = await catchError(
+          validateWith(makeValidator(), {
+            uniqueCountConfig: ['ghosts'],
+            rejectUnavailableUniqueCountSources: true,
+          })
+        );
+
+        const error = errorsOf(caught).find(
+          e => e.code === 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE'
+        );
+        expect(error).toBeDefined();
+        expect(error!.message).toContain('ghosts');
+      });
+
+      // The main mart's marker is not an alias path — it has its own PK gate and must never be
+      // looked up among the joined sources, or every main-only save would break.
+      it.each([
+        ['the legacy boolean', true],
+        ['the marker entry', ['']],
+      ])('leaves a MAIN-only Unique Count alone — %s', async (_case, uniqueCountConfig) => {
+        await expect(
+          validateWith(makeValidator([{ aliasPath: 'orders', isIncluded: false }]), {
+            uniqueCountConfig: uniqueCountConfig as never,
+            rejectUnavailableUniqueCountSources: true,
+          })
+        ).resolves.toBeUndefined();
+      });
+
+      // The picker KEEPS an excluded source's entry so the user can clear it, and renders the row
+      // as not generated. Blocking the save would trap every other edit to the report.
+      it('accepts a save whose joined Unique Count source is only EXCLUDED from reporting', async () => {
+        await expect(
+          validateWith(makeValidator([{ aliasPath: 'orders', isIncluded: false }]), {
+            uniqueCountConfig: ['orders'],
+            rejectUnavailableUniqueCountSources: true,
+          })
+        ).resolves.toBeUndefined();
+      });
+
+      // The run path re-validates the STORED config on every read; rejecting there would turn a
+      // documented degradation into a 400 on every schedule.
+      it('leaves the run path alone (no flag → no rejection)', async () => {
+        await expect(
+          validateWith(
+            makeValidator([{ aliasPath: 'orders', uniqueCountAvailability: 'no-primary-key' }]),
+            { uniqueCountConfig: ['orders'] }
+          )
+        ).resolves.toBeUndefined();
+      });
+
+      it('accepts an available source', async () => {
+        await expect(
+          validateWith(makeValidator(), {
+            uniqueCountConfig: ['orders'],
+            rejectUnavailableUniqueCountSources: true,
+          })
+        ).resolves.toBeUndefined();
+      });
     });
   });
 

@@ -423,4 +423,45 @@ describe('DataMartController list OpenAPI', () => {
     expect(detailSchema.required).toContain('dataQuality');
     expect(detailSchema.properties.dataQuality).toMatchObject({ nullable: true });
   });
+
+  it('publishes the blendable-schema response, including uniqueCountAvailability, through named component schemas', () => {
+    const operation = document.paths['/api/data-marts/{id}/blendable-schema']?.get;
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/BlendableSchemaDto' },
+        },
+      },
+    });
+
+    const schemaSchema = resolveRef('#/components/schemas/BlendableSchemaDto');
+    expect(schemaSchema.properties).toBeDefined();
+    expect(Object.keys(schemaSchema.properties ?? {}).length).toBeGreaterThan(0);
+    expect(schemaSchema.properties.availableSources).toMatchObject({
+      type: 'array',
+      items: { $ref: '#/components/schemas/AvailableSourceDto' },
+    });
+
+    const availableSourceSchema = resolveRef('#/components/schemas/AvailableSourceDto');
+    expect(availableSourceSchema.properties.uniqueCountAvailability).toMatchObject({
+      type: 'string',
+      enum: [
+        'available',
+        'no-primary-key',
+        'disconnected-primary-key',
+        'nested-primary-key',
+        'nested-and-disconnected-primary-key',
+      ],
+    });
+    expect(availableSourceSchema.properties).toMatchObject({
+      aliasPath: { type: 'string' },
+      defaultAlias: { type: 'string' },
+      dataMartId: { type: 'string' },
+      isIncluded: { type: 'boolean' },
+      isAccessibleForReporting: { type: 'boolean' },
+    });
+    // The metric's display label is derived per source from `defaultAlias`, exactly the way an
+    // ordinary joined field's is, so nothing is published for it.
+    expect(availableSourceSchema.properties).not.toHaveProperty('uniqueCountLabel');
+  });
 });

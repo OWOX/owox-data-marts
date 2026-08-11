@@ -7,6 +7,10 @@ import {
   hasOutputControls,
   shouldIncludeRowCount,
 } from '../dto/domain/report-like-read-plan';
+import {
+  hasMainUniqueCount,
+  normalizeUniqueCountSources,
+} from '../dto/schemas/unique-count-sources';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { formatBlendedFieldDisplayName } from './blended-field-display-name';
@@ -22,7 +26,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import {
   collectSchemaFieldPathDescriptors,
   collectSchemaFieldPathTypes,
-  getPrimaryKeyFields,
+  getReportablePrimaryKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import {
   resolveFieldGovernance,
@@ -37,6 +41,7 @@ import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schem
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
+import { JoinedUniqueCountSource } from '../data-storage-types/interfaces/blended-query-builder.interface';
 
 type SchemaFieldDescriptor = ReturnType<typeof collectSchemaFieldPathDescriptors>[number];
 
@@ -65,6 +70,12 @@ export class ReportSqlComposerService {
     blendedDataHeaders?: ReportDataHeader[];
     /** Set when a joined COUNT was dropped beside a COUNT_DISTINCT — headers must follow it. */
     aggregations?: AggregationRule[];
+    /** The main Data Mart's CURRENT primary key — gates the `Unique Count` header on the same
+     * predicate the SQL gates its column on. */
+    primaryKeyColumns?: string[];
+    /** The joined sources whose `<source>__unique_count` sleeve this SQL actually renders. Callers
+     * that resolve headers themselves MUST forward it, or the column is computed and then dropped. */
+    uniqueCountSources?: JoinedUniqueCountSource[];
   }> {
     const decision =
       precomputedDecision ??
@@ -83,6 +94,8 @@ export class ReportSqlComposerService {
         needsBlending: true,
         blendedDataHeaders: decision.blendedDataHeaders,
         aggregations: decision.aggregations,
+        primaryKeyColumns: decision.primaryKeyColumns,
+        uniqueCountSources: decision.uniqueCountSources,
       };
     }
 
@@ -143,8 +156,8 @@ export class ReportSqlComposerService {
       ? new Map(collectSchemaFieldPathTypes(schemaFields).map(f => [f.name, f.type]))
       : undefined;
 
-    const pkFields = getPrimaryKeyFields(schemaFields);
-    const uniqueCount = report.uniqueCountConfig === true;
+    const pkFields = getReportablePrimaryKeyFields(schemaFields);
+    const uniqueCount = hasMainUniqueCount(report.uniqueCountConfig);
 
     // `primaryKeyColumns` comes from the CURRENT schema while `uniqueCountConfig` comes from the
     // STORED report, so removing the mart's PK after saving leaves them disagreeing. The renderer
@@ -178,10 +191,16 @@ export class ReportSqlComposerService {
       }
     );
 
+    const primaryKeyColumns = pkFields.map(f => f.name);
     if (isQueryBuildResult(queryResult)) {
-      return { sql: queryResult.sql, params: queryResult.params, needsBlending: false };
+      return {
+        sql: queryResult.sql,
+        params: queryResult.params,
+        needsBlending: false,
+        primaryKeyColumns,
+      };
     }
-    return { sql: queryResult, needsBlending: false };
+    return { sql: queryResult, needsBlending: false, primaryKeyColumns };
   }
 
   /**
@@ -377,7 +396,19 @@ export class ReportSqlComposerService {
     // Only consult the blendable schema when the selection references columns the main
     // schema doesn't own — otherwise a non-blended report pays no schema-resolution cost
     // and stays byte-identical.
-    const projectedExplicit = report.columnConfig && report.columnConfig.length > 0;
+    // An EMPTY projection is "the caller selected no dimensions" (a Unique-Count-only MCP
+    // request), NOT "project everything" — totalling every numeric column would bill a second
+    // warehouse query for numbers nobody asked for. That reading holds only for a METRICS-ONLY
+    // plan, exactly as in resolveReportDataHeaders: `[]` is also what PERSISTED legacy rows carry
+    // (report-column-config.schema.ts). Such a row predates both aggregations and Unique Count, so
+    // it is NOT metrics-only and keeps projecting every native column — a report that has been
+    // totalling those for months does not lose its Totals to this. A metrics-only `[]` emits no
+    // dimension columns at all, so an empty Totals block there is the report's own shape.
+    const metricsOnly =
+      (report.aggregationConfig?.length ?? 0) > 0 ||
+      normalizeUniqueCountSources(report.uniqueCountConfig).length > 0;
+    const projectedExplicit =
+      report.columnConfig != null && (report.columnConfig.length > 0 || metricsOnly);
     const hasUnknownColumns =
       projectedExplicit && report.columnConfig!.some(name => !byName.has(name));
     const blendableSchema = hasUnknownColumns

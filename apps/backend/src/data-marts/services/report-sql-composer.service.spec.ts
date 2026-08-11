@@ -243,6 +243,7 @@ describe('ReportSqlComposerService', () => {
       sql: 'SELECT 1',
       params: [{ name: 'p0', value: 1 }],
       needsBlending: false,
+      primaryKeyColumns: [],
     });
   });
 
@@ -334,7 +335,11 @@ describe('ReportSqlComposerService', () => {
     } as never;
     const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
     expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
-    expect(result).toEqual({ sql: 'SELECT * FROM t', needsBlending: false });
+    expect(result).toEqual({
+      sql: 'SELECT * FROM t',
+      needsBlending: false,
+      primaryKeyColumns: [],
+    });
   });
 
   it('uses blended sql + params when needsBlending=true', async () => {
@@ -370,7 +375,48 @@ describe('ReportSqlComposerService', () => {
       sql: 'WITH ... SELECT ... WHERE @p0',
       params: [{ name: 'p0', value: 1 }],
       needsBlending: true,
+      primaryKeyColumns: undefined,
+      uniqueCountSources: undefined,
     });
+  });
+
+  it('surfaces the decision joined Unique Count sources so header resolution can follow the SQL (#6792)', async () => {
+    const ordersSource = {
+      aliasPath: 'orders',
+      cteName: 'orders_chain',
+      pkColumns: ['order_id'],
+      outputLabel: 'orders__unique_count',
+      displayLabel: 'Orders Unique Count',
+    };
+    const blendedDataService = {
+      resolveBlendingDecision: jest.fn().mockResolvedValue({
+        needsBlending: true,
+        blendedSql: 'WITH ... SELECT ...',
+        columnFilter: ['customer_email'],
+        primaryKeyColumns: ['id'],
+        uniqueCountSources: [ordersSource],
+      }),
+    };
+    const composer = new ReportSqlComposerService(
+      blendedDataService as never,
+      {} as never,
+      {} as never,
+      { isSupported: jest.fn() } as never,
+      { computeBlendableSchema: jest.fn() } as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+    );
+
+    const result = await composer.compose(
+      {
+        columnConfig: ['customer_email'],
+        uniqueCountConfig: ['orders'],
+        dataMart: { id: 'm', projectId: 'p', storage: { type: 'GOOGLE_BIGQUERY' } },
+      } as never,
+      { userId: 'user-1', roles: ['admin'] }
+    );
+
+    expect(result.uniqueCountSources).toEqual([ordersSource]);
+    expect(result.primaryKeyColumns).toEqual(['id']);
   });
 
   it('throws BadRequestException when storage does not support output controls (defence-in-depth)', async () => {

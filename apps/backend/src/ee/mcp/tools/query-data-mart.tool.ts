@@ -22,10 +22,17 @@ import {
   mapMcpAggregations,
   mapMcpDateBuckets,
   mapMcpSort,
+  hasUniqueCountFieldCandidate,
+  collectRealFieldNames,
+  splitUniqueCountFields,
+  findUniqueCountClauseViolations,
   UnsupportedOperatorError,
   InvalidFilterValueError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
+  UnmatchedUniqueCountFieldError,
+  UniqueCountFieldUnsupportedClauseError,
+  UniqueCountSourceLimitError,
   unsupportedOperatorMessage,
   DEFAULT_LIMIT,
 } from './query-data-mart.input';
@@ -84,7 +91,7 @@ When building the query:
 
 Which operators and aggregations fit which field type (using each field's "type" from get_data_mart_details_by_id):
 ${buildFieldTypeMatrixSection()}
-A data mart can narrow a field's aggregations further ("only where enabled on the field") — get_data_mart_details_by_id returns each field's effective allowedAggregations; trust that over this table. Note COUNT/COUNT_DISTINCT are NOT available on number fields — to count rows per group, rely on the automatic "Row Count" column instead.
+A data mart can narrow a field's aggregations further ("only where enabled on the field") — get_data_mart_details_by_id returns each field's effective allowedAggregations; trust that over this table. Note COUNT/COUNT_DISTINCT are NOT available on number fields — to count rows per group, rely on the automatic "Row Count" column instead. To count UNIQUE records of a JOINED data mart (e.g. "how many distinct orders per customer"), do not aggregate its id column — instead select that source's own Unique Count field like any other field; get_data_mart_details_by_id (with_joined_fields) lists it among that source's joined fields whenever one is available. Copy its "name" (e.g. "orders__unique_count"), never its human-readable "displayName". It can be selected in "fields" and ordered by in "sort" (using that same exact name), but it cannot be used in filters, slices, aggregations, or date_buckets.
 - sort: order the result rows by { field, direction } with direction "asc" or "desc"; rules apply in order (the first is the primary key). Each sorted field must also be listed in fields.
 - fields must list every column the query uses, INCLUDING any field named in aggregations, date_buckets, or sort — a field you aggregate, bucket, or sort but omit from fields is rejected. Example — "revenue by month": fields ["ts", "revenue"], aggregations [{field: "revenue", function: "SUM"}], date_buckets [{field: "ts", unit: "MONTH"}]. (Filters are the exception: a filter may reference a field that is not in fields.)
 
@@ -214,17 +221,55 @@ If truncated is true, not all matching rows were returned: narrow the query (few
       const dateTruncConfig = mapMcpDateBuckets(parsed.date_buckets);
       const sortConfig = mapMcpSort(parsed.sort);
 
+      // Only a data mart that joins others carries a Unique Count pseudo-field, and most
+      // requests select none — skip the extra schema lookup unless a field could be one.
+      let fields = parsed.fields;
+      let uniqueCountConfig: string[] | undefined;
+      if (hasUniqueCountFieldCandidate(parsed.fields)) {
+        const details = await this.dataMarts.getDataMartDetails({
+          projectId: context.projectId,
+          userId: context.userId,
+          roles: context.roles,
+          dataMartId: parsed.data_mart_id,
+          includeJoinedFields: true,
+        });
+        const split = splitUniqueCountFields(
+          parsed.fields,
+          details.uniqueCountSources,
+          collectRealFieldNames(details)
+        );
+        fields = split.columns;
+        uniqueCountConfig = split.uniqueCountConfig;
+
+        // A matched pseudo-field is no longer in `columns`, so if it is ALSO named in filters/
+        // slices/aggregations/date_buckets, letting the request through would hit the validator's
+        // "column not selected" family — whose fix-it message says to add the field back to
+        // "fields", where the model already put it. Catch it here instead, before that
+        // unresolvable loop can start. `sort` is not in that set: the metric IS orderable, and
+        // its sortConfig entry is forwarded untouched.
+        const violations = findUniqueCountClauseViolations(split.matchedNames, {
+          filters: parsed.filters,
+          slices: parsed.slices,
+          aggregations: parsed.aggregations,
+          date_buckets: parsed.date_buckets,
+        });
+        if (violations.length > 0) {
+          throw new UniqueCountFieldUnsupportedClauseError(violations);
+        }
+      }
+
       const res = await this.dataMarts.queryDataMart(
         {
           projectId: context.projectId,
           userId: context.userId,
           roles: context.roles,
           dataMartId: parsed.data_mart_id,
-          fields: parsed.fields,
+          fields,
           filterConfig,
           aggregationConfig,
           dateTruncConfig,
           sortConfig,
+          ...(uniqueCountConfig ? { uniqueCountConfig } : {}),
           limit: parsed.limit ?? DEFAULT_LIMIT,
         },
         signal
@@ -395,6 +440,18 @@ If truncated is true, not all matching rows were returned: narrow the query (few
           'This OWOX Data Marts project is inactive. Activate the project to continue.'
         );
       }
+    }
+
+    if (err instanceof UnmatchedUniqueCountFieldError) {
+      return toStructuredToolError('field_not_found', err.message);
+    }
+
+    if (err instanceof UniqueCountFieldUnsupportedClauseError) {
+      return toStructuredToolError('unique_count_selection_only', err.message);
+    }
+
+    if (err instanceof UniqueCountSourceLimitError) {
+      return toStructuredToolError('invalid_input', err.message);
     }
 
     if (err instanceof BusinessViolationException && err.errorDetails?.['unknownColumns']) {

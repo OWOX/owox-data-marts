@@ -19,6 +19,7 @@ import {
   disambiguateSleeveCteNames,
   groupCountDistinctMetrics,
   groupValueSleeveMetrics,
+  identityScopingJoinKeyColumns,
   isIdentityPreJoinField,
   resolveCountDistinctGroupCteName,
   resolveValueSleeveGroupCteName,
@@ -310,6 +311,33 @@ describe('metric-sleeve planner', () => {
       // Indexed as a blended column, but absent from its chain's `blendedFields`.
       expect(isIdentityPreJoinField('organizations__name', fieldIndex, context)).toBe(true);
       expect(isIdentityPreJoinField('not_a_column_at_all', fieldIndex, context)).toBe(true);
+    });
+  });
+
+  describe('identityScopingJoinKeyColumns', () => {
+    it('drops a join key the declared key already carries', () => {
+      expect(identityScopingJoinKeyColumns(['user_id'], ['user_id'])).toEqual([]);
+    });
+
+    it('keeps a join key the declared key does NOT carry, which is what scopes it', () => {
+      expect(identityScopingJoinKeyColumns(['line_no'], ['order_id'])).toEqual(['order_id']);
+    });
+
+    it('drops only the overlapping column of a composite join key, keeping the order of the rest', () => {
+      expect(
+        identityScopingJoinKeyColumns(['tenant_id', 'line_no'], ['tenant_id', 'order_id'])
+      ).toEqual(['order_id']);
+    });
+
+    // Snowflake quotes every identifier, so `USER_ID` and `user_id` are two different columns
+    // there. Folding them would drop a slot that scopes the key by a column the key does not
+    // carry — a silent narrowing of the identity, which is the one direction that changes a number.
+    it('does NOT fold case: a case-only difference is a different column', () => {
+      expect(identityScopingJoinKeyColumns(['user_id'], ['USER_ID'])).toEqual(['USER_ID']);
+    });
+
+    it('is a no-op for a source with no declared key at all', () => {
+      expect(identityScopingJoinKeyColumns([], ['order_id'])).toEqual(['order_id']);
     });
   });
 

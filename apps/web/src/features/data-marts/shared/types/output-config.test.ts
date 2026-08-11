@@ -4,6 +4,7 @@ import {
   EMPTY_OUTPUT_CONFIG,
   FilterRuleSchema,
   hasAnyOutputControls,
+  MAIN_UNIQUE_COUNT_SOURCE,
 } from './output-config';
 
 describe('FilterRuleSchema — in/not_in (backend mirror)', () => {
@@ -85,16 +86,27 @@ describe('FilterRuleSchema — week/quarter/next_n_days presets (backend mirror)
 });
 
 describe('uniqueCountConfig — EMPTY_OUTPUT_CONFIG and hasAnyOutputControls', () => {
-  it('EMPTY_OUTPUT_CONFIG.uniqueCountConfig is false', () => {
-    expect(EMPTY_OUTPUT_CONFIG.uniqueCountConfig).toBe(false);
+  it('EMPTY_OUTPUT_CONFIG.uniqueCountConfig is empty', () => {
+    expect(EMPTY_OUTPUT_CONFIG.uniqueCountConfig).toEqual([]);
   });
 
-  it('hasAnyOutputControls returns false when only uniqueCountConfig is false', () => {
+  it('hasAnyOutputControls returns false when uniqueCountConfig is empty', () => {
     expect(hasAnyOutputControls(EMPTY_OUTPUT_CONFIG)).toBe(false);
   });
 
-  it('hasAnyOutputControls returns true when only uniqueCountConfig is true', () => {
-    expect(hasAnyOutputControls({ ...EMPTY_OUTPUT_CONFIG, uniqueCountConfig: true })).toBe(true);
+  it('hasAnyOutputControls returns true when only the main Data Mart wants a Unique Count', () => {
+    expect(
+      hasAnyOutputControls({
+        ...EMPTY_OUTPUT_CONFIG,
+        uniqueCountConfig: [MAIN_UNIQUE_COUNT_SOURCE],
+      })
+    ).toBe(true);
+  });
+
+  it('hasAnyOutputControls returns true when only a joined source wants a Unique Count', () => {
+    expect(hasAnyOutputControls({ ...EMPTY_OUTPUT_CONFIG, uniqueCountConfig: ['orders'] })).toBe(
+      true
+    );
   });
 });
 

@@ -38,14 +38,31 @@ export interface ValueSleeveGroup {
   metrics: AggregationRule[];
 }
 
-// One built sleeve CTE (COUNT_DISTINCT, single-metric value sleeve, or a merged multi-metric
-// value-sleeve group) plus every metric it feeds. `pulls.length` is 1 for the first two cases
-// and 2+ for a merged group — the caller emits ONE `ANY_VALUE` SELECT item per pull but only
-// ONE join-back per `SleeveResult` (that single join-back, shared across every
+// One output column a sleeve CTE feeds: the outer query emits `ANY_VALUE(<cte>.<alias>) AS <alias>`
+// for each.
+export interface SleevePull {
+  // The report metric this pull computes. Absent for a joined source's Unique Count, which is
+  // declared by `uniqueCountSources` rather than by an aggregation rule.
+  metric?: AggregationRule;
+  alias: string;
+  /**
+   * Whether an empty join-back must read as 0 instead of NULL. True for the COUNTING shapes: the
+   * sleeve's own COUNT is already correct (0 over zero rows), but the outer `ANY_VALUE` over the
+   * join-back returns NULL whenever the outer FROM contributes no row for a group. SUM/AVG stay
+   * bare — NULL-over-empty is their correct semantics, and coalescing would report "no data" as a
+   * genuine zero.
+   */
+  coalesceEmptyToZero: boolean;
+}
+
+// One built sleeve CTE (COUNT_DISTINCT, single-metric value sleeve, a merged multi-metric
+// value-sleeve group, or a joined source's Unique Count) plus every output column it feeds.
+// `pulls.length` is 1 for all but a merged group — the caller emits ONE `ANY_VALUE` SELECT item per
+// pull but only ONE join-back per `SleeveResult` (that single join-back, shared across every
 // pull, is the point of merging).
 export interface SleeveResult {
   cteName: string;
-  pulls: { metric: AggregationRule; alias: string }[];
+  pulls: SleevePull[];
   dimRefs: { column: string; outer: string; sleeve: string }[];
   sql: string;
   // bound params from the post-join WHERE rendered INSIDE this sleeve. The

@@ -11,10 +11,14 @@ import {
   usesSuffixedJoinedFieldNames,
 } from '../dto/domain/report-like-read-plan';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
+import { SortRule } from '../dto/schemas/sort-config.schema';
 import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { withoutCountBesideSleevedCountDistinct } from '../dto/schemas/field-aggregation-governance';
+import { hasMainUniqueCount, joinedUniqueCountSources } from '../dto/schemas/unique-count-sources';
+import { UNIQUE_COUNT_LABEL } from '../dto/schemas/aggregation-labels';
 import {
   BlendedColumnTypes,
+  JoinedUniqueCountSource,
   ResolvedRelationshipChain,
 } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
@@ -34,7 +38,7 @@ import {
   collectPrimaryKeyRowIdentity,
   collectSchemaFieldPaths,
   collectSchemaFieldPathTypes,
-  getPrimaryKeyFields,
+  getReportablePrimaryKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -42,6 +46,7 @@ import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
 import { buildBlendedFieldIndex } from './blended-field-index';
+import { buildJoinedUniqueCountColumnName } from './blended-field-name';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -62,6 +67,14 @@ export class BlendedReportDataService {
     precomputedBlendableSchema?: BlendableSchemaDto
   ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
+    // Travels on EVERY decision, blended or not: the reader gates the `Unique Count` header on the
+    // same non-empty key the SQL gates the column on, so a key dropped since save takes both (F4).
+    const primaryKeyColumns = getReportablePrimaryKeyFields(dataMart.schema?.fields ?? []).map(
+      f => f.name
+    );
+    // A joined Unique Count references its source by alias path, not by column, so it never shows
+    // up in `referencedColumns` — it has to be carried separately all the way to the chain builder.
+    const uniqueCountAliasPaths = new Set(joinedUniqueCountSources(report.uniqueCountConfig));
 
     // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
     await this.outputControlsValidator.validateForReport({
@@ -100,11 +113,16 @@ export class BlendedReportDataService {
     if (columnConfig === null || columnConfig === undefined) {
       // Without an explicit column config the native projection is "all native
       // columns". A blended SQL build needs an explicit column list, so any
-      // blended reference (post-join filter / sort / pre-join slice) while
-      // columnConfig is null is malformed — reject early instead of falling
-      // through to a native query that can't resolve the blended column.
-      if (postJoinFilterColumns.length === 0 && sortColumns.length === 0 && !hasPreJoinFilters) {
-        return { needsBlending: false };
+      // blended reference (post-join filter / sort / pre-join slice / joined
+      // Unique Count) while columnConfig is null is malformed — reject early
+      // instead of falling through to a native query that can't resolve it.
+      if (
+        postJoinFilterColumns.length === 0 &&
+        sortColumns.length === 0 &&
+        !hasPreJoinFilters &&
+        uniqueCountAliasPaths.size === 0
+      ) {
+        return { needsBlending: false, primaryKeyColumns };
       }
 
       const blendableSchema =
@@ -118,8 +136,8 @@ export class BlendedReportDataService {
       const blendedRefs = [...postJoinFilterColumns, ...sortColumns].filter(c =>
         blendedFieldsByName.has(c)
       );
-      if (blendedRefs.length === 0 && !hasPreJoinFilters) {
-        return { needsBlending: false };
+      if (blendedRefs.length === 0 && !hasPreJoinFilters && uniqueCountAliasPaths.size === 0) {
+        return { needsBlending: false, primaryKeyColumns };
       }
 
       throw new BusinessViolationException(
@@ -127,6 +145,7 @@ export class BlendedReportDataService {
         {
           blendedFilterOrSortColumns: blendedRefs,
           preJoinColumns: preJoinFilterColumns,
+          uniqueCountSources: [...uniqueCountAliasPaths],
         }
       );
     }
@@ -172,11 +191,12 @@ export class BlendedReportDataService {
       usesSuffixedJoinedFieldNames(report) ? 'suffix' : 'prefix'
     );
 
-    if (!hasBlendedColumns && !hasPreJoinFilters) {
+    if (!hasBlendedColumns && !hasPreJoinFilters && uniqueCountAliasPaths.size === 0) {
       return {
         needsBlending: false,
         columnFilter: columnConfig,
         blendedDataHeaders,
+        primaryKeyColumns,
       };
     }
 
@@ -185,6 +205,7 @@ export class BlendedReportDataService {
       blendableSchema.availableSources,
       referencedColumns,
       preJoinAliasPaths,
+      uniqueCountAliasPaths,
       accessor
     );
 
@@ -210,11 +231,44 @@ export class BlendedReportDataService {
       allRelationships,
       dataMart.projectId,
       publicOrigin,
+      preJoinAliasPaths,
+      uniqueCountAliasPaths
+    );
+
+    const uniqueCountSources = this.resolveUniqueCountSources(
+      uniqueCountAliasPaths,
+      chains,
+      blendableSchema.availableSources,
+      usesSuffixedJoinedFieldNames(report) ? 'suffix' : 'prefix'
+    );
+
+    const liveChains = this.withoutChainsOnlyADroppedUniqueCountNeeded(
+      chains,
+      uniqueCountSources,
+      blendableSchema.blendedFields,
+      referencedColumns,
       preJoinAliasPaths
     );
 
-    const schemaFields = dataMart.schema?.fields ?? [];
-    const pkFields = getPrimaryKeyFields(schemaFields);
+    // `uniqueCountSources` is resolved from the CURRENT schema while `uniqueCountConfig` comes from
+    // the STORED report, so a source that lost its key or its reporting inclusion is dropped just
+    // above. A stored sort on its metric would still render `ORDER BY "<source>__unique_count"`
+    // against a SELECT that no longer has it — a warehouse error on every scheduled run, which
+    // never opens the editor that prunes the rule. Drop those rules alongside the metric, the same
+    // way the main path does (see ReportSqlComposerService.compose).
+    const stalePaths = [...uniqueCountAliasPaths].filter(
+      path => !uniqueCountSources.some(source => source.aliasPath === path)
+    );
+    const sortConfig =
+      stalePaths.length > 0
+        ? this.withoutStaleUniqueCountSorts(
+            report.sortConfig ?? [],
+            stalePaths,
+            dataMart,
+            blendedFieldsByName
+          )
+        : report.sortConfig;
+
     const normalizedAggregations = this.withoutJoinedCountBesideCountDistinct(
       report.aggregationConfig ?? [],
       new Set(blendableSchema.blendedFields.map(f => f.name))
@@ -225,16 +279,17 @@ export class BlendedReportDataService {
         mainTableReference,
         mainDataMartTitle: dataMart.title,
         mainDataMartUrl,
-        chains,
+        chains: liveChains,
         columns: columnConfig,
         filters: report.filterConfig ?? undefined,
-        sort: report.sortConfig ?? undefined,
+        sort: sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
         aggregations: normalizedAggregations ?? report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
         rowCount: shouldIncludeRowCount(report),
-        uniqueCount: report.uniqueCountConfig === true,
-        primaryKeyColumns: pkFields.map(f => f.name),
+        uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
+        primaryKeyColumns,
+        uniqueCountSources,
         columnTypes: this.buildBlendedColumnTypes(blendableSchema),
         fieldIndex,
         groupRestriction,
@@ -249,9 +304,109 @@ export class BlendedReportDataService {
       params,
       columnFilter: columnConfig,
       blendedDataHeaders,
-      chains,
+      chains: liveChains,
       aggregations: normalizedAggregations,
+      primaryKeyColumns,
+      // The SAME array the builder rendered sleeves from — the reader's headers must not be a
+      // second, independently-derived list, or a source dropped here still gets a header.
+      uniqueCountSources,
     };
+  }
+
+  /**
+   * Resolves each configured joined source to the chain and key its `COUNT(DISTINCT …)` needs.
+   *
+   * A source is dropped when its chain could not be built, its alias path no longer exists, it is
+   * excluded from reporting, or its primary key is gone — the sleeve has nothing it may count in
+   * any of those cases. Whatever survives is what BOTH the SQL and the result headers are built
+   * from, so every one of those predicates has to live here rather than downstream.
+   */
+  private resolveUniqueCountSources(
+    uniqueCountAliasPaths: ReadonlySet<string>,
+    chains: ResolvedRelationshipChain[],
+    availableSources: AvailableSourceDto[],
+    nameStyle: BlendedFieldNameStyle
+  ): JoinedUniqueCountSource[] {
+    const chainByCteName = new Map(chains.map(c => [c.cteName, c]));
+    const sourceByAliasPath = new Map(availableSources.map(s => [s.aliasPath, s]));
+
+    return [...uniqueCountAliasPaths]
+      .map(aliasPath => {
+        // `cteName` is the alias path with dots replaced by underscores — see buildRelationshipChains.
+        const chain = chainByCteName.get(aliasPath.split('.').join('_'));
+        const source = sourceByAliasPath.get(aliasPath);
+        const pkColumns = chain?.targetPrimaryKeyFields ?? [];
+        if (!chain || !source || source.isIncluded === false || pkColumns.length === 0) {
+          return undefined;
+        }
+        return {
+          aliasPath,
+          cteName: chain.cteName,
+          pkColumns,
+          // The SQL identifier comes from the alias path; the free-form display prefix stays out
+          // of SQL and rides along as the header's display alias.
+          outputLabel: buildJoinedUniqueCountColumnName(aliasPath),
+          // The metric is a joined field like any other, so its header follows the same
+          // per-destination convention every other joined column's does.
+          displayLabel: formatBlendedFieldDisplayName(
+            { name: UNIQUE_COUNT_LABEL, outputPrefix: source.defaultAlias },
+            nameStyle
+          ),
+        };
+      })
+      .filter((s): s is JoinedUniqueCountSource => s !== undefined);
+  }
+
+  /**
+   * Drops the chains that exist ONLY to serve a joined Unique Count `resolveUniqueCountSources`
+   * then dropped. `uniqueCountConfig` seeds the chain set by alias path, so such a source still had
+   * its CTE built and LEFT JOINed — a paid warehouse scan feeding a column nobody reads.
+   *
+   * Deliberately narrow, and it must stay that way. `buildRelationshipChains` is NOT filtered by
+   * `isIncluded`, and that is load-bearing: an excluded source's fields remain selectable,
+   * filterable and sortable, and an ordinary `ORDER BY orders__amount` on one resolves precisely
+   * BECAUSE the join is built unconditionally. So this recomputes what the chain set would have
+   * been had `uniqueCountConfig` never seeded it, then adds back the SURVIVING sources (and their
+   * ancestors, which a nested one still needs). A chain goes only when nothing else wanted it.
+   */
+  private withoutChainsOnlyADroppedUniqueCountNeeded(
+    chains: ResolvedRelationshipChain[],
+    uniqueCountSources: JoinedUniqueCountSource[],
+    blendedFields: BlendedFieldDto[],
+    referencedColumns: ReadonlySet<string>,
+    preJoinAliasPaths: ReadonlySet<string>
+  ): ResolvedRelationshipChain[] {
+    // Mirrors buildRelationshipChains' own `requestedBlendedFields` — the two must not drift.
+    const stillNeeded = this.collectNeededAliasPaths(
+      blendedFields.filter(f => referencedColumns.has(f.name)),
+      new Set([...preJoinAliasPaths, ...uniqueCountSources.map(s => s.aliasPath)])
+    );
+    // `cteName` is the alias path with dots replaced by underscores — see buildRelationshipChains.
+    const keptCteNames = new Set([...stillNeeded].map(path => path.split('.').join('_')));
+    const kept = chains.filter(chain => keptCteNames.has(chain.cteName));
+    return kept.length === chains.length ? chains : kept;
+  }
+
+  /**
+   * Drops the sort rules that point at a joined Unique Count the SELECT no longer emits.
+   *
+   * A real field may legitimately own the metric's `<aliasPath>__unique_count` name — then the rule
+   * sorts by that field and must survive the source being dropped.
+   */
+  private withoutStaleUniqueCountSorts(
+    sortConfig: SortRule[],
+    stalePaths: string[],
+    dataMart: DataMart,
+    blendedFieldsByName: ReadonlyMap<string, BlendedFieldDto>
+  ): SortRule[] {
+    const nativeNames = new Set(collectSchemaFieldPaths(dataMart.schema?.fields ?? []));
+    const staleColumns = new Set(
+      stalePaths
+        .map(buildJoinedUniqueCountColumnName)
+        .filter(name => !blendedFieldsByName.has(name) && !nativeNames.has(name))
+    );
+    if (staleColumns.size === 0) return sortConfig;
+    return sortConfig.filter(rule => !staleColumns.has(rule.column));
   }
 
   /**
@@ -350,17 +505,25 @@ export class BlendedReportDataService {
     directRelationships: DataMartRelationship[],
     projectId: string,
     publicOrigin: string,
-    preJoinAliasPaths: ReadonlySet<string>
+    preJoinAliasPaths: ReadonlySet<string>,
+    uniqueCountAliasPaths: ReadonlySet<string>
   ): Promise<ResolvedRelationshipChain[]> {
     const requestedBlendedFields = blendedFields.filter(f => referencedColumns.has(f.name));
 
-    if (requestedBlendedFields.length === 0 && preJoinAliasPaths.size === 0) {
+    if (
+      requestedBlendedFields.length === 0 &&
+      preJoinAliasPaths.size === 0 &&
+      uniqueCountAliasPaths.size === 0
+    ) {
       return [];
     }
 
     // Requesting a field at aliasPath "b.c" requires resolving "b" as well so the join
     // chain is contiguous; otherwise C would try to join directly to main using B's keys.
-    const neededPaths = this.collectNeededAliasPaths(requestedBlendedFields, preJoinAliasPaths);
+    const neededPaths = this.collectNeededAliasPaths(
+      requestedBlendedFields,
+      new Set([...preJoinAliasPaths, ...uniqueCountAliasPaths])
+    );
 
     const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
     const neededSources: AvailableSourceDto[] = [];
@@ -473,10 +636,16 @@ export class BlendedReportDataService {
     availableSources: AvailableSourceDto[],
     referencedColumns: ReadonlySet<string>,
     preJoinAliasPaths: ReadonlySet<string>,
+    uniqueCountAliasPaths: ReadonlySet<string>,
     accessor: BlendableSchemaAccessor
   ): Promise<void> {
     const requested = blendedFields.filter(f => referencedColumns.has(f.name));
-    const neededPaths = this.collectNeededAliasPaths(requested, preJoinAliasPaths);
+    // Counting a source's distinct keys reads that source, so it is access-checked like any
+    // selected column — a Unique Count must not be a way around the reporting grant.
+    const neededPaths = this.collectNeededAliasPaths(
+      requested,
+      new Set([...preJoinAliasPaths, ...uniqueCountAliasPaths])
+    );
 
     const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
 

@@ -13,6 +13,14 @@ import {
 } from '../../../data-marts/dto/schemas/date-trunc-config.schema';
 import type { DateTruncConfig } from '../../../data-marts/dto/schemas/date-trunc-config.schema';
 import type { SortConfig } from '../../../data-marts/dto/schemas/sort-config.schema';
+import {
+  UNIQUE_COUNT_CONFIG_MAX_SOURCES,
+  UniqueCountConfigRequestSchema,
+} from '../../../data-marts/dto/schemas/unique-count-config.schema';
+import {
+  MCP_UNIQUE_COUNT_FIELD_SUFFIX,
+  type McpUniqueCountSourceDto,
+} from '../../../data-marts/facades/mcp-data-marts.facade';
 
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 20;
@@ -404,4 +412,198 @@ export function mapMcpSort(
 ): SortConfig {
   if (!sort.length) return null;
   return sort.map(s => ({ column: s.field, direction: s.direction }));
+}
+
+/**
+ * True when at least one requested field could be a joined Unique Count pseudo-field — used both to
+ * decide whether a request needs the extra getDataMartDetails lookup at all, and to recognize a
+ * field that looks like a pseudo-field but names no currently available source (#6792).
+ */
+export function hasUniqueCountFieldCandidate(fields: string[]): boolean {
+  return fields.some(f => f.endsWith(MCP_UNIQUE_COUNT_FIELD_SUFFIX));
+}
+
+/**
+ * A requested field ends like a joined Unique Count pseudo-field (`orders__unique_count`) but
+ * matches no currently AVAILABLE source. A generic "unknown field" error would leave the model
+ * unable to act; naming the sources that DO offer one gives it a next step (#6792).
+ */
+export class UnmatchedUniqueCountFieldError extends Error {
+  constructor(unmatched: string[], available: McpUniqueCountSourceDto[]) {
+    super(
+      `Unknown field(s) in this data mart: ${unmatched.join(', ')}. ` +
+        (available.length > 0
+          ? `Joined source(s) that DO offer a Unique Count field: ${available
+              .map(s => `${s.name} (${s.displayName})`)
+              .join(', ')}. Copy the exact name into "fields".`
+          : 'No joined source in this data mart currently offers a Unique Count field.')
+    );
+    this.name = 'UnmatchedUniqueCountFieldError';
+  }
+}
+
+/**
+ * More joined Unique Count pseudo-fields were selected than one query may carry. The REST request
+ * DTOs cap `uniqueCountConfig` through `UniqueCountConfigRequestSchema`; this path synthesises the
+ * same value out of `fields` instead of receiving it, so it has to answer to the same schema or the
+ * cap simply does not exist for MCP callers (#6792).
+ */
+export class UniqueCountSourceLimitError extends Error {
+  constructor(count: number) {
+    super(
+      `Too many joined Unique Count fields selected (${count}); at most ${UNIQUE_COUNT_CONFIG_MAX_SOURCES} are supported in one query. Remove the extra ones from "fields" and retry.`
+    );
+    this.name = 'UniqueCountSourceLimitError';
+  }
+}
+
+/**
+ * Every field name the data mart really has, as `fields` may name them: the native schema
+ * (nested records contribute their `parent.child` paths too) plus the joined/blended fields.
+ * The pseudo-field split is decided against THIS set, never against the name's shape alone.
+ *
+ * `joinedFields` ALSO carries the Unique Count pseudo-fields — that is how the model gets to see
+ * them — so they are subtracted back out here: counting one as a real field makes
+ * `splitUniqueCountFields` hand it straight through as a column and the metric is never requested.
+ * Subtracting cannot hide a genuine field of that name either, since the facade refuses to
+ * advertise a pseudo-field whose name a real field already owns (#6792).
+ */
+export function collectRealFieldNames(details: {
+  fields: Array<Record<string, unknown>>;
+  joinedFields: Array<{ name: string }>;
+  uniqueCountSources: Array<{ name: string }>;
+}): Set<string> {
+  const pseudoFieldNames = new Set(details.uniqueCountSources.map(s => s.name));
+  const names = new Set<string>(
+    details.joinedFields.map(f => f.name).filter(name => !pseudoFieldNames.has(name))
+  );
+  const walk = (fields: Array<Record<string, unknown>>, prefix: string): void => {
+    for (const field of fields) {
+      const name = field['name'];
+      if (typeof name !== 'string') continue;
+      const fullName = prefix ? `${prefix}.${name}` : name;
+      names.add(fullName);
+      if (Array.isArray(field['fields'])) {
+        walk(field['fields'] as Array<Record<string, unknown>>, fullName);
+      }
+    }
+  };
+  walk(details.fields, '');
+  return names;
+}
+
+/**
+ * Splits any joined Unique Count pseudo-field (matched by the exact SQL-safe `name`
+ * get_data_mart_details_by_id lists it under, e.g. `orders__unique_count`) out of `fields` into
+ * `uniqueCountConfig`, leaving the remainder as `columns` — the same field-name vocabulary as
+ * every other joined field, no special case for the model to learn. Throws
+ * UnmatchedUniqueCountFieldError for a field that only looks like a pseudo-field.
+ * `matchedNames` (the pseudo-field names actually pulled out of `fields`) lets the caller detect
+ * a filter/slice/aggregation/date-bucket still naming one of them — see
+ * `findUniqueCountClauseViolations`.
+ *
+ * `realFieldNames` is authoritative: a name a real field owns is that field — it is passed
+ * through as a column even if it looks like (or is offered as) a pseudo-field, so a data mart
+ * with a column literally called `daily__unique_count` stays reachable (#6792).
+ */
+export function splitUniqueCountFields(
+  fields: string[],
+  availableSources: McpUniqueCountSourceDto[],
+  realFieldNames: ReadonlySet<string>
+): { columns: string[]; uniqueCountConfig?: string[]; matchedNames: string[] } {
+  const aliasPathByName = new Map(availableSources.map(s => [s.name, s.aliasPath]));
+  const columns: string[] = [];
+  const uniqueCountConfig: string[] = [];
+  const matchedNames: string[] = [];
+  const unmatched: string[] = [];
+
+  for (const field of fields) {
+    const aliasPath = realFieldNames.has(field) ? undefined : aliasPathByName.get(field);
+    if (aliasPath !== undefined) {
+      uniqueCountConfig.push(aliasPath);
+      matchedNames.push(field);
+    } else if (!realFieldNames.has(field) && field.endsWith(MCP_UNIQUE_COUNT_FIELD_SUFFIX)) {
+      unmatched.push(field);
+    } else {
+      columns.push(field);
+    }
+  }
+
+  if (unmatched.length > 0) {
+    throw new UnmatchedUniqueCountFieldError(unmatched, availableSources);
+  }
+
+  // The cap belongs to the value, not to the transport that carried it — and a `string[]` has no
+  // other way to fail this schema.
+  if (!UniqueCountConfigRequestSchema.safeParse(uniqueCountConfig).success) {
+    throw new UniqueCountSourceLimitError(uniqueCountConfig.length);
+  }
+
+  return uniqueCountConfig.length > 0
+    ? { columns, uniqueCountConfig, matchedNames }
+    : { columns, matchedNames };
+}
+
+/**
+ * Every request clause that names a field and cannot take the pseudo-field, keyed by its label in
+ * the error message below. `sort` is deliberately absent: an ORDER BY on the metric resolves to
+ * the outer SELECT alias the sleeve emits, so the validator accepts it and it is forwarded as-is.
+ */
+interface UniqueCountClauseSources {
+  filters?: Array<{ field: string }>;
+  slices?: Array<{ field: string }>;
+  aggregations?: Array<{ field: string }>;
+  date_buckets?: Array<{ field: string }>;
+}
+
+/**
+ * A pseudo-field pulled into `uniqueCountConfig` is no longer in `columns` — so if it is ALSO
+ * named in filters/slices/aggregations/date_buckets, the validator rejects that clause as
+ * referencing an unselected column (FILTER_COLUMN_NOT_SELECTED and siblings), and its message
+ * tells the model to add the field back to "fields", which the model already believes it did.
+ * That is an unresolvable loop reachable purely through this tool's own field-name indirection
+ * (#6792) — detecting it here, before the request ever reaches the validator, breaks the loop.
+ */
+export function findUniqueCountClauseViolations(
+  matchedNames: readonly string[],
+  clauses: UniqueCountClauseSources
+): Array<{ field: string; clauses: string[] }> {
+  if (matchedNames.length === 0) return [];
+  const uniqueCountFieldNames = new Set(matchedNames);
+  const clausesByField = new Map<string, string[]>();
+
+  for (const [label, entries] of Object.entries(clauses) as Array<
+    [string, Array<{ field: string }> | undefined]
+  >) {
+    for (const entry of entries ?? []) {
+      if (!uniqueCountFieldNames.has(entry.field)) continue;
+      const existing = clausesByField.get(entry.field);
+      if (existing) existing.push(label);
+      else clausesByField.set(entry.field, [label]);
+    }
+  }
+
+  return [...clausesByField.entries()].map(([field, clauseLabels]) => ({
+    field,
+    clauses: clauseLabels,
+  }));
+}
+
+/**
+ * A joined Unique Count pseudo-field was also referenced by a clause it does not support
+ * (anything beyond selection in "fields" and ordering in "sort"). Says so plainly and tells the
+ * model to drop the clause — not to re-add the field to "fields", where it already is — so the
+ * next attempt can actually succeed instead of looping (#6792).
+ */
+export class UniqueCountFieldUnsupportedClauseError extends Error {
+  constructor(violations: Array<{ field: string; clauses: string[] }>) {
+    const detail = violations.map(v => `'${v.field}' in ${v.clauses.join(', ')}`).join('; ');
+    // Counts the CLAUSES named, not the offending fields — one field in filters+aggregations is
+    // still two clauses to remove.
+    const clauseCount = violations.reduce((n, v) => n + v.clauses.length, 0);
+    super(
+      `A joined Unique Count field (${violations.map(v => `'${v.field}'`).join(', ')}) can be selected in "fields" and ordered by in "sort", but it cannot be filtered, sliced, aggregated, or date-bucketed: ${detail}. It is already correctly in "fields"; remove it from ${clauseCount === 1 ? 'that clause' : 'those clauses'} instead and retry.`
+    );
+    this.name = 'UniqueCountFieldUnsupportedClauseError';
+  }
 }

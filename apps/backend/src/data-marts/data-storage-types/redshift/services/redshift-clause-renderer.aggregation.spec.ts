@@ -141,14 +141,30 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
 
     // Redshift CONCAT is binary-only; a composite PK must use the `||` operator, not
     // an N-ary CONCAT (verified live against real Redshift — see PR #1373 review).
-    it('composite PK → `||` concat with VARCHAR cast type, double-quote quotes', () => {
+    //
+    // The cast states its WIDTH. A bare `VARCHAR` is `VARCHAR(256)` on Redshift alone, and an
+    // explicit CAST to a narrower type truncates silently — so two keys differing only past
+    // character 256 counted as one, with the netstring `LENGTH()` prefix measuring the truncated
+    // value and agreeing.
+    it('composite PK → `||` concat casting to the MAXIMUM VARCHAR width, double-quote quotes', () => {
       const out = r.renderAggregatedSelect(['channel'], [], undefined, {
         includeUniqueCount: true,
         primaryKeyColumns: ['c1', 'c2'],
       });
       expect(out.selectSql).toContain(
-        `COUNT(DISTINCT COALESCE(CAST("c1" AS VARCHAR), '') || '␟' || COALESCE(CAST("c2" AS VARCHAR), '')) AS "${UNIQUE_COUNT_LABEL}"`
+        `COUNT(DISTINCT CASE WHEN "c1" IS NULL OR "c2" IS NULL THEN NULL ELSE CAST(LENGTH(CAST("c1" AS VARCHAR(65535))) AS VARCHAR(65535)) || '␟' || CAST("c1" AS VARCHAR(65535)) || CAST(LENGTH(CAST("c2" AS VARCHAR(65535))) AS VARCHAR(65535)) || '␟' || CAST("c2" AS VARCHAR(65535)) END) AS "${UNIQUE_COUNT_LABEL}"`
       );
+    });
+
+    // A SINGLE-column key is passed through with no cast at all, so the 256-char trap never
+    // reaches it and the legacy SQL stays byte-identical.
+    it('single-column PK casts nothing, so the width qualifier never appears', () => {
+      const out = r.renderAggregatedSelect(['channel'], [], undefined, {
+        includeUniqueCount: true,
+        primaryKeyColumns: ['session_id'],
+      });
+      expect(out.selectSql).toContain(`COUNT(DISTINCT "session_id") AS "${UNIQUE_COUNT_LABEL}"`);
+      expect(out.selectSql).not.toContain('VARCHAR');
     });
   });
 });

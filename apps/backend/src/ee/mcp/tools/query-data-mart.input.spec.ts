@@ -1,13 +1,22 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
+  collectRealFieldNames,
+  findUniqueCountClauseViolations,
+  hasUniqueCountFieldCandidate,
   mapMcpFiltersToRules,
   mapMcpAggregations,
   mapMcpDateBuckets,
   mapMcpSort,
   queryDataMartInputSchema,
+  splitUniqueCountFields,
   McpOperatorEnum,
   SUPPORTED_MCP_OPERATORS,
+  UniqueCountFieldUnsupportedClauseError,
+  UniqueCountSourceLimitError,
+  UnmatchedUniqueCountFieldError,
 } from './query-data-mart.input';
+import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from '../../../data-marts/dto/schemas/unique-count-config.schema';
+import type { McpUniqueCountSourceDto } from '../../../data-marts/facades/mcp-data-marts.facade';
 
 describe('SUPPORTED_MCP_OPERATORS', () => {
   it('every advertised operator is supported', () => {
@@ -463,5 +472,288 @@ describe('query_data_mart tool JSON Schema (OpenAI verification)', () => {
       expect(value).not.toEqual({});
       expect(Array.isArray(value.anyOf)).toBe(true);
     }
+  });
+});
+
+describe('collectRealFieldNames / splitUniqueCountFields (#6792)', () => {
+  const sources = [
+    { aliasPath: 'orders', name: 'orders__unique_count', displayName: 'Orders Unique Count' },
+  ];
+
+  it('collects native fields with their nested `parent.child` paths plus joined field names', () => {
+    const names = collectRealFieldNames({
+      fields: [
+        { name: 'order_date' },
+        {
+          name: 'customer',
+          fields: [{ name: 'id' }, { name: 'address', fields: [{ name: 'zip' }] }],
+        },
+      ],
+      joinedFields: [{ name: 'orders__status' }],
+      uniqueCountSources: [],
+    });
+
+    expect([...names].sort()).toEqual([
+      'customer',
+      'customer.address',
+      'customer.address.zip',
+      'customer.id',
+      'order_date',
+      'orders__status',
+    ]);
+  });
+
+  // `getDataMartDetails` appends the pseudo-fields to `joinedFields` so the model can see them.
+  // Reading that list back as "real fields" makes every advertised Unique Count shadow itself, and
+  // the split then hands the name through as an ordinary column the query engine does not have.
+  it('does not count an advertised pseudo-field as a real field of the data mart', () => {
+    const names = collectRealFieldNames({
+      fields: [{ name: 'customer_email' }],
+      joinedFields: [{ name: 'orders__status' }, { name: 'orders__unique_count' }],
+      uniqueCountSources: sources,
+    });
+
+    expect(names.has('orders__unique_count')).toBe(false);
+    expect([...names].sort()).toEqual(['customer_email', 'orders__status']);
+  });
+
+  it('still maps the pseudo-field when the details payload advertises it in joinedFields too', () => {
+    const details = {
+      fields: [{ name: 'customer_email' }],
+      joinedFields: [{ name: 'orders__unique_count' }],
+      uniqueCountSources: sources,
+    };
+
+    const split = splitUniqueCountFields(
+      ['customer_email', 'orders__unique_count'],
+      details.uniqueCountSources,
+      collectRealFieldNames(details)
+    );
+
+    expect(split).toEqual({
+      columns: ['customer_email'],
+      uniqueCountConfig: ['orders'],
+      matchedNames: ['orders__unique_count'],
+    });
+  });
+
+  it('passes a real field through as a column even when a pseudo-field claims the same name', () => {
+    const split = splitUniqueCountFields(
+      ['orders__unique_count'],
+      sources,
+      new Set(['orders__unique_count'])
+    );
+
+    expect(split).toEqual({ columns: ['orders__unique_count'], matchedNames: [] });
+  });
+
+  it('still maps an offered pseudo-field no real field owns', () => {
+    const split = splitUniqueCountFields(
+      ['channel', 'orders__unique_count'],
+      sources,
+      new Set(['channel'])
+    );
+
+    expect(split).toEqual({
+      columns: ['channel'],
+      uniqueCountConfig: ['orders'],
+      matchedNames: ['orders__unique_count'],
+    });
+  });
+
+  it('rejects a name that is neither a real field nor an offered pseudo-field', () => {
+    expect(() => splitUniqueCountFields(['bogus__unique_count'], sources, new Set())).toThrow(
+      UnmatchedUniqueCountFieldError
+    );
+  });
+
+  it('splits several pseudo-fields at once, preserving the order of both lists', () => {
+    const split = splitUniqueCountFields(
+      ['orders__unique_count', 'channel', 'items__unique_count', 'date'],
+      [
+        ...sources,
+        {
+          aliasPath: 'orders.items',
+          name: 'items__unique_count',
+          displayName: 'Items Unique Count',
+        },
+      ],
+      new Set(['channel', 'date'])
+    );
+
+    expect(split).toEqual({
+      columns: ['channel', 'date'],
+      uniqueCountConfig: ['orders', 'orders.items'],
+      matchedNames: ['orders__unique_count', 'items__unique_count'],
+    });
+  });
+
+  // The REST DTOs cap `uniqueCountConfig` through UniqueCountConfigRequestSchema. This path
+  // synthesises the same value out of `fields`, which carries no cap of its own, so without an
+  // explicit check the limit simply does not apply to MCP callers (#6792).
+  describe('the report-wide source cap', () => {
+    function offeredSources(count: number): McpUniqueCountSourceDto[] {
+      return Array.from({ length: count }, (_, i) => ({
+        aliasPath: `s${i}`,
+        name: `s${i}__unique_count`,
+        displayName: `S${i} Unique Count`,
+      }));
+    }
+
+    it('accepts exactly the cap', () => {
+      const offered = offeredSources(UNIQUE_COUNT_CONFIG_MAX_SOURCES);
+      const split = splitUniqueCountFields(
+        offered.map(s => s.name),
+        offered,
+        new Set()
+      );
+
+      expect(split.uniqueCountConfig).toHaveLength(UNIQUE_COUNT_CONFIG_MAX_SOURCES);
+    });
+
+    it('rejects one source over the cap', () => {
+      const offered = offeredSources(UNIQUE_COUNT_CONFIG_MAX_SOURCES + 1);
+
+      expect(() =>
+        splitUniqueCountFields(
+          offered.map(s => s.name),
+          offered,
+          new Set()
+        )
+      ).toThrow(UniqueCountSourceLimitError);
+    });
+
+    // `fields` has no `.max()`, so repeating ONE offered pseudo-field is enough to synthesise an
+    // over-cap list — the cheapest way past the limit, and the reason the check reads the
+    // synthesised value rather than the number of sources the data mart offers.
+    it('rejects a single source repeated past the cap', () => {
+      const offered = offeredSources(1);
+      const repeated = Array.from(
+        { length: UNIQUE_COUNT_CONFIG_MAX_SOURCES + 1 },
+        () => offered[0].name
+      );
+
+      expect(() => splitUniqueCountFields(repeated, offered, new Set())).toThrow(
+        UniqueCountSourceLimitError
+      );
+    });
+  });
+
+  it('omits uniqueCountConfig entirely when no pseudo-field was selected', () => {
+    const split = splitUniqueCountFields(['channel'], sources, new Set(['channel']));
+
+    expect(split).toEqual({ columns: ['channel'], matchedNames: [] });
+    expect(split).not.toHaveProperty('uniqueCountConfig');
+  });
+
+  it('names every unmatched candidate, not just the first', () => {
+    expect(() =>
+      splitUniqueCountFields(['a__unique_count', 'b__unique_count'], sources, new Set())
+    ).toThrow(/a__unique_count, b__unique_count/);
+  });
+
+  // A plain unknown field is NOT this error's business — it must fall through to the query
+  // validator, which knows the real schema and can name the closest match.
+  it('passes an unknown field that does not look like a pseudo-field through as a column', () => {
+    expect(splitUniqueCountFields(['typo_field'], sources, new Set())).toEqual({
+      columns: ['typo_field'],
+      matchedNames: [],
+    });
+  });
+});
+
+describe('hasUniqueCountFieldCandidate (#6792)', () => {
+  it('is true when any field ends in the pseudo-field suffix', () => {
+    expect(hasUniqueCountFieldCandidate(['orders__unique_count'])).toBe(true);
+    expect(hasUniqueCountFieldCandidate(['channel', 'orders.items__unique_count'])).toBe(true);
+  });
+
+  it('is false for a selection with no candidate, so the extra schema lookup is skipped', () => {
+    expect(hasUniqueCountFieldCandidate([])).toBe(false);
+    expect(hasUniqueCountFieldCandidate(['channel', 'revenue'])).toBe(false);
+  });
+
+  // The suffix carries its own `__` separator: a column literally called `unique_count` is an
+  // ordinary field and must not trigger the lookup.
+  it('is false for the bare token without the `__` separator', () => {
+    expect(hasUniqueCountFieldCandidate(['unique_count'])).toBe(false);
+  });
+});
+
+describe('findUniqueCountClauseViolations (#6792)', () => {
+  it('returns nothing when no pseudo-field was matched at all', () => {
+    expect(
+      findUniqueCountClauseViolations([], { filters: [{ field: 'orders__unique_count' }] })
+    ).toEqual([]);
+  });
+
+  it('returns nothing when the clauses name only ordinary fields', () => {
+    expect(
+      findUniqueCountClauseViolations(['orders__unique_count'], {
+        filters: [{ field: 'channel' }],
+        sort: undefined,
+      } as never)
+    ).toEqual([]);
+  });
+
+  it('collects every clause that names one pseudo-field', () => {
+    expect(
+      findUniqueCountClauseViolations(['orders__unique_count'], {
+        filters: [{ field: 'orders__unique_count' }],
+        aggregations: [{ field: 'orders__unique_count' }],
+      })
+    ).toEqual([{ field: 'orders__unique_count', clauses: ['filters', 'aggregations'] }]);
+  });
+
+  it('reports one entry per offending pseudo-field', () => {
+    expect(
+      findUniqueCountClauseViolations(['orders__unique_count', 'items__unique_count'], {
+        slices: [{ field: 'orders__unique_count' }],
+        date_buckets: [{ field: 'items__unique_count' }],
+      })
+    ).toEqual([
+      { field: 'orders__unique_count', clauses: ['slices'] },
+      { field: 'items__unique_count', clauses: ['date_buckets'] },
+    ]);
+  });
+});
+
+describe('UniqueCountFieldUnsupportedClauseError (#6792)', () => {
+  it('says "that clause" for a single field in a single clause', () => {
+    const err = new UniqueCountFieldUnsupportedClauseError([
+      { field: 'orders__unique_count', clauses: ['filters'] },
+    ]);
+
+    expect(err.message).toContain("'orders__unique_count' in filters");
+    expect(err.message).toContain('remove it from that clause instead');
+    expect(err.message).not.toContain('those clauses');
+  });
+
+  it('says "those clauses" when one field is named in more than one clause', () => {
+    const err = new UniqueCountFieldUnsupportedClauseError([
+      { field: 'orders__unique_count', clauses: ['filters', 'aggregations'] },
+    ]);
+
+    expect(err.message).toContain("'orders__unique_count' in filters, aggregations");
+    expect(err.message).toContain('remove it from those clauses instead');
+  });
+
+  it('says "those clauses" when two fields are each named in a clause', () => {
+    const err = new UniqueCountFieldUnsupportedClauseError([
+      { field: 'orders__unique_count', clauses: ['filters'] },
+      { field: 'items__unique_count', clauses: ['slices'] },
+    ]);
+
+    expect(err.message).toContain("('orders__unique_count', 'items__unique_count')");
+    expect(err.message).toContain('remove it from those clauses instead');
+  });
+
+  it('steers to dropping the clause, never to re-adding the field to "fields"', () => {
+    const err = new UniqueCountFieldUnsupportedClauseError([
+      { field: 'orders__unique_count', clauses: ['filters'] },
+    ]);
+
+    expect(err.name).toBe('UniqueCountFieldUnsupportedClauseError');
+    expect(err.message).toContain('It is already correctly in "fields"');
   });
 });

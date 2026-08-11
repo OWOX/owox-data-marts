@@ -1372,5 +1372,47 @@ describe('StreamHttpDataService', () => {
         expect.objectContaining({ uniqueCount: true })
       );
     });
+
+    // Drop any one of these and the SQL emits a column the header list has no entry for —
+    // the header/column desync that silently shifts every value in the response.
+    it('forwards the blending decision primaryKeyColumns and uniqueCountSources to prepareReportData', async () => {
+      reportService.getByIdAndProjectId.mockResolvedValueOnce({
+        id: 'report-1',
+        dataMart: { id: 'dm-1' },
+        columnConfig: ['date', 'revenue'],
+        filterConfig: null,
+        sortConfig: null,
+        aggregationConfig: null,
+        dateTruncConfig: null,
+        uniqueCountConfig: ['', 'orders'],
+        limitConfig: null,
+      } as never);
+      const uniqueCountSources = [
+        {
+          aliasPath: 'orders',
+          cteName: 'orders_cte',
+          pkColumns: ['order_id'],
+          outputLabel: 'orders__unique_count',
+          displayLabel: 'Orders Unique Count',
+        },
+      ];
+      blended.resolveBlendingDecision.mockResolvedValueOnce({
+        needsBlending: false,
+        primaryKeyColumns: ['id'],
+        uniqueCountSources,
+      });
+      const res = mockResponse();
+
+      await service.streamReport(fakeReportCommand(), res);
+
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          uniqueCount: true,
+          primaryKeyColumns: ['id'],
+          uniqueCountSources,
+        })
+      );
+    });
   });
 });

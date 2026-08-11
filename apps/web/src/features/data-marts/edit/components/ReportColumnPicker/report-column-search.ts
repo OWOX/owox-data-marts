@@ -63,14 +63,18 @@ export function buildColumnSearchResult(
       const visibleFields = group.visibleFields.filter(field =>
         matchesBlendedField(field, normalizedQuery)
       );
+      // The source's Unique Count row is matchable by its own label — it is a selectable output
+      // of the group, not a field of it, so a field-only match must not carry it along either.
+      const matchesUniqueCount = containsSearchText(group.uniqueCount?.label, normalizedQuery);
 
-      if (visibleFields.length === 0) {
+      if (visibleFields.length === 0 && !matchesUniqueCount) {
         return null;
       }
       // Preserve the group, but only include matching fields.
       return {
         ...group,
         visibleFields,
+        uniqueCount: matchesUniqueCount ? group.uniqueCount : undefined,
       };
     })
     .filter((group): group is BlendedGroup => group !== null);

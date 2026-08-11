@@ -118,6 +118,11 @@ export class UpdateReportService {
       }
     }
 
+    const previousUniqueCountConfig = report.uniqueCountConfig ?? null;
+    const nextUniqueCountConfig = command.uniqueCountConfig ?? null;
+    const uniqueCountChanged =
+      JSON.stringify(previousUniqueCountConfig) !== JSON.stringify(nextUniqueCountConfig);
+
     await this.outputControlsValidator.validateForReport({
       storageType: report.dataMart.storage.type,
       dataMartId: report.dataMart.id,
@@ -130,6 +135,10 @@ export class UpdateReportService {
       dateTruncConfig: command.dateTruncConfig ?? null,
       uniqueCountConfig: command.uniqueCountConfig ?? null,
       accessor: { userId: command.userId, roles: command.roles },
+      // Only a CHANGED selection is a fresh assertion by the caller. Re-sending the stored one —
+      // what MCP update_report and every GET→PUT client do — must not turn a source going stale
+      // into a permanent 400 on renaming the report.
+      rejectUnavailableUniqueCountSources: uniqueCountChanged,
     });
 
     // Column order is part of the report output, so a serialized compare is intentional —
@@ -160,10 +169,6 @@ export class UpdateReportService {
     const nextDateTruncConfig = command.dateTruncConfig ?? null;
     const dateTruncChanged =
       JSON.stringify(previousDateTruncConfig) !== JSON.stringify(nextDateTruncConfig);
-
-    const previousUniqueCountConfig = report.uniqueCountConfig ?? null;
-    const nextUniqueCountConfig = command.uniqueCountConfig ?? null;
-    const uniqueCountChanged = previousUniqueCountConfig !== nextUniqueCountConfig;
 
     report.title = command.title;
     report.dataDestination = dataDestination;

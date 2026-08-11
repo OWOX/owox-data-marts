@@ -4,9 +4,12 @@ import {
   createTestApp,
   closeTestApp,
   setupReportPrerequisites,
+  setupBlendedReportPrerequisites,
+  DataDestinationBuilder,
   ReportBuilder,
   AUTH_HEADER,
 } from '@owox/test-utils';
+import { DataDestinationType } from 'src/data-marts/data-destination-types/enums/data-destination-type.enum';
 
 // e2e coverage for the output-controls feature on the report API surface
 // (limit/filter/sort persistence + class-validator and validator-service
@@ -242,6 +245,145 @@ describe('Output controls API (e2e)', () => {
     // name "main__x" is simply not found in the blended field index, so it flows
     // through as a disconnected column (FILTER_COLUMN_UNKNOWN path).
     expectDisconnectedColumns(res, ['main__x']);
+  });
+
+  // The READ path is the one with no other coverage: `Report.uniqueCountConfig` runs its stored
+  // value back through `UniqueCountConfigSchema` on every load, so a shape the transformer refuses
+  // does not reject a bad write — it bricks a report that saved cleanly, with nothing in the
+  // editor able to open it again. Both stored shapes have to survive a full round trip (#6792).
+  describe('uniqueCountConfig persistence round trip', () => {
+    let blendedReportId: string;
+    let blendedDestinationId: string;
+
+    beforeAll(async () => {
+      const prereqs = await setupBlendedReportPrerequisites(agent);
+
+      // Schemas with a declared primary key on both marts: the main one gates `''`
+      // (UNIQUE_COUNT_REQUIRES_PRIMARY_KEY) and the joined one makes `users` an 'available'
+      // Unique Count source rather than one the create call refuses.
+      const schemas: Array<[string, Record<string, unknown>]> = [
+        [
+          prereqs.mainDataMartId,
+          {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'event_id',
+                type: 'STRING',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                isPrimaryKey: true,
+              },
+              { name: 'user_id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+              { name: 'amount', type: 'NUMERIC', mode: 'NULLABLE', status: 'CONNECTED' },
+            ],
+          },
+        ],
+        [
+          prereqs.usersDataMartId,
+          {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'id',
+                type: 'STRING',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                isPrimaryKey: true,
+              },
+              { name: 'role', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+            ],
+          },
+        ],
+      ];
+      for (const [id, schema] of schemas) {
+        const res = await agent
+          .put(`/api/data-marts/${id}/schema`)
+          .set(AUTH_HEADER)
+          .send({ schema });
+        expect(res.status).toBe(200);
+      }
+
+      // A LOOKER_STUDIO report id is a UUID v5 of (dataMartId, dataDestinationId), so the
+      // prerequisites' own report already owns the pair — a second destination is what makes a
+      // POST (rather than a PUT onto that report) possible at all.
+      const destRes = await agent
+        .post('/api/data-destinations')
+        .set(AUTH_HEADER)
+        .send(
+          new DataDestinationBuilder()
+            .withTitle('Unique Count round trip')
+            .withType(DataDestinationType.LOOKER_STUDIO)
+            .withCredentials({ type: 'looker-studio-credentials' })
+            .build()
+        );
+      expect(destRes.status).toBe(201);
+      blendedDestinationId = destRes.body.id;
+      await agent
+        .put(`/api/data-destinations/${blendedDestinationId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForUse: true, availableForMaintenance: true });
+
+      const createRes = await agent
+        .post('/api/reports')
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Joined Unique Count',
+          dataMartId: prereqs.mainDataMartId,
+          dataDestinationId: blendedDestinationId,
+          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          columnConfig: ['event_id'],
+          uniqueCountConfig: ['', 'users'],
+        });
+      expect(createRes.status).toBe(201);
+      blendedReportId = createRes.body.id;
+    }, 120_000);
+
+    it('POST persists the per-source array and GET returns it unchanged', async () => {
+      const getRes = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+
+      expect(getRes.status).toBe(200);
+      // Deep equality, not toMatchObject: order and the empty-string main-Data-Mart entry are both
+      // load-bearing, and `['']` read back as `true` (or dropped) would be a silent migration.
+      expect(getRes.body.uniqueCountConfig).toEqual(['', 'users']);
+      expect(getRes.body.columnConfig).toEqual(['event_id']);
+    });
+
+    it('keeps the legacy boolean shape a boolean across a write and a read', async () => {
+      const putRes = await agent
+        .put(`/api/reports/${blendedReportId}`)
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Joined Unique Count',
+          dataDestinationId: blendedDestinationId,
+          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          columnConfig: ['event_id'],
+          uniqueCountConfig: true,
+        });
+      expect(putRes.status).toBe(200);
+
+      const getRes = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.uniqueCountConfig).toBe(true);
+    });
+
+    it('clears to null and reads back as null', async () => {
+      const putRes = await agent
+        .put(`/api/reports/${blendedReportId}`)
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Joined Unique Count',
+          dataDestinationId: blendedDestinationId,
+          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          columnConfig: ['event_id'],
+          uniqueCountConfig: null,
+        });
+      expect(putRes.status).toBe(200);
+
+      const getRes = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.uniqueCountConfig).toBeNull();
+    });
   });
 
   it('PUT rejects filterConfig with > 50 entries via @ArrayMaxSize(50)', async () => {

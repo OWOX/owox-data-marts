@@ -25,8 +25,11 @@ import { GetReportCommand } from '../dto/domain/get-report.command';
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
+import type { ReportDto } from '../dto/domain/report.dto';
+import { collectSchemaFieldPaths } from '../data-storage-types/data-mart-schema.utils';
 import type { FilterConfig } from '../dto/schemas/filter-config.schema';
 import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
+import { joinedUniqueCountSources } from '../dto/schemas/unique-count-sources';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
@@ -209,7 +212,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         destinationConfig,
         undefined,
         request.fields !== undefined
-          ? this.toColumnConfig(request.fields)
+          ? this.toUpdatedColumnConfig(request.fields, current)
           : (current.columnConfig ?? null),
         this.mergeFilterConfig(
           current.filterConfig ?? null,
@@ -632,6 +635,32 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   /** `['*']` (or any list containing `'*'`) means "all fields" → no column projection. */
   private toColumnConfig(fields: string[]): ReportColumnConfig {
     return fields.includes('*') ? null : fields;
+  }
+
+  /**
+   * A joined Data Mart's Unique Count is built by the blended query builder, which requires an
+   * EXPLICIT column projection — and `['*']` is this tool's only way to say "all fields", so
+   * mapping it to null would make such a report impossible to update at all. Materialize the
+   * data mart's reportable columns instead, exactly as the web picker does when a joined
+   * source's Unique Count is toggled on while the selection is still implicit (#6792).
+   */
+  private toUpdatedColumnConfig(fields: string[], current: ReportDto): ReportColumnConfig {
+    const columnConfig = this.toColumnConfig(fields);
+    if (columnConfig !== null || joinedUniqueCountSources(current.uniqueCountConfig).length === 0) {
+      return columnConfig;
+    }
+    const expanded = collectSchemaFieldPaths(current.dataMart.schema?.fields ?? []);
+    // An empty expansion is an explicit "project nothing", which the validator accepts as a
+    // legitimate metrics-only selection — so "all fields" would silently save as "no dimensions"
+    // and the report would come back with only its Unique Count columns.
+    if (expanded.length === 0) {
+      throw new BusinessViolationException(
+        `"fields": ["*"] cannot be expanded: Data Mart "${current.dataMart.title}" exposes no ` +
+          `reportable columns, and this report's joined Unique Count requires an explicit column ` +
+          `selection. Name the fields explicitly, or actualize the Data Mart's schema first`
+      );
+    }
+    return expanded;
   }
 
   async getDataMartReports(

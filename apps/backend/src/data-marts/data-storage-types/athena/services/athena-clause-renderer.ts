@@ -31,7 +31,7 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     return escapeAthenaIdentifier(name);
   }
 
-  protected override textCastType(): string {
+  public override textCastType(): string {
     return 'VARCHAR';
   }
 

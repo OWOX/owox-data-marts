@@ -28,7 +28,7 @@ export const lookerStudioReportFormSchema = z.object({
   limitConfig: z.number().int().positive().max(10_000_000).nullable(),
   aggregationConfig: z.array(AggregationRuleSchema).nullable(),
   dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
-  uniqueCountConfig: z.boolean(),
+  uniqueCountConfig: z.array(z.string()),
 });
 
 // Define the form data type
@@ -66,7 +66,7 @@ export function useLookerStudioReportForm({
       limitConfig: initialReport?.limitConfig ?? null,
       aggregationConfig: initialReport?.aggregationConfig ?? null,
       dateTruncConfig: initialReport?.dateTruncConfig ?? null,
-      uniqueCountConfig: initialReport?.uniqueCountConfig ?? false,
+      uniqueCountConfig: initialReport?.uniqueCountConfig ?? [],
     },
     mode: 'onTouched',
   });

@@ -202,6 +202,34 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     );
     expect(cached.executionSqlQuery).toBe("WITH m AS (...) SELECT * FROM m WHERE x = 'y'");
   });
+
+  // Drop any one of these and the SQL emits a column the header list has no entry for —
+  // the header/column desync that silently shifts every value Looker Studio reads.
+  it('forwards uniqueCount, primaryKeyColumns and uniqueCountSources to the reader', async () => {
+    const uniqueCountSources = [
+      {
+        aliasPath: 'orders',
+        cteName: 'orders_cte',
+        pkColumns: ['order_id'],
+        outputLabel: 'orders__unique_count',
+        displayLabel: 'Orders Unique Count',
+      },
+    ];
+    const { service, reader } = setup({
+      needsBlending: false,
+      columnFilter: ['a'],
+      primaryKeyColumns: ['id'],
+      uniqueCountSources,
+    } as BlendingDecision);
+    const report = buildReport({ uniqueCountConfig: ['', 'orders'] } as never);
+
+    await service.getOrCreateCachedReader(report, { userId: 'user-1', roles: ['editor'] } as never);
+
+    const opts = optionsPassedToReader(reader);
+    expect(opts.uniqueCount).toBe(true);
+    expect(opts.primaryKeyColumns).toEqual(['id']);
+    expect(opts.uniqueCountSources).toEqual(uniqueCountSources);
+  });
 });
 
 /**

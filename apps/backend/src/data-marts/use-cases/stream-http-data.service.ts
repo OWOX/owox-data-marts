@@ -21,6 +21,7 @@ import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-st
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { ReportLikeReadPlan, hasOutputControls } from '../dto/domain/report-like-read-plan';
+import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
@@ -340,7 +341,9 @@ export class StreamHttpDataService {
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
         aggregationConfig: decision.aggregations ?? readPlan.aggregationConfig ?? undefined,
-        uniqueCount: readPlan.uniqueCountConfig ?? undefined,
+        uniqueCount: hasMainUniqueCount(readPlan.uniqueCountConfig),
+        primaryKeyColumns: decision.primaryKeyColumns,
+        uniqueCountSources: decision.uniqueCountSources,
       });
 
       // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id. Computed

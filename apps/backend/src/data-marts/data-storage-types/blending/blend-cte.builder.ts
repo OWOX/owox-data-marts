@@ -95,25 +95,27 @@ export class BlendCteBuilder {
 
   buildSubtreeCtes(
     node: BlendTreeNode,
-    preJoinByCte: ReadonlyMap<string, FilterRule[]>,
-    resolveColumnType?: ColumnTypeResolver,
-    valueSleeveOwners?: ReadonlyMap<string, ValueSleeveIdentity>
+    opts: {
+      preJoinByCte: ReadonlyMap<string, FilterRule[]>;
+      resolveColumnType?: ColumnTypeResolver;
+      valueSleeveOwners?: ReadonlyMap<string, ValueSleeveIdentity>;
+      // Declared-key columns a joined Unique Count sleeve counts off `<cte>_raw`. Same "referenced
+      // by nothing else" problem as the value sleeve's identity, so they share ONE projection path:
+      // a key the sleeve references but the raw CTE does not carry is a warehouse error.
+      uniqueCountKeyColumns?: ReadonlyMap<string, readonly string[]>;
+    }
   ): {
     ctes: string[];
     passthroughFields: PassthroughField[];
     params: SqlParameter[];
   } {
+    const { preJoinByCte, resolveColumnType, valueSleeveOwners, uniqueCountKeyColumns } = opts;
     const ctes: string[] = [];
     const params: SqlParameter[] = [];
 
     const childPassthroughs = new Map<string, PassthroughField[]>();
     for (const child of node.children) {
-      const childResult = this.buildSubtreeCtes(
-        child,
-        preJoinByCte,
-        resolveColumnType,
-        valueSleeveOwners
-      );
+      const childResult = this.buildSubtreeCtes(child, opts);
       ctes.push(...childResult.ctes);
       params.push(...childResult.params);
       childPassthroughs.set(child.chain.cteName, childResult.passthroughFields);
@@ -124,10 +126,11 @@ export class BlendCteBuilder {
 
     const preJoinFilters = preJoinByCte.get(alias) ?? [];
     const preJoinColumns = new Set(preJoinFilters.map(r => r.column));
-    // Only a keyless owner pays for the surrogate window.
     const valueSleeveIdentity = valueSleeveOwners?.get(alias);
-    const identityColumns =
-      valueSleeveIdentity?.kind === 'primary-key' ? valueSleeveIdentity.columns : [];
+    const identityColumns = [
+      ...(valueSleeveIdentity?.kind === 'primary-key' ? valueSleeveIdentity.columns : []),
+      ...(uniqueCountKeyColumns?.get(alias) ?? []),
+    ];
     const subsidiaryColumns = this.collectSubsidiaryReferences(
       chain,
       node.children,
@@ -143,7 +146,9 @@ export class BlendCteBuilder {
       preJoinFilters,
       `s_${alias}_`,
       resolveColumnType,
-      valueSleeveIdentity?.kind === 'row-surrogate',
+      // Every identity owner, not just a keyless one: a declared key with a NULL component
+      // falls back to the surrogate, so the sleeve needs it projected either way.
+      valueSleeveIdentity !== undefined,
       // partition the surrogate by this chain's OWN parent-join key, so the
       // window is computed per key group instead of once over the whole joined mart. The
       // value sleeve carries the same key alongside `__owox_rid` in its DISTINCT tuple, which

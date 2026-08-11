@@ -8,6 +8,7 @@ import { aggregatedColumnLabel } from '../../dto/schemas/aggregation-labels';
 import {
   BlendedFieldEntry,
   BlendedQueryContext,
+  JoinedUniqueCountSleeve,
   ResolvedRelationshipChain,
 } from '../interfaces/blended-query-builder.interface';
 import { ColumnRefResolver, ColumnTypeResolver, SqlParameter } from '../utils/sql-clause-renderer';
@@ -16,11 +17,16 @@ import { DateTruncUnit } from '../../dto/schemas/date-trunc-config.schema';
 import { buildOptionalDateTruncUnitMap, buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
 import { sanitizeSqlComment } from './sql-comment.utils';
 import { sleeveDimensionAlias } from '../utils/kept-groups.utils';
+import {
+  renderPrimaryKeyCountedSlotRef,
+  renderPrimaryKeyIdentitySlots,
+} from '../utils/primary-key-identity.utils';
 import { BlendedSqlDialect, createColumnQualifier, renderLeftJoinOn } from './blended-sql-dialect';
 import {
   NO_SLEEVE_FILTERS,
   ROW_SURROGATE_ALIAS,
   SleeveFilterOptions,
+  SleevePull,
   SleeveResult,
   ValueSleeveGroup,
 } from './blended-query.types';
@@ -29,12 +35,14 @@ import {
   disambiguateSleeveCteNames,
   groupCountDistinctMetrics,
   groupValueSleeveMetrics,
+  identityScopingJoinKeyColumns,
   isIdentityPreJoinField,
   resolveCountDistinctGroupCteName,
   resolveValueSleeveGroupCteName,
   sleeveCteNameForColumn,
   sleeveJoinColumns,
   splitValueSleeveGroupsByIdentity,
+  uniqueCountSleeveCteName,
   valueSleeveIdentityFor,
 } from './metric-sleeve.planner';
 
@@ -111,8 +119,8 @@ export class MetricSleeveBuilder {
       context
     );
 
-    // Plan every sleeve's INTENDED base name, then disambiguate across the FULL set (both
-    // COUNT_DISTINCT sleeves and value groups) BEFORE building any SQL — the final name is
+    // Plan every sleeve's INTENDED base name, then disambiguate across the FULL set (COUNT_DISTINCT
+    // sleeves, value groups and joined Unique Counts) BEFORE building any SQL — the final name is
     // baked into each CTE's SQL and dimRefs, so it must be resolved up front.
     // A COUNT_DISTINCT and a SUM/AVG value sleeve CAN target the same joined
     // column (governance's offered menu forbids it, but a stale/crafted blended
@@ -171,7 +179,7 @@ export class MetricSleeveBuilder {
               cteName: built.cteName,
               dimRefs: built.dimRefs,
               sql: built.sql,
-              pulls: [{ metric: group.metrics[0], alias: built.alias }],
+              pulls: built.pulls,
               params: built.params,
             };
           }
@@ -183,6 +191,20 @@ export class MetricSleeveBuilder {
             filterOpts
           );
         },
+      })),
+      // Joined Unique Count sleeves come LAST so adding one cannot shift an existing sleeve's
+      // disambiguated name or its `slv<i>p` param prefix.
+      ...(context.uniqueCountSources ?? []).map(source => ({
+        baseName: uniqueCountSleeveCteName(source),
+        build: (finalName: string, filterOpts: SleeveFilterOptions): SleeveResult =>
+          this.buildUniqueCountSleeveCte(
+            source,
+            dimensions,
+            context,
+            outputAliasToRoot,
+            finalName,
+            filterOpts
+          ),
       })),
     ];
     const finalSleeveNames = disambiguateSleeveCteNames(
@@ -478,16 +500,26 @@ export class MetricSleeveBuilder {
       const pkRefs = ownerIdentity.columns.map(
         c => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(c)}`
       );
+      const surrogateRef = `${rawOwnerAlias}.${this.dialect.quoteIdentifier(ROW_SURROGATE_ALIAS)}`;
+      // A declared key with a NULL component is not an identity: those rows must stay apart
+      // instead of collapsing into one DISTINCT row and losing their values from the SUM. The key
+      // rides as one slot PER COLUMN, so nothing has to be cast to text or concatenated.
+      const identity = renderPrimaryKeyIdentitySlots(pkRefs, surrogateRef);
       // Rescues a key declared unique only WITHIN the join key (`line_no` per order), which is
-      // indistinguishable from a correct declaration. A real key determines the join key anyway.
-      const partitionKeyRefs = ownerChain.relationship.joinConditions.map(
-        jc => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(jc.targetFieldName)}`
-      );
-      const pkAliasNames = pkRefs.length === 1 ? ['_oid'] : pkRefs.map((_, i) => `_oid_${i}`);
+      // indistinguishable from a correct declaration. A real key determines the join key anyway,
+      // and `identityScopingJoinKeyColumns` then emits no slot at all.
+      const partitionKeyRefs = identityScopingJoinKeyColumns(
+        ownerIdentity.columns,
+        ownerChain.relationship.joinConditions.map(jc => jc.targetFieldName)
+      ).map(col => `${rawOwnerAlias}.${this.dialect.quoteFieldRef(col)}`);
+      const pkAliasNames = identity.keyParts.map((_, i) => `_oid_k${i}`);
       const keyAliasNames = partitionKeyRefs.map((_, i) => `_oid_key_${i}`);
-      oidAliasNames = [...pkAliasNames, ...keyAliasNames];
+      oidAliasNames = ['_oid', ...pkAliasNames, ...keyAliasNames];
       oidItems = [
-        ...pkRefs.map((ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(pkAliasNames[i])}`),
+        `${identity.surrogate} AS ${this.dialect.quoteIdentifier('_oid')}`,
+        ...identity.keyParts.map(
+          (ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(pkAliasNames[i])}`
+        ),
         ...partitionKeyRefs.map(
           (ref, i) => `${ref} AS ${this.dialect.quoteIdentifier(keyAliasNames[i])}`
         ),
@@ -534,7 +566,8 @@ export class MetricSleeveBuilder {
     );
 
     // Mediums: a report dimension literally named one of the synthetic aliases
-    // this method assigns to the owner-identity leg (`_oid`/`_oid_<i>`), the value leg
+    // this method assigns to the owner-identity leg (`_oid`, `_oid_<i>`, `_oid_k<i>`,
+    // `_oid_key_<i>`), the value leg
     // (`_val`/`_val_<i>`), or the inner subquery's own table alias (`_dedup`) would silently
     // collide with that alias inside the `SELECT DISTINCT` (two SELECT items projected under
     // the SAME name) instead of failing loud — corrupting the dedup set rather than erroring.
@@ -591,7 +624,7 @@ export class MetricSleeveBuilder {
     const outerDimCols = dimensions.map((_, i) =>
       this.dialect.quoteIdentifier(sleeveDimensionAlias(i))
     );
-    const pulls: { metric: AggregationRule; alias: string }[] = [];
+    const pulls: SleevePull[] = [];
     const outerAggItems = group.metrics.map(m => {
       // `ValueSleeveGroup.metrics` is typed as the broader `AggregationRule[]`.
       if (!VALUE_SLEEVE_FUNCTIONS.has(m.function)) {
@@ -603,7 +636,7 @@ export class MetricSleeveBuilder {
       }
       const slot = valueSlotByColumn.get(m.column)!;
       const alias = aggregatedColumnLabel(m.column, m.function);
-      pulls.push({ metric: m, alias });
+      pulls.push({ metric: m, alias, coalesceEmptyToZero: false });
       return `${this.dialect.buildAggregation(m.function, this.dialect.quoteIdentifier(slot))} AS ${this.dialect.quoteIdentifier(alias)}`;
     });
 
@@ -652,8 +685,8 @@ export class MetricSleeveBuilder {
    * relative to the report's actual GROUP BY.
    *
    * Two shapes, branched on `metric.function`:
-   * - COUNT_DISTINCT: single-level `COUNT(DISTINCT metricRef)` at the dimension grain
-   *   (handled directly below).
+   * - COUNT_DISTINCT: single-level `COUNT(DISTINCT metricRef)` at the dimension grain, assembled
+   *   below over `buildCountingSleeveCte` — the same assembly a joined Unique Count uses.
    * - SUM/AVG (C2.2, "value sleeve"): a nested `SELECT DISTINCT (dims, owner __owox_rid,
    *   value)` subquery wrapped by an outer `SUM`/`AVG` — delegated to
    * `buildValueSleeveGroupCte` with a singleton one-metric group (1 generalized
@@ -697,7 +730,7 @@ export class MetricSleeveBuilder {
     dimRefs: { column: string; outer: string; sleeve: string }[];
     sql: string;
     params: SqlParameter[];
-    pulls: { metric: AggregationRule; alias: string }[];
+    pulls: SleevePull[];
   } {
     // Invariant: a sleeve metric is only ever collected for a blended (joined) column, whose
     // resolution requires the field index the real caller (BlendedReportDataService) always
@@ -757,53 +790,6 @@ export class MetricSleeveBuilder {
     // ---- COUNT_DISTINCT (the only other sleeve-eligible function today) — single-level form:
     // count distinct directly at the report-dimension grain. 1 does NOT merge this
     // branch: a COUNT_DISTINCT sleeve's dedup shape differs from a value sleeve's nested form.
-    const qualify = createColumnQualifier(this.dialect, outputAliasToRoot);
-
-    // Two join sets (/C2), same construction as the value sleeve: (1) the metric's raw
-    // ancestor closure — the fan-out identity source the COUNT(DISTINCT) reads; (2) the DEDUP
-    // CTEs of every blended dimension AND post-join filter column, so both resolve through the
-    // SAME `qualify` ref the outer query uses (the dedup CTEs are 1:1 with `main`, no fan-out).
-    // Symmetric to the value sleeve's guard: an owner cteName with no chain would emit joins
-    // referencing a CTE that is never declared — a raw engine "table not found" instead of a
-    // sentence naming the metric.
-    if (!context.chains.some(c => c.cteName === metricEntry.cteName)) {
-      throw new Error(
-        `buildSleeveCte: no chain found for owner cteName='${metricEntry.cteName}' of metric ` +
-          `${metric.function}(${metric.column}) (fieldIndex and context.chains are out of sync)`
-      );
-    }
-    const rawJoins = this.buildSleeveAncestorJoins([metricEntry.cteName], context);
-    const dedupJoins = this.buildSleeveDedupRootJoins(
-      [...dimensions, ...sleeveJoinColumns(filterOpts)],
-      outputAliasToRoot,
-      context
-    );
-    const joins = [
-      ...rawJoins,
-      ...dedupJoins,
-      ...(filterOpts.keptGroups ? [`    ${filterOpts.keptGroups.join}`] : []),
-    ];
-
-    // Dimension expressions are built from the SAME `qualify(d)` the outer GROUP BY uses, so the
-    // sleeve's projected dimension, `dimRefs.outer`, and the outer GROUP BY are byte-identical
-    // BY CONSTRUCTION ( — a fanning blended dimension's roll-up otherwise disagrees with
-    // the raw value the sleeve used to project, and the NULL-safe join-back never matched).
-    const dimRefs: { column: string; outer: string; sleeve: string }[] = [];
-    const groupByParts: string[] = [];
-    const selectDims: string[] = [];
-    dimensions.forEach((d, i) => {
-      const outerExpr = this.renderDimensionExpr(qualify(d), d, context);
-      const dimAlias = this.dialect.quoteIdentifier(sleeveDimensionAlias(i));
-      groupByParts.push(outerExpr);
-      selectDims.push(`${outerExpr} AS ${dimAlias}`);
-      dimRefs.push({
-        column: d,
-        outer: outerExpr,
-        // The sleeve CTE's OWN projected column, not the raw ref — the join this
-        // feeds runs OUTSIDE the CTE, where only its SELECTed columns are visible.
-        sleeve: `${this.dialect.quoteIdentifier(sleeveCteName)}.${dimAlias}`,
-      });
-    });
 
     // Everything else about this CTE — its joins, its WHERE, its GROUP BY — is derived from
     // `metric` alone, so a merged metric owned by another chain would be counted over the wrong
@@ -850,40 +836,263 @@ export class MetricSleeveBuilder {
       };
     });
 
-    // No report dimensions (a lone grand-total COUNT_DISTINCT, e.g. Totals with no
-    // grouping): the sleeve collapses to one global row, so it must NOT emit a trailing
-    // `GROUP BY` with no keys — that's invalid SQL, not "group by nothing".
-    const groupByLine = groupByParts.length > 0 ? `    GROUP BY ${groupByParts.join(', ')}\n` : '';
-
-    // reproduce the report's post-join WHERE inside the sleeve so COUNT(DISTINCT...)
-    // runs over the FILTERED set (4-space indent, before GROUP BY).
-    const where = this.renderSleeveWhere(filterOpts, qualify);
-    const indentedWhere = where.sql ? where.sql.replace(/\n/g, '\n    ') : '';
-
-    // See buildValueSleeveGroupCte: the same two-line shape, for the counting form.
-    const sleeveLabel = sanitizeSqlComment(
-      `calculation: unique ${countedMetrics.map(m => m.column).join(', ')} counted from the raw rows,`
-    );
-    const sleeveReason = sanitizeSqlComment(`so the join's fan-out cannot distort it`);
-
-    const sql =
-      `  -- ${sleeveLabel}\n  -- ${sleeveReason}\n` +
-      `  ${this.dialect.quoteIdentifier(sleeveCteName)} AS (\n` +
-      `    SELECT\n      ${[...selectDims, ...countItems.map(i => i.sql)].join(',\n      ')}\n` +
-      `    FROM ${this.dialect.quoteIdentifier('main')}\n` +
-      `${joins.join('\n')}` +
-      `${indentedWhere}\n` +
-      groupByLine +
-      `  )`;
+    const built = this.buildCountingSleeveCte({
+      ownerCteName: metricEntry.cteName,
+      ownerDescription: `metric ${metric.function}(${metric.column})`,
+      cteName: sleeveCteName,
+      dimensions,
+      countItems: countItems.map(i => i.sql),
+      calculationLabel: `calculation: unique ${countedMetrics
+        .map(m => m.column)
+        .join(', ')} counted over the raw rows,`,
+      context,
+      outputAliasToRoot,
+      filterOpts,
+    });
 
     return {
       cteName: sleeveCteName,
       alias,
-      dimRefs,
-      sql,
-      params: where.params,
-      pulls: countItems.map(i => ({ metric: i.metric, alias: i.alias })),
+      dimRefs: built.dimRefs,
+      sql: built.sql,
+      params: built.params,
+      pulls: countItems.map(i => ({
+        metric: i.metric,
+        alias: i.alias,
+        coalesceEmptyToZero: true,
+      })),
     };
+  }
+
+  /**
+   * A joined source's own `Unique Count` — how many distinct rows of that source, by its DECLARED
+   * PRIMARY KEY, the report's dimension grain contains. Same sleeve as a joined COUNT_DISTINCT (it
+   * shares every join / dimension / WHERE decision through `buildCountingSleeveCte`); what differs
+   * is that it counts a declared key rather than a selected column, so a source with no selected
+   * column of its own is still counted — and that the key rides as one SLOT PER COLUMN inside the
+   * sleeve's own `SELECT DISTINCT`, counted by an outer `COUNT`.
+   *
+   * The slots are what make this correct. Reducing the key to ONE scalar for `COUNT(DISTINCT …)`
+   * meant casting every component to text, and a text cast is lossy: under Snowflake's default
+   * `TIMESTAMP_OUTPUT_FORMAT` a nanosecond timestamp renders to milliseconds, so a
+   * `(user_id, started_at)` key merged two rows 100 µs apart. A sleeve controls its own shape, so
+   * it does not have to pay that price; the FLAT main-Data-Mart count in `sql-clause-renderer`
+   * has no CTE to dedup in and keeps the scalar form.
+   */
+  buildUniqueCountSleeveCte(
+    source: JoinedUniqueCountSleeve,
+    dimensions: string[],
+    context: BlendedQueryContext,
+    outputAliasToRoot: ReadonlyMap<string, string>,
+    cteName: string,
+    filterOpts: SleeveFilterOptions = NO_SLEEVE_FILTERS
+  ): SleeveResult {
+    // USER DATA, like the join-conditions guard above: the key is read from the joined Data Mart's
+    // schema, which can lose it after the report was saved. A bare Error is a 500 with an empty
+    // body — the user is told nothing and cannot act.
+    if (source.pkColumns.length === 0) {
+      throw new BusinessViolationException(
+        `Joined Data Mart '${source.aliasPath}' has no primary key columns, so its Unique Count ` +
+          `cannot be counted. Declare a top-level, connected primary key on that Data Mart, or ` +
+          `remove its Unique Count from the report`
+      );
+    }
+    const ownerDescription = `Unique Count source '${source.aliasPath}'`;
+    const ownerChain = this.resolveSleeveOwnerChain(source.cteName, ownerDescription, context);
+    const rawAlias = this.dialect.quoteIdentifier(`${source.cteName}_raw`);
+    const slotItem = (column: string, alias: string): string =>
+      `${rawAlias}.${this.dialect.quoteFieldRef(column)} AS ${this.dialect.quoteIdentifier(alias)}`;
+    const pkSlotAliases = source.pkColumns.map((_, i) => `_uc_pk_${i}`);
+    // Rescues a key declared unique only WITHIN the join key (`line_no` per order), which is
+    // indistinguishable from a correct declaration — the same rescue the value sleeve's identity
+    // makes, so both readers of one declared key mean the same thing by it. A real key determines
+    // the join key anyway, and `identityScopingJoinKeyColumns` then emits no slot at all. The join
+    // key SCOPES the identity; it is not part of it, so the count's NULL guard below stays on the
+    // declared key alone.
+    const identityItems = [
+      ...source.pkColumns.map((col, i) => slotItem(col, pkSlotAliases[i])),
+      ...identityScopingJoinKeyColumns(
+        source.pkColumns,
+        ownerChain.relationship.joinConditions.map(jc => jc.targetFieldName)
+      ).map((col, i) => slotItem(col, `_uc_jk_${i}`)),
+    ];
+    const countRef = renderPrimaryKeyCountedSlotRef(
+      pkSlotAliases.map(a => this.dialect.quoteIdentifier(a))
+    );
+    const countItem = `${this.dialect.buildAggregation('COUNT', countRef)} AS ${this.dialect.quoteIdentifier(source.outputLabel)}`;
+
+    const built = this.buildCountingSleeveCte({
+      ownerCteName: source.cteName,
+      ownerDescription,
+      cteName,
+      dimensions,
+      countItems: [countItem],
+      distinctIdentityItems: identityItems,
+      calculationLabel: `calculation: unique ${source.aliasPath} rows counted by primary key over the raw rows,`,
+      context,
+      outputAliasToRoot,
+      filterOpts,
+    });
+
+    return {
+      cteName,
+      dimRefs: built.dimRefs,
+      sql: built.sql,
+      params: built.params,
+      pulls: [{ alias: source.outputLabel, coalesceEmptyToZero: true }],
+    };
+  }
+
+  /**
+   * The chain a counting sleeve is built over. Symmetric to the value sleeve's guard: an owner
+   * cteName with no chain would emit joins referencing a CTE that is never declared — a raw engine
+   * "table not found" instead of a sentence naming what was being counted.
+   */
+  private resolveSleeveOwnerChain(
+    ownerCteName: string,
+    ownerDescription: string,
+    context: BlendedQueryContext
+  ): ResolvedRelationshipChain {
+    const chain = context.chains.find(c => c.cteName === ownerCteName);
+    if (!chain) {
+      // The chain set is derived from relationships the user can delete or exclude between saving
+      // a report and running it, so this is reachable from user data — not a 500 with no message.
+      throw new BusinessViolationException(
+        `Joined source '${ownerCteName}' of ${ownerDescription} is not among this report's ` +
+          `resolved joins, so the metric has no rows to read. Check that the Data Mart is still ` +
+          `joined to this one and allowed for reporting`
+      );
+    }
+    return chain;
+  }
+
+  /**
+   * The join / dimension / WHERE / GROUP BY assembly every COUNTING sleeve shares. A joined
+   * COUNT_DISTINCT of a selected column and a joined source's Unique Count of a declared key differ
+   * ONLY in what they count, so they must not own two copies of this — the caller supplies finished
+   * SELECT items and this decides everything else about the CTE.
+   *
+   * Two nestings, chosen by `distinctIdentityItems`:
+   * - FLAT — `COUNT(DISTINCT <column>)` straight over the joined raw rows. What "how many distinct
+   *   VALUES" means; a value is one scalar already, so there is nothing to dedup first.
+   * - NESTED — an inner `SELECT DISTINCT <dims>, <identity slots>` wrapped by the caller's
+   *   aggregates over those slot aliases. What counting distinct ROWS needs: a row identity spans
+   *   several columns, and a tuple can hold them side by side instead of squeezing them into one
+   *   text scalar.
+   */
+  private buildCountingSleeveCte(opts: {
+    /** The chain whose RAW ancestor closure is the fan-out identity source counted over. */
+    ownerCteName: string;
+    /** What the owner is FOR, quoted back in the "chain is missing" error. */
+    ownerDescription: string;
+    cteName: string;
+    dimensions: string[];
+    /** Finished `<aggregate> AS <alias>` SELECT items, in emission order. */
+    countItems: string[];
+    /**
+     * Finished `<ref> AS <alias>` items for the inner `SELECT DISTINCT`. Set → the NESTED form, and
+     * `countItems` must aggregate those aliases; omitted → the flat form.
+     */
+    distinctIdentityItems?: string[];
+    /** The first comment line above the CTE: what this calculation is. */
+    calculationLabel: string;
+    context: BlendedQueryContext;
+    outputAliasToRoot: ReadonlyMap<string, string>;
+    filterOpts: SleeveFilterOptions;
+  }): {
+    dimRefs: { column: string; outer: string; sleeve: string }[];
+    sql: string;
+    params: SqlParameter[];
+  } {
+    const { context, outputAliasToRoot, filterOpts, cteName, dimensions } = opts;
+    const qualify = createColumnQualifier(this.dialect, outputAliasToRoot);
+
+    // Two join sets (/C2), same construction as the value sleeve: (1) the owner's raw
+    // ancestor closure — the fan-out identity source the count reads; (2) the DEDUP
+    // CTEs of every blended dimension AND post-join filter column, so both resolve through the
+    // SAME `qualify` ref the outer query uses (the dedup CTEs are 1:1 with `main`, no fan-out).
+    this.resolveSleeveOwnerChain(opts.ownerCteName, opts.ownerDescription, context);
+    const rawJoins = this.buildSleeveAncestorJoins([opts.ownerCteName], context);
+    const dedupJoins = this.buildSleeveDedupRootJoins(
+      [...dimensions, ...sleeveJoinColumns(filterOpts)],
+      outputAliasToRoot,
+      context
+    );
+    const joins = [
+      ...rawJoins,
+      ...dedupJoins,
+      ...(filterOpts.keptGroups ? [`    ${filterOpts.keptGroups.join}`] : []),
+    ];
+
+    // Dimension expressions are built from the SAME `qualify(d)` the outer GROUP BY uses, so the
+    // sleeve's projected dimension, `dimRefs.outer`, and the outer GROUP BY are byte-identical
+    // BY CONSTRUCTION ( — a fanning blended dimension's roll-up otherwise disagrees with
+    // the raw value the sleeve used to project, and the NULL-safe join-back never matched).
+    const dimRefs: { column: string; outer: string; sleeve: string }[] = [];
+    const groupByParts: string[] = [];
+    const selectDims: string[] = [];
+    dimensions.forEach((d, i) => {
+      const outerExpr = this.renderDimensionExpr(qualify(d), d, context);
+      const dimAlias = this.dialect.quoteIdentifier(sleeveDimensionAlias(i));
+      groupByParts.push(outerExpr);
+      selectDims.push(`${outerExpr} AS ${dimAlias}`);
+      dimRefs.push({
+        column: d,
+        outer: outerExpr,
+        // The sleeve CTE's OWN projected column, not the raw ref — the join this
+        // feeds runs OUTSIDE the CTE, where only its SELECTed columns are visible.
+        sleeve: `${this.dialect.quoteIdentifier(cteName)}.${dimAlias}`,
+      });
+    });
+
+    // reproduce the report's post-join WHERE inside the sleeve so the count runs over
+    // the FILTERED set (before GROUP BY, and in the NESTED form inside the DISTINCT subquery so
+    // the deduped set is over the filtered rows too).
+    const where = this.renderSleeveWhere(filterOpts, qualify);
+
+    // See buildValueSleeveGroupCte: the same two-line shape, for the counting form.
+    const sleeveLabel = sanitizeSqlComment(opts.calculationLabel);
+    const sleeveReason = sanitizeSqlComment(
+      `so the join's roll-up cannot hide values and its fan-out cannot inflate them`
+    );
+    const header =
+      `  -- ${sleeveLabel}\n  -- ${sleeveReason}\n` +
+      `  ${this.dialect.quoteIdentifier(cteName)} AS (\n`;
+
+    // No report dimensions (a lone grand-total count, e.g. Totals with no grouping): the sleeve
+    // collapses to one global row, so it must NOT emit a trailing `GROUP BY` with no keys —
+    // that's invalid SQL, not "group by nothing".
+    if (opts.distinctIdentityItems) {
+      // The outer wrapper groups by the dimension's OWN ALIAS as the inner subquery projected it —
+      // only that SELECT list is in scope out here.
+      const outerDimCols = dimensions.map((_, i) =>
+        this.dialect.quoteIdentifier(sleeveDimensionAlias(i))
+      );
+      const sql =
+        header +
+        `    SELECT\n      ${[...outerDimCols, ...opts.countItems].join(',\n      ')}\n` +
+        `    FROM (\n` +
+        `      SELECT DISTINCT\n        ` +
+        `${[...selectDims, ...opts.distinctIdentityItems].join(',\n        ')}\n` +
+        `      FROM ${this.dialect.quoteIdentifier('main')}\n` +
+        `${joins.map(j => `  ${j}`).join('\n')}` +
+        `${where.sql ? where.sql.replace(/\n/g, '\n      ') : ''}\n` +
+        `    ) ${this.dialect.quoteIdentifier('_dedup')}\n` +
+        (outerDimCols.length > 0 ? `    GROUP BY ${outerDimCols.join(', ')}\n` : '') +
+        `  )`;
+      return { dimRefs, sql, params: where.params };
+    }
+
+    const sql =
+      header +
+      `    SELECT\n      ${[...selectDims, ...opts.countItems].join(',\n      ')}\n` +
+      `    FROM ${this.dialect.quoteIdentifier('main')}\n` +
+      `${joins.join('\n')}` +
+      `${where.sql ? where.sql.replace(/\n/g, '\n    ') : ''}\n` +
+      (groupByParts.length > 0 ? `    GROUP BY ${groupByParts.join(', ')}\n` : '') +
+      `  )`;
+
+    return { dimRefs, sql, params: where.params };
   }
 
   /**

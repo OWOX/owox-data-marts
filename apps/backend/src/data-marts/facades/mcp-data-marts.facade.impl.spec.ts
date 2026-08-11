@@ -345,6 +345,7 @@ describe('McpDataMartsFacadeImpl', () => {
         },
       ],
       joinedFields: [],
+      uniqueCountSources: [],
     });
     expect(dataMartService.actualizeSchemaIfExpired).toHaveBeenCalledWith(
       'dm_1',
@@ -443,6 +444,7 @@ describe('McpDataMartsFacadeImpl', () => {
       description: '',
       fields: [],
       joinedFields: [],
+      uniqueCountSources: [],
     });
   });
 
@@ -566,6 +568,250 @@ describe('McpDataMartsFacadeImpl', () => {
         roles: ['viewer'],
       }
     );
+  });
+
+  it('appends a joined Unique Count pseudo-field per available source, omitting sources that are not available (#6792)', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [],
+      [
+        {
+          aliasPath: 'orders',
+          title: 'Orders',
+          defaultAlias: 'Orders',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+        {
+          aliasPath: 'customers',
+          title: 'Customers',
+          defaultAlias: 'Customers',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'no-primary-key',
+        },
+        {
+          // Not accessible for reporting — must not leak a pseudo-field either.
+          aliasPath: 'secret',
+          title: 'Secret',
+          defaultAlias: 'Secret',
+          isIncluded: true,
+          isAccessibleForReporting: false,
+          uniqueCountAvailability: 'available',
+        },
+      ]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.joinedFields).toEqual([
+      {
+        name: 'orders__unique_count',
+        displayName: 'Orders Unique Count',
+        type: 'INTEGER',
+        description: "Number of unique Orders records, counted by that Data Mart's primary key.",
+        sourceDataMart: 'Orders',
+        allowedAggregations: [],
+      },
+    ]);
+    expect(result.uniqueCountSources).toEqual([
+      { aliasPath: 'orders', name: 'orders__unique_count', displayName: 'Orders Unique Count' },
+    ]);
+  });
+
+  // The name is a pure function of THIS source's display prefix — the same rule an ordinary joined
+  // field follows. Deliberately not a set function: a uniqueness-driven label would rename an
+  // existing column whenever an unrelated source appeared or disappeared.
+  it('names the pseudo-field from its own source, even when another shares the prefix (#6792)', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [],
+      [
+        {
+          aliasPath: 'orders',
+          title: 'Orders',
+          defaultAlias: 'Orders',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+        {
+          aliasPath: 'shop.orders',
+          title: 'Orders',
+          defaultAlias: 'Orders',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'no-primary-key',
+        },
+      ]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.uniqueCountSources).toEqual([
+      {
+        aliasPath: 'orders',
+        name: 'orders__unique_count',
+        displayName: 'Orders Unique Count',
+      },
+    ]);
+  });
+
+  it('skips the pseudo-field when a joined source owns a real field of the same name (#6792)', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [
+        {
+          // Real flat column literally called `unique_count` on the `orders` source — its
+          // unified name is byte-identical to the pseudo-field's.
+          name: 'orders__unique_count',
+          type: 'STRING',
+          description: 'Vendor-supplied unique count string',
+          sourceDataMartTitle: 'Orders',
+          aliasPath: 'orders',
+          isHidden: false,
+        },
+      ],
+      [
+        {
+          aliasPath: 'orders',
+          title: 'Orders',
+          defaultAlias: 'Orders',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+      ]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.joinedFields).toEqual([
+      {
+        name: 'orders__unique_count',
+        displayName: 'orders__unique_count',
+        type: 'STRING',
+        description: 'Vendor-supplied unique count string',
+        sourceDataMart: 'Orders',
+      },
+    ]);
+    expect(result.uniqueCountSources).toEqual([]);
+  });
+
+  it('skips the pseudo-field when a NATIVE field owns the same name (#6792)', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: {
+        type: BigQueryDataMartSchemaType,
+        fields: [
+          {
+            name: 'orders__unique_count',
+            type: BigQueryFieldType.INTEGER,
+            mode: BigQueryFieldMode.NULLABLE,
+            description: 'Pre-computed orders unique count',
+          },
+        ],
+      },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [],
+      [
+        {
+          aliasPath: 'orders',
+          title: 'Orders',
+          defaultAlias: 'Orders',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+      ]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.fields).toEqual([
+      expect.objectContaining({ name: 'orders__unique_count', type: BigQueryFieldType.INTEGER }),
+    ]);
+    expect(result.joinedFields).toEqual([]);
+    expect(result.uniqueCountSources).toEqual([]);
   });
 
   it('exposes sliceType (raw pre-join type) only for a field whose dedup changed its type', async () => {

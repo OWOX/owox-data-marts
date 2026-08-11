@@ -7,6 +7,7 @@ import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { DataStorageReportReaderState } from './data-storage-report-reader-state.interface';
 import { SqlParameter } from '../utils/sql-clause-renderer';
 import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
+import { JoinedUniqueCountHeaderSource } from './blended-query-builder.interface';
 
 /**
  * Optional runtime hints for report data preparation.
@@ -48,6 +49,21 @@ export interface PrepareReportDataOptions {
    * Set by callers that pass `uniqueCount: true` to the query builder.
    */
   uniqueCount?: boolean;
+
+  /**
+   * The main Data Mart's CURRENT primary key. The `Unique Count` column is emitted only when the
+   * key is non-empty, so the header is gated on the very same predicate — a key removed after the
+   * report was saved must take the header with it, not leave one with no data behind it.
+   * Callers passing `uniqueCount: true` MUST pass this too.
+   */
+  primaryKeyColumns?: string[];
+
+  /**
+   * Joined sources that carry their own `<prefix> Unique Count` column, already reduced to the
+   * ones that survived chain/key resolution. One header per entry, from the SAME list the SQL
+   * builder rendered its sleeves from.
+   */
+  uniqueCountSources?: JoinedUniqueCountHeaderSource[];
 
   /**
    * Explicit opt-out of the automatic `Row Count` header. When unset, Row Count is on for

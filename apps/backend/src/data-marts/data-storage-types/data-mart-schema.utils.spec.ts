@@ -1,8 +1,9 @@
 import {
   isConnected,
+  classifyJoinedUniqueCountAvailability,
   collectPrimaryKeyRowIdentity,
   createBaseFieldSchemaForType,
-  getPrimaryKeyFields,
+  getReportablePrimaryKeyFields,
   hasUsablePrimaryKey,
 } from './data-mart-schema.utils';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
@@ -70,7 +71,7 @@ describe('createBaseFieldSchemaForType — aggregation governance fields', () =>
   });
 });
 
-describe('getPrimaryKeyFields', () => {
+describe('getReportablePrimaryKeyFields', () => {
   const connected = DataMartSchemaFieldStatus.CONNECTED;
 
   const mkField = (
@@ -88,12 +89,12 @@ describe('getPrimaryKeyFields', () => {
 
   it('returns empty array when no fields are primary keys', () => {
     const fields: DataMartSchemaField[] = [mkField('id', false), mkField('name', false)];
-    expect(getPrimaryKeyFields(fields)).toEqual([]);
+    expect(getReportablePrimaryKeyFields(fields)).toEqual([]);
   });
 
   it('returns a single primary-key field', () => {
     const fields: DataMartSchemaField[] = [mkField('id', true), mkField('name', false)];
-    const result = getPrimaryKeyFields(fields);
+    const result = getReportablePrimaryKeyFields(fields);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('id');
   });
@@ -104,7 +105,7 @@ describe('getPrimaryKeyFields', () => {
       mkField('event_id', true),
       mkField('timestamp', false),
     ];
-    const result = getPrimaryKeyFields(fields);
+    const result = getReportablePrimaryKeyFields(fields);
     expect(result).toHaveLength(2);
     expect(result.map(f => f.name)).toEqual(['user_id', 'event_id']);
   });
@@ -116,7 +117,7 @@ describe('getPrimaryKeyFields', () => {
       fields: [nested],
     } as unknown as DataMartSchemaField;
     const fields: DataMartSchemaField[] = [mkField('top_non_pk', false), container];
-    const result = getPrimaryKeyFields(fields);
+    const result = getReportablePrimaryKeyFields(fields);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('category.inner_pk');
   });
@@ -126,7 +127,7 @@ describe('getPrimaryKeyFields', () => {
       mkField('id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
       mkField('event_id', true),
     ];
-    expect(getPrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
+    expect(getReportablePrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
   });
 
   it('excludes a primary-key field hidden for reporting', () => {
@@ -134,11 +135,11 @@ describe('getPrimaryKeyFields', () => {
       mkField('id', true, { isHiddenForReporting: true }),
       mkField('event_id', true),
     ];
-    expect(getPrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
+    expect(getReportablePrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
   });
 
   it('returns empty array when fields list is empty', () => {
-    expect(getPrimaryKeyFields([])).toEqual([]);
+    expect(getReportablePrimaryKeyFields([])).toEqual([]);
   });
 });
 
@@ -251,5 +252,143 @@ describe('collectPrimaryKeyRowIdentity', () => {
   it('returns nothing when no key is declared', () => {
     expect(collectPrimaryKeyRowIdentity([mkField('date', false)])).toEqual([]);
     expect(collectPrimaryKeyRowIdentity([])).toEqual([]);
+  });
+});
+
+describe('classifyJoinedUniqueCountAvailability', () => {
+  const connected = DataMartSchemaFieldStatus.CONNECTED;
+  const mkField = (
+    name: string,
+    isPrimaryKey: boolean,
+    extra: Partial<DataMartSchemaField> = {}
+  ): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: connected,
+      isPrimaryKey,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+
+  it('is available for a plain top-level primary key', () => {
+    expect(classifyJoinedUniqueCountAvailability([mkField('id', true)])).toBe('available');
+  });
+
+  it('is available for a primary key hidden for reporting — hidden means off the menu, not absent', () => {
+    expect(
+      classifyJoinedUniqueCountAvailability([mkField('id', true, { isHiddenForReporting: true })])
+    ).toBe('available');
+  });
+
+  it('is no-primary-key when no field is declared as a primary key anywhere', () => {
+    expect(
+      classifyJoinedUniqueCountAvailability([mkField('id', false), mkField('name', false)])
+    ).toBe('no-primary-key');
+    expect(classifyJoinedUniqueCountAvailability([])).toBe('no-primary-key');
+  });
+
+  it('is disconnected-primary-key when the declared key is DISCONNECTED, never no-primary-key', () => {
+    expect(
+      classifyJoinedUniqueCountAvailability([
+        mkField('id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      ])
+    ).toBe('disconnected-primary-key');
+  });
+
+  it('is disconnected-primary-key when one component of a composite key is DISCONNECTED', () => {
+    expect(
+      classifyJoinedUniqueCountAvailability([
+        mkField('date', true),
+        mkField('campaign_id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      ])
+    ).toBe('disconnected-primary-key');
+  });
+
+  it('is nested-primary-key when the declared key lives inside a nested container', () => {
+    const container = {
+      ...mkField('meta', false),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    expect(classifyJoinedUniqueCountAvailability([mkField('top_non_pk', false), container])).toBe(
+      'nested-primary-key'
+    );
+  });
+
+  // Naming only the nesting sent the user to un-nest the key, after which the metric was STILL
+  // withheld — for a cause they were never told about.
+  it('names both causes when the nested key also sits in a DISCONNECTED subtree', () => {
+    const container = {
+      ...mkField('meta', false, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    expect(classifyJoinedUniqueCountAvailability([container])).toBe(
+      'nested-and-disconnected-primary-key'
+    );
+  });
+
+  it('names both causes for a composite key with one hidden, one disconnected, and one nested component', () => {
+    const nestedContainer = {
+      ...mkField('meta', false),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    const fields: DataMartSchemaField[] = [
+      mkField('hidden_id', true, { isHiddenForReporting: true }),
+      mkField('gone_id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      nestedContainer,
+    ];
+    expect(classifyJoinedUniqueCountAvailability(fields)).toBe(
+      'nested-and-disconnected-primary-key'
+    );
+  });
+
+  it('stays nested-primary-key when every declared component is still connected', () => {
+    const container = {
+      ...mkField('meta', false),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    expect(classifyJoinedUniqueCountAvailability([mkField('date', true), container])).toBe(
+      'nested-primary-key'
+    );
+  });
+
+  it('is available for a composite key with one hidden and one plain connected component', () => {
+    const fields: DataMartSchemaField[] = [
+      mkField('hidden_id', true, { isHiddenForReporting: true }),
+      mkField('visible_id', true),
+    ];
+    expect(classifyJoinedUniqueCountAvailability(fields)).toBe('available');
+  });
+
+  it('agrees with collectPrimaryKeyRowIdentity: available iff a non-empty row identity exists', () => {
+    const nested = {
+      ...mkField('meta', false),
+      fields: [mkField('inner_id', true)],
+    } as unknown as DataMartSchemaField;
+    const disconnected = mkField('gone_id', true, {
+      status: DataMartSchemaFieldStatus.DISCONNECTED,
+    });
+    const hiddenInDisconnected = {
+      ...mkField('vanished', false, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      fields: [mkField('buried_id', true)],
+    } as unknown as DataMartSchemaField;
+
+    const cases: DataMartSchemaField[][] = [
+      [],
+      [mkField('id', false)],
+      [mkField('id', true)],
+      [mkField('id', true, { isHiddenForReporting: true })],
+      [nested],
+      [disconnected],
+      [hiddenInDisconnected],
+      [mkField('date', true), disconnected],
+      [mkField('date', true), nested],
+      [mkField('date', true), mkField('campaign_id', true, { isHiddenForReporting: true })],
+    ];
+
+    for (const fields of cases) {
+      const isAvailable = classifyJoinedUniqueCountAvailability(fields) === 'available';
+      const hasRowIdentity = collectPrimaryKeyRowIdentity(fields).length > 0;
+      expect(isAvailable).toBe(hasRowIdentity);
+    }
   });
 });

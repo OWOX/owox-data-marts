@@ -206,6 +206,9 @@ describe('CreateReportService', () => {
       dateTruncConfig: null,
       uniqueCountConfig: null,
       accessor: { userId: 'user-0', roles: [] },
+      // A save is where a joined Unique Count source that can never emit its column is refused;
+      // the run path re-validates the same config and must keep degrading instead.
+      rejectUnavailableUniqueCountSources: true,
     });
   });
 

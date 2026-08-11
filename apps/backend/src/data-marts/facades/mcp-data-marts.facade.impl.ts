@@ -11,6 +11,8 @@ import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { SummarizeMcpDataCatalogCommand } from '../dto/domain/summarize-mcp-data-catalog.command';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { formatBlendedFieldDisplayName } from '../services/blended-field-display-name';
+import { buildJoinedUniqueCountColumnName } from '../services/blended-field-name';
+import { UNIQUE_COUNT_LABEL } from '../dto/schemas/aggregation-labels';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -29,6 +31,7 @@ import {
   McpQueryDataMartRequest,
   McpQueryDataMartResponse,
   McpSummarizeDataCatalogRequest,
+  McpUniqueCountSourceDto,
 } from './mcp-data-marts.facade';
 
 @Injectable()
@@ -90,23 +93,37 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         } as DataMartSchema) as { fields: Array<Record<string, unknown>> })
       : undefined;
 
+    const { joinedFields, uniqueCountSources } = request.includeJoinedFields
+      ? await this.resolveJoinedFields(request, this.topLevelFieldNames(schema?.fields ?? []))
+      : { joinedFields: [], uniqueCountSources: [] };
+
     return {
       id: dataMart.id,
       name: dataMart.title,
       description: dataMart.description ?? '',
       fields: this.withDisplayNames(schema?.fields ?? []),
-      joinedFields: request.includeJoinedFields ? await this.resolveJoinedFields(request) : [],
+      joinedFields,
+      uniqueCountSources,
     };
   }
 
   /**
    * Fields contributed by joined/blended data marts, with their qualified `<alias>__<field>`
    * names — best-effort, so a discovery call still returns native fields if the blend can't be
-   * resolved (e.g. a deleted join target).
+   * resolved (e.g. a deleted join target). Also surfaces each accessible source's Unique Count
+   * pseudo-field (#6792): appended to `joinedFields` for the model to see, and repeated in
+   * `uniqueCountSources` (never sent to the client) so query_data_mart can translate a selected
+   * pseudo-field name back into its source's aliasPath — but never under a name a REAL field
+   * already owns (`nativeFieldNames` carries the home mart's, checked together with the blended
+   * ones), which would shadow that field and make it unreachable through this tool.
    */
   private async resolveJoinedFields(
-    request: McpGetDataMartDetailsRequest
-  ): Promise<McpJoinedFieldDto[]> {
+    request: McpGetDataMartDetailsRequest,
+    nativeFieldNames: ReadonlySet<string>
+  ): Promise<{
+    joinedFields: McpJoinedFieldDto[];
+    uniqueCountSources: McpUniqueCountSourceDto[];
+  }> {
     try {
       // No outgoing relationships → no blended fields; skip the heavier blendable-schema
       // computation on the (common) non-blended discovery path.
@@ -114,7 +131,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         request.dataMartId
       );
       if (relationships.length === 0) {
-        return [];
+        return { joinedFields: [], uniqueCountSources: [] };
       }
 
       const blendable = await this.blendableSchemaService.computeBlendableSchema(
@@ -127,12 +144,12 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       // UI's gate (isIncluded + isAccessibleForReporting). computeBlendableSchema resolves access
       // per source but leaves it on availableSources; without this filter we would leak the
       // schema of joined data marts the caller has no reporting access to.
-      const accessiblePaths = new Set(
-        blendable.availableSources
-          .filter(s => s.isIncluded && s.isAccessibleForReporting)
-          .map(s => s.aliasPath)
+      const accessibleSources = blendable.availableSources.filter(
+        s => s.isIncluded && s.isAccessibleForReporting
       );
-      return blendable.blendedFields
+      const accessiblePaths = new Set(accessibleSources.map(s => s.aliasPath));
+
+      const blendedFields = blendable.blendedFields
         .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
         .map(f => ({
           name: f.name,
@@ -150,11 +167,48 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           // and advertise aggregations every query would then reject.
           ...(f.postJoinAggregations ? { allowedAggregations: f.postJoinAggregations } : {}),
         }));
+
+      // Only 'available' sources get a pseudo-field: a source missing a usable primary key has
+      // nothing to COUNT DISTINCT, and the model cannot act on a hint to go set one — omitting it
+      // entirely is safer than advertising a field that would just fail at the warehouse.
+      const uniqueCountSources: McpUniqueCountSourceDto[] = [];
+      const uniqueCountFields: McpJoinedFieldDto[] = [];
+      // `orders__unique_count` is byte-identical to the unified name of a real flat field called
+      // `unique_count` on the `orders` source (and to a native column of that literal name).
+      const realFieldNames = new Set([...nativeFieldNames, ...blendedFields.map(f => f.name)]);
+      const eligibleSources = accessibleSources.filter(
+        s =>
+          s.uniqueCountAvailability === 'available' &&
+          // The real field wins: shadowing it would answer a request for that column with
+          // COUNT(DISTINCT pk), and selecting both would collide on one output alias anyway.
+          !realFieldNames.has(buildJoinedUniqueCountColumnName(s.aliasPath))
+      );
+      for (const s of eligibleSources) {
+        const name = buildJoinedUniqueCountColumnName(s.aliasPath);
+        // The same formatter every ordinary joined field above goes through, so the metric reads
+        // like one; MCP carries no destination, so it keeps the prefix style.
+        const displayName = formatBlendedFieldDisplayName({
+          name: UNIQUE_COUNT_LABEL,
+          outputPrefix: s.defaultAlias,
+        });
+        uniqueCountSources.push({ aliasPath: s.aliasPath, name, displayName });
+        uniqueCountFields.push({
+          name,
+          displayName,
+          type: 'INTEGER',
+          description: `Number of unique ${s.title} records, counted by that Data Mart's primary key.`,
+          sourceDataMart: s.title,
+          // A pseudo-field IS the aggregate; further aggregating it is not supported.
+          allowedAggregations: [],
+        });
+      }
+
+      return { joinedFields: [...blendedFields, ...uniqueCountFields], uniqueCountSources };
     } catch (err) {
       this.logger.warn(
         `resolveJoinedFields failed; returning no joined fields: ${err instanceof Error ? err.message : String(err)}`
       );
-      return [];
+      return { joinedFields: [], uniqueCountSources: [] };
     }
   }
 
@@ -183,6 +237,14 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       // Do not reveal whether a non-published Data Mart exists.
       throw new NotFoundException('Data Mart not found');
     }
+  }
+
+  // Only top-level names can collide with a `<alias>__unique_count` pseudo-field: a nested
+  // field is addressed as `parent.child`, which never has that shape.
+  private topLevelFieldNames(fields: Array<Record<string, unknown>>): ReadonlySet<string> {
+    return new Set(
+      fields.map(f => f['name']).filter((name): name is string => typeof name === 'string')
+    );
   }
 
   private withDisplayNames(fields: Array<Record<string, unknown>>): Array<Record<string, unknown>> {

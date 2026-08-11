@@ -1,6 +1,7 @@
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { QueryDataMartTool } from './query-data-mart.tool';
 import {
+  hasUniqueCountFieldCandidate,
   UnsupportedOperatorError,
   UnsupportedAggregationError,
   UnsupportedDateBucketError,
@@ -12,6 +13,7 @@ import {
   QueryAbortedError,
   QueryTimeoutError,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
+import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from '../../../data-marts/dto/schemas/unique-count-config.schema';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import { ROWS_PAYLOAD_BYTE_CAP } from './tabular-serializer';
 
@@ -22,7 +24,11 @@ const AUTH_CTX = {
 };
 
 describe('QueryDataMartTool', () => {
-  const facade = { queryDataMart: jest.fn(), listDataMarts: jest.fn() };
+  const facade = {
+    queryDataMart: jest.fn(),
+    listDataMarts: jest.fn(),
+    getDataMartDetails: jest.fn(),
+  };
   const cls = { update: jest.fn(), get: jest.fn(), set: jest.fn(), runWithContext: jest.fn() };
   const publicOrigin = {
     getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
@@ -47,6 +53,16 @@ describe('QueryDataMartTool', () => {
     // The two footguns the matrix exists to prevent.
     expect(tool.description).toContain('only where enabled on the field');
     expect(tool.description).toContain('NOT available on number fields');
+  });
+
+  // A model copies the documented example verbatim into `fields`. The display form is not a name
+  // the splitter matches, so it bypasses the purpose-written UnmatchedUniqueCountFieldError, lands
+  // on the generic field_not_found, and burns a billed round-trip (#6792).
+  it('illustrates the joined Unique Count field with a name the tool recognises', () => {
+    expect(hasUniqueCountFieldCandidate(['orders__unique_count'])).toBe(true);
+    expect(tool.description).toContain('"orders__unique_count"');
+    expect(tool.description).not.toContain('"Orders Unique Count"');
+    expect(tool.description).not.toContain('"<Prefix> Unique Count"');
   });
 
   it('rejects input missing required fields', () => {
@@ -405,6 +421,390 @@ describe('QueryDataMartTool', () => {
       expect(cls.update).toHaveBeenCalledWith('McpToolDiagnostics', {
         executedSql: 'SELECT id FROM t',
       });
+    });
+  });
+
+  describe('joined Unique Count pseudo-field (#6792)', () => {
+    const availableSources = [
+      { aliasPath: 'orders', name: 'orders__unique_count', displayName: 'Orders Unique Count' },
+    ];
+
+    const mockQueryResult = () =>
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['customer_email', 'orders__unique_count'],
+        columnMetadata: [
+          { name: 'customer_email', displayName: 'Customer email' },
+          { name: 'orders__unique_count', displayName: 'Orders Unique Count' },
+        ],
+        rows: [['a@b.com', '3']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+    it('maps a joined Unique Count pseudo-field in `fields` onto uniqueCountConfig', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+      mockQueryResult();
+
+      await tool.handler(
+        { data_mart_id: 'dm1', fields: ['customer_email', 'orders__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ uniqueCountConfig: ['orders'] })
+      );
+    });
+
+    // The real getDataMartDetails response repeats each pseudo-field in `joinedFields` (that is how
+    // the model discovers it) as well as in `uniqueCountSources` — mirrored here exactly, because a
+    // details payload that omits it makes the whole split look like it works when it does not.
+    it('maps the pseudo-field from the details payload the facade actually returns', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [{ name: 'customer_email' }],
+        joinedFields: [
+          {
+            name: 'orders__unique_count',
+            displayName: 'Orders Unique Count',
+            type: 'INTEGER',
+            description:
+              "Number of unique Orders records, counted by that Data Mart's primary key.",
+            sourceDataMart: 'Orders',
+            allowedAggregations: [],
+          },
+        ],
+        uniqueCountSources: availableSources,
+      });
+      mockQueryResult();
+
+      await tool.handler(
+        { data_mart_id: 'dm1', fields: ['customer_email', 'orders__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          fields: ['customer_email'],
+          uniqueCountConfig: ['orders'],
+        })
+      );
+    });
+
+    it('does not leak the pseudo-field into the column list', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+      mockQueryResult();
+
+      await tool.handler(
+        { data_mart_id: 'dm1', fields: ['customer_email', 'orders__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ fields: ['customer_email'] })
+      );
+    });
+
+    it('does not call getDataMartDetails when no field looks like a Unique Count pseudo-field', async () => {
+      mockQueryResult();
+
+      await tool.handler({ data_mart_id: 'dm1', fields: ['customer_email'] }, AUTH_CTX as never);
+
+      expect(facade.getDataMartDetails).not.toHaveBeenCalled();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ fields: ['customer_email'] })
+      );
+      expect(facade.queryDataMart.mock.calls[0][0]).not.toHaveProperty('uniqueCountConfig');
+    });
+
+    it('rejects a Unique Count-looking field that matches no available source, naming the sources that DO offer one', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['customer_email', 'bogus__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'field_not_found' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('bogus__unique_count');
+      expect(msg).toContain('orders__unique_count');
+      expect(msg).toContain('Orders Unique Count');
+      expect(facade.queryDataMart).not.toHaveBeenCalled();
+    });
+
+    it('refuses more joined Unique Count fields than the report cap allows, before querying', async () => {
+      const offered = Array.from({ length: UNIQUE_COUNT_CONFIG_MAX_SOURCES + 1 }, (_, i) => ({
+        aliasPath: `s${i}`,
+        name: `s${i}__unique_count`,
+        displayName: `S${i} Unique Count`,
+      }));
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: offered,
+        uniqueCountSources: offered,
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: offered.map(s => s.name) },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'invalid_input' });
+      expect((result.structuredContent as { message?: string }).message).toContain(
+        String(UNIQUE_COUNT_CONFIG_MAX_SOURCES)
+      );
+      expect(facade.queryDataMart).not.toHaveBeenCalled();
+    });
+
+    it('names no sources when the data mart offers no Unique Count field at all', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: [],
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['bogus__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain(
+        'No joined source in this data mart currently offers a Unique Count field'
+      );
+      expect(msg).toContain('bogus__unique_count');
+    });
+
+    it('queries a REAL native field whose name ends in the pseudo-field suffix (#6792)', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Daily',
+        description: '',
+        fields: [{ name: 'daily__unique_count', type: 'INTEGER' }],
+        joinedFields: [],
+        uniqueCountSources: [],
+      });
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['daily__unique_count'],
+        columnMetadata: [{ name: 'daily__unique_count', displayName: 'daily__unique_count' }],
+        rows: [['7']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Daily' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['daily__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ fields: ['daily__unique_count'] })
+      );
+      expect(facade.queryDataMart.mock.calls[0][0]).not.toHaveProperty('uniqueCountConfig');
+    });
+
+    it('queries a REAL joined field whose name collides with a pseudo-field name (#6792)', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [{ name: 'orders__unique_count', type: 'STRING' }],
+        // The facade drops a pseudo-field whose name a real field owns rather than advertising
+        // both (see "skips the pseudo-field when a joined source owns a real field of the same
+        // name" in mcp-data-marts.facade.impl.spec.ts) — so this source offers none, and the real
+        // field is the only claimant on the name.
+        uniqueCountSources: [],
+      });
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['orders__unique_count'],
+        columnMetadata: [{ name: 'orders__unique_count', displayName: 'orders__unique_count' }],
+        rows: [['abc']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['orders__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ fields: ['orders__unique_count'] })
+      );
+      expect(facade.queryDataMart.mock.calls[0][0]).not.toHaveProperty('uniqueCountConfig');
+    });
+
+    it('sends only the pseudo-field with no other column ("how many unique orders in total")', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['orders__unique_count'],
+        columnMetadata: [{ name: 'orders__unique_count', displayName: 'Orders Unique Count' }],
+        rows: [['3']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        { data_mart_id: 'dm1', fields: ['orders__unique_count'] },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ fields: [], uniqueCountConfig: ['orders'] })
+      );
+    });
+
+    // The ORDER BY resolves to the outer SELECT alias the sleeve emits, so the sort is forwarded
+    // untouched — under the SQL-safe name, which is the only name the validator knows.
+    it('forwards a sort on the pseudo-field to the facade instead of rejecting it', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+      facade.queryDataMart.mockResolvedValue({
+        columns: ['customer_email', 'orders__unique_count'],
+        columnMetadata: [
+          { name: 'customer_email', displayName: 'customer_email' },
+          { name: 'orders__unique_count', displayName: 'Orders Unique Count' },
+        ],
+        rows: [['a@b.c', '3']],
+        truncated: false,
+        totals: null,
+        dataMart: { id: 'dm1', title: 'Orders' },
+      });
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['customer_email', 'orders__unique_count'],
+          sort: [{ field: 'orders__unique_count', direction: 'desc' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(facade.queryDataMart.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          fields: ['customer_email'],
+          uniqueCountConfig: ['orders'],
+          sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+        })
+      );
+    });
+
+    it('rejects aggregating the pseudo-field, naming the offending clause', async () => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['customer_email', 'orders__unique_count'],
+          aggregations: [{ field: 'orders__unique_count', function: 'SUM' }],
+        },
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'unique_count_selection_only' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('orders__unique_count');
+      expect(msg).toContain('aggregations');
+      // Must not send the model back to re-add the field to "fields" — it is already there,
+      // and doing so would just reproduce the same rejection on the next call. Nor may it call
+      // sorting forbidden: a sort on the metric is now valid and the message must not talk the
+      // model out of it.
+      expect(msg).not.toMatch(/add .* to "fields"/i);
+      expect(msg).not.toMatch(/cannot be [^.]*sorted/i);
+      expect(facade.queryDataMart).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['filters', { filters: [{ field: 'orders__unique_count', operator: 'gt', value: 1 }] }],
+      ['slices', { slices: [{ field: 'orders__unique_count', operator: 'gt', value: 1 }] }],
+      ['date_buckets', { date_buckets: [{ field: 'orders__unique_count', unit: 'MONTH' }] }],
+    ])('still rejects the pseudo-field in %s', async (clause, extra) => {
+      facade.getDataMartDetails.mockResolvedValue({
+        id: 'dm1',
+        name: 'Orders',
+        description: '',
+        fields: [],
+        joinedFields: [],
+        uniqueCountSources: availableSources,
+      });
+
+      const result = await tool.handler(
+        {
+          data_mart_id: 'dm1',
+          fields: ['customer_email', 'orders__unique_count'],
+          ...extra,
+        } as never,
+        AUTH_CTX as never
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ error_code: 'unique_count_selection_only' });
+      const msg = (result.structuredContent as { message?: string }).message ?? '';
+      expect(msg).toContain('orders__unique_count');
+      expect(msg).toContain(clause);
+      expect(facade.queryDataMart).not.toHaveBeenCalled();
     });
   });
 

@@ -22,6 +22,7 @@ import {
   buildKeptGroupsJoinPairs,
   buildKeptGroupsProjection,
 } from './kept-groups.utils';
+import { naryTextConcat, renderPrimaryKeyCountRef } from './primary-key-identity.utils';
 
 // Array order MUST match placeholder order in the SQL: positional dialects
 // (Athena `?`) bind by position and ignore `name`.
@@ -186,36 +187,39 @@ export abstract class SqlClauseRenderer {
    */
   /**
    * The SQL type keyword used in CAST(<col> AS <type>) inside the UNIQUE COUNT
-   * composite-PK CONCAT expression. BigQuery and Databricks use STRING; Snowflake,
-   * Redshift, and Athena override this to VARCHAR.
+   * composite-PK tuple expression — BigQuery/Databricks say STRING, Snowflake/Redshift/Athena say
+   * VARCHAR. Abstract on purpose: no keyword is right everywhere, and a default would let a new
+   * dialect pass every single-key test (those never cast) and fail in the warehouse on its first
+   * composite key. Public so the reflective test below can assert every dialect declares its own.
    */
-  protected textCastType(): string {
-    return 'STRING';
+  public abstract textCastType(): string;
+
+  /**
+   * How this warehouse spells string concatenation. Read by the flat Unique Count below and
+   * nowhere else — the blended path carries a row identity as SEPARATE TUPLE SLOTS and never
+   * reduces a key to one text scalar, which is why `BlendedSqlDialect` deliberately exposes
+   * neither this nor `textCastType`. Redshift's CONCAT takes exactly two arguments and overrides
+   * this with a `||` chain.
+   */
+  public textConcat(parts: readonly string[]): string {
+    return naryTextConcat(parts);
   }
 
   /**
-   * Renders `COUNT(DISTINCT <pk-tuple>)` for the Unique Count metric.
-   * - Single PK column: `COUNT(DISTINCT <ref>)` — no CONCAT needed.
-   * - Composite PK: CONCAT of COALESCE(CAST(<ref> AS <type>), '') parts joined by
-   *   the raw U+241F unit-separator character. The char is embedded literally inside
-   *   the single-quoted SQL literal so every dialect sees the SAME byte — a SQL
-   *   backslash-escape (`'\\u241F'`) would mean U+241F on BigQuery/Databricks but six
-   *   literal characters on Redshift/Snowflake/Athena, collidably per engine.
+   * Renders `COUNT(DISTINCT <pk-tuple>)` for the Unique Count metric, delegating the
+   * tuple/NULL-guard construction to the dialect-free primary-key-identity module so
+   * every dialect shares one definition of "what counts as the same row".
    */
   protected renderCountDistinctPrimaryKey(
     pkColumns: string[],
     qualify?: ColumnRefResolver
   ): string {
     const ref = (col: string): string => (qualify ? qualify(col) : this.quoteIdentifier(col));
-    if (pkColumns.length === 1) {
-      return `COUNT(DISTINCT ${ref(pkColumns[0])})`;
-    }
-    // Multi-column PK: concatenate with a unit-separator so distinct tuples stay distinct.
-    const SEP = "'␟'";
-    const castType = this.textCastType();
-    const parts = pkColumns.map(col => `COALESCE(CAST(${ref(col)} AS ${castType}), '')`);
-    const concatArgs = parts.join(`, ${SEP}, `);
-    return `COUNT(DISTINCT CONCAT(${concatArgs}))`;
+    return `COUNT(DISTINCT ${renderPrimaryKeyCountRef(
+      pkColumns.map(ref),
+      this.textCastType(),
+      parts => this.textConcat(parts)
+    )})`;
   }
 
   renderAggregatedSelect(

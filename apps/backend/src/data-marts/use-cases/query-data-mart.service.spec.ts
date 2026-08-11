@@ -11,6 +11,8 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
 import { McpQueryRunMetadataSchema } from '../dto/schemas/mcp-query-run-metadata.schema';
+import { resolveReportDataHeaders } from '../data-storage-types/utils/report-data-headers.utils';
+import { PrepareReportDataOptions } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 
 /** What the real service returns when no resolver can answer — its most common outcome. */
 const unavailableDataLastUpdated = (): SourceDataLastUpdated => ({
@@ -463,6 +465,49 @@ describe('QueryDataMartService', () => {
     expect(reader.finalize).toHaveBeenCalledTimes(1);
     const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
     expect(call.status).toBe(DataMartRunStatus.SUCCESS);
+  });
+
+  // The tool strips a Unique Count pseudo-field out of `fields` into `uniqueCountConfig` before
+  // the service sees it, so journalling `fields` alone left Run History with a run whose extra
+  // column came from nowhere.
+  it('journals the Unique Count the run actually used', async () => {
+    const { service, dataMartRunService } = createService();
+
+    await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel'],
+        uniqueCountConfig: ['orders'],
+        limit: 100,
+      })
+    );
+
+    const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+    expect(call.metadata.query).toMatchObject({
+      fields: ['channel'],
+      uniqueCountConfig: ['orders'],
+    });
+  });
+
+  it('leaves uniqueCountConfig out of the journal when the run used none', async () => {
+    const { service, dataMartRunService } = createService();
+
+    await service.run(
+      new QueryDataMartCommand({
+        projectId: 'p1',
+        userId: 'u1',
+        roles: ['admin'],
+        dataMartId: 'dm1',
+        fields: ['channel'],
+        limit: 100,
+      })
+    );
+
+    const call = dataMartRunService.recordMcpQueryRun.mock.calls[0][0];
+    expect(call.metadata.query).not.toHaveProperty('uniqueCountConfig');
   });
 
   it('computes and returns totals via ReportTotalsService', async () => {
@@ -1540,6 +1585,135 @@ describe('QueryDataMartService', () => {
         expect.objectContaining({
           columnFilter: ['channel', 'revenue'],
           aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        })
+      );
+    });
+  });
+
+  describe('joined Unique Count (#6792)', () => {
+    const ordersSource = {
+      aliasPath: 'orders',
+      cteName: 'orders_chain',
+      pkColumns: ['order_id'],
+      outputLabel: 'orders__unique_count',
+      displayLabel: 'Orders Unique Count',
+    };
+
+    // The response binds rows to the reader's headers, and those headers are built INSIDE the
+    // reader by resolveReportDataHeaders from the options this service passes. A canned header
+    // list would mock away the very seam under test, so the stub runs the real resolver.
+    const withRealHeaderResolution = (
+      reader: { prepareReportData: jest.Mock },
+      nativeHeaders: ReportDataHeader[]
+    ) =>
+      reader.prepareReportData.mockImplementation(
+        (_plan: unknown, options: PrepareReportDataOptions) =>
+          Promise.resolve(
+            new ReportDataDescription(
+              resolveReportDataHeaders(nativeHeaders, options, DataStorageType.GOOGLE_BIGQUERY)
+            )
+          )
+      );
+
+    it('emits a header for the joined Unique Count alongside the projected dimension', async () => {
+      const { service, composer, reader } = createService({
+        batches: [new ReportDataBatch([['a@b.com', 3]], null)],
+      });
+      withRealHeaderResolution(reader, [new ReportDataHeader('customer_email', 'customer_email')]);
+      composer.compose.mockResolvedValue({
+        sql: 'SELECT 1',
+        params: [],
+        needsBlending: true,
+        blendedDataHeaders: [],
+        primaryKeyColumns: ['id'],
+        uniqueCountSources: [ordersSource],
+      });
+
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          // The tool splits the pseudo-field out of `fields` into `uniqueCountConfig`.
+          fields: ['customer_email'],
+          uniqueCountConfig: ['orders'],
+          limit: 100,
+        })
+      );
+
+      expect(result.columns).toEqual(['customer_email', 'orders__unique_count']);
+      expect(result.rows).toEqual([['a@b.com', 3]]);
+      expect(result.columnMetadata).toContainEqual(
+        expect.objectContaining({
+          name: 'orders__unique_count',
+          displayName: 'Orders Unique Count',
+        })
+      );
+    });
+
+    it('projects ONLY the joined Unique Count when no dimension was requested', async () => {
+      const { service, composer, reader } = createService({
+        batches: [new ReportDataBatch([[42]], null)],
+      });
+      withRealHeaderResolution(reader, [
+        new ReportDataHeader('channel', 'channel'),
+        new ReportDataHeader('revenue', 'revenue'),
+      ]);
+      composer.compose.mockResolvedValue({
+        sql: 'SELECT 1',
+        params: [],
+        needsBlending: true,
+        blendedDataHeaders: [],
+        primaryKeyColumns: ['id'],
+        uniqueCountSources: [ordersSource],
+      });
+
+      const result = await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: [],
+          uniqueCountConfig: ['orders'],
+          limit: 100,
+        })
+      );
+
+      // Falling back to every native column here would list a page of columns the SQL never
+      // projected — the reader binds by name and fills them all with null.
+      expect(result.columns).toEqual(['orders__unique_count']);
+      expect(result.rows).toEqual([[42]]);
+    });
+
+    it('forwards the composed sources and primary key into the reader options', async () => {
+      const { service, composer, reader } = createService();
+      composer.compose.mockResolvedValue({
+        sql: 'SELECT 1',
+        params: [],
+        needsBlending: true,
+        primaryKeyColumns: ['id'],
+        uniqueCountSources: [ordersSource],
+      });
+
+      await service.run(
+        new QueryDataMartCommand({
+          projectId: 'p1',
+          userId: 'u1',
+          roles: ['admin'],
+          dataMartId: 'dm1',
+          fields: ['customer_email'],
+          uniqueCountConfig: ['orders'],
+          limit: 100,
+        })
+      );
+
+      expect(reader.prepareReportData).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          uniqueCountSources: [ordersSource],
+          primaryKeyColumns: ['id'],
         })
       );
     });

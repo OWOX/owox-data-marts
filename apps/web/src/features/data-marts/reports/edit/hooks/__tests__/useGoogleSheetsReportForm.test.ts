@@ -108,7 +108,7 @@ const validGoogleSheetsFormData = {
   limitConfig: null,
   aggregationConfig: null,
   dateTruncConfig: null,
-  uniqueCountConfig: false,
+  uniqueCountConfig: [],
 };
 
 describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
@@ -344,8 +344,8 @@ describe('useGoogleSheetsReportForm — submission', () => {
 });
 
 describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
-  it('initializes uniqueCountConfig from saved report (true)', () => {
-    const initial = buildReport({ uniqueCountConfig: true } as Partial<DataMartReport>);
+  it('initializes uniqueCountConfig from a saved report', () => {
+    const initial = buildReport({ uniqueCountConfig: ['', 'orders'] } as Partial<DataMartReport>);
     const { result } = renderHook(() =>
       useGoogleSheetsReportForm({
         initialReport: initial,
@@ -353,10 +353,10 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
         dataMartId: 'dm-1',
       })
     );
-    expect(result.current.getValues().uniqueCountConfig).toBe(true);
+    expect(result.current.getValues().uniqueCountConfig).toEqual(['', 'orders']);
   });
 
-  it('falls back to false when initialReport.uniqueCountConfig is absent', () => {
+  it('falls back to an empty list when initialReport.uniqueCountConfig is absent', () => {
     const initial = buildReport();
     const { result } = renderHook(() =>
       useGoogleSheetsReportForm({
@@ -365,7 +365,7 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
         dataMartId: 'dm-1',
       })
     );
-    expect(result.current.getValues().uniqueCountConfig).toBe(false);
+    expect(result.current.getValues().uniqueCountConfig).toEqual([]);
   });
 
   it('CREATE: includes uniqueCountConfig in createReport payload', async () => {
@@ -381,7 +381,7 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
       result.current.form.setValue('documentUrl', VALID_SHEETS_URL);
       result.current.form.setValue('dataDestinationId', 'dest-1');
       result.current.form.setValue('columnConfig', ['col_a']);
-      result.current.form.setValue('uniqueCountConfig', true);
+      result.current.form.setValue('uniqueCountConfig', ['', 'orders']);
     });
 
     await act(async () => {
@@ -389,7 +389,7 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
     });
 
     expect(mockCreateReport).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueCountConfig: true })
+      expect.objectContaining({ uniqueCountConfig: ['', 'orders'] })
     );
   });
 });

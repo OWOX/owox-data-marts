@@ -47,7 +47,7 @@ export class SnowflakeClauseRenderer extends SqlClauseRenderer {
     return escapeColumnIdentifier(name);
   }
 
-  protected override textCastType(): string {
+  public override textCastType(): string {
     return 'VARCHAR';
   }
 

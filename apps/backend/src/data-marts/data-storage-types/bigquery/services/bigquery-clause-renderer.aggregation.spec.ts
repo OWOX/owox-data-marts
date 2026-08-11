@@ -250,7 +250,7 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
         primaryKeyColumns: ['c1', 'c2'],
       });
       expect(out.selectSql).toContain(
-        `COUNT(DISTINCT CONCAT(COALESCE(CAST(\`c1\` AS STRING), ''), '␟', COALESCE(CAST(\`c2\` AS STRING), ''))) AS \`${UNIQUE_COUNT_LABEL}\``
+        `COUNT(DISTINCT CASE WHEN \`c1\` IS NULL OR \`c2\` IS NULL THEN NULL ELSE CONCAT(CAST(LENGTH(CAST(\`c1\` AS STRING)) AS STRING), '␟', CAST(\`c1\` AS STRING), CAST(LENGTH(CAST(\`c2\` AS STRING)) AS STRING), '␟', CAST(\`c2\` AS STRING)) END) AS \`${UNIQUE_COUNT_LABEL}\``
       );
     });
   });

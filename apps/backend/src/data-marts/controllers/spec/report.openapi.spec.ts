@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from '../../dto/schemas/unique-count-config.schema';
 
 jest.mock('../../../idp', () => ({
   __esModule: true,
@@ -245,18 +246,22 @@ describe('ReportController OpenAPI', () => {
     });
   });
 
-  it('documents uniqueCountConfig in request and response', () => {
+  // `toEqual` on the whole `oneOf`, not `toMatchObject`: a structural match cannot see an ABSENT
+  // key, so it would pass just as happily with the cap deleted — which is how the published
+  // request schema lost `maxItems` while the validator kept enforcing it (#6792).
+  it('documents uniqueCountConfig in request and response, cap included', () => {
+    const requestOneOf = [
+      { type: 'boolean' },
+      { type: 'array', items: { type: 'string' }, maxItems: UNIQUE_COUNT_CONFIG_MAX_SOURCES },
+    ];
+
     const updateProperties = requestSchema('/api/reports/{id}', 'put').properties;
-    expect(updateProperties.uniqueCountConfig).toMatchObject({
-      type: 'boolean',
-      nullable: true,
-    });
+    expect(updateProperties.uniqueCountConfig.oneOf).toEqual(requestOneOf);
+    expect(updateProperties.uniqueCountConfig.nullable).toBe(true);
 
     const createProperties = requestSchema('/api/reports', 'post').properties;
-    expect(createProperties.uniqueCountConfig).toMatchObject({
-      type: 'boolean',
-      nullable: true,
-    });
+    expect(createProperties.uniqueCountConfig.oneOf).toEqual(requestOneOf);
+    expect(createProperties.uniqueCountConfig.nullable).toBe(true);
 
     const getResponseSchema = document.paths['/api/reports/{id}']?.get?.responses['200'] as Record<
       string,
@@ -269,10 +274,14 @@ describe('ReportController OpenAPI', () => {
     const responseDto = getResponseBodySchema.$ref
       ? resolveRef(getResponseBodySchema.$ref as string)
       : getResponseBodySchema;
-    expect(responseDto.properties.uniqueCountConfig).toMatchObject({
-      type: 'boolean',
-      nullable: true,
-    });
+    // The RESPONSE deliberately carries no cap: the entity re-parses through the uncapped
+    // `UniqueCountConfigSchema` on read, so an over-cap row stays readable rather than becoming
+    // unreadable with no way out through the UI.
+    expect(responseDto.properties.uniqueCountConfig.oneOf).toEqual([
+      { type: 'boolean' },
+      { type: 'array', items: { type: 'string' } },
+    ]);
+    expect(responseDto.properties.uniqueCountConfig.nullable).toBe(true);
   });
 
   it('documents small object responses', () => {

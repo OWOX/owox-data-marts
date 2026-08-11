@@ -18,11 +18,13 @@ import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-sch
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
 import {
+  JoinedUniqueCountAvailability,
   collectSchemaFieldPathTypes,
   collectSchemaFieldPathDescriptors,
-  getPrimaryKeyFields,
+  getReportablePrimaryKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import { buildBlendedFieldIndex } from './blended-field-index';
+import { buildJoinedUniqueCountColumnName } from './blended-field-name';
 import { BlendedFieldEntry } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import {
   NUMBER_TYPES,
@@ -48,6 +50,12 @@ import {
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
 } from '../dto/schemas/aggregation-labels';
+import { UniqueCountConfig } from '../dto/schemas/unique-count-config.schema';
+import {
+  hasMainUniqueCount,
+  joinedUniqueCountSources,
+  normalizeUniqueCountSources,
+} from '../dto/schemas/unique-count-sources';
 
 // DATE_TYPES that carry a time-of-day component (TIMESTAMP, DATETIME, etc.).
 // A timeZone conversion is only meaningful for these — applying it to a pure
@@ -111,12 +119,49 @@ export type ValidationError =
   // null/empty columnConfig would silently drop every metric (and produce a header set that
   // no longer matches the SELECT). Require the projection up front.
   | { code: 'AGGREGATION_REQUIRES_COLUMN_CONFIG' }
+  // A joined Data Mart's Unique Count is rendered by the blended builder, which rejects a
+  // null ("all native columns") projection outright — so saving that combination produces a
+  // report that fails every run, scheduled run and Generated SQL preview.
+  | { code: 'JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG'; message: string }
+  // A joined Data Mart's Unique Count is configured for a source that can never produce the
+  // column — the alias path is gone from the schema, or the source has no primary key the metric
+  // can count. The run path drops such a source from the SQL and the headers alike, so accepting
+  // it at save persists a column that silently never appears. Raised on the SAVE paths only (see
+  // `rejectUnavailableUniqueCountSources`); a source merely EXCLUDED from reporting is not
+  // rejected — the picker keeps its entry so the user can clear it.
+  | { code: 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE'; aliasPath: string; message: string }
+  // A filter (or pre-join slice) names a Unique Count output column. The metric is computed over
+  // the whole projection, so there is no row-level column to bind a predicate to — it can only be
+  // selected and sorted by. Without this code the rule falls through as an unknown filter column
+  // and the caller is told to repair a schema link that is not broken.
+  | { code: 'UNIQUE_COUNT_FILTER_UNSUPPORTED'; column: string; message: string }
   // Two projected output columns resolve to the SAME output name — a dimension whose name
   // equals a synthetic label (Row Count / Unique Count / "<col> | TOKEN"), or any
   // two projected columns colliding, INCLUDING a pair that differs only in letter case.
   // Duplicate alias error on BigQuery / silent clobber on name-keyed readers. `label` is the
   // colliding output name.
   | { code: 'OUTPUT_COLUMN_NAME_COLLISION'; label: string };
+
+// Why a joined source cannot supply the metric. EXHAUSTIVE over every non-`available` verdict, not
+// `Partial`: an unmapped value would fall through the `if (!reason)` skip below and silently let the
+// save through, so a verdict added later must break this build rather than the report.
+const UNUSABLE_UNIQUE_COUNT_KEY_REASONS: Record<
+  Exclude<JoinedUniqueCountAvailability, 'available'>,
+  string
+> = {
+  'no-primary-key': 'it has no primary key',
+  'disconnected-primary-key': 'its primary key field is disconnected from the schema',
+  'nested-primary-key': 'its primary key is a nested field',
+  'nested-and-disconnected-primary-key':
+    'its primary key is a nested field and part of it is disconnected from the schema',
+};
+
+// `available` is the one verdict with nothing to explain.
+function unusableUniqueCountKeyReason(
+  availability: JoinedUniqueCountAvailability
+): string | undefined {
+  return availability === 'available' ? undefined : UNUSABLE_UNIQUE_COUNT_KEY_REASONS[availability];
+}
 
 function operatorAllowed(fieldType: string, operator: string): boolean {
   if (TYPE_AGNOSTIC_OPS.has(operator)) return true;
@@ -448,7 +493,8 @@ export class OutputControlsValidatorService {
    * set mirrors `resolveReportDataHeaders` / `renderAggregatedSelect`: an aggregated column
    * projects one `aggregatedColumnLabel(col, fn)` per function (and NO dimension), a
    * non-aggregated column projects its own name (date-trunc keeps the name), plus the
-   * synthetic `Row Count` (when aggregated) and `Unique Count` (when uniqueCount). A real
+   * synthetic `Row Count` (when aggregated), `Unique Count` (when uniqueCount) and one
+   * `<source>__unique_count` per joined source. A real
    * column whose name equals a synthetic label — or any two projected names that coincide —
    * is a duplicate alias on BigQuery / silent clobber on name-keyed readers. Uses the SAME
    * label helpers the renderer/header-generator use so this can never drift from the SELECT.
@@ -457,7 +503,8 @@ export class OutputControlsValidatorService {
     projectedColumns: readonly string[],
     aggregations: AggregationRule[],
     includeRowCount: boolean,
-    uniqueCount: boolean
+    uniqueCount: boolean,
+    joinedUniqueCountLabels: readonly string[] = []
   ): ValidationError[] {
     const names: string[] = [];
     for (const column of projectedColumns) {
@@ -470,6 +517,7 @@ export class OutputControlsValidatorService {
     }
     if (includeRowCount) names.push(ROW_COUNT_LABEL);
     if (uniqueCount) names.push(UNIQUE_COUNT_LABEL);
+    names.push(...joinedUniqueCountLabels);
 
     const errors: ValidationError[] = [];
     const seen = new Set<string>();
@@ -507,10 +555,17 @@ export class OutputControlsValidatorService {
     limitConfig: number | null | undefined;
     aggregationConfig: AggregationConfig | null | undefined;
     dateTruncConfig?: DateTruncConfig | null | undefined;
-    uniqueCountConfig?: boolean | null | undefined;
+    uniqueCountConfig?: UniqueCountConfig;
     accessor: BlendableSchemaAccessor;
     // Reuse an already-resolved schema (e.g. the totals path) instead of recomputing it.
     precomputedBlendableSchema?: BlendableSchemaDto;
+    /**
+     * Set by the paths that SAVE a config (create/update report, the MCP report tools) to reject a
+     * joined Unique Count source that can never emit its column. The same method re-validates a
+     * STORED config on every run, and there such a source is dropped from the SQL and the headers
+     * alike by design — failing it would turn that degradation into a 400 on every schedule.
+     */
+    rejectUnavailableUniqueCountSources?: boolean;
   }): Promise<void> {
     const hasOutputControls =
       (args.filterConfig?.length ?? 0) > 0 ||
@@ -518,7 +573,7 @@ export class OutputControlsValidatorService {
       args.limitConfig != null ||
       (args.aggregationConfig?.length ?? 0) > 0 ||
       (args.dateTruncConfig?.length ?? 0) > 0 ||
-      args.uniqueCountConfig === true;
+      normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
 
     if (!hasOutputControls) {
       // Output-name uniqueness is a property of the projection alone, so it is checked even
@@ -592,11 +647,22 @@ export class OutputControlsValidatorService {
     }
     // Aggregations / date-truncs only project a column that is listed in columnConfig
     // (renderAggregatedSelect iterates the column list); a null/empty projection would
-    // silently drop every metric and desync the headers from the SELECT. Unique Count and
-    // Row Count are synthetic columns that don't need a projected dimension, so they don't
+    // silently drop every metric and desync the headers from the SELECT. The MAIN Unique Count
+    // and Row Count are synthetic columns that don't need a projected dimension, so they don't
     // trigger this requirement on their own.
     if (!hasColumnConfig && (parsedAggregations.length > 0 || parsedDateTruncs.length > 0)) {
       errors.push({ code: 'AGGREGATION_REQUIRES_COLUMN_CONFIG' });
+    }
+    // A JOINED Unique Count is a blended output control, and the blended builder needs an
+    // explicit column list. Only a NULL/absent projection ("every native column") is malformed —
+    // an explicit empty one is a legitimate metrics-only selection the builder handles. Rejecting
+    // it here is what stops a report saving in a state that fails every subsequent run.
+    if (args.columnConfig == null && joinedUniqueCountSources(args.uniqueCountConfig).length > 0) {
+      errors.push({
+        code: 'JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG',
+        message:
+          'A joined Data Mart’s Unique Count requires an explicit column selection on the report.',
+      });
     }
 
     const needsSchema =
@@ -604,7 +670,7 @@ export class OutputControlsValidatorService {
       parsedSort.length > 0 ||
       parsedAggregations.length > 0 ||
       parsedDateTruncs.length > 0 ||
-      args.uniqueCountConfig === true;
+      normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
     if (needsSchema) {
       const blendableSchema =
         args.precomputedBlendableSchema ??
@@ -652,18 +718,41 @@ export class OutputControlsValidatorService {
         // schema entirely. NOTE: this is a code-level classification only — the web renders
         // just `message`, not `details.errors[].code`, so the two read the same to the user.
         // The web prunes this rule when the PK disappears, keeping the 400 largely unreachable.
-        knownOutputColumns.add(UNIQUE_COUNT_LABEL);
+        const uniqueCountOutputColumns = new Set<string>([UNIQUE_COUNT_LABEL]);
+        // Same rule per joined source, keyed off the SCHEMA rather than the config for exactly the
+        // reason above: unticking a source must leave its stale sort on the 400, not on the
+        // disconnected message. A source the schema no longer offers stays disconnected.
+        for (const source of blendableSchema.availableSources ?? []) {
+          uniqueCountOutputColumns.add(buildJoinedUniqueCountColumnName(source.aliasPath));
+        }
+        for (const name of uniqueCountOutputColumns) knownOutputColumns.add(name);
 
-        if (parsedFilters.length > 0) {
+        // A filter naming one of those columns is rejected HERE, and its rule is kept out of
+        // validateFilters below: unknown to the field index, it would otherwise become
+        // FILTER_COLUMN_UNKNOWN and route to throwDisconnectedReportColumnsError, which tells the
+        // caller to repair a schema link that is not broken. Same honesty the MCP tool's
+        // UniqueCountFieldUnsupportedClauseError already gives.
+        const isUniqueCountFilter = (rule: FilterRule) =>
+          uniqueCountOutputColumns.has(rule.column) && !homeFieldTypes.has(rule.column);
+        for (const rule of parsedFilters.filter(isUniqueCountFilter)) {
+          errors.push({
+            code: 'UNIQUE_COUNT_FILTER_UNSUPPORTED',
+            column: rule.column,
+            message: `"${rule.column}" is a Unique Count metric: it can be selected and sorted by, but not filtered or sliced. Remove the filter on it.`,
+          });
+        }
+        const filtersToValidate = parsedFilters.filter(rule => !isUniqueCountFilter(rule));
+
+        if (filtersToValidate.length > 0) {
           const fieldIndex = buildBlendedFieldIndex(blendableSchema);
-          errors.push(...this.validateFilters(parsedFilters, homeFieldTypes, fieldIndex));
+          errors.push(...this.validateFilters(filtersToValidate, homeFieldTypes, fieldIndex));
           // HAVING rules (filters carrying a `function`) are validated against the
           // configured aggregations + the aggregate's effective result type. `fieldIndex`
           // is reused here too — it also tells validateHavingFilters which columns are
           // BLENDED, to gate a HAVING COUNT_DISTINCT/SUM/AVG on a joined field ( sleeve gate).
           errors.push(
             ...this.validateHavingFilters(
-              parsedFilters,
+              filtersToValidate,
               parsedAggregations,
               col => homeFieldTypes.get(col),
               args.storageType,
@@ -679,8 +768,18 @@ export class OutputControlsValidatorService {
           // blended column is caught here at save time instead of failing at run time.
           const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
           // Unique Count is a synthetic metric column (COUNT(DISTINCT <pk>)), not a
-          // projected field — allow sorting by it whenever it's enabled.
-          if (args.uniqueCountConfig === true) selectedSet.add(UNIQUE_COUNT_LABEL);
+          // projected field — allow sorting by it whenever it's enabled. Each joined source's
+          // metric is the same shape, and its sort resolves to the same outer SELECT alias, so it
+          // is selected on exactly the same terms. The SQL-safe name, never the display label.
+          if (hasMainUniqueCount(args.uniqueCountConfig)) selectedSet.add(UNIQUE_COUNT_LABEL);
+          // Every CONFIGURED source, on the main metric's terms above — deliberately NOT gated on
+          // the source still being emittable: `resolveUniqueCountSources` drops a source that lost
+          // its key or its reporting inclusion, and the run path drops the stale sort rule with it
+          // (BlendedReportDataService), so failing the rule here would 400 every scheduled run of
+          // a report that no editor is ever opened on.
+          for (const aliasPath of joinedUniqueCountSources(args.uniqueCountConfig)) {
+            selectedSet.add(buildJoinedUniqueCountColumnName(aliasPath));
+          }
           errors.push(...this.validateSort(parsedSort, selectedSet));
         }
         if (parsedAggregations.length > 0) {
@@ -715,8 +814,8 @@ export class OutputControlsValidatorService {
         // mart has at least one primary-key field. Without a PK the SQL no-ops but
         // the header is still appended → header/column mismatch (silent data
         // corruption). Reject at save time so the bad state can never be persisted.
-        if (args.uniqueCountConfig === true) {
-          const pkFields = getPrimaryKeyFields(blendableSchema.nativeFields);
+        if (hasMainUniqueCount(args.uniqueCountConfig)) {
+          const pkFields = getReportablePrimaryKeyFields(blendableSchema.nativeFields);
           if (pkFields.length === 0) {
             errors.push({
               code: 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY',
@@ -726,13 +825,40 @@ export class OutputControlsValidatorService {
           }
         }
 
+        // The same standard the main key is held to above, per joined source — but only where the
+        // config can still be fixed: a stored one is re-validated on every run, where an unusable
+        // source is dropped rather than fatal. A source merely EXCLUDED from reporting stays
+        // saveable: the picker keeps its entry (rendered as not generated) so the user can clear
+        // it, and blocking would trap every other edit to the report behind someone else's change.
+        if (args.rejectUnavailableUniqueCountSources) {
+          const sourceByPath = new Map(
+            (blendableSchema.availableSources ?? []).map(s => [s.aliasPath, s])
+          );
+          for (const aliasPath of joinedUniqueCountSources(args.uniqueCountConfig)) {
+            const source = sourceByPath.get(aliasPath);
+            const reason = source
+              ? unusableUniqueCountKeyReason(source.uniqueCountAvailability)
+              : 'it is no longer joined to this Data Mart';
+            if (!reason) continue;
+            errors.push({
+              code: 'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE',
+              aliasPath,
+              message: `The joined Data Mart "${source?.defaultAlias || source?.title || aliasPath}" cannot supply its Unique Count: ${reason}. Remove it from the report’s Unique Count selection.`,
+            });
+          }
+        }
+
         // The projected output column names (dimensions + aggregated labels + Row Count +
-        // Unique Count) must be unique — a collision is a duplicate alias on BigQuery / a
-        // silent clobber on name-keyed readers. Row Count is automatic for an aggregated
-        // report (the run path appends it; the Totals reader opts out but never runs this).
-        // Mirror resolveReportDataHeaders: a metrics-only report (aggregations / uniqueCount)
-        // with NO explicit projection emits no dimensions, so don't count native names there.
-        const isMetricsOnly = parsedAggregations.length > 0 || args.uniqueCountConfig === true;
+        // Unique Count, main and per joined source) must be unique — a collision is a duplicate
+        // alias on BigQuery / a silent clobber on name-keyed readers. Row Count is automatic for
+        // an aggregated report (the run path appends it; the Totals reader opts out but never
+        // runs this). Mirror resolveReportDataHeaders: a metrics-only report (aggregations /
+        // any Unique Count) with NO explicit projection emits no dimensions, so don't count
+        // native names there.
+        const joinedUniqueCounts = joinedUniqueCountSources(args.uniqueCountConfig);
+        const isMetricsOnly =
+          parsedAggregations.length > 0 ||
+          normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
         const projectedColumns = hasColumnConfig
           ? args.columnConfig!
           : isMetricsOnly
@@ -743,7 +869,10 @@ export class OutputControlsValidatorService {
             projectedColumns,
             parsedAggregations,
             parsedAggregations.length > 0,
-            args.uniqueCountConfig === true
+            hasMainUniqueCount(args.uniqueCountConfig),
+            // `orders__unique_count` is byte-identical to the unified name of a real flat field
+            // called `unique_count` on that source — select both and the alias is emitted twice.
+            joinedUniqueCounts.map(buildJoinedUniqueCountColumnName)
           )
         );
 

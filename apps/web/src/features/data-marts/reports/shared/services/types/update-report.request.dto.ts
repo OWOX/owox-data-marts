@@ -85,5 +85,5 @@ export interface UpdateReportRequestDto {
   limitConfig?: number | null;
   aggregationConfig?: AggregationRule[] | null;
   dateTruncConfig?: DateTruncRule[] | null;
-  uniqueCountConfig?: boolean | null;
+  uniqueCountConfig?: string[] | null;
 }

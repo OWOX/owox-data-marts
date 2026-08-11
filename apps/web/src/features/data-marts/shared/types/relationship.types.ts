@@ -135,6 +135,21 @@ export interface BlendedGroup {
   isAccessibleForReporting: boolean;
   visibleFields: BlendedField[];
   selectedCount: number;
+  /**
+   * The source's own Unique Count row, present when one should render. It belongs to the SOURCE,
+   * not to any of its fields — so a group whose fields are all filtered out (or that contributes
+   * no field at all) still exists as long as this is set.
+   *
+   * `isEmitted` is whether the metric reaches the rendered SELECT: a CHECKED row that is not
+   * emitted is a stored selection the query drops, and must not read as a live one.
+   */
+  uniqueCount?: {
+    label: string;
+    description?: string;
+    dataMartName?: string;
+    checked: boolean;
+    isEmitted: boolean;
+  };
 }
 export interface NativeField {
   name: string;
@@ -150,6 +165,23 @@ export interface NativeField {
   allowedAggregations?: ReportAggregateFunction[];
 }
 
+// Mirror of the backend `JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES` (data-mart-schema.utils.ts): why a
+// JOINED source can or cannot offer the Unique Count metric. The three failure values each get their
+// own hint. Kept as an array so the client can also RECOGNISE a value at runtime — a payload carrying
+// a state added after this bundle shipped must not be read as any of these.
+// The MAIN Data Mart follows a different rule and has its own vocabulary — see
+// `MAIN_UNIQUE_COUNT_AVAILABILITY_VALUES` in shared/utils/unique-count-availability.ts.
+export const JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES = [
+  'available',
+  'no-primary-key',
+  'disconnected-primary-key',
+  'nested-primary-key',
+  'nested-and-disconnected-primary-key',
+] as const;
+
+export type JoinedUniqueCountAvailability =
+  (typeof JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES)[number];
+
 export interface AvailableSource {
   aliasPath: string;
   title: string;
@@ -161,6 +193,11 @@ export interface AvailableSource {
   relationshipId: string;
   dataMartId: string;
   isAccessibleForReporting: boolean;
+  uniqueCountAvailability: JoinedUniqueCountAvailability;
+  // The primary-key columns this source's Unique Count counts by, in schema order. Empty whenever
+  // the metric is unavailable. Optional on the wire: a response cached before the field existed
+  // carries none, and the description is simply omitted then.
+  uniqueCountKeyFields?: string[];
 }
 
 export interface BlendableSchema {

@@ -61,7 +61,7 @@ const EMPTY: OutputConfig = {
   limitConfig: null,
   aggregationConfig: [],
   dateTruncConfig: [],
-  uniqueCountConfig: false,
+  uniqueCountConfig: [],
 };
 
 // Alias differs from the raw name on purpose — that's where a leak would show.

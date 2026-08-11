@@ -2,6 +2,10 @@ import { Logger } from '@nestjs/common';
 import type { ProjectSettingsFacade } from '../../../project-settings/facades/project-settings.facade';
 import { McpInstructionsService } from './mcp-instructions.service';
 import { composeMcpInstructions, MCP_SYSTEM_INSTRUCTIONS } from './mcp-system-instructions';
+import { hasUniqueCountFieldCandidate } from '../tools/query-data-mart.input';
+
+const UNIQUE_COUNT_EXAMPLE_FIELD = 'orders__unique_count';
+const DISPLAY_FORM_NON_EXAMPLES = ['Orders Unique Count', '<Prefix> Unique Count'];
 
 describe('MCP instructions', () => {
   afterEach(() => {
@@ -11,6 +15,27 @@ describe('MCP instructions', () => {
   it('returns only system instructions when the project description is empty', () => {
     expect(composeMcpInstructions(null)).toBe(MCP_SYSTEM_INSTRUCTIONS);
     expect(composeMcpInstructions('   ')).toBe(MCP_SYSTEM_INSTRUCTIONS);
+  });
+
+  // The rule the tool ENFORCES (UniqueCountFieldUnsupportedClauseError): a model that reads only
+  // half of it retries the same rejected call, since the error tells it to drop the clause rather
+  // than to add the field back to "fields". Both halves have to survive an instructions edit.
+  it('states where a joined Unique Count field may and may not be used', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Unique Count field');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
+      'It can be selected in "fields" and ordered by in "sort" (using the same exact name), but never placed in filters, slices, aggregations, or date_buckets.'
+    );
+  });
+
+  // A model copies the documented example verbatim into `fields`. The display form is not a name
+  // the splitter matches, so it bypasses the purpose-written UnmatchedUniqueCountFieldError, lands
+  // on the generic field_not_found, and burns a billed round-trip (#6792).
+  it('illustrates the joined Unique Count field with a name the tool recognises', () => {
+    expect(hasUniqueCountFieldCandidate([UNIQUE_COUNT_EXAMPLE_FIELD])).toBe(true);
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain(`"${UNIQUE_COUNT_EXAMPLE_FIELD}"`);
+    for (const displayForm of DISPLAY_FORM_NON_EXAMPLES) {
+      expect(MCP_SYSTEM_INSTRUCTIONS).not.toContain(`"${displayForm}"`);
+    }
   });
 
   it('appends project context after the system instructions', () => {

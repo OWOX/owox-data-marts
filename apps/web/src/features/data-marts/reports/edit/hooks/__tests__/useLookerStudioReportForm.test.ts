@@ -100,7 +100,7 @@ const validLookerStudioFormData = {
   limitConfig: null,
   aggregationConfig: null,
   dateTruncConfig: null,
-  uniqueCountConfig: false,
+  uniqueCountConfig: [],
 };
 
 describe('lookerStudioReportFormSchema — columnConfig validation', () => {

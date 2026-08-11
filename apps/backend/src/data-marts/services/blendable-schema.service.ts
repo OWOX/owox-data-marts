@@ -10,6 +10,10 @@ import { AccessDecisionService, Action, EntityType } from './access-decision';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import {
+  classifyJoinedUniqueCountAvailability,
+  collectPrimaryKeyRowIdentity,
+} from '../data-storage-types/data-mart-schema.utils';
+import {
   isDateOrTimeFieldType,
   isNumericFieldType,
 } from '../data-storage-types/field-type-compatibility';
@@ -244,6 +248,15 @@ export class BlendableSchemaService {
       availableSource.isIncluded = !isExcluded;
       availableSource.relationshipId = rel.id;
       availableSource.dataMartId = rel.targetDataMart.id;
+      // RAW schema, not targetSchemaFields: a hidden PK component still counts as a usable key.
+      availableSource.uniqueCountAvailability = classifyJoinedUniqueCountAvailability(
+        rel.targetDataMart.schema?.fields ?? []
+      );
+      // The same predicate the classifier and the sleeve read, so what the picker NAMES as the
+      // counted key can never disagree with what the query counts by.
+      availableSource.uniqueCountKeyFields = collectPrimaryKeyRowIdentity(
+        rel.targetDataMart.schema?.fields ?? []
+      );
       ctx.availableSources.push(availableSource);
 
       for (const field of flatTargetFields) {

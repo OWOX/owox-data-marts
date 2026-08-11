@@ -4,6 +4,7 @@ import {
   ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
   aggregateFunctionLabel,
+  buildJoinedUniqueCountColumnName,
 } from './aggregation-labels';
 import { REPORT_AGGREGATE_FUNCTIONS } from '../types/relationship.types';
 
@@ -37,6 +38,21 @@ describe('REPORT_AGGREGATE_FUNCTION_LABELS (web mirror — drift guard)', () => 
   it('pins the synthetic output-column labels', () => {
     expect(ROW_COUNT_LABEL).toBe('Row Count');
     expect(UNIQUE_COUNT_LABEL).toBe('Unique Count');
+  });
+
+  // Mirror of the backend `buildJoinedUniqueCountColumnName`. This is the SQL alias, the header
+  // `name`, and the value a sort rule stores — it must come from the alias path, never from the
+  // free-form display prefix, which may contain dots and spaces no dialect accepts unquoted.
+  it('builds a joined source’s SQL column name from its alias path', () => {
+    expect(buildJoinedUniqueCountColumnName('orders')).toBe('orders__unique_count');
+    expect(buildJoinedUniqueCountColumnName('orders.items')).toBe('orders_items__unique_count');
+  });
+
+  // The joined source's DISPLAY label is not built here at all — the picker shows a bare
+  // `Unique Count` and the exported header is formatted on the backend. A free-form prefix must
+  // never reach the SQL name.
+  it('keeps the SQL name free of the free-form display prefix', () => {
+    expect(buildJoinedUniqueCountColumnName('ga4_events')).toBe('ga4_events__unique_count');
   });
 
   it('has exactly one non-empty label for every aggregate function (no missing/extra key)', () => {

@@ -10,6 +10,10 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     return escapeBigQueryIdentifier(name);
   }
 
+  public override textCastType(): string {
+    return 'STRING';
+  }
+
   // Column types whose values carry a time component: relative_date must compare
   // the DATE part against CURRENT_DATE()-based bounds, since BigQuery does not
   // coerce TIMESTAMP/DATETIME to DATE in a comparison (it raises a type error).

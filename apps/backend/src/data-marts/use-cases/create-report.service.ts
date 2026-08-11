@@ -112,6 +112,7 @@ export class CreateReportService {
       dateTruncConfig: command.dateTruncConfig ?? null,
       uniqueCountConfig: command.uniqueCountConfig ?? null,
       accessor: { userId: command.userId, roles: command.roles },
+      rejectUnavailableUniqueCountSources: true,
     });
 
     // Create and save the report

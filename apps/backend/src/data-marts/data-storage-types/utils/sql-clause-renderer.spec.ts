@@ -13,6 +13,9 @@ class StubRenderer extends SqlClauseRenderer {
   protected quoteIdentifier(name: string): string {
     return `"${name}"`;
   }
+  public override textCastType(): string {
+    return 'STRING';
+  }
   protected renderDateTrunc(columnRef: string, unit: DateTruncUnit): string {
     return `DATE_TRUNC(${columnRef}, ${unit})`;
   }
@@ -321,13 +324,13 @@ describe('SqlClauseRenderer', () => {
       expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
     });
 
-    it('composite PK → COUNT(DISTINCT CONCAT(COALESCE(CAST ... AS STRING) ...)) appended', () => {
+    it('composite PK → COUNT(DISTINCT CASE WHEN ... IS NULL ... THEN NULL ELSE CONCAT ... END) appended', () => {
       const out = r.renderAggregatedSelect(['channel'], [], undefined, {
         includeUniqueCount: true,
         primaryKeyColumns: ['c1', 'c2'],
       });
       expect(out.selectSql).toContain(
-        `COUNT(DISTINCT CONCAT(COALESCE(CAST("c1" AS STRING), ''), '␟', COALESCE(CAST("c2" AS STRING), ''))) AS "${UNIQUE_COUNT_LABEL}"`
+        `COUNT(DISTINCT CASE WHEN "c1" IS NULL OR "c2" IS NULL THEN NULL ELSE CONCAT(CAST(LENGTH(CAST("c1" AS STRING)) AS STRING), '␟', CAST("c1" AS STRING), CAST(LENGTH(CAST("c2" AS STRING)) AS STRING), '␟', CAST("c2" AS STRING)) END) AS "${UNIQUE_COUNT_LABEL}"`
       );
     });
 
@@ -379,10 +382,11 @@ describe('SqlClauseRenderer', () => {
         includeUniqueCount: true,
         primaryKeyColumns: ['c1', 'c2'],
       });
-      // Capture the literal between the two COALESCE parts. It sits in a CONCAT arg list
-      // (`''), '<sep>', COALESCE`) on most dialects, or in a `||` chain
-      // (`'') || '<sep>' || COALESCE`) on Redshift — match either join form.
-      const m = out.selectSql.match(/''\)(?:, | \|\| )'([^']*)'(?:, | \|\| )COALESCE/);
+      // Capture the literal between the two CAST(...) parts. It sits in a CONCAT arg list
+      // (`AS STRING), '<sep>', CAST`) on most dialects, or in a `||` chain
+      // (`AS VARCHAR(65535)) || '<sep>' || CAST`) on Redshift — match either join form, and
+      // either a bare type keyword or one carrying a length.
+      const m = out.selectSql.match(/AS \w+(?:\(\d+\))?\)(?:, | \|\| )'([^']*)'(?:, | \|\| )CAST/);
       if (!m) throw new Error(`no composite-PK separator found in: ${out.selectSql}`);
       return m[1];
     };
@@ -401,6 +405,17 @@ describe('SqlClauseRenderer', () => {
         expect(sep).toBe(unitSeparator);
       }
       expect(new Set(seps).size).toBe(1);
+    });
+
+    // A default would let a new dialect pass every single-key test — those never cast — and fail
+    // in the warehouse on its first COMPOSITE key, where the cast keyword finally appears. There
+    // is no keyword every SQL dialect agrees on, so each has to say its own (#6792).
+    it('makes every dialect state its own text cast type instead of inheriting one', () => {
+      expect(Object.getOwnPropertyNames(SqlClauseRenderer.prototype)).not.toContain('textCastType');
+      for (const [name, renderer] of dialects) {
+        const own = Object.getOwnPropertyNames(Object.getPrototypeOf(renderer));
+        expect(`${name}: ${own.includes('textCastType')}`).toBe(`${name}: true`);
+      }
     });
   });
 
@@ -532,5 +547,28 @@ describe('renderNullSafeJoinOn — NaN-safe leg', () => {
     expect(renderer.renderNullSafeJoinOn([{ left: 'a.x', right: 'b.x', nanSafe: true }])).toBe(
       '(a.x = b.x OR (a.x IS NULL AND b.x IS NULL) OR (a.x != a.x AND b.x != b.x))'
     );
+  });
+});
+
+describe('Unique Count primary-key rendering (#6792)', () => {
+  const renderer = new BigQueryClauseRenderer();
+
+  it('keeps a single-column key byte-identical to the pre-#6792 form', () => {
+    const out = renderer.renderAggregatedSelect(['channel'], [], undefined, {
+      includeUniqueCount: true,
+      primaryKeyColumns: ['id'],
+    });
+    expect(out.selectSql).toContain('COUNT(DISTINCT `id`)');
+    expect(out.selectSql).not.toContain('CASE WHEN');
+  });
+
+  it('excludes rows with a NULL component from a composite key count', () => {
+    const out = renderer.renderAggregatedSelect(['channel'], [], undefined, {
+      includeUniqueCount: true,
+      primaryKeyColumns: ['a', 'b'],
+    });
+    expect(out.selectSql).toContain('IS NULL OR');
+    expect(out.selectSql).toContain('THEN NULL ELSE');
+    expect(out.selectSql).not.toContain('COALESCE');
   });
 });

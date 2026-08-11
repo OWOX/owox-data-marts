@@ -59,6 +59,14 @@ describe('hasOutputControls', () => {
   it('returns false when uniqueCountConfig === false', () => {
     expect(hasOutputControls({ ...basePlan, uniqueCountConfig: false })).toBe(false);
   });
+
+  it('returns true when uniqueCountConfig is a non-empty array (joined-only, no main)', () => {
+    expect(hasOutputControls({ ...basePlan, uniqueCountConfig: ['orders'] })).toBe(true);
+  });
+
+  it('returns false when uniqueCountConfig is an empty array', () => {
+    expect(hasOutputControls({ ...basePlan, uniqueCountConfig: [] })).toBe(false);
+  });
 });
 
 describe('usesSuffixedJoinedFieldNames', () => {

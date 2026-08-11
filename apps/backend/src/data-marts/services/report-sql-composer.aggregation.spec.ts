@@ -430,6 +430,52 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(result!.columns).toEqual(['revenue', 'quantity']);
     });
 
+    it('projects all numeric schema fields when columnConfig is null', async () => {
+      const { service } = makeBqTotalsComposer(['revenue', 'quantity']);
+      const report = buildTotalsReport({ columnConfig: null } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result!.columns).toEqual(['revenue', 'quantity']);
+    });
+
+    // An MCP request selecting ONLY the Unique Count pseudo-field arrives here with an empty
+    // projection — the caller chose no dimensions, so there is nothing to total. That reading is
+    // the METRICS-ONLY one, the same rule resolveReportDataHeaders emits its (dimensionless)
+    // header list by.
+    it.each([
+      ['a joined Unique Count', ['orders']],
+      ['the main Unique Count', true],
+    ])(
+      'returns null for an empty columnConfig on a metrics-only plan — %s (no native build, no schema resolution, no decision resolved)',
+      async (_case, uniqueCountConfig) => {
+        const { service, facade, blendedReportDataService, blendableSchemaService } =
+          makeBqTotalsComposer([]);
+        const report = buildTotalsReport({
+          columnConfig: [],
+          uniqueCountConfig,
+        } as Partial<Report>);
+
+        expect(await service.composeTotals(report, {} as never)).toBeNull();
+        expect(facade.buildQuery).not.toHaveBeenCalled();
+        expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
+        expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
+      }
+    );
+
+    // `[]` also lives in PERSISTED rows (report-column-config.schema.ts accepts it so pre-existing
+    // rows stay loadable). Such a report projects every native column on the report path, and it
+    // has had Totals over every numeric one for months — it must not lose them silently.
+    it('keeps Totals for a legacy EMPTY columnConfig with no metrics of its own', async () => {
+      const { service } = makeBqTotalsComposer(['revenue', 'quantity']);
+      const report = buildTotalsReport({ columnConfig: [] } as Partial<Report>);
+
+      const result = await service.composeTotals(report, {} as never);
+
+      expect(result!.columns).toEqual(['revenue', 'quantity']);
+      expect(result!.sql).toContain('SUM(`revenue`) AS `revenue | SUM`');
+    });
+
     it('returns null when no selected column is numeric (no native build, no decision resolved)', async () => {
       const { service, facade, blendedReportDataService } = makeBqTotalsComposer([]);
       const report = buildTotalsReport({

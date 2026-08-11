@@ -19,6 +19,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { RunReportCommand } from '../dto/domain/run-report.command';
 import { hasOutputControls } from '../dto/domain/report-like-read-plan';
+import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
@@ -313,7 +314,9 @@ export class RunReportService {
         columnFilter: blendingDecision.columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
         aggregationConfig: blendingDecision.aggregations ?? report.aggregationConfig ?? undefined,
-        uniqueCount: report.uniqueCountConfig ?? undefined,
+        uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
+        primaryKeyColumns: blendingDecision.primaryKeyColumns,
+        uniqueCountSources: blendingDecision.uniqueCountSources,
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
 

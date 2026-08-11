@@ -1,7 +1,6 @@
 import {
   ArrayMaxSize,
   IsArray,
-  IsBoolean,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -17,7 +16,13 @@ import { FilterConfig } from '../schemas/filter-config.schema';
 import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
-import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
+import {
+  UNIQUE_COUNT_CONFIG_MAX_SOURCES,
+  UNIQUE_COUNT_CONFIG_REQUEST_OPENAPI,
+  UniqueCountConfig,
+  UniqueCountConfigRequestSchema,
+} from '../schemas/unique-count-config.schema';
+import { IsZodValid } from '../../../common/validators/is-zod-valid.validator';
 
 export class CreateReportRequestApiDto {
   @ApiProperty({ example: 'My Report' })
@@ -125,13 +130,10 @@ export class CreateReportRequestApiDto {
   @ArrayMaxSize(50)
   dateTruncConfig?: DateTruncConfig | null;
 
-  @ApiProperty({
-    description: 'Unique Count config: count distinct primary-key tuples instead of all rows',
-    nullable: true,
-    required: false,
-    type: Boolean,
-  })
+  @ApiProperty({ ...UNIQUE_COUNT_CONFIG_REQUEST_OPENAPI, required: false })
   @IsOptional()
-  @IsBoolean()
+  @IsZodValid(UniqueCountConfigRequestSchema, {
+    message: `uniqueCountConfig must be true, false, null, or an array of at most ${UNIQUE_COUNT_CONFIG_MAX_SOURCES} source alias paths`,
+  })
   uniqueCountConfig?: UniqueCountConfig;
 }

@@ -10,6 +10,7 @@ import {
 } from '../../dto/schemas/filter-config.schema';
 import { REPORT_AGGREGATE_FUNCTIONS } from '../../dto/schemas/aggregate-function.schema';
 import { DATE_TRUNC_UNITS } from '../../dto/schemas/date-trunc-config.schema';
+import { UNIQUE_COUNT_CONFIG_REQUEST_OPENAPI } from '../../dto/schemas/unique-count-config.schema';
 
 const primitiveValueSchema = {
   oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }],
@@ -307,12 +308,7 @@ const commonReportRequestProperties = {
     items: { $ref: getSchemaPath(ReportDateTruncRuleApiDto) },
     description: 'Date-trunc rules. A date/timestamp dimension is bucketed by a calendar unit.',
   },
-  uniqueCountConfig: {
-    type: 'boolean',
-    nullable: true,
-    description:
-      'Unique Count config. When true, counts distinct primary-key tuples instead of all rows.',
-  },
+  uniqueCountConfig: UNIQUE_COUNT_CONFIG_REQUEST_OPENAPI,
 };
 
 export const createReportRequestBodySchema = {

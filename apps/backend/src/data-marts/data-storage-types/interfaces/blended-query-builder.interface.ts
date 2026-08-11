@@ -61,6 +61,42 @@ export interface BlendedFieldEntry {
   isIncluded: boolean; // false when the source is excluded from reporting
 }
 
+/**
+ * What the SQL builder needs to emit one joined source's counting sleeve. It has no business
+ * reading a display string, so it cannot see one.
+ */
+export interface JoinedUniqueCountSleeve {
+  aliasPath: string;
+  /** The chain CTE that owns it — its `_raw` variant is what the sleeve counts over. */
+  cteName: string;
+  /** All key components or none, from `collectPrimaryKeyRowIdentity`. Never empty here. */
+  pkColumns: string[];
+  /**
+   * The SQL output column — `orders__unique_count`, from `buildJoinedUniqueCountColumnName`. It is
+   * both the sleeve's `AS` alias and the `ReportDataHeader.name`, so it must be a legal identifier:
+   * the source's free-form display prefix belongs in `displayLabel`, never here.
+   */
+  outputLabel: string;
+}
+
+/**
+ * What the header resolver needs to name that same column: the two labels, and nothing about how
+ * the SQL was built.
+ */
+export interface JoinedUniqueCountHeaderSource {
+  /** Joins the header to the SQL column — see `JoinedUniqueCountSleeve.outputLabel`. */
+  outputLabel: string;
+  /** `<prefix> Unique Count` — the human string, carried as the header's display alias. */
+  displayLabel: string;
+}
+
+/**
+ * One joined source whose distinct primary keys the report counts, as the resolver produces it:
+ * everything both consumers need. Each consumer takes only its own half above.
+ */
+export interface JoinedUniqueCountSource
+  extends JoinedUniqueCountSleeve, JoinedUniqueCountHeaderSource {}
+
 export interface BlendedQueryContext {
   mainTableReference: string;
   mainDataMartTitle: string;
@@ -77,6 +113,12 @@ export interface BlendedQueryContext {
   rowCount?: boolean;
   uniqueCount?: boolean;
   primaryKeyColumns?: string[];
+  /**
+   * Joined sources with a per-source `COUNT(DISTINCT <key>)`. Separate from `uniqueCount` /
+   * `primaryKeyColumns`, which stay the MAIN Data Mart's metric so legacy reports emit
+   * byte-identical SQL.
+   */
+  uniqueCountSources?: JoinedUniqueCountSleeve[];
   columnTypes?: BlendedColumnTypes;
   fieldIndex?: ReadonlyMap<string, BlendedFieldEntry>;
   /**

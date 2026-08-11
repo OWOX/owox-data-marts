@@ -12,7 +12,7 @@ const EMPTY_CONFIG: OutputConfig = {
   limitConfig: null,
   aggregationConfig: [],
   dateTruncConfig: [],
-  uniqueCountConfig: false,
+  uniqueCountConfig: [],
 };
 
 const revenue: AggregationDropdownColumn = {

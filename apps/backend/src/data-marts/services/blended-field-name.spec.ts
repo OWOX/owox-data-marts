@@ -1,4 +1,7 @@
-import { buildBlendedFieldUnifiedName } from './blended-field-name';
+import {
+  buildBlendedFieldUnifiedName,
+  buildJoinedUniqueCountColumnName,
+} from './blended-field-name';
 
 describe('buildBlendedFieldUnifiedName', () => {
   it('keeps a flat field name unchanged (no hash)', () => {
@@ -42,5 +45,26 @@ describe('buildBlendedFieldUnifiedName', () => {
     buildBlendedFieldUnifiedName('ads', 'campaign_id');
     const second = buildBlendedFieldUnifiedName('ads', 'campaign.id');
     expect(second).toBe(first);
+  });
+});
+
+/**
+ * Drift guard, and the half that has to live HERE. The web mirrors this function by hand
+ * (apps/web/src/features/data-marts/shared/utils/aggregation-labels.ts) so the picker can build
+ * sort rules and prune stale ones; its own test pins the web literals, which by construction
+ * cannot notice a change made on this side. These literals are the SQL output alias, the header
+ * `name`, and the value a saved sort rule stores — changing one without the other silently
+ * orphans every stored rule. Change here → change the web mirror + its test.
+ */
+describe('buildJoinedUniqueCountColumnName (web mirror — drift guard)', () => {
+  it('pins the names the web builds independently', () => {
+    expect(buildJoinedUniqueCountColumnName('orders')).toBe('orders__unique_count');
+    expect(buildJoinedUniqueCountColumnName('orders.items')).toBe('orders_items__unique_count');
+  });
+
+  // No hash: the token is flat, so the name stays readable and the web can mirror it with a
+  // string replace rather than a sha1 it has no way to compute identically.
+  it('never hashes, however deep the alias path', () => {
+    expect(buildJoinedUniqueCountColumnName('a.b.c')).toBe('a_b_c__unique_count');
   });
 });

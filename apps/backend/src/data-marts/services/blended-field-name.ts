@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
 
 /** First 8 hex chars of sha1(aliasPath + '|' + originalFieldName) — a stable
  * per-field identity, independent of any other field that does or doesn't exist. */
@@ -19,4 +20,17 @@ export function buildBlendedFieldUnifiedName(aliasPath: string, originalFieldNam
   }
   const readable = originalFieldName.replace(/\./g, '_');
   return `${sqlPrefix}__${readable}__${shortHash(aliasPath, originalFieldName)}`; // nested — always hashed
+}
+
+/**
+ * The SQL output column for a joined source's Unique Count: `orders` → `orders__unique_count`,
+ * `orders.items` → `orders_items__unique_count`.
+ *
+ * Derived from the alias path, whose segments the Join Settings form validates against
+ * `^[a-z0-9_]+$`, so the result is a legal identifier in every dialect. The source's DISPLAY prefix
+ * (`defaultAlias`) is free-form and must never reach SQL — it travels as
+ * `JoinedUniqueCountSource.displayLabel` instead.
+ */
+export function buildJoinedUniqueCountColumnName(aliasPath: string): string {
+  return buildBlendedFieldUnifiedName(aliasPath, UNIQUE_COUNT_FIELD_TOKEN);
 }

@@ -39,6 +39,10 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     return escapeDatabricksIdentifier(name);
   }
 
+  public override textCastType(): string {
+    return 'STRING';
+  }
+
   protected validateFragment(clause: RenderedClause): void {
     if (clause.params.length !== 0) {
       throw new Error(

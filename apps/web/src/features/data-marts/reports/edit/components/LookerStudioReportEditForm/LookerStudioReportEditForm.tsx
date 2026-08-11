@@ -41,6 +41,10 @@ import {
   ReportColumnsCountBadge,
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import {
+  applyColumnConfigChange,
+  applyOutputConfigChange,
+} from '../../utils/apply-output-config-change';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 import { useDataMartContext } from '../../../../edit/model';
 
@@ -165,7 +169,7 @@ export const LookerStudioReportEditForm = forwardRef<
           limitConfig: null,
           aggregationConfig: null,
           dateTruncConfig: null,
-          uniqueCountConfig: false,
+          uniqueCountConfig: [],
         });
       }
     }, [initialReport, mode, reset]);
@@ -232,6 +236,7 @@ export const LookerStudioReportEditForm = forwardRef<
                 'limitConfig',
                 'aggregationConfig',
                 'dateTruncConfig',
+                'uniqueCountConfig',
               ]}
             >
               <FormField
@@ -246,11 +251,8 @@ export const LookerStudioReportEditForm = forwardRef<
                             dataMartId={dataMart.id}
                             storageType={dataMart.storage.type}
                             value={form.watch('columnConfig')}
-                            onChange={value => {
-                              form.setValue('columnConfig', value, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              });
+                            onChange={(value, options) => {
+                              applyColumnConfigChange(form, value, options);
                             }}
                             outputConfig={{
                               filterConfig: form.watch('filterConfig') ?? [],
@@ -260,25 +262,8 @@ export const LookerStudioReportEditForm = forwardRef<
                               dateTruncConfig: form.watch('dateTruncConfig') ?? [],
                               uniqueCountConfig: form.watch('uniqueCountConfig'),
                             }}
-                            onOutputConfigChange={config => {
-                              form.setValue('filterConfig', config.filterConfig, {
-                                shouldDirty: true,
-                              });
-                              form.setValue('sortConfig', config.sortConfig, {
-                                shouldDirty: true,
-                              });
-                              form.setValue('limitConfig', config.limitConfig, {
-                                shouldDirty: true,
-                              });
-                              form.setValue('aggregationConfig', config.aggregationConfig, {
-                                shouldDirty: true,
-                              });
-                              form.setValue('dateTruncConfig', config.dateTruncConfig, {
-                                shouldDirty: true,
-                              });
-                              form.setValue('uniqueCountConfig', config.uniqueCountConfig, {
-                                shouldDirty: true,
-                              });
+                            onOutputConfigChange={(config, options) => {
+                              applyOutputConfigChange(form, config, options);
                             }}
                             onCountChange={setColumnsCount}
                           />

@@ -31,6 +31,7 @@ import {
   QueryTimeoutError,
 } from '../facades/mcp-data-marts.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 
 export class QueryDataMartCommand {
   constructor(public readonly request: McpQueryDataMartRequest) {}
@@ -141,6 +142,7 @@ export class QueryDataMartService {
       sortConfig: r.sortConfig ?? null,
       aggregationConfig: r.aggregationConfig ?? null,
       dateTruncConfig: r.dateTruncConfig ?? null,
+      uniqueCountConfig: r.uniqueCountConfig ?? null,
       limitConfig: overReadLimit,
     };
 
@@ -148,11 +150,15 @@ export class QueryDataMartService {
     const startedAt = new Date();
 
     const queryMetadata = {
+      // `fields` no longer names the Unique Count the caller asked for — the tool splits that
+      // pseudo-field out into `uniqueCountConfig` before calling. Journal both, or Run History
+      // shows a run whose extra column came from nowhere.
       fields: r.fields,
       ...(r.filterConfig ? { filters: r.filterConfig } : {}),
       ...(r.sortConfig ? { sort: r.sortConfig } : {}),
       ...(r.aggregationConfig ? { aggregations: r.aggregationConfig } : {}),
       ...(r.dateTruncConfig ? { dateBuckets: r.dateTruncConfig } : {}),
+      ...(r.uniqueCountConfig?.length ? { uniqueCountConfig: r.uniqueCountConfig } : {}),
       limit: r.limit,
     };
 
@@ -265,6 +271,11 @@ export class QueryDataMartService {
             // A joined column is absent from the native schema, so only these carry its type.
             blendedDataHeaders: composed.blendedDataHeaders,
             aggregationConfig: composed.aggregations ?? readPlan.aggregationConfig ?? undefined,
+            // The composed SQL already projects these synthetic metrics; without them here the
+            // headers omit the columns and the response drops what the warehouse computed.
+            uniqueCount: hasMainUniqueCount(readPlan.uniqueCountConfig),
+            primaryKeyColumns: composed.primaryKeyColumns,
+            uniqueCountSources: composed.uniqueCountSources,
             queryTimeoutMs,
             signal: workController.signal,
           });

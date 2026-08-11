@@ -8,6 +8,7 @@ import { aggregationFunctionsForColumn } from '../../dto/schemas/aggregation-lab
 import {
   BlendedFieldEntry,
   BlendedQueryContext,
+  JoinedUniqueCountSleeve,
   ResolvedRelationshipChain,
 } from '../interfaces/blended-query-builder.interface';
 import {
@@ -95,6 +96,27 @@ export function valueSleeveIdentityFor(chain: ResolvedRelationshipChain): ValueS
     : { kind: 'row-surrogate' };
 }
 
+/**
+ * Which of an owner's join-key columns still need a slot of their own in a sleeve's `SELECT
+ * DISTINCT` identity, given the declared-key columns that already have one. The join key SCOPES a
+ * key declared unique only within it (`line_no` per order); a join key the declared key already
+ * carries scopes nothing, because `SELECT DISTINCT … user_id, user_id` is the same set as
+ * `SELECT DISTINCT … user_id` — and a real primary key determines the join key, so that is the
+ * common case.
+ *
+ * Matched on the EXACT column name, as `collectSubsidiaryReferences` matches two references to one
+ * projected column: two names differing only in case are two distinct quoted identifiers on
+ * Snowflake, and treating them as one would drop a slot that scopes the key by a column the key
+ * does not carry — silently narrowing the identity.
+ */
+export function identityScopingJoinKeyColumns(
+  keyColumns: readonly string[],
+  joinKeyColumns: readonly string[]
+): string[] {
+  const declared = new Set(keyColumns);
+  return joinKeyColumns.filter(col => !declared.has(col));
+}
+
 export function collectReportDimensions(
   columns: string[],
   aggregations: AggregationRule[]
@@ -113,6 +135,14 @@ export function sanitizeSleeveNamePart(part: string): string {
 // all three agree.
 export function sleeveCteNameForColumn(column: string): string {
   return `sleeve_${sanitizeSleeveNamePart(column)}`;
+}
+
+/**
+ * The CTE base name for a joined source's Unique Count sleeve. Derived from the alias path rather
+ * than a metric column, because this sleeve has no column — it counts a declared key.
+ */
+export function uniqueCountSleeveCteName(source: JoinedUniqueCountSleeve): string {
+  return `sleeve_uc_${sanitizeSleeveNamePart(source.aliasPath)}`;
 }
 
 /**
@@ -218,7 +248,7 @@ export function sleeveJoinColumns(filterOpts: SleeveFilterOptions): string[] {
  * sleeve and a value sleeve both wanting the bare `sleeve_<X>` name (they don't merge — the
  * grouping only spans the value-shaped subset). Without this guard that emits a duplicate CTE name
  * every warehouse rejects. The order it receives names in (COUNT_DISTINCT sleeves first, then
- * value groups) is deterministic, so the disambiguation is stable.
+ * value groups, then joined Unique Counts) is deterministic, so the disambiguation is stable.
  *
  * `used` must ALSO be seeded with every REAL CTE name already in the WITH
  * clause — `main`, and each chain's own `cteName` (the dedup CTE) plus its `_raw`/`_joined`

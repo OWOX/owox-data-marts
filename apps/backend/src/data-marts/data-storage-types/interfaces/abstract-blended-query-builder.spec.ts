@@ -2627,7 +2627,7 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
   });
 
-  it('emits COUNT(DISTINCT CONCAT(...)) Unique Count when uniqueCount=true with composite PK', () => {
+  it('emits COUNT(DISTINCT CASE WHEN ... END) Unique Count when uniqueCount=true with composite PK', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([spendChain()], ['channel', 'spend__cost']),
       fieldIndex: spendFieldIndex,
@@ -2636,9 +2636,10 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
       primaryKeyColumns: ['project_id', 'user_id'],
     });
 
-    expect(sql).toContain('COUNT(DISTINCT CONCAT(');
-    expect(sql).toContain("COALESCE(CAST(main.project_id AS STRING), '')");
-    expect(sql).toContain("COALESCE(CAST(main.user_id AS STRING), '')");
+    expect(sql).toContain('COUNT(DISTINCT CASE WHEN ');
+    expect(sql).toContain('main.project_id IS NULL OR main.user_id IS NULL THEN NULL ELSE CONCAT(');
+    expect(sql).toContain('CAST(main.project_id AS STRING)');
+    expect(sql).toContain('CAST(main.user_id AS STRING)');
     expect(sql).toContain('AS `Unique Count`');
   });
 
@@ -2984,7 +2985,9 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     expect(usersRaw).not.toContain('__owox_rid');
   });
 
-  it('projects the declared primary key instead of __owox_rid, and skips the window entirely', () => {
+  // The surrogate is projected ALONGSIDE the declared key, not instead of it: a key row whose
+  // key is NULL falls back to the surrogate for its identity, so the sleeve needs both columns.
+  it('projects the declared primary key AND the surrogate the NULL fallback reads', () => {
     const builder = new TestBlendedWithRenderer();
     const { context } = fixtureEventsUsersOrgs();
     const ctx: BlendedQueryContext = {
@@ -2999,8 +3002,9 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
 
     const orgsRaw = normalizeSql(extractCteBody(sql, 'organizations_raw'));
     expect(orgsRaw).toContain('orgKey');
-    expect(orgsRaw).not.toContain('ROW_NUMBER()');
-    expect(sql).not.toContain('__owox_rid');
+    expect(orgsRaw).toContain('ROW_NUMBER() OVER (PARTITION BY orgId ORDER BY 1) AS __owox_rid');
+    // The chain that owns no value-sleeve metric still pays for neither.
+    expect(normalizeSql(extractCteBody(sql, 'users_raw'))).not.toContain('__owox_rid');
   });
 
   it('projects __owox_rid on the raw CTE of a chain that owns a joined AVG metric', () => {
@@ -3123,6 +3127,56 @@ describe('AbstractBlendedQueryBuilder — row surrogate (__owox_rid) for value-s
     // not an invariant violation — it must surface as a BusinessViolationException (→ HTTP
     // 400), not a bare Error (→ HTTP 500).
     expect(() => builder.buildBlendedQuery(ctx)).toThrow(BusinessViolationException);
+  });
+
+  // Every identity owner now projects the surrogate, so this guard reaches a DECLARED-KEY chain
+  // that it used to skip: such a report worked before and is rejected now. That is the guard
+  // doing its job — but it must still be the clean 400, with the column named, not a bare 500.
+  it('guards the reserved __owox_rid alias on a DECLARED-KEY chain too, still as a clean 400', () => {
+    const builder = new TestBlendedWithRenderer();
+    const organizationsChain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'organizations',
+        joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: '__owox_rid' }],
+      }),
+      targetTableReference: 'organizations_table',
+      parentAlias: 'main',
+      targetPrimaryKeyFields: ['orgKey'],
+      blendedFields: [
+        {
+          targetFieldName: 'revenue',
+          outputAlias: 'organizations__revenue',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'organizations__revenue',
+          aliasPath: 'organizations',
+          originalFieldName: 'revenue',
+          type: 'FLOAT64',
+        },
+      ],
+      availableSources: [{ aliasPath: 'organizations', isIncluded: true }],
+    } as never);
+    const ctx: BlendedQueryContext = {
+      ...buildContext([organizationsChain], ['organizations__revenue']),
+      fieldIndex,
+      aggregations: [{ column: 'organizations__revenue', function: 'SUM' } as AggregationRule],
+    };
+
+    try {
+      builder.buildBlendedQuery(ctx);
+      throw new Error('expected a BusinessViolationException');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BusinessViolationException);
+      expect((err as BusinessViolationException).errorDetails).toEqual({
+        reservedNameColumns: ['__owox_rid'],
+      });
+    }
   });
 
   it('warns that __owox_rid collision is unverifiable under the SELECT * fallback for a value-sleeve owner with a nested column', () => {
@@ -3451,7 +3505,7 @@ describe('AbstractBlendedQueryBuilder — hardening', () => {
       const { sql } = builder.buildBlendedQuery(ctx);
 
       expect(sql).toMatch(
-        /-- calculation: unique organizations__orgId counted from the raw rows,\n\s*-- so the join's fan-out cannot distort it\n\s*sleeve_organizations__orgId AS \(/
+        /-- calculation: unique organizations__orgId counted over the raw rows,\n\s*-- so the join's roll-up cannot hide values and its fan-out cannot inflate them\n\s*sleeve_organizations__orgId AS \(/
       );
       expect(sql).toMatch(
         /-- calculation: SUM\(organizations__revenue\) de-duplicated before aggregating,\n\s*-- so the join's fan-out cannot distort it\n\s*sleeve_organizations__revenue AS \(/

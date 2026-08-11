@@ -261,7 +261,81 @@ describe('UpdateReportService', () => {
       dateTruncConfig: null,
       uniqueCountConfig: null,
       accessor: { userId: 'user-1', roles: ['editor'] },
+      // A save is where a joined Unique Count source that can never emit its column is refused;
+      // the run path re-validates the same config and must keep degrading instead. Gated on the
+      // selection actually changing — see the two tests below.
+      rejectUnavailableUniqueCountSources: false,
     });
+  });
+
+  it('does not re-assert an unchanged joined Unique Count selection', async () => {
+    const { service, outputControlsValidator, reportRepository } = createService();
+    // A caller that round-trips the stored selection (MCP update_report, or any GET→PUT client)
+    // asserts nothing new; rejecting would trap every later edit behind a source going stale.
+    const stored = { ...makeReport(), uniqueCountConfig: ['orders'] };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'Renamed',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      null,
+      null,
+      ['orders']
+    );
+
+    await service.run(command);
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueCountConfig: ['orders'],
+        rejectUnavailableUniqueCountSources: false,
+      })
+    );
+  });
+
+  it('rejects an unavailable source when the joined Unique Count selection changes', async () => {
+    const { service, outputControlsValidator, reportRepository } = createService();
+    const stored = { ...makeReport(), uniqueCountConfig: ['orders'] };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      null,
+      null,
+      ['orders', 'orders.items']
+    );
+
+    await service.run(command);
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueCountConfig: ['orders', 'orders.items'],
+        rejectUnavailableUniqueCountSources: true,
+      })
+    );
   });
 
   it('should propagate BadRequestException from outputControlsValidator', async () => {
@@ -374,6 +448,66 @@ describe('UpdateReportService', () => {
     await service.run(command);
 
     expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
+  });
+
+  it('should not invalidate cache when uniqueCountConfig is an unchanged source list', async () => {
+    const { service, reportDataCacheService, reportRepository } = createService();
+    // Every report form posts an array here, so a no-op save re-sends an equal-but-not-identical
+    // one — a reference compare would invalidate the Looker cache on every save of every report.
+    const stored = { ...makeReport(), uniqueCountConfig: ['orders'] };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      null,
+      null,
+      ['orders']
+    );
+
+    await service.run(command);
+
+    expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
+  });
+
+  it('should invalidate cache when uniqueCountConfig sources change', async () => {
+    const { service, reportDataCacheService, reportRepository } = createService();
+    const stored = { ...makeReport(), uniqueCountConfig: ['orders'] };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      null,
+      null,
+      ['orders', 'orders.items']
+    );
+
+    await service.run(command);
+
+    expect(reportDataCacheService.invalidateByReportId).toHaveBeenCalledWith('report-1');
   });
 
   it('should pass aggregationConfig to outputControlsValidator.validateForReport', async () => {

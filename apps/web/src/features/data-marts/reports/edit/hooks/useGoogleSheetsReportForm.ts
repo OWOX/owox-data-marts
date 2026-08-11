@@ -33,7 +33,7 @@ export const GoogleSheetsReportEditFormSchema = z.object({
   limitConfig: z.number().int().positive().max(10_000_000).nullable(),
   aggregationConfig: z.array(AggregationRuleSchema).nullable(),
   dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
-  uniqueCountConfig: z.boolean(),
+  uniqueCountConfig: z.array(z.string()),
 });
 
 export type GoogleSheetsReportEditFormValues = z.infer<typeof GoogleSheetsReportEditFormSchema>;
@@ -84,7 +84,7 @@ export function useGoogleSheetsReportForm({
       limitConfig: initialReport?.limitConfig ?? null,
       aggregationConfig: initialReport?.aggregationConfig ?? null,
       dateTruncConfig: initialReport?.dateTruncConfig ?? null,
-      uniqueCountConfig: initialReport?.uniqueCountConfig ?? false,
+      uniqueCountConfig: initialReport?.uniqueCountConfig ?? [],
     },
     mode: 'onTouched',
   });
