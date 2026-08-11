@@ -64,7 +64,7 @@ export class UpdateDataMartDefinitionService {
       definitionTypeChanged = true;
     }
 
-    const connectorCapabilities = this.getConnectorCapabilities(command);
+    const connectorCapabilities = await this.resolveConnectorCapabilities(command);
     this.validateConnectorConfigurationCount(command, connectorCapabilities);
 
     if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
@@ -112,15 +112,18 @@ export class UpdateDataMartDefinitionService {
 
       if (sourceDefinition) {
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
+          command.projectId,
           connectorDefinition,
           sourceDefinition
         );
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
+          command.projectId,
           mergedDefinition,
           previousDefinition
         );
       } else {
         mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
+          command.projectId,
           connectorDefinition,
           previousDefinition
         );
@@ -201,16 +204,27 @@ export class UpdateDataMartDefinitionService {
     return this.mapper.toDomainDto(dataMart);
   }
 
-  private getConnectorCapabilities(
+  /**
+   * A Data Mart may name a custom (DB-stored) connector, which is never in the build-time
+   * bundle, so this resolves through the custom-aware resolver: the bundled-only lookup
+   * 404s on every custom connector.
+   */
+  private async resolveConnectorCapabilities(
     command: UpdateDataMartDefinitionCommand
-  ): ConnectorCapabilities | undefined {
+  ): Promise<ConnectorCapabilities | undefined> {
     if (command.definitionType !== DataMartDefinitionType.CONNECTOR) {
       return undefined;
     }
 
     const definition = command.definition as ConnectorDefinition;
     const source = definition?.connector?.source;
-    return source?.name ? this.connectorService.getConnectorCapabilities(source.name) : undefined;
+    return source?.name
+      ? this.connectorService.resolveConnectorCapabilities(
+          command.projectId,
+          source.name,
+          source.version
+        )
+      : undefined;
   }
 
   private validateConnectorConfigurationCount(

@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService } from './connector-secret.service';
-// @ts-expect-error - Package lacks TypeScript declarations
+import { ConnectorCredentialBoundaryError } from '../../errors/connector-credential-boundary.error';
 import { Core } from '@owox/connectors';
 
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD, GENERATED_REFRESH_TOKEN_CONFIG_FIELD } = Core;
@@ -76,6 +76,18 @@ export class ConnectorCredentialInjectorService {
           return obj;
         }
 
+        // Connector boundary: a credential must only be injected into the connector it
+        // was issued for. `_source_credential_id` is returned unmasked, so anyone who can
+        // read a Data Mart definition can reference another connector's credential id
+        // here; resolving it would hand that connector's tokens to this one. The check
+        // precedes the specification lookup so a mismatch can never reach the branches
+        // below, which copy credential values into the config.
+        if (credentialsEntity.connectorName !== connectorName) {
+          throw new ConnectorCredentialBoundaryError(
+            `OAuth credentials ${credentialId} belong to connector ${credentialsEntity.connectorName}, not ${connectorName}.`
+          );
+        }
+
         const isExpired = await this.connectorSourceCredentialsService.isExpired(credentialId);
         if (isExpired) {
           this.logger.warn(
@@ -122,6 +134,12 @@ export class ConnectorCredentialInjectorService {
 
         return { ...restObj, ...resolvedConfig };
       } catch (error) {
+        // A boundary violation is not a lookup failure to be tolerated: continuing would
+        // run the connector against a configuration that references a credential it does
+        // not own. Fail the run instead.
+        if (error instanceof ConnectorCredentialBoundaryError) {
+          throw error;
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error(
           `Failed to inject OAuth credentials for ID: ${credentialId}: ${errorMessage}`,
@@ -171,6 +189,14 @@ export class ConnectorCredentialInjectorService {
         }
         return obj;
       } catch (error) {
+        // Keep tolerating a genuine transient refresh failure — an unreachable token
+        // endpoint or a rate-limited provider still leaves usable credentials in place,
+        // and failing the run would be worse than trying them. A boundary violation is a
+        // different thing entirely: the credential is not this connector's to rotate, so
+        // it must not be downgraded to a warning.
+        if (error instanceof ConnectorCredentialBoundaryError) {
+          throw error;
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.warn(
           `Failed to refresh credentials for ${credentialId}: ${errorMessage}. Using existing credentials.`

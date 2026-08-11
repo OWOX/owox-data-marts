@@ -36,6 +36,10 @@ jobs:
         run: |
           # google-sheets.integration.ts is intentionally absent (not CI-ready);
           # only the working column-preservation suite runs here.
+          #
+          # The Connector Builder suite drives the builder's "Test" action against a real,
+          # no-auth public API (api.sampleapis.com): it needs outbound network and no
+          # credentials, which is why it can sit beside the credentialed suites here.
           cat > suites.json <<'JSON'
           [
             { "name": "BigQuery", "pattern": "bigquery.integration" },
@@ -55,6 +59,10 @@ jobs:
             {
               "name": "Google Sheets (column preservation)",
               "pattern": "google-sheets-column-preservation.integration"
+            },
+            {
+              "name": "Connector Builder (sampleapis live fetch)",
+              "pattern": "connector-builder-sampleapis.integration"
             }
           ]
           JSON
@@ -106,6 +114,8 @@ jobs:
         run: npm run test:integration -w @owox/backend -- ${{ matrix.suite.pattern }}
         env:
           NODE_ENV: test
+          # Connector Builder live-fetch suite (public API, no secret needed)
+          RUN_SAMPLEAPIS_INTEGRATION: '1'
           # BigQuery
           BQ_PROJECT_ID: ${{ secrets.BQ_PROJECT_ID }}
           BQ_DATASET: ${{ secrets.BQ_DATASET }}

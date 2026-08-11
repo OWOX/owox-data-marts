@@ -8,6 +8,7 @@ interface ConnectorSetupButtonProps {
   storageType: DataStorageType;
   onSetupConnector: (connector: ConnectorConfig) => void;
   preset?: string;
+  connectorName?: string | null;
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -16,6 +17,7 @@ export function ConnectorSetupButton({
   storageType,
   onSetupConnector,
   preset,
+  connectorName,
   isOpen,
   onClose,
 }: ConnectorSetupButtonProps) {
@@ -25,6 +27,7 @@ export function ConnectorSetupButton({
       onSubmit={onSetupConnector}
       configurationOnly={false}
       preset={preset}
+      connectorName={connectorName}
       isOpen={isOpen}
       onClose={onClose}
     >

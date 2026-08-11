@@ -1,4 +1,11 @@
 /**
+ * Copyright (c) OWOX, Inc.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+/**
  * Facebook API error codes for retry logic
  * Source: Facebook API documentation https://developers.facebook.com/docs/
  */

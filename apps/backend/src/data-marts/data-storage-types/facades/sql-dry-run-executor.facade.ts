@@ -18,9 +18,10 @@ export class SqlDryRunExecutorFacade {
     type: DataStorageType,
     dataStorageCredentials: DataStorageCredentials,
     dataStorageConfig: DataStorageConfig,
-    sql: string
+    sql: string,
+    storageId?: string
   ): Promise<SqlDryRunResult> {
     const executor = await this.resolver.resolve(type);
-    return executor.execute(dataStorageCredentials, dataStorageConfig, sql);
+    return executor.execute(dataStorageCredentials, dataStorageConfig, sql, storageId);
   }
 }

@@ -3,9 +3,12 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
+import { AbstractStorage } from '../../../src/Core/AbstractStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const abstractStoragePath = path.join(__dirname, '../../../src/Core/AbstractStorage.js');
+// AbstractStorage is imported above instead: it is an ES module on this branch and cannot be
+// vm-evaluated. DateUtils and AsyncUtils are still GAS-style, and the storage file resolves
+// them as bare globals — AsyncUtils carries the retry backoff the query loop calls.
 const dateUtilsPath = path.join(__dirname, '../../../src/Core/Utils/DateUtils.js');
 const asyncUtilsPath = path.join(__dirname, '../../../src/Core/Utils/AsyncUtils.js');
 const storagePath = path.join(
@@ -18,18 +21,41 @@ const storagePath = path.join(
 // has no `require` of its own, so we provide the real one here too — this
 // exercises the actual OAuth2Client, not a stand-in for it.
 globalThis.require = createRequire(import.meta.url);
+// AbstractStorage is an ES module here, so it cannot be vm-evaluated the way the storage
+// file can: import it and expose it as the bare global that file resolves against.
+globalThis.AbstractStorage = AbstractStorage;
 
-loadGasClass(abstractStoragePath);
 loadGasClass(dateUtilsPath);
 loadGasClass(asyncUtilsPath);
+// The storage logs through the context, which takes a level; LOG_LEVEL is a bare runtime
+// global in production, so the suite has to supply one the same way the Source suites do.
+globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
+
 loadGasClass(storagePath);
 const proto = globalThis.GoogleBigQueryStorage.prototype;
 
+// Most fakes below describe their parameters as a flat `config` object with a
+// `logMessage()`, which is how the storage read them before it moved onto the context.
+// Bridging it here, on the prototype, keeps every one of those fakes in its original
+// shape and keeps `storage.config.X = ...` mutations live, since getParameter reads
+// through to the same object. A fake that sets its own `context` (see fakeStorage)
+// shadows this getter, as an own property always does.
+Object.defineProperty(proto, 'context', {
+  configurable: true,
+  get() {
+    const params = this.config || {};
+    return {
+      getParameter: name => params[name],
+      log: (_level, message) => params.logMessage?.(message),
+    };
+  },
+});
+
 const configValue = value => ({ value });
 
-const fakeStorage = (configOverrides = {}) => ({
-  _bigqueryClient: null,
-  config: {
+const fakeStorage = (configOverrides = {}) => {
+  // Parameters are read through the context, not a config object.
+  const parameters = {
     OAuthAccessToken: configValue('access-token'),
     OAuthRefreshToken: configValue('refresh-token'),
     OAuthClientId: configValue('client-id'),
@@ -37,8 +63,13 @@ const fakeStorage = (configOverrides = {}) => ({
     OAuthAccessTokenExpiry: configValue(1234567890),
     ProjectID: configValue('gcp-project'),
     ...configOverrides,
-  },
-});
+  };
+
+  return {
+    _bigqueryClient: null,
+    context: { getParameter: name => parameters[name] },
+  };
+};
 
 describe('getBigQueryClient', () => {
   let capturedAuthClients;

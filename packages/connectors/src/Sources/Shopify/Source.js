@@ -5,67 +5,77 @@
  * file that was distributed with this source code.
  */
 
-var ShopifySource = class ShopifySource extends AbstractSource {
-  constructor(config) {
-    super(config.mergeParameters({
+import { AbstractSource } from '../../Core/AbstractSource.js';
+
+export class ShopifySource extends AbstractSource {
+  constructor(context) {
+    super(context);
+
+    this.parameters = {
       ShopDomain: {
         isRequired: true,
-        requiredType: "string",
-        label: "Shop Domain",
-        description: "Shopify shop domain, e.g. example-store.myshopify.com"
+        requiredType: 'string',
+        label: 'Shop Domain',
+        description: 'Shopify shop domain, e.g. example-store.myshopify.com',
       },
       AccessToken: {
         isRequired: true,
-        requiredType: "string",
-        label: "Admin API Access Token",
-        description: "Private or custom app Admin API access token",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        requiredType: 'string',
+        label: 'Admin API Access Token',
+        description: 'Private or custom app Admin API access token',
+        attributes: [CONFIG_ATTRIBUTES.SECRET],
       },
       Fields: {
         isRequired: true,
-        requiredType: "string",
-        label: "Fields",
-        description: "Comma separated list in format 'node field'. Example: orders id, orders totalPrice"
+        requiredType: 'string',
+        label: 'Fields',
+        description:
+          "Comma separated list in format 'node field'. Example: orders id, orders totalPrice",
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all schema columns even when API returned zero rows",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Create Empty Tables',
+        description: 'Create tables with all schema columns even when API returned zero rows',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
-    }));
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
 
     this.fieldsSchema = ShopifyFieldsSchema;
   }
 
   /**
    * Entry point to fetch Shopify data.
+   * For time-series nodes the connector calls us once per day with
+   * startDate === endDate (YYYY-MM-DD). We expand to ISO timestamps for the
+   * Shopify GraphQL filter; catalog nodes pass null/null.
    */
   async fetchData({ nodeName, fields = [], startDate = null, endDate = null }) {
     const schema = this.fieldsSchema[nodeName];
 
-    if (nodeName.startsWith("metafield-")) {
+    if (nodeName.startsWith('metafield-')) {
       return this._fetchMetafields({ nodeName, schema, fields });
     }
 
@@ -73,22 +83,38 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       return this._fetchSingleton({ nodeName, schema, fields });
     }
 
+    // For time-series nodes, expand YYYY-MM-DD to a full-day ISO range.
+    let formattedStartDate = null;
+    let formattedEndDate = null;
+    if (startDate) {
+      formattedStartDate = `${startDate}T00:00:00Z`;
+      formattedEndDate = `${endDate || startDate}T23:59:59Z`;
+    }
+
     return this._fetchPaginated({
       nodeName,
       schema,
       fields,
-      startDate,
-      endDate,
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
       buildQuery: (afterClause, filterClause, graphqlFields) =>
         `query { ${schema.queryName}(first: 250${afterClause}${filterClause}) { nodes { ${graphqlFields} } pageInfo { hasNextPage endCursor } } }`,
-      extractNodes: (connection) => connection.nodes || []
+      extractNodes: connection => connection.nodes || [],
     });
   }
 
   /**
    * Generic paginated fetch with customizable query and node extraction.
    */
-  async _fetchPaginated({ nodeName, schema, fields, startDate, endDate, buildQuery, extractNodes }) {
+  async _fetchPaginated({
+    nodeName,
+    schema,
+    fields,
+    startDate,
+    endDate,
+    buildQuery,
+    extractNodes,
+  }) {
     const queryFields = this._buildQueryFields(schema, fields);
     const dateFilter = this._buildDateFilter(schema, startDate, endDate);
 
@@ -97,7 +123,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
     let hasNextPage = true;
 
     while (hasNextPage) {
-      const afterClause = cursor ? `, after: "${cursor}"` : "";
+      const afterClause = cursor ? `, after: "${cursor}"` : '';
       const query = buildQuery(afterClause, dateFilter, queryFields);
 
       const payload = await this._graphqlRequest(query);
@@ -107,9 +133,10 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       }
 
       for (const node of extractNodes(connection)) {
-        const normalized = nodeName === "discount-codes"
-          ? this._normalizeDiscountCode(node, fields)
-          : this._normalizeFromSchema({ node, schema, fields });
+        const normalized =
+          nodeName === 'discount-codes'
+            ? this._normalizeDiscountCode(node, fields)
+            : this._normalizeFromSchema({ node, schema, fields });
         results.push(normalized);
       }
 
@@ -117,7 +144,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       cursor = connection.pageInfo?.endCursor || null;
     }
 
-    console.log(`[Shopify] Fetched ${results.length} records for ${nodeName}`);
+    this.context.log(LOG_LEVEL.INFO, `[Shopify] Fetched ${results.length} records for ${nodeName}`);
     return results;
   }
 
@@ -131,7 +158,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
     const payload = await this._graphqlRequest(query);
     const node = payload?.data?.[schema.queryName];
 
-    console.log(`[Shopify] Fetched ${node ? 1 : 0} records for ${nodeName}`);
+    this.context.log(LOG_LEVEL.INFO, `[Shopify] Fetched ${node ? 1 : 0} records for ${nodeName}`);
     return node ? [this._normalizeFromSchema({ node, schema, fields })] : [];
   }
 
@@ -143,7 +170,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
   async _fetchMetafields({ nodeName, schema, fields }) {
     const queryFields = this._buildQueryFields(schema, fields);
     const isShopMetafields = schema.parentQuery === null;
-    const includeOwnerId = fields.includes("ownerId");
+    const includeOwnerId = fields.includes('ownerId');
 
     if (isShopMetafields) {
       // TODO: Add pagination for metafields if shop has > 250 metafields
@@ -152,7 +179,10 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       const shopId = payload?.data?.shop?.id || null;
       const metafields = payload?.data?.shop?.metafields?.nodes || [];
 
-      console.log(`[Shopify] Fetched ${metafields.length} records for ${nodeName}`);
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `[Shopify] Fetched ${metafields.length} records for ${nodeName}`
+      );
 
       return metafields.map(mf => {
         const normalized = this._normalizeFromSchema({ node: mf, schema, fields });
@@ -167,7 +197,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
     let cursor = null;
 
     do {
-      const afterClause = cursor ? `, after: "${cursor}"` : "";
+      const afterClause = cursor ? `, after: "${cursor}"` : '';
       // TODO: Add pagination for metafields if owner has > 250 metafields (currently only first 250 are fetched)
       const query = `query { ${schema.parentQuery}(first: 250${afterClause}) { nodes { id metafields(first: 250) { nodes { ${queryFields} } } } pageInfo { hasNextPage endCursor } } }`;
 
@@ -177,8 +207,8 @@ var ShopifySource = class ShopifySource extends AbstractSource {
         break;
       }
 
-      for (const owner of (connection.nodes || [])) {
-        for (const metafield of (owner.metafields?.nodes || [])) {
+      for (const owner of connection.nodes || []) {
+        for (const metafield of owner.metafields?.nodes || []) {
           const normalized = this._normalizeFromSchema({ node: metafield, schema, fields });
           if (includeOwnerId) {
             normalized.ownerId = owner.id;
@@ -190,7 +220,10 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       cursor = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
     } while (cursor);
 
-    console.log(`[Shopify] Fetched ${metafields.length} records for ${nodeName}`);
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `[Shopify] Fetched ${metafields.length} records for ${nodeName}`
+    );
     return metafields;
   }
 
@@ -228,7 +261,7 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       appliesOncePerCustomer: d.appliesOncePerCustomer || null,
       asyncUsageCount: d.asyncUsageCount || null,
       createdAt: d.createdAt || null,
-      updatedAt: d.updatedAt || null
+      updatedAt: d.updatedAt || null,
     };
     const result = {};
     for (const field of fields) {
@@ -265,12 +298,12 @@ var ShopifySource = class ShopifySource extends AbstractSource {
     }
     if (Array.isArray(value)) {
       // If array contains objects (like lineItems), convert to JSON
-      if (value.length > 0 && typeof value[0] === "object") {
+      if (value.length > 0 && typeof value[0] === 'object') {
         return JSON.stringify(value);
       }
-      return value.join(", ");
+      return value.join(', ');
     }
-    if (typeof value === "object") {
+    if (typeof value === 'object') {
       return JSON.stringify(value);
     }
     return value;
@@ -300,16 +333,14 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       }
     }
 
-    let queryFields = regularFields.join(" ");
+    let queryFields = regularFields.join(' ');
 
     // Add inline fragments for union types (e.g., discount-codes)
-    // Before: "id"
-    // After:  "id codeDiscount { __typename ... on DiscountCodeBasic { title status } ... on DiscountCodeBxgy { title status } }"
     if (schema.unionField && unionTypeFields.length) {
-      const unionFieldsString = unionTypeFields.join(" ");
+      const unionFieldsString = unionTypeFields.join(' ');
       const inlineFragments = schema.unionTypes
         .map(typeName => `... on ${typeName} { ${unionFieldsString} }`)
-        .join(" ");
+        .join(' ');
       queryFields += ` ${schema.unionField} { __typename ${inlineFragments} }`;
     }
 
@@ -318,49 +349,55 @@ var ShopifySource = class ShopifySource extends AbstractSource {
 
   _buildDateFilter(schema, startDate, endDate) {
     if (schema.queryFilterTemplate && startDate && endDate) {
-      return `, ${schema.queryFilterTemplate.replace("{{startDate}}", startDate).replace("{{endDate}}", endDate)}`;
+      return `, ${schema.queryFilterTemplate.replace('{{startDate}}', startDate).replace('{{endDate}}', endDate)}`;
     }
-    return "";
+    return '';
   }
 
   // ========== HTTP ==========
 
   async _graphqlRequest(query) {
     const url = this._buildGraphqlUrl();
-    console.log(`[Shopify] Query: ${query}`);
+    this.context.log(LOG_LEVEL.INFO, `[Shopify] Query: ${query}`);
 
     const response = await this.urlFetchWithRetry(url, {
-      method: "post",
+      method: 'POST',
       headers: this._buildHeaders(),
       body: JSON.stringify({ query }),
-      payload: JSON.stringify({ query }),
-      muteHttpExceptions: true
     });
 
-    const result = JSON.parse(await response.getContentText());
+    const result = await response.json();
     if (result.errors?.length) {
-      const errorMessages = result.errors.map(e => e.message).join("; ");
+      const errorMessages = result.errors.map(e => e.message).join('; ');
       throw new Error(`[Shopify] GraphQL errors: ${errorMessages}`);
     }
     return result;
   }
 
   _buildGraphqlUrl() {
-    const domain = String(this.config.ShopDomain.value).replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const domain = String(this.context.getParameter('ShopDomain')?.value)
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '');
     return `https://${domain}/admin/api/2026-07/graphql.json`;
   }
 
   _buildHeaders() {
     return {
-      "Accept": "application/json",
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": this.config.AccessToken.value
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': this.context.getParameter('AccessToken')?.value,
     };
   }
 
   isValidToRetry(error) {
-    return !error?.statusCode
-      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
-      || [HTTP_STATUS.TOO_MANY_REQUESTS, HTTP_STATUS.SERVICE_UNAVAILABLE, HTTP_STATUS.GATEWAY_TIMEOUT].includes(error.statusCode);
+    return (
+      !error?.statusCode ||
+      error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN ||
+      [
+        HTTP_STATUS.TOO_MANY_REQUESTS,
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        HTTP_STATUS.GATEWAY_TIMEOUT,
+      ].includes(error.statusCode)
+    );
   }
-};
+}

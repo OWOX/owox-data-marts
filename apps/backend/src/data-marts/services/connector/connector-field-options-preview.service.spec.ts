@@ -1,28 +1,27 @@
 const fetchFieldOptionsMock = jest.fn();
 
 jest.mock('@owox/connectors', () => {
-  class AbstractConfig {
-    constructor(configData: Record<string, unknown>) {
-      Object.assign(this, configData);
+  // A source reads its parameters through a context, not a config object. The stub carries
+  // the same shape the real AbstractContext exposes to a preview: the source config, a
+  // validate() that must never run here, and the emit() the support module replaces.
+  class AbstractContext {
+    sourceConfig: Record<string, unknown>;
+
+    constructor(init: { source?: { config?: Record<string, unknown> } }) {
+      this.sourceConfig = init?.source?.config ?? {};
     }
 
     validate() {
       throw new Error('validate must not be called for a field options preview');
     }
-  }
 
-  class SourceConfigDto {
-    config: Record<string, unknown>;
-
-    constructor(data: { config: Record<string, unknown> }) {
-      this.config = data.config;
-    }
+    emit() {}
   }
 
   class ConnectorConfigurationException extends Error {}
 
   class GoogleSheetsSource {
-    constructor(public readonly config: AbstractConfig) {}
+    constructor(public readonly context: AbstractContext) {}
 
     fetchFieldOptions(field: string, signal?: AbortSignal) {
       return fetchFieldOptionsMock(field, signal);
@@ -30,7 +29,7 @@ jest.mock('@owox/connectors', () => {
   }
 
   class OpenHolidaysSource {
-    constructor(public readonly config: AbstractConfig) {}
+    constructor(public readonly context: AbstractContext) {}
   }
 
   return {
@@ -38,7 +37,7 @@ jest.mock('@owox/connectors', () => {
       GoogleSheets: { GoogleSheetsSource },
       OpenHolidays: { OpenHolidaysSource },
     },
-    Core: { AbstractConfig, SourceConfigDto, ConnectorConfigurationException },
+    Core: { AbstractContext, ConnectorConfigurationException },
   };
 });
 

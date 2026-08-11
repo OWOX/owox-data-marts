@@ -16,6 +16,14 @@ jest.mock(
   }),
   { virtual: true }
 );
+// The connector tools pull the storage graph in, and snowflake-sdk kicks off async
+// platform detection (AWS STS) at import time. That promise outlives the test and
+// resolves after Jest tears the environment down, which fails the run with a
+// "require after teardown" ReferenceError even though every assertion passed.
+jest.mock('snowflake-sdk', () => ({
+  createConnection: () => ({}),
+  configure: () => undefined,
+}));
 
 import { Test } from '@nestjs/testing';
 import { MODULE_METADATA } from '@nestjs/common/constants';
@@ -24,6 +32,9 @@ import { CommonModule } from '../../../common/common.module';
 import { ClsContextService } from '../../../common/logger/cls-context.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { SEARCH_FACADE } from '../../../common/search/search.facade';
+import { MCP_CONNECTOR_AUTHORING_FACADE } from '../../../data-marts/facades/mcp-connector-authoring.facade';
+import { MCP_CONNECTOR_RUN_FACADE } from '../../../data-marts/facades/mcp-connector-run.facade';
+import { MCP_CONNECTORS_FACADE } from '../../../data-marts/facades/mcp-connectors.facade';
 import { MCP_DATA_DESTINATIONS_FACADE } from '../../../data-marts/facades/mcp-data-destinations.facade';
 import { MCP_DATA_MARTS_FACADE } from '../../../data-marts/facades/mcp-data-marts.facade';
 import { MCP_REPORTS_FACADE } from '../../../data-marts/facades/mcp-reports.facade';
@@ -74,6 +85,9 @@ describe('MCP tool providers', () => {
         { provide: MCP_SCHEDULED_TRIGGERS_FACADE, useValue: {} },
         { provide: MCP_PROJECT_CONTEXT_FACADE, useValue: {} },
         { provide: PROJECT_SETTINGS_FACADE, useValue: {} },
+        { provide: MCP_CONNECTORS_FACADE, useValue: {} },
+        { provide: MCP_CONNECTOR_AUTHORING_FACADE, useValue: {} },
+        { provide: MCP_CONNECTOR_RUN_FACADE, useValue: {} },
         { provide: SEARCH_FACADE, useValue: {} },
         {
           provide: PublicOriginService,

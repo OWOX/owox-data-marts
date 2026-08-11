@@ -1,15 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ConnectorSourceCredentials } from '../../entities/connector-source-credentials.entity';
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
 const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 const SECRET_MASK = '**********';
 
+/**
+ * Outcome of a guarded credential-field write.
+ *
+ * `updated` is what makes a lost write reportable. The guarded UPDATE can match no row —
+ * another writer rotated the same credential after this one snapshotted it — and the
+ * caller cannot tell that from the returned entity, because on that path the entity is
+ * simply the row as it now stands. Silently returning it meant the token this run
+ * generated was discarded with nothing recorded anywhere, while the identity provider
+ * had already invalidated the token it was refreshed from.
+ */
+export interface CredentialFieldUpdateResult {
+  credentials: ConnectorSourceCredentials;
+  updated: boolean;
+}
+
 @Injectable()
 export class ConnectorSourceCredentialsService {
+  private readonly logger = new Logger(ConnectorSourceCredentialsService.name);
+
   constructor(
     @InjectRepository(ConnectorSourceCredentials)
     private readonly connectorSourceCredentialsRepository: Repository<ConnectorSourceCredentials>
@@ -53,20 +69,6 @@ export class ConnectorSourceCredentialsService {
   async getCredentialsById(id: string): Promise<ConnectorSourceCredentials | null> {
     return await this.connectorSourceCredentialsRepository.findOne({
       where: { id },
-    });
-  }
-
-  /**
-   * Get OAuth credentials by connector ID
-   * @param connectorName - Connector name
-   * @returns Array of ConnectorSourceCredentials entities
-   */
-  async getCredentialsByConnectorName(
-    connectorName: string
-  ): Promise<ConnectorSourceCredentials[]> {
-    return await this.connectorSourceCredentialsRepository.find({
-      where: { connectorName },
-      order: { createdAt: 'DESC' },
     });
   }
 
@@ -141,6 +143,20 @@ export class ConnectorSourceCredentialsService {
       return true;
     }
 
+    return this.isCredentialExpired(credentials);
+  }
+
+  /**
+   * Check whether a credentials row already in hand is expired
+   *
+   * The in-memory twin of isExpired(id), for callers that just loaded the row
+   * and would otherwise re-fetch it once per row. Same semantics: a null
+   * expiresAt means "never expires".
+   *
+   * @param credentials - A credentials row (only expiresAt is read)
+   * @returns true if expired, false otherwise
+   */
+  isCredentialExpired(credentials: Pick<ConnectorSourceCredentials, 'expiresAt'>): boolean {
     if (!credentials.expiresAt) {
       return false;
     }
@@ -240,12 +256,18 @@ export class ConnectorSourceCredentialsService {
     return updated ?? { ...existing, credentials: secrets };
   }
 
+  /**
+   * Write a single credential field, optionally guarded by the value the caller last saw.
+   *
+   * @returns the row plus whether the write actually landed; see
+   * {@link CredentialFieldUpdateResult}.
+   */
   async updateCredentialFields(
     id: string,
     projectId: string,
     updates: Record<string, unknown>,
     expectedCurrentValues?: Record<string, unknown>
-  ): Promise<ConnectorSourceCredentials> {
+  ): Promise<CredentialFieldUpdateResult> {
     const generatedRefreshToken = updates[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
     if (typeof generatedRefreshToken !== 'string') {
       throw new Error(
@@ -303,20 +325,36 @@ export class ConnectorSourceCredentialsService {
 
     const updateResult = await queryBuilder.execute();
     if (updateResult.affected === 0) {
-      return existing;
+      // Unambiguous: the row exists and belongs to the project — both checked above — so
+      // the only predicate left to fail is the compare-and-set on the current value. Nor
+      // can this be a matched-but-unchanged row: the entity's @UpdateDateColumn is always
+      // part of the SET clause, so every matched row is a changed row.
+      //
+      // Not an exception. Losing the race is legitimate, the import itself succeeded, and
+      // the row now holds the winner's token. But the token THIS caller generated is gone
+      // while whatever it was refreshed from has already been invalidated upstream, so the
+      // next run authenticates with neither — which is worth saying out loud.
+      this.logger.warn(
+        `Rotated credential was not persisted: the stored value changed while this run was ` +
+          `executing, so the newly issued token was discarded. Authentication may fail on the ` +
+          `next run until the source is reconnected.`,
+        { credentialId: id, projectId }
+      );
+      return { credentials: existing, updated: false };
     }
 
-    const updated = await this.getCredentialsById(id);
+    const stored = await this.getCredentialsById(id);
 
-    return (
-      updated ?? {
+    return {
+      credentials: stored ?? {
         ...existing,
         credentials: {
           ...existing.credentials,
           [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken,
         },
-      }
-    );
+      },
+      updated: true,
+    };
   }
 
   private getJsonExtractTextExpression(column: string, path: string): string {

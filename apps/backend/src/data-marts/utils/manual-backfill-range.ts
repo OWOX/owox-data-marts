@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
 // Literal, not Core.RUN_CONFIG_TYPE: some specs stub @owox/connectors with a minimal Core.

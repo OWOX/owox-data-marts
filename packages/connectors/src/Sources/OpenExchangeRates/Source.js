@@ -7,107 +7,128 @@
 
 // API Documentation: https://docs.openexchangerates.org/reference/historical-json
 
-var OpenExchangeRatesSource = class OpenExchangeRatesSource extends AbstractSource {
+import { AbstractSource } from '../../Core/AbstractSource.js';
 
-constructor(config) {
+export class OpenExchangeRatesSource extends AbstractSource {
+  constructor(context) {
+    super(context);
 
-  super( config.mergeParameters({
+    this.parameters = {
       AppId: {
         isRequired: true,
-        requiredType: "string",
-        label: "App ID",
-        description: "OpenExchangeRates API App ID",
-        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ Manage Credentials'",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        requiredType: 'string',
+        label: 'App ID',
+        description: 'OpenExchangeRates API App ID',
+        errorMessage:
+          "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ Manage Credentials'",
+        attributes: [CONFIG_ATTRIBUTES.SECRET],
       },
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 2,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       Symbols: {
-        requiredType: "string",
-        label: "Currency Symbols",
-        description: "Comma-separated list of currency codes to fetch (e.g., USD,EUR,GBP)"
+        requiredType: 'string',
+        label: 'Currency Symbols',
+        description: 'Comma-separated list of currency codes to fetch (e.g., USD,EUR,GBP)',
       },
-      base: { // Please note: changing the API `base` currency is available for Developer, Enterprise and Unlimited plan clients
-        requiredType: "string",
+      base: {
+        // Please note: changing the API `base` currency is available for Developer, Enterprise and Unlimited plan clients
+        requiredType: 'string',
         isRequired: true,
-        default: "USD",
-        label: "Base Currency",
-        description: "Base currency for exchange rates (available for Developer+ plans)",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        default: 'USD',
+        label: 'Base Currency',
+        description: 'Base currency for exchange rates (available for Developer+ plans)',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }) );
-    
+        label: 'Create Empty Tables',
+        description: 'Create tables with all columns even if no data is returned from API',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
+
     this.fieldsSchema = OpenExchangeRatesFieldsSchema;
   }
-  
-  
-  /*
-  @param date The requested date as a Date object
 
-  @return data array
+  // Historical endpoint requires a single date — iterate day-by-day.
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.DAY_BY_DAY;
+  }
 
-  */
-  async fetchData(date)  {
-  
-    let data = [];
-    let base = this.config.base.value;
-    let app_id = this.config.AppId.value;
+  /**
+   * Determines if an OpenExchangeRates API error is valid for retry.
+   * Retries transient failures: 5xx server errors and 429 rate limits, so a
+   * single flaky day in a day-by-day backfill is retried instead of aborting
+   * the entire import (mirrors CriteoAds/RedditAds/Shopify/XAds).
+   * @param {HttpRequestException} error - The error to check
+   * @returns {boolean} True if the error should trigger a retry, false otherwise
+   */
+  isValidToRetry(error) {
+    // A native network failure (DNS/ECONNRESET/timeout) carries no statusCode
+    // -- retry it, matching the sibling connectors (CriteoAds/RedditAds/Shopify
+    // /XAds) and AbstractSource's default policy.
+    return (
+      !error?.statusCode ||
+      error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS ||
+      error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
+    );
+  }
+
+  async fetchData({ nodeName, fields, accountId, startDate, endDate }) {
+    // OpenExchangeRates historical API takes one date per call. Under
+    // 'day-by-day', AbstractConnector calls fetchData once per day with
+    // startDate === endDate, so we use startDate as the requested date.
+    const date = startDate;
+
+    const base = this.context.getParameter('base')?.value;
+    const appId = this.context.getParameter('AppId')?.value;
+    const symbolsParam = this.context.getParameter('Symbols')?.value;
+
     let symbols = '';
-  
-    // Limit results to specific currencies (comma-separated list of 3-letter codes)
-    if( this.config.Symbols.value ) {
-      symbols = '&symbols=' + String(this.config.Symbols.value).replace(/[^A-Z,]/g,"");
+    if (symbolsParam) {
+      symbols = '&symbols=' + String(symbolsParam).replace(/[^A-Z,]/g, '');
     }
-   
-    var date = DateUtils.formatDate(date); // The requested date in YYYY-MM-DD format (required)
+
     const urlWithoutKey = `https://openexchangerates.org/api/historical/${date}.json?base=${base}${symbols}`;
-    console.log(`OpenExchangeRates API URL:`, urlWithoutKey);
+    this.context.log(LOG_LEVEL.INFO, `OpenExchangeRates API URL: ${urlWithoutKey}`);
+    this.context.log(LOG_LEVEL.INFO, `Fetching rates for ${date}`);
 
-    const url = `${urlWithoutKey}&app_id=${app_id}`;
+    const url = `${urlWithoutKey}&app_id=${appId}`;
 
-    this.config.logMessage(`Fetching rates for ${date}`);
+    const response = await this.urlFetchWithRetry(url, { method: 'GET' });
+    const historical = await response.json();
 
-    var response = await HttpUtils.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
-    var text = await response.getContentText();
-    var historical = JSON.parse(text);
-  
-    for (var currency in historical["rates"]) {
+    const data = [];
+    for (const currency in historical['rates']) {
       data.push({
         date: new Date(date),
-        base: base,
-        currency: currency,
-        rate: parseFloat(historical["rates"][ currency ])
+        base,
+        currency,
+        rate: parseFloat(historical['rates'][currency]),
       });
-    };
-  
-    //console.log(data);
+    }
+
     return data;
-  
   }
-    
-  }
+}

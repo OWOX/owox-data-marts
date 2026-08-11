@@ -3,9 +3,38 @@ import { Test } from '@nestjs/testing';
 import { OpenAPIObject } from '@nestjs/swagger';
 
 jest.mock('@owox/connectors', () => ({
-  AvailableConnectors: {},
+  // An array, not an object: connector-definition.service builds a Set from it.
+  AvailableConnectors: [],
   Connectors: {},
-  Core: {},
+  // The event translator reads these at import time, so an empty Core stub would break
+  // the whole module graph before any test runs.
+  Core: {
+    EVENT_TYPE: {
+      LOG: 'LOG',
+      DATA: 'DATA',
+      TRACE: 'TRACE',
+      ANALYTICS: 'ANALYTICS',
+      STATE: 'STATE',
+      CONTROL: 'CONTROL',
+      CREDENTIALS: 'CREDENTIALS',
+      SAMPLE: 'SAMPLE',
+    },
+    LOG_LEVEL: { INFO: 'info', WARN: 'warn', ERROR: 'error' },
+    CONTROL_ACTION: {
+      STARTED: 'started',
+      COMPLETED: 'completed',
+      FAILED: 'failed',
+      PAUSED: 'paused',
+      CANCELLED: 'cancelled',
+    },
+    EXECUTION_STATUS: {
+      IMPORT_IN_PROGRESS: 1,
+      CLEANUP_IN_PROGRESS: 2,
+      IMPORT_DONE: 3,
+      CLEANUP_DONE: 4,
+      ERROR: 5,
+    },
+  },
 }));
 
 jest.mock('snowflake-sdk', () => ({}));

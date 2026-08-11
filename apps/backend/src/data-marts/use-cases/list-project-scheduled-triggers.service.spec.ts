@@ -341,7 +341,7 @@ describe('ListProjectScheduledTriggersService', () => {
 
     await service.run(new ListProjectScheduledTriggersCommand('project-1', 20, 0, 'user-1', []));
 
-    expect(connectorSecretService.mask).toHaveBeenCalledWith(connectorDefinition);
+    expect(connectorSecretService.mask).toHaveBeenCalledWith('project-1', connectorDefinition);
     expect(mapper.toDomainDto).toHaveBeenCalledWith(
       expect.objectContaining({
         triggerConfig: {

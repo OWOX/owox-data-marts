@@ -6,6 +6,7 @@ import { DataMartDefinitionForm } from './form/DataMartDefinitionForm.tsx';
 import { DataMartDefinitionType } from '../../../shared';
 import { DataStorageType } from '../../../../data-storage';
 import { useDataMartPreset } from '../../../shared/utils/useDataMartPreset.ts';
+import { useConnectorNameParam } from '../../../shared/utils/useConnectorNameParam.ts';
 import {
   createDataMartDefinitionSchema,
   type DataMartDefinitionFormData,
@@ -64,6 +65,7 @@ export function DataMartDefinitionSettings({
   const { dataMart, updateDataMartDefinition, runSchemaActualization, runGuarded } =
     useOutletContext<DataMartContextType>();
   const preset = useDataMartPreset();
+  const connectorName = useConnectorNameParam();
 
   if (!dataMart) {
     throw new Error('Data mart not found');
@@ -288,6 +290,7 @@ export function DataMartDefinitionSettings({
           storageId={storageId}
           storageConfig={storageConfig}
           preset={preset?.connectorSourceTitle}
+          connectorName={connectorName}
           initialDefinitionType={initialDefinitionType}
           saveDataMartDefinition={handleFormSubmit}
         />

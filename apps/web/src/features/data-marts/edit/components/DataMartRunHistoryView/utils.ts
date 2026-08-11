@@ -7,8 +7,45 @@ import {
 import { DataMartRunType } from '../../../shared';
 import type { DataMartRunItem } from '../../model';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
-import type { LogEntry } from './types';
+import type { LogEntry, SortDir } from './types';
 import { LogLevel } from './types';
+import { categorize, severityOf, relabelStatusMessage } from './log-category';
+
+const toSortTime = (iso: string | null | undefined): number => {
+  if (!iso) return 0;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;
+};
+
+/**
+ * Sort log entries by `sortTime` in the requested direction, breaking ties by the
+ * original emission order (array position). Consecutively-emitted events — e.g. a
+ * storage "MERGE completed" log and the `rows_written` analytic emitted right after
+ * it — routinely share an identical millisecond `at`. A plain stable sort leaves
+ * such ties in insertion order, so newest-first would wrongly show the
+ * earlier-emitted entry on top. Applying the direction to the position tiebreaker
+ * keeps ties ordered consistently with the primary sort. Returns a new array;
+ * the input is not mutated.
+ */
+export const sortLogEntries = (entries: LogEntry[], sortDir: SortDir): LogEntry[] => {
+  const dir = sortDir === 'desc' ? -1 : 1;
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (a, b) =>
+        dir * ((a.entry.sortTime ?? 0) - (b.entry.sortTime ?? 0)) || dir * (a.index - b.index)
+    )
+    .map(x => x.entry);
+};
+
+// Attach the display category/severity derived from the parsed metadata + message.
+const withCategory = (entry: Omit<LogEntry, 'category' | 'severity'>): LogEntry => {
+  const type = (entry.metadata?.type as string | null | undefined) ?? null;
+  const eventType = (entry.metadata?.eventType as string | null | undefined) ?? null;
+  const category = categorize(type, eventType, entry.message);
+  const message = relabelStatusMessage(type, entry.message);
+  return { ...entry, message, category, severity: severityOf(category) };
+};
 
 // Mirrors ConnectorMessageType.WARNING ('addWarningToCurrentStatus') from the backend enum —
 // the web app has no shared reference to it, since logs/errors arrive as raw JSON strings.
@@ -49,18 +86,23 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
       // Try to parse message as JSON to extract type and at
       const processedMessage = processJSONMessage(message);
 
-      return {
+      return withCategory({
         id: `log-${index.toString()}`,
         timestamp: formatTimestamp(timestamp),
         level: resolveLogLevel(isError, processedMessage.metadata?.type as string | undefined),
         message: processedMessage.message,
+        // Spread the parsed metadata first so analytics fields (metric/value/node/date)
+        // survive; only at/type/eventType need the multiline format's own fallbacks.
         metadata: {
+          ...processedMessage.metadata,
           at: processedMessage.metadata?.at
             ? formatTimestamp(processedMessage.metadata.at as string)
             : formatTimestamp(timestamp),
           type: processedMessage.metadata?.type ?? (type !== 'unknown' ? type : null),
+          eventType: processedMessage.metadata?.eventType ?? null,
         },
-      };
+        sortTime: toSortTime((processedMessage.metadata?.at as string | undefined) ?? timestamp),
+      });
     }
   }
 
@@ -68,7 +110,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   if (structuredMatch) {
     const processedMessage = processJSONMessage(structuredMatch[3]);
 
-    return {
+    return withCategory({
       id: `log-${index.toString()}`,
       timestamp: formatTimestamp(structuredMatch[1]),
       level:
@@ -84,12 +126,15 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
             at: formatTimestamp(processedMessage.metadata.at as string),
           }
         : processedMessage.metadata,
-    };
+      sortTime: toSortTime(
+        (processedMessage.metadata?.at as string | undefined) ?? structuredMatch[1]
+      ),
+    });
   }
 
   // Fallback for simple logs
   const processedMessage = processJSONMessage(log);
-  return {
+  return withCategory({
     id: `log-${index.toString()}`,
     timestamp: 'N/A',
     level: resolveLogLevel(isError, processedMessage.metadata?.type as string | undefined),
@@ -100,7 +145,8 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
           at: formatTimestamp(processedMessage.metadata.at as string),
         }
       : processedMessage.metadata,
-  };
+    sortTime: toSortTime(processedMessage.metadata?.at as string | undefined),
+  });
 };
 
 export const processJSONMessage = (
@@ -124,8 +170,43 @@ export const processJSONMessage = (
         delete processedObj.at;
       }
 
+      if ('eventType' in processedObj) {
+        metadata.eventType = processedObj.eventType as string;
+        delete processedObj.eventType;
+      }
+
+      if ('metric' in processedObj) {
+        metadata.metric = processedObj.metric as string;
+        delete processedObj.metric;
+      }
+
+      if ('value' in processedObj) {
+        metadata.value = processedObj.value as string | number;
+        delete processedObj.value;
+      }
+
+      if ('tags' in processedObj) {
+        const tags = processedObj.tags as unknown;
+        if (tags && typeof tags === 'object' && 'node' in tags) {
+          metadata.node = (tags as Record<string, unknown>).node as string;
+        }
+        delete processedObj.tags;
+      }
+
+      if ('date' in processedObj) {
+        metadata.date = processedObj.date as string;
+        delete processedObj.date;
+      }
+
       // If only one field remains, show it as plain text
       const remainingKeys = Object.keys(processedObj);
+      if (remainingKeys.length === 0) {
+        // e.g. REQUESTED_DATE messages carry only type/at/date — surface the date itself.
+        return {
+          message: typeof metadata.date === 'string' ? metadata.date : '',
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        };
+      }
       if (remainingKeys.length === 1) {
         const key = remainingKeys[0];
         const value = processedObj[key] as string;

@@ -4,6 +4,7 @@ import { ConnectorMessageType } from '../../../enums/connector-message-type-enum
 export const MessageRequestedDateSchema = z.object({
   type: z.literal(ConnectorMessageType.REQUESTED_DATE),
   at: z.string(),
+  eventType: z.string().optional(),
   date: z.string(),
 });
 

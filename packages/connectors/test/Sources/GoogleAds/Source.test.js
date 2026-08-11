@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
+import { GoogleAdsSource } from '../../../src/Sources/GoogleAds/Source.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiReferenceDir = path.join(
@@ -10,10 +11,12 @@ const apiReferenceDir = path.join(
   '../../../src/Sources/GoogleAds/GoogleAdsAPIReference'
 );
 
-loadGasClass(path.join(__dirname, '../../../src/Constants/HttpConstants.js'));
-loadGasClass(path.join(__dirname, '../../../src/Core/AbstractSource.js'));
-loadGasClass(path.join(__dirname, '../../../src/Sources/GoogleAds/Source.js'));
-const proto = globalThis.GoogleAdsSource.prototype;
+// The source and its base class are ES modules here, so they are imported rather than
+// evaluated as scripts. LOG_LEVEL stays a bare global, the way the built bundle supplies
+// it to every source. The field-reference files below are still GAS-style scripts, so
+// they keep going through loadGasClass.
+globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
+const proto = GoogleAdsSource.prototype;
 
 // Each field file declares its object with `var`, so it attaches to globalThis once
 // loaded (GAS-style scripts, no imports/exports). GoogleAdsFieldsSchema.js itself uses
@@ -56,10 +59,15 @@ const callGetAccessToken = tokenError => {
       throw tokenError;
     },
   };
+  // Parameters are read through the context on this branch.
+  const authType = {
+    value: 'oauth2',
+    items: { ClientId: {}, ClientSecret: {}, RefreshToken: {} },
+  };
   const self = {
-    config: {
-      AuthType: { value: 'oauth2', items: { ClientId: {}, ClientSecret: {}, RefreshToken: {} } },
-      logMessage: () => {},
+    context: {
+      getParameter: name => (name === 'AuthType' ? authType : undefined),
+      log: () => {},
     },
   };
   return proto.getAccessToken.call(self).catch(e => e);

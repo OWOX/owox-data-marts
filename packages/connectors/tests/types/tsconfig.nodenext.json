@@ -1,0 +1,12 @@
+{
+  "//": "E2E: resolve @owox/connectors under modern nodenext resolution, which reads",
+  "//2": "the `exports[\".\"].types` condition (NOT the top-level `types` field). Together",
+  "//3": "with the node10 test this proves BOTH resolution algorithms see the bundled",
+  "//4": "declarations — the full published type contract for downstream consumers.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
+  },
+  "files": ["nodenext.consumer.ts"]
+}

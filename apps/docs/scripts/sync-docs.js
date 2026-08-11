@@ -174,6 +174,11 @@ async function findMarkdownFiles() {
     '**/CHANGELOG.md',
     'apps/docs/src/**',
     'apps/web/src/**',
+    // Internal specs/plans (gitignored) and dev-tooling READMEs are NOT product
+    // docs; excluding them keeps their repo-relative file links (e.g. to sibling
+    // .sql/.json) from being rewritten into broken site links by the link check.
+    'docs/superpowers/**',
+    '**/scripts/**',
   ];
 
   const sourceFiles = await glob(searchPatterns, {

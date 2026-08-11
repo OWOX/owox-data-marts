@@ -3,6 +3,7 @@ export interface ConnectorSourceDto {
   configuration: Record<string, unknown>[];
   node: string;
   fields: string[];
+  version?: number;
 }
 
 export interface ConnectorStorageDto {

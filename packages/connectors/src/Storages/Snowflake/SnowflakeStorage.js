@@ -34,7 +34,9 @@ function createSnapshotStagingTableName(tableName) {
 }
 
 function normalizeSnowflakeType(type) {
-  const normalized = String(type || '').toUpperCase().replace(/\(.+\)$/, '');
+  const normalized = String(type || '')
+    .toUpperCase()
+    .replace(/\(.+\)$/, '');
   if (['BIGINT', 'DECIMAL', 'INTEGER', 'INT', 'NUMBER', 'NUMERIC'].includes(normalized)) {
     return 'NUMBER';
   }
@@ -48,731 +50,734 @@ function normalizeSnowflakeType(type) {
 }
 
 var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
+  static parameters = {
+    SnowflakeAccount: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    SnowflakeWarehouse: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    SnowflakeDatabase: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    SnowflakeSchema: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    SnowflakeRole: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    SnowflakeUsername: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    SnowflakePassword: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    SnowflakeAuthenticator: {
+      isRequired: false,
+      requiredType: 'string',
+      default: 'SNOWFLAKE',
+    },
+    SnowflakePrivateKey: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    SnowflakePrivateKeyPassphrase: {
+      isRequired: false,
+      requiredType: 'string',
+      default: null,
+    },
+    DestinationTableName: {
+      isRequired: true,
+      requiredType: 'string',
+      default: 'Data',
+    },
+    MaxBufferSize: {
+      isRequired: true,
+      default: 250,
+    },
+  };
+
   //---- constructor -------------------------------------------------
-    /**
-     * Snowflake storage operations class
-     *
-     * @param config (object) instance of AbstractConfig
-     * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
-     * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
-     * @param description (string) string with storage description }
-     */
-    constructor(config, uniqueKeyColumns, schema = null, description = null) {
+  /**
+   * Snowflake storage operations class
+   *
+   * @param context (object) instance of AbstractContext
+   * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
+   * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
+   * @param description (string) string with storage description }
+   */
+  constructor(context, uniqueKeyColumns, schema = null, description = null) {
+    super(context, uniqueKeyColumns, schema, description);
 
-      super(
-        config.mergeParameters({
-          SnowflakeAccount: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          SnowflakeWarehouse: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          SnowflakeDatabase: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          SnowflakeSchema: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          SnowflakeRole: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          SnowflakeUsername: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          SnowflakePassword: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          SnowflakeAuthenticator: {
-            isRequired: false,
-            requiredType: "string",
-            default: "SNOWFLAKE"
-          },
-          SnowflakePrivateKey: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          SnowflakePrivateKeyPassphrase: {
-            isRequired: false,
-            requiredType: "string",
-            default: null
-          },
-          DestinationTableName: {
-            isRequired: true,
-            requiredType: "string",
-            default: "Data"
-          },
-          MaxBufferSize: {
-            isRequired: true,
-            default: 250
-          }
-        }),
-        uniqueKeyColumns,
-        schema,
-        description
-      );
-
-      this.updatedRecordsBuffer = {};
-      this.totalRecordsProcessed = 0;
-      this.connection = null;
-
-    }
+    this.updatedRecordsBuffer = {};
+    this.totalRecordsProcessed = 0;
+    this.connection = null;
+  }
 
   //---- init --------------------------------------------------------
-    /**
-     * Initializing storage - establishes connection and creates table if needed
-     */
-    async init() {
-
-      this.checkIfSnowflakeIsConnected();
-      await this.createConnection();
-      await this.testConnection();
-      await this.loadTableSchema();
-
-    }
+  /**
+   * Initializing storage - establishes connection and creates table if needed
+   */
+  async init() {
+    this.checkIfSnowflakeIsConnected();
+    await this.createConnection();
+    await this.testConnection();
+    await this.loadTableSchema();
+  }
   //----------------------------------------------------------------
 
   //---- checkIfSnowflakeIsConnected ---------------------------------
-    checkIfSnowflakeIsConnected() {
-
-      if( typeof snowflake == "undefined") {
-        throw new Error(`Snowflake SDK is not available. Ensure snowflake-sdk is installed.`);
-      }
-
+  checkIfSnowflakeIsConnected() {
+    if (typeof snowflake == 'undefined') {
+      throw new Error(`Snowflake SDK is not available. Ensure snowflake-sdk is installed.`);
     }
+  }
   //----------------------------------------------------------------
 
   //---- createConnection --------------------------------------------
-    /**
-     * Creates and connects to Snowflake
-     */
-    async createConnection() {
-      snowflake.configure({
-        logLevel: 'OFF',
-      });
+  /**
+   * Creates and connects to Snowflake
+   */
+  async createConnection() {
+    snowflake.configure({
+      logLevel: 'OFF',
+    });
 
-      const connectionConfig = {
-        account: this.config.SnowflakeAccount.value,
-        username: this.config.SnowflakeUsername.value,
-        password: this.config.SnowflakePassword.value,
-        warehouse: this.config.SnowflakeWarehouse.value,
-        database: this.config.SnowflakeDatabase.value,
-        schema: this.config.SnowflakeSchema.value,
-        authenticator: this.config.SnowflakeAuthenticator.value || 'SNOWFLAKE'
-      };
+    const accountParam = this.context.getParameter('SnowflakeAccount');
+    const rolePARAM = this.context.getParameter('SnowflakeRole');
+    const privateKeyParam = this.context.getParameter('SnowflakePrivateKey');
+    const privateKeyPassphraseParam = this.context.getParameter('SnowflakePrivateKeyPassphrase');
 
-      // Add optional role
-      if (this.config.SnowflakeRole && this.config.SnowflakeRole.value) {
-        connectionConfig.role = this.config.SnowflakeRole.value;
-      }
+    const connectionConfig = {
+      account: accountParam?.value,
+      username: this.context.getParameter('SnowflakeUsername')?.value,
+      password: this.context.getParameter('SnowflakePassword')?.value,
+      warehouse: this.context.getParameter('SnowflakeWarehouse')?.value,
+      database: this.context.getParameter('SnowflakeDatabase')?.value,
+      schema: this.context.getParameter('SnowflakeSchema')?.value,
+      authenticator: this.context.getParameter('SnowflakeAuthenticator')?.value || 'SNOWFLAKE',
+    };
 
-      // Add private key auth if configured
-      if (this.config.SnowflakePrivateKey && this.config.SnowflakePrivateKey.value) {
-        connectionConfig.privateKey = this.config.SnowflakePrivateKey.value;
-        if (this.config.SnowflakePrivateKeyPassphrase && this.config.SnowflakePrivateKeyPassphrase.value) {
-          connectionConfig.privateKeyPassphrase = this.config.SnowflakePrivateKeyPassphrase.value;
-        }
-      }
-
-      this.connection = snowflake.createConnection(connectionConfig);
-
-      // Connect with promise
-      return new Promise((resolve, reject) => {
-        this.connection.connect((err, conn) => {
-          if (err) {
-            reject(new Error(`Failed to connect to Snowflake: ${err.message}`));
-          } else {
-            this.config.logMessage(`Connected to Snowflake (account: ${this.config.SnowflakeAccount.value})`);
-            resolve(conn);
-          }
-        });
-      });
+    // Add optional role
+    if (rolePARAM && rolePARAM.value) {
+      connectionConfig.role = rolePARAM.value;
     }
+
+    // Add private key auth if configured
+    if (privateKeyParam && privateKeyParam.value) {
+      connectionConfig.privateKey = privateKeyParam.value;
+      if (privateKeyPassphraseParam && privateKeyPassphraseParam.value) {
+        connectionConfig.privateKeyPassphrase = privateKeyPassphraseParam.value;
+      }
+    }
+
+    this.connection = snowflake.createConnection(connectionConfig);
+
+    // Connect with promise
+    return new Promise((resolve, reject) => {
+      this.connection.connect((err, conn) => {
+        if (err) {
+          reject(new Error(`Failed to connect to Snowflake: ${err.message}`));
+        } else {
+          this.context.log(
+            LOG_LEVEL.INFO,
+            `Connected to Snowflake (account: ${accountParam?.value})`
+          );
+          resolve(conn);
+        }
+      });
+    });
+  }
   //----------------------------------------------------------------
 
   //---- testConnection ----------------------------------------------
-    /**
-     * Tests the connection with a simple query
-     */
-    async testConnection() {
-      try {
-        await this.executeQuery('SELECT 1 as test');
-        this.config.logMessage('Snowflake connection established successfully');
-      } catch (error) {
-        throw new Error(`Snowflake connection test failed: ${error.message}`);
-      }
+  /**
+   * Tests the connection with a simple query
+   */
+  async testConnection() {
+    try {
+      await this.executeQuery('SELECT 1 as test');
+      this.context.log(LOG_LEVEL.INFO, 'Snowflake connection established successfully');
+    } catch (error) {
+      throw new Error(`Snowflake connection test failed: ${error.message}`);
     }
+  }
   //----------------------------------------------------------------
 
   //---- loadTableSchema ---------------------------------------------
-    /**
-     * Loads existing table schema from Snowflake
-     */
-    async loadTableSchema() {
+  /**
+   * Loads existing table schema from Snowflake
+   */
+  async loadTableSchema() {
+    this.existingColumns = (await this.getAListOfExistingColumns()) || {};
 
-      this.existingColumns = await this.getAListOfExistingColumns() || {};
-
-      // If there are no existing fields, it means the table has not been created yet
-      if( Object.keys(this.existingColumns).length == 0 ) {
-        await this.createDatabaseAndSchemaIfNotExist();
-        this.existingColumns = await this.createTableIfItDoesntExist();
-      } else {
-        // Check if there are new columns from Fields config
-        let selectedFields = this.getSelectedFields();
-        let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
-        if( newFields.length > 0 ) {
-          await this.addNewColumns(newFields);
-        }
+    // If there are no existing fields, it means the table has not been created yet
+    if (Object.keys(this.existingColumns).length == 0) {
+      await this.createDatabaseAndSchemaIfNotExist();
+      this.existingColumns = await this.createTableIfItDoesntExist();
+    } else {
+      // Check if there are new columns from Fields config
+      let selectedFields = this.getSelectedFields();
+      let newFields = selectedFields.filter(
+        column => !Object.keys(this.existingColumns).includes(column)
+      );
+      if (newFields.length > 0) {
+        await this.addNewColumns(newFields);
       }
-
     }
+  }
   //----------------------------------------------------------------
 
   //---- getAListOfExistingColumns -----------------------------------
-    /**
-     * Reads columns list of the table and returns it as object
-     *
-     * @return columns (object)
-     */
-    async getAListOfExistingColumns() {
+  /**
+   * Reads columns list of the table and returns it as object
+   *
+   * @return columns (object)
+   */
+  async getAListOfExistingColumns() {
+    // Config values may contain surrounding double-quotes (e.g. '"PUBLIC"'); strip them
+    // to get the bare identifier. The DDL path always wraps via quoteIdentifier(), so
+    // Snowflake stores the identifier in its exact configured case — no UPPER() needed.
+    const rawSchemaName = stripQuotes(this.context.getParameter('SnowflakeSchema')?.value);
+    const rawTableName = stripQuotes(this.context.getParameter('DestinationTableName')?.value);
 
-      // Config values may contain surrounding double-quotes (e.g. '"PUBLIC"'); strip them
-      // to get the bare identifier. The DDL path always wraps via quoteIdentifier(), so
-      // Snowflake stores the identifier in its exact configured case — no UPPER() needed.
-      const rawSchemaName = stripQuotes(this.config.SnowflakeSchema.value);
-      const rawTableName = stripQuotes(this.config.DestinationTableName.value);
-
-      let query = `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
-        FROM ${this.config.SnowflakeDatabase.value}.INFORMATION_SCHEMA.COLUMNS
+    let query = `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+        FROM ${this.context.getParameter('SnowflakeDatabase')?.value}.INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '${rawSchemaName}'
           AND TABLE_NAME = '${rawTableName}'
         ORDER BY ORDINAL_POSITION`;
 
-      let queryResults = [];
+    let queryResults = [];
 
-      try {
-        queryResults = await this.executeQuery(query);
-      } catch (error) {
-        // If table doesn't exist, return empty columns
-        if (error.message && error.message.includes('does not exist')) {
-          return {};
-        }
-        throw error;
+    try {
+      queryResults = await this.executeQuery(query);
+    } catch (error) {
+      // If table doesn't exist, return empty columns
+      if (error.message && error.message.includes('does not exist')) {
+        return {};
       }
-
-      let columns = {};
-
-      if (Array.isArray(queryResults)) {
-        queryResults.forEach(row => {
-          const columnName = row.COLUMN_NAME;
-          columns[columnName] = {"name": columnName, "type": row.DATA_TYPE};
-        });
-      }
-
-      return columns;
-
+      throw error;
     }
+
+    let columns = {};
+
+    if (Array.isArray(queryResults)) {
+      queryResults.forEach(row => {
+        const columnName = row.COLUMN_NAME;
+        columns[columnName] = { name: columnName, type: row.DATA_TYPE };
+      });
+    }
+
+    return columns;
+  }
   //----------------------------------------------------------------
 
   //---- createDatabaseAndSchemaIfNotExist ---------------------------
-    async createDatabaseAndSchemaIfNotExist() {
+  async createDatabaseAndSchemaIfNotExist() {
+    const database = this.context.getParameter('SnowflakeDatabase')?.value;
+    const schemaName = this.context.getParameter('SnowflakeSchema')?.value;
 
-      // Create database if not exists
-      let createDbQuery = `CREATE DATABASE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}`;
-      await this.executeQuery(createDbQuery);
+    // Create database if not exists
+    let createDbQuery = `CREATE DATABASE IF NOT EXISTS ${database}`;
+    await this.executeQuery(createDbQuery);
 
-      // Create schema if not exists (quote schema name to preserve case)
-      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
-      let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${quotedSchema}`;
-      await this.executeQuery(createSchemaQuery);
+    // Create schema if not exists (quote schema name to preserve case)
+    const quotedSchema = quoteIdentifier(schemaName);
+    let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${database}.${quotedSchema}`;
+    await this.executeQuery(createSchemaQuery);
 
-      this.config.logMessage(`Database and schema ensured: ${this.config.SnowflakeDatabase.value}.${quotedSchema}`);
-
-    }
+    this.context.log(LOG_LEVEL.INFO, `Database and schema ensured: ${database}.${quotedSchema}`);
+  }
   //----------------------------------------------------------------
 
   //---- createTableIfItDoesntExist ----------------------------------
-    async createTableIfItDoesntExist() {
+  async createTableIfItDoesntExist() {
+    let columns = [];
+    let existingColumns = {};
 
-      let columns = [];
-      let existingColumns = {};
+    let selectedFields = this.getSelectedFields();
+    let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
 
-      let selectedFields = this.getSelectedFields();
-      let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
+    for (let i in tableColumns) {
+      let columnName = tableColumns[i];
+      let columnDescription = '';
 
-      for (let i in tableColumns) {
-        let columnName = tableColumns[i];
-        let columnDescription = '';
-
-        if( !(columnName in this.schema) ) {
-          throw new Error(`Required field ${columnName} not found in schema`);
-        }
-
-        let columnType = this.getColumnType(columnName);
-
-        if( "description" in this.schema[ columnName ] ) {
-          const escapedDescription = this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"]);
-          columnDescription = ` COMMENT '${escapedDescription}'`;
-        }
-
-        columns.push(`"${columnName}" ${columnType}${columnDescription}`);
-
-        existingColumns[ columnName ] = {"name": columnName, "type": columnType};
-
+      if (!(columnName in this.schema)) {
+        throw new Error(`Required field ${columnName} not found in schema`);
       }
 
-      // Add PRIMARY KEY (NOT ENFORCED is Snowflake best practice for analytics)
-      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.map(col => `"${col}"`).join(",")}) NOT ENFORCED`);
+      let columnType = this.getColumnType(columnName);
 
-      let columnsStr = columns.join(",\n  ");
-
-      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
-      const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
-      let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} (\n  ${columnsStr}\n)`;
-
-      if( this.description ) {
-        const escapedTableDescription = this.obfuscateSpecialCharacters(this.description);
-        query += `\nCOMMENT = '${escapedTableDescription}'`;
+      if ('description' in this.schema[columnName]) {
+        const escapedDescription = this.obfuscateSpecialCharacters(
+          this.schema[columnName]['description']
+        );
+        columnDescription = ` COMMENT '${escapedDescription}'`;
       }
 
-      await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} was created`);
+      columns.push(`"${columnName}" ${columnType}${columnDescription}`);
 
-      return existingColumns;
-
+      existingColumns[columnName] = { name: columnName, type: columnType };
     }
+
+    // Add PRIMARY KEY (NOT ENFORCED is Snowflake best practice for analytics)
+    columns.push(
+      `PRIMARY KEY (${this.uniqueKeyColumns.map(col => `"${col}"`).join(',')}) NOT ENFORCED`
+    );
+
+    let columnsStr = columns.join(',\n  ');
+
+    const database = this.context.getParameter('SnowflakeDatabase')?.value;
+    const quotedSchema = quoteIdentifier(this.context.getParameter('SnowflakeSchema')?.value);
+    const quotedTable = quoteIdentifier(this.context.getParameter('DestinationTableName')?.value);
+    let query = `CREATE TABLE IF NOT EXISTS ${database}.${quotedSchema}.${quotedTable} (\n  ${columnsStr}\n)`;
+
+    if (this.description) {
+      const escapedTableDescription = this.obfuscateSpecialCharacters(this.description);
+      query += `\nCOMMENT = '${escapedTableDescription}'`;
+    }
+
+    await this.executeQuery(query);
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Table ${database}.${quotedSchema}.${quotedTable} was created`
+    );
+
+    return existingColumns;
+  }
   //----------------------------------------------------------------
 
   //---- replaceData -------------------------------------------------
-    async replaceData(data) {
+  /**
+   * Publish a full-refresh snapshot: load every row into a staging table,
+   * validate it, then swap it over the live table in one statement.
+   * @param {data} array of assoc objects with records to save
+   * @returns {Promise<void>}
+   */
+  async replaceData(data) {
+    this.checkIfSnowflakeIsConnected();
 
-      this.checkIfSnowflakeIsConnected();
+    if (!this.connection) {
+      await this.createConnection();
+      await this.testConnection();
+    }
 
-      if (!this.connection) {
-        await this.createConnection();
-        await this.testConnection();
+    await this.createDatabaseAndSchemaIfNotExist();
+
+    const destinationTableParam = this.context.getParameter('DestinationTableName');
+    const configuredTableName = destinationTableParam.value;
+    const stagingTableName = createSnapshotStagingTableName(configuredTableName);
+    const database = this.context.getParameter('SnowflakeDatabase')?.value;
+    const schema = quoteIdentifier(this.context.getParameter('SnowflakeSchema')?.value);
+    const liveTable = `${database}.${schema}.${quoteIdentifier(configuredTableName)}`;
+    const stagingTable = `${database}.${schema}.${quoteIdentifier(stagingTableName)}`;
+    const originalExistingColumns = this.existingColumns;
+    const liveColumns = await this.getAListOfExistingColumns();
+    let published = false;
+
+    try {
+      // The whole write path reads the destination from config, so staging is
+      // entered by repointing that parameter rather than threading a table
+      // name through every method. _snapshotLiveTableName keeps analytics
+      // attributed to the configured table while the swap is in flight.
+      this._snapshotLiveTableName = configuredTableName;
+      destinationTableParam.value = stagingTableName;
+      this.existingColumns = {};
+      this.updatedRecordsBuffer = {};
+      const stagedColumns = await this.createTableIfItDoesntExist();
+      this.existingColumns = stagedColumns;
+
+      if (data.length) {
+        await this.saveData(data);
       }
 
-      await this.createDatabaseAndSchemaIfNotExist();
+      await this.validateSnapshotRowCount(stagingTable, data.length);
 
-      const configuredTableName = this.config.DestinationTableName.value;
-      const stagingTableName = createSnapshotStagingTableName(configuredTableName);
-      const database = this.config.SnowflakeDatabase.value;
-      const schema = quoteIdentifier(this.config.SnowflakeSchema.value);
-      const liveTable = `${database}.${schema}.${quoteIdentifier(configuredTableName)}`;
-      const stagingTable = `${database}.${schema}.${quoteIdentifier(stagingTableName)}`;
-      const originalExistingColumns = this.existingColumns;
-      const liveColumns = await this.getAListOfExistingColumns();
-      let published = false;
+      destinationTableParam.value = configuredTableName;
+
+      if (this.hasSameSchema(liveColumns, stagedColumns, normalizeSnowflakeType)) {
+        const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+        await this.executeQuery(
+          `INSERT OVERWRITE INTO ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
+        );
+      } else {
+        await this.executeQuery(
+          `CREATE OR REPLACE TABLE ${liveTable} CLONE ${stagingTable} COPY GRANTS COPY TAGS`
+        );
+      }
+      this.existingColumns = stagedColumns;
+      published = true;
+
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Snapshot import completed for ${liveTable}: ${data.length} rows`
+      );
+    } finally {
+      destinationTableParam.value = configuredTableName;
+      this._snapshotLiveTableName = null;
+      this.updatedRecordsBuffer = {};
+      if (!published) {
+        this.existingColumns = originalExistingColumns;
+      }
 
       try {
-        this.config.DestinationTableName.value = stagingTableName;
-        this.existingColumns = {};
-        this.updatedRecordsBuffer = {};
-        const stagedColumns = await this.createTableIfItDoesntExist();
-        this.existingColumns = stagedColumns;
-
-        if (data.length) {
-          await this.saveData(data);
-        }
-
-        await this.validateSnapshotRowCount(stagingTable, data.length);
-
-        this.config.DestinationTableName.value = configuredTableName;
-
-        if (this.hasSameSchema(liveColumns, stagedColumns, normalizeSnowflakeType)) {
-          const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
-          await this.executeQuery(
-            `INSERT OVERWRITE INTO ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
-          );
-        } else {
-          await this.executeQuery(
-            `CREATE OR REPLACE TABLE ${liveTable} CLONE ${stagingTable} COPY GRANTS COPY TAGS`
-          );
-        }
-        this.existingColumns = stagedColumns;
-        published = true;
-
-        this.config.logMessage(
-          `Snapshot import completed for ${liveTable}: ${data.length} rows`
+        await this.executeQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
+      } catch (cleanupError) {
+        this.context.log(
+          LOG_LEVEL.WARN,
+          `Failed to clean up snapshot staging table ${stagingTable}: ${cleanupError.message}`
         );
-      } finally {
-        this.config.DestinationTableName.value = configuredTableName;
-        this.updatedRecordsBuffer = {};
-        if (!published) {
-          this.existingColumns = originalExistingColumns;
-        }
-
-        try {
-          await this.executeQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
-        } catch (cleanupError) {
-          this.config.logMessage(
-            `Warning: Failed to clean up snapshot staging table ${stagingTable}: ${cleanupError.message}`
-          );
-        }
       }
-
     }
+  }
   //----------------------------------------------------------------
 
   //---- validateSnapshotRowCount ------------------------------------
-    async validateSnapshotRowCount(fullTableName, expectedRowCount) {
+  async validateSnapshotRowCount(fullTableName, expectedRowCount) {
+    const rows = await this.executeQuery(`SELECT COUNT(*) AS row_count FROM ${fullTableName}`);
+    const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
+    const actualRowCount = Number(value);
 
-      const rows = await this.executeQuery(
-        `SELECT COUNT(*) AS row_count FROM ${fullTableName}`
+    if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
+      const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
+      throw new Error(
+        `Snapshot staging row count mismatch for ${fullTableName}: expected ${expectedRowCount}, got ${actual}`
       );
-      const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
-      const actualRowCount = Number(value);
-
-      if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
-        const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
-        throw new Error(
-          `Snapshot staging row count mismatch for ${fullTableName}: expected ${expectedRowCount}, got ${actual}`
-        );
-      }
-
-      return actualRowCount;
-
     }
+
+    return actualRowCount;
+  }
   //----------------------------------------------------------------
 
   //---- addNewColumns -----------------------------------------------
-    /**
-     * ALTER table by adding missed columns
-     *
-     * @param {newColumns} array with a list of new columns
-     */
-    async addNewColumns(newColumns) {
+  /**
+   * ALTER table by adding missed columns
+   *
+   * @param {newColumns} array with a list of new columns
+   */
+  async addNewColumns(newColumns) {
+    let columns = [];
 
-      let columns = [];
+    // for each new column requested to be added to the table
+    for (var i in newColumns) {
+      let columnName = newColumns[i];
 
-      // for each new column requested to be added to the table
-      for(var i in newColumns) {
+      // checking the field exists in schema
+      if (columnName in this.schema) {
+        let columnDescription = '';
 
-        let columnName = newColumns[i];
+        let columnType = this.getColumnType(columnName);
 
-        // checking the field exists in schema
-        if( columnName in this.schema ) {
-
-          let columnDescription = '';
-
-          let columnType = this.getColumnType(columnName);
-
-          if( "description" in this.schema[ columnName ] ) {
-            const escapedDescription = this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"]);
-            columnDescription = ` COMMENT '${escapedDescription}'`;
-          }
-
-          columns.push(`ADD COLUMN IF NOT EXISTS "${columnName}" ${columnType}${columnDescription}`);
-          this.existingColumns[ columnName ] = {"name": columnName, "type": columnType};
-
+        if ('description' in this.schema[columnName]) {
+          const escapedDescription = this.obfuscateSpecialCharacters(
+            this.schema[columnName]['description']
+          );
+          columnDescription = ` COMMENT '${escapedDescription}'`;
         }
 
+        columns.push(`ADD COLUMN IF NOT EXISTS "${columnName}" ${columnType}${columnDescription}`);
+        this.existingColumns[columnName] = { name: columnName, type: columnType };
       }
-
-      if( columns.length > 0 ) {
-        const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
-        const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
-        const tableRef = `${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`;
-        for (const columnDef of columns) {
-          await this.executeQuery(`ALTER TABLE ${tableRef}\n${columnDef}`);
-        }
-        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${tableRef}`);
-      }
-
     }
+
+    if (columns.length > 0) {
+      const quotedSchema = quoteIdentifier(this.context.getParameter('SnowflakeSchema')?.value);
+      const quotedTable = quoteIdentifier(this.context.getParameter('DestinationTableName')?.value);
+      const tableRef = `${this.context.getParameter('SnowflakeDatabase')?.value}.${quotedSchema}.${quotedTable}`;
+      for (const columnDef of columns) {
+        await this.executeQuery(`ALTER TABLE ${tableRef}\n${columnDef}`);
+      }
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Columns '${newColumns.join(',')}' were added to ${tableRef}`
+      );
+    }
+  }
   //----------------------------------------------------------------
 
   //---- saveData ----------------------------------------------------
-    /**
-     * Saving data to storage
-     * @param {data} array of assoc objects with records to save
-     */
-    async saveData(data) {
+  /**
+   * Saving data to storage
+   * @param {data} array of assoc objects with records to save
+   */
+  async saveData(data) {
+    const maxBufferSize = this.context.getParameter('MaxBufferSize')?.value;
 
-      for (const row of data) {
+    for (const row of data) {
+      // if there are new columns in the first row they should be added first
+      let newFields = Object.keys(row).filter(
+        column => !Object.keys(this.existingColumns).includes(column)
+      );
 
-        // if there are new columns in the first row they should be added first
-        let newFields = Object.keys(row).filter( column => !Object.keys(this.existingColumns).includes(column) );
-
-        if( newFields.length > 0 ) {
-          await this.addNewColumns(newFields);
-        }
-
-        this.addRecordToBuffer(row);
-        await this.saveRecordsAddedToBuffer(this.config.MaxBufferSize.value);
-
+      if (newFields.length > 0) {
+        await this.addNewColumns(newFields);
       }
 
-      await this.saveRecordsAddedToBuffer();
-
+      this.addRecordToBuffer(row);
+      await this.saveRecordsAddedToBuffer(maxBufferSize);
     }
+
+    await this.saveRecordsAddedToBuffer();
+  }
   //----------------------------------------------------------------
 
   //---- addRecordToBuffer -------------------------------------------
-    /**
-     * Adds record to buffer with deduplication
-     * @param {record} object
-     */
-    addRecordToBuffer(record) {
-
-      let uniqueKey = this.getUniqueKeyByRecordFields( record );
-      this.updatedRecordsBuffer[ uniqueKey ] = record;
-
-    }
+  /**
+   * Adds record to buffer with deduplication
+   * @param {record} object
+   */
+  addRecordToBuffer(record) {
+    let uniqueKey = this.getUniqueKeyByRecordFields(record);
+    this.updatedRecordsBuffer[uniqueKey] = record;
+  }
   //----------------------------------------------------------------
 
   //---- saveRecordsAddedToBuffer ------------------------------------
-    /**
-     * Add records from buffer to storage
-     * @param (integer) {maxBufferSize} records will be added only if buffer size is larger than this parameter
-     */
-    async saveRecordsAddedToBuffer(maxBufferSize = 0) {
+  /**
+   * Add records from buffer to storage
+   * @param (integer) {maxBufferSize} records will be added only if buffer size is larger than this parameter
+   */
+  async saveRecordsAddedToBuffer(maxBufferSize = 0) {
+    let bufferSize = Object.keys(this.updatedRecordsBuffer).length;
 
-      let bufferSize = Object.keys( this.updatedRecordsBuffer ).length;
-
-      // buffer must be saved only in case if it is larger than maxBufferSize
-      if( bufferSize && bufferSize >= maxBufferSize ) {
-        await this.executeQueryWithSizeLimit();
-      }
-
+    // buffer must be saved only in case if it is larger than maxBufferSize
+    if (bufferSize && bufferSize >= maxBufferSize) {
+      await this.executeQueryWithSizeLimit();
     }
+  }
   //----------------------------------------------------------------
 
   //---- executeQueryWithSizeLimit -----------------------------------
-    /**
-     * Executes the MERGE query with automatic batching for large datasets
-     */
-    async executeQueryWithSizeLimit() {
-      const bufferKeys = Object.keys(this.updatedRecordsBuffer);
-      const totalRecords = bufferKeys.length;
+  /**
+   * Executes the MERGE query with automatic batching for large datasets
+   */
+  async executeQueryWithSizeLimit() {
+    const bufferKeys = Object.keys(this.updatedRecordsBuffer);
+    const totalRecords = bufferKeys.length;
 
-      if (totalRecords === 0) {
-        return;
-      }
-
-      // Execute with current buffer size
-      await this.executeMergeQueryRecursively(bufferKeys, totalRecords);
-
-      // Clear the buffer after processing
-      this.updatedRecordsBuffer = {};
+    if (totalRecords === 0) {
+      return;
     }
+
+    // Execute with current buffer size
+    await this.executeMergeQueryRecursively(bufferKeys, totalRecords);
+
+    // Clear the buffer after processing
+    this.updatedRecordsBuffer = {};
+  }
   //----------------------------------------------------------------
 
   //---- executeMergeQueryRecursively --------------------------------
-    /**
-     * Recursively attempts to execute MERGE queries, reducing batch size if needed
-     * @param {Array} recordKeys - Array of record keys to process
-     * @param {number} batchSize - Current batch size to attempt
-     */
-    async executeMergeQueryRecursively(recordKeys, batchSize) {
-      // Base case: if no records to process
-      if (recordKeys.length === 0) {
-        return;
+  /**
+   * Recursively attempts to execute MERGE queries, reducing batch size if needed
+   * @param {Array} recordKeys - Array of record keys to process
+   * @param {number} batchSize - Current batch size to attempt
+   */
+  async executeMergeQueryRecursively(recordKeys, batchSize) {
+    // Base case: if no records to process
+    if (recordKeys.length === 0) {
+      return;
+    }
+
+    // If batch size is less than 1, we have a problem
+    if (batchSize < 1) {
+      throw new Error('Cannot process records: batch size reduced below 1');
+    }
+
+    // Take a batch of records
+    const currentBatch = recordKeys.slice(0, batchSize);
+    const remainingRecords = recordKeys.slice(batchSize);
+
+    // Build query for current batch
+    const query = this.buildMergeQuery(currentBatch);
+
+    try {
+      // Execute the query
+      await this.executeQuery(query);
+      this.totalRecordsProcessed += currentBatch.length;
+      this._reportRowsWritten(currentBatch.length);
+
+      // Process remaining records if any
+      if (remainingRecords.length > 0) {
+        await this.executeMergeQueryRecursively(remainingRecords, batchSize);
       }
-
-      // If batch size is less than 1, we have a problem
-      if (batchSize < 1) {
-        throw new Error('Cannot process records: batch size reduced below 1');
-      }
-
-      // Take a batch of records
-      const currentBatch = recordKeys.slice(0, batchSize);
-      const remainingRecords = recordKeys.slice(batchSize);
-
-      // Build query for current batch
-      const query = this.buildMergeQuery(currentBatch);
-
-      try {
-        // Execute the query
-        await this.executeQuery(query);
-        this.totalRecordsProcessed += currentBatch.length;
-
-        // Process remaining records if any
-        if (remainingRecords.length > 0) {
-          await this.executeMergeQueryRecursively(remainingRecords, batchSize);
-        }
-
-      } catch (error) {
-        // If query fails, try with smaller batch
-        if (batchSize > 1) {
-          await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
-        } else {
-          // Re-throw error if already at minimum batch size
-          throw error;
-        }
+    } catch (error) {
+      // If query fails, try with smaller batch
+      if (batchSize > 1) {
+        await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
+      } else {
+        // Re-throw error if already at minimum batch size
+        throw error;
       }
     }
+  }
   //----------------------------------------------------------------
 
   //---- buildMergeQuery ---------------------------------------------
-    /**
-     * Builds a MERGE query for the specified record keys
-     * @param {Array} recordKeys - Array of record keys to include in the query
-     * @return {string} - The constructed MERGE query
-     */
-    buildMergeQuery(recordKeys) {
-      let rows = [];
+  /**
+   * Builds a MERGE query for the specified record keys
+   * @param {Array} recordKeys - Array of record keys to include in the query
+   * @return {string} - The constructed MERGE query
+   */
+  buildMergeQuery(recordKeys) {
+    let rows = [];
 
-      for(let i = 0; i < recordKeys.length; i++) {
-        const key = recordKeys[i];
-        let record = this.stringifyNeastedFields( this.updatedRecordsBuffer[key] );
-        let fields = [];
+    for (let i = 0; i < recordKeys.length; i++) {
+      const key = recordKeys[i];
+      let record = this.stringifyNeastedFields(this.updatedRecordsBuffer[key]);
+      let fields = [];
 
-        for(var j in this.existingColumns) {
+      for (var j in this.existingColumns) {
+        let columnName = this.existingColumns[j]['name'];
+        let columnType = this.existingColumns[j]['type'];
+        let columnValue = null;
 
-          let columnName = this.existingColumns[j]["name"];
-          let columnType = this.existingColumns[j]["type"];
-          let columnValue = null;
-
-          if (record[columnName] === undefined || record[columnName] === null) {
-
-            columnValue = null;
-
-          } else if( columnType.toUpperCase() == "DATE" && (record[ columnName ] instanceof Date) ) {
-
-            columnValue = DateUtils.formatDate( record[ columnName ] );
-
-          } else if( (columnType.toUpperCase().includes("TIMESTAMP") || columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
-
-            // Format as YYYY-MM-DD HH:MM:SS for Snowflake TIMESTAMP
-            const isoString = record[ columnName ].toISOString();
-            columnValue = isoString.replace('T', ' ').substring(0, 19);
-
-          } else if( (columnType.toUpperCase().includes("TIMESTAMP") || columnType.toUpperCase() == "DATETIME") && typeof record[ columnName ] === 'string' ) {
-
-            // Handle ISO 8601 string timestamps
-            const parsed = new Date( record[ columnName ] );
-            if ( !isNaN( parsed.getTime() ) ) {
-              columnValue = parsed.toISOString().replace('T', ' ').substring(0, 19);
-            } else {
-              columnValue = this.obfuscateSpecialCharacters( record[ columnName ] );
-            }
-
+        if (record[columnName] === undefined || record[columnName] === null) {
+          columnValue = null;
+        } else if (columnType.toUpperCase() == 'DATE' && record[columnName] instanceof Date) {
+          columnValue = DateUtils.formatDate(record[columnName]);
+        } else if (
+          (columnType.toUpperCase().includes('TIMESTAMP') ||
+            columnType.toUpperCase() == 'DATETIME') &&
+          record[columnName] instanceof Date
+        ) {
+          // Format as YYYY-MM-DD HH:MM:SS for Snowflake TIMESTAMP
+          const isoString = record[columnName].toISOString();
+          columnValue = isoString.replace('T', ' ').substring(0, 19);
+        } else if (
+          (columnType.toUpperCase().includes('TIMESTAMP') ||
+            columnType.toUpperCase() == 'DATETIME') &&
+          typeof record[columnName] === 'string'
+        ) {
+          // Handle ISO 8601 string timestamps
+          const parsed = new Date(record[columnName]);
+          if (!isNaN(parsed.getTime())) {
+            columnValue = parsed.toISOString().replace('T', ' ').substring(0, 19);
           } else {
-
-            columnValue = this.obfuscateSpecialCharacters( record[ columnName ] );
-
+            columnValue = this.obfuscateSpecialCharacters(record[columnName]);
           }
-
-
-          if (columnValue === null) {
-            fields.push(`CAST(NULL AS ${columnType}) AS "${columnName}"`);
-          } else if (columnType.toUpperCase() == "DATE") {
-            fields.push(`TO_DATE('${columnValue}', 'YYYY-MM-DD') AS "${columnName}"`);
-          } else if (columnType.toUpperCase().includes("TIMESTAMP") || columnType.toUpperCase() == "DATETIME") {
-            fields.push(`TO_TIMESTAMP('${columnValue}', 'YYYY-MM-DD HH24:MI:SS') AS "${columnName}"`);
-          } else {
-            fields.push(`CAST('${columnValue}' AS ${columnType}) AS "${columnName}"`);
-          }
-
+        } else {
+          columnValue = this.obfuscateSpecialCharacters(record[columnName]);
         }
 
-        rows.push(`SELECT ${fields.join(",\n\t")}`);
+        if (columnValue === null) {
+          fields.push(`CAST(NULL AS ${columnType}) AS "${columnName}"`);
+        } else if (columnType.toUpperCase() == 'DATE') {
+          fields.push(`TO_DATE('${columnValue}', 'YYYY-MM-DD') AS "${columnName}"`);
+        } else if (
+          columnType.toUpperCase().includes('TIMESTAMP') ||
+          columnType.toUpperCase() == 'DATETIME'
+        ) {
+          fields.push(`TO_TIMESTAMP('${columnValue}', 'YYYY-MM-DD HH24:MI:SS') AS "${columnName}"`);
+        } else {
+          fields.push(`CAST('${columnValue}' AS ${columnType}) AS "${columnName}"`);
+        }
       }
 
-      let existingColumnsNames = Object.keys(this.existingColumns);
+      rows.push(`SELECT ${fields.join(',\n\t')}`);
+    }
 
-      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
-      const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
-      let fullTableName = `${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`;
+    let existingColumnsNames = Object.keys(this.existingColumns);
 
-      let query = `MERGE INTO ${fullTableName} AS target
+    const database = this.context.getParameter('SnowflakeDatabase')?.value;
+    const quotedSchema = quoteIdentifier(this.context.getParameter('SnowflakeSchema')?.value);
+    const quotedTable = quoteIdentifier(this.context.getParameter('DestinationTableName')?.value);
+    let fullTableName = `${database}.${quotedSchema}.${quotedTable}`;
+
+    let query = `MERGE INTO ${fullTableName} AS target
 USING (
-  ${rows.join("\n  UNION ALL\n  ")}
+  ${rows.join('\n  UNION ALL\n  ')}
 ) AS source
 
-ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).join("\n AND ")}
+ON ${this.uniqueKeyColumns.map(item => `target."${item}" = source."${item}"`).join('\n AND ')}
 
   WHEN MATCHED THEN
     UPDATE SET
-      ${existingColumnsNames.map(item => `target."${item}" = source."${item}"`).join(",\n      ")}
+      ${existingColumnsNames.map(item => `target."${item}" = source."${item}"`).join(',\n      ')}
   WHEN NOT MATCHED THEN
     INSERT (
-      ${existingColumnsNames.map(item => `"${item}"`).join(", ")}
+      ${existingColumnsNames.map(item => `"${item}"`).join(', ')}
     )
     VALUES (
-      ${existingColumnsNames.map(item => `source."${item}"`).join(", ")}
+      ${existingColumnsNames.map(item => `source."${item}"`).join(', ')}
     )`;
 
-      return query;
-    }
+    return query;
+  }
   //----------------------------------------------------------------
 
   //---- executeQuery ------------------------------------------------
-    /**
-     * Executes Snowflake Query and returns a result
-     *
-     * @param {query} string
-     * @return Promise<Array>
-     */
-    async executeQuery(query) {
-
-      if (!this.connection) {
-        throw new Error("Snowflake connection not initialized");
-      }
-
-      return new Promise((resolve, reject) => {
-        this.connection.execute({
-          sqlText: query,
-          complete: (err, stmt, rows) => {
-            if (err) {
-              reject(new Error(`Snowflake query failed: ${err.message} in query: ${query}`));
-            } else {
-              resolve(rows || []);
-            }
-          }
-        });
-      });
+  /**
+   * Executes Snowflake Query and returns a result
+   *
+   * @param {query} string
+   * @return Promise<Array>
+   */
+  async executeQuery(query) {
+    if (!this.connection) {
+      throw new Error('Snowflake connection not initialized');
     }
+
+    return new Promise((resolve, reject) => {
+      this.connection.execute({
+        sqlText: query,
+        complete: (err, stmt, rows) => {
+          if (err) {
+            reject(new Error(`Snowflake query failed: ${err.message} in query: ${query}`));
+          } else {
+            resolve(rows || []);
+          }
+        },
+      });
+    });
+  }
   //----------------------------------------------------------------
 
   //---- obfuscateSpecialCharacters ----------------------------------
-    /**
-     * Escape special characters for SQL string literals
-     * @param {string} inputString - String to escape
-     * @return {string} - Escaped string
-     */
-    obfuscateSpecialCharacters(inputString) {
-
-      return String(inputString)
-        .replace(/\\/g, '\\\\')          // Escape backslashes
-        .replace(/\r\n/g, ' ')           // Replace Windows line breaks with space
-        .replace(/\n/g, ' ')             // Replace Unix line breaks with space
-        .replace(/\r/g, ' ')             // Replace Mac line breaks with space
-        .replace(/'/g, "''")             // Escape single quotes (Snowflake style)
-        .replace(/"/g, '\\"')            // Escape double quotes
-        .replace(/[\x00-\x1F]/g, ' ');   // Replace control chars with space
-
-    }
+  /**
+   * Escape special characters for SQL string literals
+   * @param {string} inputString - String to escape
+   * @return {string} - Escaped string
+   */
+  obfuscateSpecialCharacters(inputString) {
+    return String(inputString)
+      .replace(/\\/g, '\\\\') // Escape backslashes
+      .replace(/\r\n/g, ' ') // Replace Windows line breaks with space
+      .replace(/\n/g, ' ') // Replace Unix line breaks with space
+      .replace(/\r/g, ' ') // Replace Mac line breaks with space
+      .replace(/'/g, "''") // Escape single quotes (Snowflake style)
+      .replace(/"/g, '\\"') // Escape double quotes
+      .replace(/[\x00-\x1F]/g, ' '); // Replace control chars with space
+  }
   //----------------------------------------------------------------
 
   //---- getColumnType -----------------------------------------------
-    /**
-     * Get column type for Snowflake from schema
-     * @param {string} columnName - Name of the column
-     * @returns {string} Snowflake column type
-     */
-    getColumnType(columnName) {
-      return this._convertTypeToStorageType(this.schema[columnName]["type"]);
-    }
+  /**
+   * Get column type for Snowflake from schema
+   * @param {string} columnName - Name of the column
+   * @returns {string} Snowflake column type
+   */
+  getColumnType(columnName) {
+    return this._convertTypeToStorageType(this.schema[columnName]['type']);
+  }
   //----------------------------------------------------------------
 
   //---- _convertTypeToStorageType -----------------------------------
-    /**
-     * Converts generic type to Snowflake-specific type
-     * @param {string} genericType - Generic type from schema
-     * @returns {string} Snowflake column type
-     */
-    _convertTypeToStorageType(genericType) {
+  /**
+   * Converts generic type to Snowflake-specific type
+   * @param {string} genericType - Generic type from schema
+   * @returns {string} Snowflake column type
+   */
+  _convertTypeToStorageType(genericType) {
     if (!genericType) return 'VARCHAR';
 
     switch (genericType) {
@@ -812,5 +817,4 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
     }
   }
   //----------------------------------------------------------------
-
-}
+};

@@ -77,6 +77,25 @@ describe('Validation & Schema API (e2e)', () => {
       expect(res.body.description).toBe('Updated description for E2E test');
     });
 
+    /**
+     * VALID-03b. `data_mart.description` is a `text` column, which MySQL -- the managed
+     * deployment's database -- caps at 65535 BYTES: past that the write is
+     * ER_DATA_TOO_LONG (a 500) in strict mode, or a silent truncation otherwise. The
+     * refusal has to arrive from the route, not just from the DTO in isolation, because
+     * the constraint is only worth anything if the global ValidationPipe runs it.
+     */
+    it('PUT /api/data-marts/:id/description - returns 400 for a description over the column limit', async () => {
+      const res = await agent
+        .put(`/api/data-marts/${dataMartId}/description`)
+        .set(AUTH_HEADER)
+        .send({ description: 'a'.repeat(65536) });
+
+      expect(res.status).toBe(400);
+      // GlobalExceptionFilter flattens ValidationPipe's message array to a fixed line and
+      // carries the per-constraint reasons in `details.errors`.
+      expect(JSON.stringify(res.body.details?.errors)).toContain('description');
+    });
+
     // VALID-04: Empty schema returns 400
     it('PUT /api/data-marts/:id/schema - returns 400 for empty schema object', async () => {
       const res = await agent

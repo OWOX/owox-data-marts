@@ -106,6 +106,7 @@ export function mapConnectorDefinitionToDto(
         configuration: definition.connector.source.configuration,
         node: definition.connector.source.node,
         fields: definition.connector.source.fields,
+        version: definition.connector.source.version,
       },
       storage: {
         fullyQualifiedName: definition.connector.storage.fullyQualifiedName,
@@ -128,6 +129,7 @@ export function mapConnectorDefinitionFromDto(
         configuration: connectorDto.source.configuration,
         node: connectorDto.source.node,
         fields: connectorDto.source.fields,
+        version: connectorDto.source.version,
       },
       storage: {
         fullyQualifiedName: connectorDto.storage.fullyQualifiedName,

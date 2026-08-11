@@ -1,4 +1,6 @@
 import type { ConnectorConfig } from '../../../data-marts/edit';
+import { ConnectorBuilderApiService } from '../../../connector-builder/shared/api/connector-builder-api.service';
+import type { CustomConnectorListItemDto } from '../../../connector-builder/shared/api/types';
 import { ConnectorApiService } from '../api/connector-api.service.ts';
 import type { ConnectorDefinitionDto } from '../api/index.ts';
 import { mapConnectorListFromDto } from '../model/mappers/connector-list.mapper.ts';
@@ -26,22 +28,42 @@ async function loadConnectors(): Promise<ConnectorDefinitionDto[]> {
   return await connectorApiService.getAvailableConnectors();
 }
 
+async function loadCustomConnectors(): Promise<ConnectorListItem[]> {
+  const customs: CustomConnectorListItemDto[] = await new ConnectorBuilderApiService().list();
+  return customs.map(c => ({
+    name: c.name,
+    displayName: c.title || c.name,
+    description: c.description ?? '',
+    logoBase64: c.logo,
+    docUrl: c.docUrl,
+    isCustom: true,
+    id: c.id,
+    version: c.activeVersion ?? undefined,
+  }));
+}
+
 /**
- * Finds connector info for a DataMart, loading connectors list if needed
- * @param dataMart - The data mart to get connector info for
+ * Finds connector info for a DataMart, loading connectors list if needed.
+ * Bundled connectors are checked first; if not found, falls through to the
+ * custom (DB) connector list. Custom connectors are project-scoped and can be
+ * created/published mid-session, so they are not permanently cached. A fetch
+ * failure degrades to "not found" (no throw).
+ * @param name - The connector name to look up
  * @returns ConnectorListItem if found, or null otherwise
  */
 export async function getConnectorInfoByName(name: string): Promise<ConnectorListItem | null> {
-  const connectors = await getConnectors();
-
-  // If no connectors loaded
-  if (connectors.length === 0) {
-    return null;
+  const bundled = (await getConnectors()).find(c => c.name === name);
+  if (bundled) {
+    return bundled;
   }
 
-  const connectorInfo = connectors.find(c => c.name === name);
-
-  return connectorInfo ?? null;
+  // Fetch fresh — custom (DB) connectors can be created/published mid-session.
+  try {
+    const customs = await loadCustomConnectors();
+    return customs.find(c => c.name === name) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -2,6 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import { loadGasClass } from '../../support/loadGasClass.js';
+import { FacebookMarketingSource } from '../../../src/Sources/FacebookMarketing/Source.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const httpConstantsPath = path.join(__dirname, '../../../src/Constants/HttpConstants.js');
@@ -9,14 +10,14 @@ const errorCodesPath = path.join(
   __dirname,
   '../../../src/Sources/FacebookMarketing/Constants/ErrorCodes.js'
 );
-const coreSourcePath = path.join(__dirname, '../../../src/Core/AbstractSource.js');
-const sourcePath = path.join(__dirname, '../../../src/Sources/FacebookMarketing/Source.js');
 
+// HTTP_STATUS, FB_RETRYABLE_ERROR_CODES and LOG_LEVEL stay bare globals, the way the built
+// bundle supplies them to every source; the source and its base class are ES modules and
+// are imported instead.
 loadGasClass(httpConstantsPath);
 loadGasClass(errorCodesPath);
-loadGasClass(coreSourcePath);
-loadGasClass(sourcePath);
-const proto = globalThis.FacebookMarketingSource.prototype;
+globalThis.LOG_LEVEL = { INFO: 'info', WARN: 'warn', ERROR: 'error' };
+const proto = FacebookMarketingSource.prototype;
 
 const fbError = (code, extra = {}) => ({
   statusCode: 400,
@@ -25,7 +26,7 @@ const fbError = (code, extra = {}) => ({
 
 // _isAuthError now defers to the retry logic, so `this` must resolve the real
 // prototype methods rather than being a bare object.
-const stub = Object.assign(Object.create(proto), { config: { logMessage: () => {} } });
+const stub = Object.assign(Object.create(proto), { context: { log: () => {} } });
 
 describe('_isAuthError', () => {
   // Codes below are taken from real production error payloads.

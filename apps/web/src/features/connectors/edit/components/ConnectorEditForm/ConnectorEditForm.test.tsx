@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, render, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { ConnectorEditForm } from './ConnectorEditForm';
 import { DataStorageType } from '../../../../data-storage';
 
@@ -54,6 +55,15 @@ vi.mock('./components', () => ({
   },
   StepperHeroBlock: () => null,
   OpenIssueLink: () => null,
+}));
+
+// The form resolves project-scoped routes (custom-connector deep links), so it needs
+// both a router and an auth context to read the project id from.
+vi.mock('../../../../idp', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: { id: 'user-1', projectId: 'project-1', roles: ['editor'] },
+  }),
 }));
 
 vi.mock('../../../shared/model/hooks/useConnector', () => ({
@@ -126,11 +136,13 @@ const createGoogleSheetsConnectorHook = () => {
 
 function renderForm() {
   return render(
-    <ConnectorEditForm
-      onSubmit={vi.fn()}
-      dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
-      configurationOnly
-    />
+    <MemoryRouter>
+      <ConnectorEditForm
+        onSubmit={vi.fn()}
+        dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+        configurationOnly
+      />
+    </MemoryRouter>
   );
 }
 

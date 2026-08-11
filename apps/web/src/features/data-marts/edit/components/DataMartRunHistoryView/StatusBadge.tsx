@@ -28,7 +28,14 @@ export function StatusBadge({ status, qualitySummary }: StatusBadgeProps) {
   switch (status) {
     case DataMartRunStatus.RUNNING:
       return (
-        <Badge variant='secondary' className='text-primary bg-primary/10'>
+        <Badge
+          variant='secondary'
+          className='text-primary bg-primary/10 inline-flex items-center gap-1.5'
+        >
+          <span className='relative flex h-1.5 w-1.5'>
+            <span className='bg-primary absolute inline-flex h-full w-full animate-ping rounded-full opacity-75'></span>
+            <span className='bg-primary relative inline-flex h-1.5 w-1.5 rounded-full'></span>
+          </span>
           Running
         </Badge>
       );

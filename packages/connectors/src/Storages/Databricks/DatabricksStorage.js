@@ -88,609 +88,641 @@ function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQue
 }
 
 var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
+  static parameters = {
+    DatabricksHost: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DatabricksHttpPath: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DatabricksToken: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DatabricksCatalog: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DatabricksSchema: {
+      isRequired: true,
+      requiredType: 'string',
+    },
+    DestinationTableName: {
+      isRequired: true,
+      requiredType: 'string',
+      default: 'Data',
+    },
+    MaxBufferSize: {
+      isRequired: true,
+      default: 250,
+    },
+  };
+
   //---- constructor -------------------------------------------------
-    /**
-     * Databricks storage operations class
-     *
-     * @param config (object) instance of AbstractConfig
-     * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
-     * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
-     * @param description (string) string with storage description }
-     */
-    constructor(config, uniqueKeyColumns, schema = null, description = null) {
+  /**
+   * Databricks storage operations class
+   *
+   * @param context (object) instance of AbstractContext
+   * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
+   * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
+   * @param description (string) string with storage description }
+   */
+  constructor(context, uniqueKeyColumns, schema = null, description = null) {
+    super(context, uniqueKeyColumns, schema, description);
 
-      super(
-        config.mergeParameters({
-          DatabricksHost: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          DatabricksHttpPath: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          DatabricksToken: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          DatabricksCatalog: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          DatabricksSchema: {
-            isRequired: true,
-            requiredType: "string"
-          },
-          DestinationTableName: {
-            isRequired: true,
-            requiredType: "string",
-            default: "Data"
-          },
-          MaxBufferSize: {
-            isRequired: true,
-            default: 250
-          }
-        }),
-        uniqueKeyColumns,
-        schema,
-        description
-      );
+    this.updatedRecordsBuffer = {};
+    this.totalRecordsProcessed = 0;
+    this.client = null;
+    this.session = null;
+  }
 
-      this.updatedRecordsBuffer = {};
-      this.totalRecordsProcessed = 0;
-      this.client = null;
-      this.session = null;
-
-    }
+  //---- helpers -----------------------------------------------------
+  _getFullTableName() {
+    const catalog = this.context.getParameter('DatabricksCatalog')?.value;
+    const schemaName = this.context.getParameter('DatabricksSchema')?.value;
+    const tableName = this.context.getParameter('DestinationTableName')?.value;
+    return `${quoteIdentifier(catalog)}.${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}`;
+  }
 
   //---- init --------------------------------------------------------
-    /**
-     * Initializing storage - establishes connection and creates table if needed
-     */
-    async init() {
-
-      this.checkIfDatabricksIsConnected();
-      await this.createConnection();
-      await this.testConnection();
-      await this.loadTableSchema();
-
-    }
+  /**
+   * Initializing storage - establishes connection and creates table if needed
+   */
+  async init() {
+    this.checkIfDatabricksIsConnected();
+    await this.createConnection();
+    await this.testConnection();
+    await this.loadTableSchema();
+  }
   //----------------------------------------------------------------
 
   //---- checkIfDatabricksIsConnected ---------------------------------
-    checkIfDatabricksIsConnected() {
-
-      if( typeof databricks == "undefined") {
-        throw new Error(`Databricks SQL SDK is not available. Ensure @databricks/sql is installed.`);
-      }
-
+  checkIfDatabricksIsConnected() {
+    if (typeof databricks == 'undefined') {
+      throw new Error(`Databricks SQL SDK is not available. Ensure @databricks/sql is installed.`);
     }
+  }
   //----------------------------------------------------------------
 
   //---- createConnection --------------------------------------------
-    /**
-     * Creates and connects to Databricks SQL warehouse
-     */
-    async createConnection() {
-      const { DBSQLClient } = databricks;
+  /**
+   * Creates and connects to Databricks SQL warehouse
+   */
+  async createConnection() {
+    const { DBSQLClient } = databricks;
 
-      this.client = new DBSQLClient();
+    this.client = new DBSQLClient();
 
-      try {
-        // Connect to Databricks SQL warehouse
-        await this.client.connect({
-          host: this.config.DatabricksHost.value,
-          path: this.config.DatabricksHttpPath.value,
-          token: this.config.DatabricksToken.value
-        });
+    const host = this.context.getParameter('DatabricksHost')?.value;
+    const httpPath = this.context.getParameter('DatabricksHttpPath')?.value;
+    const token = this.context.getParameter('DatabricksToken')?.value;
+    const catalog = this.context.getParameter('DatabricksCatalog')?.value;
+    const schemaName = this.context.getParameter('DatabricksSchema')?.value;
 
-        // Open session with catalog and schema
-        this.session = await this.client.openSession({
-          initialCatalog: this.config.DatabricksCatalog.value,
-          initialSchema: this.config.DatabricksSchema.value
-        });
+    try {
+      // Connect to Databricks SQL warehouse
+      await this.client.connect({
+        host: host,
+        path: httpPath,
+        token: token,
+      });
 
-        this.config.logMessage(`Successfully connected to Databricks: ${this.config.DatabricksHost.value}`);
-      } catch (error) {
-        throw new Error(`Failed to connect to Databricks: ${error.message}`);
-      }
+      // Open session with catalog and schema
+      this.session = await this.client.openSession({
+        initialCatalog: catalog,
+        initialSchema: schemaName,
+      });
+
+      this.context.log(LOG_LEVEL.INFO, `Successfully connected to Databricks: ${host}`);
+    } catch (error) {
+      throw new Error(`Failed to connect to Databricks: ${error.message}`);
     }
+  }
   //----------------------------------------------------------------
 
   //---- testConnection ----------------------------------------------
-    /**
-     * Tests the connection by executing a simple query
-     */
-    async testConnection() {
-      try {
-        await this.executeQuery('SELECT 1');
-        this.config.logMessage('Connection test successful');
-      } catch (error) {
-        throw new Error(`Connection test failed: ${error.message}`);
-      }
+  /**
+   * Tests the connection by executing a simple query
+   */
+  async testConnection() {
+    try {
+      await this.executeQuery('SELECT 1');
+      this.context.log(LOG_LEVEL.INFO, 'Connection test successful');
+    } catch (error) {
+      throw new Error(`Connection test failed: ${error.message}`);
     }
+  }
   //----------------------------------------------------------------
 
   //---- loadTableSchema ---------------------------------------------
-    /**
-     * Loads the existing table schema or creates a new one
-     */
-    async loadTableSchema() {
+  /**
+   * Loads the existing table schema or creates a new one
+   */
+  async loadTableSchema() {
+    this.context.log(LOG_LEVEL.INFO, 'Loading table schema...');
+    this.existingColumns = await this.getAListOfExistingColumns();
 
-      this.config.logMessage('Loading table schema...');
-      this.existingColumns = await this.getAListOfExistingColumns();
-
-      if (Object.keys(this.existingColumns).length == 0) {
-        // Table doesn't exist, create it
-        this.config.logMessage('Table does not exist, creating...');
-        await this.createCatalogAndSchemaIfNotExist();
-        await this.createTableIfItDoesntExist();
-      } else {
-        // Check if there are new columns from Fields config
-        this.config.logMessage(`Table exists with ${Object.keys(this.existingColumns).length} columns`);
-        let selectedFields = this.getSelectedFields();
-        let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
-        if( newFields.length > 0 ) {
-          this.config.logMessage(`Adding ${newFields.length} new columns`);
-          await this.addNewColumns(newFields);
-        }
+    if (Object.keys(this.existingColumns).length == 0) {
+      // Table doesn't exist, create it
+      this.context.log(LOG_LEVEL.INFO, 'Table does not exist, creating...');
+      await this.createCatalogAndSchemaIfNotExist();
+      await this.createTableIfItDoesntExist();
+    } else {
+      // Check if there are new columns from Fields config
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Table exists with ${Object.keys(this.existingColumns).length} columns`
+      );
+      let selectedFields = this.getSelectedFields();
+      let newFields = selectedFields.filter(
+        column => !Object.keys(this.existingColumns).includes(column)
+      );
+      if (newFields.length > 0) {
+        this.context.log(LOG_LEVEL.INFO, `Adding ${newFields.length} new columns`);
+        await this.addNewColumns(newFields);
       }
-
-      this.config.logMessage('Table schema loaded successfully');
-
     }
+
+    this.context.log(LOG_LEVEL.INFO, 'Table schema loaded successfully');
+  }
   //----------------------------------------------------------------
 
   //---- getAListOfExistingColumns -----------------------------------
-    /**
-     * Reads columns list of the table and returns it as object
-     *
-     * @return columns (object)
-     */
-    async getAListOfExistingColumns() {
+  /**
+   * Reads columns list of the table and returns it as object
+   *
+   * @return columns (object)
+   */
+  async getAListOfExistingColumns() {
+    const fullTableName = this._getFullTableName();
 
-      const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
+    let query = `DESCRIBE TABLE ${fullTableName}`;
 
-      let query = `DESCRIBE TABLE ${fullTableName}`;
+    let queryResults = [];
 
-      let queryResults = [];
-
-      try {
-        queryResults = await this.executeQuery(query);
-      } catch (error) {
-        // If table doesn't exist, return empty columns
-        if (error.message && (error.message.includes('does not exist') || error.message.includes('TABLE_OR_VIEW_NOT_FOUND') || error.message.includes('SCHEMA_NOT_FOUND') || error.message.includes('CATALOG_NOT_FOUND'))) {
-          this.config.logMessage(`Table does not exist yet: ${fullTableName}`);
-          return {};
-        }
-        this.config.logMessage(`Error checking table: ${error.message}`);
-        throw error;
+    try {
+      queryResults = await this.executeQuery(query);
+    } catch (error) {
+      // If table doesn't exist, return empty columns
+      if (
+        error.message &&
+        (error.message.includes('does not exist') ||
+          error.message.includes('TABLE_OR_VIEW_NOT_FOUND') ||
+          error.message.includes('SCHEMA_NOT_FOUND') ||
+          error.message.includes('CATALOG_NOT_FOUND'))
+      ) {
+        this.context.log(LOG_LEVEL.INFO, `Table does not exist yet: ${fullTableName}`);
+        return {};
       }
-
-      let columns = {};
-
-      if (Array.isArray(queryResults)) {
-        queryResults.forEach(row => {
-          const columnName = row.col_name;
-          const dataType = row.data_type;
-          // Skip partition columns and metadata rows
-          if (columnName && !columnName.startsWith('#') && dataType) {
-            columns[columnName] = {"name": columnName, "type": dataType};
-          }
-        });
-      }
-
-      return columns;
-
+      this.context.log(LOG_LEVEL.INFO, `Error checking table: ${error.message}`);
+      throw error;
     }
+
+    let columns = {};
+
+    if (Array.isArray(queryResults)) {
+      queryResults.forEach(row => {
+        const columnName = row.col_name;
+        const dataType = row.data_type;
+        // Skip partition columns and metadata rows
+        if (columnName && !columnName.startsWith('#') && dataType) {
+          columns[columnName] = { name: columnName, type: dataType };
+        }
+      });
+    }
+
+    return columns;
+  }
   //----------------------------------------------------------------
 
   //---- createCatalogAndSchemaIfNotExist ---------------------------
-    async createCatalogAndSchemaIfNotExist() {
+  async createCatalogAndSchemaIfNotExist() {
+    // Create catalog if not exists (Unity Catalog)
+    const quotedCatalog = quoteIdentifier(this.context.getParameter('DatabricksCatalog')?.value);
+    let createCatalogQuery = `CREATE CATALOG IF NOT EXISTS ${quotedCatalog}`;
 
-      // Create catalog if not exists (Unity Catalog)
-      const quotedCatalog = quoteIdentifier(this.config.DatabricksCatalog.value);
-      let createCatalogQuery = `CREATE CATALOG IF NOT EXISTS ${quotedCatalog}`;
-
-      try {
-        await this.executeQuery(createCatalogQuery);
-      } catch (error) {
-        // Catalog creation might fail if Unity Catalog is not enabled or insufficient permissions
-        this.config.logMessage(`Note: Could not create catalog (may already exist or insufficient permissions): ${error.message}`);
-      }
-
-      // Create schema if not exists
-      const quotedSchema = quoteIdentifier(this.config.DatabricksSchema.value);
-      let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${quotedCatalog}.${quotedSchema}`;
-      await this.executeQuery(createSchemaQuery);
-
-      this.config.logMessage(`Catalog and schema ensured: ${quotedCatalog}.${quotedSchema}`);
-
+    try {
+      await this.executeQuery(createCatalogQuery);
+    } catch (error) {
+      // Catalog creation might fail if Unity Catalog is not enabled or insufficient permissions
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Note: Could not create catalog (may already exist or insufficient permissions): ${error.message}`
+      );
     }
+
+    // Create schema if not exists
+    const quotedSchema = quoteIdentifier(this.context.getParameter('DatabricksSchema')?.value);
+    let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${quotedCatalog}.${quotedSchema}`;
+    await this.executeQuery(createSchemaQuery);
+
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Catalog and schema ensured: ${quotedCatalog}.${quotedSchema}`
+    );
+  }
   //----------------------------------------------------------------
 
   //---- createTableIfItDoesntExist ----------------------------------
-    async createTableIfItDoesntExist() {
+  async createTableIfItDoesntExist() {
+    let columns = [];
+    let existingColumns = {};
 
-      let columns = [];
-      let existingColumns = {};
+    let selectedFields = this.getSelectedFields();
+    let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
 
-      let selectedFields = this.getSelectedFields();
-      let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
+    // Check if uniqueKeyColumns is defined
+    const pkColumns = Array.isArray(this.uniqueKeyColumns) ? this.uniqueKeyColumns : [];
 
-      // Check if uniqueKeyColumns is defined
-      const pkColumns = Array.isArray(this.uniqueKeyColumns) ? this.uniqueKeyColumns : [];
+    for (let i in tableColumns) {
+      let columnName = tableColumns[i];
+      let columnDescription = '';
 
-      for (let i in tableColumns) {
-        let columnName = tableColumns[i];
-        let columnDescription = '';
-
-        if( !(columnName in this.schema) ) {
-          throw new Error(`Required field ${columnName} not found in schema`);
-        }
-
-        let columnType = this.getColumnType(columnName);
-
-        // Add NOT NULL for PRIMARY KEY columns
-        const isPartOfPK = pkColumns.includes(columnName);
-        const nullability = isPartOfPK ? ' NOT NULL' : '';
-
-        if( "description" in this.schema[ columnName ] ) {
-          const escapedDescription = this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"]);
-          columnDescription = ` COMMENT '${escapedDescription}'`;
-        }
-
-        columns.push(`${quoteIdentifier(columnName)} ${columnType}${nullability}${columnDescription}`);
-
-        existingColumns[ columnName ] = {"name": columnName, "type": columnType};
-
+      if (!(columnName in this.schema)) {
+        throw new Error(`Required field ${columnName} not found in schema`);
       }
 
-      const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
+      let columnType = this.getColumnType(columnName);
 
-      let createTableQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (${columns.join(', ')})`;
+      // Add NOT NULL for PRIMARY KEY columns
+      const isPartOfPK = pkColumns.includes(columnName);
+      const nullability = isPartOfPK ? ' NOT NULL' : '';
 
-      await this.executeQuery(createTableQuery);
+      if ('description' in this.schema[columnName]) {
+        const escapedDescription = this.obfuscateSpecialCharacters(
+          this.schema[columnName]['description']
+        );
+        columnDescription = ` COMMENT '${escapedDescription}'`;
+      }
 
-      this.existingColumns = existingColumns;
+      columns.push(
+        `${quoteIdentifier(columnName)} ${columnType}${nullability}${columnDescription}`
+      );
 
-      this.config.logMessage(`Table created: ${fullTableName}`);
-
-      // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
-      await this.addPrimaryKeyConstraint(fullTableName);
-
+      existingColumns[columnName] = { name: columnName, type: columnType };
     }
+
+    const fullTableName = this._getFullTableName();
+
+    let createTableQuery = `CREATE TABLE IF NOT EXISTS ${fullTableName} (${columns.join(', ')})`;
+
+    await this.executeQuery(createTableQuery);
+
+    this.existingColumns = existingColumns;
+
+    this.context.log(LOG_LEVEL.INFO, `Table created: ${fullTableName}`);
+
+    // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
+    await this.addPrimaryKeyConstraint(fullTableName);
+  }
   //----------------------------------------------------------------
 
   //---- replaceData -------------------------------------------------
-    async replaceData(data) {
+  /**
+   * Publish a full-refresh snapshot: load every row into a staging table,
+   * validate it, then swap it over the live table in one statement.
+   * @param {data} array of assoc objects with records to save
+   * @returns {Promise<void>}
+   */
+  async replaceData(data) {
+    this.checkIfDatabricksIsConnected();
 
-      this.checkIfDatabricksIsConnected();
+    if (!this.session) {
+      await this.createConnection();
+      await this.testConnection();
+    }
 
-      if (!this.session) {
-        await this.createConnection();
-        await this.testConnection();
+    await this.createCatalogAndSchemaIfNotExist();
+
+    const destinationTableParam = this.context.getParameter('DestinationTableName');
+    const configuredTableName = destinationTableParam.value;
+    const stagingTableName = createSnapshotStagingTableName(configuredTableName);
+    const catalog = quoteIdentifier(this.context.getParameter('DatabricksCatalog')?.value);
+    const schema = quoteIdentifier(this.context.getParameter('DatabricksSchema')?.value);
+    const liveTable = `${catalog}.${schema}.${quoteIdentifier(configuredTableName)}`;
+    const stagingTable = `${catalog}.${schema}.${quoteIdentifier(stagingTableName)}`;
+    const originalExistingColumns = this.existingColumns;
+    const liveColumns = await this.getAListOfExistingColumns();
+    let published = false;
+
+    try {
+      // The whole write path reads the destination from config, so staging is
+      // entered by repointing that parameter rather than threading a table
+      // name through every method. _snapshotLiveTableName keeps analytics
+      // attributed to the configured table while the swap is in flight.
+      this._snapshotLiveTableName = configuredTableName;
+      destinationTableParam.value = stagingTableName;
+      this.existingColumns = {};
+      this.updatedRecordsBuffer = {};
+      await this.createTableIfItDoesntExist();
+      const stagedColumns = this.existingColumns;
+
+      if (data.length) {
+        const batchSize = Math.max(
+          1,
+          Number(this.context.getParameter('MaxBufferSize')?.value) || 250
+        );
+        const batches = this.createSnapshotBatches(data, batchSize);
+        for (const batch of batches) {
+          await this.saveData(batch);
+        }
       }
 
-      await this.createCatalogAndSchemaIfNotExist();
+      await this.validateSnapshotRowCount(stagingTable, data.length);
 
-      const configuredTableName = this.config.DestinationTableName.value;
-      const stagingTableName = createSnapshotStagingTableName(configuredTableName);
-      const catalog = quoteIdentifier(this.config.DatabricksCatalog.value);
-      const schema = quoteIdentifier(this.config.DatabricksSchema.value);
-      const liveTable = `${catalog}.${schema}.${quoteIdentifier(configuredTableName)}`;
-      const stagingTable = `${catalog}.${schema}.${quoteIdentifier(stagingTableName)}`;
-      const originalExistingColumns = this.existingColumns;
-      const liveColumns = await this.getAListOfExistingColumns();
-      let published = false;
+      destinationTableParam.value = configuredTableName;
+
+      if (this.hasSameSchema(liveColumns, stagedColumns)) {
+        const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
+        await this.executeQuery(
+          `INSERT OVERWRITE TABLE ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
+        );
+      } else {
+        await this.executeQuery(`CREATE OR REPLACE TABLE ${liveTable} DEEP CLONE ${stagingTable}`);
+      }
+      this.existingColumns = stagedColumns;
+      published = true;
+
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Snapshot import completed for ${liveTable}: ${data.length} rows`
+      );
+    } finally {
+      destinationTableParam.value = configuredTableName;
+      this._snapshotLiveTableName = null;
+      this.updatedRecordsBuffer = {};
+      if (!published) {
+        this.existingColumns = originalExistingColumns;
+      }
 
       try {
-        this.config.DestinationTableName.value = stagingTableName;
-        this.existingColumns = {};
-        this.updatedRecordsBuffer = {};
-        await this.createTableIfItDoesntExist();
-        const stagedColumns = this.existingColumns;
-
-        if (data.length) {
-          const batchSize = Math.max(1, Number(this.config.MaxBufferSize?.value) || 250);
-          const batches = this.createSnapshotBatches(data, batchSize);
-          for (const batch of batches) {
-            await this.saveData(batch);
-          }
-        }
-
-        await this.validateSnapshotRowCount(stagingTable, data.length);
-
-        this.config.DestinationTableName.value = configuredTableName;
-
-        if (this.hasSameSchema(liveColumns, stagedColumns)) {
-          const columns = Object.keys(stagedColumns).map(quoteIdentifier).join(', ');
-          await this.executeQuery(
-            `INSERT OVERWRITE TABLE ${liveTable} (${columns}) SELECT ${columns} FROM ${stagingTable}`
-          );
-        } else {
-          await this.executeQuery(`CREATE OR REPLACE TABLE ${liveTable} DEEP CLONE ${stagingTable}`);
-        }
-        this.existingColumns = stagedColumns;
-        published = true;
-
-        this.config.logMessage(
-          `Snapshot import completed for ${liveTable}: ${data.length} rows`
+        await this.executeQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
+      } catch (cleanupError) {
+        this.context.log(
+          LOG_LEVEL.WARN,
+          `Failed to clean up snapshot staging table ${stagingTable}: ${cleanupError.message}`
         );
-      } finally {
-        this.config.DestinationTableName.value = configuredTableName;
-        this.updatedRecordsBuffer = {};
-        if (!published) {
-          this.existingColumns = originalExistingColumns;
-        }
-
-        try {
-          await this.executeQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
-        } catch (cleanupError) {
-          this.config.logMessage(
-            `Warning: Failed to clean up snapshot staging table ${stagingTable}: ${cleanupError.message}`
-          );
-        }
       }
-
     }
+  }
   //----------------------------------------------------------------
 
   //---- createSnapshotBatches ---------------------------------------
-    createSnapshotBatches(
-      data,
-      maxRows,
-      maxBytes = DATABRICKS_SNAPSHOT_MAX_QUERY_BYTES
-    ) {
-
-      const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
-      const buildSingleRowQuery = row => this.buildMergeQueryWithInlineSource(
+  createSnapshotBatches(data, maxRows, maxBytes = DATABRICKS_SNAPSHOT_MAX_QUERY_BYTES) {
+    const fullTableName = `${quoteIdentifier(this.context.getParameter('DatabricksCatalog')?.value)}.${quoteIdentifier(this.context.getParameter('DatabricksSchema')?.value)}.${quoteIdentifier(this.context.getParameter('DestinationTableName')?.value)}`;
+    const buildSingleRowQuery = row =>
+      this.buildMergeQueryWithInlineSource(
         fullTableName,
         this.buildSelectStatementsForRecords([row])
       );
 
-      return splitSnapshotRowsByQuerySize(
-        data,
-        Math.max(1, maxRows),
-        maxBytes,
-        buildSingleRowQuery
-      );
-
-    }
+    return splitSnapshotRowsByQuerySize(data, Math.max(1, maxRows), maxBytes, buildSingleRowQuery);
+  }
   //----------------------------------------------------------------
 
   //---- validateSnapshotRowCount ------------------------------------
-    async validateSnapshotRowCount(fullTableName, expectedRowCount) {
+  async validateSnapshotRowCount(fullTableName, expectedRowCount) {
+    const rows = await this.executeQuery(`SELECT COUNT(*) AS row_count FROM ${fullTableName}`);
+    const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
+    const actualRowCount = Number(value);
 
-      const rows = await this.executeQuery(
-        `SELECT COUNT(*) AS row_count FROM ${fullTableName}`
+    if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
+      const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
+      throw new Error(
+        `Snapshot staging row count mismatch for ${fullTableName}: expected ${expectedRowCount}, got ${actual}`
       );
-      const value = rows[0]?.row_count ?? rows[0]?.ROW_COUNT;
-      const actualRowCount = Number(value);
-
-      if (!Number.isSafeInteger(actualRowCount) || actualRowCount !== expectedRowCount) {
-        const actual = Number.isSafeInteger(actualRowCount) ? actualRowCount : 'unknown';
-        throw new Error(
-          `Snapshot staging row count mismatch for ${fullTableName}: expected ${expectedRowCount}, got ${actual}`
-        );
-      }
-
-      return actualRowCount;
-
     }
+
+    return actualRowCount;
+  }
   //----------------------------------------------------------------
 
   //---- addPrimaryKeyConstraint -------------------------------------
-    /**
-     * Adds PRIMARY KEY constraint to the table using uniqueKeyColumns
-     * In Databricks, PRIMARY KEY is informational (not enforced) but useful for schema documentation
-     */
-    async addPrimaryKeyConstraint(fullTableName) {
-      if (!this.uniqueKeyColumns || this.uniqueKeyColumns.length === 0) {
-        this.config.logMessage('No unique key columns defined, skipping PRIMARY KEY constraint');
-        return;
-      }
-
-      try {
-        const pkColumns = this.uniqueKeyColumns.map(col => quoteIdentifier(col)).join(', ');
-        const constraintName = `pk_${this.config.DestinationTableName.value}`;
-
-        const addConstraintQuery = `ALTER TABLE ${fullTableName} ADD CONSTRAINT ${quoteIdentifier(constraintName)} PRIMARY KEY (${pkColumns})`;
-
-        await this.executeQuery(addConstraintQuery);
-
-        this.config.logMessage(`Added PRIMARY KEY constraint on columns: ${this.uniqueKeyColumns.join(', ')}`);
-      } catch (error) {
-        // PRIMARY KEY constraint might already exist or not be supported
-        this.config.logMessage(`Note: Could not add PRIMARY KEY constraint: ${error.message}`);
-      }
+  /**
+   * Adds PRIMARY KEY constraint to the table using uniqueKeyColumns
+   * In Databricks, PRIMARY KEY is informational (not enforced) but useful for schema documentation
+   */
+  async addPrimaryKeyConstraint(fullTableName) {
+    if (!this.uniqueKeyColumns || this.uniqueKeyColumns.length === 0) {
+      this.context.log(
+        LOG_LEVEL.INFO,
+        'No unique key columns defined, skipping PRIMARY KEY constraint'
+      );
+      return;
     }
+
+    try {
+      const pkColumns = this.uniqueKeyColumns.map(col => quoteIdentifier(col)).join(', ');
+      const tableName = this.context.getParameter('DestinationTableName')?.value;
+      const constraintName = `pk_${tableName}`;
+
+      const addConstraintQuery = `ALTER TABLE ${fullTableName} ADD CONSTRAINT ${quoteIdentifier(constraintName)} PRIMARY KEY (${pkColumns})`;
+
+      await this.executeQuery(addConstraintQuery);
+
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Added PRIMARY KEY constraint on columns: ${this.uniqueKeyColumns.join(', ')}`
+      );
+    } catch (error) {
+      // PRIMARY KEY constraint might already exist or not be supported
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Note: Could not add PRIMARY KEY constraint: ${error.message}`
+      );
+    }
+  }
   //----------------------------------------------------------------
 
   //---- addNewColumns -----------------------------------------------
-    async addNewColumns(columns) {
+  async addNewColumns(columns) {
+    const fullTableName = this._getFullTableName();
 
-      const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
+    for (let i in columns) {
+      let columnName = columns[i];
+      let columnType = this.getColumnType(columnName);
 
-      for (let i in columns) {
-        let columnName = columns[i];
-        let columnType = this.getColumnType(columnName);
+      let alterQuery = `ALTER TABLE ${fullTableName} ADD COLUMN ${quoteIdentifier(columnName)} ${columnType}`;
+      await this.executeQuery(alterQuery);
 
-        let alterQuery = `ALTER TABLE ${fullTableName} ADD COLUMN ${quoteIdentifier(columnName)} ${columnType}`;
-        await this.executeQuery(alterQuery);
-
-        this.existingColumns[ columnName ] = {"name": columnName, "type": columnType};
-      }
-
-      this.config.logMessage(`Added ${columns.length} new column(s) to ${fullTableName}`);
-
+      this.existingColumns[columnName] = { name: columnName, type: columnType };
     }
+
+    this.context.log(LOG_LEVEL.INFO, `Added ${columns.length} new column(s) to ${fullTableName}`);
+  }
   //----------------------------------------------------------------
 
   //---- saveData ----------------------------------------------------
-    /**
-     * Save data to Databricks table
-     *
-     * @param dataRows (array) array of data rows
-     */
-    async saveData(dataRows) {
-
-      if( !Array.isArray(dataRows) || dataRows.length === 0 ) {
-        return;
-      }
-
-      // Check if there are new columns in the first row
-      if (dataRows.length > 0) {
-        let newFields = Object.keys(dataRows[0]).filter(column => !Object.keys(this.existingColumns).includes(column));
-        if (newFields.length > 0) {
-          await this.addNewColumns(newFields);
-        }
-      }
-
-      // Group rows by unique key for MERGE operation
-      for (let i in dataRows) {
-        let row = dataRows[i];
-        let uniqueKey = this.getUniqueKeyByRecordFields(row);
-
-        if( !this.updatedRecordsBuffer.hasOwnProperty(uniqueKey) ) {
-          this.updatedRecordsBuffer[uniqueKey] = row;
-        } else {
-          // Merge with existing record
-          this.updatedRecordsBuffer[uniqueKey] = Object.assign(this.updatedRecordsBuffer[uniqueKey], row);
-        }
-      }
-
-      // Always flush buffer after saveData to ensure all data is persisted
-      // This is important because connectors might not call close() explicitly
-      await this.flushBuffer();
-
+  /**
+   * Save data to Databricks table
+   *
+   * @param dataRows (array) array of data rows
+   */
+  async saveData(dataRows) {
+    if (!Array.isArray(dataRows) || dataRows.length === 0) {
+      return;
     }
+
+    // Check if there are new columns in the first row
+    if (dataRows.length > 0) {
+      let newFields = Object.keys(dataRows[0]).filter(
+        column => !Object.keys(this.existingColumns).includes(column)
+      );
+      if (newFields.length > 0) {
+        await this.addNewColumns(newFields);
+      }
+    }
+
+    // Group rows by unique key for MERGE operation
+    for (let i in dataRows) {
+      let row = dataRows[i];
+      let uniqueKey = this.getUniqueKeyByRecordFields(row);
+
+      if (!this.updatedRecordsBuffer.hasOwnProperty(uniqueKey)) {
+        this.updatedRecordsBuffer[uniqueKey] = row;
+      } else {
+        // Merge with existing record
+        this.updatedRecordsBuffer[uniqueKey] = Object.assign(
+          this.updatedRecordsBuffer[uniqueKey],
+          row
+        );
+      }
+    }
+
+    // Always flush buffer after saveData to ensure all data is persisted
+    // This is important because connectors might not call close() explicitly
+    await this.flushBuffer();
+  }
   //----------------------------------------------------------------
 
   //---- flushBuffer -------------------------------------------------
-    async flushBuffer() {
-
-      if( Object.keys(this.updatedRecordsBuffer).length === 0 ) {
-        return;
-      }
-
-      const fullTableName = `${quoteIdentifier(this.config.DatabricksCatalog.value)}.${quoteIdentifier(this.config.DatabricksSchema.value)}.${quoteIdentifier(this.config.DestinationTableName.value)}`;
-
-      // Prepare data for MERGE
-      let records = Object.values(this.updatedRecordsBuffer);
-
-      // Build inline SELECT statements for records
-      let selectStatements = this.buildSelectStatementsForRecords(records);
-
-      // Build MERGE query with inline source
-      let mergeQuery = this.buildMergeQueryWithInlineSource(fullTableName, selectStatements);
-
-      await this.executeQuery(mergeQuery);
-
-      this.totalRecordsProcessed += records.length;
-      this.config.logMessage(`Merged ${records.length} records. Total processed: ${this.totalRecordsProcessed}`);
-
-      // Clear buffer
-      this.updatedRecordsBuffer = {};
-
+  async flushBuffer() {
+    if (Object.keys(this.updatedRecordsBuffer).length === 0) {
+      return;
     }
+
+    const fullTableName = this._getFullTableName();
+
+    // Prepare data for MERGE
+    let records = Object.values(this.updatedRecordsBuffer);
+
+    // Build inline SELECT statements for records
+    let selectStatements = this.buildSelectStatementsForRecords(records);
+
+    // Build MERGE query with inline source
+    let mergeQuery = this.buildMergeQueryWithInlineSource(fullTableName, selectStatements);
+
+    await this.executeQuery(mergeQuery);
+
+    this.totalRecordsProcessed += records.length;
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Merged ${records.length} records. Total processed: ${this.totalRecordsProcessed}`
+    );
+    this._reportRowsWritten(records.length);
+
+    // Clear buffer
+    this.updatedRecordsBuffer = {};
+  }
   //----------------------------------------------------------------
 
   //---- buildSelectStatementsForRecords ----------------------------
-    buildSelectStatementsForRecords(records) {
+  buildSelectStatementsForRecords(records) {
+    if (records.length === 0) return [];
 
-      if (records.length === 0) return [];
+    let selectedFields = this.getSelectedFields();
+    let fields = selectedFields.length > 0 ? selectedFields : Object.keys(records[0]);
 
-      let selectedFields = this.getSelectedFields();
-      let fields = selectedFields.length > 0 ? selectedFields : Object.keys(records[0]);
+    // Build SELECT statements for UNION ALL
+    let selectStatements = records.map(record => {
+      let values = fields.map(field => {
+        let value = record[field];
 
-      // Build SELECT statements for UNION ALL
-      let selectStatements = records.map(record => {
-        let values = fields.map(field => {
-          let value = record[field];
+        // Handle null, undefined, NaN, Infinity
+        if (value === null || value === undefined) {
+          return 'NULL';
+        }
 
-          // Handle null, undefined, NaN, Infinity
-          if (value === null || value === undefined) {
+        if (typeof value === 'number') {
+          if (isNaN(value) || !isFinite(value)) {
             return 'NULL';
           }
-
-          if (typeof value === 'number') {
-            if (isNaN(value) || !isFinite(value)) {
-              return 'NULL';
-            }
-            return value;
-          }
-
-          if (typeof value === 'string') {
-            // Escape single quotes
-            value = value.replace(/'/g, "''");
-            return `'${value}'`;
-          }
-
-          if (typeof value === 'boolean') {
-            return value ? 'TRUE' : 'FALSE';
-          }
-
-          // Handle Date objects
-          if (value instanceof Date) {
-            const isoString = value.toISOString().replace('T', ' ').replace('Z', '');
-            return `TIMESTAMP '${isoString}'`;
-          }
-
-          // Handle arrays and objects - serialize to JSON
-          if (typeof value === 'object') {
-            const jsonString = JSON.stringify(value).replace(/'/g, "''");
-            return `'${jsonString}'`;
-          }
-
           return value;
-        });
+        }
 
-        // Cast values to proper types and add aliases
-        let aliases = fields.map((field, idx) => {
-          // Get column type from existing columns
-          let columnType = 'STRING';
-          if (this.existingColumns && this.existingColumns[field]) {
-            columnType = this.existingColumns[field].type;
-          }
+        if (typeof value === 'string') {
+          // Escape single quotes
+          value = value.replace(/'/g, "''");
+          return `'${value}'`;
+        }
 
-          let value = values[idx];
+        if (typeof value === 'boolean') {
+          return value ? 'TRUE' : 'FALSE';
+        }
 
-          // Cast to correct type (including NULL)
-          return `CAST(${value} AS ${columnType}) AS ${quoteIdentifier(field)}`;
-        });
+        // Handle Date objects
+        if (value instanceof Date) {
+          const isoString = value.toISOString().replace('T', ' ').replace('Z', '');
+          return `TIMESTAMP '${isoString}'`;
+        }
 
-        return `SELECT ${aliases.join(', ')}`;
+        // Handle arrays and objects - serialize to JSON
+        if (typeof value === 'object') {
+          const jsonString = JSON.stringify(value).replace(/'/g, "''");
+          return `'${jsonString}'`;
+        }
+
+        return value;
       });
 
-      return selectStatements;
+      // Cast values to proper types and add aliases
+      let aliases = fields.map((field, idx) => {
+        // Get column type from existing columns
+        let columnType = 'STRING';
+        if (this.existingColumns && this.existingColumns[field]) {
+          columnType = this.existingColumns[field].type;
+        }
 
-    }
+        let value = values[idx];
+
+        // Cast to correct type (including NULL)
+        return `CAST(${value} AS ${columnType}) AS ${quoteIdentifier(field)}`;
+      });
+
+      return `SELECT ${aliases.join(', ')}`;
+    });
+
+    return selectStatements;
+  }
   //----------------------------------------------------------------
 
   //---- buildMergeQueryWithInlineSource ----------------------------
-    buildMergeQueryWithInlineSource(targetTable, selectStatements) {
+  buildMergeQueryWithInlineSource(targetTable, selectStatements) {
+    let selectedFields = this.getSelectedFields();
+    let updateFields =
+      selectedFields.length > 0 ? selectedFields : Object.keys(this.existingColumns);
 
-      let selectedFields = this.getSelectedFields();
-      let updateFields = selectedFields.length > 0 ? selectedFields : Object.keys(this.existingColumns);
+    // Build ON condition using unique key columns
+    let uniqueKeys = Array.isArray(this.uniqueKeyColumns)
+      ? this.uniqueKeyColumns
+      : [this.uniqueKeyColumns];
+    let onConditions = uniqueKeys
+      .map(key => `target.${quoteIdentifier(key)} = source.${quoteIdentifier(key)}`)
+      .join(' AND ');
 
-      // Build ON condition using unique key columns
-      let uniqueKeys = Array.isArray(this.uniqueKeyColumns) ? this.uniqueKeyColumns : [this.uniqueKeyColumns];
-      let onConditions = uniqueKeys.map(key =>
-        `target.${quoteIdentifier(key)} = source.${quoteIdentifier(key)}`
-      ).join(' AND ');
+    // Build UPDATE SET clause
+    let updateSet = updateFields
+      .map(field => `target.${quoteIdentifier(field)} = source.${quoteIdentifier(field)}`)
+      .join(', ');
 
-      // Build UPDATE SET clause
-      let updateSet = updateFields.map(field =>
-        `target.${quoteIdentifier(field)} = source.${quoteIdentifier(field)}`
-      ).join(', ');
+    // Build INSERT columns and values
+    let insertColumns = updateFields.map(field => quoteIdentifier(field)).join(', ');
+    let insertValues = updateFields.map(field => `source.${quoteIdentifier(field)}`).join(', ');
 
-      // Build INSERT columns and values
-      let insertColumns = updateFields.map(field => quoteIdentifier(field)).join(', ');
-      let insertValues = updateFields.map(field => `source.${quoteIdentifier(field)}`).join(', ');
-
-      // Build MERGE query with inline subquery
-      return `MERGE INTO ${targetTable} AS target
+    // Build MERGE query with inline subquery
+    return `MERGE INTO ${targetTable} AS target
 USING (
   ${selectStatements.join('\n  UNION ALL\n  ')}
 ) AS source
@@ -699,47 +731,46 @@ WHEN MATCHED THEN
   UPDATE SET ${updateSet}
 WHEN NOT MATCHED THEN
   INSERT (${insertColumns}) VALUES (${insertValues})`;
-
-    }
+  }
   //----------------------------------------------------------------
 
   //---- createTempViewFromRecords [DEPRECATED] ---------------------
-    // This method is no longer used - kept for reference
-    async createTempViewFromRecords(viewName, records) {
+  // This method is no longer used - kept for reference
+  async createTempViewFromRecords(viewName, records) {
+    if (records.length === 0) return;
 
-      if (records.length === 0) return;
+    let selectStatements = this.buildSelectStatementsForRecords(records);
 
-      let selectStatements = this.buildSelectStatementsForRecords(records);
+    let createViewQuery = `CREATE OR REPLACE TEMP VIEW ${viewName} AS ${selectStatements.join(' UNION ALL ')}`;
 
-      let createViewQuery = `CREATE OR REPLACE TEMP VIEW ${viewName} AS ${selectStatements.join(' UNION ALL ')}`;
-
-      await this.executeQuery(createViewQuery);
-
-    }
+    await this.executeQuery(createViewQuery);
+  }
   //----------------------------------------------------------------
 
   //---- buildMergeQuery ---------------------------------------------
-    buildMergeQuery(targetTable, sourceView) {
+  buildMergeQuery(targetTable, sourceView) {
+    let selectedFields = this.getSelectedFields();
+    let updateFields =
+      selectedFields.length > 0 ? selectedFields : Object.keys(this.existingColumns);
 
-      let selectedFields = this.getSelectedFields();
-      let updateFields = selectedFields.length > 0 ? selectedFields : Object.keys(this.existingColumns);
+    // Build ON condition using unique key columns
+    let uniqueKeys = Array.isArray(this.uniqueKeyColumns)
+      ? this.uniqueKeyColumns
+      : [this.uniqueKeyColumns];
+    let onConditions = uniqueKeys
+      .map(key => `target.${quoteIdentifier(key)} = source.${quoteIdentifier(key)}`)
+      .join(' AND ');
 
-      // Build ON condition using unique key columns
-      let uniqueKeys = Array.isArray(this.uniqueKeyColumns) ? this.uniqueKeyColumns : [this.uniqueKeyColumns];
-      let onConditions = uniqueKeys.map(key =>
-        `target.${quoteIdentifier(key)} = source.${quoteIdentifier(key)}`
-      ).join(' AND ');
+    // Build UPDATE SET clause
+    let updateSet = updateFields
+      .map(field => `target.${quoteIdentifier(field)} = source.${quoteIdentifier(field)}`)
+      .join(', ');
 
-      // Build UPDATE SET clause
-      let updateSet = updateFields.map(field =>
-        `target.${quoteIdentifier(field)} = source.${quoteIdentifier(field)}`
-      ).join(', ');
+    // Build INSERT columns and values
+    let insertColumns = updateFields.map(field => quoteIdentifier(field)).join(', ');
+    let insertValues = updateFields.map(field => `source.${quoteIdentifier(field)}`).join(', ');
 
-      // Build INSERT columns and values
-      let insertColumns = updateFields.map(field => quoteIdentifier(field)).join(', ');
-      let insertValues = updateFields.map(field => `source.${quoteIdentifier(field)}`).join(', ');
-
-      return `
+    return `
         MERGE INTO ${targetTable} AS target
         USING ${sourceView} AS source
         ON ${onConditions}
@@ -749,127 +780,123 @@ WHEN NOT MATCHED THEN
           INSERT (${insertColumns})
           VALUES (${insertValues})
       `;
-
-    }
+  }
   //----------------------------------------------------------------
 
   //---- executeQuery ------------------------------------------------
-    /**
-     * Executes a query on Databricks
-     *
-     * @param query (string) SQL query
-     * @return results (array) query results
-     */
-    async executeQuery(query) {
-
-      if (!this.session) {
-        throw new Error('Databricks session not initialized');
-      }
-
-      try {
-        const operation = await this.session.executeStatement(query);
-        const result = await operation.fetchAll();
-        await operation.close();
-
-        return result;
-      } catch (error) {
-        throw new Error(`Query execution failed: ${error.message}\nQuery: ${query}`);
-      }
-
+  /**
+   * Executes a query on Databricks
+   *
+   * @param query (string) SQL query
+   * @return results (array) query results
+   */
+  async executeQuery(query) {
+    if (!this.session) {
+      throw new Error('Databricks session not initialized');
     }
+
+    try {
+      const operation = await this.session.executeStatement(query);
+      const result = await operation.fetchAll();
+      await operation.close();
+
+      return result;
+    } catch (error) {
+      throw new Error(`Query execution failed: ${error.message}\nQuery: ${query}`);
+    }
+  }
   //----------------------------------------------------------------
 
   //---- getColumnType -----------------------------------------------
-    /**
-     * Maps schema type to Databricks SQL type
-     *
-     * @param fieldName (string) field name
-     * @return columnType (string) Databricks column type
-     */
-    getColumnType(fieldName) {
-
-      if( !(fieldName in this.schema) ) {
-        this.config.logMessage(`WARNING: Field '${fieldName}' not found in schema, defaulting to STRING. Available fields: ${Object.keys(this.schema).join(', ')}`);
-        return "STRING";
-      }
-
-      let type = this.schema[fieldName].type;
-
-      switch (type) {
-        case DATA_TYPES.STRING:
-          return "STRING";
-        case DATA_TYPES.NUMBER:
-          return "DOUBLE";
-        case DATA_TYPES.INTEGER:
-          return "BIGINT";
-        case DATA_TYPES.BOOLEAN:
-          return "BOOLEAN";
-        case DATA_TYPES.DATE:
-          return "DATE";
-        case DATA_TYPES.DATETIME:
-        case DATA_TYPES.TIMESTAMP:
-          return "TIMESTAMP";
-        case DATA_TYPES.TIME:
-          return "TIME";
-        case DATA_TYPES.ARRAY:
-        case DATA_TYPES.OBJECT:
-          // Arrays and Objects are stored as JSON strings in Databricks
-          return "STRING";
-        default:
-          return "STRING";
-      }
-
+  /**
+   * Maps schema type to Databricks SQL type
+   *
+   * @param fieldName (string) field name
+   * @return columnType (string) Databricks column type
+   */
+  getColumnType(fieldName) {
+    if (!(fieldName in this.schema)) {
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `WARNING: Field '${fieldName}' not found in schema, defaulting to STRING. Available fields: ${Object.keys(this.schema).join(', ')}`
+      );
+      return 'STRING';
     }
+
+    let type = this.schema[fieldName].type;
+
+    switch (type) {
+      case DATA_TYPES.STRING:
+        return 'STRING';
+      case DATA_TYPES.NUMBER:
+        return 'DOUBLE';
+      case DATA_TYPES.INTEGER:
+        return 'BIGINT';
+      case DATA_TYPES.BOOLEAN:
+        return 'BOOLEAN';
+      case DATA_TYPES.DATE:
+        return 'DATE';
+      case DATA_TYPES.DATETIME:
+      case DATA_TYPES.TIMESTAMP:
+        return 'TIMESTAMP';
+      case DATA_TYPES.TIME:
+        return 'TIME';
+      case DATA_TYPES.ARRAY:
+      case DATA_TYPES.OBJECT:
+        // Arrays and Objects are stored as JSON strings in Databricks
+        return 'STRING';
+      default:
+        return 'STRING';
+    }
+  }
   //----------------------------------------------------------------
 
   //---- obfuscateSpecialCharacters ----------------------------------
-    /**
-     * Escape special characters for SQL string literals
-     * @param {string} inputString - String to escape
-     * @return {string} - Escaped string
-     */
-    obfuscateSpecialCharacters(inputString) {
-
-      return String(inputString)
-        .replace(/\\/g, '\\\\')          // Escape backslashes
-        .replace(/\r\n/g, ' ')           // Replace Windows line breaks with space
-        .replace(/\n/g, ' ')             // Replace Unix line breaks with space
-        .replace(/\r/g, ' ')             // Replace Mac line breaks with space
-        .replace(/'/g, "''")             // Escape single quotes (SQL standard)
-        .replace(/"/g, '\\"')            // Escape double quotes
-        .replace(/[\x00-\x1F]/g, ' ');   // Replace control chars with space
-
-    }
+  /**
+   * Escape special characters for SQL string literals
+   * @param {string} inputString - String to escape
+   * @return {string} - Escaped string
+   */
+  obfuscateSpecialCharacters(inputString) {
+    return String(inputString)
+      .replace(/\\/g, '\\\\') // Escape backslashes
+      .replace(/\r\n/g, ' ') // Replace Windows line breaks with space
+      .replace(/\n/g, ' ') // Replace Unix line breaks with space
+      .replace(/\r/g, ' ') // Replace Mac line breaks with space
+      .replace(/'/g, "''") // Escape single quotes (SQL standard)
+      .replace(/"/g, '\\"') // Escape double quotes
+      .replace(/[\x00-\x1F]/g, ' '); // Replace control chars with space
+  }
   //----------------------------------------------------------------
 
   //---- close -------------------------------------------------------
-    /**
-     * Closes Databricks connection
-     */
-    async close() {
+  /**
+   * Closes Databricks connection
+   */
+  async close() {
+    // Flush any remaining data
+    await this.flushBuffer();
 
-      // Flush any remaining data
-      await this.flushBuffer();
-
-      if (this.session) {
-        try {
-          await this.session.close();
-        } catch (error) {
-          this.config.logMessage(`Error closing session: ${error.message}`);
-        }
+    if (this.session) {
+      try {
+        await this.session.close();
+      } catch (error) {
+        this.context.log(LOG_LEVEL.INFO, `Error closing session: ${error.message}`);
       }
-
-      if (this.client) {
-        try {
-          await this.client.close();
-        } catch (error) {
-          this.config.logMessage(`Error closing client: ${error.message}`);
-        }
-      }
-
-      this.config.logMessage(`Databricks connection closed. Total records processed: ${this.totalRecordsProcessed}`);
-
     }
-  //----------------------------------------------------------------
 
+    if (this.client) {
+      try {
+        await this.client.close();
+      } catch (error) {
+        this.context.log(LOG_LEVEL.INFO, `Error closing client: ${error.message}`);
+      }
+    }
+
+    this.context.log(
+      LOG_LEVEL.INFO,
+      `Databricks connection closed. Total records processed: ${this.totalRecordsProcessed}`
+    );
+  }
+  //----------------------------------------------------------------
 };

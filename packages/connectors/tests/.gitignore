@@ -1,0 +1,2 @@
+fixtures/*.fixture.json
+!fixtures/example.fixture.json

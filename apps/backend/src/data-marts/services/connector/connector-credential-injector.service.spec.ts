@@ -3,6 +3,7 @@ import { ConnectorCredentialInjectorService } from './connector-credential-injec
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService } from './connector-secret.service';
+import { ConnectorCredentialBoundaryError } from '../../errors/connector-credential-boundary.error';
 
 describe('ConnectorCredentialInjectorService', () => {
   const createService = () => {
@@ -119,6 +120,87 @@ describe('ConnectorCredentialInjectorService', () => {
       expect(result.GeneratedRefreshToken).toEqual({ value: 'generated-refresh-token' });
       expect(result).not.toHaveProperty('generated_refresh_token');
       expect(result).not.toHaveProperty('_source_credential_id');
+    });
+  });
+
+  describe('injectOAuthCredentials connector boundary', () => {
+    const VICTIM_TOKEN = 'victim-access-token';
+
+    // `_source_credential_id` is returned unmasked by the definition API, so any project
+    // member can learn the id of a credential issued for another connector. Pointing a
+    // connector they control at that id must not resolve it.
+    const arrangeForeignCredential = (
+      connectorSourceCredentialsService: ConnectorSourceCredentialsService,
+      connectorService: ConnectorService,
+      spec: unknown
+    ) => {
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'victim-cred',
+        projectId: 'proj-1',
+        connectorName: 'FacebookMarketing',
+        credentials: { accessToken: VICTIM_TOKEN },
+      });
+      (connectorSourceCredentialsService.isExpired as jest.Mock).mockResolvedValue(false);
+      (connectorService.getItemByFieldPath as jest.Mock).mockResolvedValue(spec);
+    };
+
+    it('rejects a credential issued for a different connector', async () => {
+      const { service, connectorSourceCredentialsService, connectorService } = createService();
+      arrangeForeignCredential(connectorSourceCredentialsService, connectorService, {
+        oauthParams: {},
+      });
+
+      await expect(
+        service.injectOAuthCredentials(
+          { AuthType: { _source_credential_id: 'victim-cred' } },
+          'AttackerConnector',
+          'proj-1'
+        )
+      ).rejects.toThrow(/FacebookMarketing.*AttackerConnector/);
+    });
+
+    it('keeps the foreign credential secret out of the resolved config', async () => {
+      const { service, connectorSourceCredentialsService, connectorService } = createService();
+      // No mapping for this path is what makes the unguarded code spread the whole
+      // credentials record into the config, so this is the disclosure path.
+      arrangeForeignCredential(connectorSourceCredentialsService, connectorService, {
+        oauthParams: {},
+      });
+
+      const outcome = await service
+        .injectOAuthCredentials(
+          { AuthType: { _source_credential_id: 'victim-cred' } },
+          'AttackerConnector',
+          'proj-1'
+        )
+        .then(value => ({ rejected: false, value: value as unknown }))
+        .catch((error: unknown) => ({ rejected: true, value: error }));
+
+      const exposed =
+        outcome.value instanceof Error ? outcome.value.message : JSON.stringify(outcome.value);
+      expect(exposed).not.toContain(VICTIM_TOKEN);
+      expect(outcome.rejected).toBe(true);
+    });
+
+    it('rejects a foreign connector credential even when the field declares a mapping', async () => {
+      const { service, connectorSourceCredentialsService, connectorService } = createService();
+      arrangeForeignCredential(connectorSourceCredentialsService, connectorService, {
+        oauthParams: { mapping: { AccessToken: { key: 'accessToken' } } },
+      });
+
+      const outcome = await service
+        .injectOAuthCredentials(
+          { AuthType: { _source_credential_id: 'victim-cred' } },
+          'AttackerConnector',
+          'proj-1'
+        )
+        .then(value => ({ rejected: false, value: value as unknown }))
+        .catch((error: unknown) => ({ rejected: true, value: error }));
+
+      const exposed =
+        outcome.value instanceof Error ? outcome.value.message : JSON.stringify(outcome.value);
+      expect(exposed).not.toContain(VICTIM_TOKEN);
+      expect(outcome.rejected).toBe(true);
     });
   });
 
@@ -259,7 +341,7 @@ describe('ConnectorCredentialInjectorService', () => {
       expect(result._source_credential_id).toBe('same-cred');
     });
 
-    it('keeps original credential on refresh error', async () => {
+    it('keeps original credential on transient refresh error', async () => {
       const { service, connectorService } = createService();
       const config = { _source_credential_id: 'cred-1' };
 
@@ -270,6 +352,21 @@ describe('ConnectorCredentialInjectorService', () => {
       const result = await service.refreshCredentialsForConfig('proj-1', 'TestConnector', config);
 
       expect(result._source_credential_id).toBe('cred-1');
+    });
+
+    it('propagates a boundary violation instead of continuing with the credential', async () => {
+      const { service, connectorService } = createService();
+      const config = { _source_credential_id: 'victim-cred' };
+
+      (connectorService.refreshCredentials as jest.Mock).mockRejectedValue(
+        new ConnectorCredentialBoundaryError(
+          'Credential belongs to connector FacebookMarketing, not AttackerConnector'
+        )
+      );
+
+      await expect(
+        service.refreshCredentialsForConfig('proj-1', 'AttackerConnector', config)
+      ).rejects.toBeInstanceOf(ConnectorCredentialBoundaryError);
     });
   });
 });

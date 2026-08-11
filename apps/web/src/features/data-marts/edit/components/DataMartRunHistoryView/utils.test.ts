@@ -1,8 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { getDisplayType, getRunSummaryParts, parseLogEntry } from './utils';
+import {
+  getDisplayType,
+  getRunSummaryParts,
+  parseLogEntry,
+  processJSONMessage,
+  sortLogEntries,
+} from './utils';
 import { DataMartRunType } from '../../../shared';
 import { LogLevel } from './types';
 import type { DataMartRunItem } from '../../model';
+import { LogCategory, LogSeverity } from './log-category';
+import type { LogEntry } from './types';
+
+describe('sortLogEntries', () => {
+  const e = (id: string, sortTime: number): LogEntry => ({
+    id,
+    level: LogLevel.INFO,
+    message: id,
+    timestamp: 'N/A',
+    category: LogCategory.LOG,
+    severity: LogSeverity.NORMAL,
+    sortTime,
+  });
+
+  it('desc: newer time first; within an equal-timestamp tie the later-emitted entry wins', () => {
+    // a and b share the same ms (like a "MERGE completed" log + its rows_written
+    // analytic emitted right after); a is inserted before b, c is later.
+    const input = [e('a', 100), e('b', 100), e('c', 200)];
+    expect(sortLogEntries(input, 'desc').map(x => x.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('asc: older time first; ties keep emission order', () => {
+    const input = [e('a', 100), e('b', 100), e('c', 200)];
+    expect(sortLogEntries(input, 'asc').map(x => x.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('does not mutate the input array', () => {
+    const input = [e('a', 200), e('b', 100)];
+    const snapshot = input.map(x => x.id);
+    sortLogEntries(input, 'desc');
+    expect(input.map(x => x.id)).toEqual(snapshot);
+  });
+});
 
 // Verbatim entries from a persisted connector run. The backend stores logs/errors as
 // raw JSON strings, so the message type is a cross-package string contract with no
@@ -144,5 +183,121 @@ describe('getRunSummaryParts', () => {
     const [, title] = getRunSummaryParts(run, null);
 
     expect(title).toBe('Nothing to check · all not applicable');
+  });
+});
+
+describe('parseLogEntry — category', () => {
+  const at = '2026-05-02T12:00:00.000Z';
+
+  it('categorizes a new-run TRACE log via the eventType hint', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({ type: 'log', at, eventType: 'TRACE', message: '[TRACE] http.request' }),
+      0
+    );
+    expect(entry.category).toBe(LogCategory.TRACE);
+    expect(entry.severity).toBe(LogSeverity.MUTED);
+    expect(entry.metadata?.eventType).toBe('TRACE');
+    // eventType is lifted into metadata, not left as the display message.
+    expect(entry.message).toBe('[TRACE] http.request');
+  });
+
+  it('categorizes a legacy warning by its type', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({ type: 'addWarningToCurrentStatus', at, warning: 'careful' }),
+      0
+    );
+    expect(entry.category).toBe(LogCategory.WARNING);
+    expect(entry.severity).toBe(LogSeverity.WARN);
+    expect(entry.message).toBe('careful');
+  });
+
+  it('categorizes an error entry from the errors array', () => {
+    const entry = parseLogEntry(JSON.stringify({ type: 'error', at, error: 'boom' }), 0, true);
+    expect(entry.category).toBe(LogCategory.ERROR);
+    expect(entry.severity).toBe(LogSeverity.ERROR);
+  });
+
+  it('categorizes a historical TRACE via the message prefix (no eventType)', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({ type: 'log', at, message: '[TRACE] http.request' }),
+      0
+    );
+    expect(entry.category).toBe(LogCategory.TRACE);
+  });
+
+  it('falls back to UNKNOWN for a plain non-JSON line', () => {
+    const entry = parseLogEntry('just a plain line', 0);
+    expect(entry.category).toBe(LogCategory.UNKNOWN);
+  });
+});
+
+describe('parseLogEntry — analytics fields', () => {
+  const at = '2026-05-02T12:00:00.000Z';
+
+  it('extracts analytics metric/value/node and keeps the message text clean', () => {
+    const entry = parseLogEntry(
+      JSON.stringify({
+        type: 'log',
+        at,
+        eventType: 'ANALYTICS',
+        metric: 'rows_written',
+        value: 1234,
+        tags: { node: 'campaigns' },
+        message: '[ANALYTICS] rows_written=1234 {"node":"campaigns"}',
+      }),
+      0
+    );
+    expect(entry.category).toBe(LogCategory.ANALYTICS);
+    expect(entry.metadata?.metric).toBe('rows_written');
+    expect(entry.metadata?.value).toBe(1234);
+    expect(entry.metadata?.node).toBe('campaigns');
+    expect(entry.message).toBe('[ANALYTICS] rows_written=1234 {"node":"campaigns"}');
+  });
+});
+
+describe('parseLogEntry — multiline timestamp/type/message format', () => {
+  it('preserves analytics fields (metric/value/node) instead of dropping them', () => {
+    const at = '2026-05-14T10:00:00.000Z';
+    const messageJson = JSON.stringify({
+      type: 'log',
+      at,
+      eventType: 'ANALYTICS',
+      metric: 'rows_written',
+      value: 1234,
+      tags: { node: 'campaigns' },
+      message: '[ANALYTICS] rows_written=1234',
+    });
+    const entry = parseLogEntry(`${at}\nlog\n${messageJson}`, 0);
+
+    expect(entry.metadata?.metric).toBe('rows_written');
+    expect(entry.metadata?.value).toBe(1234);
+    expect(entry.metadata?.node).toBe('campaigns');
+  });
+});
+
+describe('parseLogEntry sortTime', () => {
+  it('sets sortTime to the parsed epoch of the ISO timestamp', () => {
+    const at = '2026-05-14T10:00:00.000Z';
+    const entry = parseLogEntry(`${at}\nlog\nhello`, 0);
+    expect(entry.sortTime).toBe(Date.parse(at));
+  });
+  it('sets sortTime to 0 when there is no parseable time', () => {
+    const entry = parseLogEntry('plain message with no timestamp', 0);
+    expect(entry.sortTime).toBe(0);
+  });
+});
+
+describe('processJSONMessage date extraction', () => {
+  it('extracts date into metadata and keeps it as the message for REQUESTED_DATE', () => {
+    const result = processJSONMessage(
+      JSON.stringify({
+        type: 'updateLastRequstedDate',
+        at: '2026-05-14T00:00:00.000Z',
+        date: '2026-05-14',
+      })
+    );
+    expect(result.metadata?.date).toBe('2026-05-14');
+    expect(result.metadata?.type).toBe('updateLastRequstedDate');
+    expect(result.message).toBe('2026-05-14');
   });
 });

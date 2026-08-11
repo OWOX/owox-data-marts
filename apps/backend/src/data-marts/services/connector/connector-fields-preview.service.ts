@@ -67,7 +67,7 @@ export class ConnectorFieldsPreviewService {
     }
 
     try {
-      source.config.validate();
+      source.context.validate();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new BadRequestException({ message });
