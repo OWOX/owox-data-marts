@@ -85,6 +85,35 @@ describe('translateOutputControlsError', () => {
     expect(translated?.message).not.toContain('UNIQUE_COUNT_FILTER_UNSUPPORTED');
   });
 
+  // Without their own sections these fall back to the generic handler, which repeats a raw code at
+  // a model that has no way to act on it.
+  it.each([
+    ['UNIQUE_COUNT_AGGREGATION_UNSUPPORTED', 'unique_count_selection_only'],
+    ['UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED', 'unique_count_selection_only'],
+    ['UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE', 'unique_count_not_reportable'],
+  ])('translates %s into %s (#6792)', (code, expected) => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        { code, column: 'orders__unique_count', message: '"orders__unique_count" is a metric.' },
+      ])
+    );
+
+    expect(translated).toMatchObject({ code: expected });
+    expect(translated?.message).toContain('orders__unique_count');
+    expect(translated?.message).not.toContain(code);
+  });
+
+  it('tells the model a report cannot carry a Unique Count it selected in fields', () => {
+    const translated = translateOutputControlsError(
+      validatorError([
+        { code: 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE', column: 'orders__unique_count' },
+      ])
+    );
+
+    expect(translated?.message).toContain('remove the field');
+    expect(translated?.message).toContain('query_data_mart');
+  });
+
   it('translates NOT_SELECTED codes naming the columns, without a schema re-fetch hint', () => {
     const translated = translateOutputControlsError(
       validatorError([{ code: 'AGGREGATION_COLUMN_NOT_SELECTED', column: 'revenue' }])

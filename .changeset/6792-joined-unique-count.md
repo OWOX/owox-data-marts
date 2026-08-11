@@ -15,8 +15,10 @@ With no usable primary key the field is shown disabled, and its tooltip says whi
 Rows whose declared primary key is empty used to be treated as one single record. That was wrong in three ways, and all three are fixed. A Data Mart with no declared key, or one whose key is always filled, is untouched.
 
 - **`Unique Count` on a composite key was too high** and now goes down. Every row with an empty key component counted as one extra record — while a single-column key had always ignored such rows, so the same declaration behaved differently depending only on how many columns it had. This applies to any Data Mart with a composite key, joined or not.
-- **`Sum` and `Average` on a joined Data Mart were too low** and now go up. All rows sharing an empty key collapsed into one, so the metric read a single row instead of all of them — verified on BigQuery, where twenty such rows summed to the value of one row before the fix and to all twenty after. `Min`, `Max`, the percentiles and `Combined` can shift for the same reason.
+- **`Sum` and `Average` on a joined Data Mart were too low** and now go up. All rows sharing an empty key collapsed into one, so the metric read a single row instead of all of them — verified on BigQuery, where twenty such rows summed to the value of one row before the fix and to all twenty after. `Min`, `Max`, the percentiles and `Combined` can shift for the same reason. The two metrics part ways on such a row on purpose: `Unique Count` does not count a record with no identity, while `Sum` still reads its value, so one report can legitimately say `0 orders, worth 2000`.
 - **A key unique only within what it is joined on is now counted per join key**, and the number rises sharply. A line number restarting at 1 in every order reported 12 — the largest order's line count — for a book of 4,300 line items. It now reports 4,300, which is what `Sum` and `Average` on that same key had always meant by it.
+
+Cached report data is cleared on upgrade, so an unedited report shows the corrected numbers on its next run rather than serving what it had cached.
 
 Two smaller corrections in the same direction: two different composite keys that ran together into the same text now count as two records rather than one, and on **Amazon Redshift** a composite key holding a text part longer than 256 characters is no longer cut short and merged.
 

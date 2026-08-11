@@ -339,18 +339,49 @@ describe('Output controls API (e2e)', () => {
       blendedReportId = createRes.body.id;
     }, 120_000);
 
-    it('POST persists the per-source array and GET returns it unchanged', async () => {
-      const getRes = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+    const putUniqueCountConfig = (uniqueCountConfig: unknown) =>
+      agent
+        .put(`/api/reports/${blendedReportId}`)
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Joined Unique Count',
+          dataDestinationId: blendedDestinationId,
+          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          columnConfig: ['event_id'],
+          uniqueCountConfig,
+        });
 
-      expect(getRes.status).toBe(200);
+    // One test, not four: every write below lands on the same report, so as separate cases they
+    // would only pass in declaration order — and `--testNamePattern` or any future randomization
+    // would silently reorder them.
+    it('round-trips the per-source array, the legacy boolean, an empty list and null', async () => {
+      const created = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+      expect(created.status).toBe(200);
       // Deep equality, not toMatchObject: order and the empty-string main-Data-Mart entry are both
       // load-bearing, and `['']` read back as `true` (or dropped) would be a silent migration.
-      expect(getRes.body.uniqueCountConfig).toEqual(['', 'users']);
-      expect(getRes.body.columnConfig).toEqual(['event_id']);
+      expect(created.body.uniqueCountConfig).toEqual(['', 'users']);
+      expect(created.body.columnConfig).toEqual(['event_id']);
+
+      expect((await putUniqueCountConfig(true)).status).toBe(200);
+      const legacy = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+      expect(legacy.body.uniqueCountConfig).toBe(true);
+
+      // `[]` is TRUTHY, and the released Google Sheets add-on reads this field as a boolean — so an
+      // empty list has to persist as the value every client already reads as "off".
+      expect((await putUniqueCountConfig([])).status).toBe(200);
+      const emptied = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+      expect(emptied.body.uniqueCountConfig).toBeNull();
+
+      expect((await putUniqueCountConfig(null)).status).toBe(200);
+      const cleared = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
+      expect(cleared.body.uniqueCountConfig).toBeNull();
     });
 
-    it('keeps the legacy boolean shape a boolean across a write and a read', async () => {
-      const putRes = await agent
+    // The rule is unit-tested; this pins that it survives the real controller → DTO → validator
+    // chain, which is the boundary the metric's whole "selectable and sortable only" contract
+    // leans on.
+    it('PUT refuses a filter on a joined Unique Count through the real HTTP chain', async () => {
+      const res = await agent
         .put(`/api/reports/${blendedReportId}`)
         .set(AUTH_HEADER)
         .send({
@@ -358,31 +389,44 @@ describe('Output controls API (e2e)', () => {
           dataDestinationId: blendedDestinationId,
           destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
           columnConfig: ['event_id'],
-          uniqueCountConfig: true,
+          uniqueCountConfig: ['users'],
+          filterConfig: [{ column: 'users__unique_count', operator: 'eq', value: 5 }],
         });
-      expect(putRes.status).toBe(200);
 
-      const getRes = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
-      expect(getRes.status).toBe(200);
-      expect(getRes.body.uniqueCountConfig).toBe(true);
+      expect(res.status).toBe(400);
+      expect(res.body.details.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'UNIQUE_COUNT_FILTER_UNSUPPORTED',
+            column: 'users__unique_count',
+          }),
+        ])
+      );
     });
 
-    it('clears to null and reads back as null', async () => {
-      const putRes = await agent
+    // MCP's add_report copies `fields` straight into the projection, so this used to save clean and
+    // fail every subsequent run — after the Google Sheet already existed.
+    it('PUT refuses a Unique Count column named in the projection', async () => {
+      const res = await agent
         .put(`/api/reports/${blendedReportId}`)
         .set(AUTH_HEADER)
         .send({
           title: 'Joined Unique Count',
           dataDestinationId: blendedDestinationId,
           destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
-          columnConfig: ['event_id'],
+          columnConfig: ['event_id', 'users__unique_count'],
           uniqueCountConfig: null,
         });
-      expect(putRes.status).toBe(200);
 
-      const getRes = await agent.get(`/api/reports/${blendedReportId}`).set(AUTH_HEADER);
-      expect(getRes.status).toBe(200);
-      expect(getRes.body.uniqueCountConfig).toBeNull();
+      expect(res.status).toBe(400);
+      expect(res.body.details.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE',
+            column: 'users__unique_count',
+          }),
+        ])
+      );
     });
   });
 

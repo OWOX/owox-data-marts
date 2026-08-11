@@ -23,6 +23,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import { ReportAccessService } from '../services/report-access.service';
+import { foldEmptyUniqueCountConfig } from '../dto/schemas/unique-count-sources';
 
 @Injectable()
 export class CreateReportService {
@@ -110,7 +111,7 @@ export class CreateReportService {
       limitConfig: command.limitConfig ?? null,
       aggregationConfig: command.aggregationConfig ?? null,
       dateTruncConfig: command.dateTruncConfig ?? null,
-      uniqueCountConfig: command.uniqueCountConfig ?? null,
+      uniqueCountConfig: foldEmptyUniqueCountConfig(command.uniqueCountConfig),
       accessor: { userId: command.userId, roles: command.roles },
       rejectUnavailableUniqueCountSources: true,
     });
@@ -128,7 +129,7 @@ export class CreateReportService {
       limitConfig: command.limitConfig ?? null,
       aggregationConfig: command.aggregationConfig ?? null,
       dateTruncConfig: command.dateTruncConfig ?? null,
-      uniqueCountConfig: command.uniqueCountConfig ?? null,
+      uniqueCountConfig: foldEmptyUniqueCountConfig(command.uniqueCountConfig),
     });
 
     const newReport = await this.reportRepository.save(report);

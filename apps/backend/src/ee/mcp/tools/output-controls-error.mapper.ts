@@ -34,6 +34,9 @@ const RECOGNIZED_CODES = new Set([
   'JOINED_UNIQUE_COUNT_REQUIRES_COLUMN_CONFIG',
   'JOINED_UNIQUE_COUNT_SOURCE_UNAVAILABLE',
   'UNIQUE_COUNT_FILTER_UNSUPPORTED',
+  'UNIQUE_COUNT_AGGREGATION_UNSUPPORTED',
+  'UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED',
+  'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE',
   'HAVING_FILTER_NOT_AGGREGATED',
   'HAVING_ON_BLENDED_SLEEVE_METRIC_NOT_SUPPORTED',
   'INVALID_OPERATOR_FOR_TYPE',
@@ -145,6 +148,36 @@ export function translateOutputControlsError(
     sections.push({
       code: 'unique_count_filter_unsupported',
       message: `${detail} Drop that filter (and any slice on the same metric) and retry; to narrow the report, filter on a column of the Data Mart instead. The field name is correct, so do not re-fetch the schema.`,
+    });
+  }
+
+  const uniqueCountClauses =
+    errors?.filter(
+      e =>
+        e.code === 'UNIQUE_COUNT_AGGREGATION_UNSUPPORTED' ||
+        e.code === 'UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED'
+    ) ?? [];
+  if (uniqueCountClauses.length > 0) {
+    const detail = [
+      ...new Set(uniqueCountClauses.map(e => e.message ?? e.column).filter(Boolean)),
+    ].join(' ');
+    sections.push({
+      code: 'unique_count_selection_only',
+      message: `${detail} A Unique Count field can only be selected and sorted by. The field name is correct, so do not re-fetch the schema.`,
+    });
+  }
+
+  // The report tools carry no Unique Count parameter, so unlike query_data_mart there is no
+  // place to move the field to — say that instead of letting the model retry the same list.
+  const unprojectableUniqueCounts =
+    errors?.filter(e => e.code === 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE') ?? [];
+  if (unprojectableUniqueCounts.length > 0) {
+    const detail = [
+      ...new Set(unprojectableUniqueCounts.map(e => e.message ?? e.column).filter(Boolean)),
+    ].join(' ');
+    sections.push({
+      code: 'unique_count_not_reportable',
+      message: `${detail} A report's Unique Count selection cannot be set over MCP — remove the field and retry, and tell the user to turn it on for this report in the OWOX Data Marts UI. It IS available in query_data_mart.`,
     });
   }
 

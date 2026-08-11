@@ -193,7 +193,9 @@ export interface AvailableSource {
   relationshipId: string;
   dataMartId: string;
   isAccessibleForReporting: boolean;
-  uniqueCountAvailability: JoinedUniqueCountAvailability;
+  // Optional for the same reason as the key fields below, and read only through
+  // `readJoinedUniqueCountState`, which maps anything it does not recognise to 'unknown'.
+  uniqueCountAvailability?: JoinedUniqueCountAvailability;
   // The primary-key columns this source's Unique Count counts by, in schema order. Empty whenever
   // the metric is unavailable. Optional on the wire: a response cached before the field existed
   // carries none, and the description is simply omitted then.

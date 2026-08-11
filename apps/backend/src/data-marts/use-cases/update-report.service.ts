@@ -24,6 +24,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import { foldEmptyUniqueCountConfig } from '../dto/schemas/unique-count-sources';
 
 @Injectable()
 export class UpdateReportService {
@@ -118,8 +119,8 @@ export class UpdateReportService {
       }
     }
 
-    const previousUniqueCountConfig = report.uniqueCountConfig ?? null;
-    const nextUniqueCountConfig = command.uniqueCountConfig ?? null;
+    const previousUniqueCountConfig = foldEmptyUniqueCountConfig(report.uniqueCountConfig);
+    const nextUniqueCountConfig = foldEmptyUniqueCountConfig(command.uniqueCountConfig);
     const uniqueCountChanged =
       JSON.stringify(previousUniqueCountConfig) !== JSON.stringify(nextUniqueCountConfig);
 
@@ -133,7 +134,7 @@ export class UpdateReportService {
       limitConfig: command.limitConfig ?? null,
       aggregationConfig: command.aggregationConfig ?? null,
       dateTruncConfig: command.dateTruncConfig ?? null,
-      uniqueCountConfig: command.uniqueCountConfig ?? null,
+      uniqueCountConfig: nextUniqueCountConfig,
       accessor: { userId: command.userId, roles: command.roles },
       // Only a CHANGED selection is a fresh assertion by the caller. Re-sending the stored one —
       // what MCP update_report and every GET→PUT client do — must not turn a source going stale

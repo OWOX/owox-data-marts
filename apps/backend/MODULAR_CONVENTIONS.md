@@ -67,7 +67,8 @@ projects/
 
 ## 3. Facade Rules and Constraints
 
-* Facade interfaces are declared in `shared/facades/`
+* Facade interfaces are declared in `shared/facades/`, or in `facades/` beside their
+  implementation — the layout most modules use today, and equally valid
 * Implementations are placed in `facades/`
 * **One interface = one implementation class**
 * **A module must not use its own facade internally**

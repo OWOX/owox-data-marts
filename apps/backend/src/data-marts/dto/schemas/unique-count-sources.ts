@@ -15,10 +15,25 @@ export const MAIN_UNIQUE_COUNT_SOURCE = '';
  */
 export const UNIQUE_COUNT_FIELD_TOKEN = 'unique_count';
 
+/** What every `buildJoinedUniqueCountColumnName` result ends with, without rebuilding one. */
+export const JOINED_UNIQUE_COUNT_NAME_SUFFIX = `__${UNIQUE_COUNT_FIELD_TOKEN}`;
+
 export function normalizeUniqueCountSources(config: UniqueCountConfig | undefined): string[] {
   if (config === true) return [MAIN_UNIQUE_COUNT_SOURCE];
   if (!Array.isArray(config)) return [];
   return Array.from(new Set(config));
+}
+
+/**
+ * `null`, `false` and `[]` all mean "no Unique Count", but `[]` is TRUTHY — and the released Google
+ * Sheets add-on reads this field as a boolean, so an empty array from the web makes it render a
+ * ticked Unique Count row on a report that emits no such column. Persist the one value every client
+ * already reads correctly (#6792).
+ */
+export function foldEmptyUniqueCountConfig(
+  config: UniqueCountConfig | undefined
+): UniqueCountConfig {
+  return normalizeUniqueCountSources(config).length === 0 ? null : (config ?? null);
 }
 
 export function hasMainUniqueCount(config: UniqueCountConfig | undefined): boolean {

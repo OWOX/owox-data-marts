@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { BlendedFieldNameStyle, formatBlendedFieldDisplayName } from './blended-field-display-name';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
@@ -50,6 +50,8 @@ import { buildJoinedUniqueCountColumnName } from './blended-field-name';
 
 @Injectable()
 export class BlendedReportDataService {
+  private readonly logger = new Logger(BlendedReportDataService.name);
+
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly blendableSchemaService: BlendableSchemaService,
@@ -268,11 +270,26 @@ export class BlendedReportDataService {
             blendedFieldsByName
           )
         : report.sortConfig;
+    // A column silently leaving a nightly export shifts every formula to its right, and nothing
+    // else in this path says a word about it.
+    if (stalePaths.length > 0) {
+      this.logger.warn(
+        `Data Mart ${dataMart.id}: dropped the Unique Count column of ${stalePaths.join(', ')} — ` +
+          'the source is gone, excluded from reporting, or has no usable primary key' +
+          (sortConfig?.length === report.sortConfig?.length ? '' : ', and its sort rule with it')
+      );
+    }
 
     const normalizedAggregations = this.withoutJoinedCountBesideCountDistinct(
       report.aggregationConfig ?? [],
       new Set(blendableSchema.blendedFields.map(f => f.name))
     );
+    if (normalizedAggregations) {
+      this.logger.warn(
+        `Data Mart ${dataMart.id}: dropped a joined COUNT that would duplicate its COUNT_DISTINCT ` +
+          `column (${report.aggregationConfig?.length ?? 0} → ${normalizedAggregations.length} aggregations)`
+      );
+    }
     const blendedResult = await this.blendedQueryBuilderFacade.buildBlendedQuery(
       dataMart.storage.type,
       {
@@ -349,7 +366,12 @@ export class BlendedReportDataService {
           // The metric is a joined field like any other, so its header follows the same
           // per-destination convention every other joined column's does.
           displayLabel: formatBlendedFieldDisplayName(
-            { name: UNIQUE_COUNT_LABEL, outputPrefix: source.defaultAlias },
+            {
+              name: UNIQUE_COUNT_LABEL,
+              // A blank Output Alias would render the bare `Unique Count` — the main Data Mart's
+              // own header. Same fallback the picker's row uses.
+              outputPrefix: source.defaultAlias.trim() || source.title,
+            },
             nameStyle
           ),
         };

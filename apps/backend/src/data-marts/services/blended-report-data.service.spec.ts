@@ -2749,12 +2749,13 @@ describe('BlendedReportDataService', () => {
         ]);
       });
 
-      // A relationship saved without a display alias has no Data Mart name to attach, and the
-      // formatter never emits `Unique Count ()` or a leading space — the bare metric name is
-      // exactly what an ordinary joined field with a blank prefix falls back to.
-      it('never labels a source with a blank prefix', async () => {
+      // A relationship saved without a display alias would otherwise label the metric with the bare
+      // `Unique Count` — the MAIN Data Mart's own header, which then collides with it in the
+      // produced file. Falls back to the Data Mart's title, exactly as the picker's row does.
+      it('falls back to the Data Mart title when the display alias is blank', async () => {
+        // The fixture titles a source `<defaultAlias> DM`, so a blank alias leaves the bare `DM`.
         const report = makeJoinedReport({ uniqueCountConfig: ['orders'] }, [
-          { ...ORDERS, defaultAlias: '' },
+          { ...ORDERS, defaultAlias: '   ' },
         ]);
 
         const result = await service.resolveBlendingDecision(report, {
@@ -2762,7 +2763,7 @@ describe('BlendedReportDataService', () => {
           roles: ['admin'],
         });
 
-        expect(result.uniqueCountSources?.[0].displayLabel).toBe('Unique Count');
+        expect(result.uniqueCountSources?.[0].displayLabel).toBe('DM Unique Count');
       });
 
       // The metric is a joined field like any other, so its header follows the SAME per-destination

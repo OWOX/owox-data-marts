@@ -23,13 +23,16 @@ describe('MCP instructions', () => {
   it('states where a joined Unique Count field may and may not be used', () => {
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Unique Count field');
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain(
-      'It can be selected in "fields" and ordered by in "sort" (using the same exact name), but never placed in filters, slices, aggregations, or date_buckets.'
+      'It can be selected in query_data_mart\'s "fields" and ordered by in its "sort" (using the same exact name), but never placed in filters, slices, aggregations, or date_buckets'
     );
+    // The report tools have no Unique Count parameter, and their `fields` reaches the projection
+    // verbatim — so a pseudo-field there saves a report that fails every run.
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('never in add_report/update_report');
   });
 
-  // A model copies the documented example verbatim into `fields`. The display form is not a name
-  // the splitter matches, so it bypasses the purpose-written UnmatchedUniqueCountFieldError, lands
-  // on the generic field_not_found, and burns a billed round-trip (#6792).
+  // A model copies the documented example verbatim into `fields`, so the instructions must show the
+  // SQL name — the display form is recognised only to reach the purpose-written
+  // UnmatchedUniqueCountFieldError instead of the generic field_not_found (#6792).
   it('illustrates the joined Unique Count field with a name the tool recognises', () => {
     expect(hasUniqueCountFieldCandidate([UNIQUE_COUNT_EXAMPLE_FIELD])).toBe(true);
     expect(MCP_SYSTEM_INSTRUCTIONS).toContain(`"${UNIQUE_COUNT_EXAMPLE_FIELD}"`);

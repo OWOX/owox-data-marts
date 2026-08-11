@@ -180,6 +180,47 @@ describe('UniqueCountRow — unavailable source', () => {
   });
 });
 
+// A selection is KEPT on a verdict this bundle cannot read, and used to render byte-identical to a
+// confirmed one — so a metric already failing server-side looked live until the next save or run.
+describe('UniqueCountRow — checked on an unreadable verdict', () => {
+  const renderUnverified = () =>
+    renderRow({
+      label: 'Orders Unique Count',
+      state: readJoinedUniqueCountState('a-verdict-this-bundle-predates'),
+      checked: true,
+    });
+
+  it('does not render as a confirmed selection', () => {
+    const { row } = renderUnverified();
+
+    expect(within(row).getByRole('checkbox')).toHaveAccessibleDescription(/can't confirm/);
+    expect(row.querySelector('.text-blue-500')).toBeNull();
+  });
+
+  it('stays clearable and re-tickable — the verdict is unknown, not refused', () => {
+    const { onCheckedChange, row } = renderUnverified();
+
+    const checkbox = within(row).getByRole('checkbox');
+    expect(checkbox).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(checkbox);
+
+    expect(onCheckedChange).toHaveBeenCalledWith(false);
+  });
+
+  // An unchecked row on an unknown verdict is never offered (canOfferUniqueCount), so the only
+  // state left to keep quiet is the one nothing is wrong with.
+  it('says nothing on a verdict it CAN read', () => {
+    const { row } = renderRow({
+      label: 'Orders Unique Count',
+      state: readJoinedUniqueCountState('available'),
+      checked: true,
+    });
+
+    expect(within(row).getByRole('checkbox')).not.toHaveAccessibleDescription();
+    expect(row.querySelector('.text-blue-500')).not.toBeNull();
+  });
+});
+
 describe('UniqueCountRow — checked but not emitted', () => {
   const NOT_EMITTED =
     'This Data Mart is not allowed for reporting, so this column is not generated. Allow it for reporting again, or clear this row.';

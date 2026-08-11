@@ -4188,23 +4188,65 @@ describe('OutputControlsValidatorService', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('still rejects an AGGREGATION on a joined Unique Count (aggregating an aggregate)', async () => {
+    // Same honesty as the filter refusal above: these used to fall through to the `type ===
+    // undefined` branches and come back as a TYPE problem on a schema that is perfectly fine.
+    it.each([
+      [
+        'AGGREGATION',
+        { aggregationConfig: [{ column: 'orders__unique_count', function: 'SUM' as const }] },
+        'UNIQUE_COUNT_AGGREGATION_UNSUPPORTED',
+        'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+      ],
+      [
+        'DATE BUCKET',
+        { dateTruncConfig: [{ column: 'orders__unique_count', unit: 'DAY' as const }] },
+        'UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED',
+        'DATE_TRUNC_REQUIRES_DATE_COLUMN',
+      ],
+    ])(
+      'names the real reason an %s on a joined Unique Count is refused',
+      async (_case, config, expectedCode, misleadingCode) => {
+        const caught = await catchError(
+          validateWith(makeValidator(), {
+            ...config,
+            columnConfig: ['channel'],
+            uniqueCountConfig: ['orders'],
+          })
+        );
+
+        expect(caught).toBeInstanceOf(BadRequestException);
+        const errors = (
+          (caught as BadRequestException).getResponse() as {
+            details: { errors: { code: string; column?: string; message?: string }[] };
+          }
+        ).details.errors;
+        expect(errors.find(e => e.code === expectedCode)).toMatchObject({
+          column: 'orders__unique_count',
+        });
+        expect(errors.some(e => e.code === misleadingCode)).toBe(false);
+      }
+    );
+
+    // The metric is emitted from uniqueCountConfig, never projected. MCP's add_report copies
+    // `fields` straight into columnConfig, so this used to save clean and fail every run — after
+    // the Google Sheet already existed.
+    it('refuses a Unique Count column named in the PROJECTION, with no other output control', async () => {
       const caught = await catchError(
         validateWith(makeValidator(), {
-          aggregationConfig: [{ column: 'orders__unique_count', function: 'SUM' }],
-          uniqueCountConfig: ['orders'],
+          columnConfig: ['channel', 'orders__unique_count'],
+          uniqueCountConfig: null,
         })
       );
 
       expect(caught).toBeInstanceOf(BadRequestException);
-      const response = (caught as BadRequestException).getResponse() as {
-        details: { errors: { code: string; column?: string }[] };
-      };
-      expect(
-        response.details.errors.some(
-          e => e.code === 'AGGREGATION_COLUMN_NOT_SELECTED' && e.column === 'orders__unique_count'
-        )
-      ).toBe(true);
+      const errors = (
+        (caught as BadRequestException).getResponse() as {
+          details: { errors: { code: string; column?: string; message?: string }[] };
+        }
+      ).details.errors;
+      expect(errors.find(e => e.code === 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE')).toMatchObject({
+        column: 'orders__unique_count',
+      });
     });
 
     // Legacy `true` is the MAIN metric only — it must not start selecting joined names.

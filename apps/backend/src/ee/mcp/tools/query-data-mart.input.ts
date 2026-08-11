@@ -17,6 +17,7 @@ import {
   UNIQUE_COUNT_CONFIG_MAX_SOURCES,
   UniqueCountConfigRequestSchema,
 } from '../../../data-marts/dto/schemas/unique-count-config.schema';
+import { UNIQUE_COUNT_LABEL } from '../../../data-marts/dto/schemas/aggregation-labels';
 import {
   MCP_UNIQUE_COUNT_FIELD_SUFFIX,
   type McpUniqueCountSourceDto,
@@ -420,7 +421,17 @@ export function mapMcpSort(
  * field that looks like a pseudo-field but names no currently available source (#6792).
  */
 export function hasUniqueCountFieldCandidate(fields: string[]): boolean {
-  return fields.some(f => f.endsWith(MCP_UNIQUE_COUNT_FIELD_SUFFIX));
+  return fields.some(isUniqueCountFieldShape);
+}
+
+/**
+ * `orders__unique_count` (the `name` to copy) or `Orders Unique Count` (the human-readable
+ * `displayName` the model is told NOT to copy). Recognising the display form costs one schema
+ * lookup and buys the dedicated error listing the real names, instead of a generic `field_not_found`
+ * that sends the model back to a schema it read correctly.
+ */
+function isUniqueCountFieldShape(field: string): boolean {
+  return field.endsWith(MCP_UNIQUE_COUNT_FIELD_SUFFIX) || field.endsWith(UNIQUE_COUNT_LABEL);
 }
 
 /**
@@ -522,7 +533,7 @@ export function splitUniqueCountFields(
     if (aliasPath !== undefined) {
       uniqueCountConfig.push(aliasPath);
       matchedNames.push(field);
-    } else if (!realFieldNames.has(field) && field.endsWith(MCP_UNIQUE_COUNT_FIELD_SUFFIX)) {
+    } else if (!realFieldNames.has(field) && isUniqueCountFieldShape(field)) {
       unmatched.push(field);
     } else {
       columns.push(field);

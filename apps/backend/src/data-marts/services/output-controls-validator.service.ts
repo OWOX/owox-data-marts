@@ -53,6 +53,7 @@ import {
 import { UniqueCountConfig } from '../dto/schemas/unique-count-config.schema';
 import {
   hasMainUniqueCount,
+  JOINED_UNIQUE_COUNT_NAME_SUFFIX,
   joinedUniqueCountSources,
   normalizeUniqueCountSources,
 } from '../dto/schemas/unique-count-sources';
@@ -135,6 +136,18 @@ export type ValidationError =
   // selected and sorted by. Without this code the rule falls through as an unknown filter column
   // and the caller is told to repair a schema link that is not broken.
   | { code: 'UNIQUE_COUNT_FILTER_UNSUPPORTED'; column: string; message: string }
+  // An aggregation or date-trunc rule names a Unique Count output column. The metric IS an
+  // aggregate, so there is nothing to aggregate or bucket again. Without these codes the rule
+  // falls through to the `type === undefined` branches and comes back as
+  // AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE / DATE_TRUNC_REQUIRES_DATE_COLUMN with
+  // `type: 'unknown'` — pointing the caller at a schema problem that does not exist.
+  | { code: 'UNIQUE_COUNT_AGGREGATION_UNSUPPORTED'; column: string; message: string }
+  | { code: 'UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED'; column: string; message: string }
+  // A Unique Count output column is listed in the report's PROJECTION. The metric is emitted by
+  // the blended builder from `uniqueCountConfig`, never selected as a column, so the name resolves
+  // to nothing at run time and the report fails every run with the disconnected-columns error —
+  // after an MCP-created Google Sheet already exists.
+  | { code: 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE'; column: string; message: string }
   // Two projected output columns resolve to the SAME output name — a dimension whose name
   // equals a synthetic label (Row Count / Unique Count / "<col> | TOKEN"), or any
   // two projected columns colliding, INCLUDING a pair that differs only in letter case.
@@ -575,7 +588,16 @@ export class OutputControlsValidatorService {
       (args.dateTruncConfig?.length ?? 0) > 0 ||
       normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
 
-    if (!hasOutputControls) {
+    // A projection-only report carries no output control, so without this the early return below
+    // would skip the schema a projected Unique Count column has to be checked against. It never
+    // decides SUPPORT, though: on a storage without output controls there are no joined sources,
+    // and a column of that shape is an ordinary field name.
+    const mayProjectUniqueCountColumn =
+      (args.columnConfig ?? []).some(
+        column => column.endsWith(JOINED_UNIQUE_COUNT_NAME_SUFFIX) || column === UNIQUE_COUNT_LABEL
+      ) && this.capabilityService.isSupported(args.storageType);
+
+    if (!hasOutputControls && !mayProjectUniqueCountColumn) {
       // Output-name uniqueness is a property of the projection alone, so it is checked even
       // though a plain selection carries no output control — Redshift folds identifiers at read
       // time, and a case-only pair used to persist and fail there.
@@ -670,6 +692,7 @@ export class OutputControlsValidatorService {
       parsedSort.length > 0 ||
       parsedAggregations.length > 0 ||
       parsedDateTruncs.length > 0 ||
+      mayProjectUniqueCountColumn ||
       normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
     if (needsSchema) {
       const blendableSchema =
@@ -732,16 +755,51 @@ export class OutputControlsValidatorService {
         // FILTER_COLUMN_UNKNOWN and route to throwDisconnectedReportColumnsError, which tells the
         // caller to repair a schema link that is not broken. Same honesty the MCP tool's
         // UniqueCountFieldUnsupportedClauseError already gives.
-        const isUniqueCountFilter = (rule: FilterRule) =>
-          uniqueCountOutputColumns.has(rule.column) && !homeFieldTypes.has(rule.column);
-        for (const rule of parsedFilters.filter(isUniqueCountFilter)) {
+        // A real field may legitimately own one of these names — then it IS that field.
+        const isUniqueCountColumn = (column: string) =>
+          uniqueCountOutputColumns.has(column) && !homeFieldTypes.has(column);
+
+        for (const rule of parsedFilters.filter(r => isUniqueCountColumn(r.column))) {
           errors.push({
             code: 'UNIQUE_COUNT_FILTER_UNSUPPORTED',
             column: rule.column,
             message: `"${rule.column}" is a Unique Count metric: it can be selected and sorted by, but not filtered or sliced. Remove the filter on it.`,
           });
         }
-        const filtersToValidate = parsedFilters.filter(rule => !isUniqueCountFilter(rule));
+        const filtersToValidate = parsedFilters.filter(rule => !isUniqueCountColumn(rule.column));
+
+        for (const rule of parsedAggregations.filter(r => isUniqueCountColumn(r.column))) {
+          errors.push({
+            code: 'UNIQUE_COUNT_AGGREGATION_UNSUPPORTED',
+            column: rule.column,
+            message: `"${rule.column}" is a Unique Count metric — already an aggregate, so it cannot be aggregated again. Remove the aggregation on it.`,
+          });
+        }
+        const aggregationsToValidate = parsedAggregations.filter(
+          rule => !isUniqueCountColumn(rule.column)
+        );
+
+        for (const rule of parsedDateTruncs.filter(r => isUniqueCountColumn(r.column))) {
+          errors.push({
+            code: 'UNIQUE_COUNT_DATE_TRUNC_UNSUPPORTED',
+            column: rule.column,
+            message: `"${rule.column}" is a Unique Count metric, not a date column, so it cannot be bucketed. Remove the date bucket on it.`,
+          });
+        }
+        const dateTruncsToValidate = parsedDateTruncs.filter(
+          rule => !isUniqueCountColumn(rule.column)
+        );
+
+        // The metric is emitted from `uniqueCountConfig`, never projected: a report listing its
+        // column would resolve nothing at run time and fail with the disconnected-columns error,
+        // which tells the caller to repair a schema that is not broken.
+        for (const column of (args.columnConfig ?? []).filter(isUniqueCountColumn)) {
+          errors.push({
+            code: 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE',
+            column,
+            message: `"${column}" is a Unique Count metric, not a column of this Data Mart: it is turned on by the report's Unique Count setting, not by listing it among the fields. Remove it from the field selection.`,
+          });
+        }
 
         if (filtersToValidate.length > 0) {
           const fieldIndex = buildBlendedFieldIndex(blendableSchema);
@@ -753,7 +811,7 @@ export class OutputControlsValidatorService {
           errors.push(
             ...this.validateHavingFilters(
               filtersToValidate,
-              parsedAggregations,
+              aggregationsToValidate,
               col => homeFieldTypes.get(col),
               args.storageType,
               fieldIndex
@@ -782,7 +840,7 @@ export class OutputControlsValidatorService {
           }
           errors.push(...this.validateSort(parsedSort, selectedSet));
         }
-        if (parsedAggregations.length > 0) {
+        if (aggregationsToValidate.length > 0) {
           // Post-join aggregation over the (flat) blended result is an outer GROUP BY
           // on the final SELECT — validated against the selected output columns, which
           // now include non-hidden blended field names alongside the native fields.
@@ -790,19 +848,19 @@ export class OutputControlsValidatorService {
           const allowedByColumn = this.buildAggregationGovernance(blendableSchema);
           errors.push(
             ...this.validateAggregations(
-              parsedAggregations,
+              aggregationsToValidate,
               selectedSet,
               col => homeFieldTypes.get(col),
               col => allowedByColumn.get(col)
             )
           );
         }
-        if (parsedDateTruncs.length > 0) {
+        if (dateTruncsToValidate.length > 0) {
           const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
-          const aggregatedColumns = new Set(parsedAggregations.map(a => a.column));
+          const aggregatedColumns = new Set(aggregationsToValidate.map(a => a.column));
           errors.push(
             ...this.validateDateTruncs(
-              parsedDateTruncs,
+              dateTruncsToValidate,
               selectedSet,
               col => homeFieldTypes.get(col),
               aggregatedColumns
@@ -857,7 +915,7 @@ export class OutputControlsValidatorService {
         // native names there.
         const joinedUniqueCounts = joinedUniqueCountSources(args.uniqueCountConfig);
         const isMetricsOnly =
-          parsedAggregations.length > 0 ||
+          aggregationsToValidate.length > 0 ||
           normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
         const projectedColumns = hasColumnConfig
           ? args.columnConfig!
@@ -867,8 +925,8 @@ export class OutputControlsValidatorService {
         errors.push(
           ...this.validateOutputColumnNames(
             projectedColumns,
-            parsedAggregations,
-            parsedAggregations.length > 0,
+            aggregationsToValidate,
+            aggregationsToValidate.length > 0,
             hasMainUniqueCount(args.uniqueCountConfig),
             // `orders__unique_count` is byte-identical to the unified name of a real flat field
             // called `unique_count` on that source — select both and the alias is emitted twice.

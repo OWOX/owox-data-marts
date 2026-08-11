@@ -567,6 +567,21 @@ describe('collectRealFieldNames / splitUniqueCountFields (#6792)', () => {
     );
   });
 
+  it('routes the human-readable display name to the error that names the real one', () => {
+    expect(() => splitUniqueCountFields(['Orders Unique Count'], sources, new Set())).toThrow(
+      /orders__unique_count/
+    );
+  });
+
+  it('leaves a real field whose name ends like a display name alone', () => {
+    const split = splitUniqueCountFields(
+      ['Orders Unique Count'],
+      sources,
+      new Set(['Orders Unique Count'])
+    );
+    expect(split).toEqual({ columns: ['Orders Unique Count'], matchedNames: [] });
+  });
+
   it('splits several pseudo-fields at once, preserving the order of both lists', () => {
     const split = splitUniqueCountFields(
       ['orders__unique_count', 'channel', 'items__unique_count', 'date'],

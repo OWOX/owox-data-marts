@@ -55,11 +55,12 @@ describe('QueryDataMartTool', () => {
     expect(tool.description).toContain('NOT available on number fields');
   });
 
-  // A model copies the documented example verbatim into `fields`. The display form is not a name
-  // the splitter matches, so it bypasses the purpose-written UnmatchedUniqueCountFieldError, lands
-  // on the generic field_not_found, and burns a billed round-trip (#6792).
+  // A model copies the documented example verbatim into `fields`, so the description must show the
+  // SQL name. The display form is recognised too, but only to reach the purpose-written
+  // UnmatchedUniqueCountFieldError instead of the generic field_not_found (#6792).
   it('illustrates the joined Unique Count field with a name the tool recognises', () => {
     expect(hasUniqueCountFieldCandidate(['orders__unique_count'])).toBe(true);
+    expect(hasUniqueCountFieldCandidate(['Orders Unique Count'])).toBe(true);
     expect(tool.description).toContain('"orders__unique_count"');
     expect(tool.description).not.toContain('"Orders Unique Count"');
     expect(tool.description).not.toContain('"<Prefix> Unique Count"');

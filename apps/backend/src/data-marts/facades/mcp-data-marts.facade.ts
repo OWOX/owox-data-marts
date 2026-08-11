@@ -3,7 +3,7 @@ import type { AggregationConfig } from '../dto/schemas/aggregation-config.schema
 import type { DateTruncConfig } from '../dto/schemas/date-trunc-config.schema';
 import type { SortConfig } from '../dto/schemas/sort-config.schema';
 import type { SourceDataLastUpdated } from '../dto/schemas/source-data-last-updated.schema';
-import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
+import { JOINED_UNIQUE_COUNT_NAME_SUFFIX } from '../dto/schemas/unique-count-sources';
 
 export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
 
@@ -12,7 +12,7 @@ export const MCP_DATA_MARTS_FACADE = Symbol('MCP_DATA_MARTS_FACADE');
  * Published here, next to the DTO that carries those names, so a consumer can recognise one without
  * re-deriving the naming rule from this module's internals (#6792).
  */
-export const MCP_UNIQUE_COUNT_FIELD_SUFFIX = `__${UNIQUE_COUNT_FIELD_TOKEN}`;
+export const MCP_UNIQUE_COUNT_FIELD_SUFFIX = JOINED_UNIQUE_COUNT_NAME_SUFFIX;
 
 export type McpDataMartCatalogStatus = 'published' | 'draft';
 

@@ -44,6 +44,11 @@ function uniqueCountHint(reason: UniqueCountUnavailableReason, dataMartName?: st
 const NOT_EMITTED_NOTE =
   'This Data Mart is not allowed for reporting, so this column is not generated. Allow it for reporting again, or clear this row.';
 
+// A verdict this bundle cannot read (version skew) keeps the selection, but the row must not read
+// as a confirmed one — the report may already be failing server-side and nothing else would say so.
+const UNVERIFIED_NOTE =
+  "This app can't confirm whether this Data Mart can still be counted, so the column may be missing from the report. Your selection is kept — reload the page, and reach your analyst if it stays this way.";
+
 const TRIGGER_BASE_CLASS =
   'min-w-0 truncate text-left font-mono text-xs underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] rounded';
 const TRIGGER_CLASS = `text-muted-foreground hover:text-foreground ${TRIGGER_BASE_CLASS}`;
@@ -100,7 +105,8 @@ export function UniqueCountRow({
       ? undefined
       : uniqueCountHint(availability, dataMartName);
   const notEmitted = checked && !isEmitted;
-  const note = hint ?? (notEmitted ? NOT_EMITTED_NOTE : undefined);
+  const unverified = checked && isEmitted && availability === 'unknown';
+  const note = hint ?? (notEmitted ? NOT_EMITTED_NOTE : unverified ? UNVERIFIED_NOTE : undefined);
   // Every row's visible label is the bare `Unique Count`; only the group heading above it says
   // which Data Mart. A heading is not part of a checkbox's accessible name, so without this every
   // Unique Count in the picker announces identically and none can be told from the others.
@@ -195,12 +201,19 @@ export function UniqueCountRow({
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className='flex h-6 w-6 cursor-default items-center justify-center rounded text-blue-500'>
+                  <span
+                    className={cn(
+                      'flex h-6 w-6 cursor-default items-center justify-center rounded',
+                      unverified ? 'text-muted-foreground' : 'text-blue-500'
+                    )}
+                  >
                     <Sigma className='h-4 w-4' />
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-xs'>
-                  Auto-generated column — counts the distinct values of the primary key.
+                  {unverified
+                    ? 'Auto-generated column — unconfirmed, see the note on the row.'
+                    : 'Auto-generated column — counts the distinct values of the primary key.'}
                 </TooltipContent>
               </Tooltip>
             )}

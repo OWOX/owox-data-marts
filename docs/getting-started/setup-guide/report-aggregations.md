@@ -107,7 +107,7 @@ The **Unique Count** row (at the bottom of the Data Mart's field list) adds a `C
 
 Every [joined Data Mart](./joinable-data-marts.md) offers a Unique Count of its own, at the bottom of that Data Mart's group in the **Columns** picker. In the picker it is simply `Unique Count` — the group heading above already names the Data Mart — with a tooltip naming that Data Mart and the key columns being counted. In the produced file it carries the Data Mart's name like any other joined field: `Unique Count (Orders)` in Google Sheets, `Orders Unique Count` everywhere else. It counts distinct records of **that** Data Mart by **its** primary key, composite keys included.
 
-This answers questions the join alone cannot: *"how many orders per customer"*, or *"how many unique products across a customer's orders"* — without adding the order or product key to the report as a column. Select as many as you need; each joined Data Mart contributes its own column.
+This answers questions the join alone cannot: *"how many orders per customer"*, or *"how many unique products across a customer's orders"* — without adding the order or product key to the report as a column. Select as many as you need; each joined Data Mart contributes its own column — and each one its own `SELECT DISTINCT` pass over that Data Mart, so on a pay-per-scan warehouse a report that ticks several costs more to run.
 
 > ⚠️ A joined Unique Count can be **selected** and **sorted by**, like the report's own Data Mart's Unique Count. It cannot be filtered or aggregated on.
 
