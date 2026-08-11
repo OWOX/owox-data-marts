@@ -10,8 +10,15 @@ import {
   CircleStop,
   CalendarClock,
   SquarePlay,
+  Activity,
+  BarChart3,
+  CircleDot,
+  Bookmark,
+  KeyRound,
+  HelpCircle,
 } from 'lucide-react';
 import { LogLevel } from './types';
+import { LogCategory } from './log-category';
 import { DataMartRunStatus, DataMartRunTriggerType } from '../../../shared';
 
 export function getStatusIcon(status: DataMartRunStatus) {
@@ -77,4 +84,52 @@ export function getTriggerTypeIcon(triggerType: DataMartRunTriggerType | null) {
   ) : (
     <SquarePlay size={iconSize} />
   );
+}
+
+export function getCategoryIcon(category: LogCategory) {
+  switch (category) {
+    case LogCategory.ERROR:
+      return <XCircle className='h-3 w-3 text-red-500' />;
+    case LogCategory.WARNING:
+      return <AlertTriangle className='h-3 w-3 text-yellow-500' />;
+    case LogCategory.TRACE:
+      return <Activity className='text-muted-foreground h-3 w-3' />;
+    case LogCategory.ANALYTICS:
+      return <BarChart3 className='text-muted-foreground h-3 w-3' />;
+    case LogCategory.LIFECYCLE:
+      return <CircleDot className='h-3 w-3 text-blue-500' />;
+    case LogCategory.STATUS:
+      return <CheckCircle className='h-3 w-3 text-green-500' />;
+    case LogCategory.STATE:
+      return <Bookmark className='h-3 w-3 text-purple-500' />;
+    case LogCategory.CREDENTIALS:
+      return <KeyRound className='h-3 w-3 text-amber-500' />;
+    case LogCategory.UNKNOWN:
+      return <HelpCircle className='text-muted-foreground h-3 w-3' />;
+    case LogCategory.LOG:
+    default:
+      return <Info className='h-3 w-3 text-blue-500' />;
+  }
+}
+
+export function getCategoryColor(category: LogCategory) {
+  switch (category) {
+    case LogCategory.ERROR:
+      return 'text-red-600 dark:text-red-400';
+    case LogCategory.WARNING:
+      return 'text-yellow-600 dark:text-yellow-400';
+    case LogCategory.TRACE:
+    case LogCategory.ANALYTICS:
+      return 'text-muted-foreground';
+    case LogCategory.STATUS:
+      return 'text-green-600 dark:text-green-400';
+    case LogCategory.STATE:
+      return 'text-purple-600 dark:text-purple-400';
+    case LogCategory.CREDENTIALS:
+      return 'text-amber-600 dark:text-amber-400';
+    case LogCategory.LIFECYCLE:
+    case LogCategory.LOG:
+    default:
+      return 'text-blue-600 dark:text-blue-400';
+  }
 }

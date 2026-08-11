@@ -64,6 +64,12 @@ import { MCP_REPORTS_FACADE } from './facades/mcp-reports.facade';
 import { McpReportsFacadeImpl } from './facades/mcp-reports.facade.impl';
 import { MCP_SCHEDULED_TRIGGERS_FACADE } from './facades/mcp-scheduled-triggers.facade';
 import { McpScheduledTriggersFacadeImpl } from './facades/mcp-scheduled-triggers.facade.impl';
+import { MCP_CONNECTORS_FACADE } from './facades/mcp-connectors.facade';
+import { McpConnectorsFacadeImpl } from './facades/mcp-connectors.facade.impl';
+import { MCP_CONNECTOR_AUTHORING_FACADE } from './facades/mcp-connector-authoring.facade';
+import { McpConnectorAuthoringFacadeImpl } from './facades/mcp-connector-authoring.facade.impl';
+import { MCP_CONNECTOR_RUN_FACADE } from './facades/mcp-connector-run.facade';
+import { McpConnectorRunFacadeImpl } from './facades/mcp-connector-run.facade.impl';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { ListProjectDataMartRunsService } from './use-cases/list-project-data-mart-runs.service';
 import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
@@ -146,8 +152,13 @@ import { InsightArtifactSqlPreviewTrigger } from './entities/insight-artifact-sq
 import { InsightTemplate } from './entities/insight-template.entity';
 import { InsightTemplateSourceEntity } from './entities/insight-template-source.entity';
 import { ConnectorController } from './controllers/connector.controller';
+import { ConnectorDefinitionController } from './controllers/connector-definition.controller';
 import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
 import { ConnectorService } from './services/connector/connector.service';
+import { ConnectorDefinitionService } from './services/connector/connector-definition.service';
+import { ConnectorTestService } from './services/connector/connector-test.service';
+import { ConnectorDefinition } from './entities/connector-definition.entity';
+import { ConnectorDefinitionVersion } from './entities/connector-definition-version.entity';
 import { ConnectorExecutionService } from './services/connector/connector-execution.service';
 import { ConnectorRunService } from './services/connector/connector-run.service';
 import { ConnectorExecutorService } from './services/connector/connector-executor.service';
@@ -540,6 +551,8 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
       CredentialExternalDefinition,
       CredentialDefinitionVersion,
       CredentialConsumerBinding,
+      ConnectorDefinition,
+      ConnectorDefinitionVersion,
     ]),
     CommonModule,
     IdpModule,
@@ -562,6 +575,7 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     InsightArtifactSqlPreviewTriggerController,
     InsightTemplateController,
     ConnectorController,
+    ConnectorDefinitionController,
     ScheduledTriggerController,
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
@@ -648,6 +662,18 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     {
       provide: MCP_SCHEDULED_TRIGGERS_FACADE,
       useClass: McpScheduledTriggersFacadeImpl,
+    },
+    {
+      provide: MCP_CONNECTORS_FACADE,
+      useClass: McpConnectorsFacadeImpl,
+    },
+    {
+      provide: MCP_CONNECTOR_AUTHORING_FACADE,
+      useClass: McpConnectorAuthoringFacadeImpl,
+    },
+    {
+      provide: MCP_CONNECTOR_RUN_FACADE,
+      useClass: McpConnectorRunFacadeImpl,
     },
     ListDataMartsByConnectorNameService,
     GetDataMartService,
@@ -758,6 +784,8 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     GetDataMartRunService,
     AvailableConnectorService,
     ConnectorService,
+    ConnectorDefinitionService,
+    ConnectorTestService,
     ConnectorExecutionService,
     ConnectorRunService,
     ConnectorExecutorService,
@@ -989,6 +1017,9 @@ import { ConsentCredentialDefinitionService } from './credentials/use-cases/cons
     MCP_DATA_DESTINATIONS_FACADE,
     MCP_REPORTS_FACADE,
     MCP_SCHEDULED_TRIGGERS_FACADE,
+    MCP_CONNECTORS_FACADE,
+    MCP_CONNECTOR_AUTHORING_FACADE,
+    MCP_CONNECTOR_RUN_FACADE,
     ContextAccessService,
     AdvancedSearchIndexSyncService,
   ],
@@ -1007,7 +1038,11 @@ export class DataMartsModule {
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
         { path: 'external/{*path}', method: RequestMethod.ALL },
-        ...MCP_OPERATION_TIMEOUT_EXCLUSIONS
+        ...MCP_OPERATION_TIMEOUT_EXCLUSIONS,
+        // The live connector test manages its own run timeout and always resolves
+        // with a result; the global 408 timer would race that response and throw
+        // ERR_HTTP_HEADERS_SENT, so it must not apply here.
+        { path: 'connectors/custom/test', method: RequestMethod.POST }
       )
       .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
   }

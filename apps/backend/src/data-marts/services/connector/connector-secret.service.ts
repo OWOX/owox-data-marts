@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto';
 import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
-// @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
 export const SECRET_MASK = '**********' as const;
@@ -46,8 +45,14 @@ export class ConnectorSecretService {
    * @param specification Connector specification
    * @returns Set of all secret field names including nested ones
    */
-  private async getAllSecretFieldNames(connectorName: string): Promise<Set<string>> {
-    const specification = await this.connectorService.getConnectorSpecification(connectorName);
+  private async getAllSecretFieldNames(
+    projectId: string | undefined,
+    connectorName: string,
+    version?: number
+  ): Promise<Set<string>> {
+    const specification = projectId
+      ? await this.connectorService.resolveConnectorSpecification(projectId, connectorName, version)
+      : await this.connectorService.getConnectorSpecification(connectorName);
     const secretFields = new Set<string>();
 
     const collectSecretFields = (fields: unknown[]): void => {
@@ -314,7 +319,11 @@ export class ConnectorSecretService {
     definition: ConnectorDefinition,
     userId?: string
   ): Promise<ConnectorDefinition> {
-    const secretFieldNames = await this.getAllSecretFieldNames(connectorName);
+    const secretFieldNames = await this.getAllSecretFieldNames(
+      projectId,
+      connectorName,
+      definition.connector.source.version
+    );
     const hasGeneratedRefreshToken = this.hasGeneratedRefreshTokenRecursively(
       definition.connector.source.configuration
     );
@@ -546,20 +555,110 @@ export class ConnectorSecretService {
   }
 
   /**
+   * Masks a definition when the specification that says which fields are secret cannot be
+   * resolved — a custom connector that is no longer published, an unknown name.
+   *
+   * Every configuration value is masked, because without the specification there is no way
+   * to tell a credential from a page size, and the previous behaviour — returning the
+   * definition untouched — handed a viewer whatever was still stored inline. That is not
+   * hypothetical: a parameter the manifest never marked SECRET is never externalised into
+   * connector_source_credentials, so its value lives in `data_mart.definition` and goes out
+   * through GET /data-marts/:id, which only requires Role.viewer().
+   *
+   * Masking rather than throwing, because every caller of {@link mask} is display-only
+   * (data-mart.mapper's response + run paths, list-project-scheduled-triggers). A throw would
+   * turn an unresolvable connector into an unreadable Data Mart, hiding the very record whose
+   * connector the author has to repair, and it would gain nothing: the config form is rendered
+   * from that same missing specification, so there is no form here to fill in anyway.
+   *
+   * Over-masking cannot corrupt a later edit. {@link mergeDefinitionSecrets},
+   * {@link mergeDefinitionSecretsFromSource} and {@link extractAndSaveSecrets} all resolve the
+   * same specification with no fallback of their own, so while this path is live no update can
+   * land; and once the specification resolves again, {@link mask} takes its normal path and
+   * only true SECRET fields come back masked.
+   *
+   * @param definition Connector definition to mask without a specification
+   * @returns A new definition whose configuration holds no values
+   */
+  private maskWithoutSpecification(definition: ConnectorDefinition): ConnectorDefinition {
+    return {
+      ...definition,
+      connector: {
+        ...definition.connector,
+        source: {
+          ...definition.connector.source,
+          configuration: this.maskEveryValueRecursively(definition.connector.source.configuration),
+        },
+      },
+    } as ConnectorDefinition;
+  }
+
+  /**
+   * Replaces every value with {@link SECRET_MASK}, preserving structure.
+   *
+   * Underscore-prefixed keys keep their values: `_id`, `_secrets_id` and
+   * `_source_credential_id` are bookkeeping the client round-trips, not user-entered values,
+   * and the rest of this service skips them the same way. The generated refresh token is
+   * dropped outright, exactly as {@link maskRecursively} does.
+   *
+   * @param value Configuration value, object or array
+   * @returns The masked copy
+   */
+  private maskEveryValueRecursively(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map(element => this.maskEveryValueRecursively(element));
+    }
+
+    if (value && typeof value === 'object') {
+      const masked: Record<string, unknown> = {};
+      for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+        if (key === GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD) {
+          continue;
+        }
+        masked[key] = key.startsWith('_') ? nested : this.maskEveryValueRecursively(nested);
+      }
+      return masked;
+    }
+
+    // Keep "no value" distinguishable from "a value being hidden", as the
+    // specification-driven path does — an empty field must not look filled in.
+    if (value === undefined || value === null || value === '') {
+      return value;
+    }
+    return SECRET_MASK;
+  }
+
+  /**
    * Masks all secret fields in the connector definition configuration.
    *
    * If the definition is absent or there are no secret fields in the
-   * specification, returns the input as is.
+   * specification, returns the input as is. If the specification cannot be resolved at
+   * all, it fails closed — see {@link maskWithoutSpecification}.
    *
+   * @param projectId Project ID used to resolve the connector specification (supports custom connectors); pass undefined for the run-display path
    * @param definition Connector definition to mask
    * @returns A new definition object with masked configuration or the original value
    */
   async mask(
+    projectId: string | undefined,
     definition: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition | undefined> {
     if (!definition) return definition;
 
-    const secretFieldNames = await this.getAllSecretFieldNames(definition.connector.source.name);
+    let secretFieldNames: Set<string>;
+    try {
+      secretFieldNames = await this.getAllSecretFieldNames(
+        projectId,
+        definition.connector.source.name,
+        definition.connector.source.version
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve specification for connector "${definition.connector.source.name}" while masking; masking every configuration value`,
+        error instanceof Error ? error.stack : String(error)
+      );
+      return this.maskWithoutSpecification(definition);
+    }
     const hasGeneratedRefreshToken = this.hasGeneratedRefreshTokenRecursively(
       definition.connector.source.configuration
     );
@@ -654,15 +753,21 @@ export class ConnectorSecretService {
    * and merges them with incoming values. The `_secrets_id` is preserved in the result
    * unless the incoming item now uses OAuth credentials.
    *
+   * @param projectId Project ID used to resolve the connector specification (supports custom connectors)
    * @param incoming New definition coming from the client
    * @param previous Previously stored definition used as a source of truth for secrets
    * @returns Definition with correctly merged secret values
    */
   async mergeDefinitionSecrets(
+    projectId: string,
     incoming: ConnectorDefinition,
     previous: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition> {
-    const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
+    const secretFieldNames = await this.getAllSecretFieldNames(
+      projectId,
+      incoming.connector.source.name,
+      incoming.connector.source.version
+    );
     const previousConfiguration = previous?.connector?.source?.configuration || [];
 
     const mergedConfiguration = await Promise.all(
@@ -836,6 +941,7 @@ export class ConnectorSecretService {
    *    configuration array containing items with properly merged secrets from their
    *    respective source configurations.
    *
+   * @param projectId Project ID used to resolve the connector specification (supports custom connectors)
    * @param incoming New definition coming from the client, may have mixed configurations (some with _copiedFrom, some without)
    * @param sourceDefinition Definition from the source Data Mart to copy secrets from
    * @returns Definition with correctly merged secret values from source configurations
@@ -843,6 +949,7 @@ export class ConnectorSecretService {
    * @throws Error if source configuration with specified _id is not found (when _copiedFrom is present)
    */
   async mergeDefinitionSecretsFromSource(
+    projectId: string,
     incoming: ConnectorDefinition,
     sourceDefinition: ConnectorDefinition
   ): Promise<ConnectorDefinition> {
@@ -854,7 +961,14 @@ export class ConnectorSecretService {
       );
     }
 
-    const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
+    // Doubles as the existence guard: this resolves the connector specification
+    // (bundled or custom) and throws NotFoundException for an unknown name, so
+    // merging can never silently produce a definition nothing can run.
+    const secretFieldNames = await this.getAllSecretFieldNames(
+      projectId,
+      incoming.connector.source.name,
+      incoming.connector.source.version
+    );
     const sourceSecretsIds = sourceDefinition.connector.source.configuration
       .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
       .filter((id): id is string => !!id);

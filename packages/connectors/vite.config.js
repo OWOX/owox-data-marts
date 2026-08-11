@@ -3,10 +3,11 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { glob } from 'glob';
 import { fileURLToPath } from 'url';
+import { ManifestParser } from './src/Core/Declarative/ManifestParser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-class ConnectorBuilder {
+export class ConnectorBuilder {
   constructor() {
     this.rootDir = __dirname;
     this.srcDir = path.join(this.rootDir, 'src');
@@ -26,21 +27,27 @@ class ConnectorBuilder {
     for (const dir of connectorDirs) {
       const name = path.basename(dir);
       const connectorPath = path.join(this.rootDir, dir);
-      const connectorFile = path.join(connectorPath, 'Connector.js');
-
-      if (!(await fs.pathExists(connectorFile))) {
-        continue;
-      }
-
-      // Get all JS files for this connector
-      const files = await glob('**/*.js', {
-        cwd: connectorPath,
-        ignore: ['**/node_modules/**'],
-      });
+      // Source.js is the discovery anchor for JS connectors.
+      // Connector.js is being phased out (was the legacy entry point), so we
+      // anchor on Source.js to keep discovery working before, during, and
+      // after the migration. Connector.js, if present, is still bundled by
+      // buildConnectorModules() because it uses the glob'd file list.
+      const sourceFile = path.join(connectorPath, 'Source.js');
+      const manifestPath = path.join(connectorPath, 'manifest.json');
+      const hasSource = await fs.pathExists(sourceFile);
+      const hasManifest = await fs.pathExists(manifestPath);
 
       let manifest = null;
-      if (await fs.pathExists(path.join(connectorPath, 'manifest.json'))) {
-        manifest = JSON.parse(await fs.readFile(path.join(connectorPath, 'manifest.json'), 'utf8'));
+      let manifestRaw = null;
+      if (hasManifest) {
+        manifestRaw = await fs.readFile(manifestPath, 'utf8');
+        try {
+          manifest = JSON.parse(manifestRaw);
+        } catch (e) {
+          // Name the connector. A bare SyntaxError from JSON.parse says only
+          // "Unexpected token" with no hint which of ~16 manifests it came from.
+          throw new Error(`Connector "${name}": manifest.json is not valid JSON — ${e.message}`);
+        }
 
         // Convert logo to base64 if it exists
         if (manifest.logo) {
@@ -61,11 +68,51 @@ class ConnectorBuilder {
         }
       }
 
+      // A connector is declarative when it has a manifest with `nodes` and no Source.js.
+      const isDeclarative = !hasSource && !!(manifest && manifest.nodes);
+
+      // A directory under src/Sources/ that is neither a JS nor a declarative connector is a
+      // mistake, not a valid state -- so fail the build instead of dropping it. Skipping it
+      // silently is worse than it sounds: the connector simply vanishes from the bundle, and
+      // the only thing that notices is a backend e2e length assertion in another package,
+      // which reports "expected 16, got 15" without naming what went missing.
+      if (!hasSource && !isDeclarative) {
+        throw new Error(
+          `Connector "${name}": not a connector. A JS connector needs Source.js; a declarative ` +
+            `one needs a manifest.json with a "nodes" key (found ` +
+            `${hasManifest ? 'a manifest.json without "nodes"' : 'no manifest.json'}). ` +
+            `Remove the directory if it is not a connector.`
+        );
+      }
+
+      // Validate a bundled declarative manifest against the same parser that runs it. Without
+      // this the build only JSON.parse()s the file, so a manifest that is valid JSON but invalid
+      // grammar ships green and fails at runtime -- meaning our own bundled connectors would get
+      // LESS validation than user-authored ones, which the backend parses on publish.
+      //
+      // This narrows the gap, it does not close it: the parser rejects missing/misnamed required
+      // keys, malformed auth, a recordPath that is not an array, and a pagination or incremental
+      // block that could not work at run time — but still accepts some shape errors (e.g. a
+      // request path missing its leading "/").
+      if (isDeclarative) {
+        try {
+          new ManifestParser().parse(manifestRaw);
+        } catch (e) {
+          throw new Error(`Connector "${name}": declarative manifest is invalid — ${e.message}`);
+        }
+      }
+
+      // Declarative connectors contribute no JS files; JS connectors glob their files.
+      const files = hasSource
+        ? await glob('**/*.js', { cwd: connectorPath, ignore: ['**/node_modules/**'] })
+        : [];
+
       connectors.push({
         name,
         path: dir,
         files: files.map(f => path.join(dir, f)),
         manifest,
+        isDeclarative,
       });
     }
 
@@ -186,7 +233,17 @@ class ConnectorBuilder {
     let content = '// === CORE MODULE ===\n';
 
     // Get all core files
-    const coreFiles = await glob('src/Core/**/*.js', { cwd: this.rootDir });
+    const coreFilesRaw = await glob('src/Core/**/*.js', { cwd: this.rootDir });
+    // Order so base classes come before subclasses. The bundle is concatenated
+    // into a single scope; class declarations are NOT hoisted, so a subclass
+    // file processed before its base class hits a temporal dead zone at load.
+    const coreFiles = coreFilesRaw.sort((a, b) => {
+      const aBase = path.basename(a).startsWith('Abstract') || path.basename(a) === 'BaseEvent.js';
+      const bBase = path.basename(b).startsWith('Abstract') || path.basename(b) === 'BaseEvent.js';
+      if (aBase && !bBase) return -1;
+      if (!aBase && bBase) return 1;
+      return a.localeCompare(b);
+    });
     const constantFiles = await glob('src/Constants/*.js', { cwd: this.rootDir });
     const configFiles = await glob('src/Configs/**/*.js', { cwd: this.rootDir });
 
@@ -197,8 +254,9 @@ class ConnectorBuilder {
     for (const file of [...constantFiles, ...coreFiles, ...configFiles]) {
       const filePath = path.join(this.rootDir, file);
       const fileContent = await fs.readFile(filePath, 'utf8');
-      const classNames = this.extractClassNames(fileContent);
 
+      // Extract names from ORIGINAL (pre-strip) content so `export class X` is recognised
+      const classNames = this.extractClassNames(fileContent);
       allCoreClasses.push(...classNames);
 
       // For constants files, also extract constants
@@ -207,9 +265,12 @@ class ConnectorBuilder {
         allConstants.push(...constantNames);
       }
 
-      // Add file content
+      // Strip imports/exports for bundle inclusion (Vite concatenates into one scope,
+      // so ES module syntax causes duplicate-identifier and duplicate-export errors)
+      const processedContent = await this.processEntityFile(fileContent, 'core');
+
       content += `\n// From ${file}\n`;
-      content += fileContent + '\n';
+      content += processedContent + '\n';
     }
 
     // Create Core module export
@@ -377,11 +438,28 @@ class ConnectorBuilder {
    * @returns {string} The processed content
    */
   async processEntityFile(content, connectorName) {
-    // Remove any existing imports/exports since we're bundling
+    // Remove any existing imports/exports since we're bundling.
+    // Vite concatenates these files into a single scope, so ES module syntax
+    // produces duplicate-identifier and duplicate-export errors.
     let processedContent = content
-      .replace(/^import\s+.*$/gm, '') // Remove import statements
-      .replace(/^export\s+.*$/gm, '') // Remove export statements
-      .replace(/module\.exports\s*=.*$/gm, ''); // Remove CommonJS exports
+      // Drop import statements (single-line and multi-line `import { ... } from '...'`)
+      .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
+      // Drop bare side-effect imports like `import './foo.js';`
+      .replace(/^import\s+['"][^'"]+['"];?\s*$/gm, '')
+      // Drop any remaining single-line import lines (legacy fallback)
+      .replace(/^import\s+.*$/gm, '')
+      // Drop re-exports like `export { X } from './X.js';` and `export * from './X.js';`
+      .replace(/^export\s*\*\s+from\s+.*$/gm, '')
+      .replace(/^export\s*\{[\s\S]*?\}\s*from\s+.*$/gm, '')
+      // Drop bare named exports like `export { X };` (no `from`)
+      .replace(/^export\s*\{[\s\S]*?\}\s*;?\s*$/gm, '')
+      // Strip the `export` (and optional `default`) keyword while preserving
+      // the declaration that follows: `export class X` -> `class X`,
+      // `export const X = ...` -> `const X = ...`, etc.
+      .replace(/^export\s+default\s+/gm, '')
+      .replace(/^export\s+(?=(?:class|function|const|let|var|async)\b)/gm, '')
+      // Drop CommonJS exports
+      .replace(/module\.exports\s*=.*$/gm, '');
 
     return processedContent;
   }
@@ -561,6 +639,14 @@ export default defineConfig({
     minify: false,
     rollupOptions: {
       external: [
+        // Node builtins must stay external. Without this, vite's lib build
+        // resolves a `node:*` specifier to its browser-externals stub, whose
+        // members are all undefined -- so `import('node:dns/promises')` yielded
+        // a module whose `lookup` was not a function. SsrfGuard's DNS
+        // resolve-and-validate check is the only consumer today, and it failed
+        // exactly that way. A pattern (not a single entry) so the next Core file
+        // to need a builtin does not rediscover this.
+        /^node:/,
         '@owox/connectors',
         'adm-zip',
         '@google-cloud/bigquery',

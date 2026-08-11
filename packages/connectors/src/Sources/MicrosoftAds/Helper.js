@@ -12,8 +12,8 @@ const MicrosoftAdsHelper = {
    * @return {Object} Object with node names as keys and arrays of field names as values
    */
   parseFields(fieldsString) {
-    return fieldsString.split(", ").reduce((acc, pair) => {
-      let [key, value] = pair.split(" ");
+    return fieldsString.split(', ').reduce((acc, pair) => {
+      let [key, value] = pair.split(' ');
       (acc[key] = acc[key] || []).push(value.trim());
       return acc;
     }, {});
@@ -38,8 +38,8 @@ const MicrosoftAdsHelper = {
         if (Date.now() - startTime > timeout) {
           throw new Error('Polling timed out after 30 minutes');
         }
-        const response = await HttpUtils.fetch(url, options);
-        const text = await response.getContentText();
+        const response = await fetch(url, options);
+        const text = await response.text();
         statusResult = JSON.parse(text);
 
         // Only delay if we need to poll again
@@ -63,8 +63,9 @@ const MicrosoftAdsHelper = {
    * @returns {Array<Array<string>>}
    */
   async downloadCsvRows(url) {
-    const response = await HttpUtils.fetch(url);
-    const blob = await response.getBlob();
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = Buffer.from(arrayBuffer);
     const files = FileUtils.unzip(blob);
     let allRows = [];
     files.forEach(file => {
@@ -87,8 +88,9 @@ const MicrosoftAdsHelper = {
    * @returns {Promise<void>}
    */
   async processCsvRecordsFromUrl(url, onRecordsChunk, chunkSize = 2000) {
-    const response = await HttpUtils.fetch(url);
-    const blob = await response.getBlob();
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = Buffer.from(arrayBuffer);
     const files = FileUtils.unzip(blob);
     for (const file of files) {
       await this.processCsvTextInChunks(file.getDataAsString(), onRecordsChunk, chunkSize);
@@ -184,5 +186,5 @@ const MicrosoftAdsHelper = {
     });
 
     return campaigns.map(campaign => campaign.Id);
-  }
+  },
 };

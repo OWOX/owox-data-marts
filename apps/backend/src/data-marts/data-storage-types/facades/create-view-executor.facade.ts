@@ -18,9 +18,10 @@ export class CreateViewExecutorFacade {
     credentials: DataStorageCredentials,
     config: DataStorageConfig,
     viewName: string,
-    sql: string
+    sql: string,
+    storageId?: string
   ): Promise<CreateViewResult> {
     const executor = await this.resolver.resolve(type);
-    return executor.createView(credentials, config, viewName, sql);
+    return executor.createView(credentials, config, viewName, sql, storageId);
   }
 }

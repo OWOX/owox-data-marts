@@ -152,7 +152,9 @@ async function _resolveShortLink(linkObj) {
   try {
     return { originalUrl, resolvedUrl: await _followRedirects(originalUrl) };
   } catch (error) {
-    console.log(`Failed to resolve short link ${originalUrl}: ${error.message}`);
+    // Context-less helper: write to stderr (not stdout) so this best-effort
+    // diagnostic is not picked up by the host's stdout message parser.
+    console.warn(`Failed to resolve short link ${originalUrl}: ${error.message}`);
     return { originalUrl, resolvedUrl: originalUrl };
   }
 }
@@ -171,7 +173,9 @@ async function _followRedirects(startUrl) {
     if (!_isPublicHttpUrl(currentUrl)) {
       throw new Error(`Refusing to request non-public URL ${currentUrl}`);
     }
-    const response = await HttpUtils.fetch(currentUrl, {
+    // Native fetch: Node returns the 3xx itself under `redirect: 'manual'`, with a
+    // readable status and Location, so each hop can be vetted before it is followed.
+    const response = await fetch(currentUrl, {
       method: 'GET',
       redirect: 'manual',
       signal: AbortSignal.timeout(SHORT_LINK_FETCH_TIMEOUT_MS)
@@ -187,15 +191,14 @@ async function _followRedirects(startUrl) {
 /**
  * Returns the Location header of a redirect response, or null for a final response
  *
- * @param {Object} response - Fetch response wrapper
+ * @param {Response} response - Native fetch Response
  * @return {string|null} Redirect target or null
  * @private
  */
 function _getRedirectLocation(response) {
-  const status = response.getResponseCode();
+  const status = response.status;
   if (status < 300 || status > 399) return null;
-  const headers = response.getHeaders() || {};
-  return headers.location || headers.Location || null;
+  return response.headers.get('location');
 }
 
 //---- _isPublicHttpUrl ---------------------------------------------------

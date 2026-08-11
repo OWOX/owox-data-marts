@@ -11,6 +11,15 @@ import { ConnectorMessageType } from '../../enums/connector-message-type-enum';
 import { MessageErrorSchema } from './types/message-error.schema';
 import { MessageIsInProgressSchema } from './types/message-is-in-progress.schema';
 
+const EXECUTION_STATUS_LABELS: Record<number, string> = {
+  1: 'Import in progress',
+  2: 'Cleanup in progress',
+  3: 'Import done',
+  4: 'Cleanup done',
+  5: 'Error',
+};
+const statusLabel = (status: number): string => EXECUTION_STATUS_LABELS[status] ?? String(status);
+
 export const ConnectorMessageSchema = z
   .discriminatedUnion('type', [
     MessageLogSchema,
@@ -31,7 +40,7 @@ export const ConnectorMessageSchema = z
           return `[LOG] ${data.message}`;
 
         case ConnectorMessageType.STATUS:
-          return `[STATUS] ${data.status}`;
+          return `[STATUS] ${statusLabel(data.status)}`;
 
         case ConnectorMessageType.STATE: {
           return `[STATE] ${data.date}`;

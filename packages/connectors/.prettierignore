@@ -6,4 +6,12 @@ src/
 
 # Standard ignores
 node_modules/
-*.log 
+*.log
+
+# Local-only fixture files. tests/.gitignore keeps every *.fixture.json out of the
+# repo except example.fixture.json, because the others carry real staging
+# credentials. Without mirroring that here, `format:check` walks whatever a
+# developer happens to have on disk and reports style issues in ~29 files that do
+# not exist in a clean checkout -- a permanently red local gate on nothing.
+tests/fixtures/*.fixture.json
+!tests/fixtures/example.fixture.json 

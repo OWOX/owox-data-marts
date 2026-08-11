@@ -19,6 +19,7 @@ import {
   ConnectorSetupButton,
   ConnectorConfigurationItem,
   AddConfigurationButton,
+  ConnectorVersionControl,
   isConnectorDefinition,
   isConnectorConfigured,
 } from '../../../../../connectors/edit/components/ConnectorDefinitionField';
@@ -31,6 +32,7 @@ interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
   storageType: DataStorageType;
   preset?: string;
+  connectorName?: string | null;
   autoOpen?: boolean;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
@@ -39,6 +41,7 @@ export function ConnectorDefinitionField({
   control,
   storageType,
   preset,
+  connectorName,
   autoOpen = false,
   saveDataMartDefinition,
 }: ConnectorDefinitionFieldProps) {
@@ -136,6 +139,24 @@ export function ConnectorDefinitionField({
       await applyDefinitionAndSave(updatedDefinition);
     }
     setIsEditSheetOpen(false);
+  };
+
+  const updateConnectorVersion = async (version?: number) => {
+    const currentValues = getValues();
+    const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
+
+    if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
+      const updatedDefinition: ConnectorDefinitionConfig = {
+        connector: {
+          ...currentDefinition.connector,
+          source: {
+            ...currentDefinition.connector.source,
+            version,
+          },
+        },
+      };
+      await applyDefinitionAndSave(updatedDefinition);
+    }
   };
 
   const renderEditFieldsButton = (connectorDef: ConnectorDefinitionConfig) => {
@@ -256,6 +277,7 @@ export function ConnectorDefinitionField({
                       setIsSetupSheetOpen(false);
                     }}
                     preset={preset}
+                    connectorName={connectorName}
                     isOpen={isSetupSheetOpen}
                     onClose={() => {
                       setIsSetupSheetOpen(false);
@@ -284,6 +306,15 @@ export function ConnectorDefinitionField({
                         )}
                         {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
                           renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
+                        {isConnectorConfigured(field.value as ConnectorDefinitionConfig) && (
+                          <ConnectorVersionControl
+                            info={(field.value as ConnectorDefinitionConfig).connector.info}
+                            version={
+                              (field.value as ConnectorDefinitionConfig).connector.source.version
+                            }
+                            onChangeVersion={v => void updateConnectorVersion(v)}
+                          />
+                        )}
                       </div>
                     </div>
                     <div className='space-y-3'>
