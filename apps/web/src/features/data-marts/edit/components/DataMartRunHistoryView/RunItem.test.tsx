@@ -395,6 +395,93 @@ describe('RunItem', () => {
       expect.objectContaining({ signal: expect.anything() })
     );
   });
+
+  describe('category filter chips', () => {
+    const at = '2026-06-04T12:00:00.000Z';
+    const runWithLogs = () =>
+      createRun({
+        status: DataMartRunStatus.SUCCESS,
+        logs: [
+          JSON.stringify({ type: 'log', at, eventType: 'LOG', message: 'hello world' }),
+          JSON.stringify({ type: 'log', at, eventType: 'TRACE', message: '[TRACE] http.request' }),
+        ],
+        errors: [JSON.stringify({ type: 'error', at, error: 'boom failure' })],
+      });
+
+    it('renders one chip per present category with counts and shows all rows by default', () => {
+      renderRunItem(runWithLogs(), true);
+
+      expect(screen.getByRole('button', { name: /Log 1/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Trace 1/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Error 1/i })).toBeInTheDocument();
+
+      expect(screen.getByText('hello world')).toBeInTheDocument();
+      expect(screen.getByText('[TRACE] http.request')).toBeInTheDocument();
+      expect(screen.getByText('boom failure')).toBeInTheDocument();
+    });
+
+    it('hides a category’s rows when its chip is toggled off', () => {
+      renderRunItem(runWithLogs(), true);
+
+      fireEvent.click(screen.getByRole('button', { name: /Trace 1/i }));
+
+      expect(screen.queryByText('[TRACE] http.request')).not.toBeInTheDocument();
+      expect(screen.getByText('hello world')).toBeInTheDocument();
+      expect(screen.getByText('boom failure')).toBeInTheDocument();
+    });
+  });
+
+  it('renders logs newest-first by default', () => {
+    renderRunItem(
+      createRun({
+        status: DataMartRunStatus.SUCCESS,
+        logs: [
+          JSON.stringify({
+            type: 'log',
+            at: '2026-06-04T12:00:00.000Z',
+            eventType: 'LOG',
+            message: 'older line',
+          }),
+          JSON.stringify({
+            type: 'log',
+            at: '2026-06-04T12:05:00.000Z',
+            eventType: 'LOG',
+            message: 'newer line',
+          }),
+        ],
+      }),
+      true
+    );
+    const older = screen.getByText('older line');
+    const newer = screen.getByText('newer line');
+    // newest-first: 'newer line' comes BEFORE 'older line' in DOM order
+    expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders the load-status strip after the log controls', () => {
+    const at = '2026-06-04T12:00:00.000Z';
+    renderRunItem(
+      createRun({
+        status: DataMartRunStatus.SUCCESS,
+        logs: [
+          JSON.stringify({
+            type: 'log',
+            at,
+            eventType: 'ANALYTICS',
+            metric: 'rows_written',
+            value: 250,
+            tags: { node: 'coins' },
+            message: '[ANALYTICS] rows_written=250',
+          }),
+        ],
+      }),
+      true
+    );
+    const strip = screen.getByTestId('load-status-strip');
+    const search = screen.getByPlaceholderText('Search logs...');
+    // strip must come AFTER the controls' search box in DOM order
+    expect(search.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 function createQualityRun(): DataMartRunItem {

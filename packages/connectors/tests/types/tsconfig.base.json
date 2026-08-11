@@ -1,0 +1,14 @@
+{
+  "//": "Shared compiler options for the @owox/connectors type-level tests.",
+  "//2": "Each leaf tsconfig pins a specific module/moduleResolution to exercise a",
+  "//3": "distinct resolution algorithm against the package's real package.json.",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": [],
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

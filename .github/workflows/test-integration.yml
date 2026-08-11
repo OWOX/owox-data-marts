@@ -42,6 +42,10 @@ jobs:
           # only the working column-preservation suite runs here.
           - name: Google Sheets (column preservation)
             pattern: google-sheets-column-preservation.integration
+          # Connector Builder "Test" action against a real, no-auth public API
+          # (api.sampleapis.com). Needs only outbound network — no credentials.
+          - name: Connector Builder (sampleapis live fetch)
+            pattern: connector-builder-sampleapis.integration
 
     steps:
       - name: Checkout repository
@@ -65,6 +69,8 @@ jobs:
         run: npm run test:integration -w @owox/backend -- ${{ matrix.suite.pattern }}
         env:
           NODE_ENV: test
+          # Connector Builder live-fetch suite (public API, no secret needed)
+          RUN_SAMPLEAPIS_INTEGRATION: '1'
           # BigQuery
           BQ_PROJECT_ID: ${{ secrets.BQ_PROJECT_ID }}
           BQ_DATASET: ${{ secrets.BQ_DATASET }}

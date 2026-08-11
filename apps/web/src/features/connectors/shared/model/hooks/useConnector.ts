@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ConnectorActionType, useConnectorContext } from '../context';
 import { ConnectorApiService } from '../../api';
 import { mapConnectorListFromDto } from '../mappers/connector-list.mapper';
+import type { ConnectorListItem } from '../types/connector';
 import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useConnector() {
@@ -47,11 +48,17 @@ export function useConnector() {
   }, [dispatch]);
 
   const fetchConnectorSpecification = useCallback(
-    async (connectorName: string) => {
+    async (connector: ConnectorListItem) => {
       dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_START });
       try {
         const connectorApiService = new ConnectorApiService();
-        const response = await connectorApiService.getConnectorSpecification(connectorName);
+        const response =
+          connector.isCustom && connector.id
+            ? await connectorApiService.getCustomConnectorSpecification(
+                connector.id,
+                connector.version
+              )
+            : await connectorApiService.getConnectorSpecification(connector.name);
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_SUCCESS,
           payload: response,
@@ -66,7 +73,7 @@ export function useConnector() {
           event: 'connector_error',
           category: 'Connector',
           action: 'SpecificationError',
-          label: connectorName,
+          label: connector.name,
         });
       }
     },
@@ -74,7 +81,7 @@ export function useConnector() {
   );
 
   const fetchConnectorFields = useCallback(
-    async (connectorName: string) => {
+    async (connector: ConnectorListItem) => {
       const requestId = fieldsRequestIdRef.current + 1;
       fieldsRequestIdRef.current = requestId;
       previewAbortControllerRef.current?.abort();
@@ -82,7 +89,10 @@ export function useConnector() {
       dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_START });
       try {
         const connectorApiService = new ConnectorApiService();
-        const response = await connectorApiService.getConnectorFields(connectorName);
+        const response =
+          connector.isCustom && connector.id
+            ? await connectorApiService.getCustomConnectorFields(connector.id, connector.version)
+            : await connectorApiService.getConnectorFields(connector.name);
         if (requestId !== fieldsRequestIdRef.current) return;
         dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS, payload: response });
       } catch (error) {
@@ -96,7 +106,7 @@ export function useConnector() {
           event: 'connector_error',
           category: 'Connector',
           action: 'FieldsError',
-          label: connectorName,
+          label: connector.name,
         });
       }
     },

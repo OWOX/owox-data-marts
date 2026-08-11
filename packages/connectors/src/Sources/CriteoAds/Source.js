@@ -5,125 +5,265 @@
  * file that was distributed with this source code.
  */
 
-const CRITEO_API_VERSION = "2026-01";
+import { AbstractSource } from '../../Core/AbstractSource.js';
+
+const CRITEO_API_VERSION = '2026-01';
+// Refresh the access token this long before it actually expires, so a request
+// in flight during a long import never races the expiry (bounded to half the
+// token lifetime for very short-lived tokens).
 const CRITEO_TOKEN_REFRESH_BUFFER_MS = 60000;
 // Source: Criteo v2026.01 Campaign Statistics docs, "Currencies" section.
 // Advisory only: membership produces a warning, not an error, because this
 // list drifts as Criteo adds currencies — the API is the authority.
 const CRITEO_SUPPORTED_CURRENCIES = new Set([
-  "EUR", "USD", "GBP", "CHF", "JPY", "BGN", "CZK", "DKK", "HUF", "LTL",
-  "PLN", "RON", "SEK", "NOK", "HRK", "RUB", "TRY", "AUD", "BRL", "CAD",
-  "CNY", "HKD", "IDR", "INR", "KRW", "MXN", "MYR", "NZD", "PHP", "SGD",
-  "THB", "ZAR", "ARS", "COP", "AED", "KZT", "SAR", "UAH", "EGP", "MAD",
-  "ILS", "BHD", "JOD", "KWD", "LBP", "OMR", "QAR", "NGN", "KES", "ALL",
-  "ETB", "BSD", "BDT", "BAM", "BWP", "MMK", "AFN", "BTN", "GEL", "GHS",
-  "GIP", "ISK", "KHR", "JMD", "LAK", "MKD", "MUR", "MNT", "NPR", "NAD",
-  "PKR", "RWF", "LKR", "SZL", "TZS", "TTD", "UGX", "ZMW", "BOB", "CRC",
-  "DOP", "GTQ", "HNL", "NIO", "PAB", "PYG", "PEN", "UYU", "VEF", "XAF",
-  "XOF", "HTG", "MGA", "DZD", "IQD", "LYD", "TND", "YER", "BND", "AOA",
-  "MZN", "AMD", "AZN", "KGS", "TJS", "UZS", "MDL", "RSD", "XPF", "MOP",
-  "VND", "TWD", "CLP"
+  'EUR',
+  'USD',
+  'GBP',
+  'CHF',
+  'JPY',
+  'BGN',
+  'CZK',
+  'DKK',
+  'HUF',
+  'LTL',
+  'PLN',
+  'RON',
+  'SEK',
+  'NOK',
+  'HRK',
+  'RUB',
+  'TRY',
+  'AUD',
+  'BRL',
+  'CAD',
+  'CNY',
+  'HKD',
+  'IDR',
+  'INR',
+  'KRW',
+  'MXN',
+  'MYR',
+  'NZD',
+  'PHP',
+  'SGD',
+  'THB',
+  'ZAR',
+  'ARS',
+  'COP',
+  'AED',
+  'KZT',
+  'SAR',
+  'UAH',
+  'EGP',
+  'MAD',
+  'ILS',
+  'BHD',
+  'JOD',
+  'KWD',
+  'LBP',
+  'OMR',
+  'QAR',
+  'NGN',
+  'KES',
+  'ALL',
+  'ETB',
+  'BSD',
+  'BDT',
+  'BAM',
+  'BWP',
+  'MMK',
+  'AFN',
+  'BTN',
+  'GEL',
+  'GHS',
+  'GIP',
+  'ISK',
+  'KHR',
+  'JMD',
+  'LAK',
+  'MKD',
+  'MUR',
+  'MNT',
+  'NPR',
+  'NAD',
+  'PKR',
+  'RWF',
+  'LKR',
+  'SZL',
+  'TZS',
+  'TTD',
+  'UGX',
+  'ZMW',
+  'BOB',
+  'CRC',
+  'DOP',
+  'GTQ',
+  'HNL',
+  'NIO',
+  'PAB',
+  'PYG',
+  'PEN',
+  'UYU',
+  'VEF',
+  'XAF',
+  'XOF',
+  'HTG',
+  'MGA',
+  'DZD',
+  'IQD',
+  'LYD',
+  'TND',
+  'YER',
+  'BND',
+  'AOA',
+  'MZN',
+  'AMD',
+  'AZN',
+  'KGS',
+  'TJS',
+  'UZS',
+  'MDL',
+  'RSD',
+  'XPF',
+  'MOP',
+  'VND',
+  'TWD',
+  'CLP',
 ]);
 
-var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
+export class CriteoAdsSource extends AbstractSource {
+  constructor(context) {
+    super(context);
 
-  constructor(configRange) {
-
-    super(configRange.mergeParameters({
+    this.parameters = {
       StartDate: {
-        requiredType: "date",
-        label: "Start Date",
-        description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       EndDate: {
-        requiredType: "date",
-        label: "End Date",
-        description: "End date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+        requiredType: 'date',
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM],
       },
       AdvertiserIDs: {
         isRequired: true,
-        label: "Advertiser IDs",
-        description: "Criteo Advertiser IDs to fetch data from"
+        label: 'Advertiser IDs',
+        description: 'Criteo Advertiser IDs to fetch data from',
+      },
+      Fields: {
+        isRequired: true,
+        label: 'Fields',
+        description: 'List of fields to fetch from Criteo Ads API',
       },
       AccessToken: {
-        requiredType: "string",
-        label: "Access Token",
-        description: "Criteo API Access Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        requiredType: 'string',
+        label: 'Access Token',
+        description: 'Criteo API Access Token for authentication',
+        attributes: [CONFIG_ATTRIBUTES.SECRET],
       },
       ReimportLookbackWindow: {
-        requiredType: "number",
+        requiredType: 'number',
         isRequired: true,
         default: 5,
-        label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       CleanUpToKeepWindow: {
-        requiredType: "number",
-        label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+        requiredType: 'number',
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleaning up',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
       ClientId: {
         isRequired: true,
-        requiredType: "string",
-        label: "Client ID",
-        description: "Your Criteo API Client Id"
+        requiredType: 'string',
+        label: 'Client ID',
+        description: 'Your Criteo API Client Id',
       },
       ClientSecret: {
         isRequired: true,
-        requiredType: "string",
-        label: "Client Secret",
-        description: "Your Criteo API Client Secret",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        requiredType: 'string',
+        label: 'Client Secret',
+        description: 'Your Criteo API Client Secret',
+        attributes: [CONFIG_ATTRIBUTES.SECRET],
       },
       Currency: {
-        requiredType: "string",
+        requiredType: 'string',
         isRequired: true,
-        default: "USD",
-        label: "Currency",
-        description: "ISO 4217 code (e.g. USD, EUR). Supported currencies: https://developers.criteo.com/marketing-solutions/docs/campaign-statistics#currencies"
+        default: 'USD',
+        label: 'Currency',
+        description:
+          'ISO 4217 code (e.g. USD, EUR). Supported currencies: https://developers.criteo.com/marketing-solutions/docs/campaign-statistics#currencies',
       },
       CreateEmptyTables: {
-        requiredType: "boolean",
+        requiredType: 'boolean',
         default: true,
-        label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API",
-        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
-    }));
+        label: 'Create Empty Tables',
+        description: 'Create tables with all columns even if no data is returned from API',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
+    };
+
+    this.context.registerParameters(this.parameters, PARAMETER_OWNER.SOURCE);
 
     this.fieldsSchema = CriteoAdsFieldsSchema;
+
+    // Access-token expiry tracking so long imports refresh proactively (see getAccessToken).
     this._accessTokenExpiresAt = 0;
     this._accessTokenRefreshAt = 0;
+
+    // main parity: a manually-supplied AccessToken should be honored as-is
+    // (no forced client-credentials fetch) until Criteo itself reports it
+    // expired (handled via _isAuthorizationTokenExpired + forceRefresh in
+    // _makeApiRequest). Without this, _accessTokenRefreshAt starting at 0
+    // makes _hasReusableAccessToken() always false on a fresh instance, so
+    // getAccessToken() always fetches a fresh token, discarding this value.
+    if (this.context.getParameter('AccessToken')?.value) {
+      this._accessTokenRefreshAt = Infinity;
+    }
+  }
+
+  // Criteo statistics API takes startDate/endDate of the same day (per-day report).
+  getDateStrategy(nodeName) {
+    return DATE_STRATEGY.DAY_BY_DAY;
+  }
+
+  getAccounts(context) {
+    const advertiserIdsParam = context.getParameter('AdvertiserIDs');
+    if (!advertiserIdsParam?.value) return [null];
+    return CriteoAdsHelper.parseAdvertiserIds(advertiserIdsParam.value).map(id => ({ id }));
+  }
+
+  parseFields(context) {
+    const fieldsValue = context.getParameter('Fields')?.value;
+    if (!fieldsValue) return {};
+    return CriteoAdsHelper.parseFields(fieldsValue);
   }
 
   /**
    * Single entry point for *all* fetches.
-   * @param {Object} opts
-   * @param {string} opts.nodeName
-   * @param {string} opts.accountId
-   * @param {Array<string>} opts.fields
-   * @param {Date} opts.date
-   * @returns {Array<Object>}
+   * AbstractConnector calls us with { nodeName, fields, accountId, startDate, endDate }
+   * once per (advertiser × node × day). Under 'day-by-day', startDate === endDate
+   * and is an already-formatted YYYY-MM-DD string.
    */
-  async fetchData({ nodeName, accountId, fields = [], date }) {
+  async fetchData({ nodeName, accountId, fields = [], startDate, endDate }) {
     try {
       switch (nodeName) {
         case 'statistics':
-          return await this._fetchStatistics({ accountId, fields, date });
+          return await this._fetchStatistics({ accountId, fields, date: startDate });
 
         case 'placements':
-          return await this._fetchPlacements({ accountId, fields, date });
+          return await this._fetchPlacements({ accountId, fields, date: startDate });
 
         case 'placement_categories':
-          return await this._fetchPlacementCategories({ accountId, fields, date });
+          return await this._fetchPlacementCategories({ accountId, fields, date: startDate });
 
         case 'transactions':
-          return await this._fetchTransactions({ accountId, fields, date });
+          return await this._fetchTransactions({ accountId, fields, date: startDate });
 
         default:
           throw new Error(`Unknown node: ${nodeName}`);
@@ -131,7 +271,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     } catch (error) {
       const summary = this._describeError(error);
       if (summary) {
-        this.config.logMessage(summary);
+        this.context.log(LOG_LEVEL.ERROR, summary);
       }
       throw error;
     }
@@ -155,10 +295,14 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
 
     const uniqueKeys = schema.uniqueKeys || [];
     const injectedKeys = schema.injectDay ? ['day'] : [];
-    const missingKeys = uniqueKeys.filter(key => !injectedKeys.includes(key) && !fields.includes(key));
+    const missingKeys = uniqueKeys.filter(
+      key => !injectedKeys.includes(key) && !fields.includes(key)
+    );
 
     if (missingKeys.length > 0) {
-      throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
+      throw new Error(
+        `Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`
+      );
     }
   }
 
@@ -176,14 +320,19 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       return this._currency;
     }
 
-    const currency = String(this.config.Currency?.value || "USD").trim().toUpperCase();
+    const currency = String(this.context.getParameter('Currency')?.value || 'USD')
+      .trim()
+      .toUpperCase();
 
     if (!/^[A-Z]{3}$/.test(currency)) {
       throw new Error(`Invalid Currency '${currency}'. Expected ISO 4217 code, e.g. USD.`);
     }
 
     if (!CRITEO_SUPPORTED_CURRENCIES.has(currency)) {
-      this.config.logMessage(`Currency '${currency}' is not in the known Criteo-supported list; passing it through. If the API rejects it, pick a supported code, e.g. USD, EUR, JPY.`);
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Currency '${currency}' is not in the known Criteo-supported list; passing it through. If the API rejects it, pick a supported code, e.g. USD, EUR, JPY.`
+      );
     }
 
     this._currency = currency;
@@ -195,7 +344,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {Object} options - Fetching options
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Fields to fetch
-   * @param {Date} options.date - Date to fetch data for
+   * @param {string} options.date - Already-formatted YYYY-MM-DD date to fetch data for
    * @returns {Array<Object>} - Parsed and enriched data
    * @private
    */
@@ -203,9 +352,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     this._validateUniqueKeys('statistics', fields);
     const requestBody = this._buildStatisticsRequestBody({ accountId, fields, date });
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/statistics/report`;
-    const response = await this._makeApiRequest(apiUrl, requestBody);
-    const text = await response.getContentText();
-    const jsonObject = JSON.parse(text);
+    const jsonObject = await this._makeApiRequest(apiUrl, requestBody);
     return this.parseApiResponse({ apiResponse: jsonObject, date, fields, nodeName: 'statistics' });
   }
 
@@ -214,17 +361,20 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {Object} options
    * @param {string} options.accountId
    * @param {Array<string>} options.fields
-   * @param {Date} options.date
+   * @param {string} options.date
    * @returns {Array<Object>}
    * @private
    */
   async _fetchPlacements({ accountId, fields, date }) {
     this._validateUniqueKeys('placements', fields);
-    const requestBody = this._buildPlacementsRequestBody({ nodeName: 'placements', accountId, fields, date });
+    const requestBody = this._buildPlacementsRequestBody({
+      nodeName: 'placements',
+      accountId,
+      fields,
+      date,
+    });
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/placements/report`;
-    const response = await this._makeApiRequest(apiUrl, requestBody);
-    const text = await response.getContentText();
-    const jsonObject = JSON.parse(text);
+    const jsonObject = await this._makeApiRequest(apiUrl, requestBody);
     return this.parseApiResponse({ apiResponse: jsonObject, date, fields, nodeName: 'placements' });
   }
 
@@ -236,18 +386,26 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {Object} options
    * @param {string} options.accountId
    * @param {Array<string>} options.fields
-   * @param {Date} options.date
+   * @param {string} options.date
    * @returns {Array<Object>}
    * @private
    */
   async _fetchPlacementCategories({ accountId, fields, date }) {
     this._validateUniqueKeys('placement_categories', fields);
-    const requestBody = this._buildPlacementsRequestBody({ nodeName: 'placement_categories', accountId, fields, date });
+    const requestBody = this._buildPlacementsRequestBody({
+      nodeName: 'placement_categories',
+      accountId,
+      fields,
+      date,
+    });
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/placements/report`;
-    const response = await this._makeApiRequest(apiUrl, requestBody);
-    const text = await response.getContentText();
-    const jsonObject = JSON.parse(text);
-    return this.parseApiResponse({ apiResponse: jsonObject, date, fields, nodeName: 'placement_categories' });
+    const jsonObject = await this._makeApiRequest(apiUrl, requestBody);
+    return this.parseApiResponse({
+      apiResponse: jsonObject,
+      date,
+      fields,
+      nodeName: 'placement_categories',
+    });
   }
 
   /**
@@ -255,31 +413,35 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {Object} options
    * @param {string} options.accountId
    * @param {Array<string>} options.fields
-   * @param {Date} options.date
+   * @param {string} options.date
    * @returns {Array<Object>}
    * @private
    */
   async _fetchTransactions({ accountId, fields, date }) {
     this._validateUniqueKeys('transactions', fields);
-    const formattedDate = DateUtils.formatDate(date);
     const requestBody = {
-      data: [{
-        type: "Report",
-        attributes: {
-          advertiserIds: accountId.toString(),
-          currency: this._getCurrency(),
-          timezone: "UTC",
-          format: "json",
-          startDate: formattedDate,
-          endDate: formattedDate
-        }
-      }]
+      data: [
+        {
+          type: 'Report',
+          attributes: {
+            advertiserIds: accountId.toString(),
+            currency: this._getCurrency(),
+            timezone: 'UTC',
+            format: 'json',
+            startDate: date,
+            endDate: date,
+          },
+        },
+      ],
     };
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/transactions/report`;
-    const response = await this._makeApiRequest(apiUrl, requestBody);
-    const text = await response.getContentText();
-    const jsonObject = JSON.parse(text);
-    return this.parseApiResponse({ apiResponse: jsonObject, date, fields, nodeName: 'transactions' });
+    const jsonObject = await this._makeApiRequest(apiUrl, requestBody);
+    return this.parseApiResponse({
+      apiResponse: jsonObject,
+      date,
+      fields,
+      nodeName: 'transactions',
+    });
   }
 
   /**
@@ -287,31 +449,30 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {Object} options - Request parameters
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Fields to fetch
-   * @param {Date} options.date - Date to fetch data for
+   * @param {string} options.date - Already-formatted YYYY-MM-DD date
    * @returns {Object} - Request body
    * @private
    */
   _buildStatisticsRequestBody({ accountId, fields, date }) {
     const fieldsSchema = this.fieldsSchema.statistics.fields;
-    const formattedDate = DateUtils.formatDate(date);
 
     // Filter fields into dimensions and metrics based on fieldType
-    const dimensions = fields.filter(field =>
-      fieldsSchema[field] && fieldsSchema[field].fieldType === 'dimension'
+    const dimensions = fields.filter(
+      field => fieldsSchema[field] && fieldsSchema[field].fieldType === 'dimension'
     );
-    const metrics = fields.filter(field =>
-      fieldsSchema[field] && fieldsSchema[field].fieldType === 'metric'
+    const metrics = fields.filter(
+      field => fieldsSchema[field] && fieldsSchema[field].fieldType === 'metric'
     );
 
     return {
       advertiserIds: accountId.toString(),
-      timezone: "UTC",
+      timezone: 'UTC',
       dimensions: dimensions,
       currency: this._getCurrency(),
-      format: "json",
-      startDate: formattedDate,
-      endDate: formattedDate,
-      metrics: metrics
+      format: 'json',
+      startDate: date,
+      endDate: date,
+      metrics: metrics,
     };
   }
 
@@ -322,13 +483,12 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {string} options.nodeName - 'placements' or 'placement_categories'
    * @param {string} options.accountId
    * @param {Array<string>} options.fields
-   * @param {Date} options.date
+   * @param {string} options.date - Already-formatted YYYY-MM-DD date
    * @returns {Object}
    * @private
    */
   _buildPlacementsRequestBody({ nodeName, accountId, fields, date }) {
     const fieldsSchema = this.fieldsSchema[nodeName].fields;
-    const formattedDate = DateUtils.formatDate(date);
 
     const dimensions = fields
       .filter(f => fieldsSchema[f]?.fieldType === 'dimension')
@@ -336,28 +496,32 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     const metrics = fields.filter(f => fieldsSchema[f]?.fieldType === 'metric');
 
     return {
-      data: [{
-        type: "Report",
-        attributes: {
-          advertiserIds: accountId.toString(),
-          currency: this._getCurrency(),
-          timezone: "UTC",
-          dimensions,
-          metrics,
-          format: "json",
-          disclosed: true,
-          startDate: formattedDate,
-          endDate: formattedDate
-        }
-      }]
+      data: [
+        {
+          type: 'Report',
+          attributes: {
+            advertiserIds: accountId.toString(),
+            currency: this._getCurrency(),
+            timezone: 'UTC',
+            dimensions,
+            metrics,
+            format: 'json',
+            disclosed: true,
+            startDate: date,
+            endDate: date,
+          },
+        },
+      ],
     };
   }
 
   /**
-   * Make API request to a Criteo endpoint
+   * Make an authenticated API request to a Criteo endpoint. Ensures a non-expired
+   * access token first, and if Criteo still reports the bearer token expired
+   * mid-request (a long import can outlive it), refreshes once and retries. Returns parsed JSON.
    * @param {string} url - Full API endpoint URL
    * @param {Object} requestBody - Request body
-   * @returns {Object} - HTTP response
+   * @returns {Object} - Parsed JSON response
    * @private
    */
   async _makeApiRequest(url, requestBody) {
@@ -370,39 +534,42 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         throw error;
       }
 
-      this.config.logMessage("Criteo access token expired; refreshing token and retrying request once");
+      this.context.log(
+        LOG_LEVEL.WARN,
+        'Criteo access token expired; refreshing token and retrying request once'
+      );
       await this.getAccessToken({ forceRefresh: true });
       return await this._sendApiRequest(url, requestBody);
     }
   }
 
   /**
-   * Send an authenticated POST request to a Criteo endpoint.
+   * Send a single authenticated POST request to a Criteo endpoint. Returns parsed JSON.
    * @param {string} url - Full API endpoint URL
    * @param {Object} requestBody - Request body
-   * @returns {Object} - HTTP response
+   * @returns {Object} - Parsed JSON response
    * @private
    */
   async _sendApiRequest(url, requestBody) {
     const options = {
-      method: 'post',
+      method: 'POST',
       headers: {
         accept: '*/*',
         'content-type': 'application/json',
-        authorization: "Bearer " + this.config.AccessToken.value
+        authorization: 'Bearer ' + this.context.getParameter('AccessToken')?.value,
       },
-      payload: JSON.stringify(requestBody),
-      body: JSON.stringify(requestBody) // TODO: body is for Node.js; refactor to centralize JSON option creation
+      body: JSON.stringify(requestBody),
     };
 
-    return await this.urlFetchWithRetry(url, options);
+    const response = await this.urlFetchWithRetry(url, options);
+    return await response.json();
   }
 
   /**
-   * Get access token from API.
+   * Get an access token from the API, reusing the cached one until it nears expiry.
    * Docs: https://developers.criteo.com/marketing-solutions/docs/authorization-code-setup
-   * @param {Object} options
-   * @param {boolean} [options.forceRefresh=false] - Ignore any cached token
+   * @param {Object} [options]
+   * @param {boolean} [options.forceRefresh=false] - Ignore any cached token and fetch a fresh one
    */
   async getAccessToken({ forceRefresh = false } = {}) {
     if (!forceRefresh && this._hasReusableAccessToken()) {
@@ -412,35 +579,32 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     const tokenUrl = 'https://api.criteo.com/oauth2/token';
     const form = {
       grant_type: 'client_credentials',
-      client_id: this.config.ClientId.value,
-      client_secret: this.config.ClientSecret.value
+      client_id: this.context.getParameter('ClientId')?.value,
+      client_secret: this.context.getParameter('ClientSecret')?.value,
     };
     const options = {
-      method: 'post',
+      method: 'POST',
       headers: {
         accept: 'application/json',
-        'content-type': 'application/x-www-form-urlencoded'
+        'content-type': 'application/x-www-form-urlencoded',
       },
-      payload: form,
       body: Object.entries(form)
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-        .join('&'), // TODO: body is for Node.js; refactor to centralize JSON option creation
-      muteHttpExceptions: true
+        .join('&'),
     };
 
     try {
       const response = await this.urlFetchWithRetry(tokenUrl, options);
-      const text = await response.getContentText();
-      const responseData = JSON.parse(text);
-      const accessToken = responseData["access_token"];
+      const responseData = await response.json();
+      const accessToken = responseData['access_token'];
 
       if (!accessToken) {
-        throw new Error("Token response did not include access_token");
+        throw new Error('Token response did not include access_token');
       }
 
       this._setAccessToken(accessToken, responseData.expires_in);
     } catch (err) {
-      console.log(`Error getting access token: ${err}`);
+      this.context.log(LOG_LEVEL.ERROR, `Error getting access token: ${err}`);
       if (typeof err?.statusCode === 'number') {
         throw err;
       }
@@ -449,30 +613,31 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   }
 
   /**
-   * Check whether the current access token can be reused without nearing expiry.
-   * Tokens without locally tracked expiry are refreshed so manual or stale values
-   * do not live for the whole connector run.
+   * Whether the cached access token can be reused without nearing expiry. A token
+   * with no locally tracked expiry (e.g. left over from a previous run) is treated
+   * as unusable so it does not silently outlive its lifetime during a long import.
    * @returns {boolean}
    * @private
    */
   _hasReusableAccessToken() {
     return Boolean(
-      this.config.AccessToken?.value &&
+      this.context.getParameter('AccessToken')?.value &&
       this._accessTokenRefreshAt &&
       Date.now() < this._accessTokenRefreshAt
     );
   }
 
   /**
-   * Store a Criteo access token and calculate when it should be refreshed.
+   * Store a Criteo access token and compute when it should be proactively refreshed.
    * @param {string} accessToken
-   * @param {number|string} expiresInSeconds
+   * @param {number|string} expiresInSeconds - Token lifetime from the OAuth response
    * @private
    */
   _setAccessToken(accessToken, expiresInSeconds) {
-    this.config.AccessToken = {
-      value: accessToken
-    };
+    const accessTokenParam = this.context.getParameter('AccessToken');
+    if (accessTokenParam) {
+      accessTokenParam.value = accessToken;
+    }
 
     const expiresIn = Number(expiresInSeconds);
     if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
@@ -489,8 +654,11 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   }
 
   /**
-   * Detect Criteo's expired bearer token response.
-   * @param {HttpRequestException} error
+   * Detect Criteo's expired-bearer-token response: HTTP 401 whose body carries the
+   * `authorization-token-expired` code. urlFetchWithRetry throws an Error carrying
+   * `statusCode` and `responseBody` (the raw API body), with the body also embedded
+   * in `message` — so match the code in either.
+   * @param {Error} error
    * @returns {boolean}
    * @private
    */
@@ -499,12 +667,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       return false;
     }
 
-    const errors = error.payload?.errors;
-    if (Array.isArray(errors) && errors.some(item => item?.code === 'authorization-token-expired')) {
-      return true;
-    }
-
-    return String(error.message || '').includes('authorization-token-expired');
+    const haystack = `${error.responseBody || ''} ${error.message || ''}`;
+    return haystack.includes('authorization-token-expired');
   }
 
   /**
@@ -517,9 +681,11 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @returns {boolean} True if the error should trigger a retry, false otherwise
    */
   isValidToRetry(error) {
-    return !error?.statusCode
-      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
-      || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
+    return (
+      !error?.statusCode ||
+      error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN ||
+      error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS
+    );
   }
 
   /**
@@ -538,8 +704,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
 
     const isServerSide = error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN;
     const hint = isServerSide
-      ? " This is a server-side error from Criteo, not your configuration; it may be transient, so re-running the import later can help."
-      : "";
+      ? ' This is a server-side error from Criteo, not your configuration; it may be transient, so re-running the import later can help.'
+      : '';
     const detail = this._formatErrorDetail(error);
     return `Import failed: the Criteo API request failed with HTTP ${error.statusCode}.${detail}${hint}`;
   }
@@ -557,16 +723,16 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     if (providerError) {
       const detailParts = [
         providerError.message || providerError.title || providerError.detail,
-        providerError.code ? `Provider code: ${providerError.code}.` : "",
-        providerError.traceId ? `Provider trace ID: ${providerError.traceId}.` : ""
+        providerError.code ? `Provider code: ${providerError.code}.` : '',
+        providerError.traceId ? `Provider trace ID: ${providerError.traceId}.` : '',
       ].filter(Boolean);
 
       if (detailParts.length) {
-        return ` ${detailParts.join(" ")}`;
+        return ` ${detailParts.join(' ')}`;
       }
     }
 
-    return error.message ? ` ${error.message}` : "";
+    return error.message ? ` ${error.message}` : '';
   }
 
   /**
@@ -583,7 +749,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   _filterBySchema(items, nodeName, requestedFields = []) {
     const schema = this.fieldsSchema[nodeName];
     const requiredFields = new Set(schema.uniqueKeys || []);
-    const keepFields = new Set([ ...requiredFields, ...requestedFields ]);
+    const keepFields = new Set([...requiredFields, ...requestedFields]);
     const keyResolver = this._buildKeyResolver(schema);
 
     return items.map(item => {
@@ -693,7 +859,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * Parse API response, inject day for streams that need it, and filter by schema.
    * @param {Object} options - Parsing options
    * @param {Object} options.apiResponse - API response
-   * @param {Date} options.date - Date to inject if schema has injectDay
+   * @param {string} options.date - Already-formatted YYYY-MM-DD date to inject if schema has injectDay
    * @param {Array<string>} options.fields - Fields to include in the result
    * @param {string} options.nodeName - Schema node name
    * @returns {Array<Object>} - Parsed and enriched data
@@ -703,13 +869,15 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
 
     if (rows === null) {
       const responseShape = this._describeApiResponseShape(apiResponse);
-      this.config.logMessage(`Unexpected API response shape for '${nodeName}'; parsed 0 rows. Response shape: ${responseShape}`);
+      this.context.log(
+        LOG_LEVEL.WARN,
+        `Unexpected API response shape for '${nodeName}'; parsed 0 rows. Response shape: ${responseShape}`
+      );
       return [];
     }
 
     if (this.fieldsSchema[nodeName]?.injectDay) {
-      const dayStr = DateUtils.formatDate(date);
-      rows = rows.map(row => ({ ...row, day: dayStr }));
+      rows = rows.map(row => ({ ...row, day: date }));
     }
 
     return this._filterBySchema(rows, nodeName, fields);

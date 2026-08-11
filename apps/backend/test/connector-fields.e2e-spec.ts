@@ -148,4 +148,26 @@ describe('Connector Fields (e2e)', () => {
       }
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // CAPI-12: Declarative (manifest-only) connectors expose fields schema
+  // ---------------------------------------------------------------------------
+  describe('Declarative connectors (CAPI-12)', () => {
+    it('GET /api/connectors/RatesDeclarative/fields - returns the latest node with fields', async () => {
+      const res = await agent.get('/api/connectors/RatesDeclarative/fields').set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+
+      const latest = res.body.find((node: Record<string, unknown>) => node.name === 'latest');
+      expect(latest).toBeDefined();
+
+      const fieldNames = (latest.fields as Array<{ name: string }>).map(f => f.name);
+      expect(fieldNames).toContain('date');
+      expect(fieldNames).toContain('base');
+
+      expect(latest.uniqueKeys).toContain('date');
+      expect(latest.uniqueKeys).toContain('base');
+    });
+  });
 });

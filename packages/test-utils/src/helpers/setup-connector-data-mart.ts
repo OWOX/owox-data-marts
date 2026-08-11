@@ -2,7 +2,18 @@ import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { AUTH_HEADER } from '../constants';
 import { StorageBuilder } from '../fixtures/storage.builder';
-import { DataMartBuilder } from '../fixtures/data-mart.builder';
+import { DataStorageType } from '../../../../apps/backend/src/data-marts/data-storage-types/enums/data-storage-type.enum';
+import { createDataMart, publishDataMartAndCancelAutoRun } from './data-mart-publish-flow';
+
+export interface SetupConnectorDataMartOptions {
+  /** Storage type to provision. Defaults to GOOGLE_BIGQUERY. */
+  storageType?: DataStorageType;
+  /**
+   * `fullyQualifiedName` written into the CONNECTOR definition's `storage` block.
+   * Defaults to `'test_dataset.test_holidays'`.
+   */
+  fullyQualifiedName?: string;
+}
 
 /**
  * Creates a full storage -> data mart -> CONNECTOR definition -> publish chain via HTTP.
@@ -17,8 +28,12 @@ import { DataMartBuilder } from '../fixtures/data-mart.builder';
  */
 export async function setupConnectorDataMart(
   agent: supertest.Agent,
-  app: INestApplication
+  app: INestApplication,
+  options?: SetupConnectorDataMartOptions
 ): Promise<{ storageId: string; dataMartId: string }> {
+  const storageType = options?.storageType ?? DataStorageType.GOOGLE_BIGQUERY;
+  const fullyQualifiedName = options?.fullyQualifiedName ?? 'test_dataset.test_holidays';
+
   // Resolve DataSource and entity repositories from the backend workspace
   const backendRoot = require.resolve('@owox/backend/package.json');
   const backendDir = require('path').dirname(backendRoot);
@@ -32,13 +47,13 @@ export async function setupConnectorDataMart(
   const storageRes = await agent
     .post('/api/data-storages')
     .set(AUTH_HEADER)
-    .send(new StorageBuilder().build());
+    .send(new StorageBuilder().withType(storageType).build());
   expect(storageRes.status).toBe(201);
 
   const storageId = storageRes.body.id;
 
-  // Step 2: Seed storage config + credential directly in DB.
-  // The update-storage API calls cloud access validation which requires real
+  // Step 2: Seed storage config and credential directly in DB. The
+  // update-storage API calls cloud access validation which requires real
   // credentials, so we bypass it by writing directly to the database.
   const credentialId = require('crypto').randomUUID();
   await dataSource.query(
@@ -53,13 +68,7 @@ export async function setupConnectorDataMart(
   ]);
 
   // Step 3: Create data mart
-  const dataMartRes = await agent
-    .post('/api/data-marts')
-    .set(AUTH_HEADER)
-    .send(new DataMartBuilder().withStorageId(storageId).build());
-  expect(dataMartRes.status).toBe(201);
-
-  const dataMartId = dataMartRes.body.id;
+  const dataMartId = await createDataMart(agent, storageId);
 
   // Step 4: Set CONNECTOR definition (OpenHolidays -- no OAuth/secrets)
   const defRes = await agent
@@ -76,30 +85,18 @@ export async function setupConnectorDataMart(
             fields: ['id', 'date', 'name'],
           },
           storage: {
-            fullyQualifiedName: 'test_dataset.test_holidays',
+            fullyQualifiedName,
           },
         },
       },
     });
   expect(defRes.status).toBe(200);
 
-  // Step 5: Publish
-  const publishRes = await agent.put(`/api/data-marts/${dataMartId}/publish`).set(AUTH_HEADER);
-  expect(publishRes.status).toBe(200);
-
-  // Step 6: Cancel auto-run triggered by publish.
-  // PublishDataMartService now fires a connector run on publish (fire-and-forget).
-  // Allow event loop to process the async run creation, then cancel any active runs
-  // so downstream tests can trigger their own manual runs without "already running" errors.
-  await new Promise(resolve => setTimeout(resolve, 100));
-  const runsRes = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
-  if (runsRes.body?.runs) {
-    for (const run of runsRes.body.runs as Array<{ id: string; status: string }>) {
-      if (run.status === 'PENDING' || run.status === 'RUNNING') {
-        await agent.post(`/api/data-marts/${dataMartId}/runs/${run.id}/cancel`).set(AUTH_HEADER);
-      }
-    }
-  }
+  // Step 5-6: Publish, then cancel the auto-run triggered by publish.
+  // PublishDataMartService now fires a connector run on publish (fire-and-forget);
+  // downstream tests need it cancelled so they can trigger their own manual runs
+  // without "already running" errors.
+  await publishDataMartAndCancelAutoRun(agent, dataMartId);
 
   return { storageId, dataMartId };
 }

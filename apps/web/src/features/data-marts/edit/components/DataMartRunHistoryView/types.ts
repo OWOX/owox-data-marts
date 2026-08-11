@@ -1,3 +1,5 @@
+import type { LogCategory, LogSeverity } from './log-category';
+
 export enum LogLevel {
   INFO = 'INFO',
   WARNING = 'WARNING',
@@ -11,10 +13,15 @@ export enum LogViewType {
   CONFIGURATION = 'configuration',
 }
 
+export type SortDir = 'asc' | 'desc';
+
 export interface LogEntry {
   id: string;
   level: LogLevel;
   message: string;
   timestamp: string;
+  category: LogCategory;
+  severity: LogSeverity;
   metadata?: Record<string, string | number | boolean | null>;
+  sortTime?: number;
 }

@@ -72,7 +72,13 @@ describe('useConnector preview requests', () => {
 
     let staticRequest!: Promise<void>;
     await act(async () => {
-      staticRequest = result.current.fetchConnectorFields('GoogleAds');
+      staticRequest = result.current.fetchConnectorFields({
+        name: 'GoogleAds',
+        displayName: 'Google Ads',
+        description: '',
+        logoBase64: null,
+        docUrl: null,
+      });
       await result.current.previewConnectorFields('GoogleSheets', { SheetName: 'Current' });
     });
     await act(async () => {

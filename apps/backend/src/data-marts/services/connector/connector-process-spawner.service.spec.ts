@@ -1,4 +1,8 @@
-import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
+import {
+  ConnectorProcessSpawnerService,
+  INHERITED_CONNECTOR_ENV_VARS,
+  inheritConnectorEnv,
+} from './connector-process-spawner.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 
 jest.mock('cross-spawn', () => ({
@@ -323,5 +327,259 @@ describe('ConnectorProcessSpawnerService', () => {
     expect(onStderr).toHaveBeenCalledWith(truncationMarker);
     expect(JSON.stringify(onStdout.mock.calls)).not.toContain('secret-token');
     expect(JSON.stringify(onStderr.mock.calls)).not.toContain('secret-token');
+  });
+
+  it('sets OW_MANIFEST env when a manifest is provided', async () => {
+    const { service } = createService();
+    const mockProcess = createMockProcess();
+    let capturedEnv: Record<string, string> = {};
+    (spawn as unknown as jest.Mock).mockImplementation((_cmd, _args, opts) => {
+      capturedEnv = opts.env;
+      return mockProcess;
+    });
+
+    const configMock = { toObject: () => ({ name: 'MyCustomApi' }) };
+    const runConfigMock = { toObject: () => ({}) };
+    const manifest = { version: '1.0', name: 'MyCustomApi', nodes: {} };
+
+    const promise = service.spawnConnector(
+      'dm-1',
+      'run-1',
+      configMock as never,
+      runConfigMock as never,
+      {},
+      undefined,
+      manifest
+    );
+    mockProcess.emit('close', 0, null);
+    await promise;
+
+    expect(capturedEnv.OW_MANIFEST).toBe(JSON.stringify(manifest));
+  });
+
+  it('does not set OW_MANIFEST env when no manifest is provided', async () => {
+    const { service } = createService();
+    const mockProcess = createMockProcess();
+    let capturedEnv: Record<string, string> = {};
+    (spawn as unknown as jest.Mock).mockImplementation((_cmd, _args, opts) => {
+      capturedEnv = opts.env;
+      return mockProcess;
+    });
+
+    const promise = service.spawnConnector(
+      'dm-1',
+      'run-1',
+      { toObject: () => ({ name: 'GitHub' }) } as never,
+      { toObject: () => ({}) } as never,
+      {}
+    );
+    mockProcess.emit('close', 0, null);
+    await promise;
+
+    expect(capturedEnv.OW_MANIFEST).toBeUndefined();
+  });
+
+  describe('child env', () => {
+    const spawnWith = async (manifest?: Record<string, unknown>) => {
+      const { service } = createService();
+      const mockProcess = createMockProcess();
+      let capturedEnv: Record<string, string | undefined> = {};
+      (spawn as unknown as jest.Mock).mockImplementation((_cmd, _args, opts) => {
+        capturedEnv = opts.env;
+        return mockProcess;
+      });
+
+      const promise = service.spawnConnector(
+        'dm-1',
+        'run-1',
+        { toObject: () => ({ name: 'X' }) } as never,
+        { toObject: () => ({}) } as never,
+        {},
+        undefined,
+        manifest
+      );
+      mockProcess.emit('close', 0, null);
+      await promise;
+
+      return capturedEnv;
+    };
+
+    const withEnv = async <T>(
+      overrides: Record<string, string>,
+      fn: () => Promise<T>
+    ): Promise<T> => {
+      const previous = Object.entries(overrides).map(
+        ([key]) => [key, process.env[key]] as [string, string | undefined]
+      );
+      Object.assign(process.env, overrides);
+      try {
+        return await fn();
+      } finally {
+        for (const [key, value] of previous) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
+    };
+
+    it('never hands a manifest-driven child an arbitrary backend env var', async () => {
+      const env = await withEnv(
+        {
+          SENTINEL_BACKEND_SECRET: 'backend-db-password',
+          AWS_SECRET_ACCESS_KEY: 'ambient-aws-secret',
+        },
+        () => spawnWith({ version: '1.0', name: 'MyCustomApi', nodes: {} })
+      );
+
+      // A manifest is user-authored: the backend's own env must never reach it.
+      expect(env.SENTINEL_BACKEND_SECRET).toBeUndefined();
+      expect(env.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+      expect(JSON.stringify(env)).not.toContain('backend-db-password');
+      expect(JSON.stringify(env)).not.toContain('ambient-aws-secret');
+    });
+
+    it('never lets a credential-shaped var ride along with the platform allow-list', async () => {
+      const env = await withEnv(
+        {
+          OAUTH_CLIENT_SECRET: 'oauth-app-secret',
+          // A proxy URL routinely embeds `user:password@`, which is why the
+          // allow-list carries no proxy variable even though the storage
+          // clients would honor one.
+          HTTPS_PROXY: 'http://proxy-user:proxy-password@proxy.corp:3128',
+          // Would silently disable certificate validation for user-authored
+          // code; NODE_EXTRA_CA_CERTS is the additive, non-weakening answer.
+          NODE_TLS_REJECT_UNAUTHORIZED: '0',
+        },
+        () => spawnWith({ version: '1.0', name: 'MyCustomApi', nodes: {} })
+      );
+
+      expect(env.OAUTH_CLIENT_SECRET).toBeUndefined();
+      expect(env.HTTPS_PROXY).toBeUndefined();
+      expect(env.NODE_TLS_REJECT_UNAUTHORIZED).toBeUndefined();
+      expect(JSON.stringify(env)).not.toContain('oauth-app-secret');
+      expect(JSON.stringify(env)).not.toContain('proxy-password');
+    });
+
+    it('gives a manifest-driven child the platform plumbing any Node child needs', async () => {
+      // Every one of these is a filesystem path or a trust anchor — never a
+      // credential — and each has a reader inside the child: Node reads
+      // NODE_EXTRA_CA_CERTS at bootstrap and SSL_CERT_FILE/SSL_CERT_DIR
+      // whenever the (already inherited) NODE_OPTIONS carries --use-openssl-ca;
+      // os.homedir()/os.tmpdir() read the rest, and snowflake-sdk calls both.
+      const platform = {
+        NODE_EXTRA_CA_CERTS: '/etc/ssl/corp-ca.pem',
+        SSL_CERT_FILE: '/etc/ssl/certs/ca-bundle.crt',
+        SSL_CERT_DIR: '/etc/ssl/certs',
+        HOME: '/home/owox',
+        USERPROFILE: 'C:\\Users\\owox',
+        TMPDIR: '/var/tmp/owox',
+        TMP: '/var/tmp/owox',
+        TEMP: '/var/tmp/owox',
+        SystemRoot: 'C:\\Windows',
+      };
+
+      const env = await withEnv(platform, () =>
+        spawnWith({ version: '1.0', name: 'MyCustomApi', nodes: {} })
+      );
+
+      for (const [name, value] of Object.entries(platform)) {
+        expect([name, env[name]]).toEqual([name, value]);
+      }
+    });
+
+    it('leaves a platform var the parent does not have unset on the child, never empty', async () => {
+      const names = ['NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'USERPROFILE'];
+      const previous = names.map(name => [name, process.env[name]] as [string, string | undefined]);
+      for (const name of names) delete process.env[name];
+
+      try {
+        const env = await spawnWith({ version: '1.0', name: 'MyCustomApi', nodes: {} });
+
+        for (const name of names) {
+          // `spawn` omits an undefined value entirely. Coercing to '' instead
+          // would hand the child a real (and wrong) value — an empty
+          // NODE_EXTRA_CA_CERTS makes Node warn on every start.
+          expect([name, env[name]]).toEqual([name, undefined]);
+        }
+      } finally {
+        for (const [name, value] of previous) {
+          if (value !== undefined) process.env[name] = value;
+        }
+      }
+    });
+
+    it('still gives a manifest-driven child everything the runner genuinely needs', async () => {
+      const env = await withEnv({ OW_ALLOW_LOCAL_EGRESS: '1', NODE_ENV: 'test' }, () =>
+        spawnWith({ version: '1.0', name: 'MyCustomApi', nodes: {} })
+      );
+
+      expect(env.PATH).toBe(process.env.PATH);
+      expect(env.OW_DATAMART_ID).toBe('dm-1');
+      expect(env.OW_RUN_ID).toBe('run-1');
+      expect(env.OW_CONFIG).toBe(JSON.stringify({ name: 'X' }));
+      expect(env.OW_RUN_CONFIG).toBe(JSON.stringify({}));
+      expect(env.OW_MANIFEST).toBeDefined();
+      // SsrfGuard reads these two and only honors OW_ALLOW_LOCAL_EGRESS when
+      // NODE_ENV !== 'production'; forwarding the flag without NODE_ENV would
+      // give a production child a non-production egress posture.
+      expect(env.OW_ALLOW_LOCAL_EGRESS).toBe('1');
+      expect(env.NODE_ENV).toBe('test');
+    });
+
+    it('keeps the full parent env for a bundled connector (ambient OAuth app credentials)', async () => {
+      // Bundled sources read ambient env directly — e.g. GoogleAds reads
+      // OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN, TikTokAds reads OAUTH_TIKTOK_ADS_APP_SECRET.
+      // Narrowing this path would break OAuth for those connectors.
+      const env = await withEnv({ OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN: 'dev-token' }, () =>
+        spawnWith()
+      );
+
+      expect(env.OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN).toBe('dev-token');
+    });
+  });
+
+  describe('inheritConnectorEnv', () => {
+    it('shares the platform plumbing with the live-test panel but not the egress gate', () => {
+      // ConnectorTestService calls inheritConnectorEnv() with no argument, so
+      // this base list is exactly what the builder's live-test child gets. It
+      // makes the same outbound HTTPS calls as a production run and needs the
+      // same trust anchors — but it must never get OW_ALLOW_LOCAL_EGRESS, which
+      // would let a live test reach a private host.
+      const base = Object.keys(inheritConnectorEnv());
+
+      expect(base).toEqual(
+        expect.arrayContaining([
+          'PATH',
+          'NODE_OPTIONS',
+          'NODE_EXTRA_CA_CERTS',
+          'SSL_CERT_FILE',
+          'SSL_CERT_DIR',
+          'HOME',
+          'USERPROFILE',
+          'TMPDIR',
+          'TMP',
+          'TEMP',
+          'SystemRoot',
+        ])
+      );
+      expect(base).not.toContain('NODE_ENV');
+      expect(base).not.toContain('OW_ALLOW_LOCAL_EGRESS');
+      expect(INHERITED_CONNECTOR_ENV_VARS).not.toContain('NODE_ENV');
+      expect(INHERITED_CONNECTOR_ENV_VARS).not.toContain('OW_ALLOW_LOCAL_EGRESS');
+    });
+
+    it('copies only the named variables, by value, off the parent', () => {
+      const previous = process.env.SENTINEL_NOT_ALLOWED;
+      process.env.SENTINEL_NOT_ALLOWED = 'nope';
+
+      try {
+        const copied = inheritConnectorEnv(['PATH']);
+
+        expect(copied).toEqual({ PATH: process.env.PATH });
+      } finally {
+        if (previous === undefined) delete process.env.SENTINEL_NOT_ALLOWED;
+        else process.env.SENTINEL_NOT_ALLOWED = previous;
+      }
+    });
   });
 });

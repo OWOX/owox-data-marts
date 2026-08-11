@@ -62,7 +62,9 @@ export function NodesSelectionStep({
               id={field.name}
               name='selectedField'
               value={field.name}
-              label={field.overview ?? field.name}
+              label={
+                field.overview !== undefined && field.overview !== '' ? field.overview : field.name
+              }
               subtitle={field.description}
               checked={selectedField === field.name}
               onChange={value => {

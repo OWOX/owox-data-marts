@@ -207,3 +207,54 @@ describe('Report controller — viewer guards (ownership-based)', () => {
     expect(entry!.role).toBe('viewer');
   });
 });
+
+/**
+ * Custom connectors — the ONLY block here that pins the complete surface rather than a
+ * list of interesting methods.
+ *
+ * A manifest saved through this controller is code: publishing one makes it executable
+ * server-side in a spawned Node process on the next connector run. A list-based assertion
+ * protects the handlers someone remembered to list; a new one arriving with the wrong
+ * guard — or with none at all — slips through it silently. Comparing the whole map fails
+ * instead, and the fix is to state the new handler's role here deliberately.
+ */
+describe('ConnectorDefinition controller — the custom connector surface, pinned whole', () => {
+  const source = readController('connector-definition.controller.ts');
+  const guards = Object.fromEntries(
+    extractAuthDecorators(source).map(d => [d.method, d.role])
+  ) as Record<string, string>;
+
+  it('guards every handler at exactly the level it is meant to have', () => {
+    expect(guards).toEqual({
+      // Reads that expose only what a connector IS: name, title, config schema, columns.
+      list: 'viewer',
+      get: 'viewer',
+      specification: 'viewer',
+      fields: 'viewer',
+      // Every write. `test` included: it runs the submitted manifest against a live API.
+      create: 'editor',
+      test: 'editor',
+      saveDraft: 'editor',
+      publish: 'editor',
+      activate: 'editor',
+      remove: 'editor',
+      // The one READ that is editor-only, deliberately: it returns a manifest verbatim, and
+      // a manifest is author-written JSON that can carry a credential typed into the
+      // builder form. Lowering this to viewer would hand every viewer those secrets.
+      getVersion: 'editor',
+    });
+  });
+
+  /**
+   * The plugin guard is default-allow, so this refusal is the whole of what stops an
+   * installed third-party page bridging through `ctx.owox` from authoring, publishing and
+   * activating a manifest on an editor's behalf. It sits at class level because nothing
+   * outside the first-party builder UI calls this API.
+   *
+   * Deliberately NOT paired with @RejectApiKeyAuth: an API key is the programmatic path a
+   * project owner legitimately uses here (`owox-ctl`).
+   */
+  it('refuses plugin runtime tokens for the whole controller', () => {
+    expect(source).toMatch(/@RejectPluginAuth\(\)\s*\nexport class ConnectorDefinitionController/);
+  });
+});

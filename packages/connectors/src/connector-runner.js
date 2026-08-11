@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+/**
+ * Copyright (c) OWOX, Inc.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 // Import all required dependencies and make them global
 const OWOX = require('@owox/connectors');
 const AdmZip = require('adm-zip');
@@ -19,14 +26,14 @@ const {
   StartQueryExecutionCommand,
   GetQueryExecutionCommand,
   GetQueryResultsCommand,
-  ListWorkGroupsCommand
+  ListWorkGroupsCommand,
 } = require('@aws-sdk/client-athena');
 
 const {
   S3Client,
   DeleteObjectsCommand,
   ListObjectsV2Command,
-  ListBucketsCommand
+  ListBucketsCommand,
 } = require('@aws-sdk/client-s3');
 
 const {
@@ -34,7 +41,7 @@ const {
   BatchExecuteStatementCommand,
   ExecuteStatementCommand,
   DescribeStatementCommand,
-  GetStatementResultCommand
+  GetStatementResultCommand,
 } = require('@aws-sdk/client-redshift-data');
 
 const { Upload } = require('@aws-sdk/lib-storage');
@@ -105,6 +112,21 @@ async function main() {
     throw new Error('OW_RUN_ID environment variable is required');
   }
 
+  const isTestMode = Boolean(process.env.OW_TEST);
+  const testLimits = isTestMode
+    ? {
+        maxRows: process.env.OW_TEST_MAX_ROWS
+          ? parseInt(process.env.OW_TEST_MAX_ROWS, 10)
+          : undefined,
+        maxPages: process.env.OW_TEST_MAX_PAGES
+          ? parseInt(process.env.OW_TEST_MAX_PAGES, 10)
+          : undefined,
+        maxSlices: process.env.OW_TEST_MAX_SLICES
+          ? parseInt(process.env.OW_TEST_MAX_SLICES, 10)
+          : 10,
+      }
+    : {};
+
   // Parse configuration
   let envConfig;
   try {
@@ -113,54 +135,78 @@ async function main() {
     throw new Error(`Failed to parse OW_CONFIG: ${error.message}`);
   }
 
-  // NodeJsConfig expects the full configuration object, not just the parsed JSON
-  // It needs the structure that matches what Config class provides
-  const config = new Core.NodeJsConfig(envConfig);
-
-  const runConfigJson = process.env.OW_RUN_CONFIG;
-  const runConfig = runConfigJson
-    ? new Core.AbstractRunConfig(JSON.parse(runConfigJson))
-    : new Core.AbstractRunConfig();
-
-  const sourceName = config.getSourceName();
-  const storageName = config.getStorageName();
-
-  const sourceClass = global[sourceName];
-  if (!sourceClass) {
-    throw new Error(`Source class ${sourceName} not found`);
+  let runConfigData = null;
+  if (process.env.OW_RUN_CONFIG) {
+    try {
+      runConfigData = JSON.parse(process.env.OW_RUN_CONFIG);
+    } catch (error) {
+      throw new Error(`Failed to parse OW_RUN_CONFIG: ${error.message}`);
+    }
   }
 
-  const storageClass = global[storageName];
-  if (!storageClass) {
-    throw new Error(`Storage class ${storageName} not found`);
+  // Build context (replaces NodeJsConfig + AbstractRunConfig)
+  const context = new Core.AbstractContext({
+    source: { name: envConfig.source.name, config: envConfig.source.config || {} },
+    storage: { name: envConfig.storage.name, config: envConfig.storage.config || {} },
+    runConfig: runConfigData,
+    env: {
+      datamartId: process.env.OW_DATAMART_ID,
+      runId: process.env.OW_RUN_ID,
+    },
+  });
+
+  // Resolve Source class from globals
+  const sourceName = context.sourceName;
+  const connectorBundle = global[sourceName];
+  const SourceClass = connectorBundle && connectorBundle[sourceName + 'Source'];
+
+  // Resolve Storage class from globals (or use TestStorage in test mode)
+  let StorageClass;
+  if (isTestMode) {
+    StorageClass = Core.TestStorage;
+  } else {
+    const storageClassName = context.storageName + 'Storage';
+    StorageClass = global[storageClassName];
+    if (!StorageClass) {
+      throw new Error(`Storage class "${storageClassName}" not found in global namespace`);
+    }
   }
 
-  const source = new sourceClass[sourceName + 'Source'](config);
-  const connector = new sourceClass[sourceName + 'Connector'](
-    config,
-    source,
-    storageName + 'Storage',
-    runConfig
-  );
+  // A custom (DB-stored) connector ships its manifest via OW_MANIFEST — it is not
+  // in the bundle. Otherwise resolve a hand-written Source class or a bundled
+  // declarative manifest, exactly as before.
+  let customManifest = null;
+  if (process.env.OW_MANIFEST) {
+    try {
+      customManifest = JSON.parse(process.env.OW_MANIFEST);
+    } catch (error) {
+      throw new Error(`Failed to parse OW_MANIFEST: ${error.message}`);
+    }
+  }
 
-  // Run the connector
+  const sourceOptions = isTestMode ? { ...testLimits, emitSample: true } : testLimits;
+
+  let source;
+  if (customManifest) {
+    const model = new Core.ManifestParser().parse(JSON.stringify(customManifest));
+    source = new Core.DeclarativeSource(context, model, sourceOptions);
+  } else if (SourceClass) {
+    source = new SourceClass(context);
+  } else if (connectorBundle && connectorBundle.manifest && connectorBundle.manifest.nodes) {
+    const model = new Core.ManifestParser().parse(JSON.stringify(connectorBundle.manifest));
+    source = new Core.DeclarativeSource(context, model, sourceOptions);
+  } else {
+    throw new Error(
+      `Source class "${sourceName}Source" not found and no declarative manifest for "${sourceName}"`
+    );
+  }
+
+  // Use the universal AbstractConnector (no per-connector Connector class)
+  const connector = new Core.AbstractConnector(context, source, StorageClass);
   await connector.run();
 }
 
 // Execute main and handle errors
 main().catch(error => {
-  const isWarning = error?.isWarning === true;
-  // Same rule as _logFailure: a warning is customer-facing and fully described by its
-  // message. AbstractConnector already logs the stack as its own entry before rethrowing,
-  // so repeating it here only crowds out the readable part — failure emails show the
-  // first 300 characters of this field.
-  const detail = isWarning
-    ? (error?.message ?? String(error))
-    : (error?.stack ?? String(error));
-
-  console.error(JSON.stringify({
-    type: isWarning ? 'addWarningToCurrentStatus' : 'error',
-    at: new Date().toISOString(),
-    [isWarning ? 'warning' : 'error']: detail,
-  }));
+  console.error(JSON.stringify(Core.RunFailureReport.toEnvelope(error)));
 });
