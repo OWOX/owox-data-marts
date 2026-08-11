@@ -13,6 +13,18 @@ interface UsePublishDraftsTriggerReturn {
 
 const POLLING_INTERVAL = 1000;
 
+/**
+ * A trigger that finished in ERROR state comes back as HTTP 400 whose body
+ * still carries the backend's allowlisted `error` text — and the backend
+ * deletes the trigger row on that read, so this is the only chance to show
+ * the reason. Prefer it over Axios's generic "Request failed with status
+ * code 400".
+ */
+function extractServerReportedError(e: unknown): string | null {
+  const data = (e as { response?: { data?: { error?: unknown } } } | null)?.response?.data;
+  return typeof data?.error === 'string' && data.error.length > 0 ? data.error : null;
+}
+
 export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraftsTriggerReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +47,9 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
 
   const handleError = useCallback(
     (e: unknown, triggerId: string) => {
-      const errorMessage = e instanceof Error ? e.message : 'Failed to publish Data Mart drafts';
+      const errorMessage =
+        extractServerReportedError(e) ??
+        (e instanceof Error ? e.message : 'Failed to publish Data Mart drafts');
       toast.dismiss(triggerId);
       setSafeError(errorMessage);
       setSafeLoading(false);
@@ -119,11 +133,7 @@ export function usePublishDraftsTrigger(onSuccess?: () => void): UsePublishDraft
                 onSuccessRef.current?.();
               }
             } catch (e) {
-              const errorMessage =
-                e instanceof Error ? e.message : 'Failed to publish Data Mart drafts';
-              toast.dismiss(triggerId);
-              setSafeError(errorMessage);
-              toast.error(errorMessage, { duration: undefined, id: triggerId });
+              handleError(e, triggerId);
             }
 
             setSafeLoading(false);
