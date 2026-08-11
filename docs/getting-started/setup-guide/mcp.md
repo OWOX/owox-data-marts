@@ -272,7 +272,7 @@ Read the value precisely. It is a **storage** timestamp, not a statement about t
 - With `coverage: "partial"`, treat the timestamp as "at least as recent as" and say the picture is incomplete.
 - The assistant is asked to present the timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC") — converted to the user's time zone when the conversation establishes one, otherwise in UTC with the zone named — never as a raw ISO-8601 string. The machine-readable ISO-8601 value stays in the structured response.
 
-Coverage is best effort per storage. Google BigQuery works first, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data.
+Coverage is best effort per storage. Google BigQuery and AWS Redshift are supported, and OWOX resolves views and SQL data marts through to their underlying base tables. Sharded and wildcard table sets collapse into one entry. Other storages currently report `unavailable`. `sources` deliberately omits views: a view's own modification time reflects a change to its definition, not to any data. Redshift metadata can lag real writes by up to ~5 minutes, and older Redshift releases do not report modification times at all — see [Data Last Updated](./data-last-updated.md) for storage-specific caveats.
 
 ### `list_destinations`
 

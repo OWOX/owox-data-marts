@@ -14,7 +14,28 @@ import { RedshiftConfig } from '../schemas/redshift-config.schema';
 import { RedshiftCredentials } from '../schemas/redshift-credentials.schema';
 import { RedshiftConnectionType } from '../enums/redshift-connection-type.enum';
 
+/**
+ * Tuning for the execute-and-poll cycle of a single statement. Defaults preserve the historic
+ * behaviour (1s polling, no cancellation) for the report/read paths; metadata lookups pass a
+ * shorter interval so a handful of tiny catalog queries does not cost seconds of idle waiting.
+ */
+export interface RedshiftQueryOptions {
+  pollIntervalMs?: number;
+  /** Stops the polling wait early; the statement itself keeps running server-side. */
+  signal?: AbortSignal;
+}
+
 export class RedshiftApiAdapter {
+  /** Overall per-statement deadline; unchanged from the historic 300 × 1s polling loop. */
+  private static readonly QUERY_TIMEOUT_MS = 300_000;
+  private static readonly DEFAULT_POLL_INTERVAL_MS = 1000;
+  /**
+   * Identifiers interpolated into SHOW TABLES, which takes no bind parameters and (unlike
+   * regular SQL) has no documented quoting syntax — so only plain identifiers are accepted and
+   * anything else is refused rather than escaped.
+   */
+  private static readonly SAFE_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_$]*$/;
+
   private readonly logger = new Logger(RedshiftApiAdapter.name);
   private readonly redshiftDataClient: RedshiftDataClient;
   private readonly config: RedshiftConfig;
@@ -65,12 +86,19 @@ export class RedshiftApiAdapter {
   /**
    * Polls until query completes (FINISHED, FAILED, or ABORTED)
    */
-  public async waitForQueryToComplete(statementId: string): Promise<void> {
-    const maxAttempts = 300; // 5 minutes with 1s intervals
+  public async waitForQueryToComplete(
+    statementId: string,
+    options?: RedshiftQueryOptions
+  ): Promise<void> {
+    const intervalMs = options?.pollIntervalMs ?? RedshiftApiAdapter.DEFAULT_POLL_INTERVAL_MS;
+    const maxAttempts = Math.ceil(RedshiftApiAdapter.QUERY_TIMEOUT_MS / intervalMs);
     let attempts = 0;
 
     while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await this.sleep(intervalMs, options?.signal);
+      if (options?.signal?.aborted) {
+        throw new Error(`Aborted while waiting for statement ${statementId}`);
+      }
 
       const describeCommand = new DescribeStatementCommand({ Id: statementId });
       const response = await this.redshiftDataClient.send(describeCommand);
@@ -92,8 +120,24 @@ export class RedshiftApiAdapter {
     }
 
     throw new Error(
-      `Query execution timeout after ${maxAttempts} seconds for statement ${statementId}`
+      `Query execution timeout after ${RedshiftApiAdapter.QUERY_TIMEOUT_MS / 1000} seconds for statement ${statementId}`
     );
+  }
+
+  /** Resolves early (without throwing) when the signal aborts mid-wait. */
+  private async sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return;
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**
@@ -135,10 +179,11 @@ export class RedshiftApiAdapter {
    * Execute a SELECT query and return rows as plain JS objects
    */
   public async executeQueryAndGetRows(
-    query: string
+    query: string,
+    options?: RedshiftQueryOptions
   ): Promise<Array<Record<string, string | null>>> {
     const { statementId } = await this.executeQuery(query);
-    await this.waitForQueryToComplete(statementId);
+    await this.waitForQueryToComplete(statementId, options);
 
     const rows: Array<Record<string, string | null>> = [];
     let columns: string[] | undefined;
@@ -241,6 +286,98 @@ export class RedshiftApiAdapter {
     await this.waitForQueryToComplete(statementId);
 
     this.logger.debug(`Dry-run validation successful for query ${query}`);
+  }
+
+  /**
+   * Returns the raw plan lines of `EXPLAIN <query>` — one string per plan node. The plan is the
+   * cheapest complete answer to "which tables does this query read": the planner has already
+   * expanded views (late-binding ones included) down to base-table scans.
+   */
+  public async getQueryPlan(query: string, options?: RedshiftQueryOptions): Promise<string[]> {
+    const rows = await this.executeQueryAndGetRows(`EXPLAIN ${query}`, options);
+    return rows
+      .map(row => Object.values(row)[0] ?? '')
+      .filter((line): line is string => line !== '');
+  }
+
+  /**
+   * Maps bare table names (as EXPLAIN prints them, schema-less) to the schemas that actually
+   * contain a so-named table in the given database. A name returning several rows is ambiguous
+   * and the caller must treat it as unresolvable rather than guess.
+   */
+  public async findTablesByName(
+    database: string,
+    tableNames: string[],
+    options?: RedshiftQueryOptions
+  ): Promise<Array<{ schemaName: string; tableName: string }>> {
+    if (tableNames.length === 0) {
+      return [];
+    }
+
+    const nameList = tableNames.map(name => `'${this.escapeLiteral(name)}'`).join(', ');
+    const query = `
+      SELECT schema_name, table_name
+      FROM svv_redshift_tables
+      WHERE database_name = '${this.escapeLiteral(database)}'
+        AND table_type = 'TABLE'
+        AND table_name IN (${nameList})
+    `;
+
+    const rows = await this.executeQueryAndGetRows(query, options);
+    return rows
+      .map(row => ({ schemaName: row.schema_name, tableName: row.table_name }))
+      .filter((row): row is { schemaName: string; tableName: string } =>
+        Boolean(row.schemaName && row.tableName)
+      );
+  }
+
+  /**
+   * Reads per-table modification times for one schema via `SHOW TABLES FROM SCHEMA`.
+   *
+   * SHOW TABLES is currently the ONLY surface where Redshift reports `last_modified_time`
+   * (when the table's DATA last changed, lagging real writes by up to ~5 minutes) — none of the
+   * queryable SVV catalog views carry it. It is schema-scoped with no table filter worth using,
+   * so callers cache the result per schema. On older Redshift releases the column does not
+   * exist yet; those rows come back with a null `lastModifiedTime`.
+   */
+  public async getSchemaTablesInfo(
+    database: string,
+    schema: string,
+    options?: RedshiftQueryOptions
+  ): Promise<Array<{ tableName: string; lastModifiedTime: string | null }>> {
+    for (const identifier of [database, schema]) {
+      if (!RedshiftApiAdapter.SAFE_IDENTIFIER_RE.test(identifier)) {
+        throw new Error(`Unsupported identifier for SHOW TABLES: ${identifier}`);
+      }
+    }
+
+    const rows = await this.executeQueryAndGetRows(
+      `SHOW TABLES FROM SCHEMA ${database}.${schema}`,
+      options
+    );
+    return rows
+      .filter((row): row is Record<string, string | null> & { table_name: string } =>
+        Boolean(row.table_name)
+      )
+      .map(row => ({
+        tableName: row.table_name,
+        lastModifiedTime: this.toIsoUtcTimestamp(row.last_modified_time),
+      }));
+  }
+
+  /**
+   * `2025-11-18 15:44:34.856073` (Redshift timestamps are UTC, reported without a zone) →
+   * ISO-8601 with millisecond precision, or null for anything absent or unrecognised.
+   */
+  private toIsoUtcTimestamp(value: string | null | undefined): string | null {
+    const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/.exec(
+      value?.trim() ?? ''
+    );
+    if (!match) {
+      return null;
+    }
+    const millis = (match[3] ?? '').padEnd(3, '0').slice(0, 3);
+    return `${match[1]}T${match[2]}.${millis}Z`;
   }
 
   /**

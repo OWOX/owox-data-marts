@@ -54,6 +54,7 @@ import { LegacyBigQueryStorageErrorMapper } from './bigquery/services/legacy/leg
 import { LegacyBigQueryBlendedQueryBuilder } from './bigquery/services/legacy/legacy-bigquery-blended-query-builder';
 import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
 import { BigQuerySourceDataLastUpdatedResolver } from './bigquery/services/bigquery-source-data-last-updated.resolver';
+import { RedshiftSourceDataLastUpdatedResolver } from './redshift/services/redshift-source-data-last-updated.resolver';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
@@ -259,7 +260,10 @@ const identifierEscaperProviders = [
 ];
 // Best-effort family: a storage with no entry here resolves to nothing and the caller reports
 // `unavailable`, so storages can be added one at a time without a placeholder implementation.
-const sourceDataLastUpdatedProviders = [BigQuerySourceDataLastUpdatedResolver];
+const sourceDataLastUpdatedProviders = [
+  BigQuerySourceDataLastUpdatedResolver,
+  RedshiftSourceDataLastUpdatedResolver,
+];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
   DataStorageCredentialsUtils,

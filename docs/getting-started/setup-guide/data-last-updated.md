@@ -2,7 +2,7 @@
 
 Data Last Updated shows when the source tables/views behind a Data Mart last changed in the storage. It answers the question "how current is what I am looking at?" before you build a report or act on an answer from an AI assistant.
 
-Data Last Updated is currently measured for **Google BigQuery** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
+Data Last Updated is currently measured for **Google BigQuery** and **AWS Redshift** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
 
 ## What the value means
 
@@ -57,8 +57,14 @@ OWOX asks the storage which tables the Data Mart reads, then takes the newest mo
 
 - **Views and SQL Data Marts** resolve through to their underlying base tables, nested views included. Views themselves are excluded from the per-table breakdown — a view's own modification time reflects a change to its definition, not to any data.
 - **Sharded and wildcard table sets** (`events_YYYYMMDD`) collapse into a single entry showing the newest shard. Neighbouring tables that merely share the prefix, such as `events_backup`, do not count.
-- **External tables** (for example, Google Sheets) have no modification time in the storage. They appear in the breakdown as unknown, and the coverage becomes partial.
-- Queries referencing more than ~50 tables are reported with partial coverage, because the storage truncates the list.
+- **External tables** (Google Sheets in BigQuery, Spectrum tables in Redshift) keep their data outside the storage, so no modification time exists there. They appear in the breakdown as unknown, and the coverage becomes partial.
+- **Materialized views** show the time of their last refresh.
+- In BigQuery, queries referencing more than ~50 tables are reported with partial coverage, because the storage truncates the list.
+
+Storage-specific caveats:
+
+- **BigQuery** reports modification times immediately and exactly.
+- **Redshift** metadata can lag real writes by up to ~5 minutes, so a load that finished a moment ago may not show yet. Older Redshift releases do not report modification times at all — those Data Marts show Unknown. Source tables outside the connection's database cannot be identified and appear as unknown entries with partial coverage.
 
 ## Data Last Updated vs. the Data freshness check
 
