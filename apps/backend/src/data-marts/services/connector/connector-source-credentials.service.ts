@@ -411,6 +411,22 @@ export class ConnectorSourceCredentialsService {
   }
 
   /**
+   * Hands a credentials record over to another DataMart. Used when the owning
+   * DataMart is deleted while another DataMart still references the record, so
+   * deleting it would wipe credentials the referencing DataMart runs with.
+   * @param id - ConnectorSourceCredentials ID
+   * @param dataMartId - The new owning DataMart ID
+   * @param configId - The referencing configuration item id in the new owner
+   */
+  async transferSecretsOwnership(
+    id: string,
+    dataMartId: string,
+    configId: string | undefined
+  ): Promise<void> {
+    await this.connectorSourceCredentialsRepository.update({ id }, { dataMartId, configId });
+  }
+
+  /**
    * Get all secrets for a DataMart
    * @param dataMartId - DataMart ID
    * @returns Array of ConnectorSourceCredentials entities

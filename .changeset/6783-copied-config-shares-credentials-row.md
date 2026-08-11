@@ -14,7 +14,7 @@ creates its own credentials record, and a Data Mart can no longer write to or
 delete credentials that belong to another one. Data Marts that already share a
 record are separated automatically the next time each of them is saved.
 
-Three details worth knowing:
+A few details worth knowing:
 
 - Connections authorized through OAuth are still shared between Data Marts, as
   they were before — such a credential belongs to the project rather than to a
@@ -25,3 +25,9 @@ Three details worth knowing:
   (rotated) refresh token, so the copy keeps working even when the originally
   entered token has already expired. From there each Data Mart rotates its own
   token independently.
+- Deleting a Data Mart no longer removes credentials that another Data Mart
+  still references: the record is handed over to the referencing Data Mart
+  instead, so a not-yet-separated pair cannot lose data through deletion.
+- Copying a configuration with "Copy from…" now requires edit access to the
+  source Data Mart for every connector: you must be its technical owner, or it
+  must be shared with you for maintenance.

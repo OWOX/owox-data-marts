@@ -340,6 +340,46 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
   });
 
+  it('requires edit access on the copy source for every connector', async () => {
+    const { service, accessDecisionService, connectorSecretService } = createService();
+    accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const definition = {
+      connector: {
+        source: {
+          name: 'src',
+          node: 'n',
+          fields: ['f'],
+          configuration: [{ _id: 'config-1' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      definition,
+      'source-dm-1',
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(
+      'You do not have permission to copy connector credentials from the source DataMart'
+    );
+    expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
+      2,
+      'user-1',
+      ['editor'],
+      'DATA_MART',
+      'source-dm-1',
+      'EDIT',
+      'proj-1'
+    );
+    expect(connectorSecretService.mergeDefinitionSecretsFromSource).not.toHaveBeenCalled();
+  });
+
   it('rejects an unowned secret reference for connectors that copy secrets by value', async () => {
     const { service, dataMart, connectorSecretService, connectorService } = createService();
     connectorService.getConnectorCapabilities.mockReturnValue({
@@ -374,6 +414,44 @@ describe('UpdateDataMartDefinitionService', () => {
     expect(connectorSecretService.mergeDefinitionSecrets).not.toHaveBeenCalled();
     expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
 
+    dataMart.definition = definition;
+    connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
+    connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
+
+    await expect(service.run(command)).resolves.toEqual({ id: 'dm-1' });
+  });
+
+  it('rejects an unowned secret reference for every connector, not only copy-by-value ones', async () => {
+    const { service, dataMart, connectorSecretService } = createService();
+    const definition = {
+      connector: {
+        source: {
+          name: 'src',
+          node: 'n',
+          fields: ['f'],
+          configuration: [{ _id: 'config-1', _secrets_id: 'foreign-secret' }],
+        },
+        storage: { fullyQualifiedName: 'dataset.table' },
+      },
+    };
+    const command = new UpdateDataMartDefinitionCommand(
+      'dm-1',
+      'proj-1',
+      DataMartDefinitionType.CONNECTOR,
+      definition,
+      undefined,
+      undefined,
+      'user-1',
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(
+      'The selected connector credentials cannot be used for this DataMart'
+    );
+    expect(connectorSecretService.extractAndSaveSecrets).not.toHaveBeenCalled();
+
+    // The self-heal of aliased Data Marts stays open: the same pointer is
+    // accepted when it comes from the Data Mart's own stored definition.
     dataMart.definition = definition;
     connectorSecretService.mergeDefinitionSecrets.mockResolvedValue(definition);
     connectorSecretService.extractAndSaveSecrets.mockResolvedValue(definition);
