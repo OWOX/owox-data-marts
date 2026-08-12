@@ -1,0 +1,380 @@
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  SourceDataLastUpdated,
+  SourceDataLastUpdatedEntry,
+  unavailableSourceDataLastUpdated,
+} from '../../../dto/schemas/source-data-last-updated.schema';
+import { isAthenaConfig } from '../../data-storage-config.guards';
+import { DataStorageType } from '../../enums/data-storage-type.enum';
+import {
+  ResolveSourceDataLastUpdatedBatchInput,
+  ResolveSourceDataLastUpdatedItem,
+  SourceDataLastUpdatedResolver,
+} from '../../interfaces/source-data-last-updated-resolver.interface';
+import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
+import { AthenaApiAdapter, AthenaQueryOptions } from '../adapters/athena-api.adapter';
+import { AthenaInputTableRef, parseInputTablesFromIoPlan } from '../utils/athena-io-plan.util';
+import {
+  athenaEpochSecondsToIsoUtc,
+  athenaTimestampToIsoUtc,
+} from '../utils/athena-timestamp.utils';
+
+/**
+ * Athena answers "which tables does this query read" through `EXPLAIN (TYPE IO, FORMAT JSON)`
+ * — a structured input-table list with views already expanded by the planner — and "when did
+ * the data change" differently per table format:
+ *
+ * - **Iceberg** tables know exactly: `max(committed_at)` over the table's `$snapshots`
+ *   metadata is the last data commit. All Iceberg tables of one lookup are measured in a
+ *   single UNION ALL query.
+ * - **Hive** tables have no data-change time anywhere in the catalog. The honest best effort
+ *   is the catalog's own metadata time (`transient_lastDdlTime`, falling back to the creation
+ *   time), which may drift EITHER way from the last data change — a pure DDL touch moves it
+ *   forward with no data written. Such sources always carry a note and force coverage down to
+ *   `partial`, so a `complete` answer is only ever built from exact (Iceberg) times.
+ *   The precise alternative — walking S3 object timestamps under the table location — is
+ *   deliberately not done: cost scales with object count, not with the answer's value.
+ * - **Federated catalogs** (anything but `awsdatacatalog`) are not measured; they appear as
+ *   unknown sources with a note.
+ *
+ * Table metadata comes from Athena's own catalog API (`GetTableMetadata`), so no Glue SDK
+ * dependency is needed. Per-table conclusions are cached across the batch — a canvas sweep
+ * touching the same table through twenty Data Marts classifies and measures it once.
+ */
+@Injectable()
+export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdatedResolver {
+  readonly type: DataStorageType = DataStorageType.AWS_ATHENA;
+  private readonly logger = new Logger(AthenaSourceDataLastUpdatedResolver.name);
+
+  /**
+   * Athena is poll-based; the default 1s interval is tuned for real report queries, but these
+   * are tiny metadata statements that finish in well under a second — polling faster keeps a
+   * multi-round-trip resolution inside the orchestrator's soft timeout with room to spare.
+   */
+  private static readonly METADATA_POLL_INTERVAL_MS = 250;
+
+  /** The Glue-backed default catalog; the only one whose tables this resolver can measure. */
+  private static readonly DEFAULT_CATALOG = 'awsdatacatalog';
+
+  constructor(private readonly adapterFactory: AthenaApiAdapterFactory) {}
+
+  async resolveForSqlBatch(
+    input: ResolveSourceDataLastUpdatedBatchInput
+  ): Promise<Map<string, SourceDataLastUpdated>> {
+    const { storage, items, signal } = input;
+    const results = new Map<string, SourceDataLastUpdated>();
+
+    if (!isAthenaConfig(storage.config) || items.length === 0 || signal?.aborted) {
+      return results;
+    }
+    const outputBucket = storage.config.outputBucket;
+
+    // Built once for the whole batch: credential resolution and client setup are per-storage
+    // costs, and a canvas-wide sweep over one storage should pay them once, not per Data Mart.
+    const adapter = await this.adapterFactory.createFromStorage(storage);
+    const cache = new Map<string, CachedSource>();
+
+    for (const item of items) {
+      if (signal?.aborted) {
+        // Whatever resolved so far is still useful; the caller treats missing keys as
+        // "no new information" rather than as a reset.
+        break;
+      }
+      try {
+        results.set(item.key, await this.resolveOne(adapter, outputBucket, item, cache, signal));
+      } catch (error) {
+        if (signal?.aborted) {
+          // The poll loop surfaces an abort as a throw; that is the deadline firing, not a
+          // broken item — stop quietly with what we have.
+          break;
+        }
+        // One broken item (an invalid definition failing its EXPLAIN) must not sink the sweep
+        // for every healthy Data Mart on the same storage: skip its key — absent already means
+        // "no new information" — and keep measuring the rest.
+        this.logger.warn(
+          `Data last updated lookup failed for item ${item.key}; skipping: ${errorText(error)}`
+        );
+      }
+    }
+
+    return results;
+  }
+
+  private async resolveOne(
+    adapter: AthenaApiAdapter,
+    outputBucket: string,
+    item: ResolveSourceDataLastUpdatedItem,
+    cache: Map<string, CachedSource>,
+    signal?: AbortSignal
+  ): Promise<SourceDataLastUpdated> {
+    const computedAt = new Date().toISOString();
+
+    const planText = await adapter.getQueryIoPlan(
+      item.sql,
+      outputBucket,
+      item.params,
+      this.queryOptions(signal)
+    );
+    const tables = parseInputTablesFromIoPlan(planText);
+
+    if (tables.length === 0) {
+      // Either the query reads no table at all (a constant SELECT) or the IO plan came in a
+      // shape the parser does not recognise. Both are "we cannot say" — and the raw plan is
+      // logged so a format drift is observable, not silent.
+      this.logger.debug(
+        `No input tables recognised in IO plan for item ${item.key}: ${planText.slice(0, 500)}`
+      );
+      return unavailableSourceDataLastUpdated(computedAt);
+    }
+
+    const icebergToMeasure: AthenaInputTableRef[] = [];
+    for (const ref of tables) {
+      if (signal?.aborted) {
+        return unavailableSourceDataLastUpdated(computedAt);
+      }
+      if (!cache.has(refKey(ref))) {
+        const classified = await this.classifyTable(adapter, ref, cache);
+        if (classified === 'iceberg') {
+          icebergToMeasure.push(ref);
+        }
+      }
+    }
+
+    if (icebergToMeasure.length > 0 && !signal?.aborted) {
+      await this.measureIcebergTables(adapter, outputBucket, icebergToMeasure, cache, signal);
+    }
+
+    const sources: SourceDataLastUpdatedEntry[] = [];
+    let anyFailed = false;
+    let anyApproximate = false;
+    for (const ref of tables) {
+      const cached = cache.get(refKey(ref));
+      if (!cached || cached === 'dropped-view') {
+        // Iceberg tables skipped by an abort have no conclusion yet — leave them out entirely
+        // rather than inventing an unknown entry for a table we simply did not get to.
+        continue;
+      }
+      sources.push(cached.entry);
+      anyFailed = anyFailed || cached.failed;
+      anyApproximate = anyApproximate || cached.approximate;
+    }
+
+    if (sources.length === 0) {
+      return unavailableSourceDataLastUpdated(computedAt);
+    }
+
+    const resolvedTimes = sources
+      .map(source => source.dataLastUpdatedAt)
+      .filter((value): value is string => value !== null);
+
+    if (resolvedTimes.length === 0) {
+      return { dataLastUpdatedAt: null, computedAt, coverage: 'unavailable', sources };
+    }
+
+    // ISO-8601 UTC strings sort lexicographically in chronological order, so a plain max works.
+    const dataLastUpdatedAt = resolvedTimes.reduce((a, b) => (a > b ? a : b));
+    const isPartial = anyFailed || anyApproximate || resolvedTimes.length < sources.length;
+
+    return {
+      dataLastUpdatedAt,
+      computedAt,
+      coverage: isPartial ? 'partial' : 'complete',
+      sources,
+    };
+  }
+
+  /**
+   * Decides what a referenced table IS and, for everything except Iceberg, what its entry
+   * says. Iceberg tables are only classified here; their measurement is batched separately.
+   */
+  private async classifyTable(
+    adapter: AthenaApiAdapter,
+    ref: AthenaInputTableRef,
+    cache: Map<string, CachedSource>
+  ): Promise<'iceberg' | 'settled'> {
+    const key = refKey(ref);
+    const name = this.displayName(ref);
+
+    if (ref.catalog && ref.catalog !== AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG) {
+      cache.set(key, {
+        entry: {
+          table: name,
+          dataLastUpdatedAt: null,
+          note: 'federated catalog — modification time not measured',
+        },
+        approximate: false,
+        failed: false,
+      });
+      return 'settled';
+    }
+
+    let metadata: Awaited<ReturnType<AthenaApiAdapter['getTableMetadata']>>;
+    try {
+      metadata = await adapter.getTableMetadata(
+        ref.catalog ?? AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG,
+        ref.schema,
+        ref.table
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to read table metadata for ${name}: ${errorText(error)}`);
+      cache.set(key, {
+        entry: { table: name, dataLastUpdatedAt: null, note: 'could not read table metadata' },
+        approximate: false,
+        failed: true,
+      });
+      return 'settled';
+    }
+
+    if (!metadata) {
+      cache.set(key, {
+        entry: { table: name, dataLastUpdatedAt: null, note: 'table not found in catalog' },
+        approximate: false,
+        failed: false,
+      });
+      return 'settled';
+    }
+
+    if (metadata.tableType === 'VIRTUAL_VIEW') {
+      // The IO plan expands views to their base tables; a view surviving here means that did
+      // not happen for this query shape. Reporting the view's definition-change time would be
+      // exactly the misleading answer this design rejects, so we stay silent — but log it,
+      // because we would otherwise never notice.
+      this.logger.debug(`IO plan reported unexpanded view ${name}; dropping it from sources.`);
+      cache.set(key, 'dropped-view');
+      return 'settled';
+    }
+
+    if (metadata.parameters['table_type']?.toUpperCase() === 'ICEBERG') {
+      return 'iceberg';
+    }
+
+    const metadataTime = this.hiveMetadataTime(metadata);
+    cache.set(key, {
+      entry: {
+        table: name,
+        dataLastUpdatedAt: metadataTime,
+        note: metadataTime
+          ? 'catalog metadata time — may not reflect data changes'
+          : 'no modification time in catalog metadata',
+      },
+      // A metadata time can drift either way from the last data change, so it must never
+      // let the overall answer claim `complete`.
+      approximate: metadataTime !== null,
+      failed: false,
+    });
+    return 'settled';
+  }
+
+  /**
+   * One UNION ALL query answers `max(committed_at)` for every Iceberg table of this lookup —
+   * each Athena statement costs a full submit-and-poll round trip, so per-table queries would
+   * multiply latency for nothing.
+   */
+  private async measureIcebergTables(
+    adapter: AthenaApiAdapter,
+    outputBucket: string,
+    refs: AthenaInputTableRef[],
+    cache: Map<string, CachedSource>,
+    signal?: AbortSignal
+  ): Promise<void> {
+    try {
+      const rows = await adapter.executeQueryAndGetRows(
+        this.buildIcebergSnapshotsQuery(refs),
+        outputBucket,
+        this.queryOptions(signal)
+      );
+      const timeByTable = new Map<string, string | null>(
+        rows.map(row => [row[0] ?? '', athenaTimestampToIsoUtc(row[1])])
+      );
+
+      for (const ref of refs) {
+        const time = timeByTable.get(`${ref.schema}.${ref.table}`) ?? null;
+        cache.set(refKey(ref), {
+          entry: {
+            table: this.displayName(ref),
+            dataLastUpdatedAt: time,
+            ...(time === null ? { note: 'Iceberg table with no snapshots' } : {}),
+          },
+          approximate: false,
+          failed: false,
+        });
+      }
+    } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
+      this.logger.warn(`Failed to read Iceberg snapshots: ${errorText(error)}`);
+      for (const ref of refs) {
+        cache.set(refKey(ref), {
+          entry: {
+            table: this.displayName(ref),
+            dataLastUpdatedAt: null,
+            note: 'could not read Iceberg snapshots',
+          },
+          approximate: false,
+          failed: true,
+        });
+      }
+    }
+  }
+
+  private buildIcebergSnapshotsQuery(refs: AthenaInputTableRef[]): string {
+    return refs
+      .map(ref => {
+        const keyLiteral = `${ref.schema}.${ref.table}`.replace(/'/g, "''");
+        const from = `${quoteIdentifier(ref.schema)}.${quoteIdentifier(`${ref.table}$snapshots`)}`;
+        return (
+          `SELECT '${keyLiteral}' AS source_table, ` +
+          `CAST(max(committed_at) AS varchar) AS last_committed_at FROM ${from}`
+        );
+      })
+      .join('\nUNION ALL\n');
+  }
+
+  /** `transient_lastDdlTime` when the catalog has it, the creation time otherwise. */
+  private hiveMetadataTime(metadata: {
+    createTime: Date | null;
+    parameters: Record<string, string>;
+  }): string | null {
+    const ddlTime = athenaEpochSecondsToIsoUtc(metadata.parameters['transient_lastDdlTime']);
+    const createTime = metadata.createTime ? metadata.createTime.toISOString() : null;
+    if (ddlTime && createTime) {
+      return ddlTime > createTime ? ddlTime : createTime;
+    }
+    return ddlTime ?? createTime;
+  }
+
+  /** The default catalog is implied; only federated catalogs are worth naming. */
+  private displayName(ref: AthenaInputTableRef): string {
+    const isDefault =
+      !ref.catalog || ref.catalog === AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG;
+    return isDefault ? `${ref.schema}.${ref.table}` : `${ref.catalog}.${ref.schema}.${ref.table}`;
+  }
+
+  private queryOptions(signal?: AbortSignal): AthenaQueryOptions {
+    return {
+      pollIntervalMs: AthenaSourceDataLastUpdatedResolver.METADATA_POLL_INTERVAL_MS,
+      signal,
+    };
+  }
+}
+
+/**
+ * One table's settled conclusion, shared by every item of the batch. `approximate` marks a
+ * metadata-derived time that must cap coverage at `partial`; `failed` marks a lookup error.
+ */
+type CachedSource =
+  | { entry: SourceDataLastUpdatedEntry; approximate: boolean; failed: boolean }
+  | 'dropped-view';
+
+function refKey(ref: AthenaInputTableRef): string {
+  return `${ref.catalog ?? ''}\0${ref.schema}\0${ref.table}`;
+}
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

@@ -55,6 +55,7 @@ import { LegacyBigQueryBlendedQueryBuilder } from './bigquery/services/legacy/le
 import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
 import { BigQuerySourceDataLastUpdatedResolver } from './bigquery/services/bigquery-source-data-last-updated.resolver';
 import { RedshiftSourceDataLastUpdatedResolver } from './redshift/services/redshift-source-data-last-updated.resolver';
+import { AthenaSourceDataLastUpdatedResolver } from './athena/services/athena-source-data-last-updated.resolver';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
@@ -263,6 +264,7 @@ const identifierEscaperProviders = [
 const sourceDataLastUpdatedProviders = [
   BigQuerySourceDataLastUpdatedResolver,
   RedshiftSourceDataLastUpdatedResolver,
+  AthenaSourceDataLastUpdatedResolver,
 ];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
