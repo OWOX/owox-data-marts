@@ -29,7 +29,7 @@ const GENERIC_FAILURE_REASON = 'Publishing failed. Open the Data Mart to see det
  * Trigger-level failures raised by this service. Each carries a code so the
  * handler can tell authored text from an infrastructure error's message.
  */
-const PUBLISH_DRAFTS_ERRORS = {
+export const PUBLISH_DRAFTS_ERRORS = {
   UNRESOLVED_ROLES: {
     code: 'PUBLISH_DRAFTS_UNRESOLVED_ROLES',
     message: 'Could not determine your project permissions. No Data Mart drafts were published.',
@@ -45,6 +45,15 @@ const PUBLISH_DRAFTS_ERRORS = {
     message: 'Could not access this Storage. Check its connection settings and try again.',
   },
 } as const;
+
+/**
+ * Codes this service raises at trigger level. The handler allowlists these
+ * rather than trusting any coded BusinessViolationException: a code proves the
+ * thrower opted in, not that *this* path authored the text.
+ */
+export const PUBLISH_DRAFTS_TRIGGER_ERROR_CODES: ReadonlySet<string> = new Set<string>(
+  Object.values(PUBLISH_DRAFTS_ERRORS).map(error => error.code)
+);
 
 /**
  * A storage ValidationResult only carries a `code` when this codebase authored

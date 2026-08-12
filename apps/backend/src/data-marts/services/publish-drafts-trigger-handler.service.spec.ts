@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
+import { PUBLISH_DRAFTS_ERRORS } from '../use-cases/publish-data-storage-drafts.service';
 import { PublishDraftsTriggerHandlerService } from './publish-drafts-trigger-handler.service';
 
 describe('PublishDraftsTriggerHandlerService', () => {
@@ -52,7 +53,9 @@ describe('PublishDraftsTriggerHandlerService', () => {
     const { handler, trigger, publishDraftsService } = createHandler();
     publishDraftsService.run.mockRejectedValue(
       new BusinessViolationException(
-        'Could not determine your project permissions. No Data Mart drafts were published.'
+        PUBLISH_DRAFTS_ERRORS.UNRESOLVED_ROLES.message,
+        undefined,
+        PUBLISH_DRAFTS_ERRORS.UNRESOLVED_ROLES.code
       )
     );
 
@@ -60,7 +63,7 @@ describe('PublishDraftsTriggerHandlerService', () => {
 
     expect(trigger.onError).toHaveBeenCalled();
     expect(trigger.uiResponse).toMatchObject({
-      error: 'Could not determine your project permissions. No Data Mart drafts were published.',
+      error: PUBLISH_DRAFTS_ERRORS.UNRESOLVED_ROLES.message,
     });
   });
 
@@ -92,6 +95,26 @@ describe('PublishDraftsTriggerHandlerService', () => {
     const { handler, trigger, publishDraftsService } = createHandler();
     publishDraftsService.run.mockRejectedValue(
       new Error('QueryFailedError: connection terminated (host=db.acme-prod-1234.internal)')
+    );
+
+    await handler.handleTrigger(trigger as never);
+
+    expect(trigger.uiResponse).toMatchObject({
+      error: 'Publishing Data Mart drafts failed. Please try again.',
+    });
+    expect(JSON.stringify(trigger.uiResponse)).not.toContain('acme-prod-1234');
+  });
+
+  // A code only proves some thrower opted in — not that this path authored the
+  // wording. An unrelated coded exception must still be replaced.
+  it('genericizes a coded exception whose code is not one this trigger raises', async () => {
+    const { handler, trigger, publishDraftsService } = createHandler();
+    publishDraftsService.run.mockRejectedValue(
+      new BusinessViolationException(
+        'Dry run failed: SELECT * FROM `acme-prod-1234.finance.salaries`',
+        undefined,
+        'SOME_OTHER_SUBSYSTEM_CODE'
+      )
     );
 
     await handler.handleTrigger(trigger as never);
