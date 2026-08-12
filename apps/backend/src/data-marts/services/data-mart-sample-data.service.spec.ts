@@ -93,29 +93,79 @@ describe('DataMartSampleDataService', () => {
     expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
     expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
       dataMart,
-      'SELECT `report_date` FROM (SELECT report_date, amount FROM `src.dataset.orders`) AS owox_sample_source LIMIT 5',
+      'SELECT `report_date` FROM (SELECT report_date, amount FROM `src.dataset.orders`\n) AS owox_sample_source LIMIT 5',
       { limit: 5 }
     );
   });
 
-  it.each([DataStorageType.GOOGLE_BIGQUERY, DataStorageType.LEGACY_GOOGLE_BIGQUERY])(
-    'inlines a WITH/CTE SQL data mart as a derived table on %s',
-    async storageType => {
-      const { service, dataMart, dataMartSqlTableService, dataMartTableReferenceService } =
-        createService(storageType, {
-          sqlQuery: 'WITH src AS (SELECT 1 AS report_date) SELECT * FROM src;',
-        });
+  it('inlines a WITH/CTE SQL data mart as a derived table on BigQuery', async () => {
+    const { service, dataMart, dataMartSqlTableService, dataMartTableReferenceService } =
+      createService(DataStorageType.GOOGLE_BIGQUERY, {
+        sqlQuery: 'WITH src AS (SELECT 1 AS report_date) SELECT * FROM src;',
+      });
 
-      await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
 
-      expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
-      expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
-        dataMart,
-        'SELECT `report_date` FROM (WITH src AS (SELECT 1 AS report_date) SELECT * FROM src) AS owox_sample_source LIMIT 5',
-        { limit: 5 }
-      );
-    }
-  );
+    expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      dataMart,
+      'SELECT `report_date` FROM (WITH src AS (SELECT 1 AS report_date) SELECT * FROM src\n) AS owox_sample_source LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it('keeps the technical-view path for legacy BigQuery, whose raw ODM SQL needs preprocessing', async () => {
+    const { service, dataMartSqlTableService, dataMartTableReferenceService } = createService(
+      DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+      { sqlQuery: 'SELECT report_date FROM {{ source }}' }
+    );
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartTableReferenceService.resolveTableName).toHaveBeenCalledWith(
+      'data-mart-1',
+      'project-1'
+    );
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      expect.anything(),
+      'SELECT `report_date` FROM `test-project`.`TestDataset`.`dashed-table-name` LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it('survives a trailing line comment in the inlined SQL definition', async () => {
+    const { service, dataMart, dataMartSqlTableService } = createService(
+      DataStorageType.GOOGLE_BIGQUERY,
+      { sqlQuery: 'SELECT report_date FROM `src.dataset.orders` -- daily orders' }
+    );
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      dataMart,
+      'SELECT `report_date` FROM (SELECT report_date FROM `src.dataset.orders` -- daily orders\n) AS owox_sample_source LIMIT 5',
+      { limit: 5 }
+    );
+  });
+
+  it('keeps the technical-view path for a multi-statement SQL definition', async () => {
+    const { service, dataMartSqlTableService, dataMartTableReferenceService } = createService(
+      DataStorageType.GOOGLE_BIGQUERY,
+      { sqlQuery: 'SELECT 1 AS report_date; SELECT 2 AS report_date' }
+    );
+
+    await service.sampleColumns('data-mart-1', 'project-1', ['report_date']);
+
+    expect(dataMartTableReferenceService.resolveTableName).toHaveBeenCalledWith(
+      'data-mart-1',
+      'project-1'
+    );
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
+      expect.anything(),
+      'SELECT `report_date` FROM `test-project`.`TestDataset`.`dashed-table-name` LIMIT 5',
+      { limit: 5 }
+    );
+  });
 
   it('keeps the technical-view path for WITH/CTE SQL on a storage without CTE-in-derived-table support', async () => {
     const { service, dataMartSqlTableService, dataMartTableReferenceService } = createService(
@@ -147,7 +197,7 @@ describe('DataMartSampleDataService', () => {
     expect(dataMartTableReferenceService.resolveTableName).not.toHaveBeenCalled();
     expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(
       dataMart,
-      'SELECT "report_date" FROM (SELECT report_date FROM orders) AS owox_sample_source LIMIT 5',
+      'SELECT "report_date" FROM (SELECT report_date FROM orders\n) AS owox_sample_source LIMIT 5',
       { limit: 5 }
     );
   });

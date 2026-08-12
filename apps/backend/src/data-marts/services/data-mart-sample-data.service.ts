@@ -19,7 +19,6 @@ export interface SampleTableDataResult {
  */
 const CTE_INLINE_STORAGE_TYPES: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
-  DataStorageType.LEGACY_GOOGLE_BIGQUERY,
 ]);
 
 /**
@@ -27,9 +26,21 @@ const CTE_INLINE_STORAGE_TYPES: ReadonlySet<DataStorageType> = new Set([
  * `FROM (...)`: plain SELECT statements on any storage, WITH/CTE statements only on
  * storages known to accept a CTE inside a derived table. Trailing semicolons and
  * whitespace are stripped. Anything else returns null and keeps the technical-view path.
+ *
+ * Legacy BigQuery is never inlined: `definition.sqlQuery` holds the raw legacy ODM
+ * query, which is executable only after `LegacyBigQuerySqlPreprocessor.prepare` — and
+ * `executeSqlToTable` bypasses the query builder where that preprocessing happens.
  */
 function toInlineSubquerySql(sqlQuery: string, storageType: DataStorageType): string | null {
+  if (storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
+    return null;
+  }
   const trimmed = sqlQuery.trim().replace(/[;\s]+$/, '');
+  if (trimmed.includes(';')) {
+    // A remaining semicolon means a multi-statement script (or a semicolon inside a
+    // literal, which we cannot distinguish without a parser) — not wrappable in FROM (...).
+    return null;
+  }
   if (/^select\b/i.test(trimmed)) {
     return trimmed;
   }
@@ -93,7 +104,9 @@ export class DataMartSampleDataService {
       if (definition && isSqlDefinition(definition)) {
         const inlineSql = toInlineSubquerySql(definition.sqlQuery, storageType);
         if (inlineSql) {
-          return `(${inlineSql}) AS owox_sample_source`;
+          // The newline before ')' keeps a trailing `--`/`#` line comment in the data
+          // mart SQL from commenting out the closing parenthesis.
+          return `(${inlineSql}\n) AS owox_sample_source`;
         }
       }
     }
