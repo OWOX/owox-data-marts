@@ -23,10 +23,10 @@ import { InviteTeammatesCard } from '../../../shared/components/InviteTeammatesC
 import { useProjectRoute } from '../../../shared/hooks/useProjectRoute';
 
 function DataMartDestinationsContentInner() {
-  const { dataMart } = useOutletContext<DataMartContextType>();
+  const { dataMart, publishDataMartWithEffects } = useOutletContext<DataMartContextType>();
   const { dataDestinations, isLoading, fetchDataDestinations } = useDataDestinationsWithReports();
   const [isCreateDestinationOpen, setIsCreateDestinationOpen] = useState(false);
-  const { scope } = useProjectRoute();
+  const { scope, navigate } = useProjectRoute();
   const handleOpenCreateDestination = useCallback(() => {
     setIsCreateDestinationOpen(true);
   }, []);
@@ -72,6 +72,12 @@ function DataMartDestinationsContentInner() {
               key={destination.id}
               destination={destination}
               dataMartStatus={dataMart.status}
+              canPublish={dataMart.canPublish}
+              validationErrors={dataMart.validationErrors}
+              onPublishDataMart={publishDataMartWithEffects}
+              onReviewDataSetup={() => {
+                navigate(`/data-marts/${dataMart.id}/data-setup`);
+              }}
             />
           ))}
           {showSheetsUpsellPromo && (
