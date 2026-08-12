@@ -78,6 +78,12 @@ export async function createTestApp(
   const { PROTOCOL_ROUTE_EXCLUSIONS } = await import(
     /* webpackIgnore: true */ '../../../../apps/backend/src/config/protocol-route-exclusions.config'
   );
+  const { ProjectBillingService } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/data-marts/services/project-billing/project-billing.service'
+  );
+  const { InternalProjectBillingService } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/data-marts/services/project-billing/internal-project-billing.service'
+  );
 
   // Import exception filters to match production behavior (registered in bootstrap.ts)
   const { GlobalExceptionFilter } = await import(
@@ -89,7 +95,13 @@ export async function createTestApp(
 
   let builder = Test.createTestingModule({
     imports: [AppModule],
-  });
+    // Exercise API flows with the real internal provider; license routing is covered separately.
+  })
+    .overrideProvider(ProjectBillingService)
+    .useFactory({
+      factory: (internal: InstanceType<typeof InternalProjectBillingService>) => internal,
+      inject: [InternalProjectBillingService],
+    });
 
   if (overrides) {
     for (const o of overrides) {

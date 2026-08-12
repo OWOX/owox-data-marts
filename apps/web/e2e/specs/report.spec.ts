@@ -137,7 +137,10 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     await expect(card).toBeVisible();
 
     // Click Add Report button within the card
-    await card.getByTestId(TESTIDS.reportCreateButton).click();
+    await card
+      .getByRole('table', { name: destTitle })
+      .getByTestId(TESTIDS.reportCreateButton)
+      .click();
 
     // Email report edit sheet opens (SheetContent without reportEditSheet testid)
     // Wait for the sheet to be visible
@@ -393,7 +396,11 @@ test.describe('Reports - Fire and Forget Run', () => {
     const runContainer = page.getByTestId(TESTIDS.runHistoryTable);
     await expect(runContainer).toBeVisible({ timeout: 15000 });
 
-    // Verify at least one run entry appeared
-    await expect(runContainer.locator('.dm-card-block').first()).toBeVisible({ timeout: 15000 });
+    // Verify the unlicensed production app records the run as restricted.
+    const firstRun = runContainer.locator('.dm-card-block').first();
+    await expect(firstRun).toBeVisible({ timeout: 15000 });
+    await expect(firstRun.getByText('Restricted', { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
   });
 });
