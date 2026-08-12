@@ -147,7 +147,7 @@ describe('RunPluginUpdateCheckService', () => {
     await s.service.run({ ...PLUGIN, suspendedAt: new Date() } as Plugin, 'automatic');
 
     expect(s.sync.run).toHaveBeenCalledWith(
-      expect.objectContaining({ repoLocator: 'OWOX/example', enforceThrottle: false })
+      expect.objectContaining({ repoLocator: 'OWOX/example', requireCurrentVersion: false })
     );
   });
 });

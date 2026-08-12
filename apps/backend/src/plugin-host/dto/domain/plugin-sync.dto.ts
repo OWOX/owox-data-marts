@@ -41,8 +41,7 @@ export interface PluginSyncResultDto {
   readonly report: SyncReport;
   /**
    * True when the per-plugin throttle turned this into a no-op and the values above are
-   * the stored ones. Only meaningful for a non-enforcing run, which reports the state it
-   * found instead of failing.
+   * the stored ones.
    */
   readonly throttled: boolean;
 }
@@ -51,10 +50,9 @@ export class SyncPluginReleasesCommand {
   constructor(
     readonly repoLocator: string,
     /**
-     * True for publisher- and member-triggered runs, where hitting the throttle must be
-     * reported rather than hidden. False for background sweeps, which should quietly
-     * return the stored report instead of failing.
+     * Publishing requires an already validated version when a sync is throttled. Background
+     * sweeps can quietly return an empty stored state while a first sync is still running.
      */
-    readonly enforceThrottle: boolean = true
+    readonly requireCurrentVersion: boolean = true
   ) {}
 }

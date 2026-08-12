@@ -135,7 +135,8 @@ describe('Plugin host schema (e2e)', () => {
     );
     const pluginService = app.get(PluginService);
     const versions = app.get(PluginVersionService);
-    const leaseId = await pluginService.tryClaimSyncSlot(plugin.id, 0);
+    const claim = await pluginService.tryClaimSyncSlot(plugin.id, 0);
+    if (claim.status !== 'claimed') throw new Error('Expected a claimed sync slot');
     const input = {
       pluginId: plugin.id,
       semver: '1.0.0',
@@ -150,7 +151,7 @@ describe('Plugin host schema (e2e)', () => {
     };
 
     await expect(versions.insertVersionForLease(input, 'stale-worker')).resolves.toBeNull();
-    await expect(versions.insertVersionForLease(input, leaseId!)).resolves.toMatchObject({
+    await expect(versions.insertVersionForLease(input, claim.leaseId)).resolves.toMatchObject({
       semver: '1.0.0',
     });
   });

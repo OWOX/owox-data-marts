@@ -67,7 +67,7 @@ export class RunPluginUpdateCheckService {
 
     // Deliberately not gated on suspension: a suspended plugin is exactly the one that
     // needs a corrective version to become current, and activating it does not resume it.
-    // Non-enforcing, so hitting the throttle is reported as an outcome rather than thrown.
+    // A stored first-sync state is allowed, so hitting the throttle is an outcome, not an error.
     let synced;
     try {
       synced = await this.sync.run(new SyncPluginReleasesCommand(repository, false));

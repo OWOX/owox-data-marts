@@ -7,6 +7,21 @@ import { GithubRepoDto } from '../dto/domain/github-repo.dto';
 import { SyncReport } from '../dto/domain/plugin-sync.dto';
 import { Plugin } from '../entities/plugin.entity';
 
+export interface PluginSyncSlotState {
+  readonly pluginId: string;
+  readonly currentVersionId: string | null;
+  readonly lastSyncReport: SyncReport | null;
+}
+
+export type PluginSyncSlotClaim =
+  | { readonly status: 'claimed'; readonly leaseId: string }
+  | { readonly status: 'in_progress'; readonly state: PluginSyncSlotState }
+  | {
+      readonly status: 'rate_limited';
+      readonly state: PluginSyncSlotState;
+      readonly retryAfterSeconds: number;
+    };
+
 @Injectable()
 export class PluginService {
   private static readonly SYNC_LEASE_STALE_MS = 30 * 60 * 1000;
@@ -112,9 +127,10 @@ export class PluginService {
    * the conservative staleness window; ownership is a UUID so an old worker cannot
    * release a lease that a newer worker has reclaimed.
    */
-  async tryClaimSyncSlot(pluginId: string, minIntervalMs: number): Promise<string | null> {
+  async tryClaimSyncSlot(pluginId: string, minIntervalMs: number): Promise<PluginSyncSlotClaim> {
     const now = new Date();
     const leaseId = randomUUID();
+    const leaseCutoff = new Date(now.getTime() - PluginService.SYNC_LEASE_STALE_MS);
     const result = await this.repository
       .createQueryBuilder()
       .update(Plugin)
@@ -124,11 +140,41 @@ export class PluginService {
         cutoff: new Date(now.getTime() - minIntervalMs),
       })
       .andWhere('(syncLeaseStartedAt IS NULL OR syncLeaseStartedAt <= :leaseCutoff)', {
-        leaseCutoff: new Date(now.getTime() - PluginService.SYNC_LEASE_STALE_MS),
+        leaseCutoff,
       })
       .execute();
 
-    return (result.affected ?? 0) > 0 ? leaseId : null;
+    if ((result.affected ?? 0) > 0) {
+      return { status: 'claimed', leaseId };
+    }
+
+    // The row may have changed since the caller resolved the repository. Re-reading is
+    // required both to distinguish an active worker from the cooldown it leaves behind
+    // and to return a version that the worker may just have promoted.
+    const plugin = await this.repository.findOneByOrFail({ id: pluginId });
+    const state: PluginSyncSlotState = {
+      pluginId: plugin.id,
+      currentVersionId: plugin.currentVersionId,
+      lastSyncReport: plugin.lastSyncReport,
+    };
+    if (
+      plugin.syncLeaseId &&
+      plugin.syncLeaseStartedAt &&
+      plugin.syncLeaseStartedAt > leaseCutoff
+    ) {
+      return { status: 'in_progress', state };
+    }
+
+    const elapsedMs = plugin.lastSyncAt
+      ? Math.max(0, now.getTime() - plugin.lastSyncAt.getTime())
+      : minIntervalMs;
+    const remainingMs = Math.min(minIntervalMs, Math.max(0, minIntervalMs - elapsedMs));
+
+    return {
+      status: 'rate_limited',
+      state,
+      retryAfterSeconds: Math.max(1, Math.ceil(remainingMs / 1000)),
+    };
   }
 
   async releaseSyncSlot(pluginId: string, leaseId: string): Promise<void> {

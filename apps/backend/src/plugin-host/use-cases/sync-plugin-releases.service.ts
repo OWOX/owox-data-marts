@@ -12,12 +12,13 @@ import {
 import { Plugin } from '../entities/plugin.entity';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import {
+  PluginSyncInProgressError,
   PluginSyncLeaseLostError,
   PluginSyncRateLimitedError,
   PluginVersionConflictError,
 } from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
-import { PluginService } from '../services/plugin.service';
+import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
@@ -57,13 +58,14 @@ export class SyncPluginReleasesService {
     const repo = await this.githubApi.getRepo(ref);
     const plugin = await this.findOrCreatePlugin(repo);
 
-    const syncLeaseId = await this.pluginService.tryClaimSyncSlot(
+    const claim = await this.pluginService.tryClaimSyncSlot(
       plugin.id,
-      this.config.syncMinIntervalMs
+      this.config.getSyncMinIntervalMs(repo.accessMode)
     );
-    if (!syncLeaseId) {
-      return this.throttled(plugin, repo, command.enforceThrottle);
+    if (claim.status !== 'claimed') {
+      return this.throttled(claim, repo, command.requireCurrentVersion);
     }
+    const syncLeaseId = claim.leaseId;
 
     try {
       const rejections: ReleaseRejectionDto[] = [];
@@ -318,25 +320,31 @@ export class SyncPluginReleasesService {
   }
 
   private async throttled(
-    plugin: Plugin,
+    claim: Exclude<PluginSyncSlotClaim, { status: 'claimed' }>,
     repo: GithubRepoDto,
-    enforce: boolean
+    requireCurrentVersion: boolean
   ): Promise<PluginSyncResultDto> {
-    if (enforce) {
-      throw new PluginSyncRateLimitedError(Math.ceil(this.config.syncMinIntervalMs / 1000));
-    }
-
-    const current = plugin.currentVersionId
-      ? await this.versionService.findById(plugin.currentVersionId)
+    const { state } = claim;
+    const current = state.currentVersionId
+      ? await this.versionService.findById(state.currentVersionId)
       : null;
 
+    if (requireCurrentVersion) {
+      if (claim.status === 'in_progress') {
+        throw new PluginSyncInProgressError();
+      }
+      if (!current) {
+        throw new PluginSyncRateLimitedError(claim.retryAfterSeconds);
+      }
+    }
+
     return {
-      pluginId: plugin.id,
+      pluginId: state.pluginId,
       githubRepoId: repo.githubRepoId,
       repository: `${repo.owner}/${repo.name}`,
       currentSemver: current?.semver ?? null,
       currentVersionId: current?.id ?? null,
-      report: plugin.lastSyncReport ?? this.emptyReport(repo),
+      report: state.lastSyncReport ?? this.emptyReport(repo),
       throttled: true,
     };
   }

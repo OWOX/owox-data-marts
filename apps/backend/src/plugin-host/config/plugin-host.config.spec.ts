@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
 import { validateConfig } from '../../config/env-validation.config';
 import { PublicOriginService } from '../../common/config/public-origin.service';
+import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { PluginHostConfigService } from './plugin-host.config';
 
 // Deliberately `unknown`, not `string`: the boot-time schema coerces numeric settings,
@@ -106,7 +107,9 @@ describe('PluginHostConfigService', () => {
     it('falls back to defaults when the env vars are absent', () => {
       const defaults = config({});
 
-      expect(defaults.syncMinIntervalMs).toBe(300_000);
+      expect(defaults.getSyncMinIntervalMs(GithubAccessMode.APP)).toBe(30_000);
+      expect(defaults.getSyncMinIntervalMs(GithubAccessMode.SERVER_TOKEN)).toBe(30_000);
+      expect(defaults.getSyncMinIntervalMs(GithubAccessMode.ANONYMOUS)).toBe(300_000);
       expect(defaults.remoteProbeTimeoutMs).toBe(8_000);
       // Both are internal constants: no environment variable reaches them.
       expect(defaults.maxRedirectHops).toBe(5);
@@ -119,24 +122,26 @@ describe('PluginHostConfigService', () => {
         PLUGIN_HOST_REMOTE_PROBE_TIMEOUT_MS: '2000',
       });
 
-      expect(tuned.syncMinIntervalMs).toBe(60_000);
+      expect(tuned.getSyncMinIntervalMs(GithubAccessMode.APP)).toBe(60_000);
+      expect(tuned.getSyncMinIntervalMs(GithubAccessMode.ANONYMOUS)).toBe(60_000);
       expect(tuned.remoteProbeTimeoutMs).toBe(2_000);
     });
 
     /**
      * Through the real schema rather than a hand-written stand-in.
      *
-     * validateConfig coerces these three to numbers, so a service that assumed strings
+     * validateConfig coerces numeric settings, so a service that assumed strings
      * threw on the first publish while every string-fed unit test stayed green. Running
      * the actual validator is what makes the two layers agree by test rather than by luck.
      */
     it.each([
-      ['with values supplied', { PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC: '60' }, 60_000],
-      ['on schema defaults', {}, 300_000],
-    ])('survives boot-time coercion %s', (_label, env, expected) => {
+      ['with values supplied', { PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC: '60' }, 60_000, 60_000],
+      ['with mode-aware defaults', {}, 30_000, 300_000],
+    ])('survives boot-time coercion %s', (_label, env, authenticated, anonymous) => {
       const validated = config(validateConfig(env));
 
-      expect(validated.syncMinIntervalMs).toBe(expected);
+      expect(validated.getSyncMinIntervalMs(GithubAccessMode.APP)).toBe(authenticated);
+      expect(validated.getSyncMinIntervalMs(GithubAccessMode.ANONYMOUS)).toBe(anonymous);
       expect(validated.remoteProbeTimeoutMs).toBe(8_000);
     });
   });

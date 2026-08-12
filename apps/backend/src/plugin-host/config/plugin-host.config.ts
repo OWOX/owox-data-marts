@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PublicOriginService } from '../../common/config/public-origin.service';
+import { GithubAccessMode } from '../enums/github-access-mode.enum';
 
 const DEFAULT_GITHUB_API_BASE_URL = 'https://api.github.com';
-const DEFAULT_SYNC_MIN_INTERVAL_SEC = 300;
+const DEFAULT_AUTHENTICATED_SYNC_MIN_INTERVAL_SEC = 30;
+const DEFAULT_ANONYMOUS_SYNC_MIN_INTERVAL_SEC = 300;
 const DEFAULT_REMOTE_PROBE_TIMEOUT_MS = 8_000;
 
 /** Redirect hops followed while validating a delivery URL. Not configurable. */
@@ -98,8 +100,13 @@ export class PluginHostConfigService {
     return this.trimmed('GITHUB_TOKEN');
   }
 
-  get syncMinIntervalMs(): number {
-    return this.numeric('PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC', DEFAULT_SYNC_MIN_INTERVAL_SEC) * 1000;
+  getSyncMinIntervalMs(accessMode: GithubAccessMode): number {
+    const defaultSeconds =
+      accessMode === GithubAccessMode.ANONYMOUS
+        ? DEFAULT_ANONYMOUS_SYNC_MIN_INTERVAL_SEC
+        : DEFAULT_AUTHENTICATED_SYNC_MIN_INTERVAL_SEC;
+
+    return this.numeric('PLUGIN_HOST_SYNC_MIN_INTERVAL_SEC', defaultSeconds) * 1000;
   }
 
   get maxReleasePages(): number {

@@ -6,8 +6,8 @@ import { GithubAccessMode } from '../enums/github-access-mode.enum';
 import { ReleaseRejectionCode } from '../enums/release-rejection-code.enum';
 import {
   InvalidRepoLocatorError,
+  PluginSyncInProgressError,
   PluginSyncLeaseLostError,
-  PluginSyncRateLimitedError,
 } from '../errors/plugin-host.errors';
 import { GithubApiService } from '../services/github-api.service';
 import { PluginService } from '../services/plugin.service';
@@ -61,7 +61,7 @@ function setup() {
     createForRepo: jest.fn(),
     createOrFindForRepo: jest.fn(),
     syncRepoNaming: jest.fn().mockResolvedValue(undefined),
-    tryClaimSyncSlot: jest.fn().mockResolvedValue('lease-1'),
+    tryClaimSyncSlot: jest.fn().mockResolvedValue({ status: 'claimed', leaseId: 'lease-1' }),
     releaseSyncSlot: jest.fn().mockResolvedValue(undefined),
     saveSyncOutcome: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<PluginService>;
@@ -86,8 +86,8 @@ function setup() {
   return { service, githubApi, validator, pluginService, versionService };
 }
 
-const run = (s: ReturnType<typeof setup>, enforceThrottle = true) =>
-  s.service.run(new SyncPluginReleasesCommand(LOCATOR, enforceThrottle));
+const run = (s: ReturnType<typeof setup>, requireCurrentVersion = true) =>
+  s.service.run(new SyncPluginReleasesCommand(LOCATOR, requireCurrentVersion));
 
 describe('SyncPluginReleasesService', () => {
   describe('sync lease fencing', () => {
@@ -422,27 +422,85 @@ describe('SyncPluginReleasesService', () => {
   });
 
   describe('throttling', () => {
-    it('reports the throttle to whoever asked for the sync', async () => {
-      const s = setup();
-      s.pluginService.tryClaimSyncSlot.mockResolvedValue(null);
+    const stored = {
+      syncedAt: '2026-07-01T00:00:00.000Z',
+      accessMode: GithubAccessMode.ANONYMOUS,
+      acceptedSemvers: ['1.0.0'],
+      unchangedSemvers: [],
+      rejections: [],
+    };
 
-      await expect(run(s)).rejects.toBeInstanceOf(PluginSyncRateLimitedError);
+    it.each([
+      [GithubAccessMode.APP, 30_000],
+      [GithubAccessMode.SERVER_TOKEN, 30_000],
+      [GithubAccessMode.ANONYMOUS, 300_000],
+    ])('uses the safe cooldown for %s access', async (accessMode, intervalMs) => {
+      const s = setup();
+      s.githubApi.getRepo.mockResolvedValue(repo({ accessMode }));
+
+      await run(s);
+
+      expect(s.pluginService.tryClaimSyncSlot).toHaveBeenCalledWith('p1', intervalMs);
+    });
+
+    it('publishes with the stored validated version when only the cooldown blocks sync', async () => {
+      const s = setup();
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue({
+        status: 'rate_limited',
+        retryAfterSeconds: 42,
+        state: { pluginId: 'p1', currentVersionId: 'v1', lastSyncReport: stored },
+      } as never);
+      s.versionService.findById = jest.fn().mockResolvedValue({ id: 'v1', semver: '1.0.0' });
+
+      const result = await run(s);
+
+      expect(s.githubApi.listReleases).not.toHaveBeenCalled();
+      expect(result.report).toEqual(stored);
+      expect(result.currentSemver).toBe('1.0.0');
+      expect(result.throttled).toBe(true);
+    });
+
+    it('reports the remaining cooldown when no validated version exists', async () => {
+      const s = setup();
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue({
+        status: 'rate_limited',
+        retryAfterSeconds: 42,
+        state: { pluginId: 'p1', currentVersionId: null, lastSyncReport: null },
+      } as never);
+
+      await expect(run(s)).rejects.toMatchObject({
+        code: 'PLUGIN_SYNC_RATE_LIMITED',
+        errorDetails: { retryAfterSeconds: 42 },
+      });
+    });
+
+    it('reports an active publication instead of treating it as cooldown', async () => {
+      const s = setup();
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue({
+        status: 'in_progress',
+        state: { pluginId: 'p1', currentVersionId: null, lastSyncReport: null },
+      } as never);
+
+      await expect(run(s)).rejects.toBeInstanceOf(PluginSyncInProgressError);
+    });
+
+    it('does not use a cached version while another sync is still running', async () => {
+      const s = setup();
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue({
+        status: 'in_progress',
+        state: { pluginId: 'p1', currentVersionId: 'v1', lastSyncReport: stored },
+      } as never);
+      s.versionService.findById = jest.fn().mockResolvedValue({ id: 'v1', semver: '1.0.0' });
+
+      await expect(run(s)).rejects.toBeInstanceOf(PluginSyncInProgressError);
     });
 
     it('returns the stored report unchanged for a background sweep', async () => {
       const s = setup();
-      s.pluginService.tryClaimSyncSlot.mockResolvedValue(null);
-      const stored = {
-        syncedAt: '2026-07-01T00:00:00.000Z',
-        accessMode: GithubAccessMode.ANONYMOUS,
-        acceptedSemvers: ['1.0.0'],
-        unchangedSemvers: [],
-        rejections: [],
-      };
-      s.pluginService.findByGithubRepoId.mockResolvedValue({
-        id: 'p1',
-        currentVersionId: 'v1',
-        lastSyncReport: stored,
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue({
+        status: 'rate_limited',
+        retryAfterSeconds: 42,
+        state: { pluginId: 'p1', currentVersionId: 'v1', lastSyncReport: stored },
       } as never);
       s.versionService.findById = jest.fn().mockResolvedValue({ id: 'v1', semver: '1.0.0' });
 

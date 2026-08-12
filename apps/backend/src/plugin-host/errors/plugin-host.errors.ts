@@ -104,6 +104,18 @@ export class PluginSyncRateLimitedError extends PluginHostError {
   }
 }
 
+/** Another synchronization is still running; publishing waits for its authoritative result. */
+export class PluginSyncInProgressError extends PluginHostError {
+  readonly memberVisible = true;
+
+  constructor() {
+    super(
+      'PLUGIN_SYNC_IN_PROGRESS',
+      'This plugin is currently being published. Try again shortly.'
+    );
+  }
+}
+
 /** A stale sync worker lost its cross-instance lease and must not record or promote a version. */
 export class PluginSyncLeaseLostError extends PluginHostError {
   readonly memberVisible = false;

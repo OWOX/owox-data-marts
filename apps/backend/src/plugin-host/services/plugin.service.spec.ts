@@ -102,34 +102,57 @@ describe('PluginService sync lease', () => {
       service.tryClaimSyncSlot(plugin.id, 0),
     ]);
 
-    expect(claims.filter(Boolean)).toHaveLength(1);
+    expect(claims.filter(claim => claim.status === 'claimed')).toHaveLength(1);
+    expect(claims.filter(claim => claim.status === 'in_progress')).toHaveLength(1);
   });
 
   it('allows only the owner to release and allows a new claim after release', async () => {
-    const leaseId = await service.tryClaimSyncSlot(plugin.id, 0);
-    expect(leaseId).toEqual(expect.any(String));
+    const claim = await service.tryClaimSyncSlot(plugin.id, 0);
+    expect(claim).toMatchObject({ status: 'claimed', leaseId: expect.any(String) });
+    if (claim.status !== 'claimed') throw new Error('Expected a claimed sync slot');
 
     await service.releaseSyncSlot(plugin.id, 'different-owner');
-    await expect(service.tryClaimSyncSlot(plugin.id, 0)).resolves.toBeNull();
+    await expect(service.tryClaimSyncSlot(plugin.id, 0)).resolves.toMatchObject({
+      status: 'in_progress',
+    });
 
-    await service.releaseSyncSlot(plugin.id, leaseId!);
-    await expect(service.tryClaimSyncSlot(plugin.id, 0)).resolves.toEqual(expect.any(String));
+    await service.releaseSyncSlot(plugin.id, claim.leaseId);
+    await expect(service.tryClaimSyncSlot(plugin.id, 0)).resolves.toMatchObject({
+      status: 'claimed',
+      leaseId: expect.any(String),
+    });
   });
 
   it('reclaims a stale lease with a different owner token', async () => {
-    const oldLease = await service.tryClaimSyncSlot(plugin.id, 0);
+    const oldClaim = await service.tryClaimSyncSlot(plugin.id, 0);
+    if (oldClaim.status !== 'claimed') throw new Error('Expected a claimed sync slot');
     await repository.update(plugin.id, {
       syncLeaseStartedAt: new Date(Date.now() - 31 * 60 * 1000),
       lastSyncAt: new Date(Date.now() - 31 * 60 * 1000),
     });
 
     const replacement = await service.tryClaimSyncSlot(plugin.id, 0);
-    expect(replacement).toEqual(expect.any(String));
-    expect(replacement).not.toBe(oldLease);
+    expect(replacement).toMatchObject({ status: 'claimed', leaseId: expect.any(String) });
+    if (replacement.status !== 'claimed') throw new Error('Expected a replacement sync slot');
+    expect(replacement.leaseId).not.toBe(oldClaim.leaseId);
 
-    await service.releaseSyncSlot(plugin.id, oldLease!);
+    await service.releaseSyncSlot(plugin.id, oldClaim.leaseId);
     await expect(repository.findOneByOrFail({ id: plugin.id })).resolves.toMatchObject({
-      syncLeaseId: replacement,
+      syncLeaseId: replacement.leaseId,
+    });
+  });
+
+  it('returns the remaining cooldown separately from an active lease', async () => {
+    await repository.update(plugin.id, {
+      lastSyncAt: new Date(Date.now() - 60_000),
+      syncLeaseId: null,
+      syncLeaseStartedAt: null,
+    });
+
+    await expect(service.tryClaimSyncSlot(plugin.id, 300_000)).resolves.toMatchObject({
+      status: 'rate_limited',
+      retryAfterSeconds: 240,
+      state: { pluginId: plugin.id },
     });
   });
 });
