@@ -13,6 +13,7 @@ import { Logger } from '@nestjs/common';
 import { RedshiftConfig } from '../schemas/redshift-config.schema';
 import { RedshiftCredentials } from '../schemas/redshift-credentials.schema';
 import { RedshiftConnectionType } from '../enums/redshift-connection-type.enum';
+import { redshiftTimestampToIsoUtc } from '../utils/redshift-timestamp.utils';
 
 /**
  * Tuning for the execute-and-poll cycle of a single statement. Defaults preserve the historic
@@ -90,7 +91,12 @@ export class RedshiftApiAdapter {
     statementId: string,
     options?: RedshiftQueryOptions
   ): Promise<void> {
-    const intervalMs = options?.pollIntervalMs ?? RedshiftApiAdapter.DEFAULT_POLL_INTERVAL_MS;
+    // Clamped so a zero/negative interval cannot turn this into a busy-loop with an infinite
+    // attempt budget.
+    const intervalMs = Math.max(
+      1,
+      options?.pollIntervalMs ?? RedshiftApiAdapter.DEFAULT_POLL_INTERVAL_MS
+    );
     const maxAttempts = Math.ceil(RedshiftApiAdapter.QUERY_TIMEOUT_MS / intervalMs);
     let attempts = 0;
 
@@ -361,23 +367,8 @@ export class RedshiftApiAdapter {
       )
       .map(row => ({
         tableName: row.table_name,
-        lastModifiedTime: this.toIsoUtcTimestamp(row.last_modified_time),
+        lastModifiedTime: redshiftTimestampToIsoUtc(row.last_modified_time),
       }));
-  }
-
-  /**
-   * `2025-11-18 15:44:34.856073` (Redshift timestamps are UTC, reported without a zone) →
-   * ISO-8601 with millisecond precision, or null for anything absent or unrecognised.
-   */
-  private toIsoUtcTimestamp(value: string | null | undefined): string | null {
-    const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/.exec(
-      value?.trim() ?? ''
-    );
-    if (!match) {
-      return null;
-    }
-    const millis = (match[3] ?? '').padEnd(3, '0').slice(0, 3);
-    return `${match[1]}T${match[2]}.${millis}Z`;
   }
 
   /**
