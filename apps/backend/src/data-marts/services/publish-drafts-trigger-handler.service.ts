@@ -18,16 +18,20 @@ const STORAGE_GONE_ERROR = 'This Storage no longer exists. No Data Mart drafts w
  * The response is readable by any project viewer, so only text this codebase
  * authored may travel on it.
  *
- * PublishDataStorageDraftsService raises BusinessViolationException only with
- * its own wording. NotFoundException is mapped separately because it is a
- * permanent condition — its own message is not reused, since it embeds storage
- * and project ids.
+ * A BusinessViolationException is trusted only when it carries a code: the same
+ * exception type is also thrown with raw text elsewhere (the definition
+ * validator facade wraps warehouse dry-run output, ActualizeDataMartSchema
+ * wraps an arbitrary error.message). Requiring a code makes that guarantee
+ * structural instead of a property of the current call graph.
+ *
+ * NotFoundException is mapped separately because it is a permanent condition —
+ * its own message is not reused, since it embeds storage and project ids.
  */
 function toTriggerErrorMessage(error: unknown): string {
   if (error instanceof NotFoundException) {
     return STORAGE_GONE_ERROR;
   }
-  if (error instanceof BusinessViolationException) {
+  if (error instanceof BusinessViolationException && error.code) {
     return error.message;
   }
   return GENERIC_TRIGGER_ERROR;

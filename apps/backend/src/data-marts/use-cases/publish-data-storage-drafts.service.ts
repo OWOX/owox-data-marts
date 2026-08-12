@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
@@ -12,33 +13,57 @@ import { SchemaActualizeTriggerService } from '../services/schema-actualize-trig
 import { PUBLISH_DATA_MART_ERRORS, PublishDataMartService } from './publish-data-mart.service';
 import { ValidateDataStorageAccessService } from './validate-data-storage-access.service';
 
-/** Reasons the publish path authors itself; anything else is not shown to users. */
-const USER_FACING_FAILURE_REASONS: ReadonlySet<string> = new Set(
-  Object.values(PUBLISH_DATA_MART_ERRORS)
-);
+/**
+ * Failure codes whose message this codebase authored. Sanitization keys on the
+ * code rather than the text, so an authored message is safe because it is
+ * tagged as ours — not because its bytes match a list.
+ */
+const USER_FACING_FAILURE_CODES: ReadonlySet<string> = new Set<string>([
+  ...Object.values(PUBLISH_DATA_MART_ERRORS).map(error => error.code),
+  ...Object.values(DataMartValidationCode),
+]);
 
 const GENERIC_FAILURE_REASON = 'Publishing failed. Open the Data Mart to see details.';
 
-/** Surfaced as the trigger-level error when the publisher's roles cannot be resolved. */
-const UNRESOLVED_ROLES_ERROR =
-  'Could not determine your project permissions. No Data Mart drafts were published.';
-
-/** Same, but for a failed lookup rather than a definitive empty answer — retrying may help. */
-const PERMISSIONS_LOOKUP_FAILED_ERROR =
-  'Could not verify your project permissions. No Data Mart drafts were published. Please try again.';
-
-/** Fallback when the storage check failed for a reason this codebase did not author. */
-const STORAGE_ACCESS_FAILED_ERROR =
-  'Could not access this Storage. Check its connection settings and try again.';
+/**
+ * Trigger-level failures raised by this service. Each carries a code so the
+ * handler can tell authored text from an infrastructure error's message.
+ */
+const PUBLISH_DRAFTS_ERRORS = {
+  UNRESOLVED_ROLES: {
+    code: 'PUBLISH_DRAFTS_UNRESOLVED_ROLES',
+    message: 'Could not determine your project permissions. No Data Mart drafts were published.',
+  },
+  /** A failed lookup rather than a definitive empty answer — retrying may help. */
+  PERMISSIONS_LOOKUP_FAILED: {
+    code: 'PUBLISH_DRAFTS_PERMISSIONS_LOOKUP_FAILED',
+    message:
+      'Could not verify your project permissions. No Data Mart drafts were published. Please try again.',
+  },
+  STORAGE_ACCESS: {
+    code: 'PUBLISH_DRAFTS_STORAGE_ACCESS',
+    message: 'Could not access this Storage. Check its connection settings and try again.',
+  },
+} as const;
 
 /**
- * A ValidationResult only carries a `code` when this codebase authored the
- * message (`unconfigured`, `oauthReauthRequired`). A bare `failure()` can hold
- * raw text from credential resolution or a warehouse driver, which must not
- * reach the browser.
+ * A storage ValidationResult only carries a `code` when this codebase authored
+ * the message (`unconfigured`, `oauthReauthRequired`). A bare `failure()` can
+ * hold raw text from credential resolution or a warehouse driver, which must
+ * not reach the browser.
  */
-function toUserFacingStorageError(result: ValidationResult): string {
-  return result.code && result.errorMessage ? result.errorMessage : STORAGE_ACCESS_FAILED_ERROR;
+function toStorageAccessError(result: ValidationResult): BusinessViolationException {
+  const authored = Boolean(result.code && result.errorMessage);
+  return new BusinessViolationException(
+    authored ? result.errorMessage! : PUBLISH_DRAFTS_ERRORS.STORAGE_ACCESS.message,
+    undefined,
+    PUBLISH_DRAFTS_ERRORS.STORAGE_ACCESS.code
+  );
+}
+
+/** Raises a trigger-level failure with its stable code attached. */
+function publishDraftsError(spec: { code: string; message: string }): BusinessViolationException {
+  return new BusinessViolationException(spec.message, undefined, spec.code);
 }
 
 @Injectable()
@@ -69,7 +94,7 @@ export class PublishDataStorageDraftsService {
     );
 
     if (!validationResult.valid) {
-      throw new BusinessViolationException(toUserFacingStorageError(validationResult));
+      throw toStorageAccessError(validationResult);
     }
 
     const draftIds = await this.dataMartService.findDraftIdsByStorage(dataStorage);
@@ -149,7 +174,7 @@ export class PublishDataStorageDraftsService {
       this.logger.error(
         `Publish drafts trigger for storage ${command.dataStorageId} has no userId; refusing to publish unauthorized`
       );
-      throw new BusinessViolationException(UNRESOLVED_ROLES_ERROR);
+      throw publishDraftsError(PUBLISH_DRAFTS_ERRORS.UNRESOLVED_ROLES);
     }
 
     const project = await this.idpProjectionsFacade
@@ -166,8 +191,10 @@ export class PublishDataStorageDraftsService {
             (error instanceof Error ? error.message : String(error)),
           { stack: error instanceof Error ? error.stack : undefined, status }
         );
-        throw new BusinessViolationException(
-          isDefinitive ? UNRESOLVED_ROLES_ERROR : PERMISSIONS_LOOKUP_FAILED_ERROR
+        throw publishDraftsError(
+          isDefinitive
+            ? PUBLISH_DRAFTS_ERRORS.UNRESOLVED_ROLES
+            : PUBLISH_DRAFTS_ERRORS.PERMISSIONS_LOOKUP_FAILED
         );
       });
 
@@ -179,7 +206,7 @@ export class PublishDataStorageDraftsService {
         `No roles resolved for user ${command.userId} in project ${command.projectId}; ` +
           'refusing to publish drafts as an implicit viewer'
       );
-      throw new BusinessViolationException(UNRESOLVED_ROLES_ERROR);
+      throw publishDraftsError(PUBLISH_DRAFTS_ERRORS.UNRESOLVED_ROLES);
     }
 
     return project.roles;
@@ -193,7 +220,20 @@ export class PublishDataStorageDraftsService {
    * generic reason; the full error stays in the server log above.
    */
   private toUserFacingReason(error: unknown): string {
-    const message = error instanceof Error ? error.message : '';
-    return USER_FACING_FAILURE_REASONS.has(message) ? message : GENERIC_FAILURE_REASON;
+    if (error instanceof BusinessViolationException && error.code) {
+      return USER_FACING_FAILURE_CODES.has(error.code) ? error.message : GENERIC_FAILURE_REASON;
+    }
+
+    // NO_PERMISSION travels as a Nest ForbiddenException so the single-publish
+    // endpoint keeps its 403; HttpException carries no `code`, so this one
+    // authored message is matched by identity instead.
+    if (
+      error instanceof ForbiddenException &&
+      error.message === PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message
+    ) {
+      return PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message;
+    }
+
+    return GENERIC_FAILURE_REASON;
   }
 }

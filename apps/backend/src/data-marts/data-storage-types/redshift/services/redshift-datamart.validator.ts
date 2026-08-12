@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   DataMartValidator,
   ValidationResult,
+  DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -81,7 +82,8 @@ export class RedshiftDataMartValidator implements DataMartValidator {
     }
 
     if (identifierToValidate && !isValidRedshiftFullyQualifiedName(identifierToValidate)) {
-      return ValidationResult.failure(
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
         'Invalid identifier format. Expected: schema.table or database.schema.table'
       );
     }

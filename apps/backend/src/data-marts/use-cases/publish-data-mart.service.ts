@@ -24,9 +24,18 @@ import { SearchableEntityType } from '../../common/search/search.facade';
  * PublishDataStorageDraftsService.toUserFacingReason.
  */
 export const PUBLISH_DATA_MART_ERRORS = {
-  NO_PERMISSION: 'You do not have permission to publish this Data Mart',
-  ALREADY_PUBLISHED: 'Data Mart is already published',
-  NO_DEFINITION: 'Data Mart has no definition',
+  NO_PERMISSION: {
+    code: 'DATA_MART_PUBLISH_FORBIDDEN',
+    message: 'You do not have permission to publish this Data Mart',
+  },
+  ALREADY_PUBLISHED: {
+    code: 'DATA_MART_ALREADY_PUBLISHED',
+    message: 'Data Mart is already published',
+  },
+  NO_DEFINITION: {
+    code: 'DATA_MART_NO_DEFINITION',
+    message: 'Data Mart has no definition',
+  },
 } as const;
 
 @Injectable()
@@ -56,16 +65,27 @@ export class PublishDataMartService {
         command.projectId
       );
       if (!canEdit) {
-        throw new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION);
+        // Deliberately a ForbiddenException, not a coded BusinessViolationException:
+        // the latter is hardcoded to 400 by BaseExceptionFilter, and a permission
+        // denial must stay a 403 for API clients. Sanitizers match it by identity.
+        throw new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message);
       }
     }
 
     if (dataMart.status !== DataMartStatus.DRAFT) {
-      throw new BusinessViolationException(PUBLISH_DATA_MART_ERRORS.ALREADY_PUBLISHED);
+      throw new BusinessViolationException(
+        PUBLISH_DATA_MART_ERRORS.ALREADY_PUBLISHED.message,
+        undefined,
+        PUBLISH_DATA_MART_ERRORS.ALREADY_PUBLISHED.code
+      );
     }
 
     if (!dataMart.definition || !dataMart.definitionType) {
-      throw new BusinessViolationException(PUBLISH_DATA_MART_ERRORS.NO_DEFINITION);
+      throw new BusinessViolationException(
+        PUBLISH_DATA_MART_ERRORS.NO_DEFINITION.message,
+        undefined,
+        PUBLISH_DATA_MART_ERRORS.NO_DEFINITION.code
+      );
     }
 
     if (dataMart.definitionType !== DataMartDefinitionType.SQL) {

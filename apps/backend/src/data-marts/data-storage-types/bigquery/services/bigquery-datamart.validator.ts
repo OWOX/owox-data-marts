@@ -8,6 +8,7 @@ import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   DataMartValidator,
   ValidationResult,
+  DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
@@ -63,7 +64,8 @@ export class BigQueryDataMartValidator implements DataMartValidator {
   private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
       if (!isValidBigQueryFullyQualifiedName(definition.fullyQualifiedName)) {
-        return ValidationResult.failure(
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
           'Invalid identifier format. Expected: project.dataset.table'
         );
       }
@@ -73,7 +75,8 @@ export class BigQueryDataMartValidator implements DataMartValidator {
           allowTwoLevel: true,
         })
       ) {
-        return ValidationResult.failure(
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
           'Invalid identifier format. Expected: dataset.table or project.dataset.table'
         );
       }

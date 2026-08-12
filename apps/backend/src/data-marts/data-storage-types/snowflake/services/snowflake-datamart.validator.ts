@@ -4,6 +4,7 @@ import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definit
 import {
   DataMartValidator,
   ValidationResult,
+  DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
 import { SnowflakeApiAdapterFactory } from '../adapters/snowflake-api-adapter.factory';
 import { isSnowflakeCredentials } from '../../data-storage-credentials.guards';
@@ -76,7 +77,10 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
     }
 
     if (identifierToValidate && !isValidSnowflakeFullyQualifiedName(identifierToValidate)) {
-      return ValidationResult.failure('Invalid identifier format. Expected: database.schema.table');
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
+        'Invalid identifier format. Expected: database.schema.table'
+      );
     }
 
     return ValidationResult.success();
