@@ -117,6 +117,11 @@ function buildMockBlendableSchema(
       nativeFields,
       blendedFields: [],
       availableSources: [],
+      // The real service answers this from the RAW schema, where a key column hidden for
+      // reporting still counts. These fixtures carry no hidden fields.
+      mainUniqueCountKeyFields: nativeFields
+        .filter(f => (f as { isPrimaryKey?: boolean }).isPrimaryKey === true)
+        .map(f => f.name),
     })),
   };
 }
@@ -688,6 +693,7 @@ describe('HTTP Data API (e2e)', () => {
         ],
         blendedFields: [],
         availableSources: [],
+        mainUniqueCountKeyFields: ['date'],
       }));
 
       try {
