@@ -1119,6 +1119,53 @@ describe('BlendableSchemaService', () => {
       });
     });
 
+    // The MAIN mart's key cannot be read off `nativeFields`, which this service strips of hidden
+    // fields — so it is published separately, computed from the raw schema.
+    describe('mainUniqueCountKeyFields', () => {
+      async function computeMainKey(fields: Array<Record<string, unknown>>): Promise<string[]> {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(
+          makeDataMart({
+            id: 'dm-1',
+            schema: {
+              type: 'bigquery-data-mart-schema',
+              fields,
+            } as unknown as DataMart['schema'],
+          })
+        );
+        relationshipService.findByStorageId.mockResolvedValue([]);
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        return result.mainUniqueCountKeyFields;
+      }
+
+      it('counts a key hidden for reporting, which nativeFields no longer carries', async () => {
+        const fields = [
+          { name: 'id', type: 'INTEGER', isPrimaryKey: true, isHiddenForReporting: true },
+          { name: 'name', type: 'STRING' },
+        ];
+
+        await expect(computeMainKey(fields)).resolves.toEqual(['id']);
+      });
+
+      it('keeps every component of a composite key, hidden ones included, in schema order', async () => {
+        const fields = [
+          { name: 'order_id', type: 'STRING', isPrimaryKey: true },
+          { name: 'line_no', type: 'INTEGER', isPrimaryKey: true, isHiddenForReporting: true },
+        ];
+
+        await expect(computeMainKey(fields)).resolves.toEqual(['order_id', 'line_no']);
+      });
+
+      // Counting by the rest of a composite key merges rows the key keeps distinct.
+      it('withholds the whole key when one component is disconnected', async () => {
+        const fields = [
+          { name: 'order_id', type: 'STRING', isPrimaryKey: true, status: 'DISCONNECTED' },
+          { name: 'line_no', type: 'INTEGER', isPrimaryKey: true },
+        ];
+
+        await expect(computeMainKey(fields)).resolves.toEqual([]);
+      });
+    });
+
     it('should expose nativeDescription and availableSources[i].description for the reporting UI', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(
         makeDataMart({

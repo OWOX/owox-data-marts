@@ -21,7 +21,6 @@ import {
   JoinedUniqueCountAvailability,
   collectSchemaFieldPathTypes,
   collectSchemaFieldPathDescriptors,
-  getReportablePrimaryKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import { buildBlendedFieldIndex } from './blended-field-index';
 import { buildJoinedUniqueCountColumnName } from './blended-field-name';
@@ -882,8 +881,9 @@ export class OutputControlsValidatorService {
         // the header is still appended → header/column mismatch (silent data
         // corruption). Reject at save time so the bad state can never be persisted.
         if (hasMainUniqueCount(args.uniqueCountConfig)) {
-          const pkFields = getReportablePrimaryKeyFields(blendableSchema.nativeFields);
-          if (pkFields.length === 0) {
+          // From the schema's own answer, NOT re-derived from `nativeFields` — that list has had
+          // hidden-for-reporting fields stripped, and a hidden key column is still counted.
+          if ((blendableSchema.mainUniqueCountKeyFields ?? []).length === 0) {
             errors.push({
               code: 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY',
               message:

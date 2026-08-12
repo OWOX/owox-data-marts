@@ -205,6 +205,11 @@ export interface AvailableSource {
 export interface BlendableSchema {
   nativeFields: unknown[];
   nativeDescription?: string;
+  // The main Data Mart's Unique Count key, in schema order; empty when the metric is unavailable.
+  // Not derivable from `nativeFields`, which has had hidden-for-reporting fields stripped — a
+  // hidden key column is still counted, since counting does not project it. Optional on the wire
+  // for the same reason as the joined sources' fields: a response cached before it existed.
+  mainUniqueCountKeyFields?: string[];
   blendedFields: BlendedField[];
   availableSources: AvailableSource[];
 }

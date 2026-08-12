@@ -185,4 +185,11 @@ export class BlendableSchemaDto {
       'Joined Data Marts reachable via relationships, each describing its inclusion, access, and Unique-Count status.',
   })
   availableSources: AvailableSourceDto[];
+
+  @ApiProperty({
+    type: [String],
+    description:
+      "The main Data Mart's primary-key columns its Unique Count counts by, in schema order; empty when the metric is unavailable. Cannot be derived from `nativeFields`: a key column hidden for reporting is absent from that list but still counted, since counting does not project it.",
+  })
+  mainUniqueCountKeyFields: string[];
 }

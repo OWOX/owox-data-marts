@@ -8,7 +8,9 @@ Every joined Data Mart now offers a `Unique Count` field in the report column pi
 
 In the picker it is simply `Unique Count`, listed under the joined Data Mart it belongs to, with a tooltip naming that Data Mart and the key columns being counted. In the produced file it is named like every other joined field: `Unique Count (Orders)` in Google Sheets, `Orders Unique Count` everywhere else.
 
-With no usable primary key the field is shown disabled, and its tooltip says which Data Mart and why — no key set, part of the key disconnected, a nested key, or both of the last two. The report's own Data Mart says instead that no primary key is available for reporting, which covers a key that is missing, hidden, or disconnected alike.
+With no usable primary key the field is shown disabled, and its tooltip says which Data Mart and why — no key set, part of the key disconnected, a nested key, or both of the last two. The report's own Data Mart says instead that no primary key is available for reporting.
+
+A key column marked **Hidden for Report** still counts, on the report's own Data Mart as well as on a joined one. Hiding a column takes it off the list of fields a report can show; counting distinct values of it puts nothing in the output, so there is nothing to hide. On the report's own Data Mart this is new — such a key used to leave the row disabled.
 
 ## Some existing reports will show different numbers, and the new ones are correct
 
@@ -21,6 +23,8 @@ Rows whose declared primary key is empty used to be treated as one single record
 Cached report data is cleared on upgrade, so an unedited report shows the corrected numbers on its next run rather than serving what it had cached.
 
 Two smaller corrections in the same direction: two different composite keys that ran together into the same text now count as two records rather than one, and on **Amazon Redshift** a composite key holding a text part longer than 256 characters is no longer cut short and merged.
+
+One correction goes the other way, and removes a column rather than changing a number. On the report's own Data Mart, a **composite** key one of whose columns had **disconnected** from the source was quietly counted by the columns that remained — which merges records the full key keeps apart, so the count read low with nothing to say so. Such a key now withholds the metric entirely, exactly as a joined Data Mart's already did. Reconnect the missing column, or drop it from the key, and the count comes back.
 
 ## Primary-key declarations worth a second look
 

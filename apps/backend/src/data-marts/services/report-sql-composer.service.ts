@@ -24,7 +24,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import {
   collectSchemaFieldPathDescriptors,
   collectSchemaFieldPathTypes,
-  getReportablePrimaryKeyFields,
+  getMainUniqueCountKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import {
   resolveFieldGovernance,
@@ -154,7 +154,7 @@ export class ReportSqlComposerService {
       ? new Map(collectSchemaFieldPathTypes(schemaFields).map(f => [f.name, f.type]))
       : undefined;
 
-    const pkFields = getReportablePrimaryKeyFields(schemaFields);
+    const pkFields = getMainUniqueCountKeyFields(schemaFields);
     const uniqueCount = hasMainUniqueCount(report.uniqueCountConfig);
 
     // `primaryKeyColumns` comes from the CURRENT schema while `uniqueCountConfig` comes from the

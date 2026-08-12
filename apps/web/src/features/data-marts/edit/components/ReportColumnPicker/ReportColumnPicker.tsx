@@ -269,7 +269,9 @@ const NativeFieldRow = memo(function NativeFieldRow({
       </span>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
-      <span className='ml-auto flex items-center'>
+      {/* Fixed height: both icons are conditional, and a row that shows neither would otherwise
+          sit shorter than its neighbours and grow the moment one appears. */}
+      <span className='ml-auto flex h-6 items-center'>
         {aggIcon}
         {filterIcon}
       </span>
@@ -385,7 +387,9 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       </span>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
-      <span className='ml-auto flex items-center'>
+      {/* Fixed height: both icons are conditional, and a row that shows neither would otherwise
+          sit shorter than its neighbours and grow the moment one appears. */}
+      <span className='ml-auto flex h-6 items-center'>
         {aggIcon}
         {filterIcon}
       </span>
@@ -565,12 +569,14 @@ export function ReportColumnPicker({
     [schema]
   );
 
-  // Mirror of the backend `getReportablePrimaryKeyFields`, which is what BOTH main-mart gates read — the
-  // save-time UNIQUE_COUNT_REQUIRES_PRIMARY_KEY check and the SQL composer: `flattenNativeFields`
-  // prunes exactly the hidden/disconnected fields it prunes and keeps nested paths the same way.
+  // The backend's own answer, not a mirror: it decides from the RAW schema, so it counts a key
+  // column hidden for reporting — which `nativeFields` no longer carries at all. An older payload
+  // has no such field; falling back to the visible keys is exactly what that backend counted.
   const mainPrimaryKeyFields = useMemo(
-    () => nativeFields.filter(f => f.isPrimaryKey === true).map(f => f.name),
-    [nativeFields]
+    () =>
+      schema?.mainUniqueCountKeyFields ??
+      nativeFields.filter(f => f.isPrimaryKey === true).map(f => f.name),
+    [schema, nativeFields]
   );
   const hasReportablePrimaryKey = mainPrimaryKeyFields.length > 0;
 

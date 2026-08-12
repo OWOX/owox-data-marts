@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, within } from '@testing-library/react';
 import { TooltipProvider } from '@owox/ui/components/tooltip';
 import { UniqueCountRow, type UniqueCountRowProps } from './UniqueCountRow';
 import {
@@ -27,6 +27,20 @@ function renderRow(props: Partial<UniqueCountRowProps> = {}) {
 }
 
 describe('UniqueCountRow — HTML structure', () => {
+  // The Σ badge is taller than the row's text, so rendering its slot only when ticked grew the row
+  // from 24px to 32px and shifted every row below it — measured in the browser, unmeasurable here.
+  it('reserves the same trailing boxes whether or not the row is ticked', () => {
+    const boxCount = (checked: boolean) => {
+      const { row } = renderRow({ checked });
+      const boxes = row.querySelectorAll('.h-6.w-6').length;
+      cleanup();
+      return boxes;
+    };
+
+    expect(boxCount(true)).toBe(boxCount(false));
+    expect(boxCount(false)).toBeGreaterThan(0);
+  });
+
   // A <label> may own exactly ONE labelable control, and the Radix Checkbox is a <button>. The
   // tooltip trigger is a second one, so the two must never share a label: browsers pick the first
   // labelable descendant as the labeled control and the pairing becomes undefined.

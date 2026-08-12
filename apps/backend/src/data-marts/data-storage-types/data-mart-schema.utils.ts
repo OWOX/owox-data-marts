@@ -56,23 +56,48 @@ export function collectSchemaFieldPathDescriptors(
   return result;
 }
 
-// WHICH key columns this table can PROJECT for `COUNT(DISTINCT …)`, as `{ name (dotted path),
-// type, field }`, reusing the SAME pruned traversal as collectSchemaFieldPathDescriptors: a
-// disconnected/hidden PK is dropped (so it can't reference a column the query no longer projects)
-// and a NESTED PK keeps its full `parent.child` path (so the reference targets the right column,
-// not just the leaf name). Callers read `.name` (the column reference) and `.length`.
+// The MAIN Data Mart's `COUNT(DISTINCT …)` key, as `{ name (dotted path), type, field }`. Callers
+// read `.name` (the column reference) and `.length`.
 //
-// NOT the fan-out de-duplication rule — that is `collectPrimaryKeyRowIdentity`, which answers a
-// different question and deliberately disagrees on both hidden and nested keys.
-export function getReportablePrimaryKeyFields(
+// HIDDEN components are KEPT. `isHiddenForReporting` takes a column off the reporting menu; it does
+// not remove it from the source, and counting is not projecting. Both query paths can reach it: the
+// flat one reads the source table directly, and the blended builder already adds the key columns to
+// the main CTE's projection for exactly this metric.
+//
+// DISCONNECTED is all-or-nothing. Such a column really is gone, and counting by the REST of a
+// composite key merges rows the key itself keeps distinct — a silent undercount, which is worse
+// than withholding the metric.
+//
+// NESTED components stay, with their full `parent.child` path, so the reference targets the right
+// column. That is where this rule differs from `collectPrimaryKeyRowIdentity`, which answers the
+// fan-out row-identity question instead and rejects a nested key outright.
+export function getMainUniqueCountKeyFields(
   fields: readonly DataMartSchemaField[]
 ): { name: string; type: string; field: DataMartSchemaField }[] {
-  return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
+  const result: { name: string; type: string; field: DataMartSchemaField }[] = [];
+  let complete = true;
+
+  const walk = (nodes: readonly DataMartSchemaField[], prefix: string, reachable: boolean) => {
+    for (const field of nodes) {
+      const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+      const isReachable = reachable && isConnected(field);
+      if (field.isPrimaryKey) {
+        if (isReachable) result.push({ name: fullName, type: String(field.type), field });
+        else complete = false;
+      }
+      if ('fields' in field && field.fields?.length) {
+        walk(field.fields as DataMartSchemaField[], fullName, isReachable);
+      }
+    }
+  };
+  walk(fields, '', true);
+
+  return complete ? result : [];
 }
 
 // WHETHER this tuple is a valid row identity for de-duplicating fan-out — every component or none,
 // since de-duplicating by PART of a composite key merges rows the key itself keeps distinct. Unlike
-// getReportablePrimaryKeyFields, a hidden component still counts (hidden means off the reporting
+// getMainUniqueCountKeyFields, a hidden component still counts (hidden means off the reporting
 // menu, not absent from the source) and a nested one disqualifies the whole key.
 export function collectPrimaryKeyRowIdentity(fields: readonly DataMartSchemaField[]): string[] {
   const columns: string[] = [];
@@ -97,7 +122,7 @@ export function collectPrimaryKeyRowIdentity(fields: readonly DataMartSchemaFiel
 }
 
 // Verdicts for a JOINED source only, i.e. the `collectPrimaryKeyRowIdentity` rule. The MAIN Data
-// Mart is governed by `getReportablePrimaryKeyFields` instead and can never be told
+// Mart is governed by `getMainUniqueCountKeyFields` instead and can never be told
 // `nested-primary-key`, so it has its own vocabulary (web: MAIN_UNIQUE_COUNT_AVAILABILITY_VALUES)
 // rather than borrowing this one.
 export const JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES = [
@@ -158,7 +183,7 @@ export function classifyJoinedUniqueCountAvailability(
 }
 
 // TRUE when the schema has at least one primary-key field usable as a dedup/join key — i.e.
-// `isPrimaryKey` and NOT DISCONNECTED. Unlike `getReportablePrimaryKeyFields` (which ALSO prunes
+// `isPrimaryKey` and NOT DISCONNECTED. Unlike `getMainUniqueCountKeyFields` (which ALSO prunes
 // `isHiddenForReporting` for the reporting-view projection), a hidden PK still keys the join,
 // so it counts here. Descends into nested fields but never into a DISCONNECTED subtree.
 export function hasUsablePrimaryKey(fields: readonly DataMartSchemaField[]): boolean {

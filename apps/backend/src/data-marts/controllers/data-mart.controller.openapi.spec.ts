@@ -441,6 +441,12 @@ describe('DataMartController list OpenAPI', () => {
       type: 'array',
       items: { $ref: '#/components/schemas/AvailableSourceDto' },
     });
+    // The picker cannot derive this one: a key column hidden for reporting is stripped from
+    // `nativeFields` but is still counted, so it has to be published.
+    expect(schemaSchema.properties.mainUniqueCountKeyFields).toMatchObject({
+      type: 'array',
+      items: { type: 'string' },
+    });
 
     const availableSourceSchema = resolveRef('#/components/schemas/AvailableSourceDto');
     expect(availableSourceSchema.properties.uniqueCountAvailability).toMatchObject({

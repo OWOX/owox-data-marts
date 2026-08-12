@@ -191,36 +191,41 @@ export function UniqueCountRow({
           </label>
         )}
         {/* Outside the <label> above: a <span> is not interactive content, so inside it every
-            click on the badge would reach the checkbox and toggle the row. */}
-        {checked && (
-          <span className='ml-auto flex items-center'>
-            {notEmitted ? (
-              <span className='text-destructive flex h-6 w-6 items-center justify-center rounded'>
-                <TriangleAlert className='h-4 w-4' aria-hidden='true' />
-              </span>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    className={cn(
-                      'flex h-6 w-6 cursor-default items-center justify-center rounded',
-                      unverified ? 'text-muted-foreground' : 'text-blue-500'
-                    )}
-                  >
-                    <Sigma className='h-4 w-4' />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side='top' className='max-w-xs'>
-                  {unverified
-                    ? 'Auto-generated column — unconfirmed, see the note on the row.'
-                    : 'Auto-generated column — counts the distinct values of the primary key.'}
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {/* Spacer matching the field rows' filter-icon slot so this Σ aligns with them. */}
-            <span className='h-6 w-6' aria-hidden='true' />
+            click on the badge would reach the checkbox and toggle the row.
+
+            The slot is rendered whether or not the row is checked, and holds its 24px box either
+            way: the badge is taller than the row's text, so revealing it with the tick used to
+            grow the row from 24px to 32px and shift everything below it. */}
+        <span className='ml-auto flex items-center'>
+          <span className='flex h-6 w-6 items-center justify-center rounded'>
+            {checked &&
+              (notEmitted ? (
+                <span className='text-destructive flex items-center'>
+                  <TriangleAlert className='h-4 w-4' aria-hidden='true' />
+                </span>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={cn(
+                        'flex cursor-default items-center',
+                        unverified ? 'text-muted-foreground' : 'text-blue-500'
+                      )}
+                    >
+                      <Sigma className='h-4 w-4' />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-xs'>
+                    {unverified
+                      ? 'Auto-generated column — unconfirmed, see the note on the row.'
+                      : 'Auto-generated column — counts the distinct values of the primary key.'}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
           </span>
-        )}
+          {/* Spacer matching the field rows' filter-icon slot so this Σ aligns with them. */}
+          <span className='h-6 w-6' aria-hidden='true' />
+        </span>
       </div>
       {/* Outside the row on purpose: inside a <label> it would be read a second time as part of
           the checkbox's accessible name. */}

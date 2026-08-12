@@ -10,6 +10,12 @@ import { buildBlendedFieldIndex } from './blended-field-index';
 import { MAIN_UNIQUE_COUNT_SOURCE } from '../dto/schemas/unique-count-sources';
 import { JOINED_UNIQUE_COUNT_AVAILABILITY_VALUES } from '../data-storage-types/data-mart-schema.utils';
 
+// The real service answers this from the RAW schema, where a key column hidden for reporting is
+// still counted. These fixtures carry no hidden fields, so the visible primary keys are the answer.
+function mainKeyFieldsOf(fields: readonly { name: string; isPrimaryKey?: boolean }[]): string[] {
+  return fields.filter(f => f.isPrimaryKey === true).map(f => f.name);
+}
+
 describe('OutputControlsValidatorService', () => {
   const svc = new OutputControlsValidatorService(undefined as never, undefined as never);
 
@@ -482,6 +488,7 @@ describe('OutputControlsValidatorService', () => {
         nativeFields,
         blendedFields: extras.blendedFields ?? [],
         availableSources: extras.availableSources ?? [],
+        mainUniqueCountKeyFields: mainKeyFieldsOf(nativeFields),
       }),
     });
 
@@ -3077,6 +3084,7 @@ describe('OutputControlsValidatorService', () => {
         nativeFields,
         blendedFields: [],
         availableSources: [],
+        mainUniqueCountKeyFields: mainKeyFieldsOf(nativeFields),
       }),
     });
 
@@ -3299,6 +3307,7 @@ describe('OutputControlsValidatorService', () => {
         nativeFields,
         blendedFields: [],
         availableSources: [],
+        mainUniqueCountKeyFields: mainKeyFieldsOf(nativeFields),
       }),
     });
 
@@ -3497,6 +3506,7 @@ describe('OutputControlsValidatorService', () => {
         nativeFields,
         blendedFields: [],
         availableSources,
+        mainUniqueCountKeyFields: mainKeyFieldsOf(nativeFields),
       }),
     });
 
@@ -3613,6 +3623,37 @@ describe('OutputControlsValidatorService', () => {
       const validator = new OutputControlsValidatorService(
         capabilitySvc as never,
         schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    // The key column is hidden for reporting, so it is absent from `nativeFields` entirely — the
+    // metric is still counted by it, and re-deriving the gate from that list would refuse a report
+    // whose SQL is perfectly valid.
+    it('accepts uniqueCountConfig: true on a key the reporting view does not carry', async () => {
+      const validator = new OutputControlsValidatorService(
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: [{ name: 'name', type: 'STRING' }],
+            blendedFields: [],
+            availableSources: [],
+            mainUniqueCountKeyFields: ['id'],
+          }),
+        } as never
       );
 
       await expect(
@@ -3987,6 +4028,7 @@ describe('OutputControlsValidatorService', () => {
           computeBlendableSchema: jest.fn().mockResolvedValue({
             nativeFields: [{ name: 'id', type: 'INTEGER', isPrimaryKey: true }],
             blendedFields: [],
+            mainUniqueCountKeyFields: ['id'],
             availableSources: sources.map(s => ({
               isIncluded: true,
               uniqueCountAvailability: 'available',
@@ -4469,6 +4511,7 @@ describe('OutputControlsValidatorService', () => {
         nativeFields,
         blendedFields,
         availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+        mainUniqueCountKeyFields: mainKeyFieldsOf(nativeFields),
       }),
     });
 

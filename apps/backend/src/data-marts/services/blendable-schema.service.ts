@@ -12,6 +12,7 @@ import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart
 import {
   classifyJoinedUniqueCountAvailability,
   collectPrimaryKeyRowIdentity,
+  getMainUniqueCountKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import {
   isDateOrTimeFieldType,
@@ -161,6 +162,11 @@ export class BlendableSchemaService {
       nativeDescription: dataMart.description ?? undefined,
       blendedFields,
       availableSources,
+      // From the RAW schema, not `nativeFields`: a key column hidden for reporting is stripped from
+      // that list but is still counted, so deriving it there reports "no key" for a key that works.
+      mainUniqueCountKeyFields: getMainUniqueCountKeyFields(dataMart.schema?.fields ?? []).map(
+        f => f.name
+      ),
     };
   }
 

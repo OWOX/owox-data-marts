@@ -100,6 +100,8 @@ The **Unique Count** row (at the bottom of the Data Mart's field list) adds a `C
 > Not to be confused with the per-column **Count Unique** (`COUNT_DISTINCT`) aggregation above — Unique Count is a single report-wide metric keyed on the primary key, not applied to an individual column.
 >
 > ⚠️ Unique Count requires the Data Mart to have a primary key. Without one the row is shown disabled, with a tooltip explaining what to fix.
+>
+> A key column marked **Hidden for Report** still counts: counting distinct values of a column puts nothing in the output, so there is nothing to hide. A key column that has **disconnected** from the source is different — the whole metric is withheld, because counting by the rest of a composite key would merge records the full key keeps apart.
 
 ![Create new report panel with the column list scrolled to the bottom. A checked "Unique Count" row appears below the fields with a Σ icon, and a tooltip reads "Auto-generated column — counts the distinct values of the primary key." An arrow points to the Unique Count checkbox.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/28565768-b0c0-4f3b-c17c-51b224b56f00/public)
 

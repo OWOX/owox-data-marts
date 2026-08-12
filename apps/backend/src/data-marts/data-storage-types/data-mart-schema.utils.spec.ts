@@ -3,7 +3,7 @@ import {
   classifyJoinedUniqueCountAvailability,
   collectPrimaryKeyRowIdentity,
   createBaseFieldSchemaForType,
-  getReportablePrimaryKeyFields,
+  getMainUniqueCountKeyFields,
   hasUsablePrimaryKey,
 } from './data-mart-schema.utils';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
@@ -71,7 +71,7 @@ describe('createBaseFieldSchemaForType — aggregation governance fields', () =>
   });
 });
 
-describe('getReportablePrimaryKeyFields', () => {
+describe('getMainUniqueCountKeyFields', () => {
   const connected = DataMartSchemaFieldStatus.CONNECTED;
 
   const mkField = (
@@ -89,12 +89,12 @@ describe('getReportablePrimaryKeyFields', () => {
 
   it('returns empty array when no fields are primary keys', () => {
     const fields: DataMartSchemaField[] = [mkField('id', false), mkField('name', false)];
-    expect(getReportablePrimaryKeyFields(fields)).toEqual([]);
+    expect(getMainUniqueCountKeyFields(fields)).toEqual([]);
   });
 
   it('returns a single primary-key field', () => {
     const fields: DataMartSchemaField[] = [mkField('id', true), mkField('name', false)];
-    const result = getReportablePrimaryKeyFields(fields);
+    const result = getMainUniqueCountKeyFields(fields);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('id');
   });
@@ -105,7 +105,7 @@ describe('getReportablePrimaryKeyFields', () => {
       mkField('event_id', true),
       mkField('timestamp', false),
     ];
-    const result = getReportablePrimaryKeyFields(fields);
+    const result = getMainUniqueCountKeyFields(fields);
     expect(result).toHaveLength(2);
     expect(result.map(f => f.name)).toEqual(['user_id', 'event_id']);
   });
@@ -117,29 +117,46 @@ describe('getReportablePrimaryKeyFields', () => {
       fields: [nested],
     } as unknown as DataMartSchemaField;
     const fields: DataMartSchemaField[] = [mkField('top_non_pk', false), container];
-    const result = getReportablePrimaryKeyFields(fields);
+    const result = getMainUniqueCountKeyFields(fields);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('category.inner_pk');
   });
 
-  it('excludes a DISCONNECTED primary-key field (its column is gone from the source)', () => {
-    const fields: DataMartSchemaField[] = [
-      mkField('id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
-      mkField('event_id', true),
-    ];
-    expect(getReportablePrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
-  });
-
-  it('excludes a primary-key field hidden for reporting', () => {
+  // Counting is not projecting: hidden takes a column off the reporting menu, not out of the
+  // source, and the metric never puts it in the output.
+  it('KEEPS a primary-key field hidden for reporting', () => {
     const fields: DataMartSchemaField[] = [
       mkField('id', true, { isHiddenForReporting: true }),
       mkField('event_id', true),
     ];
-    expect(getReportablePrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
+    expect(getMainUniqueCountKeyFields(fields).map(f => f.name)).toEqual(['id', 'event_id']);
+  });
+
+  it('keeps a hidden key even when it is the only one', () => {
+    const fields: DataMartSchemaField[] = [mkField('id', true, { isHiddenForReporting: true })];
+    expect(getMainUniqueCountKeyFields(fields).map(f => f.name)).toEqual(['id']);
+  });
+
+  // Counting by the REST of a composite key merges rows the key itself keeps distinct — a silent
+  // undercount, which is worse than withholding the metric.
+  it('withholds the WHOLE key when one component is DISCONNECTED', () => {
+    const fields: DataMartSchemaField[] = [
+      mkField('id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      mkField('event_id', true),
+    ];
+    expect(getMainUniqueCountKeyFields(fields)).toEqual([]);
+  });
+
+  it('withholds the key when its container is disconnected, however deep', () => {
+    const container = {
+      ...mkField('category', false, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      fields: [mkField('inner_pk', true)],
+    } as unknown as DataMartSchemaField;
+    expect(getMainUniqueCountKeyFields([container])).toEqual([]);
   });
 
   it('returns empty array when fields list is empty', () => {
-    expect(getReportablePrimaryKeyFields([])).toEqual([]);
+    expect(getMainUniqueCountKeyFields([])).toEqual([]);
   });
 });
 

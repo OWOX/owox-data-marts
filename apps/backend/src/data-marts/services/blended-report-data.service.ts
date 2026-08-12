@@ -39,7 +39,7 @@ import {
   collectPrimaryKeyRowIdentity,
   collectSchemaFieldPaths,
   collectSchemaFieldPathTypes,
-  getReportablePrimaryKeyFields,
+  getMainUniqueCountKeyFields,
 } from '../data-storage-types/data-mart-schema.utils';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -72,7 +72,7 @@ export class BlendedReportDataService {
     const { columnConfig, dataMart } = report;
     // Travels on EVERY decision, blended or not: the reader gates the `Unique Count` header on the
     // same non-empty key the SQL gates the column on, so a key dropped since save takes both (F4).
-    const primaryKeyColumns = getReportablePrimaryKeyFields(dataMart.schema?.fields ?? []).map(
+    const primaryKeyColumns = getMainUniqueCountKeyFields(dataMart.schema?.fields ?? []).map(
       f => f.name
     );
     // A joined Unique Count references its source by alias path, not by column, so it never shows
