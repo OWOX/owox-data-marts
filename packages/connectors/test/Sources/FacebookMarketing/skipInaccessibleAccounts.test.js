@@ -115,7 +115,9 @@ describe('time-series import: failures that must not be skipped', () => {
       },
     });
 
-    await expect(importOneDay(self, ['first', 'second'])).rejects.toThrow('temporarily unavailable');
+    await expect(importOneDay(self, ['first', 'second'])).rejects.toThrow(
+      'temporarily unavailable'
+    );
     expect(cursorMovedTo).toEqual([]);
   });
 });
@@ -208,7 +210,12 @@ describe('catalog import', () => {
     });
 
     await expect(
-      connectorProto.startImportProcessOfCatalogData.call(self, 'ad-account', ['one', 'two'], ['id'])
+      connectorProto.startImportProcessOfCatalogData.call(
+        self,
+        'ad-account',
+        ['one', 'two'],
+        ['id']
+      )
     ).rejects.toThrow(/All 2 accounts were skipped while importing ad-account/);
   });
 
