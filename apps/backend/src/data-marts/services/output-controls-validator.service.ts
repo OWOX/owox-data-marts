@@ -50,6 +50,7 @@ import {
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
 } from '../dto/schemas/aggregation-labels';
+import { isMetricsOnlyProjection } from '../dto/domain/report-like-read-plan';
 import { UniqueCountConfig } from '../dto/schemas/unique-count-config.schema';
 import {
   hasMainUniqueCount,
@@ -755,9 +756,17 @@ export class OutputControlsValidatorService {
         // FILTER_COLUMN_UNKNOWN and route to throwDisconnectedReportColumnsError, which tells the
         // caller to repair a schema link that is not broken. Same honesty the MCP tool's
         // UniqueCountFieldUnsupportedClauseError already gives.
-        // A real field may legitimately own one of these names — then it IS that field.
+        // A real field may legitimately own one of these names — then it IS that field. Checked
+        // against a set that KEEPS hidden blended fields, unlike `homeFieldTypes`: a field that
+        // went hidden is a broken schema link, and the disconnected diagnosis names it and says
+        // how to repair it. Calling it a Unique Count metric instead is simply false — the report
+        // may have no Unique Count enabled at all.
+        const realFieldNames = new Set([
+          ...homeFieldTypes.keys(),
+          ...blendableSchema.blendedFields.map(f => f.name),
+        ]);
         const isUniqueCountColumn = (column: string) =>
-          uniqueCountOutputColumns.has(column) && !homeFieldTypes.has(column);
+          uniqueCountOutputColumns.has(column) && !realFieldNames.has(column);
 
         for (const rule of parsedFilters.filter(r => isUniqueCountColumn(r.column))) {
           errors.push({
@@ -914,9 +923,7 @@ export class OutputControlsValidatorService {
         // any Unique Count) with NO explicit projection emits no dimensions, so don't count
         // native names there.
         const joinedUniqueCounts = joinedUniqueCountSources(args.uniqueCountConfig);
-        const isMetricsOnly =
-          aggregationsToValidate.length > 0 ||
-          normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
+        const isMetricsOnly = isMetricsOnlyProjection(parsedAggregations, args.uniqueCountConfig);
         const projectedColumns = hasColumnConfig
           ? args.columnConfig!
           : isMetricsOnly

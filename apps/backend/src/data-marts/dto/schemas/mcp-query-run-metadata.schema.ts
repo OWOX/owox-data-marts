@@ -15,6 +15,10 @@ export const McpQueryRunMetadataSchema = z.object({
       sort: z.array(z.unknown()).optional(),
       aggregations: z.array(z.unknown()).optional(),
       dateBuckets: z.array(z.unknown()).optional(),
+      // The alias paths whose Unique Count the run asked for. Journaled separately because the
+      // tool splits the pseudo-field out of `fields` — without this the parse drops it and Run
+      // History shows a run whose extra column came from nowhere.
+      uniqueCountConfig: z.array(z.string()).optional(),
       limit: z.number().int().positive(),
     })
     .optional(),

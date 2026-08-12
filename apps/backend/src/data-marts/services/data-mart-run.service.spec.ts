@@ -467,6 +467,34 @@ describe('DataMartRunService', () => {
       });
     });
 
+    // The tool splits the Unique Count pseudo-field out of `fields`, so this is the ONLY record of
+    // it — and a key missing from the schema is stripped by the parse, not rejected.
+    it('persists the unique count config in the MCP_QUERY run metadata query (survives schema parse)', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const record: McpQueryRunRecord = {
+        runId: 'run-mcp-unique-count',
+        dataMart: fakeDataMart(),
+        createdById: 'user-1',
+        startedAt: new Date('2026-07-01T10:00:00.000Z'),
+        status: DataMartRunStatus.SUCCESS,
+        metadata: {
+          columns: ['channel', 'orders__unique_count'],
+          rowCount: 2,
+          truncated: false,
+          query: { fields: ['channel'], uniqueCountConfig: ['orders'], limit: 50 },
+        },
+      };
+
+      await service.recordMcpQueryRun(record);
+
+      const saved = (dataMartRunRepository.save as jest.Mock).mock.calls[0][0] as DataMartRun;
+      expect(saved.additionalParams).toEqual({
+        mcpQuery: expect.objectContaining({
+          query: expect.objectContaining({ uniqueCountConfig: ['orders'] }),
+        }),
+      });
+    });
+
     it('persists a FAILED MCP_QUERY run with errors', async () => {
       const { service, dataMartRunRepository } = createService();
       const dm = fakeDataMart();

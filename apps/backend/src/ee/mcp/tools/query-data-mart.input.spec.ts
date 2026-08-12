@@ -567,6 +567,21 @@ describe('collectRealFieldNames / splitUniqueCountFields (#6792)', () => {
     );
   });
 
+  // Reachable only if the producer regresses — and answering with whichever source came last would
+  // count the wrong Data Mart with nothing to show for it.
+  it('refuses to resolve a name two sources claim, rather than picking one', () => {
+    expect(() =>
+      splitUniqueCountFields(
+        ['a_b__unique_count'],
+        [
+          { aliasPath: 'a_b', name: 'a_b__unique_count', displayName: 'Flat Unique Count' },
+          { aliasPath: 'a.b', name: 'a_b__unique_count', displayName: 'Nested Unique Count' },
+        ],
+        new Set()
+      )
+    ).toThrow(/offered by two sources/);
+  });
+
   it('routes the human-readable display name to the error that names the real one', () => {
     expect(() => splitUniqueCountFields(['Orders Unique Count'], sources, new Set())).toThrow(
       /orders__unique_count/

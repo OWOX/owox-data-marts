@@ -11,6 +11,7 @@ import {
   usesSuffixedJoinedFieldNames,
 } from '../dto/domain/report-like-read-plan';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
+import { tryAliasPathToCteName } from '../dto/schemas/filter-config.schema';
 import { SortRule } from '../dto/schemas/sort-config.schema';
 import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { withoutCountBesideSleevedCountDistinct } from '../dto/schemas/field-aggregation-governance';
@@ -349,8 +350,8 @@ export class BlendedReportDataService {
 
     return [...uniqueCountAliasPaths]
       .map(aliasPath => {
-        // `cteName` is the alias path with dots replaced by underscores — see buildRelationshipChains.
-        const chain = chainByCteName.get(aliasPath.split('.').join('_'));
+        const cteName = tryAliasPathToCteName(aliasPath);
+        const chain = cteName === undefined ? undefined : chainByCteName.get(cteName);
         const source = sourceByAliasPath.get(aliasPath);
         const pkColumns = chain?.targetPrimaryKeyFields ?? [];
         if (!chain || !source || source.isIncluded === false || pkColumns.length === 0) {
@@ -403,8 +404,11 @@ export class BlendedReportDataService {
       blendedFields.filter(f => referencedColumns.has(f.name)),
       new Set([...preJoinAliasPaths, ...uniqueCountSources.map(s => s.aliasPath)])
     );
-    // `cteName` is the alias path with dots replaced by underscores — see buildRelationshipChains.
-    const keptCteNames = new Set([...stillNeeded].map(path => path.split('.').join('_')));
+    const keptCteNames = new Set(
+      [...stillNeeded]
+        .map(tryAliasPathToCteName)
+        .filter((name): name is string => name !== undefined)
+    );
     const kept = chains.filter(chain => keptCteNames.has(chain.cteName));
     return kept.length === chains.length ? chains : kept;
   }
@@ -413,7 +417,9 @@ export class BlendedReportDataService {
    * Drops the sort rules that point at a joined Unique Count the SELECT no longer emits.
    *
    * A real field may legitimately own the metric's `<aliasPath>__unique_count` name — then the rule
-   * sorts by that field and must survive the source being dropped.
+   * sorts by that field and must survive the source being dropped. A HIDDEN blended field does not
+   * count as an owner: it is not projected, the picker's own repair excludes it, and disagreeing
+   * here means a scheduled run keeps sorting by it while opening the editor deletes the rule.
    */
   private withoutStaleUniqueCountSorts(
     sortConfig: SortRule[],
@@ -423,9 +429,11 @@ export class BlendedReportDataService {
   ): SortRule[] {
     const nativeNames = new Set(collectSchemaFieldPaths(dataMart.schema?.fields ?? []));
     const staleColumns = new Set(
-      stalePaths
-        .map(buildJoinedUniqueCountColumnName)
-        .filter(name => !blendedFieldsByName.has(name) && !nativeNames.has(name))
+      stalePaths.map(buildJoinedUniqueCountColumnName).filter(name => {
+        if (nativeNames.has(name)) return false;
+        const owner = blendedFieldsByName.get(name);
+        return owner === undefined || owner.isHidden === true;
+      })
     );
     if (staleColumns.size === 0) return sortConfig;
     return sortConfig.filter(rule => !staleColumns.has(rule.column));

@@ -183,8 +183,15 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           // COUNT(DISTINCT pk), and selecting both would collide on one output alias anyway.
           !realFieldNames.has(buildJoinedUniqueCountColumnName(s.aliasPath))
       );
+      // `a.b` and a top-level `a_b` build the SAME name. Advertising both would let the splitter
+      // resolve it to whichever came last and answer with the wrong Data Mart's count, silently —
+      // the save-time collision check never fires, because only one alias path survives. First
+      // wins, as the picker already resolves it.
+      const takenNames = new Set<string>();
       for (const s of eligibleSources) {
         const name = buildJoinedUniqueCountColumnName(s.aliasPath);
+        if (takenNames.has(name)) continue;
+        takenNames.add(name);
         // The same formatter every ordinary joined field above goes through, so the metric reads
         // like one; MCP carries no destination, so it keeps the prefix style.
         const displayName = formatBlendedFieldDisplayName({

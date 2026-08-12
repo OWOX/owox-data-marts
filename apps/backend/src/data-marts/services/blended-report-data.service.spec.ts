@@ -3003,6 +3003,38 @@ describe('BlendedReportDataService', () => {
         ]);
       });
 
+      // A HIDDEN field is not projected and cannot be sorted by — the picker's repair excludes it
+      // from the names it treats as owned, and keeping the rule here meant a scheduled run sorted
+      // by it while merely opening the editor deleted the rule on the next save.
+      it('drops the sort when the real field owning the name is hidden', async () => {
+        const report = makeJoinedReport(
+          {
+            columnConfig: ['orders__status'],
+            uniqueCountConfig: ['orders'],
+            sortConfig: [{ column: 'orders__unique_count', direction: 'desc' }],
+          },
+          [{ ...ORDERS, primaryKey: [] }]
+        );
+        const schema = await blendableSchemaService.computeBlendableSchema(
+          'dm-1',
+          'project-1',
+          {} as never
+        );
+        const hiddenField = new BlendedFieldDto();
+        Object.assign(hiddenField, schema.blendedFields[0], {
+          name: 'orders__unique_count',
+          isHidden: true,
+        });
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          ...schema,
+          blendedFields: [...schema.blendedFields, hiddenField],
+        });
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(capturedContext()?.sort).toEqual([]);
+      });
+
       // A source `resolveUniqueCountSources` dropped still had its CTE and LEFT JOIN emitted: a
       // paid warehouse scan feeding a column nobody reads.
       describe('a dropped source must not still be joined (F11)', () => {

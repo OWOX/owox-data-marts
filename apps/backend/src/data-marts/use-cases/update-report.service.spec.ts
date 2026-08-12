@@ -481,6 +481,41 @@ describe('UpdateReportService', () => {
     expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
   });
 
+  // A legacy report stores `true`; the web mapper reads that as [''] and posts it back unchanged.
+  // Comparing the raw shapes made the first no-op save — a title rename — look like a config
+  // change, re-billing a warehouse query for a config nobody touched.
+  it.each([
+    ['the legacy true against its array form', true as unknown, ['']],
+    ['a stored empty list against null', [] as unknown, null],
+  ])('should not invalidate cache for %s', async (_case, storedConfig, sentConfig) => {
+    const { service, reportDataCacheService, reportRepository } = createService();
+    const stored = { ...makeReport(), uniqueCountConfig: storedConfig as never };
+    reportRepository.findOne.mockResolvedValue(stored);
+    reportRepository.save.mockResolvedValue(stored);
+
+    await service.run(
+      new UpdateReportCommand(
+        'report-1',
+        'proj-1',
+        'user-1',
+        ['editor'],
+        'New Title',
+        'dest-1',
+        {} as never,
+        undefined,
+        undefined,
+        null,
+        null,
+        null,
+        null,
+        null,
+        sentConfig as never
+      )
+    );
+
+    expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
+  });
+
   it('should invalidate cache when uniqueCountConfig sources change', async () => {
     const { service, reportDataCacheService, reportRepository } = createService();
     const stored = { ...makeReport(), uniqueCountConfig: ['orders'] };

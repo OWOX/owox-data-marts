@@ -393,16 +393,15 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   );
 });
 
-/** Everything the group needs to render its source's Unique Count row; absent → no row. */
-interface GroupUniqueCount {
-  label: string;
-  description?: string;
-  dataMartName?: string;
+/**
+ * Everything the group needs to render its source's Unique Count row; absent → no row. Derived from
+ * the group's own shape rather than restated: a field added there but forgotten here would still
+ * compile and just never reach the row.
+ */
+type GroupUniqueCount = NonNullable<BlendedGroup['uniqueCount']> & {
   state: UniqueCountSourceState | undefined;
-  checked: boolean;
-  isEmitted: boolean;
   onCheckedChange: (checked: boolean) => void;
-}
+};
 
 interface BlendedGroupItemProps {
   group: BlendedGroup;
@@ -510,13 +509,7 @@ function BlendedGroupItem({
         {/* Inaccessible groups may only clear existing references, never create new ones. */}
         {uniqueCount && (!inaccessible || uniqueCount.checked) && (
           <UniqueCountRow
-            label={uniqueCount.label}
-            description={uniqueCount.description}
-            dataMartName={uniqueCount.dataMartName}
-            state={uniqueCount.state}
-            checked={uniqueCount.checked}
-            isEmitted={uniqueCount.isEmitted}
-            onCheckedChange={uniqueCount.onCheckedChange}
+            {...uniqueCount}
             hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
           />
         )}
@@ -1708,12 +1701,8 @@ export function ReportColumnPicker({
               uniqueCount={
                 group.uniqueCount
                   ? {
-                      label: group.uniqueCount.label,
-                      description: group.uniqueCount.description,
-                      dataMartName: group.uniqueCount.dataMartName,
+                      ...group.uniqueCount,
                       state: uniqueCountStateFor(group.aliasPath),
-                      checked: group.uniqueCount.checked,
-                      isEmitted: group.uniqueCount.isEmitted,
                       onCheckedChange: checked => {
                         toggleUniqueCountSource(group.aliasPath, checked);
                       },

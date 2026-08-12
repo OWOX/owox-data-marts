@@ -640,6 +640,61 @@ describe('McpDataMartsFacadeImpl', () => {
     ]);
   });
 
+  // `a.b` and a top-level `a_b` build ONE name. Advertising both lets the splitter resolve it to
+  // whichever came last and answer with the wrong Data Mart's count — silently, because only one
+  // alias path reaches uniqueCountConfig and the save-time collision check needs both.
+  it('advertises a colliding Unique Count name once, first source winning (#6792)', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'blended_events',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [],
+      [
+        {
+          aliasPath: 'a_b',
+          title: 'Flat',
+          defaultAlias: 'Flat',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+        {
+          aliasPath: 'a.b',
+          title: 'Nested',
+          defaultAlias: 'Nested',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          uniqueCountAvailability: 'available',
+        },
+      ]
+    );
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      createRelationshipService(),
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    expect(result.uniqueCountSources).toEqual([
+      { aliasPath: 'a_b', name: 'a_b__unique_count', displayName: 'Flat Unique Count' },
+    ]);
+    expect(result.joinedFields.filter(f => f.name === 'a_b__unique_count')).toHaveLength(1);
+  });
+
   // The name is a pure function of THIS source's display prefix — the same rule an ordinary joined
   // field follows. Deliberately not a set function: a uniqueness-driven label would rename an
   // existing column whenever an unrelated source appeared or disappeared.

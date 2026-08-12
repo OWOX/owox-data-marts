@@ -5,12 +5,10 @@ import {
   ReportLike,
   ReportLikeReadPlan,
   hasOutputControls,
+  isMetricsOnlyProjection,
   shouldIncludeRowCount,
 } from '../dto/domain/report-like-read-plan';
-import {
-  hasMainUniqueCount,
-  normalizeUniqueCountSources,
-} from '../dto/schemas/unique-count-sources';
+import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { formatBlendedFieldDisplayName } from './blended-field-display-name';
@@ -404,9 +402,7 @@ export class ReportSqlComposerService {
     // it is NOT metrics-only and keeps projecting every native column — a report that has been
     // totalling those for months does not lose its Totals to this. A metrics-only `[]` emits no
     // dimension columns at all, so an empty Totals block there is the report's own shape.
-    const metricsOnly =
-      (report.aggregationConfig?.length ?? 0) > 0 ||
-      normalizeUniqueCountSources(report.uniqueCountConfig).length > 0;
+    const metricsOnly = isMetricsOnlyProjection(report.aggregationConfig, report.uniqueCountConfig);
     const projectedExplicit =
       report.columnConfig != null && (report.columnConfig.length > 0 || metricsOnly);
     const hasUnknownColumns =

@@ -522,7 +522,21 @@ export function splitUniqueCountFields(
   availableSources: McpUniqueCountSourceDto[],
   realFieldNames: ReadonlySet<string>
 ): { columns: string[]; uniqueCountConfig?: string[]; matchedNames: string[] } {
-  const aliasPathByName = new Map(availableSources.map(s => [s.name, s.aliasPath]));
+  // Not `new Map(...)`: that resolves a duplicated name to whichever source came last, and the
+  // request then counts the wrong Data Mart with nothing to show for it. The producer already
+  // refuses to advertise two sources under one name, so reaching here is a wiring bug, not input.
+  const aliasPathByName = new Map<string, string>();
+  for (const source of availableSources) {
+    const claimed = aliasPathByName.get(source.name);
+    if (claimed !== undefined) {
+      throw new Error(
+        `splitUniqueCountFields: '${source.name}' is offered by two sources ` +
+          `('${claimed}' and '${source.aliasPath}') — the caller must not advertise an ambiguous ` +
+          `Unique Count field name`
+      );
+    }
+    aliasPathByName.set(source.name, source.aliasPath);
+  }
   const columns: string[] = [];
   const uniqueCountConfig: string[] = [];
   const matchedNames: string[] = [];

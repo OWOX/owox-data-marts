@@ -4188,6 +4188,47 @@ describe('OutputControlsValidatorService', () => {
       ).resolves.toBeUndefined();
     });
 
+    // A real field that went HIDDEN is a broken schema link, not a metric. Calling it a Unique
+    // Count is simply false — the report may have no Unique Count enabled at all — and it hides
+    // the one diagnosis that names the field and says how to repair it.
+    it('routes a filter on a since-hidden real field to the disconnected diagnosis', async () => {
+      const validator = new OutputControlsValidatorService(
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: [{ name: 'channel', type: 'STRING' }],
+            blendedFields: [
+              {
+                name: 'orders__unique_count',
+                type: 'INTEGER',
+                aliasPath: 'orders',
+                isHidden: true,
+              },
+            ],
+            availableSources: [
+              {
+                aliasPath: 'orders',
+                isIncluded: true,
+                uniqueCountAvailability: 'available',
+                title: 'Orders DM',
+                defaultAlias: 'Orders',
+              },
+            ],
+          }),
+        } as never
+      );
+
+      const caught = await catchError(
+        validateWith(validator, {
+          columnConfig: ['channel'],
+          filterConfig: [{ column: 'orders__unique_count', operator: 'eq', value: 5 }],
+          uniqueCountConfig: null,
+        })
+      );
+
+      expectDisconnectedColumnsError(caught, ['orders__unique_count']);
+    });
+
     // Same honesty as the filter refusal above: these used to fall through to the `type ===
     // undefined` branches and come back as a TYPE problem on a schema that is perfectly fine.
     it.each([

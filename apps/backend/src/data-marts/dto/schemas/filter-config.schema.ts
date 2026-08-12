@@ -145,3 +145,12 @@ export function aliasPathToCteName(aliasPath: string): string {
   }
   return aliasPath.replace(/\./g, '_');
 }
+
+/**
+ * The same mapping for a path read back from a STORED config, where a malformed one is a dropped
+ * metric rather than a failed run — the run path already treats "no chain under this name" as the
+ * source being gone. Same rule, one place.
+ */
+export function tryAliasPathToCteName(aliasPath: string): string | undefined {
+  return ALIAS_PATH_REGEX.test(aliasPath) ? aliasPath.replace(/\./g, '_') : undefined;
+}

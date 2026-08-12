@@ -24,7 +24,10 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
-import { foldEmptyUniqueCountConfig } from '../dto/schemas/unique-count-sources';
+import {
+  foldEmptyUniqueCountConfig,
+  normalizeUniqueCountSources,
+} from '../dto/schemas/unique-count-sources';
 
 @Injectable()
 export class UpdateReportService {
@@ -121,8 +124,12 @@ export class UpdateReportService {
 
     const previousUniqueCountConfig = foldEmptyUniqueCountConfig(report.uniqueCountConfig);
     const nextUniqueCountConfig = foldEmptyUniqueCountConfig(command.uniqueCountConfig);
+    // Compared NORMALIZED: a report storing the legacy `true` comes back from the web as `['']`,
+    // and comparing the raw shapes would read that as a config change on a title-only save —
+    // invalidating the cached data and re-billing a warehouse query for an identical config.
     const uniqueCountChanged =
-      JSON.stringify(previousUniqueCountConfig) !== JSON.stringify(nextUniqueCountConfig);
+      JSON.stringify(normalizeUniqueCountSources(previousUniqueCountConfig)) !==
+      JSON.stringify(normalizeUniqueCountSources(nextUniqueCountConfig));
 
     await this.outputControlsValidator.validateForReport({
       storageType: report.dataMart.storage.type,

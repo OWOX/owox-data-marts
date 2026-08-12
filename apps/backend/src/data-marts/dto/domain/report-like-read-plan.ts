@@ -49,6 +49,21 @@ export function shouldIncludeRowCount(report: ReportLike): boolean {
 }
 
 /**
+ * Whether a report projects METRICS ONLY — it asks for aggregates or any Unique Count, so an empty
+ * `columnConfig` means "no dimensions" rather than "every native column". The composer and the
+ * output-controls validator both need exactly this decision, and a legacy `[]` on a report with
+ * neither is the case that must NOT be read as metrics-only. Shared so the two cannot drift.
+ */
+export function isMetricsOnlyProjection(
+  aggregations: { readonly length: number } | null | undefined,
+  uniqueCountConfig: UniqueCountConfig | undefined
+): boolean {
+  return (
+    (aggregations?.length ?? 0) > 0 || normalizeUniqueCountSources(uniqueCountConfig).length > 0
+  );
+}
+
+/**
  * Whether joined-field labels for this read should put the Data Mart name after the field name
  * (`Field name (Data Mart name)`) instead of before it. Delegates to the destination capability
  * {@link usesSuffixedJoinedFieldNamesFor}.
