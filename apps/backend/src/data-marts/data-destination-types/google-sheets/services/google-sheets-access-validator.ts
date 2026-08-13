@@ -8,6 +8,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema';
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
+import { sheetNotFoundMessage } from '../../../errors/google-sheet-not-found.error';
 
 /**
  * Validator for Google Sheets access
@@ -54,13 +55,9 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
       const sheet = adapter.findSheetById(spreadsheet, configOpt.data.sheetId);
 
       if (!spreadsheet?.properties?.title || !sheet || !sheet?.properties?.title) {
-        this.logger.warn(
-          `Failed to find sheet ${configOpt.data.sheetId} in spreadsheet ${configOpt.data.spreadsheetId}`
-        );
-        return new ValidationResult(
-          false,
-          `Failed to find sheet ${configOpt.data.sheetId} in spreadsheet ${configOpt.data.spreadsheetId}`
-        );
+        const message = sheetNotFoundMessage(configOpt.data.spreadsheetId, configOpt.data.sheetId);
+        this.logger.warn(message);
+        return new ValidationResult(false, message);
       }
 
       return new ValidationResult(true, undefined, undefined, {

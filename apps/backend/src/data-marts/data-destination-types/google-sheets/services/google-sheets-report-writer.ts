@@ -22,7 +22,11 @@ import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-ada
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 import { SheetsReportRunEvent } from '../../../events/sheets-report-run.event';
 import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-event-dispatcher';
-import { GoogleSheetNotFound } from '../../../errors/google-sheet-not-found.error';
+import {
+  GoogleSheetNotFound,
+  sheetNotFoundMessage,
+  spreadsheetNotAccessibleMessage,
+} from '../../../errors/google-sheet-not-found.error';
 import { BusinessViolationException } from 'src/common/exceptions/business-violation.exception';
 import { AppEditionConfig } from '../../../../common/config/app-edition-config.service';
 import { PublicOriginService } from '../../../../common/config/public-origin.service';
@@ -663,14 +667,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         .getSpreadsheet(this.destination.spreadsheetId)
         .catch(error => {
           throw new GoogleSheetNotFound(
-            `Failed to access spreadsheet ${this.destination.spreadsheetId}: ${error.message}`
+            spreadsheetNotAccessibleMessage(this.destination.spreadsheetId, error.message),
+            { spreadsheetId: this.destination.spreadsheetId }
           );
         });
       const sheet = this.adapter.findSheetById(spreadsheet, this.destination.sheetId);
 
       if (!sheet) {
         throw new GoogleSheetNotFound(
-          `Failed to find sheet ${this.destination.sheetId} in spreadsheet ${this.destination.spreadsheetId}`
+          sheetNotFoundMessage(this.destination.spreadsheetId, this.destination.sheetId),
+          { spreadsheetId: this.destination.spreadsheetId, sheetId: this.destination.sheetId }
         );
       }
 

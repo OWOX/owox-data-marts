@@ -7,6 +7,10 @@ import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { GoogleSheetsReportWriter } from './google-sheets-report-writer';
 import { ColumnPlanBuilder } from './column-plan-builder';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
+import {
+  GoogleSheetNotFound,
+  sheetNotFoundMessage,
+} from '../../../errors/google-sheet-not-found.error';
 
 /**
  * Targeted unit spec for {@link GoogleSheetsReportWriter}'s pre-clear
@@ -322,6 +326,31 @@ describe('GoogleSheetsReportWriter — pre-clears imported rectangle before writ
     ).rejects.toThrow();
 
     await expect(writer.finalize(new Error('original error'))).resolves.toBeUndefined();
+  });
+
+  it('fails with an actionable message when the destination tab no longer exists', async () => {
+    // The spreadsheet still opens, but the tab captured in destinationConfig is
+    // gone — deleted, or re-created with a new ID by an import. The user reads
+    // this text verbatim in Run History, so it has to name the fix.
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+    });
+    adapter.getSpreadsheet.mockResolvedValueOnce({
+      properties: { title: 'Test Spreadsheet', timeZone: 'UTC' },
+      sheets: [],
+    });
+
+    const error = await writer
+      .prepareToWriteReport(
+        report as never,
+        new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+      )
+      .catch((e: unknown) => e);
+
+    // BusinessViolationException subclass — keeps the run failure at WARN level.
+    expect(error).toBeInstanceOf(GoogleSheetNotFound);
+    expect((error as Error).message).toBe(sheetNotFoundMessage(SPREADSHEET_ID, SHEET_ID));
+    expect((error as Error).message).toContain('select an existing tab');
   });
 
   it('pre-clears in the zero-batch fallback so empty result sets wipe stale data', async () => {
