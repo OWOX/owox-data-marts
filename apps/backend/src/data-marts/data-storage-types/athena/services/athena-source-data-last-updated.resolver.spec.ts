@@ -127,6 +127,31 @@ describe('AthenaSourceDataLastUpdatedResolver', () => {
     );
   });
 
+  it('treats engine-internal awsdatacatalog$<connector> handles as the default catalog', async () => {
+    // The live engine does not print the canonical catalog name in IO plans: an Iceberg table
+    // arrives as `awsdatacatalog$iceberg-aws`. That must not be mistaken for a federated
+    // catalog, and the catalog API must be called with the canonical name.
+    const getTableMetadata = jest.fn().mockResolvedValue(ICEBERG_META);
+    const result = await run(
+      adapterWith({
+        getQueryIoPlan: jest
+          .fn()
+          .mockResolvedValue(
+            ioPlan({ schema: 'dlu', table: 'orders', catalog: 'awsdatacatalog$iceberg-aws' })
+          ),
+        getTableMetadata,
+        executeQueryAndGetRows: jest
+          .fn()
+          .mockResolvedValue([['dlu.orders', '2026-08-01 10:00:00.000 UTC']]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
+    expect(result.coverage).toBe('complete');
+    expect(result.sources[0].table).toBe('dlu.orders');
+    expect(getTableMetadata).toHaveBeenCalledWith('awsdatacatalog', 'dlu', 'orders');
+  });
+
   it('marks federated-catalog tables as unknown sources without calling the catalog', async () => {
     const getTableMetadata = jest.fn().mockResolvedValue(ICEBERG_META);
     const result = await run(

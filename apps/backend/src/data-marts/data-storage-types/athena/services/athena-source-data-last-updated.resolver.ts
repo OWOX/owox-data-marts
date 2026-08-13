@@ -190,7 +190,7 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
     const key = refKey(ref);
     const name = this.displayName(ref);
 
-    if (ref.catalog && ref.catalog !== AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG) {
+    if (!isDefaultCatalog(ref.catalog)) {
       cache.set(key, {
         entry: {
           table: name,
@@ -204,8 +204,10 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
 
     let metadata: Awaited<ReturnType<AthenaApiAdapter['getTableMetadata']>>;
     try {
+      // Always the canonical name: the IO plan's `awsdatacatalog$iceberg-aws` variants are
+      // engine-internal handles that the catalog API does not know.
       metadata = await adapter.getTableMetadata(
-        ref.catalog ?? AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG,
+        AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG,
         ref.schema,
         ref.table
       );
@@ -322,9 +324,9 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
 
   /** The default catalog is implied; only federated catalogs are worth naming. */
   private displayName(ref: AthenaInputTableRef): string {
-    const isDefault =
-      !ref.catalog || ref.catalog === AthenaSourceDataLastUpdatedResolver.DEFAULT_CATALOG;
-    return isDefault ? `${ref.schema}.${ref.table}` : `${ref.catalog}.${ref.schema}.${ref.table}`;
+    return isDefaultCatalog(ref.catalog)
+      ? `${ref.schema}.${ref.table}`
+      : `${ref.catalog}.${ref.schema}.${ref.table}`;
   }
 
   private queryOptions(signal?: AbortSignal): AthenaQueryOptions {
@@ -343,6 +345,20 @@ type CachedSource = { entry: SourceDataLastUpdatedEntry; failed: boolean } | 'dr
 
 function refKey(ref: AthenaInputTableRef): string {
   return `${ref.catalog ?? ''}\0${ref.schema}\0${ref.table}`;
+}
+
+/**
+ * Whether the reference points at the Glue-backed default catalog. The IO plan does not print
+ * the canonical `awsdatacatalog` name — the live engine reports its internal per-connector
+ * handle, e.g. `awsdatacatalog$iceberg-aws` for an Iceberg table — so anything up to an
+ * optional `$<connector>` suffix counts as the default catalog.
+ */
+function isDefaultCatalog(catalog: string | null): boolean {
+  if (!catalog) {
+    return true;
+  }
+  const canonical = catalog.split('$', 1)[0].toLowerCase();
+  return canonical === 'awsdatacatalog';
 }
 
 function quoteIdentifier(identifier: string): string {
