@@ -178,6 +178,51 @@ describe('AthenaSourceDataLastUpdatedResolver', () => {
     expect(getTableMetadata).toHaveBeenCalledTimes(1);
   });
 
+  it('falls back to per-table snapshot queries when the batched query fails', async () => {
+    const executeQueryAndGetRows = jest.fn(async (sql: string) => {
+      if (sql.includes('UNION ALL')) throw new Error('TABLE_NOT_FOUND: bad$snapshots');
+      if (sql.includes('"bad$snapshots"')) throw new Error('TABLE_NOT_FOUND: bad$snapshots');
+      return [['dlu.orders', '2026-08-01 10:00:00.000 UTC']];
+    });
+    const result = await run(
+      adapterWith({
+        getQueryIoPlan: jest
+          .fn()
+          .mockResolvedValue(
+            ioPlan({ schema: 'dlu', table: 'orders' }, { schema: 'dlu', table: 'bad' })
+          ),
+        executeQueryAndGetRows,
+      })
+    );
+
+    // One broken table degrades itself, not its neighbours.
+    expect(result.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
+    expect(result.coverage).toBe('partial');
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({ table: 'dlu.bad', note: 'could not read Iceberg snapshots' })
+    );
+    // Batched attempt first, then one retry per table.
+    expect(executeQueryAndGetRows).toHaveBeenCalledTimes(3);
+  });
+
+  it('flags an unrecognised snapshot timestamp distinctly from an empty table', async () => {
+    const result = await run(
+      adapterWith({
+        getQueryIoPlan: jest.fn().mockResolvedValue(ioPlan({ schema: 'dlu', table: 'orders' })),
+        executeQueryAndGetRows: jest
+          .fn()
+          .mockResolvedValue([['dlu.orders', '2026-08-01 10:00:00 Europe/Kyiv']]),
+      })
+    );
+
+    expect(result).toMatchObject({ dataLastUpdatedAt: null, coverage: 'unavailable' });
+    expect(result.sources[0]).toMatchObject({
+      table: 'dlu.orders',
+      dataLastUpdatedAt: null,
+      note: 'unrecognised snapshot timestamp format',
+    });
+  });
+
   it('reports an Iceberg table with no snapshots as a null source with a note', async () => {
     const result = await run(
       adapterWith({

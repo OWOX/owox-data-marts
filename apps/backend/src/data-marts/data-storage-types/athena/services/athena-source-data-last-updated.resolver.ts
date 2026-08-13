@@ -276,37 +276,91 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
         outputBucket,
         this.queryOptions(signal)
       );
-      const timeByTable = new Map<string, string | null>(
-        rows.map(row => [row[0] ?? '', athenaTimestampToIsoUtc(row[1])])
-      );
-
-      for (const ref of refs) {
-        const time = timeByTable.get(`${ref.schema}.${ref.table}`) ?? null;
-        cache.set(refKey(ref), {
-          entry: {
-            table: this.displayName(ref),
-            dataLastUpdatedAt: time,
-            ...(time === null ? { note: 'Iceberg table with no snapshots' } : {}),
-          },
-          failed: false,
-        });
-      }
+      this.applySnapshotRows(refs, rows, cache);
     } catch (error) {
       if (signal?.aborted) {
         throw error;
       }
-      this.logger.warn(`Failed to read Iceberg snapshots: ${errorText(error)}`);
+      if (refs.length === 1) {
+        this.markSnapshotsFailed(refs[0], cache, error);
+        return;
+      }
+      // The batched query is all-or-nothing: one broken table (dropped between EXPLAIN and
+      // now, a per-table authorization denial) would fail every Iceberg table in the sweep.
+      // Retrying per table confines the damage to the table that actually caused it.
+      this.logger.warn(
+        `Batched Iceberg snapshots query failed; retrying per table: ${errorText(error)}`
+      );
       for (const ref of refs) {
-        cache.set(refKey(ref), {
-          entry: {
-            table: this.displayName(ref),
-            dataLastUpdatedAt: null,
-            note: 'could not read Iceberg snapshots',
-          },
-          failed: true,
-        });
+        if (signal?.aborted) {
+          throw error;
+        }
+        try {
+          const rows = await adapter.executeQueryAndGetRows(
+            this.buildIcebergSnapshotsQuery([ref]),
+            outputBucket,
+            this.queryOptions(signal)
+          );
+          this.applySnapshotRows([ref], rows, cache);
+        } catch (tableError) {
+          if (signal?.aborted) {
+            throw tableError;
+          }
+          this.markSnapshotsFailed(ref, cache, tableError);
+        }
       }
     }
+  }
+
+  private applySnapshotRows(
+    refs: AthenaInputTableRef[],
+    rows: Array<Array<string | null>>,
+    cache: Map<string, CachedSource>
+  ): void {
+    const rawByTable = new Map<string, string | null>(rows.map(row => [row[0] ?? '', row[1]]));
+
+    for (const ref of refs) {
+      const raw = rawByTable.get(`${ref.schema}.${ref.table}`) ?? null;
+      const time = athenaTimestampToIsoUtc(raw);
+      let note: string | undefined;
+      if (raw === null) {
+        note = 'Iceberg table with no snapshots';
+      } else if (time === null) {
+        // A value came back but in a shape we do not recognise. That is a format drift, not an
+        // empty table — logged so it surfaces, exactly like an unrecognised IO plan would.
+        this.logger.warn(
+          `Unrecognised Iceberg snapshot timestamp for ${this.displayName(ref)}: ${raw}`
+        );
+        note = 'unrecognised snapshot timestamp format';
+      }
+
+      cache.set(refKey(ref), {
+        entry: {
+          table: this.displayName(ref),
+          dataLastUpdatedAt: time,
+          ...(note ? { note } : {}),
+        },
+        failed: false,
+      });
+    }
+  }
+
+  private markSnapshotsFailed(
+    ref: AthenaInputTableRef,
+    cache: Map<string, CachedSource>,
+    error: unknown
+  ): void {
+    this.logger.warn(
+      `Failed to read Iceberg snapshots for ${this.displayName(ref)}: ${errorText(error)}`
+    );
+    cache.set(refKey(ref), {
+      entry: {
+        table: this.displayName(ref),
+        dataLastUpdatedAt: null,
+        note: 'could not read Iceberg snapshots',
+      },
+      failed: true,
+    });
   }
 
   private buildIcebergSnapshotsQuery(refs: AthenaInputTableRef[]): string {

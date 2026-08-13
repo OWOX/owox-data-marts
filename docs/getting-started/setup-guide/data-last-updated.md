@@ -65,7 +65,7 @@ Storage-specific caveats:
 
 - **BigQuery** reports modification times immediately and exactly.
 - **Redshift** metadata can lag real writes by up to ~5 minutes, so a load that finished a moment ago may not show yet. Older Redshift releases do not report modification times at all — those Data Marts show Unknown. Source tables outside the connection's database, and tables in schemas whose names require quoting (mixed case, hyphens, non-ASCII characters), cannot be identified and appear as unknown entries with partial coverage.
-- **Athena** answers exactly for **Iceberg** tables (the time of the last data commit). Classic **Hive** tables show Unknown: the catalog stores no data-change time, and its metadata timestamps can be newer than the last data change, so reporting them would break the "at least as recent as" promise. Tables from federated catalogs (connectors other than the Glue Data Catalog) are not measured.
+- **Athena** answers exactly for **Iceberg** tables (the time of the last data commit). Classic **Hive** tables show Unknown — their catalog stores no data-change time. The catalog's metadata timestamps can be newer than the last data change, so OWOX does not report them. Tables from federated catalogs (connectors other than the Glue Data Catalog) are not measured.
 
 ## Data Last Updated vs. the Data freshness check
 
