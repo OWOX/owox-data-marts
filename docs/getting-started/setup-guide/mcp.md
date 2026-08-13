@@ -110,12 +110,12 @@ Returns a high-level summary of the published data mart catalog available to thi
 
 **Returns:**
 
-| Field                                  | Description                                                                 |
-| -------------------------------------- | --------------------------------------------------------------------------- |
-| `project_id`                           | Project identifier                                                          |
-| `data_mart_count`                      | Number of published data marts visible to you                               |
-| `top_data_marts_by_connectivity`       | Data marts ranked by configured relationship connectivity                   |
-| `_instruction`                         | Internal guidance for the assistant on how to summarize the returned catalog |
+| Field                            | Description                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `project_id`                     | Project identifier                                                           |
+| `data_mart_count`                | Number of published data marts visible to you                                |
+| `top_data_marts_by_connectivity` | Data marts ranked by configured relationship connectivity                    |
+| `_instruction`                   | Internal guidance for the assistant on how to summarize the returned catalog |
 
 Each `top_data_marts_by_connectivity` item includes `id`, `title`, `description`, `url`, `relationship_count`, `reports_count`, `triggers_count`, and `updated_at`.
 
@@ -150,14 +150,14 @@ Lists data marts visible to you in the current project. By default, it returns p
 
 **Returns** an array of data mart objects:
 
-| Field         | Description           |
-| ------------- | --------------------- |
-| `id`          | Data mart identifier                          |
-| `title`       | Data mart name                                |
-| `description` | Data mart description                         |
-| `url`         | Link to open the data mart in OWOX Data Marts |
+| Field         | Description                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`          | Data mart identifier                                                                                                     |
+| `title`       | Data mart name                                                                                                           |
+| `description` | Data mart description                                                                                                    |
+| `url`         | Link to open the data mart in OWOX Data Marts                                                                            |
 | `status`      | Current status: `PUBLISHED` or `DRAFT`. Response values are uppercase and differ from the lowercase input filter values. |
-| `updated_at`  | Last update timestamp                         |
+| `updated_at`  | Last update timestamp                                                                                                    |
 
 Use this tool to discover available data marts before running queries or building reports.
 
@@ -212,7 +212,7 @@ Returns field-level metadata for one data mart visible to you in the current pro
 | `fields`                 | The data mart's own (native) output fields with query `name`, presentation `displayName`, types, descriptions, and business names when available                           |
 | `joined_fields_included` | Whether joined fields were requested and evaluated. When `false`, `joined_fields` was intentionally omitted rather than evaluated as empty.                                |
 | `joined_fields`          | Fields contributed by blended/joined data marts when requested, each with exact query `name`, presentation `displayName`, source data mart, type, and allowed aggregations |
-| `operators_by_category` | For each field-type category present in the data mart (`number`/`string`/`date`/`time`/`boolean`/`other`), the `query_data_mart` filter/slice operators its fields accept                                                          |
+| `operators_by_category`  | For each field-type category present in the data mart (`number`/`string`/`date`/`time`/`boolean`/`other`), the `query_data_mart` filter/slice operators its fields accept  |
 
 Use this tool when you need to understand the fields available in a specific data mart. It returns native fields by default; request `detail_level=with_joined_fields` before concluding that the native schema cannot answer a question or after a `field_not_found` error. A field's `allowedAggregations` and its category's entry in `operators_by_category` tell the assistant which aggregations and operators the field supports. The assistant can build queries without trial and error. It does not return sample values, data freshness, owners, or actual data rows. To learn how joined/blended fields are set up, see [Joinable Data Marts](./joinable-data-marts.md).
 
@@ -222,33 +222,33 @@ Runs a query against one data mart and returns its data rows, plus server-side t
 
 **Input:**
 
-| Field          | Description                                                                                                                                                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data_mart_id` | Data mart to query                                                                                                                                                                                                                                                           |
-| `fields`       | Exact field names to return, copied from `get_data_mart_details_by_id`. Must include every field used in `aggregations`, `date_buckets`, and `sort`. Reference blended fields by their qualified `<alias>__<field>` name                                                     |
-| `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Which of these a field allows depends on its type and per-field settings — use the `allowedAggregations` returned by `get_data_mart_details_by_id`. Group-by is implied by the non-aggregated fields |
-| `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`. Only date-category fields can be bucketed; `time_zone` applies only to types with a time component (not pure `DATE`)                                                                                  |
-| `sort`         | Order the result rows: each rule is `{ field, direction }` with direction `asc` or `desc`; rules apply in order (the first is the primary key). Each sorted field must also appear in `fields`                                                                               |
-| `slices`       | Pre-join filters — narrow a joined data mart before it is blended in (joined fields only)                                                                                                                                                                                    |
+| Field          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_mart_id` | Data mart to query                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `fields`       | Exact field names to return, copied from `get_data_mart_details_by_id`. Must include every field used in `aggregations`, `date_buckets`, and `sort`. Reference blended fields by their qualified `<alias>__<field>` name                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `aggregations` | Aggregations over a field: `SUM`, `COUNT`, `COUNT_DISTINCT`, `AVG`, `MIN`, `MAX`, and percentiles `P25`/`P50`/`P75`/`P95`. Which of these a field allows depends on its type and per-field settings — use the `allowedAggregations` returned by `get_data_mart_details_by_id`. Group-by is implied by the non-aggregated fields                                                                                                                                                                                                                                                                                                                          |
+| `date_buckets` | Bucket a date/timestamp field by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR`. Only date-category fields can be bucketed; `time_zone` applies only to types with a time component (not pure `DATE`)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `sort`         | Order the result rows: each rule is `{ field, direction }` with direction `asc` or `desc`; rules apply in order (the first is the primary key). Each sorted field must also appear in `fields`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `slices`       | Pre-join filters — narrow a joined data mart before it is blended in (joined fields only)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `filters`      | Post-join filters on the blended result. Row-level predicates applied to raw values before any aggregation — there is no `HAVING`, so they cannot threshold an aggregated total. Which operators a field accepts depends on its type — see `operators_by_category` from `get_data_mart_details_by_id`; several filters combine with AND. `in`/`not_in` take an array of values (match any of / none of). The negative operators `neq`, `not_contains`, `not_regex`, and `not_in` are NULL-inclusive — they keep rows where the field is NULL, treating a missing value as "not equal to"; add an `is not null` filter on the same field to exclude NULLs |
-| `limit`        | Maximum rows to return (1–1000, default 20). There is no pagination                                                                                                                                                                                                          |
+| `limit`        | Maximum rows to return (1–1000, default 20). There is no pagination                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 For a “how many” question, use `COUNT` or `COUNT_DISTINCT` (when the user means unique entities) rather than returning raw rows and counting them in the assistant. Include only the dimensions needed for the requested breakdown.
 
 **Returns:**
 
-| Field                | Description                                                                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `columns`            | Business-friendly headers matching the header row in `rows`. When `aggregations` are used, an extra `Row Count` column is appended        |
-| `column_metadata`    | Exact technical query `name` plus business-friendly `display_name`, type, and description when available                                  |
-| `rows`               | The data rows, as a compact header-once table                                                                                               |
-| `returned_rows`      | Number of rows in the response                                                                                                              |
-| `truncated`          | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                           |
-| `truncation`         | Present only when truncated; `reasons` is `row_limit`, `payload_byte_cap`, or both                                                         |
-| `totals`             | Server-side totals over all matching rows, ignoring the row limit                                                                           |
-| `data_last_updated`  | When the source tables behind this result last changed in the warehouse — see below                                                        |
-| `source`             | The id, title, and OWOX link of the Data Mart that supplied the response                                                                    |
-| `calculation_origin` | Marks rows as taken from OWOX, and totals and `data_last_updated` as produced by OWOX when available                                        |
+| Field                | Description                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `columns`            | Business-friendly headers matching the header row in `rows`. When `aggregations` are used, an extra `Row Count` column is appended |
+| `column_metadata`    | Exact technical query `name` plus business-friendly `display_name`, type, and description when available                           |
+| `rows`               | The data rows, as a compact header-once table                                                                                      |
+| `returned_rows`      | Number of rows in the response                                                                                                     |
+| `truncated`          | `true` if not all matching rows were returned — narrow the query or raise `limit`                                                  |
+| `truncation`         | Present only when truncated; `reasons` is `row_limit`, `payload_byte_cap`, or both                                                 |
+| `totals`             | Server-side totals over all matching rows, ignoring the row limit                                                                  |
+| `data_last_updated`  | When the source tables behind this result last changed in the warehouse — see below                                                |
+| `source`             | The id, title, and OWOX link of the Data Mart that supplied the response                                                           |
+| `calculation_origin` | Marks rows as taken from OWOX, and totals and `data_last_updated` as produced by OWOX when available                               |
 
 Only data marts and fields your [project role](../../project/roles-and-permissions.md) permits are queryable. For more on how aggregations and totals are computed, see [Report Aggregations and Totals](./report-aggregations.md); for why a given aggregation may be rejected on a field, see [Report Output Controls](./output-controls.md).
 
@@ -258,16 +258,16 @@ When presenting results, the assistant must name the source Data Mart. It must d
 
 `data_last_updated` answers "how current is what I am looking at?". Each query measures it live, in the same call that reads the data. OWOX never caches this value and never bills it separately — the call's own credits cover it. A non-blended query (no joined fields) also saves the measurement as the Data Mart's last-known value. The same value appears across the OWOX UI — see [Data Last Updated](./data-last-updated.md).
 
-| Field                  | Description                                                                                                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data_last_updated_at` | ISO-8601 UTC time when the newest source table last changed, or `null` when the warehouse does not report it                                                          |
-| `computed_at`          | When this measurement was taken                                                                                                                                       |
-| `coverage`             | `complete`, `partial` (some sources unreadable — the real time can only be more recent), or `unavailable` (nothing could be determined)                               |
-| `sources`              | Per-table detail, each with its own time and an optional `note` explaining a gap                                                                                       |
+| Field                  | Description                                                                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_last_updated_at` | ISO-8601 UTC time when the newest source table last changed, or `null` when the warehouse does not report it                            |
+| `computed_at`          | When this measurement was taken                                                                                                         |
+| `coverage`             | `complete`, `partial` (some sources unreadable — the real time can only be more recent), or `unavailable` (nothing could be determined) |
+| `sources`              | Per-table detail, each with its own time and an optional `note` explaining a gap                                                        |
 
 Read the value precisely. It is a **storage** timestamp, not a statement about the data's content:
 
-- It says when something last **wrote to** the source tables. A backfill can rewrite a table today with figures from 2021, so "updated today" does not mean "covers today". For this reason the field is *data last updated*, not *freshness*.
+- It says when something last **wrote to** the source tables. A backfill can rewrite a table today with figures from 2021, so "updated today" does not mean "covers today". For this reason the field is _data last updated_, not _freshness_.
 - `null` means **unknown** — neither fresh nor stale. The assistant should say OWOX could not determine it, without implying either.
 - With `coverage: "partial"`, treat the timestamp as "at least as recent as" and say the picture is incomplete.
 - The assistant is asked to present the timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC") — converted to the user's time zone when the conversation establishes one, otherwise in UTC with the zone named — never as a raw ISO-8601 string. The machine-readable ISO-8601 value stays in the structured response.
@@ -283,7 +283,7 @@ Lists the destinations in the current project — such as Google Sheets, Looker 
 | Field                    | Description                                                                                               |
 | ------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `id`                     | Destination identifier                                                                                    |
-| `url`                    | Link to open this destination in OWOX                                                                    |
+| `url`                    | Link to open this destination in OWOX                                                                     |
 | `name`                   | Destination name                                                                                          |
 | `type`                   | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
 | `owner`                  | The user who created the destination, or `null` when unavailable                                          |
@@ -298,20 +298,20 @@ Starts or completes setup for a report-delivery destination. The exact flow depe
 
 **Input:**
 
-| Field              | Description                                                                                                                                                      |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `destination_type` | Destination type to connect or create: `google_sheets`, `looker_studio`, `email`, `slack`, `teams`, or `google_chat`                                             |
-| `title`            | Optional destination name. Applies to `email`, `slack`, `teams`, `google_chat`, and `looker_studio`; Google Sheets names are entered in the browser setup form    |
-| `emails`           | Required for `email`, `slack`, `teams`, and `google_chat`; target email addresses or delivery addresses for the destination                                      |
+| Field              | Description                                                                                                                                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `destination_type` | Destination type to connect or create: `google_sheets`, `looker_studio`, `email`, `slack`, `teams`, or `google_chat`                                           |
+| `title`            | Optional destination name. Applies to `email`, `slack`, `teams`, `google_chat`, and `looker_studio`; Google Sheets names are entered in the browser setup form |
+| `emails`           | Required for `email`, `slack`, `teams`, and `google_chat`; target email addresses or delivery addresses for the destination                                    |
 
 **Returns:**
 
-| Field               | Description                                                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `authorization_url` | For `google_sheets`, a link to the OWOX "Connect Google Sheets" page where the user completes Google OAuth                 |
+| Field               | Description                                                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authorization_url` | For `google_sheets`, a link to the OWOX "Connect Google Sheets" page where the user completes Google OAuth                                                |
 | `destination_id`    | New destination identifier. Returned for `looker_studio`, `email`, `slack`, `teams`, and `google_chat`; absent for Google Sheets until setup is completed |
-| `destination_url`   | Link to open the created destination; absent for Google Sheets until OAuth creates it                   |
-| `instructions`      | Human-readable next steps for finishing setup or using the new destination                                                  |
+| `destination_url`   | Link to open the created destination; absent for Google Sheets until OAuth creates it                                                                     |
+| `instructions`      | Human-readable next steps for finishing setup or using the new destination                                                                                |
 
 For `google_sheets`, this tool does not create the destination immediately. It returns a project-scoped setup link; the user opens it, signs in to OWOX if needed, clicks **Connect with Google**, and approves Google access. After the user confirms setup is complete, call `list_destinations` and match the new Google Sheets destination by `connectedGoogleAccount`. The created destination is usable by the person who connected it, but it starts unshared for other project members until someone shares it in the UI.
 
@@ -323,71 +323,71 @@ Lists the reports tied to a data mart, including each report's destination, its 
 
 **Input:**
 
-| Field          | Description           |
-| -------------- | ---------------------- |
-| `data_mart_id` | Data mart identifier   |
+| Field          | Description          |
+| -------------- | -------------------- |
+| `data_mart_id` | Data mart identifier |
 
 **Returns** an array of report objects:
 
-| Field              | Description                                                            |
-| ------------------ | ----------------------------------------------------------------------- |
-| `report_id`         | Report identifier                                                      |
-| `report_url`        | Link to the report's Data Mart reports page in OWOX                   |
-| `data_mart_id`      | Data mart identifier                                                   |
-| `name`              | Report name                                                            |
-| `destination_id`    | Destination the report exports to                                      |
-| `destination_url`   | Link to the destination in OWOX                                        |
-| `destination_type`  | Destination type (for example `google_sheets`)                        |
-| `owner`             | The user who created the report                                       |
-| `schedules`         | Array of run schedules — `trigger_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`, `last_run_at` |
-| `last_run_at`       | Timestamp of the most recent run                                      |
-| `last_run_status`   | Status of the most recent run                                         |
+| Field              | Description                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `report_id`        | Report identifier                                                                                                |
+| `report_url`       | Link to the report's Data Mart reports page in OWOX                                                              |
+| `data_mart_id`     | Data mart identifier                                                                                             |
+| `name`             | Report name                                                                                                      |
+| `destination_id`   | Destination the report exports to                                                                                |
+| `destination_url`  | Link to the destination in OWOX                                                                                  |
+| `destination_type` | Destination type (for example `google_sheets`)                                                                   |
+| `owner`            | The user who created the report                                                                                  |
+| `schedules`        | Array of run schedules — `trigger_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`, `last_run_at` |
+| `last_run_at`      | Timestamp of the most recent run                                                                                 |
+| `last_run_status`  | Status of the most recent run                                                                                    |
 
 Use this tool before scheduling or changing a report's cadence, to see what already exists.
 
 ### `run_report` (requires `mcp:write`)
 
-Starts an existing report run and delivers fresh data to its push destination. This returns immediately with identifiers for the run; it does not wait for completion. Each call starts a new billed Report Run, so do not call it again for the same report while the previous run is still running or pending.
+Starts an existing report run and delivers fresh data to its push destination. Use it for a later rerun, or to retry delivery when `add_report` returned `initial_run.status: failed_to_queue`. Do not call it for the initial run when `add_report` already returned a queued `run_id`. This returns immediately with identifiers for the run; it does not wait for completion. Each call starts a new billed Report Run, so do not call it again for the same report while the previous run is still running or pending.
 
 **Input:**
 
-| Field       | Description                                      |
-| ----------- | ------------------------------------------------ |
-| `report_id` | Report to run, from `get_data_mart_reports`      |
+| Field       | Description                                 |
+| ----------- | ------------------------------------------- |
+| `report_id` | Report to run, from `get_data_mart_reports` |
 
 **Returns:**
 
-| Field       | Description                                      |
-| ----------- | ------------------------------------------------ |
-| `report_id` | Report identifier                                |
+| Field       | Description                                       |
+| ----------- | ------------------------------------------------- |
+| `report_id` | Report identifier                                 |
 | `run_id`    | Run identifier to pass to `get_report_run_status` |
 
 Use this tool for push destinations such as Google Sheets, Email, Slack, Microsoft Teams, and Google Chat. Pull-based destinations such as Looker Studio cannot be run through `run_report`.
 
 ### `get_report_run_status`
 
-Checks the current status of a report run started with `run_report`.
+Checks the current status of a report run started with `run_report` or queued automatically by `add_report`.
 
 **Input:**
 
-| Field       | Description                         |
-| ----------- | ----------------------------------- |
-| `report_id` | Report identifier                   |
+| Field       | Description                             |
+| ----------- | --------------------------------------- |
+| `report_id` | Report identifier                       |
 | `run_id`    | Run identifier returned by `run_report` |
 
 **Returns:**
 
-| Field         | Description                                                                                                      |
-| ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `report_id`   | Report identifier                                                                                                |
-| `run_id`      | Run identifier                                                                                                   |
-| `status`      | Normalized status: `running`, `success`, `failed`, `cancelled`, `interrupted`, or `restricted`                   |
-| `should_poll` | `true` when the assistant should keep checking this run; `false` when polling should stop                        |
-| `stop_reason` | `queued_too_long`, `running_too_long`, or `null`                                                                 |
-| `queued_at`   | Timestamp when the run was queued, if available                                                                  |
-| `started_at`  | Timestamp when execution started, if available                                                                   |
-| `raw_status`  | Backend run status                                                                                               |
-| `error`       | Error message for failed runs, otherwise `null`                                                                  |
+| Field         | Description                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report_id`   | Report identifier                                                                                                                                       |
+| `run_id`      | Run identifier                                                                                                                                          |
+| `status`      | Normalized status: `running`, `success`, `failed`, `cancelled`, `interrupted`, or `restricted`                                                          |
+| `should_poll` | `true` when the assistant should keep checking this run; `false` when polling should stop                                                               |
+| `stop_reason` | `queued_too_long`, `running_too_long`, or `null`                                                                                                        |
+| `queued_at`   | Timestamp when the run was queued, if available                                                                                                         |
+| `started_at`  | Timestamp when execution started, if available                                                                                                          |
+| `raw_status`  | Backend run status                                                                                                                                      |
+| `error`       | Error message for failed runs, otherwise `null`                                                                                                         |
 | `message`     | Polling guidance for the assistant, including when a run is taking longer than usual or may be stuck; `null` when the run has reached a terminal status |
 
 Report runs can take several minutes. While `should_poll` is `true`, the assistant should call `get_report_run_status` again, ideally waiting about 15 seconds between checks if the client supports waiting.
@@ -398,19 +398,19 @@ Lists every scheduled report-run trigger in the current project that you can see
 
 **Returns** an array of schedule objects:
 
-| Field             | Description                                                          |
-| ------------------ | ---------------------------------------------------------------------- |
-| `trigger_id`        | Schedule identifier — pass to `update_report_run_schedule` or `delete_report_run_schedule` |
-| `report`            | The report this schedule belongs to (`id`, `title`, `url`)           |
-| `data_mart`         | The data mart the report is built on (`id`, `title`, `url`)          |
-| `schedules_url`     | Link to the report schedules page in OWOX                            |
-| `cron_expression`   | Schedule in 5-field cron syntax                                      |
-| `time_zone`         | IANA timezone the cron expression is evaluated in                    |
-| `is_active`         | Whether the schedule is currently enabled                            |
-| `next_run_at`       | Next scheduled run, if any                                           |
-| `last_run_at`       | Last run, if any                                                     |
-| `can_edit`          | Whether you can update this schedule                                 |
-| `can_delete`        | Whether you can delete this schedule                                 |
+| Field             | Description                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `trigger_id`      | Schedule identifier — pass to `update_report_run_schedule` or `delete_report_run_schedule` |
+| `report`          | The report this schedule belongs to (`id`, `title`, `url`)                                 |
+| `data_mart`       | The data mart the report is built on (`id`, `title`, `url`)                                |
+| `schedules_url`   | Link to the report schedules page in OWOX                                                  |
+| `cron_expression` | Schedule in 5-field cron syntax                                                            |
+| `time_zone`       | IANA timezone the cron expression is evaluated in                                          |
+| `is_active`       | Whether the schedule is currently enabled                                                  |
+| `next_run_at`     | Next scheduled run, if any                                                                 |
+| `last_run_at`     | Last run, if any                                                                           |
+| `can_edit`        | Whether you can update this schedule                                                       |
+| `can_delete`      | Whether you can delete this schedule                                                       |
 
 Use this tool to find a schedule's `trigger_id` before updating or deleting it. Creating a new schedule (`create_report_run_schedule`) never replaces an existing one — a report can have several. These schedules are the same report triggers you can manage in the UI — see [Report Triggers](./report-triggers.md).
 
@@ -420,12 +420,12 @@ Adds a new recurring run schedule to an existing report. The assistant translate
 
 **Input:**
 
-| Field              | Description                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| `report_id`          | Report to attach the schedule to                                                      |
-| `cron_expression`    | 5-field cron expression                                                                |
-| `time_zone`          | Optional IANA timezone (for example `Europe/Kyiv`); defaults to UTC if not specified   |
-| `is_active`          | Optional; defaults to `true`                                                           |
+| Field             | Description                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `report_id`       | Report to attach the schedule to                                                     |
+| `cron_expression` | 5-field cron expression                                                              |
+| `time_zone`       | Optional IANA timezone (for example `Europe/Kyiv`); defaults to UTC if not specified |
+| `is_active`       | Optional; defaults to `true`                                                         |
 
 **Returns:** `trigger_id`, `report_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`.
 
@@ -437,12 +437,12 @@ Updates one existing schedule identified by `trigger_id` (from `list_report_run_
 
 **Input:**
 
-| Field              | Description                                                                   |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `trigger_id`         | Schedule to update                                                              |
-| `cron_expression`    | New 5-field cron expression                                                    |
-| `time_zone`          | Optional; omit to keep the schedule's current timezone                         |
-| `is_active`          | Optional; omit to keep the schedule's current active state                     |
+| Field             | Description                                                |
+| ----------------- | ---------------------------------------------------------- |
+| `trigger_id`      | Schedule to update                                         |
+| `cron_expression` | New 5-field cron expression                                |
+| `time_zone`       | Optional; omit to keep the schedule's current timezone     |
+| `is_active`       | Optional; omit to keep the schedule's current active state |
 
 **Returns:** `trigger_id`, `report_id`, `cron_expression`, `time_zone`, `is_active`, `next_run_at`.
 
@@ -454,52 +454,56 @@ Removes a single schedule identified by `trigger_id`. This is destructive and ca
 
 **Input:**
 
-| Field         | Description        |
-| -------------- | -------------------- |
-| `trigger_id`    | Schedule to remove  |
+| Field        | Description        |
+| ------------ | ------------------ |
+| `trigger_id` | Schedule to remove |
 
 **Returns:** `trigger_id`, `report_id`, and `schedule: null` to confirm removal. Only that one schedule is removed — the report and any other schedules it has are left intact.
 
 ### `add_report` (requires `mcp:write`)
 
-Creates a report that exports a data mart to an existing destination (see `list_destinations`).
+Creates a report that exports a data mart to an existing destination (see `list_destinations`). For push destinations, it also queues the first run by default so the destination is populated immediately. Set `run_immediately` to `false` only when the user explicitly wants configuration without delivery, such as before creating a schedule.
 
-- **Google Sheets**: a new Google Sheet is created automatically and linked to the report. Unlike every other tool, this path reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. See [Google Sheets destination](../../destinations/supported-destinations/google-sheets.md) for how to set the destination up.
+- **Google Sheets**: a new Google Sheet is created automatically and linked to the report, then the initial run writes data into it by default. Unlike every other tool, this path reaches outside OWOX: it creates a file in Google Drive and attempts to share it with you. See [Google Sheets destination](../../destinations/supported-destinations/google-sheets.md) for how to set the destination up.
 - **Looker Studio**: the report is created with default settings (data cache lifetime of 5 minutes) — the tool accepts no Looker-Studio-specific parameters, and no `name` (Looker Studio reports carry no name). Each data mart + destination pair can have exactly one Looker Studio report; creating a second one returns an error instead of a duplicate. Creating the report only makes the data mart available to the destination: data appears in a dashboard after you connect Looker Studio to OWOX with the destination's JSON Config (it contains a secret key, so it is never sent through the assistant). The response includes `instructions` and a `setup_guide_url` so the assistant can walk you through it; the full guide is [Data Studio destination](../../destinations/supported-destinations/data-studio.md). If the project has no Looker Studio destination yet, the assistant can create one with `add_destination` first.
-- **Email, Slack, Microsoft Teams, Google Chat**: the report carries the message subject and body; the recipients or channels are configured on the destination itself, not on the report. Each report run sends the rendered message. The send condition is always the default ("Send always") — change it in the OWOX Data Marts UI if you need a conditional report.
+- **Email, Slack, Microsoft Teams, Google Chat**: the report carries the message subject and body; the recipients or channels are configured on the destination itself, not on the report. The default initial run sends the rendered message immediately. The send condition is always the default ("Send always") — change it in the OWOX Data Marts UI if you need a conditional report.
 
 **Input:**
 
-| Field             | Description                                                          |
-| ------------------ | ------------------------------------------------------------------------ |
-| `data_mart_id`      | Data mart to export                                                    |
-| `destination_id`    | The destination to export to (from `list_destinations`)               |
-| `fields`            | Exact column names to include, or `["*"]` for every field              |
-| `filters`           | Optional. Row filters applied on every report run — same shape and operator vocabulary as `query_data_mart`'s `filters`, so the assistant can create a report that exports exactly the filtered result you were looking at. A filter may reference a field that is not in `fields`. Omit to export all rows |
-| `slices`            | Optional. Pre-join filters that narrow a joined data mart before blending — same as `query_data_mart`'s `slices`. Blended data marts only |
-| `aggregations`      | Optional. Aggregations applied on every run — same as `query_data_mart`'s `aggregations`. Each aggregated field must also appear in `fields`; other fields become group-by dimensions |
-| `date_buckets`      | Optional. Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR — same as `query_data_mart`'s `date_buckets`. Each bucketed field must also appear in `fields` |
-| `sort`              | Optional. Order of the exported rows — same as `query_data_mart`'s `sort` |
-| `limit`             | Optional. Max rows each run exports; omit for no cap (the interactive query limit is deliberately NOT carried over) |
-| `name`              | Report name — also the new sheet's title (Google Sheets) and the default message subject (email family). Required for those destination types; not accepted for Looker Studio |
-| `message`           | Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types |
-| `message.subject`   | Optional message subject or heading. Defaults to the report name       |
-| `message.body`      | Message body template. Supports the `{{table}}` placeholder, which renders the report's result table |
+| Field             | Description                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_mart_id`    | Data mart to export                                                                                                                                                                                                                                                                                         |
+| `destination_id`  | The destination to export to (from `list_destinations`)                                                                                                                                                                                                                                                     |
+| `fields`          | Exact column names to include, or `["*"]` for every field                                                                                                                                                                                                                                                   |
+| `filters`         | Optional. Row filters applied on every report run — same shape and operator vocabulary as `query_data_mart`'s `filters`, so the assistant can create a report that exports exactly the filtered result you were looking at. A filter may reference a field that is not in `fields`. Omit to export all rows |
+| `slices`          | Optional. Pre-join filters that narrow a joined data mart before blending — same as `query_data_mart`'s `slices`. Blended data marts only                                                                                                                                                                   |
+| `aggregations`    | Optional. Aggregations applied on every run — same as `query_data_mart`'s `aggregations`. Each aggregated field must also appear in `fields`; other fields become group-by dimensions                                                                                                                       |
+| `date_buckets`    | Optional. Bucket a date/timestamp field by DAY/WEEK/MONTH/QUARTER/YEAR — same as `query_data_mart`'s `date_buckets`. Each bucketed field must also appear in `fields`                                                                                                                                       |
+| `sort`            | Optional. Order of the exported rows — same as `query_data_mart`'s `sort`                                                                                                                                                                                                                                   |
+| `limit`           | Optional. Max rows each run exports; omit for no cap (the interactive query limit is deliberately NOT carried over)                                                                                                                                                                                         |
+| `name`            | Report name — also the new sheet's title (Google Sheets) and the default message subject (email family). Required for those destination types; not accepted for Looker Studio                                                                                                                               |
+| `message`         | Message settings — required for email, Slack, Teams, and Google Chat destinations, rejected for other types                                                                                                                                                                                                 |
+| `message.subject` | Optional message subject or heading. Defaults to the report name                                                                                                                                                                                                                                            |
+| `message.body`    | Message body template. Supports the `{{table}}` placeholder, which renders the report's result table                                                                                                                                                                                                        |
+| `run_immediately` | Optional. Defaults to `true` for push destinations, which starts one billed Report Run and delivers data. Set `false` for configuration-only creation. Looker Studio is pull-based: omit this field or set it to `false`; `true` is rejected                                                                |
 
 **Returns:**
 
-| Field                     | Description                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------- |
-| `report_id`                 | Report identifier                                                                                  |
-| `destination_type`          | Type of the destination the report was created for                                                 |
-| `report_url`                | Link to the report in OWOX Data Marts                                                              |
-| `sheet_url`                 | Google Sheets only. Link to the created Google Sheet                                                |
-| `owner`                     | The user who created the report                                                                    |
-| `status`                    | `created`                                                                                           |
-| `placed_in_root`            | Google Sheets only. `true` if the configured Drive folder could not be used, so the sheet was created in the Drive root |
-| `shared_with_requester`     | Google Sheets only. `false` if the sheet could not be shared with you — opening the link may require requesting access  |
-| `instructions`              | Looker Studio only. What has to happen before dashboard data flows — the assistant relays this to you |
-| `setup_guide_url`           | Looker Studio only. Link to the step-by-step Looker Studio connection guide                          |
+| Field                     | Description                                                                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `report_id`               | Report identifier                                                                                                                 |
+| `destination_type`        | Type of the destination the report was created for                                                                                |
+| `report_url`              | Link to the report in OWOX Data Marts                                                                                             |
+| `sheet_url`               | Google Sheets only. Link to the created Google Sheet                                                                              |
+| `owner`                   | The user who created the report                                                                                                   |
+| `status`                  | `created`                                                                                                                         |
+| `initial_run`             | Outcome of the first run: `queued`, `not_requested`, `not_applicable`, or `failed_to_queue`. The report exists for every outcome  |
+| `initial_run.run_id`      | Present for `queued`; pass it with `report_id` to `get_report_run_status` and do not call `run_report` again for this initial run |
+| `initial_run.should_poll` | `true` only for `queued`; poll until the status tool returns `should_poll: false`                                                 |
+| `placed_in_root`          | Google Sheets only. `true` if the configured Drive folder could not be used, so the sheet was created in the Drive root           |
+| `shared_with_requester`   | Google Sheets only. `false` if the sheet could not be shared with you — opening the link may require requesting access            |
+| `instructions`            | Looker Studio only. What has to happen before dashboard data flows — the assistant relays this to you                             |
+| `setup_guide_url`         | Looker Studio only. Link to the step-by-step Looker Studio connection guide                                                       |
 
 ### `update_report` (requires `mcp:write`)
 
@@ -507,29 +511,29 @@ Updates an existing report: renames it, replaces which data mart fields it expor
 
 **Input:**
 
-| Field       | Description                                                                       |
-| ----------- | --------------------------------------------------------------------------------- |
-| `report_id` | Report to update (from `get_data_mart_reports`)                                   |
-| `fields`    | Optional. Replacement column selection, or `["*"]` for every field                |
-| `filters`   | Optional. Replacement row filters (same vocabulary as `query_data_mart`'s `filters`). Replaces only the current row filters — stored slices are untouched; `[]` removes every row filter |
-| `slices`    | Optional. Replacement pre-join filters (blended data marts only). Replaces only the current slices — stored row filters are untouched; `[]` removes every slice |
-| `aggregations` | Optional. Replacement aggregations; `[]` removes them |
-| `date_buckets` | Optional. Replacement date buckets; `[]` removes them |
-| `sort`      | Optional. Replacement sort order; `[]` removes it |
-| `limit`     | Optional. New max rows per run; `null` removes the cap |
-| `name`      | Optional. New report name                                                          |
-| `message`   | Optional. Message changes — only for reports with an email-family destination, rejected for other types |
-| `message.subject` | Optional. New message subject or heading                                     |
-| `message.body`    | Optional. New message body template (supports `{{table}}`). Replaces the current body; if the report used an insight template, it switches to this custom message |
+| Field             | Description                                                                                                                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report_id`       | Report to update (from `get_data_mart_reports`)                                                                                                                                          |
+| `fields`          | Optional. Replacement column selection, or `["*"]` for every field                                                                                                                       |
+| `filters`         | Optional. Replacement row filters (same vocabulary as `query_data_mart`'s `filters`). Replaces only the current row filters — stored slices are untouched; `[]` removes every row filter |
+| `slices`          | Optional. Replacement pre-join filters (blended data marts only). Replaces only the current slices — stored row filters are untouched; `[]` removes every slice                          |
+| `aggregations`    | Optional. Replacement aggregations; `[]` removes them                                                                                                                                    |
+| `date_buckets`    | Optional. Replacement date buckets; `[]` removes them                                                                                                                                    |
+| `sort`            | Optional. Replacement sort order; `[]` removes it                                                                                                                                        |
+| `limit`           | Optional. New max rows per run; `null` removes the cap                                                                                                                                   |
+| `name`            | Optional. New report name                                                                                                                                                                |
+| `message`         | Optional. Message changes — only for reports with an email-family destination, rejected for other types                                                                                  |
+| `message.subject` | Optional. New message subject or heading                                                                                                                                                 |
+| `message.body`    | Optional. New message body template (supports `{{table}}`). Replaces the current body; if the report used an insight template, it switches to this custom message                        |
 
 At least one change parameter must be provided (and `message`, when present, needs `subject` and/or `body`).
 
 **Returns:**
 
-| Field       | Description        |
-| ----------- | ------------------ |
-| `report_id` | Report identifier  |
-| `status`    | `updated`          |
+| Field       | Description       |
+| ----------- | ----------------- |
+| `report_id` | Report identifier |
+| `status`    | `updated`         |
 
 ### `delete_report` (requires `mcp:write`)
 
@@ -543,19 +547,20 @@ Permanently deletes a report. The report stops running and disappears from the p
 
 **Returns:**
 
-| Field       | Description        |
-| ----------- | ------------------ |
-| `report_id` | Report identifier  |
-| `status`    | `deleted`          |
+| Field       | Description       |
+| ----------- | ----------------- |
+| `report_id` | Report identifier |
+| `status`    | `deleted`         |
 
 ## What costs credits
 
-Most of what you ask costs nothing. Only two tools consume [credits](../billing/consumption-units.md):
+Most of what you ask costs nothing. These actions consume [credits](../billing/consumption-units.md):
 
 - **`query_data_mart`** — reads actual data rows. Each successful call counts as one Report Run, billed as an **MCP Query Run**.
 - **`run_report`** — starts a Report Run that delivers data to a destination.
+- **`add_report` with its default initial run** — creating the report is free, but the automatically queued run consumes one Report Run. Set `run_immediately: false` for configuration-only creation without that run.
 
-Everything else is free. Listing data marts, inspecting fields, browsing destinations, reading reports and schedules, and checking run status only read metadata. Creating a destination, report, or schedule is also free. You pay when the report runs, not when you set it up.
+Everything else is free. Listing data marts, inspecting fields, browsing destinations, reading reports and schedules, and checking run status only read metadata. Creating a destination, report, or schedule is also free; `add_report` itself is free when `run_immediately` is `false` or the destination is pull-based. You pay when the report runs, not when you set it up.
 
 Four things to expect:
 
@@ -582,7 +587,7 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Create an email destination for `analytics-alerts@example.com`."
 - "What reports and schedules already exist for the Sales data mart?"
 - "Run the Weekly Ads Report now and tell me when it finishes." **(costs credits)**
-- "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report'."
+- "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report' and tell me when the initial run finishes." **(costs credits)**
 - "Create a Looker Studio report from the Sales data mart with all fields."
 - "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'."
 - "Rename that report to 'Q3 Ads Report' and keep only the campaign and spend fields."
@@ -591,7 +596,7 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Turn off the schedule you just created."
 - "Delete the old 'Test export' report from the Sales data mart."
 
-> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`) — rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
+> **What these tools can and cannot do:** They let the assistant discover your project, summarize the published data mart catalog, inspect data mart metadata, list destinations, list reports and schedules, and check report-run status. With `query_data_mart`, the assistant can run a bounded structured query and read the resulting data rows and totals; this is billable and recorded in Run History. With your confirmation, the assistant can also create destinations (`add_destination`), create a report for a Google Sheets, Looker Studio, email, Slack, Microsoft Teams, or Google Chat destination — optionally with the same filters, slices, aggregations, date buckets, and sort as a `query_data_mart` call, so the export matches the numbers you saw (`add_report`). New push-destination reports run once by default and return a `run_id` to poll; `run_immediately: false` creates configuration only. The assistant can also rename a report, change which fields it exports, replace its output controls, or edit the message of email-family reports (`update_report`), delete a report (`delete_report`), create, update, or delete report-run schedules, and start a later manual run for supported push-destination reports (`run_report`). They cannot run arbitrary SQL — only structured queries built from the fields, filters, and aggregations described above — and cannot edit a data mart, edit an existing destination, change project settings, retrieve destination secret keys, or run pull-based Looker Studio reports through `run_report`.
 >
 > **What is shared with your AI provider:** To answer your prompts, the project description and other project metadata, data-mart metadata, destination metadata, report and schedule metadata, report-run status, and your project roles can be sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. If you ask the assistant to create an email-based destination, the email addresses you provide are also sent through that client. Whenever the assistant runs `query_data_mart`, the **resulting data rows and totals are sent** to that provider so it can answer with the data — only data you are permitted to query. Connect OWOX only to clients your organization permits to receive this information.
 
@@ -601,13 +606,13 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 
 The MCP server rejects a request with `401` in these cases. Your AI client may surface these as a generic "couldn't connect" or "authorization expired" message rather than the exact text below:
 
-| Message                                                     | Cause                                                           | Fix                                                                                                                         |
-| ----------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `Missing MCP bearer token`                                  | No `Authorization: Bearer` header was sent.                     | Re-run authorization so the client obtains a token. A `GET /mcp` without a token (a client probe) is expected and harmless. |
-| `Invalid MCP bearer token`                                  | The token is expired, revoked, or invalid.                      | Disconnect and reconnect the MCP server to obtain a fresh token.                                                            |
-| `Invalid MCP resource`                                      | The token was issued for a different MCP server URL than this request. | Confirm the client points to the same `/mcp` URL used during authorization, then reconnect. |
-| `Invalid MCP project context` | A project-specific server URL does not match the project in the token. | Disconnect and reconnect using the project-specific URL for the target project. |
-| `Missing MCP project context` / `Missing MCP project roles` | The token has no project selected or no active role in it. | Reconnect and make sure you select a project, or use a project-specific URL for a project where you are an active member. |
+| Message                                                     | Cause                                                                  | Fix                                                                                                                         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `Missing MCP bearer token`                                  | No `Authorization: Bearer` header was sent.                            | Re-run authorization so the client obtains a token. A `GET /mcp` without a token (a client probe) is expected and harmless. |
+| `Invalid MCP bearer token`                                  | The token is expired, revoked, or invalid.                             | Disconnect and reconnect the MCP server to obtain a fresh token.                                                            |
+| `Invalid MCP resource`                                      | The token was issued for a different MCP server URL than this request. | Confirm the client points to the same `/mcp` URL used during authorization, then reconnect.                                 |
+| `Invalid MCP project context`                               | A project-specific server URL does not match the project in the token. | Disconnect and reconnect using the project-specific URL for the target project.                                             |
+| `Missing MCP project context` / `Missing MCP project roles` | The token has no project selected or no active role in it.             | Reconnect and make sure you select a project, or use a project-specific URL for a project where you are an active member.   |
 
 ### A tool reports `Missing MCP scope: mcp:write`
 
@@ -630,6 +635,10 @@ For Google Sheets, `add_destination` only returns a setup link; the destination 
 ### A `run_report` call fails
 
 If the report uses a pull-based destination such as Looker Studio, it cannot be started through `run_report`. If the error says the report is already running or pending, use `get_report_run_status` for the existing `run_id` if you have it, or check Run History in OWOX Data Marts before starting another run.
+
+### `add_report` returns `initial_run.status: failed_to_queue`
+
+The report was created successfully, but its first run was not queued. Do not call `add_report` again because that would create a duplicate report and, for Google Sheets, another file. Call `run_report` once with the returned `report_id`, then poll `get_report_run_status` with its `run_id`.
 
 ## Related docs
 

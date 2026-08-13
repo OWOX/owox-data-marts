@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -122,8 +123,12 @@ const MCP_STATUS_BY_RAW_STATUS: Record<DataMartRunStatus, McpReportRunStatus> = 
   [DataMartRunStatus.RESTRICTED]: 'restricted',
 };
 
+type McpCreatedReport = Omit<McpAddReportResult, 'initial_run'>;
+
 @Injectable()
 export class McpReportsFacadeImpl implements McpReportsFacade {
+  private readonly logger = new Logger(McpReportsFacadeImpl.name);
+
   constructor(
     private readonly listReportsByDataMartService: ListReportsByDataMartService,
     private readonly scheduledTriggerService: ScheduledTriggerService,
@@ -335,26 +340,82 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
       request.projectId
     );
 
+    if (request.runImmediately === true && isPullBasedDataDestinationType(destination.type)) {
+      throw new BadRequestException(
+        `run_immediately is not applicable to ${toHumanReadable(destination.type)} destinations: ` +
+          'they are pull-based and cannot be run through MCP'
+      );
+    }
+
     // One up-front guard instead of per-branch calls: any current or future
     // non-email type rejects a supplied message rather than silently dropping it.
     if (!isEmailBasedDataDestinationType(destination.type)) {
       this.assertNoMessage(destination.type, request);
     }
 
+    let created: McpCreatedReport;
     switch (destination.type) {
       case DataDestinationType.GOOGLE_SHEETS:
-        return this.addGoogleSheetsReport(request);
+        created = await this.addGoogleSheetsReport(request);
+        break;
       case DataDestinationType.LOOKER_STUDIO:
-        return this.addLookerStudioReport(request);
+        created = await this.addLookerStudioReport(request);
+        break;
       default:
         if (isEmailBasedDataDestinationType(destination.type)) {
-          return this.addEmailFamilyReport(request, destination.type);
+          created = await this.addEmailFamilyReport(request, destination.type);
+          break;
         }
         throw new BusinessViolationException(
           `add_report does not support ${toHumanReadable(destination.type)} destinations yet. ` +
             'Supported destination types: Google Sheets, Looker Studio, ' +
             'Email, Slack, Microsoft Teams, Google Chat.'
         );
+    }
+
+    return this.addInitialRun(created, request, destination.type);
+  }
+
+  /**
+   * Push reports run once by default so a successful add_report call does not
+   * leave an empty destination. Creation is already committed at this point,
+   * so enqueue failures are returned as partial success with the existing
+   * report id; callers must retry run_report, never add_report.
+   */
+  private async addInitialRun(
+    created: McpCreatedReport,
+    request: McpAddReportRequest,
+    destinationType: DataDestinationType
+  ): Promise<McpAddReportResult> {
+    if (!MCP_RUN_REPORT_DESTINATION_TYPE_SET.has(destinationType)) {
+      return { ...created, initial_run: { status: 'not_applicable' } };
+    }
+
+    if (request.runImmediately === false) {
+      return { ...created, initial_run: { status: 'not_requested' } };
+    }
+
+    try {
+      const run = await this.runReport({
+        projectId: request.projectId,
+        userId: request.userId,
+        roles: request.roles,
+        reportId: created.report_id,
+      });
+      return {
+        ...created,
+        initial_run: { status: 'queued', run_id: run.runId },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Report run could not be queued';
+      this.logger.error(
+        `Report ${created.report_id} was created by add_report but its initial run could not be queued`,
+        error instanceof Error ? error.stack : String(error)
+      );
+      return {
+        ...created,
+        initial_run: { status: 'failed_to_queue', error: message },
+      };
     }
   }
 
@@ -398,7 +459,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
    * rejected and duplicates are caught here with a clean error instead of a
    * raw primary-key violation.
    */
-  private async addLookerStudioReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+  private async addLookerStudioReport(request: McpAddReportRequest): Promise<McpCreatedReport> {
     if (request.name !== undefined) {
       throw new BadRequestException(
         'The name parameter is not applicable to Looker Studio destinations: ' +
@@ -453,7 +514,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
   private async addEmailFamilyReport(
     request: McpAddReportRequest,
     destinationType: DataDestinationType
-  ): Promise<McpAddReportResult> {
+  ): Promise<McpCreatedReport> {
     // The facade is a public interface, so the message invariant is enforced
     // here as well, not only by the tool-layer input schema.
     const name = this.requireName(destinationType, request);
@@ -488,7 +549,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     destinationType: DataDestinationType,
     destinationConfig: DataDestinationConfig,
     title: string
-  ): Promise<McpAddReportResult> {
+  ): Promise<McpCreatedReport> {
     const report = await this.createReportService.run(
       new CreateReportCommand(
         request.projectId,
@@ -516,7 +577,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
     };
   }
 
-  private async addGoogleSheetsReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+  private async addGoogleSheetsReport(request: McpAddReportRequest): Promise<McpCreatedReport> {
     const name = this.requireName(DataDestinationType.GOOGLE_SHEETS, request);
     const columnConfig = this.toColumnConfig(request.fields);
 

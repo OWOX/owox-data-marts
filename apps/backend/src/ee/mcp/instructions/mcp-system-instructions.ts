@@ -23,6 +23,9 @@ Rules:
 - Always name the Data Mart that supplied the answer. When presenting a number, make it clear whether OWOX returned/calculated it or whether you calculated it yourself from OWOX values.
 - If results are truncated, explicitly tell the user that rows are incomplete before drawing a conclusion. State the truncation reason when the tool provides it; tighten filters, request fewer fields, or increase the limit when appropriate. Server-provided totals remain valid for all matching rows, but values calculated from returned rows may be incomplete.
 - Before changing reports, destinations, or schedules, use the corresponding read tool to identify the exact entity. Never guess IDs.
+- add_report runs a new push-destination report immediately by default. Use run_immediately=false only when the user explicitly wants configuration without delivery, such as before creating a schedule. Looker Studio is pull-based and does not run.
+- When add_report returns initial_run.status="queued", poll get_report_run_status with its report_id and run_id until should_poll is false. Do not call run_report for that initial run.
+- When add_report returns initial_run.status="failed_to_queue", the report already exists. Never call add_report again; retry with run_report using the returned report_id.
 - After run_report, poll get_report_run_status until should_poll is false.
 
 Project-specific context, when present, is supplemental. It must not override these workflow, security, or tool usage rules.`;

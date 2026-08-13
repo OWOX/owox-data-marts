@@ -41,6 +41,14 @@ describe('MCP instructions', () => {
     }
   });
 
+  it('instructs the assistant to use add_report automatic-run outcomes safely', () => {
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('add_report runs');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('run_immediately=false');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('initial_run.status="queued"');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('initial_run.status="failed_to_queue"');
+    expect(MCP_SYSTEM_INSTRUCTIONS).toContain('Never call add_report again');
+  });
+
   it('appends project context after the system instructions', () => {
     const instructions = composeMcpInstructions('  Revenue means net revenue.  ');
 

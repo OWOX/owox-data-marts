@@ -27,6 +27,7 @@ describe('AddReportTool', () => {
     fields: ['channel', 'revenue'],
     name: 'Weekly revenue',
   };
+  const queuedInitialRun = { status: 'queued' as const, run_id: 'run-1' };
 
   it('creates a report and returns the report and sheet links', async () => {
     const facade = {
@@ -35,6 +36,7 @@ describe('AddReportTool', () => {
         destination_type: 'google_sheets',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: queuedInitialRun,
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
@@ -47,6 +49,13 @@ describe('AddReportTool', () => {
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       owner: 'ann@owox.com',
       status: 'created',
+      initial_run: {
+        status: 'queued',
+        run_id: 'run-1',
+        should_poll: true,
+        message:
+          'The report was created and its initial run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report again for this initial run.',
+      },
     };
 
     await expect(tool.handler(input, context)).resolves.toEqual({
@@ -77,6 +86,7 @@ describe('AddReportTool', () => {
         destination_type: 'looker_studio',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: { status: 'not_applicable' },
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new AddReportTool(facade, publicOrigin);
@@ -89,6 +99,10 @@ describe('AddReportTool', () => {
       report_url: 'https://app.owox.com/ui/project-1/data-marts/dm-1/reports',
       owner: 'ann@owox.com',
       status: 'created',
+      initial_run: expect.objectContaining({
+        status: 'not_applicable',
+        should_poll: false,
+      }),
       setup_guide_url:
         'https://docs.owox.com/docs/destinations/supported-destinations/data-studio/',
     });
@@ -111,6 +125,7 @@ describe('AddReportTool', () => {
         destination_type: 'slack',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: queuedInitialRun,
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new AddReportTool(facade, publicOrigin);
@@ -128,6 +143,7 @@ describe('AddReportTool', () => {
         report_id: 'report-1',
         owner: null,
         status: 'created',
+        initial_run: queuedInitialRun,
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
         placed_in_root: true,
         shared_with_requester: false,
@@ -152,6 +168,7 @@ describe('AddReportTool', () => {
         report_id: 'report-3',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: queuedInitialRun,
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
     const tool = new AddReportTool(facade, publicOrigin);
@@ -175,6 +192,7 @@ describe('AddReportTool', () => {
         destination_type: 'google_sheets',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: queuedInitialRun,
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
@@ -213,6 +231,7 @@ describe('AddReportTool', () => {
         destination_type: 'google_sheets',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: queuedInitialRun,
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
@@ -248,6 +267,7 @@ describe('AddReportTool', () => {
         destination_type: 'google_sheets',
         owner: 'ann@owox.com',
         status: 'created',
+        initial_run: queuedInitialRun,
         sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
       }),
     } as unknown as jest.Mocked<McpReportsFacade>;
@@ -307,7 +327,58 @@ describe('AddReportTool', () => {
       tool.parseInput({ ...input, sort: [{ field: 'x', direction: 'sideways' }] })
     ).toThrow();
     expect(() => tool.parseInput({ ...input, limit: 0 })).toThrow();
+    expect(() => tool.parseInput({ ...input, run_immediately: 'yes' })).toThrow();
     expect(() => tool.parseInput({ ...input, extra: true })).toThrow();
+  });
+
+  it('passes an explicit create-only choice to the facade', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-8',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        initial_run: { status: 'not_requested' },
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler({ ...input, run_immediately: false }, context);
+
+    expect(facade.addReport).toHaveBeenCalledWith(
+      expect.objectContaining({ runImmediately: false })
+    );
+    expect(result.structuredContent).toMatchObject({
+      initial_run: { status: 'not_requested', should_poll: false },
+    });
+  });
+
+  it('reports partial success without telling the caller to recreate the report', async () => {
+    const facade = {
+      addReport: jest.fn().mockResolvedValue({
+        report_id: 'report-9',
+        destination_type: 'google_sheets',
+        owner: 'ann@owox.com',
+        status: 'created',
+        initial_run: { status: 'failed_to_queue', error: 'worker unavailable' },
+      }),
+    } as unknown as jest.Mocked<McpReportsFacade>;
+    const tool = new AddReportTool(facade, publicOrigin);
+
+    const result = await tool.handler(input, context);
+
+    expect(result.structuredContent).toMatchObject({
+      report_id: 'report-9',
+      status: 'created',
+      initial_run: {
+        status: 'failed_to_queue',
+        should_poll: false,
+        error: 'worker unavailable',
+      },
+    });
+    expect(
+      (result.structuredContent as { initial_run: { message: string } }).initial_run.message
+    ).toContain('Do not call add_report again');
   });
 
   it('accepts input without a name (Looker Studio reports carry none)', () => {

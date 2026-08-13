@@ -4,6 +4,7 @@ import type { McpScope } from '@owox/idp-protocol';
 import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
   MCP_REPORTS_FACADE,
+  type McpAddReportInitialRunResult,
   type McpReportsFacade,
 } from '../../../data-marts/facades/mcp-reports.facade';
 import { MCP_DESTINATION_TYPES } from '../../../data-marts/facades/mcp-destination-type';
@@ -41,6 +42,31 @@ const LOOKER_STUDIO_REPORT_INSTRUCTIONS =
   'a secret key that is never sent through MCP/chat): open the destination in the OWOX ' +
   'Data Marts UI, copy its JSON Config, and paste it into the OWOX Data Marts connector ' +
   'in Looker Studio. Share the setup_guide_url with the user — it walks through every step.';
+
+const initialRunOutputSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('queued'),
+    run_id: z.string(),
+    should_poll: z.literal(true),
+    message: z.string(),
+  }),
+  z.object({
+    status: z.literal('not_requested'),
+    should_poll: z.literal(false),
+    message: z.string(),
+  }),
+  z.object({
+    status: z.literal('not_applicable'),
+    should_poll: z.literal(false),
+    message: z.string(),
+  }),
+  z.object({
+    status: z.literal('failed_to_queue'),
+    should_poll: z.literal(false),
+    error: z.string(),
+    message: z.string(),
+  }),
+]);
 
 const inputSchema = z
   .object({
@@ -122,6 +148,12 @@ const inputSchema = z
       .describe(
         'Message settings. Required for email, slack, teams, and google_chat destinations; rejected for other types. Recipients and channels are configured on the destination itself, and the message is sent on every report run.'
       ),
+    run_immediately: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether to run the new report immediately. Defaults to true for push destinations (Google Sheets, Email, Slack, Microsoft Teams, Google Chat), which starts one billed Report Run and delivers data. Set false only when the user explicitly wants configuration-only creation, such as before adding a schedule. Looker Studio is pull-based: omit this field or set false; true is rejected.'
+      ),
   })
   .strict();
 
@@ -131,7 +163,7 @@ type AddReportInput = z.infer<typeof inputSchema>;
 export class AddReportTool implements McpToolDefinition<AddReportInput> {
   readonly name = 'add_report';
   readonly description =
-    'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). Every destination type accepts the same optional output controls as query_data_mart — filters, slices, aggregations, date_buckets, sort — applied on each run: when the user asks to export numbers they saw in a query, copy those parameters verbatim from that query so the report matches what they saw. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and the report is linked to it; returns the report and sheet links. Looker Studio: the report is created with default settings and accepts no Looker-specific parameters and no name (Looker Studio reports carry no name) — the shared output controls above DO apply — and each data mart + destination pair can have only one Looker report; the result includes instructions and a setup_guide_url to relay to the user, because dashboard data only flows after they connect Looker Studio to OWOX themselves. Email, Slack, Microsoft Teams, Google Chat: requires the message parameter; each report run sends the rendered message to the recipients or channels configured on the destination.';
+    'Create a report that exports a data mart to an existing destination (create one with add_destination if the project has none — check list_destinations first). For push destinations, the new report runs immediately by default: this starts one billed Report Run and delivers data, then initial_run returns the run_id to poll with get_report_run_status. Set run_immediately=false only when the user explicitly wants to create configuration without delivering data, such as before adding a schedule. Every destination type accepts the same optional output controls as query_data_mart — filters, slices, aggregations, date_buckets, sort — applied on each run: when the user asks to export numbers they saw in a query, copy those parameters verbatim from that query so the report matches what they saw. Google Sheets: a new Google Sheet is created automatically (an external Google Drive side effect) and linked to the report. Looker Studio is pull-based, never runs through this tool, and accepts no name; omit run_immediately or set it false. Email, Slack, Microsoft Teams, Google Chat: requires message; the default initial run sends it to the configured recipients or channels.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),
@@ -145,6 +177,9 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       .describe('Link to the auto-created Google Sheet. Google Sheets destinations only.'),
     owner: z.string().nullable(),
     status: z.literal('created'),
+    initial_run: initialRunOutputSchema.describe(
+      'Outcome of the automatic first run. The report exists for every status, including failed_to_queue.'
+    ),
     instructions: z
       .string()
       .optional()
@@ -205,6 +240,7 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       limit,
       name,
       message,
+      run_immediately,
     } = this.parseInput(input);
 
     const request = {
@@ -218,6 +254,7 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       limitConfig: limit,
       name,
       message,
+      runImmediately: run_immediately,
       projectId: context.projectId,
       userId: context.userId,
       userEmail: context.email,
@@ -246,6 +283,7 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
       ...(result.sheet_url !== undefined && { sheet_url: result.sheet_url }),
       owner: result.owner,
       status: result.status,
+      initial_run: this.toInitialRunOutput(result.initial_run),
       ...(result.placed_in_root !== undefined && { placed_in_root: result.placed_in_root }),
       ...(result.shared_with_requester !== undefined && {
         shared_with_requester: result.shared_with_requester,
@@ -257,5 +295,40 @@ export class AddReportTool implements McpToolDefinition<AddReportInput> {
     };
 
     return jsonToolResult(structuredContent);
+  }
+
+  private toInitialRunOutput(initialRun: McpAddReportInitialRunResult) {
+    switch (initialRun.status) {
+      case 'queued':
+        return {
+          status: 'queued' as const,
+          run_id: initialRun.run_id,
+          should_poll: true as const,
+          message:
+            'The report was created and its initial run was queued. Poll get_report_run_status with this report_id and run_id until should_poll is false. Do not call run_report again for this initial run.',
+        };
+      case 'not_requested':
+        return {
+          status: 'not_requested' as const,
+          should_poll: false as const,
+          message:
+            'The report was created without an initial run because run_immediately was false. No data was delivered; call run_report later or create a schedule.',
+        };
+      case 'not_applicable':
+        return {
+          status: 'not_applicable' as const,
+          should_poll: false as const,
+          message:
+            'This report uses a pull-based destination, so an initial run is not applicable.',
+        };
+      case 'failed_to_queue':
+        return {
+          status: 'failed_to_queue' as const,
+          should_poll: false as const,
+          error: initialRun.error,
+          message:
+            'The report was created, but its initial run could not be queued. Do not call add_report again. Retry delivery with run_report using this report_id.',
+        };
+    }
   }
 }
