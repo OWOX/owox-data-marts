@@ -84,37 +84,47 @@ describe('AthenaSourceDataLastUpdatedResolver', () => {
     expect(sql).toContain('UNION ALL');
   });
 
-  it('caps coverage at partial for Hive tables, whose only time is catalog metadata', async () => {
+  it('declares Hive tables unknown instead of reporting a catalog metadata time', async () => {
     const result = await run(
       adapterWith({
         getQueryIoPlan: jest.fn().mockResolvedValue(ioPlan({ schema: 'dlu', table: 'hive_t' })),
-        // Epoch for 2026-02-02T02:40:00Z — newer than the creation time, so the DDL time wins.
+        // The catalog HAS metadata times — but a DDL-only touch moves them with no data
+        // written, so reporting one would violate the "at least as recent as" contract.
         getTableMetadata: jest.fn().mockResolvedValue(hiveMeta(1770000000)),
         executeQueryAndGetRows: jest.fn(),
       })
     );
 
-    // The time IS reported — but never as `complete`, because a metadata time can drift
-    // either way from the last data change.
-    expect(result.dataLastUpdatedAt).toBe('2026-02-02T02:40:00.000Z');
-    expect(result.coverage).toBe('partial');
+    expect(result).toMatchObject({ dataLastUpdatedAt: null, coverage: 'unavailable' });
     expect(result.sources[0]).toMatchObject({
       table: 'dlu.hive_t',
-      note: 'catalog metadata time — may not reflect data changes',
+      dataLastUpdatedAt: null,
+      note: 'Hive table — the catalog does not track data modification time',
     });
   });
 
-  it('falls back to the creation time for a Hive table without DDL metadata', async () => {
+  it('keeps the Iceberg answer next to an unknown Hive source, flagged as partial', async () => {
     const result = await run(
       adapterWith({
-        getQueryIoPlan: jest.fn().mockResolvedValue(ioPlan({ schema: 'dlu', table: 'hive_t' })),
-        getTableMetadata: jest.fn().mockResolvedValue(hiveMeta()),
-        executeQueryAndGetRows: jest.fn(),
+        getQueryIoPlan: jest
+          .fn()
+          .mockResolvedValue(
+            ioPlan({ schema: 'dlu', table: 'orders' }, { schema: 'dlu', table: 'hive_t' })
+          ),
+        getTableMetadata: jest.fn(async (_c: string, _d: string, table: string) =>
+          table === 'hive_t' ? hiveMeta(1770000000) : ICEBERG_META
+        ),
+        executeQueryAndGetRows: jest
+          .fn()
+          .mockResolvedValue([['dlu.orders', '2026-08-01 10:00:00.000 UTC']]),
       })
     );
 
-    expect(result.dataLastUpdatedAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(result.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
     expect(result.coverage).toBe('partial');
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({ table: 'dlu.hive_t', dataLastUpdatedAt: null })
+    );
   });
 
   it('marks federated-catalog tables as unknown sources without calling the catalog', async () => {

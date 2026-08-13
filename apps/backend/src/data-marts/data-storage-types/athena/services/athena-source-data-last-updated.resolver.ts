@@ -14,10 +14,7 @@ import {
 import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
 import { AthenaApiAdapter, AthenaQueryOptions } from '../adapters/athena-api.adapter';
 import { AthenaInputTableRef, parseInputTablesFromIoPlan } from '../utils/athena-io-plan.util';
-import {
-  athenaEpochSecondsToIsoUtc,
-  athenaTimestampToIsoUtc,
-} from '../utils/athena-timestamp.utils';
+import { athenaTimestampToIsoUtc } from '../utils/athena-timestamp.utils';
 
 /**
  * Athena answers "which tables does this query read" through `EXPLAIN (TYPE IO, FORMAT JSON)`
@@ -27,13 +24,13 @@ import {
  * - **Iceberg** tables know exactly: `max(committed_at)` over the table's `$snapshots`
  *   metadata is the last data commit. All Iceberg tables of one lookup are measured in a
  *   single UNION ALL query.
- * - **Hive** tables have no data-change time anywhere in the catalog. The honest best effort
- *   is the catalog's own metadata time (`transient_lastDdlTime`, falling back to the creation
- *   time), which may drift EITHER way from the last data change — a pure DDL touch moves it
- *   forward with no data written. Such sources always carry a note and force coverage down to
- *   `partial`, so a `complete` answer is only ever built from exact (Iceberg) times.
- *   The precise alternative — walking S3 object timestamps under the table location — is
- *   deliberately not done: cost scales with object count, not with the answer's value.
+ * - **Hive** tables have no data-change time anywhere in the catalog, and the substitutes the
+ *   catalog does have (`transient_lastDdlTime`, the creation time) move on metadata-only
+ *   operations — they can be NEWER than the last data change, which the `partial` contract
+ *   ("at least as recent as") forbids reporting. Hive sources are therefore declared unknown
+ *   with a note. The precise alternative — walking S3 object timestamps under the table
+ *   location — is deliberately not done: cost scales with object count, not with the answer's
+ *   value.
  * - **Federated catalogs** (anything but `awsdatacatalog`) are not measured; they appear as
  *   unknown sources with a note.
  *
@@ -146,7 +143,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
 
     const sources: SourceDataLastUpdatedEntry[] = [];
     let anyFailed = false;
-    let anyApproximate = false;
     for (const ref of tables) {
       const cached = cache.get(refKey(ref));
       if (!cached || cached === 'dropped-view') {
@@ -156,7 +152,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
       }
       sources.push(cached.entry);
       anyFailed = anyFailed || cached.failed;
-      anyApproximate = anyApproximate || cached.approximate;
     }
 
     if (sources.length === 0) {
@@ -173,7 +168,7 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
 
     // ISO-8601 UTC strings sort lexicographically in chronological order, so a plain max works.
     const dataLastUpdatedAt = resolvedTimes.reduce((a, b) => (a > b ? a : b));
-    const isPartial = anyFailed || anyApproximate || resolvedTimes.length < sources.length;
+    const isPartial = anyFailed || resolvedTimes.length < sources.length;
 
     return {
       dataLastUpdatedAt,
@@ -202,7 +197,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
           dataLastUpdatedAt: null,
           note: 'federated catalog — modification time not measured',
         },
-        approximate: false,
         failed: false,
       });
       return 'settled';
@@ -219,7 +213,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
       this.logger.warn(`Failed to read table metadata for ${name}: ${errorText(error)}`);
       cache.set(key, {
         entry: { table: name, dataLastUpdatedAt: null, note: 'could not read table metadata' },
-        approximate: false,
         failed: true,
       });
       return 'settled';
@@ -228,7 +221,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
     if (!metadata) {
       cache.set(key, {
         entry: { table: name, dataLastUpdatedAt: null, note: 'table not found in catalog' },
-        approximate: false,
         failed: false,
       });
       return 'settled';
@@ -248,18 +240,17 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
       return 'iceberg';
     }
 
-    const metadataTime = this.hiveMetadataTime(metadata);
+    // A Hive table has no data-change time anywhere in the catalog. The tempting substitutes
+    // (`transient_lastDdlTime`, the creation time) move on metadata-only operations, so they
+    // can be NEWER than the last data change — and the `partial` contract promises consumers a
+    // value that is only ever older than the truth ("at least as recent as"). Reporting them
+    // would present stale data as fresh; a declared unknown is the only honest answer here.
     cache.set(key, {
       entry: {
         table: name,
-        dataLastUpdatedAt: metadataTime,
-        note: metadataTime
-          ? 'catalog metadata time — may not reflect data changes'
-          : 'no modification time in catalog metadata',
+        dataLastUpdatedAt: null,
+        note: 'Hive table — the catalog does not track data modification time',
       },
-      // A metadata time can drift either way from the last data change, so it must never
-      // let the overall answer claim `complete`.
-      approximate: metadataTime !== null,
       failed: false,
     });
     return 'settled';
@@ -295,7 +286,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
             dataLastUpdatedAt: time,
             ...(time === null ? { note: 'Iceberg table with no snapshots' } : {}),
           },
-          approximate: false,
           failed: false,
         });
       }
@@ -311,7 +301,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
             dataLastUpdatedAt: null,
             note: 'could not read Iceberg snapshots',
           },
-          approximate: false,
           failed: true,
         });
       }
@@ -331,19 +320,6 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
       .join('\nUNION ALL\n');
   }
 
-  /** `transient_lastDdlTime` when the catalog has it, the creation time otherwise. */
-  private hiveMetadataTime(metadata: {
-    createTime: Date | null;
-    parameters: Record<string, string>;
-  }): string | null {
-    const ddlTime = athenaEpochSecondsToIsoUtc(metadata.parameters['transient_lastDdlTime']);
-    const createTime = metadata.createTime ? metadata.createTime.toISOString() : null;
-    if (ddlTime && createTime) {
-      return ddlTime > createTime ? ddlTime : createTime;
-    }
-    return ddlTime ?? createTime;
-  }
-
   /** The default catalog is implied; only federated catalogs are worth naming. */
   private displayName(ref: AthenaInputTableRef): string {
     const isDefault =
@@ -360,12 +336,10 @@ export class AthenaSourceDataLastUpdatedResolver implements SourceDataLastUpdate
 }
 
 /**
- * One table's settled conclusion, shared by every item of the batch. `approximate` marks a
- * metadata-derived time that must cap coverage at `partial`; `failed` marks a lookup error.
+ * One table's settled conclusion, shared by every item of the batch. `failed` marks a lookup
+ * error that must cap coverage at `partial`.
  */
-type CachedSource =
-  | { entry: SourceDataLastUpdatedEntry; approximate: boolean; failed: boolean }
-  | 'dropped-view';
+type CachedSource = { entry: SourceDataLastUpdatedEntry; failed: boolean } | 'dropped-view';
 
 function refKey(ref: AthenaInputTableRef): string {
   return `${ref.catalog ?? ''}\0${ref.schema}\0${ref.table}`;
