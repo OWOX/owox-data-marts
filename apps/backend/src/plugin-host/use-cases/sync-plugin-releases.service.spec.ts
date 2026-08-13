@@ -495,6 +495,29 @@ describe('SyncPluginReleasesService', () => {
       await expect(run(s)).rejects.toBeInstanceOf(PluginSyncInProgressError);
     });
 
+    it('returns an empty throttled state for a background sweep during the first sync', async () => {
+      const s = setup();
+      s.pluginService.tryClaimSyncSlot.mockResolvedValue({
+        status: 'in_progress',
+        state: { pluginId: 'p1', currentVersionId: null, lastSyncReport: null },
+      } as never);
+
+      const result = await run(s, false);
+
+      expect(s.githubApi.listReleases).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        currentSemver: null,
+        currentVersionId: null,
+        report: {
+          accessMode: GithubAccessMode.ANONYMOUS,
+          acceptedSemvers: [],
+          unchangedSemvers: [],
+          rejections: [],
+        },
+        throttled: true,
+      });
+    });
+
     it('returns the stored report unchanged for a background sweep', async () => {
       const s = setup();
       s.pluginService.tryClaimSyncSlot.mockResolvedValue({
