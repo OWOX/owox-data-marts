@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { MoreHorizontal, Pencil, Trash2, Play } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, Play, Link2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -10,7 +10,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
-import { useReport, ReportStatusEnum } from '../../../shared';
+import { useReport, ReportStatusEnum, ReconnectSheetDialog } from '../../../shared';
 
 interface GoogleSheetsActionsCellProps {
   row: { original: DataMartReport };
@@ -32,6 +32,7 @@ export function GoogleSheetsActionsCell({
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isReconnectSheetDialogOpen, setIsReconnectSheetDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
 
   // Generate unique ID for the actions menu
@@ -82,6 +83,19 @@ export function GoogleSheetsActionsCell({
       console.error('Failed to run report:', error);
     }
   }, [canRun, onRunSuccess, runReport, row.original.id]);
+
+  const handleReconnectSheetClick = useCallback(() => {
+    if (!canEditConfig) return;
+
+    setIsReconnectSheetDialogOpen(true);
+    setMenuOpen(false);
+  }, [canEditConfig]);
+
+  const handleSheetReconnected = useCallback(async () => {
+    // The report now points at a different sheet — refresh so the row (and the
+    // "Open document" link built from the sheet ID) reflects it.
+    await fetchReportsByDataMartId(row.original.dataMart.id);
+  }, [fetchReportsByDataMartId, row.original.dataMart.id]);
 
   const handleDeleteClick = useCallback(() => {
     if (!canEditConfig) return;
@@ -137,6 +151,19 @@ export function GoogleSheetsActionsCell({
             Edit report
           </DropdownMenuItem>
 
+          <DropdownMenuItem
+            disabled={!canEditConfig}
+            onClick={e => {
+              e.stopPropagation();
+              handleReconnectSheetClick();
+            }}
+            role='menuitem'
+            aria-label={`Reconnect sheet for report: ${row.original.title}`}
+          >
+            <Link2 className='text-foreground h-4 w-4' aria-hidden='true' />
+            Reconnect sheet
+          </DropdownMenuItem>
+
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
@@ -153,6 +180,13 @@ export function GoogleSheetsActionsCell({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ReconnectSheetDialog
+        report={row.original}
+        open={isReconnectSheetDialogOpen}
+        onOpenChange={setIsReconnectSheetDialogOpen}
+        onReconnected={handleSheetReconnected}
+      />
 
       <ConfirmationDialog
         open={isDeleteDialogOpen}

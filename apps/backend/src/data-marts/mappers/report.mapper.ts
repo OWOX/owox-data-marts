@@ -14,6 +14,8 @@ import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-proje
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
 import { ManualRunReportCommand } from '../dto/domain/run-report.command';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
+import { ReconnectGoogleSheetCommand } from '../dto/domain/google-sheets/reconnect-google-sheet.command';
+import { ReconnectGoogleSheetRequestDto } from '../dto/presentation/google-sheets/reconnect-google-sheet-request.dto';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
@@ -190,6 +192,20 @@ export class ReportMapper {
       ownerFilter,
       limit,
       offset
+    );
+  }
+
+  toReconnectGoogleSheetCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: ReconnectGoogleSheetRequestDto
+  ): ReconnectGoogleSheetCommand {
+    return new ReconnectGoogleSheetCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      dto.title
     );
   }
 

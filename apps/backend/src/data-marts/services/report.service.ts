@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
+import { DataDestinationConfig } from '../data-destination-types/data-destination-config.type';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { Report } from '../entities/report.entity';
@@ -115,6 +116,38 @@ export class ReportService {
     }
 
     return report;
+  }
+
+  /**
+   * Same lookup as {@link getByIdAndProjectId}, but also loads the destination.
+   * Kept separate so the lean version stays lean — only flows that call the
+   * destination's own API (Google Sheets, Slack, …) pay for the extra join.
+   */
+  async getByIdAndProjectIdWithDestination(id: string, projectId: string): Promise<Report> {
+    const report = await this.repository.findOne({
+      where: { id, dataMart: { projectId } },
+      relations: ['dataMart', 'dataDestination'],
+    });
+
+    if (!report) {
+      throw new NotFoundException(`Report with id ${id} not found`);
+    }
+
+    return report;
+  }
+
+  /**
+   * Persists a new destination config, leaving every other field untouched.
+   *
+   * A targeted UPDATE rather than `save(report)`: this can run while a scheduled
+   * run is writing `lastRunStatus`/`runsCount` on the same row, and saving a whole
+   * entity loaded earlier would roll those columns back.
+   */
+  async updateDestinationConfig(
+    reportId: string,
+    destinationConfig: DataDestinationConfig
+  ): Promise<void> {
+    await this.repository.update(reportId, { destinationConfig });
   }
 
   /**

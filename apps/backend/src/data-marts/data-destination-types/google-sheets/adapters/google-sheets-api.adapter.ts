@@ -800,6 +800,40 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Creates a new sheet (tab) in an existing spreadsheet and returns its numeric ID.
+   *
+   * Google rejects a duplicate title with a 400, so a caller that means "reuse the
+   * sheet if it is already there" must look the title up first — see
+   * {@link findSheetByTitle} and ReconnectGoogleSheetService.
+   */
+  public async addSheet(spreadsheetId: string, title: string): Promise<number> {
+    const response = await this.executeWithRetry(() =>
+      this.service.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title } } }] },
+      })
+    );
+
+    const sheetId = response.data.replies?.[0]?.addSheet?.properties?.sheetId;
+    // Compared against null/undefined, never falsiness: gid 0 is a real sheet ID.
+    if (sheetId === null || sheetId === undefined) {
+      throw new Error(`Google Sheets returned no ID for the created sheet "${title}"`);
+    }
+    return sheetId;
+  }
+
+  /**
+   * Finds a sheet by its exact title. Google treats titles as unique within a
+   * spreadsheet, so at most one sheet can match.
+   */
+  public findSheetByTitle(
+    spreadsheet: sheets_v4.Schema$Spreadsheet,
+    title: string
+  ): sheets_v4.Schema$Sheet | undefined {
+    return spreadsheet.sheets?.find(s => s?.properties?.title === title);
+  }
+
+  /**
    * Performs a batch update operation on a spreadsheet
    */
   public async batchUpdate(

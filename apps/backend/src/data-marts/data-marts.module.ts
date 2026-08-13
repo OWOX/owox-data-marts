@@ -335,6 +335,7 @@ import { GetDestinationOAuthCredentialStatusService } from './use-cases/google-o
 import { GenerateDestinationOAuthUrlService } from './use-cases/google-oauth/generate-destination-oauth-url.service';
 import { RevokeDestinationOAuthService } from './use-cases/google-oauth/revoke-destination-oauth.service';
 import { CreateGoogleSheetDocumentService } from './use-cases/google-sheets/create-google-sheet-document.service';
+import { ReconnectGoogleSheetService } from './use-cases/google-sheets/reconnect-google-sheet.service';
 import { DataStorageCredentialsResolver } from './data-storage-types/data-storage-credentials-resolver.service';
 import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
@@ -849,6 +850,7 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     GenerateDestinationOAuthUrlService,
     RevokeDestinationOAuthService,
     CreateGoogleSheetDocumentService,
+    ReconnectGoogleSheetService,
     ProjectSetupProgressService,
     ProjectSetupProgressListenerService,
     GetProjectSetupProgressService,

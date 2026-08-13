@@ -328,8 +328,8 @@ describe('GoogleSheetsReportWriter — pre-clears imported rectangle before writ
     await expect(writer.finalize(new Error('original error'))).resolves.toBeUndefined();
   });
 
-  it('fails with an actionable message when the destination tab no longer exists', async () => {
-    // The spreadsheet still opens, but the tab captured in destinationConfig is
+  it('fails with an actionable message when the destination sheet no longer exists', async () => {
+    // The spreadsheet still opens, but the sheet captured in destinationConfig is
     // gone — deleted, or re-created with a new ID by an import. The user reads
     // this text verbatim in Run History, so it has to name the fix.
     const { writer, adapter, report, finalImportedNames } = buildWriter({
@@ -350,7 +350,7 @@ describe('GoogleSheetsReportWriter — pre-clears imported rectangle before writ
     // BusinessViolationException subclass — keeps the run failure at WARN level.
     expect(error).toBeInstanceOf(GoogleSheetNotFound);
     expect((error as Error).message).toBe(sheetNotFoundMessage(SPREADSHEET_ID, SHEET_ID));
-    expect((error as Error).message).toContain('select an existing tab');
+    expect((error as Error).message).toContain('Reconnect sheet');
   });
 
   it('pre-clears in the zero-batch fallback so empty result sets wipe stale data', async () => {

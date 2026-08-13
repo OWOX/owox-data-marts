@@ -38,10 +38,10 @@ export class GoogleSheetNotFound extends BusinessViolationException {
  */
 export function sheetNotFoundMessage(spreadsheetId: string, sheetId: number): string {
   return (
-    `Can't find the tab this report writes to. ` +
-    `Someone deleted it, or an import replaced the tabs of this spreadsheet. ` +
-    `Open the report's destination settings and select an existing tab. ` +
-    `(spreadsheet: ${spreadsheetId}, tab ID: ${sheetId})`
+    `Can't find the sheet this report writes to. ` +
+    `Someone deleted it, or an import replaced the sheets of this spreadsheet. ` +
+    `Use "Reconnect sheet" on the report to point it at an existing sheet. ` +
+    `(spreadsheet: ${spreadsheetId}, sheet ID: ${sheetId})`
   );
 }
 
