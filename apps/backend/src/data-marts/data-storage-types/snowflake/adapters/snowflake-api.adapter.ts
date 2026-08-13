@@ -179,8 +179,11 @@ export class SnowflakeApiAdapter {
   /**
    * Executes a query and returns all rows
    */
-  public async executeQueryAndFetchAll(query: string): Promise<Record<string, unknown>[]> {
-    const { rows } = await this.executeQuery(query);
+  public async executeQueryAndFetchAll(
+    query: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.executeQuery(query, false, undefined, options?.signal);
     return rows || [];
   }
 

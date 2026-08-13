@@ -2,7 +2,7 @@
 
 Data Last Updated shows when the source tables/views behind a Data Mart last changed in the storage. It answers the question "how current is what I am looking at?" before you build a report or act on an answer from an AI assistant.
 
-Data Last Updated is currently measured for **Google BigQuery** and **AWS Redshift** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
+Data Last Updated is currently measured for **Google BigQuery**, **AWS Redshift**, and **Snowflake** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
 
 ## What the value means
 
@@ -65,6 +65,7 @@ Storage-specific caveats:
 
 - **BigQuery** reports modification times immediately and exactly.
 - **Redshift** metadata can lag real writes by up to ~5 minutes, so a load that finished a moment ago may not show yet. Older Redshift releases do not report modification times at all — those Data Marts show Unknown. Source tables outside the connection's database, and tables in schemas whose names require quoting (mixed case, hyphens, non-ASCII characters), cannot be identified and appear as unknown entries with partial coverage.
+- **Snowflake** reports the approximate commit time of the last data change (DML). Schema changes and background maintenance do not move it. A table with no recorded data changes shows Unknown.
 
 ## Data Last Updated vs. the Data freshness check
 
