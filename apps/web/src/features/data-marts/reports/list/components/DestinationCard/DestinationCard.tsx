@@ -153,7 +153,6 @@ export function DestinationCard({
             <ReportListRenderer
               destination={destination}
               onEditReport={handleEditReport}
-              dataMartStatus={dataMartStatus}
               onAddReport={handleAddReportRequest}
             />
           </CollapsibleCardContent>

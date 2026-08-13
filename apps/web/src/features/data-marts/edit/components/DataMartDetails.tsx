@@ -428,9 +428,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     <Button
                       variant='default'
                       onClick={() => {
-                        schemaGuard.runGuarded(() => publishDataMartWithEffects(), {
-                          intent: 'publish',
-                        });
+                        schemaGuard.runGuarded(
+                          () => {
+                            void publishDataMartWithEffects();
+                          },
+                          {
+                            intent: 'publish',
+                          }
+                        );
                       }}
                       disabled={isPublishing || !canPublish}
                       className={cn(

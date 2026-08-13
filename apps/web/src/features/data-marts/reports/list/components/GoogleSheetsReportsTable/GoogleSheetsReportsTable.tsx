@@ -8,14 +8,12 @@ import type { DataDestination } from '../../../../../data-destination';
 import { useBaseTable } from '../../../../../../shared/hooks';
 import { BaseTable } from '../../../../../../shared/components/Table';
 import { AddReportButton } from '../DestinationCard/AddReportButton';
-import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import { useRefreshSetupProgress } from '../../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { ReportStatusEnum } from '../../../shared/enums';
 
 interface GoogleSheetsReportsTableProps {
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
-  dataMartStatus?: DataMartStatusInfo;
   onAddReport: () => void;
 }
 
@@ -28,7 +26,6 @@ interface GoogleSheetsReportsTableProps {
 export function GoogleSheetsReportsTable({
   destination,
   onEditReport,
-  dataMartStatus,
   onAddReport,
 }: GoogleSheetsReportsTableProps) {
   const { reports, setPollingConfig } = useReport();
@@ -113,7 +110,7 @@ export function GoogleSheetsReportsTable({
           <p className='text-muted-foreground text-sm font-medium'>
             Create your first report for this destination
           </p>
-          <AddReportButton dataMartStatus={dataMartStatus} onAddReport={onAddReport} />
+          <AddReportButton onAddReport={onAddReport} />
         </div>
       )}
     />
