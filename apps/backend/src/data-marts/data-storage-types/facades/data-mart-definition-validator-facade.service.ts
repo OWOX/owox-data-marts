@@ -24,7 +24,7 @@ export class DataMartDefinitionValidatorFacade {
     if (!definition) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.DEFINITION_NOT_FOUND,
-        'Data Mart definition not found'
+        'DataMart definition not found'
       );
     }
 
@@ -32,14 +32,14 @@ export class DataMartDefinitionValidatorFacade {
     if (!config) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.STORAGE_CONFIG_NOT_FOUND,
-        'Data Mart storage config not found'
+        'DataMart storage config not found'
       );
     }
 
     if (!dataMart.storage.credentialId) {
       return ValidationResult.authoredFailure(
         DataMartValidationCode.STORAGE_CREDENTIALS_NOT_FOUND,
-        'Data Mart storage credentials not found'
+        'DataMart storage credentials not found'
       );
     }
 

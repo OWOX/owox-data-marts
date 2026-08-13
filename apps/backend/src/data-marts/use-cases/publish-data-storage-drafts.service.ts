@@ -1,7 +1,10 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
-import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
+import {
+  ValidationResult,
+  ValidationResultCode,
+} from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
@@ -10,7 +13,11 @@ import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-st
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { SchemaActualizeTriggerService } from '../services/schema-actualize-trigger.service';
-import { PUBLISH_DATA_MART_ERRORS, PublishDataMartService } from './publish-data-mart.service';
+import {
+  PUBLISH_DATA_MART_ERRORS,
+  PublishDataMartService,
+  PublishForbiddenException,
+} from './publish-data-mart.service';
 import { ValidateDataStorageAccessService } from './validate-data-storage-access.service';
 
 /**
@@ -20,10 +27,24 @@ import { ValidateDataStorageAccessService } from './validate-data-storage-access
  */
 const USER_FACING_FAILURE_CODES: ReadonlySet<string> = new Set<string>([
   ...Object.values(PUBLISH_DATA_MART_ERRORS).map(error => error.code),
-  ...Object.values(DataMartValidationCode),
+  // Listed one by one rather than spread from the enum: a code added there in
+  // another module must not become user-facing here without a deliberate edit.
+  DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
+  DataMartValidationCode.DEFINITION_NOT_FOUND,
+  DataMartValidationCode.STORAGE_CONFIG_NOT_FOUND,
+  DataMartValidationCode.STORAGE_CREDENTIALS_NOT_FOUND,
 ]);
 
 const GENERIC_FAILURE_REASON = 'Publishing failed. Open the Data Mart to see details.';
+
+/**
+ * Storage-access validation codes this service is willing to echo, each mapped
+ * to its own trigger-level code so the pairing stays truthful.
+ */
+const STORAGE_VALIDATION_CODES: Readonly<Record<string, string>> = {
+  [ValidationResultCode.UNCONFIGURED]: 'PUBLISH_DRAFTS_STORAGE_UNCONFIGURED',
+  [ValidationResultCode.OAUTH_REAUTH_REQUIRED]: 'PUBLISH_DRAFTS_STORAGE_OAUTH_REAUTH_REQUIRED',
+};
 
 /**
  * Trigger-level failures raised by this service. Each carries a code so the
@@ -51,9 +72,10 @@ export const PUBLISH_DRAFTS_ERRORS = {
  * rather than trusting any coded BusinessViolationException: a code proves the
  * thrower opted in, not that *this* path authored the text.
  */
-export const PUBLISH_DRAFTS_TRIGGER_ERROR_CODES: ReadonlySet<string> = new Set<string>(
-  Object.values(PUBLISH_DRAFTS_ERRORS).map(error => error.code)
-);
+export const PUBLISH_DRAFTS_TRIGGER_ERROR_CODES: ReadonlySet<string> = new Set<string>([
+  ...Object.values(PUBLISH_DRAFTS_ERRORS).map(error => error.code),
+  ...Object.values(STORAGE_VALIDATION_CODES),
+]);
 
 /**
  * A storage ValidationResult only carries a `code` when this codebase authored
@@ -62,15 +84,17 @@ export const PUBLISH_DRAFTS_TRIGGER_ERROR_CODES: ReadonlySet<string> = new Set<s
  * not reach the browser.
  */
 function toStorageAccessError(result: ValidationResult): BusinessViolationException {
-  const authored = Boolean(result.code && result.errorMessage);
-  return new BusinessViolationException(
-    authored ? result.errorMessage! : PUBLISH_DRAFTS_ERRORS.STORAGE_ACCESS.message,
-    undefined,
-    PUBLISH_DRAFTS_ERRORS.STORAGE_ACCESS.code
-  );
+  // Keep code and message describing the same failure: reusing one generic code
+  // for an authored message would tell a client branching on it to check
+  // connection settings when the fix is, say, reconnecting Google.
+  const authoredCode = result.code ? STORAGE_VALIDATION_CODES[result.code] : undefined;
+  if (authoredCode && result.errorMessage) {
+    return new BusinessViolationException(result.errorMessage, undefined, authoredCode);
+  }
+  return publishDraftsError(PUBLISH_DRAFTS_ERRORS.STORAGE_ACCESS);
 }
 
-/** Raises a trigger-level failure with its stable code attached. */
+/** Builds a trigger-level failure with its stable code attached; the caller throws. */
 function publishDraftsError(spec: { code: string; message: string }): BusinessViolationException {
   return new BusinessViolationException(spec.message, undefined, spec.code);
 }
@@ -233,14 +257,11 @@ export class PublishDataStorageDraftsService {
       return USER_FACING_FAILURE_CODES.has(error.code) ? error.message : GENERIC_FAILURE_REASON;
     }
 
-    // NO_PERMISSION travels as a Nest ForbiddenException so the single-publish
-    // endpoint keeps its 403; HttpException carries no `code`, so this one
-    // authored message is matched by identity instead.
-    if (
-      error instanceof ForbiddenException &&
-      error.message === PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message
-    ) {
-      return PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message;
+    // Permission denials stay a 403 for API clients, so they cannot be a coded
+    // BusinessViolationException; PublishForbiddenException carries the code
+    // instead, keeping this a type-and-code match rather than a text match.
+    if (error instanceof PublishForbiddenException && USER_FACING_FAILURE_CODES.has(error.code)) {
+      return error.message;
     }
 
     return GENERIC_FAILURE_REASON;

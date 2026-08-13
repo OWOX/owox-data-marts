@@ -38,6 +38,23 @@ export const PUBLISH_DATA_MART_ERRORS = {
   },
 } as const;
 
+/**
+ * Permission denial for publishing, carrying a stable code.
+ *
+ * Extends Nest's ForbiddenException so the single-publish endpoint keeps its
+ * 403 — BaseExceptionFilter is `@Catch(BusinessViolationException)` and its
+ * hardcoded 400 therefore does not apply here. Sanitizers match this by type
+ * and code rather than by message text.
+ */
+export class PublishForbiddenException extends ForbiddenException {
+  constructor(
+    message: string,
+    readonly code: string
+  ) {
+    super(message);
+  }
+}
+
 @Injectable()
 export class PublishDataMartService {
   private readonly logger = new Logger(PublishDataMartService.name);
@@ -65,10 +82,10 @@ export class PublishDataMartService {
         command.projectId
       );
       if (!canEdit) {
-        // Deliberately a ForbiddenException, not a coded BusinessViolationException:
-        // the latter is hardcoded to 400 by BaseExceptionFilter, and a permission
-        // denial must stay a 403 for API clients. Sanitizers match it by identity.
-        throw new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message);
+        throw new PublishForbiddenException(
+          PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message,
+          PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.code
+        );
       }
     }
 

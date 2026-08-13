@@ -34,17 +34,21 @@ export class RedshiftDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
+    // Identifiers are checked first, as in every other warehouse validator: the
+    // check needs only the definition, and an unconfigured storage would
+    // otherwise mask a malformed table name behind a config error the publish
+    // path cannot show.
+    const identifierValidation = this.validateIdentifiers(dataMartDefinition);
+    if (!identifierValidation.valid) {
+      return identifierValidation;
+    }
+
     if (!isRedshiftConfig(config)) {
       return ValidationResult.failure('Incompatible data storage config');
     }
 
     if (!isRedshiftCredentials(credentials)) {
       return ValidationResult.failure('Incompatible data storage credentials');
-    }
-
-    const identifierValidation = this.validateIdentifiers(dataMartDefinition);
-    if (!identifierValidation.valid) {
-      return identifierValidation;
     }
 
     if (isConnectorDefinition(dataMartDefinition)) {

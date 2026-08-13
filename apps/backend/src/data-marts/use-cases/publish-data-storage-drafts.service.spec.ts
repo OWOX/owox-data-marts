@@ -2,7 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
 import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
-import { PUBLISH_DATA_MART_ERRORS } from './publish-data-mart.service';
+import { PUBLISH_DATA_MART_ERRORS, PublishForbiddenException } from './publish-data-mart.service';
 import { PublishDataStorageDraftsService } from './publish-data-storage-drafts.service';
 
 describe('PublishDataStorageDraftsService', () => {
@@ -212,7 +212,10 @@ describe('PublishDataStorageDraftsService', () => {
   it('reports the permission error verbatim (thrown as a Nest ForbiddenException)', async () => {
     const { service, publishDataMartService } = createService();
     publishDataMartService.run.mockRejectedValue(
-      new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message)
+      new PublishForbiddenException(
+        PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message,
+        PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.code
+      )
     );
 
     const result = await service.run(
@@ -278,6 +281,21 @@ describe('PublishDataStorageDraftsService', () => {
     ]);
   });
 
+  it('does not trust a bare ForbiddenException that merely repeats the wording', async () => {
+    const { service, publishDataMartService } = createService();
+    publishDataMartService.run.mockRejectedValue(
+      new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message)
+    );
+
+    const result = await service.run(
+      new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
+    );
+
+    expect(result.failureReasons).toEqual([
+      'Publishing failed. Open the Data Mart to see details.',
+    ]);
+  });
+
   it('never leaks an unrecognized error message to the caller', async () => {
     const { service, publishDataMartService } = createService();
     publishDataMartService.run.mockRejectedValue(
@@ -312,7 +330,12 @@ describe('PublishDataStorageDraftsService', () => {
     publishDataMartService.run.mockImplementation((command: { id: string }) => {
       if (command.id === 'visible-dm') return Promise.resolve(undefined);
       // Access-gated Data Marts fail the per-draft EDIT check.
-      return Promise.reject(new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message));
+      return Promise.reject(
+        new PublishForbiddenException(
+          PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message,
+          PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.code
+        )
+      );
     });
 
     const result = await service.run(
