@@ -1,20 +1,18 @@
-import { Logger } from '@nestjs/common';
-import type { ProjectSettingsFacade } from '../../../project-settings/facades/project-settings.facade';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpInstructionsService } from './mcp-instructions.service';
-import { composeMcpInstructions, MCP_SYSTEM_INSTRUCTIONS } from './mcp-system-instructions';
+import { MCP_SYSTEM_INSTRUCTIONS } from './mcp-system-instructions';
 import { hasUniqueCountFieldCandidate } from '../tools/query-data-mart.input';
 
 const UNIQUE_COUNT_EXAMPLE_FIELD = 'orders__unique_count';
 const DISPLAY_FORM_NON_EXAMPLES = ['Orders Unique Count', '<Prefix> Unique Count'];
 
 describe('MCP instructions', () => {
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+  it('returns the complete static system instructions', () => {
+    const service = new McpInstructionsService();
 
-  it('returns only system instructions when the project description is empty', () => {
-    expect(composeMcpInstructions(null)).toBe(MCP_SYSTEM_INSTRUCTIONS);
-    expect(composeMcpInstructions('   ')).toBe(MCP_SYSTEM_INSTRUCTIONS);
+    expect(service.getInstructions()).toBe(MCP_SYSTEM_INSTRUCTIONS);
   });
 
   // The rule the tool ENFORCES (UniqueCountFieldUnsupportedClauseError): a model that reads only
@@ -41,39 +39,25 @@ describe('MCP instructions', () => {
     }
   });
 
-  it('appends project context after the system instructions', () => {
-    const instructions = composeMcpInstructions('  Revenue means net revenue.  ');
-
-    expect(instructions.startsWith(MCP_SYSTEM_INSTRUCTIONS)).toBe(true);
-    expect(instructions).toContain('Project context:');
-    expect(instructions.endsWith('Revenue means net revenue.')).toBe(true);
-    expect(instructions.indexOf('Project context:')).toBeGreaterThan(
-      instructions.indexOf('Project-specific context')
+  it('round-trips the complete system instructions through MCP initialization', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = new McpServer(
+      { name: 'owox-mcp-test', version: '0.0.0' },
+      { instructions: MCP_SYSTEM_INSTRUCTIONS }
     );
-  });
+    const client = new Client(
+      { name: 'owox-mcp-test-client', version: '0.0.0' },
+      { capabilities: {} }
+    );
 
-  it('loads the description for the authenticated project', async () => {
-    const projectSettings = {
-      getDescription: jest.fn().mockResolvedValue('Use fiscal weeks.'),
-    } as unknown as jest.Mocked<ProjectSettingsFacade>;
-    const service = new McpInstructionsService(projectSettings);
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
 
-    await expect(service.getInstructions('project-1')).resolves.toContain('Use fiscal weeks.');
-    expect(projectSettings.getDescription).toHaveBeenCalledWith('project-1');
-  });
-
-  it('falls back to system instructions when the project description cannot be loaded', async () => {
-    const error = new Error('settings unavailable');
-    const projectSettings = {
-      getDescription: jest.fn().mockRejectedValue(error),
-    } as unknown as jest.Mocked<ProjectSettingsFacade>;
-    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
-    const service = new McpInstructionsService(projectSettings);
-
-    await expect(service.getInstructions('project-1')).resolves.toBe(MCP_SYSTEM_INSTRUCTIONS);
-    expect(warn).toHaveBeenCalledWith('Failed to load project-specific MCP instructions', {
-      projectId: 'project-1',
-      error: 'settings unavailable',
-    });
+      expect(client.getInstructions()).toBe(MCP_SYSTEM_INSTRUCTIONS);
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });

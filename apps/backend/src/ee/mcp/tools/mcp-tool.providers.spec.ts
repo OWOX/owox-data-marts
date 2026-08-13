@@ -73,6 +73,7 @@ describe('MCP tool providers', () => {
         { provide: MCP_REPORTS_FACADE, useValue: {} },
         { provide: MCP_SCHEDULED_TRIGGERS_FACADE, useValue: {} },
         { provide: MCP_PROJECT_CONTEXT_FACADE, useValue: {} },
+        { provide: PROJECT_SETTINGS_FACADE, useValue: {} },
         { provide: SEARCH_FACADE, useValue: {} },
         {
           provide: PublicOriginService,

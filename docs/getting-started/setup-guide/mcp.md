@@ -76,9 +76,9 @@ Access tokens are short-lived, and the client refreshes them automatically in th
 
 ### Add project context for your assistant
 
-Project admins can provide business context, terminology, and project-specific conventions for AI assistants in **Project settings → Overview → Description**. OWOX includes this description in the MCP instructions when a client connects to the project.
+Project admins can provide up to 10,000 characters of business context, terminology, and project-specific conventions for AI assistants in **Project settings → Overview → Description**. OWOX returns the complete description through `get_project_context`; the MCP instructions tell the assistant to call that tool before its first project-specific operation.
 
-Do not put passwords, API keys, or other secrets in the description. All project members can see it, and connected MCP clients may send it to their AI provider. After changing the description, reconnect the MCP client so it initializes with the updated context.
+Do not put passwords, API keys, or other secrets in the description. All project members can see it, and connected MCP clients may send it to their AI provider. After changing the description, the updated value is available on the next `get_project_context` call; reconnecting the MCP client is not required.
 
 ## Step 3: Verify the connection
 
@@ -123,20 +123,21 @@ Use this tool when the user asks what can be analyzed in the project. It does no
 
 ### `get_project_context`
 
-Returns information about the OWOX project that this MCP connection is authorized for.
+Returns information about the OWOX project that this MCP connection is authorized for, including the complete admin-maintained project description when one is configured.
 
 **Returns:**
 
-| Field                        | Description                                       |
-| ---------------------------- | ------------------------------------------------- |
-| `current_project.id`         | Project identifier                                |
-| `current_project.title`      | Project display name                              |
-| `current_project.status`     | Project status                                    |
-| `current_project.roles`      | Your roles in this project                        |
-| `current_project.created_at` | Project creation date                             |
-| `project_switching`          | Instructions for switching to a different project |
+| Field                         | Description                                                     |
+| ----------------------------- | --------------------------------------------------------------- |
+| `current_project.id`          | Project identifier                                              |
+| `current_project.title`       | Project display name                                            |
+| `current_project.description` | Complete project description, or `null` when none is configured |
+| `current_project.status`      | Project status                                                  |
+| `current_project.roles`       | Your roles in this project                                      |
+| `current_project.created_at`  | Project creation date                                           |
+| `project_switching`           | Instructions for switching to a different project               |
 
-Use this tool when you need to confirm which project is active, or when the assistant asks which project is selected.
+The assistant should use this tool before its first project-specific operation so it has the project's business context. You can also use it to confirm which project is active or selected. Call it again after an admin changes the project description to get the latest value.
 
 ### `list_data_marts`
 

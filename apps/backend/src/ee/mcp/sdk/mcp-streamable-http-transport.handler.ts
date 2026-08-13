@@ -69,10 +69,7 @@ export class McpStreamableHttpTransportHandler {
     };
 
     const server = isInitialization
-      ? this.serverFactory.create(
-          context,
-          await this.instructionsService.getInstructions(context.projectId)
-        )
+      ? this.serverFactory.create(context, this.instructionsService.getInstructions())
       : this.serverFactory.create(context);
     await server.connect(transport);
 
