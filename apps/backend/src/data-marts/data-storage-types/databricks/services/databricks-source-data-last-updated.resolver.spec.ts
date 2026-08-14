@@ -97,6 +97,46 @@ describe('DatabricksSourceDataLastUpdatedResolver', () => {
     expect(result.coverage).toBe('complete');
   });
 
+  it('lets a replace commit win over the replaced predecessor’s writes', async () => {
+    // CREATE OR REPLACE keeps the table’s transaction log, so the predecessor’s history stays
+    // visible. The replace boundary must be the answer — not the old incarnation’s data time.
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainWith('main.dlu.orders')),
+        executeQueryAndFetchAll: jest
+          .fn()
+          .mockResolvedValue([
+            historyRow('CREATE OR REPLACE TABLE', T_AUG_5),
+            historyRow('WRITE', T_AUG_1),
+          ]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe(T_AUG_5);
+    expect(result.coverage).toBe('complete');
+  });
+
+  it('degrades a materialized view or streaming table to unknown, never a value', async () => {
+    // DESCRIBE HISTORY exists only for Delta/Iceberg tables; DLT-backed objects reject it.
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainWith('main.dlu.mv_daily')),
+        executeQueryAndFetchAll: jest
+          .fn()
+          .mockRejectedValue(
+            new Error('DESCRIBE HISTORY is not supported for materialized views.')
+          ),
+      })
+    );
+
+    expect(result).toMatchObject({ dataLastUpdatedAt: null, coverage: 'unavailable' });
+    expect(result.sources[0]).toMatchObject({
+      table: 'main.dlu.mv_daily',
+      dataLastUpdatedAt: null,
+      note: 'could not read table history',
+    });
+  });
+
   it('reports a table with only maintenance commits as unknown with a note', async () => {
     const result = await run(
       adapterWith({

@@ -53,11 +53,15 @@ export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUp
   /**
    * Delta operation names that change table data. Sourced from the Delta history operation
    * catalog; maintenance operations (OPTIMIZE, VACUUM, FSCK, ANALYZE) are deliberately
-   * absent, and unknown names do not count either.
+   * absent, and unknown names do not count either. (`INSERT INTO` commits as `WRITE`.)
+   *
+   * The CREATE/REPLACE family is included on purpose: `CREATE OR REPLACE` keeps the table's
+   * transaction log, so the predecessor's history stays visible — the replace commit must win
+   * the MAX over the predecessor's writes, or the old incarnation's data time would answer
+   * for the new table. A replace also IS a data change (the content was swapped out).
    */
   private static readonly DATA_CHANGING_OPERATIONS = new Set([
     'WRITE',
-    'INSERT',
     'DELETE',
     'UPDATE',
     'MERGE',
@@ -65,9 +69,12 @@ export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUp
     'RESTORE',
     'COPY INTO',
     'STREAMING UPDATE',
+    'CREATE TABLE',
     'CREATE TABLE AS SELECT',
-    'REPLACE TABLE AS SELECT',
+    'CREATE OR REPLACE TABLE',
     'CREATE OR REPLACE TABLE AS SELECT',
+    'REPLACE TABLE',
+    'REPLACE TABLE AS SELECT',
     'CLONE',
   ]);
 
