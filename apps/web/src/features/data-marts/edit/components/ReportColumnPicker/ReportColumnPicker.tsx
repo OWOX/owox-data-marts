@@ -1111,8 +1111,7 @@ export function ReportColumnPicker({
     );
   }, [effectiveOutputConfig]);
 
-  // Badge = aggregation rules + date-trunc rules. Row Count is automatic for
-  // aggregated reports and no longer has an opt-in toggle.
+  // Badge = aggregation rules + date-trunc rules.
   const aggregationCount = useMemo(() => {
     return (
       effectiveOutputConfig.aggregationConfig.length + effectiveOutputConfig.dateTruncConfig.length

@@ -877,10 +877,10 @@ describe('StreamHttpDataService', () => {
     );
   });
 
-  it('streams the aggregated (renamed) headers and Row Count, not the raw requested columns', async () => {
-    // The reader renames an aggregated column's header to its "<column> | <FN>" output label and
-    // appends Row Count (see resolveReportDataHeaders). The stream must project rows by those
-    // resolved header names, else the aggregated metric is emitted as null and Row Count is dropped.
+  it('streams the aggregated (renamed) headers, not the raw requested columns', async () => {
+    // The reader renames an aggregated column's header to its "<column> | <FN>" output label
+    // (see resolveReportDataHeaders; no automatic Row Count). The stream must project rows by
+    // those resolved header names, else the aggregated metric is emitted as null.
     const aggregation = [{ column: 'revenue', function: 'SUM' }];
     requestValidator.validate.mockReturnValueOnce({
       columnSelector: { mode: 'explicit', explicit: ['date', 'revenue'] },
@@ -894,17 +894,14 @@ describe('StreamHttpDataService', () => {
       new ReportDataDescription([
         new ReportDataHeader('date'),
         new ReportDataHeader('revenue | SUM'),
-        new ReportDataHeader('Row Count'),
       ])
     );
-    reader.readReportDataBatch.mockResolvedValueOnce(
-      new ReportDataBatch([['2026-05-01', 93, 2]], null)
-    );
+    reader.readReportDataBatch.mockResolvedValueOnce(new ReportDataBatch([['2026-05-01', 93]], null));
     const res = mockResponse();
 
     await service.stream(fakeCommand(), res);
 
-    expect(res._writes).toEqual(['{"date":"2026-05-01","revenue | SUM":93,"Row Count":2}\n']);
+    expect(res._writes).toEqual(['{"date":"2026-05-01","revenue | SUM":93}\n']);
   });
 
   it('streams a date-bucket-only request by the requested column names (headers are not renamed)', async () => {
@@ -947,17 +944,16 @@ describe('StreamHttpDataService', () => {
       new ReportDataDescription([
         new ReportDataHeader('date'),
         new ReportDataHeader('revenue | SUM'),
-        new ReportDataHeader('Row Count'),
       ])
     );
     reader.readReportDataBatch.mockResolvedValueOnce(
-      new ReportDataBatch([['2026-01-01', 300, 3]], null)
+      new ReportDataBatch([['2026-01-01', 300]], null)
     );
     const res = mockResponse();
 
     await service.stream(fakeCommand(), res);
 
-    expect(res._writes).toEqual(['{"date":"2026-01-01","revenue | SUM":300,"Row Count":3}\n']);
+    expect(res._writes).toEqual(['{"date":"2026-01-01","revenue | SUM":300}\n']);
   });
 
   it('rejects via the read/abort race when the client disconnects during a pending first batch read', async () => {

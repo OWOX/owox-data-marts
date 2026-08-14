@@ -2301,7 +2301,7 @@ describe('BlendedReportDataService', () => {
       });
     });
 
-    describe('rowCount driven by aggregationConfig (blended path)', () => {
+    describe('rowCount never auto-set for a saved report (blended path)', () => {
       async function resolveAndCaptureRowCount(
         overrides: Partial<Report>
       ): Promise<boolean | undefined> {
@@ -2357,11 +2357,12 @@ describe('BlendedReportDataService', () => {
         return context?.rowCount;
       }
 
-      it('passes rowCount=true to buildBlendedQuery when aggregationConfig is non-empty', async () => {
+      it('passes rowCount=false to buildBlendedQuery even when aggregationConfig is non-empty', async () => {
+        // Row Count is opt-in on read plans only; a saved report never projects it.
         const rowCount = await resolveAndCaptureRowCount({
           aggregationConfig: [{ column: 'field', function: 'SUM' }] as any,
         });
-        expect(rowCount).toBe(true);
+        expect(rowCount).toBe(false);
       });
 
       it('passes rowCount=false to buildBlendedQuery when aggregationConfig is empty', async () => {

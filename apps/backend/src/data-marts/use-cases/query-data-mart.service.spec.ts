@@ -1560,9 +1560,8 @@ describe('QueryDataMartService', () => {
         dataHeaders: [
           new ReportDataHeader('channel', 'channel'),
           new ReportDataHeader('revenue | SUM', 'revenue | SUM'),
-          new ReportDataHeader('Row Count', 'Row Count'),
         ],
-        batches: [new ReportDataBatch([['fb', 18, 2]], null)],
+        batches: [new ReportDataBatch([['fb', 18]], null)],
       });
 
       const result = await service.run(
@@ -1577,10 +1576,10 @@ describe('QueryDataMartService', () => {
         })
       );
 
-      // Aggregation renames/adds columns (`revenue | SUM`, `Row Count`), so the response
-      // columns must follow the reader's actual headers, NOT the requested `fields`.
-      expect(result.columns).toEqual(['channel', 'revenue | SUM', 'Row Count']);
-      expect(result.rows).toEqual([['fb', 18, 2]]);
+      // Aggregation renames columns (`revenue | SUM`), so the response columns must
+      // follow the reader's actual headers, NOT the requested `fields`.
+      expect(result.columns).toEqual(['channel', 'revenue | SUM']);
+      expect(result.rows).toEqual([['fb', 18]]);
 
       // The requested raw fields are still passed as columnFilter, and the aggregation
       // config flows into both the read plan and the reader options.

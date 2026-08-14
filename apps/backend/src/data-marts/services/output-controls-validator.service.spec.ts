@@ -2971,32 +2971,32 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
-  // L2: the projected output column names (dimensions + aggregated labels + Row Count +
+  // L2: the projected output column names (dimensions + aggregated labels +
   // Unique Count) must be unique — a collision means a duplicate alias on BigQuery or a
   // silent clobber on name-keyed readers.
   describe('validateOutputColumnNames', () => {
-    it('rejects a real column aliased exactly "Row Count" in an aggregated report', () => {
+    it('accepts a real column named "Row Count" in an aggregated report (no synthetic Row Count)', () => {
+      // Row Count is no longer auto-appended to aggregated reports, so the name is not
+      // reserved on the report-save path.
       const errors = svc.validateOutputColumnNames(
         ['Row Count', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }],
-        true,
         false
       );
-      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Row Count' }]);
+      expect(errors).toEqual([]);
     });
 
     it('rejects a column whose name equals an aggregated label "<x> | SUM"', () => {
       const errors = svc.validateOutputColumnNames(
         ['revenue | SUM', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }],
-        true,
         false
       );
       expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'revenue | SUM' }]);
     });
 
     it('rejects a real column aliased exactly "Unique Count" when uniqueCount is on', () => {
-      const errors = svc.validateOutputColumnNames(['Unique Count', 'channel'], [], false, true);
+      const errors = svc.validateOutputColumnNames(['Unique Count', 'channel'], [], true);
       expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Unique Count' }]);
     });
 
@@ -3005,15 +3005,15 @@ describe('OutputControlsValidatorService', () => {
     // output names differing only in case are then ONE column: the metric sleeve's join back on
     // them is ambiguous, and a reader binding by name cannot tell them apart.
     it('rejects two selected columns that differ only in letter case', () => {
-      const errors = svc.validateOutputColumnNames(['Country', 'country'], [], false, false);
+      const errors = svc.validateOutputColumnNames(['Country', 'country'], [], false);
 
       expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'country' }]);
     });
 
     it('rejects a case-only collision between a column and a synthetic label', () => {
-      const errors = svc.validateOutputColumnNames(['row count'], [], true, false);
+      const errors = svc.validateOutputColumnNames(['unique count'], [], true);
 
-      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Row Count' }]);
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Unique Count' }]);
     });
 
     it('rejects a case-only collision between two aggregated labels', () => {
@@ -3023,7 +3023,6 @@ describe('OutputControlsValidatorService', () => {
           { column: 'Revenue', function: 'SUM' },
           { column: 'revenue', function: 'SUM' },
         ],
-        false,
         false
       );
 
@@ -3034,14 +3033,13 @@ describe('OutputControlsValidatorService', () => {
       const errors = svc.validateOutputColumnNames(
         ['channel', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }],
-        true,
         false
       );
       expect(errors).toEqual([]);
     });
 
     it('passes a plain (non-aggregated) report with distinct dimension names', () => {
-      const errors = svc.validateOutputColumnNames(['channel', 'revenue'], [], false, false);
+      const errors = svc.validateOutputColumnNames(['channel', 'revenue'], [], false);
       expect(errors).toEqual([]);
     });
 
@@ -3052,7 +3050,7 @@ describe('OutputControlsValidatorService', () => {
     it('rejects two joined Unique Count names that collide once cut to the identifier limit', () => {
       const deep = 'a'.repeat(130);
 
-      const errors = svc.validateOutputColumnNames(['channel'], [], false, false, [
+      const errors = svc.validateOutputColumnNames(['channel'], [], false, [
         `${deep}1__unique_count`,
         `${deep}2__unique_count`,
       ]);
@@ -3063,7 +3061,7 @@ describe('OutputControlsValidatorService', () => {
     });
 
     it('accepts joined Unique Count names that stay distinct within that limit', () => {
-      const errors = svc.validateOutputColumnNames(['channel'], [], false, false, [
+      const errors = svc.validateOutputColumnNames(['channel'], [], false, [
         'orders__unique_count',
         'products__unique_count',
       ]);
@@ -3145,9 +3143,9 @@ describe('OutputControlsValidatorService', () => {
       expect(capabilitySvc.isSupported).toHaveBeenCalledWith(supportedStorageType);
     });
 
-    // L2: a real dimension column literally named "Row Count" collides with the synthetic
-    // Row Count column the aggregated report appends → duplicate alias on BigQuery.
-    it('throws OUTPUT_COLUMN_NAME_COLLISION when a dimension column is named "Row Count"', async () => {
+    // Row Count is no longer auto-appended to aggregated reports, so a real dimension column
+    // named "Row Count" projects cleanly — the name is not reserved on the report-save path.
+    it('accepts a dimension column named "Row Count" in an aggregated report', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
         { name: 'Row Count', type: 'STRING' },
@@ -3158,9 +3156,8 @@ describe('OutputControlsValidatorService', () => {
         schemaSvc as never
       );
 
-      let caught: BadRequestException | undefined;
-      try {
-        await validator.validateForReport({
+      await expect(
+        validator.validateForReport({
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
@@ -3170,16 +3167,8 @@ describe('OutputControlsValidatorService', () => {
           limitConfig: null,
           aggregationConfig: [{ column: 'amount', function: 'SUM' }],
           accessor: { userId: 'user-1', roles: ['admin'] },
-        });
-      } catch (e) {
-        caught = e as BadRequestException;
-      }
-
-      expect(caught).toBeDefined();
-      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
-      expect(response.details.errors.some(e => e.code === 'OUTPUT_COLUMN_NAME_COLLISION')).toBe(
-        true
-      );
+        })
+      ).resolves.toBeUndefined();
     });
 
     it('throws BadRequestException with invalid aggregation shape (Zod)', async () => {

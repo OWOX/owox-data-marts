@@ -90,8 +90,6 @@ export function AggregationSettingsDropdown({
   onChange,
   selectedColumns,
 }: AggregationSettingsDropdownProps) {
-  // A lone date bucket also triggers the hint because bucketing implies grouping, making it an aggregated report.
-  const hasAggregations = value.aggregationConfig.length > 0 || value.dateTruncConfig.length > 0;
   return (
     <div className='space-y-4 p-3'>
       <AggregationSection
@@ -102,11 +100,6 @@ export function AggregationSettingsDropdown({
           onChange({ ...value, aggregationConfig, dateTruncConfig });
         }}
       />
-      {hasAggregations && (
-        <p className='text-muted-foreground text-xs'>
-          A Row Count column is included automatically in aggregated reports.
-        </p>
-      )}
     </div>
   );
 }

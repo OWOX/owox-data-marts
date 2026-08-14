@@ -398,7 +398,7 @@ export class StreamHttpDataService {
         }
       }
 
-      // Aggregated reports rename headers to "<column> | <FN>" and append Row Count, so project by
+      // Aggregated reports rename headers to "<column> | <FN>", so project by
       // the resolved header names. A report always projects by resolved headers — correct for both
       // an explicit columnConfig and a null (all-columns) config.
       const aggregated = (readPlan.aggregationConfig?.length ?? 0) > 0;

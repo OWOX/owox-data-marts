@@ -95,8 +95,7 @@ describe('resolveReportDataHeaders', () => {
         BQ
       );
       // The renderer aliases SUM(`revenue`) to aggregatedColumnLabel('revenue','SUM');
-      // COUNT(*) produces ROW_COUNT_LABEL; a result row keyed by those aliases must find
-      // its header by name.
+      // a result row keyed by those aliases must find its header by name.
       const row: Record<string, unknown> = {
         channel: 'paid',
         [aggregatedColumnLabel('revenue', 'SUM')]: 42,
@@ -107,7 +106,7 @@ describe('resolveReportDataHeaders', () => {
       }
     });
 
-    it('expands one column with two functions into two headers, in rule order, with effective types (Row Count appended last)', () => {
+    it('expands one column with two functions into two headers, in rule order, with effective types', () => {
       const out = resolveReportDataHeaders(
         native,
         {
@@ -119,12 +118,11 @@ describe('resolveReportDataHeaders', () => {
         },
         BQ
       );
-      // Row Count is appended last because aggregationConfig is non-empty.
+      // No Row Count: it is opt-in only, and this plan does not ask for it.
       expect(out.map(h => h.name)).toEqual([
         'channel',
         aggregatedColumnLabel('revenue', 'SUM'),
         aggregatedColumnLabel('revenue', 'AVG'),
-        ROW_COUNT_LABEL,
       ]);
       const sum = out.find(h => h.name === aggregatedColumnLabel('revenue', 'SUM'));
       const avg = out.find(h => h.name === aggregatedColumnLabel('revenue', 'AVG'));
@@ -306,7 +304,7 @@ describe('resolveReportDataHeaders', () => {
     });
   });
 
-  describe('Row Count — automatic when aggregated', () => {
+  describe('Row Count — explicit opt-in only', () => {
     const native = [
       new ReportDataHeader('channel', undefined, undefined, BigQueryFieldType.STRING),
     ];
@@ -315,12 +313,27 @@ describe('resolveReportDataHeaders', () => {
       new ReportDataHeader('revenue', undefined, undefined, BigQueryFieldType.INTEGER),
     ];
 
-    it('appends a Row Count header when aggregationConfig is non-empty', () => {
+    it('does NOT append a Row Count header for an aggregated plan without an explicit opt-in', () => {
+      // A report contains only the columns the user selected — Row Count is no longer
+      // automatic for aggregated reports.
       const out = resolveReportDataHeaders(
         nativeWithMetric,
         {
           columnFilter: ['channel', 'revenue'],
           aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        },
+        BQ
+      );
+      expect(out.some(h => h.name === ROW_COUNT_LABEL)).toBe(false);
+    });
+
+    it('rowCount: true appends a typed Row Count header', () => {
+      const out = resolveReportDataHeaders(
+        nativeWithMetric,
+        {
+          columnFilter: ['channel', 'revenue'],
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          rowCount: true,
         },
         BQ
       );
@@ -342,9 +355,9 @@ describe('resolveReportDataHeaders', () => {
       expect(emptyAgg.some(h => h.name === ROW_COUNT_LABEL)).toBe(false);
     });
 
-    it('rowCount: false opts out of the Row Count header even when aggregationConfig is non-empty (Totals)', () => {
-      // Row Count is a per-group column, NOT a grand total. The Totals query opts out so the
-      // totals block carries only the metric aggregates.
+    it('rowCount: false keeps the Row Count header out even when aggregationConfig is non-empty (Totals)', () => {
+      // Row Count is a per-group column, NOT a grand total. The Totals plan says so explicitly,
+      // and the default is off anyway.
       const out = resolveReportDataHeaders(
         nativeWithMetric,
         {
@@ -358,25 +371,13 @@ describe('resolveReportDataHeaders', () => {
       expect(out.map(h => h.name)).toEqual([aggregatedColumnLabel('revenue', 'SUM')]);
     });
 
-    it('rowCount: true keeps the Row Count header (explicit, matches the default)', () => {
+    it('an opted-in Row Count is appended last after all aggregated column headers', () => {
       const out = resolveReportDataHeaders(
         nativeWithMetric,
         {
           columnFilter: ['channel', 'revenue'],
           aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
           rowCount: true,
-        },
-        BQ
-      );
-      expect(out[out.length - 1].name).toBe(ROW_COUNT_LABEL);
-    });
-
-    it('Row Count is appended last after all aggregated column headers', () => {
-      const out = resolveReportDataHeaders(
-        nativeWithMetric,
-        {
-          columnFilter: ['channel', 'revenue'],
-          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
         },
         BQ
       );

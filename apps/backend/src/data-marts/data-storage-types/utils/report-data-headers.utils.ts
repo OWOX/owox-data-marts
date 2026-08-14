@@ -37,10 +37,9 @@ import {
  *   aliased, and its display alias is the free-form `displayLabel` (`Orders Unique Count`) — the
  *   same name/alias split every blended column header already uses. It is the SAME list the blended
  *   builder rendered its sleeves from, so a source dropped there has no header here either.
- * - When `aggregationConfig` is non-empty, a synthetic `Row Count` header (matching the
- *   `COUNT(*) AS "Row Count"` output column) is appended last. Row Count is automatic
- *   for aggregated reports, unless `options.rowCount === false` (the Totals reader opts
- *   out — Row Count is a per-group column, not a grand total).
+ * - When `options.rowCount === true`, a synthetic `Row Count` header (matching the
+ *   `COUNT(*) AS "Row Count"` output column) is appended last. Row Count is opt-in only:
+ *   a report contains only the columns the user selected.
  */
 export function resolveReportDataHeaders(
   nativeHeaders: ReportDataHeader[],
@@ -110,9 +109,9 @@ export function resolveReportDataHeaders(
     });
   }
 
-  // Row Count is automatic for aggregated reports, unless the caller opts out
-  // (`rowCount: false`) — the Totals reader does, since Row Count is a per-group column.
-  const includeRowCount = options?.rowCount ?? (options?.aggregationConfig?.length ?? 0) > 0;
+  // Row Count only when the read plan explicitly asked for it — mirroring
+  // `shouldIncludeRowCount`, so the header list cannot drift from the SELECT.
+  const includeRowCount = options?.rowCount === true;
   if (includeRowCount) {
     headers = [
       ...headers,

@@ -240,7 +240,7 @@ For a “how many” question, use `COUNT` or `COUNT_DISTINCT` (when the user me
 
 | Field                | Description                                                                                                                        |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `columns`            | Business-friendly headers matching the header row in `rows`. When `aggregations` are used, an extra `Row Count` column is appended |
+| `columns`            | Business-friendly headers matching the header row in `rows`                                                                        |
 | `column_metadata`    | Exact technical query `name` plus business-friendly `display_name`, type, and description when available                           |
 | `rows`               | The data rows, as a compact header-once table                                                                                      |
 | `returned_rows`      | Number of rows in the response                                                                                                     |

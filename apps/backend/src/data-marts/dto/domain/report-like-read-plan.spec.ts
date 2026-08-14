@@ -111,10 +111,12 @@ describe('usesSuffixedJoinedFieldNames', () => {
 });
 
 describe('shouldIncludeRowCount', () => {
-  it('defaults to true for an aggregated plan (no explicit override)', () => {
+  // Row Count is opt-in only: a report contains only the columns the user selected, so an
+  // aggregated plan no longer projects it unless the read plan explicitly asks.
+  it('defaults to false for an aggregated plan (no explicit opt-in)', () => {
     expect(
       shouldIncludeRowCount({ ...basePlan, aggregationConfig: [{ column: 'c', function: 'SUM' }] })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('defaults to false when there are no aggregations', () => {
@@ -122,7 +124,7 @@ describe('shouldIncludeRowCount', () => {
     expect(shouldIncludeRowCount({ ...basePlan, aggregationConfig: [] })).toBe(false);
   });
 
-  it('honors an explicit rowCount: false even when aggregations are present (the Totals plan)', () => {
+  it('stays false on an explicit rowCount: false (the Totals plan)', () => {
     expect(
       shouldIncludeRowCount({
         ...basePlan,
@@ -136,9 +138,16 @@ describe('shouldIncludeRowCount', () => {
     expect(shouldIncludeRowCount({ ...basePlan, rowCount: true })).toBe(true);
   });
 
-  // A lone date bucket is a grouping key, not an aggregation: the DWH still GROUPs BY the
-  // truncated column, but no automatic Row Count column is projected. This is the intended
-  // divergence from the UI's "Row Count" hint — Row Count is opt-in via aggregations only.
+  // A saved Report entity carries no `rowCount` property at all — it must never project one.
+  it('returns false for a Report-shaped object without a rowCount property', () => {
+    expect(
+      shouldIncludeRowCount({
+        ...basePlan,
+        aggregationConfig: [{ column: 'c', function: 'SUM' }],
+      } as unknown as Report)
+    ).toBe(false);
+  });
+
   it('returns false for a date-trunc-only plan (bucket set, no aggregations)', () => {
     expect(
       shouldIncludeRowCount({ ...basePlan, dateTruncConfig: [{ column: 'date', unit: 'MONTH' }] })

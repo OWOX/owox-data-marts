@@ -66,9 +66,9 @@ export interface PrepareReportDataOptions {
   uniqueCountSources?: JoinedUniqueCountHeaderSource[];
 
   /**
-   * Explicit opt-out of the automatic `Row Count` header. When unset, Row Count is on for
-   * any non-empty `aggregationConfig`. The Totals reader sets this to `false` so the totals
-   * row carries only the metric aggregates (Row Count is a per-group column, not a total).
+   * Explicit opt-in to the `Row Count` header. Off unless the caller asks for it: a report
+   * contains only the columns the user selected, so Row Count is never appended
+   * automatically.
    */
   rowCount?: boolean;
 

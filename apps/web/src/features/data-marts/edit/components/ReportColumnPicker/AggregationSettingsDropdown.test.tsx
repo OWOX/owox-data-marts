@@ -152,7 +152,7 @@ describe('AggregationSettingsDropdown chips', () => {
     expect(screen.getByText('No aggregatable columns.')).toBeInTheDocument();
   });
 
-  it('does not render a Row Count toggle — Row Count is automatic for aggregated reports', () => {
+  it('does not render a Row Count toggle or hint — Row Count is no longer added to reports', () => {
     render(
       <AggregationSettingsDropdown
         value={EMPTY_CONFIG}
@@ -165,40 +165,12 @@ describe('AggregationSettingsDropdown chips', () => {
     expect(screen.queryByText('Row count')).not.toBeInTheDocument();
   });
 
-  it('shows an automatic Row Count hint when aggregationConfig is non-empty', () => {
+  it('shows no automatic Row Count hint even when aggregationConfig is non-empty', () => {
+    // A report contains only the columns the user selected — nothing is appended, so
+    // there is nothing to hint about.
     const value: OutputConfig = {
       ...EMPTY_CONFIG,
       aggregationConfig: [{ column: 'orders.revenue', function: 'SUM' }],
-    };
-
-    render(
-      <AggregationSettingsDropdown value={value} onChange={() => {}} selectedColumns={[revenue]} />
-    );
-
-    expect(
-      screen.getByText('A Row Count column is included automatically in aggregated reports.')
-    ).toBeInTheDocument();
-  });
-
-  it('does not show the Row Count hint when there are no aggregations', () => {
-    render(
-      <AggregationSettingsDropdown
-        value={EMPTY_CONFIG}
-        onChange={() => {}}
-        selectedColumns={[revenue]}
-      />
-    );
-
-    expect(
-      screen.queryByText('A Row Count column is included automatically in aggregated reports.')
-    ).not.toBeInTheDocument();
-  });
-
-  it('shows the Row Count hint when only a date bucket is set (no aggregation function)', () => {
-    // Regression lock: a lone date bucket makes the report grouped, so Row Count is automatic.
-    const value: OutputConfig = {
-      ...EMPTY_CONFIG,
-      aggregationConfig: [],
       dateTruncConfig: [{ column: 'orders.ordered_at', unit: 'WEEK' }],
     };
 
@@ -206,12 +178,12 @@ describe('AggregationSettingsDropdown chips', () => {
       <AggregationSettingsDropdown
         value={value}
         onChange={() => {}}
-        selectedColumns={[orderedAt]}
+        selectedColumns={[revenue, orderedAt]}
       />
     );
 
     expect(
-      screen.getByText('A Row Count column is included automatically in aggregated reports.')
-    ).toBeInTheDocument();
+      screen.queryByText('A Row Count column is included automatically in aggregated reports.')
+    ).not.toBeInTheDocument();
   });
 });

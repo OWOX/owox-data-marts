@@ -105,7 +105,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await expect(service.compose(report, {} as never)).resolves.toBeDefined();
   });
 
-  it('passes rowCount: true to buildQuery when aggregationConfig is non-empty', async () => {
+  it('passes rowCount: false to buildQuery even when aggregationConfig is non-empty', async () => {
+    // Row Count is opt-in on read plans only; a saved report never projects it.
     const { service, queryBuilderFacade } = createService();
     const report = buildReport({
       columnConfig: ['channel', 'revenue'],
@@ -117,7 +118,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
       'GOOGLE_BIGQUERY',
       expect.anything(),
-      expect.objectContaining({ rowCount: true })
+      expect.objectContaining({ rowCount: false })
     );
   });
 

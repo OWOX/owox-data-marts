@@ -122,17 +122,15 @@ When a joined Data Mart cannot offer the metric, the row is still shown, disable
 | The primary key is a nested field (for example `user.id`) | Unique Count cannot key on a nested field — declare a top-level key instead. |
 | The primary key is nested **and** part of it is disconnected | Both need fixing — a top-level key, all of whose fields are connected. |
 
-## Auto Row Count
+## Counting rows in a group
 
-Whenever a report is aggregated, OWOX automatically adds a **`Row Count`** column (`COUNT(*)`) — the number of underlying rows in each group. There is no toggle; it is included because it is almost always useful when reading aggregated output.
-
-`Row Count` follows the **aggregate functions**, not the grouping. A report whose only metric is a Unique Count — its own Data Mart's or a joined one's — applies no aggregate function, so it gets no `Row Count` column even though it is grouped.
+An aggregated report contains only the columns you select — no `Row Count` column is added on its own. To see how many underlying rows each group stands for, apply the **Count** aggregate function to a column that is always filled (an ID column works well). To count unique entities instead, use a Unique Count.
 
 ## Totals
 
 **Totals** are a per-column summary over the full filtered dataset, with no grouping. Totals cover every selected **numeric** field — aggregated by **all of its allowed functions** (for example `Sum`, `Average`, `Min`, and `Max` of `revenue`) — plus any **non-numeric field the report aggregates as a metric** (for example `Count Unique` on a text `country` column, giving its distinct count). `Sample` (`ANY_VALUE`) and `Combined` (`STRING_AGG`) are **never** part of Totals: a single representative value or a full-column concatenation is not a meaningful grand total. Totals are computed **in the warehouse** by a separate query and returned as a **separate block**, so they stay accurate and are never recomputed from the displayed rows.
 
-Totals are produced even when the report itself is not grouped, and fields from joined Data Marts are included on the same basis (numeric fields automatically; non-numeric ones when the report aggregates them). `Row Count` and `Unique Count` are not part of Totals.
+Totals are produced even when the report itself is not grouped, and fields from joined Data Marts are included on the same basis (numeric fields automatically; non-numeric ones when the report aggregates them). `Unique Count` is not part of Totals.
 
 > ⚠️ Totals are returned in the report **data API** (used by the MCP server and HTTP destinations), not written into Google Sheets or Looker Studio report output.
 
@@ -152,7 +150,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, and Databricks, so the same percentile can differ slightly between storages.
 - A Unique Count — the report's own Data Mart's or a **joined** one's — can be selected as a column and used as a sort column, but not in a filter or as the input to another aggregation.
 - Unique Count ignores rows whose primary key is **empty** — an empty key is not an identity, so such rows are neither counted nor merged together. Declare a primary key only on columns that are genuinely unique and always filled.
-- **Turning on any Unique Count makes the report aggregated.** The remaining selected columns become `GROUP BY` keys, so a report that returned one row per underlying record now returns one row per combination of those columns. That is what makes the count meaningful per group, but it is not announced: unlike an aggregate function, a Unique Count adds no `Row Count` column to show how many records each row now stands for.
+- **Turning on any Unique Count makes the report aggregated.** The remaining selected columns become `GROUP BY` keys, so a report that returned one row per underlying record now returns one row per combination of those columns. That is what makes the count meaningful per group, but it is not announced: the report looks the same while each row now stands for several records.
 - For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).
 - **Totals over joined fields are approximate**, because they re-aggregate the per-join roll-up rather than raw rows: `AVG`/percentiles are unweighted (an average of per-join averages), and a `Count Unique` over a joined **text** field counts distinct rolled-up values (by default a concatenation of the joined rows), not distinct raw values. Totals over the Data Mart's own (native) fields are exact.
 

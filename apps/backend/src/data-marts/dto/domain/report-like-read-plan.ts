@@ -28,9 +28,9 @@ export interface ReportLikeReadPlan {
   dateTruncConfig?: DateTruncConfig;
   uniqueCountConfig?: UniqueCountConfig;
   /**
-   * Explicit opt-out of the automatic `COUNT(*)` Row Count column. When unset, Row Count
-   * is on for any aggregated report. The Totals plan sets this to `false`: Row Count is a
-   * per-group column, not a grand total, so it must not appear in the totals block.
+   * Explicit opt-in to the `COUNT(*)` Row Count column. Off unless a read plan asks for it:
+   * a report must contain only the columns the user selected, so Row Count is not appended
+   * to aggregated reports automatically.
    */
   rowCount?: boolean;
 }
@@ -38,14 +38,13 @@ export interface ReportLikeReadPlan {
 export type ReportLike = Report | ReportLikeReadPlan;
 
 /**
- * Whether the automatic `COUNT(*)` Row Count column should be projected. Defaults to "on
- * for any aggregated report"; a read plan may explicitly opt out via `rowCount: false`
- * (the Totals query does this). Single source so the compose, blended-build, and header
- * paths cannot drift.
+ * Whether the `COUNT(*)` Row Count column should be projected. Only when a read plan
+ * explicitly opts in via `rowCount: true` — never by default: a report must contain only
+ * the columns the user selected. (A saved `Report` carries no `rowCount`, so reports never
+ * project it.) Single source so the compose, blended-build, and header paths cannot drift.
  */
 export function shouldIncludeRowCount(report: ReportLike): boolean {
-  const explicit = 'rowCount' in report ? report.rowCount : undefined;
-  return explicit ?? (report.aggregationConfig?.length ?? 0) > 0;
+  return 'rowCount' in report && report.rowCount === true;
 }
 
 /**

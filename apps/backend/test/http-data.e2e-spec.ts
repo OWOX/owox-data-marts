@@ -60,13 +60,13 @@ const MOCK_ROWS: unknown[][] = [
 let capturedPrepareOptions: Record<string, unknown> | null = null;
 
 // Aggregated result the mock reader returns when a request carries an aggregation: [dimension,
-// metric, Row Count] positional row, matching the [date, "revenue | SUM", "Row Count"] header set.
-const MOCK_AGGREGATED_ROWS: unknown[][] = [['2026-05-01', 999, MOCK_ROWS.length]];
+// metric] positional row, matching the [date, "revenue | SUM"] header set.
+const MOCK_AGGREGATED_ROWS: unknown[][] = [['2026-05-01', 999]];
 
 function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataStorageReportReader {
   // Simulate the real reader's aggregated-header resolution: an aggregation renames each aggregated
-  // column to "<column> | <FN>" and appends Row Count (see resolveReportDataHeaders), so the stream
-  // must project rows by those resolved names, not the raw requested columns.
+  // column to "<column> | <FN>" (see resolveReportDataHeaders; no automatic Row Count), so the
+  // stream must project rows by those resolved names, not the raw requested columns.
   let aggregated = false;
   return {
     type: DataStorageType.GOOGLE_BIGQUERY,
@@ -81,10 +81,7 @@ function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataSt
         const fn = aggregations.find(a => a.column === header.name)?.function;
         return fn ? new ReportDataHeader(`${header.name} | ${fn}`) : header;
       });
-      return new ReportDataDescription(
-        [...renamed, new ReportDataHeader('Row Count')],
-        MOCK_AGGREGATED_ROWS.length
-      );
+      return new ReportDataDescription(renamed, MOCK_AGGREGATED_ROWS.length);
     }),
     readReportDataBatch: jest.fn(
       async () => new ReportDataBatch(aggregated ? MOCK_AGGREGATED_ROWS : rows, null)
@@ -485,11 +482,9 @@ describe('HTTP Data API (e2e)', () => {
         )
         .set(AUTH_HEADER);
       expect(res.status).toBe(200);
-      // The streamed rows carry the resolved aggregated header name and Row Count — the requested
-      // `revenue` column is NOT emitted as a bare (null) key.
-      expect(parseNdjson(res.text)).toEqual([
-        { date: '2026-05-01', 'revenue | SUM': 999, 'Row Count': MOCK_ROWS.length },
-      ]);
+      // The streamed rows carry the resolved aggregated header name — the requested
+      // `revenue` column is NOT emitted as a bare (null) key, and no Row Count is appended.
+      expect(parseNdjson(res.text)).toEqual([{ date: '2026-05-01', 'revenue | SUM': 999 }]);
 
       const after = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
       const httpRuns: HttpRunView[] = (after.body?.runs ?? []).filter(

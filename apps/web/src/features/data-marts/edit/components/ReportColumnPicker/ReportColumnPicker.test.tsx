@@ -662,7 +662,7 @@ describe('ReportColumnPicker aggregation', () => {
       ] as unknown[],
     });
 
-  it('AGG button badge counts aggregation + date-trunc only (Row Count excluded — automatic)', () => {
+  it('AGG button badge counts aggregation + date-trunc rules', () => {
     renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
       storageType: DataStorageType.GOOGLE_BIGQUERY,
       outputConfig: {
@@ -679,7 +679,7 @@ describe('ReportColumnPicker aggregation', () => {
       onOutputConfigChange: () => {},
     });
 
-    // AGG badge = 2 aggregations + 1 date-trunc = 3 (Row Count is automatic, not counted).
+    // AGG badge = 2 aggregations + 1 date-trunc = 3.
     expect(screen.getByLabelText('Aggregations count')).toHaveTextContent('3');
     // Output controls badge counts only the filter (1), NOT aggregation.
     expect(screen.getByLabelText('Output controls count')).toHaveTextContent('1');
@@ -703,7 +703,7 @@ describe('ReportColumnPicker aggregation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
     expect(screen.queryByLabelText('Add a Row Count metric')).not.toBeInTheDocument();
 
-    // AGG panel: no row-count toggle (Row Count is automatic).
+    // AGG panel: no row-count toggle (Row Count is never added to reports).
     fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
     expect(screen.queryByLabelText('Add a Row Count metric')).not.toBeInTheDocument();
   });

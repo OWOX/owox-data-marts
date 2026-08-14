@@ -44,7 +44,6 @@ import { computeEffectiveType } from '../data-storage-types/field-aggregation';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
 import { truncateIdentifierToByteLimit } from '../data-storage-types/utils/identifier-limits.utils';
 import {
-  ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
@@ -149,7 +148,7 @@ export type ValidationError =
   // after an MCP-created Google Sheet already exists.
   | { code: 'UNIQUE_COUNT_COLUMN_NOT_PROJECTABLE'; column: string; message: string }
   // Two projected output columns resolve to the SAME output name — a dimension whose name
-  // equals a synthetic label (Row Count / Unique Count / "<col> | TOKEN"), or any
+  // equals a synthetic label (Unique Count / "<col> | TOKEN"), or any
   // two projected columns colliding, INCLUDING a pair that differs only in letter case.
   // Duplicate alias error on BigQuery / silent clobber on name-keyed readers. `label` is the
   // colliding output name.
@@ -506,8 +505,9 @@ export class OutputControlsValidatorService {
    * set mirrors `resolveReportDataHeaders` / `renderAggregatedSelect`: an aggregated column
    * projects one `aggregatedColumnLabel(col, fn)` per function (and NO dimension), a
    * non-aggregated column projects its own name (date-trunc keeps the name), plus the
-   * synthetic `Row Count` (when aggregated), `Unique Count` (when uniqueCount) and one
-   * `<source>__unique_count` per joined source. A real
+   * synthetic `Unique Count` (when uniqueCount) and one
+   * `<source>__unique_count` per joined source. Saved reports never project `Row Count`
+   * (it is opt-in on read plans only), so it is not part of this namespace. A real
    * column whose name equals a synthetic label — or any two projected names that coincide —
    * is a duplicate alias on BigQuery / silent clobber on name-keyed readers. Uses the SAME
    * label helpers the renderer/header-generator use so this can never drift from the SELECT.
@@ -515,7 +515,6 @@ export class OutputControlsValidatorService {
   validateOutputColumnNames(
     projectedColumns: readonly string[],
     aggregations: AggregationRule[],
-    includeRowCount: boolean,
     uniqueCount: boolean,
     joinedUniqueCountLabels: readonly string[] = []
   ): ValidationError[] {
@@ -528,7 +527,6 @@ export class OutputControlsValidatorService {
         for (const fn of fns) names.push(aggregatedColumnLabel(column, fn));
       }
     }
-    if (includeRowCount) names.push(ROW_COUNT_LABEL);
     if (uniqueCount) names.push(UNIQUE_COUNT_LABEL);
     names.push(...joinedUniqueCountLabels);
 
@@ -602,7 +600,7 @@ export class OutputControlsValidatorService {
       // though a plain selection carries no output control — Redshift folds identifiers at read
       // time, and a case-only pair used to persist and fail there.
       if ((args.columnConfig?.length ?? 0) > 0) {
-        this.throwIfInvalid(this.validateOutputColumnNames(args.columnConfig!, [], false, false));
+        this.throwIfInvalid(this.validateOutputColumnNames(args.columnConfig!, [], false));
       }
       return;
     }
@@ -670,8 +668,8 @@ export class OutputControlsValidatorService {
     // Aggregations / date-truncs only project a column that is listed in columnConfig
     // (renderAggregatedSelect iterates the column list); a null/empty projection would
     // silently drop every metric and desync the headers from the SELECT. The MAIN Unique Count
-    // and Row Count are synthetic columns that don't need a projected dimension, so they don't
-    // trigger this requirement on their own.
+    // is a synthetic column that doesn't need a projected dimension, so it doesn't
+    // trigger this requirement on its own.
     if (!hasColumnConfig && (parsedAggregations.length > 0 || parsedDateTruncs.length > 0)) {
       errors.push({ code: 'AGGREGATION_REQUIRES_COLUMN_CONFIG' });
     }
@@ -915,11 +913,10 @@ export class OutputControlsValidatorService {
           }
         }
 
-        // The projected output column names (dimensions + aggregated labels + Row Count +
+        // The projected output column names (dimensions + aggregated labels +
         // Unique Count, main and per joined source) must be unique — a collision is a duplicate
-        // alias on BigQuery / a silent clobber on name-keyed readers. Row Count is automatic for
-        // an aggregated report (the run path appends it; the Totals reader opts out but never
-        // runs this). Mirror resolveReportDataHeaders: a metrics-only report (aggregations /
+        // alias on BigQuery / a silent clobber on name-keyed readers.
+        // Mirror resolveReportDataHeaders: a metrics-only report (aggregations /
         // any Unique Count) with NO explicit projection emits no dimensions, so don't count
         // native names there.
         const joinedUniqueCounts = joinedUniqueCountSources(args.uniqueCountConfig);
@@ -933,7 +930,6 @@ export class OutputControlsValidatorService {
           ...this.validateOutputColumnNames(
             projectedColumns,
             aggregationsToValidate,
-            aggregationsToValidate.length > 0,
             hasMainUniqueCount(args.uniqueCountConfig),
             // `orders__unique_count` is byte-identical to the unified name of a real flat field
             // called `unique_count` on that source — select both and the alias is emitted twice.
