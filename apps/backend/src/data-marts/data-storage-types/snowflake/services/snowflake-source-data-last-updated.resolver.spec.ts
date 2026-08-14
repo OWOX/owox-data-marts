@@ -56,8 +56,8 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       .fn()
       .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.CUSTOMERS'])),
     executeQueryAndFetchAll: jest.fn().mockResolvedValue([
-      { SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 },
-      { SOURCE_TABLE: 'DEV.DLU.CUSTOMERS', LAST_DML_AT: HOUR_AUG_5 },
+      { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+      { SOURCE_TABLE: 'DEV.DLU.CUSTOMERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_5 },
     ]),
     ...overrides,
   });
@@ -78,19 +78,70 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
     const sql = adapter.executeQueryAndFetchAll.mock.calls[0][0] as string;
     expect(sql).toContain('SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY');
     expect(sql).toContain(
-      `(DATABASE_NAME = 'DEV' AND SCHEMA_NAME = 'DLU' AND TABLE_NAME = 'ORDERS')`
+      `(t.TABLE_CATALOG = 'DEV' AND t.TABLE_SCHEMA = 'DLU' AND t.TABLE_NAME = 'ORDERS')`
     );
     expect(sql).toContain(
-      `(DATABASE_NAME = 'DEV' AND SCHEMA_NAME = 'DLU' AND TABLE_NAME = 'CUSTOMERS')`
+      `(t.TABLE_CATALOG = 'DEV' AND t.TABLE_SCHEMA = 'DLU' AND t.TABLE_NAME = 'CUSTOMERS')`
     );
-    expect(sql).toContain('MAX(START_TIME)');
+    expect(sql).toContain('MAX(h.START_TIME)');
+    // Identity, not names: history rows of a dropped-and-recreated table's old generation
+    // must never answer for the current one.
+    expect(sql).toContain('ON h.TABLE_ID = t.TABLE_ID');
+    expect(sql).toContain('t.DELETED IS NULL');
   });
 
-  it('reports a table with no recorded DML as a null source with a note', async () => {
+  it('reports a recreated table by its own generation, not its predecessor', async () => {
+    // The active generation exists in the catalog but has no DML rows of its own; the old
+    // generation's history must not leak in (the ID join guarantees it — the row arrives
+    // with a null time).
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'])),
+        executeQueryAndFetchAll: jest
+          .fn()
+          .mockResolvedValue([
+            { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: null },
+          ]),
+      })
+    );
+
+    expect(result).toMatchObject({ dataLastUpdatedAt: null, coverage: 'unavailable' });
+    expect(result.sources[0]).toMatchObject({
+      table: 'DEV.DLU.ORDERS',
+      dataLastUpdatedAt: null,
+      note: 'no data changes recorded in the last year',
+    });
+  });
+
+  it('reports an unexpanded materialized view as unknown instead of fabricating a time', async () => {
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest
+          .fn()
+          .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.MV_DAILY'])),
+        executeQueryAndFetchAll: jest.fn().mockResolvedValue([
+          { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+          { SOURCE_TABLE: 'DEV.DLU.MV_DAILY', TABLE_TYPE: 'MATERIALIZED VIEW', LAST_DML_AT: null },
+        ]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe(HOUR_AUG_1);
+    expect(result.coverage).toBe('partial');
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        table: 'DEV.DLU.MV_DAILY',
+        dataLastUpdatedAt: null,
+        note: 'materialized view — modification time not measured',
+      })
+    );
+  });
+
+  it('reports a table missing from the account-usage catalog as unknown', async () => {
     const result = await run(
       adapterWith({
         executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.FRESH_TABLE'])),
-        // The view simply has no row for a table without user DML in its retention.
+        // Not in ACCOUNT_USAGE.TABLES yet: newer than the catalog's publishing delay.
         executeQueryAndFetchAll: jest.fn().mockResolvedValue([]),
       })
     );
@@ -99,7 +150,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
     expect(result.sources[0]).toMatchObject({
       table: 'DEV.DLU.FRESH_TABLE',
       dataLastUpdatedAt: null,
-      note: 'no data changes recorded in the last year',
+      note: 'table not found in account usage metadata',
     });
   });
 
@@ -127,7 +178,9 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
           .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.FRESH_TABLE'])),
         executeQueryAndFetchAll: jest
           .fn()
-          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
+          .mockResolvedValue([
+            { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+          ]),
       })
     );
 
@@ -142,9 +195,13 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
     const result = await run(
       adapterWith({
         executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'])),
-        executeQueryAndFetchAll: jest
-          .fn()
-          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: 'not-a-timestamp' }]),
+        executeQueryAndFetchAll: jest.fn().mockResolvedValue([
+          {
+            SOURCE_TABLE: 'DEV.DLU.ORDERS',
+            TABLE_TYPE: 'BASE TABLE',
+            LAST_DML_AT: 'not-a-timestamp',
+          },
+        ]),
       })
     );
 
@@ -195,7 +252,9 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
         }),
         executeQueryAndFetchAll: jest
           .fn()
-          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
+          .mockResolvedValue([
+            { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+          ]),
       })
     );
 
@@ -217,7 +276,9 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'])),
       executeQueryAndFetchAll: jest
         .fn()
-        .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
+        .mockResolvedValue([
+          { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+        ]),
     });
     const { resolver } = createResolver(adapter);
 
@@ -281,7 +342,9 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       }),
       executeQueryAndFetchAll: jest
         .fn()
-        .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
+        .mockResolvedValue([
+          { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+        ]),
     });
     const { resolver } = createResolver(adapter);
 

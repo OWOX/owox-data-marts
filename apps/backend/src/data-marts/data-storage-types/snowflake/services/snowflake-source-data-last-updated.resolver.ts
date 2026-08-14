@@ -33,10 +33,13 @@ import { SnowflakeQueryExplainJsonResponse } from '../interfaces/snowflake-query
  * direction either. TABLE_DML_HISTORY records user DML only — background clustering and
  * maintenance are documented as excluded.
  *
- * All tables of one lookup are answered by a single query over the view; a table without a
- * row simply has no recorded DML within the view's retention. Querying ACCOUNT_USAGE needs
- * the connection role to see the SNOWFLAKE database — without that access, sources honestly
- * degrade to unknown. Per-table conclusions are cached across the batch, and the adapter's
+ * All tables of one lookup are answered by a single query: ACCOUNT_USAGE.TABLES pins the
+ * ACTIVE generation's TABLE_ID (names are reusable across DROP/CREATE OR REPLACE, and the
+ * history keeps dropped generations' rows) and the object kind, then the history joins on
+ * that id. Materialized and secure views the engine did not expand, external tables, and
+ * objects not (yet) visible in the catalog degrade to honest unknowns with notes. Querying
+ * ACCOUNT_USAGE needs the connection role to see the SNOWFLAKE database — without that
+ * access, sources degrade to unknown as well. Per-table conclusions are cached across the batch, and the adapter's
  * dedicated connection is destroyed when the batch ends — Snowflake connections do not clean
  * up after themselves.
  */
@@ -223,24 +226,35 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
     rows: Record<string, unknown>[],
     cache: Map<string, CachedSource>
   ): void {
-    const rawByTable = new Map<string, unknown>(
-      rows.map(row => [String(row.SOURCE_TABLE ?? ''), row.LAST_DML_AT])
+    const rowByTable = new Map<string, Record<string, unknown>>(
+      rows.map(row => [String(row.SOURCE_TABLE ?? ''), row])
     );
 
     for (const table of tables) {
-      const raw = rawByTable.get(table);
+      const row = rowByTable.get(table);
       let time: string | null = null;
       let note: string | undefined;
-      if (raw === undefined || raw === null) {
-        // No row within the view's retention (one year): the table has seen no user DML that
-        // Snowflake still remembers.
+      if (row === undefined) {
+        // Not in the account-usage catalog of live objects: either the table is newer than
+        // the catalog's publishing delay, or it is not a catalog object at all.
+        note = 'table not found in account usage metadata';
+      } else if (String(row.TABLE_TYPE ?? '') !== 'BASE TABLE') {
+        // The EXPLAIN objects list is not contractually base-tables-only: a materialized or
+        // secure view can survive here, and the DML history cannot answer for it (the view
+        // explicitly excludes materialized-view maintenance). An honest unknown with the
+        // object's kind beats a fabricated time.
+        note = `${String(row.TABLE_TYPE ?? 'non-table object').toLowerCase()} — modification time not measured`;
+      } else if (row.LAST_DML_AT === null || row.LAST_DML_AT === undefined) {
+        // A live base table with no recorded user DML within the view's retention (one year).
         note = 'no data changes recorded in the last year';
-      } else if (typeof raw === 'string' && ISO_UTC_RE.test(raw)) {
-        time = raw;
+      } else if (typeof row.LAST_DML_AT === 'string' && ISO_UTC_RE.test(row.LAST_DML_AT)) {
+        time = row.LAST_DML_AT;
       } else {
         // A value came back but in a shape we do not recognise. That is a format drift, not
         // an unchanged table — logged so it surfaces.
-        this.logger.warn(`Unrecognised change history value for ${table}: ${String(raw)}`);
+        this.logger.warn(
+          `Unrecognised change history value for ${table}: ${String(row.LAST_DML_AT)}`
+        );
         note = 'unrecognised change history value';
       }
 
@@ -256,9 +270,12 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
   }
 
   /**
-   * MAX(START_TIME) is the start of the newest hourly window with recorded user DML — a
-   * guaranteed lower bound of the last data change. Rendered to ISO-8601 UTC in SQL so the
-   * driver hands over a deterministic string instead of a timezone-sensitive Date.
+   * The catalog view supplies the ACTIVE generation's TABLE_ID (names can be reused across
+   * DROP/CREATE OR REPLACE, and the history keeps the old generations' rows), plus the object
+   * kind, so non-base-tables are recognised instead of silently unanswered. The history join
+   * then runs on TABLE_ID, never on names. MAX(START_TIME) is the start of the newest hourly
+   * window with recorded user DML — a guaranteed lower bound of the last data change.
+   * Rendered to ISO-8601 UTC in SQL so the driver hands over a deterministic string.
    */
   private buildDmlHistoryQuery(tables: string[]): string {
     const tuples = tables
@@ -266,19 +283,22 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
         const [database, schema, name] = splitFqn(table)!;
         const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
         return (
-          `(DATABASE_NAME = ${quote(database)} AND SCHEMA_NAME = ${quote(schema)} ` +
-          `AND TABLE_NAME = ${quote(name)})`
+          `(t.TABLE_CATALOG = ${quote(database)} AND t.TABLE_SCHEMA = ${quote(schema)} ` +
+          `AND t.TABLE_NAME = ${quote(name)})`
         );
       })
       .join('\n   OR ');
 
     return (
-      `SELECT DATABASE_NAME || '.' || SCHEMA_NAME || '.' || TABLE_NAME AS SOURCE_TABLE,\n` +
-      `       TO_CHAR(CONVERT_TIMEZONE('UTC', MAX(START_TIME)), ` +
+      `SELECT t.TABLE_CATALOG || '.' || t.TABLE_SCHEMA || '.' || t.TABLE_NAME AS SOURCE_TABLE,\n` +
+      `       t.TABLE_TYPE AS TABLE_TYPE,\n` +
+      `       TO_CHAR(CONVERT_TIMEZONE('UTC', MAX(h.START_TIME)), ` +
       `'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"') AS LAST_DML_AT\n` +
-      `FROM SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY\n` +
-      `WHERE ${tuples}\n` +
-      `GROUP BY DATABASE_NAME, SCHEMA_NAME, TABLE_NAME`
+      `FROM SNOWFLAKE.ACCOUNT_USAGE.TABLES t\n` +
+      `LEFT JOIN SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY h ON h.TABLE_ID = t.TABLE_ID\n` +
+      `WHERE t.DELETED IS NULL\n` +
+      `  AND (${tuples})\n` +
+      `GROUP BY 1, 2`
     );
   }
 }
