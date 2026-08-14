@@ -36,7 +36,8 @@ import { SnowflakeQueryExplainJsonResponse } from '../interfaces/snowflake-query
  * All tables of one lookup are answered by a single query: ACCOUNT_USAGE.TABLES pins the
  * ACTIVE generation's TABLE_ID (names are reusable across DROP/CREATE OR REPLACE, and the
  * history keeps dropped generations' rows) and the object kind, then the history joins on
- * that id. Materialized and secure views the engine did not expand, external tables, and
+ * that id. Materialized and secure views the engine did not expand, external tables,
+ * Iceberg tables (whose data can change outside Snowflake, past the DML history), and
  * objects not (yet) visible in the catalog degrade to honest unknowns with notes. Querying
  * ACCOUNT_USAGE needs the connection role to see the SNOWFLAKE database — without that
  * access, sources degrade to unknown as well. Per-table conclusions are cached across the batch, and the adapter's
@@ -244,6 +245,11 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
         // explicitly excludes materialized-view maintenance). An honest unknown with the
         // object's kind beats a fabricated time.
         note = `${String(row.TABLE_TYPE ?? 'non-table object').toLowerCase()} — modification time not measured`;
+      } else if (String(row.IS_ICEBERG ?? '').toUpperCase() === 'YES') {
+        // Iceberg data can change outside Snowflake (external catalogs), so the DML history
+        // may hold only an older Snowflake-side write — reporting it as `complete` would
+        // present that stale write as THE last change. Even a present history row is refused.
+        note = 'iceberg table — modification time not measured';
       } else if (row.LAST_DML_AT === null || row.LAST_DML_AT === undefined) {
         // A live base table with no recorded user DML within the view's retention (one year).
         note = 'no data changes recorded in the last year';
@@ -292,13 +298,14 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
     return (
       `SELECT t.TABLE_CATALOG || '.' || t.TABLE_SCHEMA || '.' || t.TABLE_NAME AS SOURCE_TABLE,\n` +
       `       t.TABLE_TYPE AS TABLE_TYPE,\n` +
+      `       t.IS_ICEBERG AS IS_ICEBERG,\n` +
       `       TO_CHAR(CONVERT_TIMEZONE('UTC', MAX(h.START_TIME)), ` +
       `'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"') AS LAST_DML_AT\n` +
       `FROM SNOWFLAKE.ACCOUNT_USAGE.TABLES t\n` +
       `LEFT JOIN SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY h ON h.TABLE_ID = t.TABLE_ID\n` +
       `WHERE t.DELETED IS NULL\n` +
       `  AND (${tuples})\n` +
-      `GROUP BY 1, 2`
+      `GROUP BY 1, 2, 3`
     );
   }
 }

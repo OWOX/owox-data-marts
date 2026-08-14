@@ -84,6 +84,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       `(t.TABLE_CATALOG = 'DEV' AND t.TABLE_SCHEMA = 'DLU' AND t.TABLE_NAME = 'CUSTOMERS')`
     );
     expect(sql).toContain('MAX(h.START_TIME)');
+    expect(sql).toContain('t.IS_ICEBERG');
     // Identity, not names: history rows of a dropped-and-recreated table's old generation
     // must never answer for the current one.
     expect(sql).toContain('ON h.TABLE_ID = t.TABLE_ID');
@@ -111,6 +112,37 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       dataLastUpdatedAt: null,
       note: 'no data changes recorded in the last year',
     });
+  });
+
+  it('refuses an Iceberg table even when the DML history holds a row for it', async () => {
+    // Iceberg data can change outside Snowflake; a retained Snowflake-side write must not be
+    // presented as THE last change with complete coverage.
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest
+          .fn()
+          .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.ICE_EVENTS'])),
+        executeQueryAndFetchAll: jest.fn().mockResolvedValue([
+          { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+          {
+            SOURCE_TABLE: 'DEV.DLU.ICE_EVENTS',
+            TABLE_TYPE: 'BASE TABLE',
+            IS_ICEBERG: 'YES',
+            LAST_DML_AT: HOUR_AUG_5,
+          },
+        ]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe(HOUR_AUG_1);
+    expect(result.coverage).toBe('partial');
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        table: 'DEV.DLU.ICE_EVENTS',
+        dataLastUpdatedAt: null,
+        note: 'iceberg table — modification time not measured',
+      })
+    );
   });
 
   it('reports an unexpanded materialized view as unknown instead of fabricating a time', async () => {
