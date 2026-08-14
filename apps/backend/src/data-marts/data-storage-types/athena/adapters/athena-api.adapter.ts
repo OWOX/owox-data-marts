@@ -3,6 +3,7 @@ import {
   AthenaClient,
   GetQueryExecutionCommand,
   GetQueryResultsCommand,
+  GetTableMetadataCommand,
   QueryExecutionState,
   StartQueryExecutionCommand,
 } from '@aws-sdk/client-athena';
@@ -11,13 +12,29 @@ import { AthenaCredentials } from '../schemas/athena-credentials.schema';
 import { ResultSetMetadata } from '@aws-sdk/client-athena/dist-types/models/models_0';
 import { GetQueryResultsCommandOutput } from '@aws-sdk/client-athena/dist-types/commands/GetQueryResultsCommand';
 import { SqlParameter } from '../../utils/sql-clause-renderer';
-import { toAthenaExecutionParameters } from './athena-execution-parameters.utils';
+import {
+  inlineAthenaPositionalParams,
+  toAthenaExecutionParameters,
+} from './athena-execution-parameters.utils';
+
+/**
+ * Tuning for the execute-and-poll cycle of a single statement. Defaults preserve the historic
+ * behaviour (1s polling, no cancellation) for the report/read paths; metadata lookups pass a
+ * shorter interval so a handful of tiny catalog queries does not cost seconds of idle waiting.
+ */
+export interface AthenaQueryOptions {
+  pollIntervalMs?: number;
+  /** Stops the polling wait early; the query itself keeps running server-side. */
+  signal?: AbortSignal;
+}
 
 /**
  * Adapter for Athena API operations
  */
 export class AthenaApiAdapter {
   public static readonly ATHENA_QUERY_ERROR_PREFIX = 'Query execution failed:';
+
+  private static readonly DEFAULT_POLL_INTERVAL_MS = 1000;
 
   private readonly logger = new Logger(AthenaApiAdapter.name);
 
@@ -78,10 +95,19 @@ export class AthenaApiAdapter {
    *
    * @param queryExecutionId - Query execution ID to wait for
    */
-  public async waitForQueryToComplete(queryExecutionId: string): Promise<void> {
+  public async waitForQueryToComplete(
+    queryExecutionId: string,
+    options?: AthenaQueryOptions
+  ): Promise<void> {
     if (!queryExecutionId) {
       throw new Error('No query execution ID');
     }
+
+    // Clamped so a zero/negative interval cannot turn this into a busy-loop.
+    const intervalMs = Math.max(
+      1,
+      options?.pollIntervalMs ?? AthenaApiAdapter.DEFAULT_POLL_INTERVAL_MS
+    );
 
     const getQueryExecutionCommand = new GetQueryExecutionCommand({
       QueryExecutionId: queryExecutionId,
@@ -91,7 +117,10 @@ export class AthenaApiAdapter {
 
     do {
       // Wait a bit before checking again
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await this.sleep(intervalMs, options?.signal);
+      if (options?.signal?.aborted) {
+        throw new Error(`Aborted while waiting for query execution ${queryExecutionId}`);
+      }
 
       const response = await this.athenaClient.send(getQueryExecutionCommand);
       status = response.QueryExecution?.Status?.State;
@@ -107,6 +136,22 @@ export class AthenaApiAdapter {
         throw new Error('Query execution was cancelled');
       }
     } while (status !== QueryExecutionState.SUCCEEDED);
+  }
+
+  /** Resolves early (without throwing) when the signal aborts mid-wait. */
+  private async sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return;
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**
@@ -184,6 +229,109 @@ export class AthenaApiAdapter {
     );
 
     await this.waitForQueryToComplete(queryExecutionId);
+  }
+
+  /**
+   * Returns the raw text of `EXPLAIN (TYPE IO, FORMAT JSON) <query>` — Athena's structured
+   * answer to "which tables does this query read", with views already expanded by the planner.
+   * EXPLAIN scans no data, so the call is free on the Athena side.
+   *
+   * Positional params are inlined as literals first: Athena binds ExecutionParameters as
+   * literals anyway (see {@link inlineAthenaPositionalParams}), so the inlined statement is
+   * byte-for-byte what execution would plan, without betting on parameterized EXPLAIN support.
+   */
+  public async getQueryIoPlan(
+    query: string,
+    outputBucket: string,
+    params?: SqlParameter[],
+    options?: AthenaQueryOptions
+  ): Promise<string> {
+    const explainQuery = `EXPLAIN (TYPE IO, FORMAT JSON) ${inlineAthenaPositionalParams(query, params)}`;
+    const rows = await this.executeQueryAndGetRows(explainQuery, outputBucket, options);
+    return rows.map(row => row[0] ?? '').join('\n');
+  }
+
+  /**
+   * Runs a query and returns its result rows as arrays of cell values, with the header row
+   * (Athena repeats the column names as the first row of SELECT results) already dropped.
+   * Intended for small metadata queries, not for report-sized reads.
+   */
+  public async executeQueryAndGetRows(
+    query: string,
+    outputBucket: string,
+    options?: AthenaQueryOptions
+  ): Promise<Array<Array<string | null>>> {
+    const { queryExecutionId } = await this.executeQuery(
+      query,
+      outputBucket,
+      this.getOutputPrefix('athena-data-last-updated')
+    );
+    await this.waitForQueryToComplete(queryExecutionId, options);
+
+    const rows: Array<Array<string | null>> = [];
+    let nextToken: string | undefined;
+    let firstPage = true;
+
+    do {
+      const results = await this.getQueryResults(queryExecutionId, nextToken);
+      const pageRows = (results.ResultSet?.Rows ?? []).map(
+        row => (row.Data ?? []).map(cell => cell.VarCharValue ?? null) as Array<string | null>
+      );
+      // Athena returns the column names as the first row of the first page for SELECT-shaped
+      // results; EXPLAIN output has no such header. Detect it by position, drop it once.
+      if (
+        firstPage &&
+        pageRows.length > 0 &&
+        !query.trimStart().toUpperCase().startsWith('EXPLAIN')
+      ) {
+        pageRows.shift();
+      }
+      firstPage = false;
+      rows.push(...pageRows);
+      nextToken = results.NextToken;
+    } while (nextToken);
+
+    return rows;
+  }
+
+  /**
+   * Reads one table's catalog metadata (type, creation time, parameters) through Athena's own
+   * catalog API — the same information Glue holds, without taking a dependency on the Glue SDK.
+   * Returns null when the table is not found; IAM errors propagate to the caller.
+   */
+  public async getTableMetadata(
+    catalogName: string,
+    database: string,
+    table: string
+  ): Promise<{
+    tableType: string | null;
+    createTime: Date | null;
+    parameters: Record<string, string>;
+  } | null> {
+    try {
+      const response = await this.athenaClient.send(
+        new GetTableMetadataCommand({
+          CatalogName: catalogName,
+          DatabaseName: database,
+          TableName: table,
+        })
+      );
+      const metadata = response.TableMetadata;
+      if (!metadata) {
+        return null;
+      }
+      return {
+        tableType: metadata.TableType ?? null,
+        createTime: metadata.CreateTime ?? null,
+        parameters: (metadata.Parameters ?? {}) as Record<string, string>,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'MetadataException') {
+        // "Table not found" arrives as a MetadataException; that is an answer, not a failure.
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
