@@ -270,6 +270,7 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
   readonly type = DataDestinationType.GOOGLE_CHAT;
 
   private googleChatCredentials?: GoogleChatCredentials;
+  private channelEmailRecipients?: string[];
   private usesEmailDelivery = false;
 
   constructor(
@@ -303,17 +304,21 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
 
     if (parsed.success) {
       this.googleChatCredentials = parsed.data;
+      this.channelEmailRecipients = undefined;
       this.usesEmailDelivery = false;
       return;
     }
 
-    if (!EmailCredentialsSchema.safeParse(resolvedCredentials).success) {
+    const emailCredentials = EmailCredentialsSchema.safeParse(resolvedCredentials);
+    if (!emailCredentials.success) {
       throw new Error(
         'Google Chat destination has neither valid webhook nor channel-email credentials'
       );
     }
 
     // Channel email remains a supported delivery method for existing and new destinations.
+    this.googleChatCredentials = undefined;
+    this.channelEmailRecipients = emailCredentials.data.to;
     this.usesEmailDelivery = true;
     await super.prepareDeliveryCredentials(report);
   }
@@ -321,6 +326,13 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
   protected override async sendRenderedMessage(markdownContent: string): Promise<void> {
     if (this.usesEmailDelivery) {
       await super.sendRenderedMessage(markdownContent);
+      this.executionLogger?.log({
+        type: 'google_chat_sent',
+        deliveryMethod: 'channel_email',
+        destinationId: this.report.dataDestination.id,
+        destinationTitle: this.report.dataDestination.title,
+        recipients: this.channelEmailRecipients,
+      });
       return;
     }
 
@@ -340,6 +352,13 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       dataMartTitle: this.report.dataMart.title,
       reportUrl,
     });
+    const spaceId = new URL(this.googleChatCredentials.webhookUrl).pathname.split('/')[3];
+    const deliveryDetails = {
+      deliveryMethod: 'incoming_webhook',
+      destinationId: this.report.dataDestination.id,
+      destinationTitle: this.report.dataDestination.title,
+      spaceId,
+    } as const;
 
     // Incoming webhooks do not support transactions or rollback. If a later part fails,
     // earlier parts remain delivered, so record each outcome for troubleshooting.
@@ -350,14 +369,18 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
 
       try {
         await this.webhookClient.send(this.googleChatCredentials.webhookUrl, messages[index]);
-        this.executionLogger?.log({
-          type: 'google_chat_part_sent',
-          part: index + 1,
-          totalParts: messages.length,
-        });
+        if (messages.length > 1) {
+          this.executionLogger?.log({
+            type: 'google_chat_part_sent',
+            ...deliveryDetails,
+            part: index + 1,
+            totalParts: messages.length,
+          });
+        }
       } catch (error) {
         this.executionLogger?.log({
           type: 'google_chat_part_failed',
+          ...deliveryDetails,
           part: index + 1,
           totalParts: messages.length,
           deliveredParts: index,
@@ -368,6 +391,7 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
 
     this.executionLogger?.log({
       type: 'google_chat_sent',
+      ...deliveryDetails,
       messageCount: messages.length,
     });
   }

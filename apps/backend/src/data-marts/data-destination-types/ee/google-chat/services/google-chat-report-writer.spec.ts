@@ -31,6 +31,7 @@ describe('GoogleChatReportWriter', () => {
       },
       dataDestination: {
         id: 'destination-1',
+        title: 'Team Chat',
         type: DataDestinationType.GOOGLE_CHAT,
       },
       dataMart: {
@@ -103,13 +104,15 @@ describe('GoogleChatReportWriter', () => {
     expect(eventDispatcher.publishExternal.mock.calls[0][0].name).toBe(
       'google-chat.report.run.successfully'
     );
-    expect(executionLogger.log).toHaveBeenCalledWith({
-      type: 'google_chat_part_sent',
-      part: 1,
-      totalParts: 1,
-    });
+    expect(executionLogger.log).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'google_chat_part_sent' })
+    );
     expect(executionLogger.log).toHaveBeenCalledWith({
       type: 'google_chat_sent',
+      deliveryMethod: 'incoming_webhook',
+      destinationId: 'destination-1',
+      destinationTitle: 'Team Chat',
+      spaceId: 'space-1',
       messageCount: 1,
     });
   });
@@ -128,11 +131,19 @@ describe('GoogleChatReportWriter', () => {
 
     expect(executionLogger.log).toHaveBeenCalledWith({
       type: 'google_chat_part_sent',
+      deliveryMethod: 'incoming_webhook',
+      destinationId: 'destination-1',
+      destinationTitle: 'Team Chat',
+      spaceId: 'space-1',
       part: 1,
       totalParts: 2,
     });
     expect(executionLogger.log).toHaveBeenCalledWith({
       type: 'google_chat_part_failed',
+      deliveryMethod: 'incoming_webhook',
+      destinationId: 'destination-1',
+      destinationTitle: 'Team Chat',
+      spaceId: 'space-1',
       part: 2,
       totalParts: 2,
       deliveredParts: 1,
@@ -143,7 +154,7 @@ describe('GoogleChatReportWriter', () => {
   });
 
   it('delivers through the Google Chat channel email when configured', async () => {
-    const { writer, emailProvider, webhookClient } = createWriter({
+    const { writer, emailProvider, webhookClient, executionLogger } = createWriter({
       type: 'email-credentials',
       to: ['space@example.com'],
     });
@@ -157,6 +168,13 @@ describe('GoogleChatReportWriter', () => {
       expect.any(String)
     );
     expect(webhookClient.send).not.toHaveBeenCalled();
+    expect(executionLogger.log).toHaveBeenCalledWith({
+      type: 'google_chat_sent',
+      deliveryMethod: 'channel_email',
+      destinationId: 'destination-1',
+      destinationTitle: 'Team Chat',
+      recipients: ['space@example.com'],
+    });
   });
 
   it('reports invalid Google Chat credentials without an email-specific error', async () => {

@@ -1,7 +1,14 @@
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@owox/ui/components/form';
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@owox/ui/components/form';
 import { Textarea } from '@owox/ui/components/textarea';
 import { type UseFormReturn, type Path, type FieldPathValue } from 'react-hook-form';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { type DataDestinationFormData } from '../../../shared';
 
 const EMAILS_FIELD_PATH = 'credentials.to' as Path<DataDestinationFormData>;
@@ -99,9 +106,11 @@ function EmailTextarea({
 export function EmailFields({
   form,
   emailsFieldTitle = DEFAULT_EMAILS_FIELD_TITLE, // default param instead of nullish coalescing
+  description,
 }: {
   form: UseFormReturn<DataDestinationFormData>;
   emailsFieldTitle?: string;
+  description?: ReactNode;
 }) {
   return (
     <FormField
@@ -115,6 +124,7 @@ export function EmailFields({
           <FormControl>
             <EmailTextarea field={field} form={form} />
           </FormControl>
+          {description && <FormDescription>{description}</FormDescription>}
           <FormMessage />
         </FormItem>
       )}

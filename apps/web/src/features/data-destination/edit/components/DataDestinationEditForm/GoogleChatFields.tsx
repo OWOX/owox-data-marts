@@ -12,6 +12,9 @@ import { useEffect } from 'react';
 import { type FieldPathValue, type Path, type UseFormReturn } from 'react-hook-form';
 import { type DataDestinationFormData } from '../../../shared';
 import { EmailFields } from './EmailFields';
+import GoogleChatChannelEmailDescription from './FormDescriptions/GoogleChatChannelEmailDescription';
+import GoogleChatDeliveryMethodDescription from './FormDescriptions/GoogleChatDeliveryMethodDescription';
+import GoogleChatWebhookDescription from './FormDescriptions/GoogleChatWebhookDescription';
 
 const WEBHOOK_FIELD_PATH = 'credentials.webhookUrl' as Path<DataDestinationFormData>;
 const DELIVERY_METHOD_FIELD_PATH = 'credentials.deliveryMethod' as Path<DataDestinationFormData>;
@@ -57,9 +60,7 @@ export function GoogleChatFields({ form }: { form: UseFormReturn<DataDestination
           </Tabs>
         </div>
         <FormDescription>
-          {deliveryMethod === 'webhook'
-            ? 'Sends the report directly to the space as formatted Google Chat messages.'
-            : 'Sends the report by email to the Google Chat space address.'}
+          <GoogleChatDeliveryMethodDescription deliveryMethod={deliveryMethod} />
         </FormDescription>
       </FormItem>
 
@@ -83,12 +84,19 @@ export function GoogleChatFields({ form }: { form: UseFormReturn<DataDestination
                   }
                 />
               </FormControl>
+              <FormDescription>
+                <GoogleChatWebhookDescription />
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
       ) : (
-        <EmailFields form={form} emailsFieldTitle='Enter Google Chat channel emails list' />
+        <EmailFields
+          form={form}
+          emailsFieldTitle='Enter Google Chat channel emails list'
+          description={<GoogleChatChannelEmailDescription />}
+        />
       )}
     </div>
   );

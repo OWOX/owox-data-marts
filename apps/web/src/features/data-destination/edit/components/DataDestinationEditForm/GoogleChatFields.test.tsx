@@ -58,9 +58,10 @@ describe('GoogleChatFields', () => {
       'data-state',
       'active'
     );
-    expect(
-      screen.getByText('Sends the report by email to the Google Chat space address.')
-    ).toBeInTheDocument();
+    expect(screen.getByText('How does Channel Email delivery work?')).toBeInTheDocument();
+    expect(screen.queryByText('How does Incoming Webhook delivery work?')).not.toBeInTheDocument();
+    expect(screen.getByText('How do I get a Google Chat space email address?')).toBeInTheDocument();
+    expect(screen.queryByText('How do I get an incoming webhook URL?')).not.toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('space@example.com');
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -83,9 +84,12 @@ describe('GoogleChatFields', () => {
         'active'
       );
     });
+    expect(screen.getByText('How does Incoming Webhook delivery work?')).toBeInTheDocument();
+    expect(screen.queryByText('How does Channel Email delivery work?')).not.toBeInTheDocument();
+    expect(screen.getByText('How do I get an incoming webhook URL?')).toBeInTheDocument();
     expect(
-      screen.getByText('Sends the report directly to the space as formatted Google Chat messages.')
-    ).toBeInTheDocument();
+      screen.queryByText('How do I get a Google Chat space email address?')
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId('dirty')).toHaveTextContent('false');
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
