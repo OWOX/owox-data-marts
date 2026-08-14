@@ -40,13 +40,12 @@ export class SheetValuesFormatter {
       }))
       .filter(item => item.formatter);
 
-    if (columnsToFormat.length > 0) {
-      rows.forEach(row => {
-        columnsToFormat.forEach(({ index, formatter }) => {
-          row[index] = formatter!(row[index], sheetTimeZone);
-        });
+    rows.forEach(row => {
+      columnsToFormat.forEach(({ index, formatter }) => {
+        row[index] = formatter!(row[index], sheetTimeZone);
       });
-    }
+      this.escapeLeadingPlus(row);
+    });
 
     return rows;
   }
@@ -85,15 +84,31 @@ export class SheetValuesFormatter {
       })
       .filter(item => item.formatter);
 
-    if (columnsToFormat.length > 0) {
-      orderedRows.forEach(row => {
-        columnsToFormat.forEach(({ index, formatter }) => {
-          row[index] = formatter!(row[index], sheetTimeZone);
-        });
+    orderedRows.forEach(row => {
+      columnsToFormat.forEach(({ index, formatter }) => {
+        row[index] = formatter!(row[index], sheetTimeZone);
       });
-    }
+      this.escapeLeadingPlus(row);
+    });
 
     return orderedRows;
+  }
+
+  /**
+   * The data write uses `valueInputOption: 'USER_ENTERED'`, which makes Sheets
+   * parse a leading `+` as the start of a formula and render the cell as
+   * `#ERROR! Formula parse error`. A leading apostrophe is the Sheets escape
+   * symbol: the cell shows the original value and the apostrophe itself is not
+   * part of the cell content. Only `+` is escaped — values starting with `=`
+   * intentionally stay untouched so that formulas can be inserted as data.
+   */
+  private escapeLeadingPlus(row: unknown[]): void {
+    for (let i = 0; i < row.length; i++) {
+      const value = row[i];
+      if (typeof value === 'string' && value.startsWith('+')) {
+        row[i] = `'${value}`;
+      }
+    }
   }
 
   private formatTimestamp(value: unknown, sheetTimeZone: string): unknown {
