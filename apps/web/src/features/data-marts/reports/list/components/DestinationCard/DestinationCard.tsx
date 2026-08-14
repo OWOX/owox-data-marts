@@ -48,6 +48,8 @@ const reportDestinationTypes = [
   DataDestinationType.GOOGLE_CHAT,
 ];
 
+type ReportCreationDialog = 'publish' | 'setup';
+
 /**
  * Returns stats for a destination: report count and total Google Sheets destinations.
  */
@@ -79,7 +81,8 @@ export function DestinationCard({
   onReviewDataSetup,
 }: DestinationCardProps) {
   const { destinationInfo, isVisible } = useDataDestinationVisibility(destination);
-  const [dialog, setDialog] = useState<'publish' | 'setup' | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogContent, setDialogContent] = useState<ReportCreationDialog>('setup');
   const [isPublishing, setIsPublishing] = useState(false);
 
   // Modal state and handlers for creating/editing reports
@@ -102,7 +105,8 @@ export function DestinationCard({
       return;
     }
 
-    setDialog(canPublish ? 'publish' : 'setup');
+    setDialogContent(canPublish ? 'publish' : 'setup');
+    setIsDialogOpen(true);
   }, [canPublish, handleAddReport, isDraft]);
 
   const handlePublishAndCreateReport = useCallback(async () => {
@@ -111,7 +115,7 @@ export function DestinationCard({
     setIsPublishing(true);
     const published = await onPublishDataMart().catch(() => false);
     setIsPublishing(false);
-    setDialog(null);
+    setIsDialogOpen(false);
 
     if (published) {
       handleAddReport();
@@ -119,7 +123,7 @@ export function DestinationCard({
   }, [handleAddReport, onPublishDataMart]);
 
   const handleReviewDataSetup = useCallback(() => {
-    setDialog(null);
+    setIsDialogOpen(false);
     onReviewDataSetup?.();
   }, [onReviewDataSetup]);
 
@@ -178,35 +182,42 @@ export function DestinationCard({
       />
 
       <AlertDialog
-        open={dialog !== null}
+        open={isDialogOpen}
         onOpenChange={open => {
-          if (!open && !isPublishing) setDialog(null);
+          if (!open && !isPublishing) setIsDialogOpen(false);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {dialog === 'publish'
+              {dialogContent === 'publish'
                 ? 'Publish Data Mart to create a report?'
                 : 'Complete Data Mart setup first'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {dialog === 'publish'
+              {dialogContent === 'publish'
                 ? 'Reports are available only for published Data Marts. We’ll open the new report form when publishing is complete.'
-                : requiredSetupActions.length > 0
-                  ? `Complete the required setup before publishing this Data Mart and creating a report: ${requiredSetupActions.join(', ')}.`
-                  : 'Complete the required setup before publishing this Data Mart and creating a report.'}
+                : requiredSetupActions.length === 1
+                  ? `Before creating a report, ${requiredSetupActions[0]}.`
+                  : 'Before creating a report the required setup is needed:'}
             </AlertDialogDescription>
+            {dialogContent === 'setup' && requiredSetupActions.length > 1 && (
+              <ul className='text-muted-foreground list-disc space-y-0.5 pl-5 text-sm'>
+                {requiredSetupActions.map(action => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            )}
           </AlertDialogHeader>
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
-            {dialog === 'publish' ? (
+            {dialogContent === 'publish' ? (
               <Button onClick={() => void handlePublishAndCreateReport()} disabled={isPublishing}>
                 {isPublishing ? 'Publishing…' : 'Publish and create report'}
               </Button>
             ) : (
-              <Button onClick={handleReviewDataSetup}>Review Data Setup</Button>
+              <Button onClick={handleReviewDataSetup}>Open Data Setup</Button>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>

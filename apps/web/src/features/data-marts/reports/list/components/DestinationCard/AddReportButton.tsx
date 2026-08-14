@@ -6,8 +6,8 @@ interface AddReportButtonProps {
 }
 
 /**
- * Add Report Button component with conditional rendering and tooltip
- * Only shows for Google Sheets destinations with proper validation
+ * Button that triggers report creation.
+ * Destination-type filtering and visibility are handled by the parent DestinationCard.
  */
 export function AddReportButton({ onAddReport }: AddReportButtonProps) {
   return (
