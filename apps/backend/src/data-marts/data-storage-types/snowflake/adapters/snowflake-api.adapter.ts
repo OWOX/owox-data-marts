@@ -191,10 +191,13 @@ export class SnowflakeApiAdapter {
    * Executes a dry run query to validate SQL syntax
    * Uses EXPLAIN to validate without executing
    */
-  public async executeDryRunQuery(query: string): Promise<SnowflakeQueryExplainJsonResponse> {
+  public async executeDryRunQuery(
+    query: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<SnowflakeQueryExplainJsonResponse> {
     const cleanQuery = query.trim().endsWith(';') ? query.trim().slice(0, -1) : query.trim();
     const explainQuery = `EXPLAIN USING JSON (${cleanQuery});`;
-    const { rows } = await this.executeQuery(explainQuery, false);
+    const { rows } = await this.executeQuery(explainQuery, false, undefined, options?.signal);
 
     if (!rows || rows.length === 0) {
       throw new Error('Failed to get explain result');

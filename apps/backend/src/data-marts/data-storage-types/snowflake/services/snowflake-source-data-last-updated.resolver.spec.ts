@@ -19,9 +19,9 @@ const explainPlan = (...objects: string[][]) => ({
   ],
 });
 
-/** Epoch nanoseconds, the unit SYSTEM$LAST_CHANGE_COMMIT_TIME reports. */
-const NANOS_AUG_1 = Date.parse('2026-08-01T10:00:00.000Z') * 1_000_000;
-const NANOS_AUG_5 = Date.parse('2026-08-05T08:30:00.000Z') * 1_000_000;
+/** Start-of-hour ISO strings, the shape the TABLE_DML_HISTORY query renders in SQL. */
+const HOUR_AUG_1 = '2026-08-01T10:00:00.000Z';
+const HOUR_AUG_5 = '2026-08-05T08:00:00.000Z';
 
 describe('SnowflakeSourceDataLastUpdatedResolver', () => {
   const storage = {
@@ -56,54 +56,42 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       .fn()
       .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.CUSTOMERS'])),
     executeQueryAndFetchAll: jest.fn().mockResolvedValue([
-      { SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: NANOS_AUG_1 },
-      { SOURCE_TABLE: 'DEV.DLU.CUSTOMERS', LAST_CHANGE: NANOS_AUG_5 },
+      { SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 },
+      { SOURCE_TABLE: 'DEV.DLU.CUSTOMERS', LAST_DML_AT: HOUR_AUG_5 },
     ]),
     ...overrides,
   });
 
-  it('reports the newest change commit time across all scanned tables', async () => {
+  it('reports the newest DML window start across all scanned tables', async () => {
     const result = await run(adapterWith());
 
-    expect(result.dataLastUpdatedAt).toBe('2026-08-05T08:30:00.000Z');
+    expect(result.dataLastUpdatedAt).toBe(HOUR_AUG_5);
     expect(result.coverage).toBe('complete');
     expect(result.sources.map(s => s.table)).toEqual(['DEV.DLU.ORDERS', 'DEV.DLU.CUSTOMERS']);
   });
 
-  it('measures all tables of one lookup in a single query with quoted identifiers', async () => {
+  it('measures all tables of one lookup in a single query over the history view', async () => {
     const adapter = adapterWith();
     await run(adapter);
 
     expect(adapter.executeQueryAndFetchAll).toHaveBeenCalledTimes(1);
     const sql = adapter.executeQueryAndFetchAll.mock.calls[0][0] as string;
-    expect(sql).toContain(`SYSTEM$LAST_CHANGE_COMMIT_TIME('"DEV"."DLU"."ORDERS"')`);
-    expect(sql).toContain(`SYSTEM$LAST_CHANGE_COMMIT_TIME('"DEV"."DLU"."CUSTOMERS"')`);
-    expect(sql).toContain('UNION ALL');
-  });
-
-  it('accepts commit times handed over as strings', async () => {
-    const result = await run(
-      adapterWith({
-        executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'])),
-        executeQueryAndFetchAll: jest
-          .fn()
-          .mockResolvedValue([
-            { SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: String(NANOS_AUG_1) },
-          ]),
-      })
+    expect(sql).toContain('SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY');
+    expect(sql).toContain(
+      `(DATABASE_NAME = 'DEV' AND SCHEMA_NAME = 'DLU' AND TABLE_NAME = 'ORDERS')`
     );
-
-    expect(result.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
-    expect(result.coverage).toBe('complete');
+    expect(sql).toContain(
+      `(DATABASE_NAME = 'DEV' AND SCHEMA_NAME = 'DLU' AND TABLE_NAME = 'CUSTOMERS')`
+    );
+    expect(sql).toContain('MAX(START_TIME)');
   });
 
-  it('reports a table with no recorded changes as a null source with a note', async () => {
+  it('reports a table with no recorded DML as a null source with a note', async () => {
     const result = await run(
       adapterWith({
         executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.FRESH_TABLE'])),
-        executeQueryAndFetchAll: jest
-          .fn()
-          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.FRESH_TABLE', LAST_CHANGE: 0 }]),
+        // The view simply has no row for a table without user DML in its retention.
+        executeQueryAndFetchAll: jest.fn().mockResolvedValue([]),
       })
     );
 
@@ -111,54 +99,81 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
     expect(result.sources[0]).toMatchObject({
       table: 'DEV.DLU.FRESH_TABLE',
       dataLastUpdatedAt: null,
-      note: 'no data changes recorded',
+      note: 'no data changes recorded in the last year',
     });
   });
 
-  it('flags an unrecognised commit time value distinctly from an unchanged table', async () => {
+  it('marks a name it cannot split into a database.schema.table triple, without querying', async () => {
+    const executeQueryAndFetchAll = jest.fn();
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['"Weird.Db".DLU.ORDERS'])),
+        executeQueryAndFetchAll,
+      })
+    );
+
+    expect(executeQueryAndFetchAll).not.toHaveBeenCalled();
+    expect(result.sources[0]).toMatchObject({
+      dataLastUpdatedAt: null,
+      note: 'cannot identify the source table name',
+    });
+  });
+
+  it('keeps the resolved time next to an unchanged table, flagged as partial', async () => {
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest
+          .fn()
+          .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.FRESH_TABLE'])),
+        executeQueryAndFetchAll: jest
+          .fn()
+          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe(HOUR_AUG_1);
+    expect(result.coverage).toBe('partial');
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({ table: 'DEV.DLU.FRESH_TABLE', dataLastUpdatedAt: null })
+    );
+  });
+
+  it('flags an unrecognised history value distinctly from an unchanged table', async () => {
     const result = await run(
       adapterWith({
         executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'])),
         executeQueryAndFetchAll: jest
           .fn()
-          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: 'not-a-number' }]),
+          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: 'not-a-timestamp' }]),
       })
     );
 
     expect(result.sources[0]).toMatchObject({
       table: 'DEV.DLU.ORDERS',
       dataLastUpdatedAt: null,
-      note: 'unrecognised change commit time value',
+      note: 'unrecognised change history value',
     });
   });
 
-  it('falls back to per-table queries when the batched query fails', async () => {
-    const executeQueryAndFetchAll = jest.fn(async (sql: string) => {
-      if (sql.includes('UNION ALL')) throw new Error('Object does not exist: BROKEN');
-      if (sql.includes('"BROKEN"')) throw new Error('Object does not exist: BROKEN');
-      return [{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: NANOS_AUG_1 }];
-    });
+  it('marks every asked table as unknown when the history view is unreachable', async () => {
+    // The classic cause: the connection role has no access to the SNOWFLAKE database.
     const result = await run(
       adapterWith({
-        executeDryRunQuery: jest
+        executeQueryAndFetchAll: jest
           .fn()
-          .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.BROKEN'])),
-        executeQueryAndFetchAll,
+          .mockRejectedValue(new Error("Database 'SNOWFLAKE' does not exist or not authorized")),
       })
     );
 
-    // One broken table degrades itself, not its neighbours.
-    expect(result.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
-    expect(result.coverage).toBe('partial');
+    expect(result).toMatchObject({ dataLastUpdatedAt: null, coverage: 'unavailable' });
+    expect(result.sources).toHaveLength(2);
     expect(result.sources).toContainEqual(
       expect.objectContaining({
-        table: 'DEV.DLU.BROKEN',
+        table: 'DEV.DLU.ORDERS',
         dataLastUpdatedAt: null,
-        note: 'could not read change commit time',
+        note: 'could not read table change history',
       })
     );
-    // Batched attempt first, then one retry per table.
-    expect(executeQueryAndFetchAll).toHaveBeenCalledTimes(3);
   });
 
   it('reports unavailable when the plan contains no scanned objects', async () => {
@@ -180,7 +195,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
         }),
         executeQueryAndFetchAll: jest
           .fn()
-          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: NANOS_AUG_1 }]),
+          .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
       })
     );
 
@@ -194,7 +209,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
 
     // The broken item's key is simply absent ("no new information"); the healthy one resolves.
     expect(results.has('dm-broken')).toBe(false);
-    expect(results.get('dm-ok')?.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
+    expect(results.get('dm-ok')?.dataLastUpdatedAt).toBe(HOUR_AUG_1);
   });
 
   it('measures each table once per batch, not once per item', async () => {
@@ -202,7 +217,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       executeDryRunQuery: jest.fn().mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'])),
       executeQueryAndFetchAll: jest
         .fn()
-        .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: NANOS_AUG_1 }]),
+        .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
     });
     const { resolver } = createResolver(adapter);
 
@@ -215,7 +230,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
     });
 
     expect(results.size).toBe(2);
-    expect(results.get('dm-2')?.dataLastUpdatedAt).toBe('2026-08-01T10:00:00.000Z');
+    expect(results.get('dm-2')?.dataLastUpdatedAt).toBe(HOUR_AUG_1);
     // The expensive per-table lookup ran once for the whole sweep.
     expect(adapter.executeQueryAndFetchAll).toHaveBeenCalledTimes(1);
   });
@@ -266,7 +281,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
       }),
       executeQueryAndFetchAll: jest
         .fn()
-        .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_CHANGE: NANOS_AUG_1 }]),
+        .mockResolvedValue([{ SOURCE_TABLE: 'DEV.DLU.ORDERS', LAST_DML_AT: HOUR_AUG_1 }]),
     });
     const { resolver } = createResolver(adapter);
 

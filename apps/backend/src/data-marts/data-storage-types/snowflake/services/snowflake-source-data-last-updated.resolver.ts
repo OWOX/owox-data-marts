@@ -19,18 +19,26 @@ import { SnowflakeQueryExplainJsonResponse } from '../interfaces/snowflake-query
  * Snowflake answers "which tables does this query read" through `EXPLAIN USING JSON` — the
  * compiler expands views down to base-table scans and reports every scanned object as a
  * fully-qualified name — and "when did the data change" through
- * `SYSTEM$LAST_CHANGE_COMMIT_TIME`, which moves ONLY on DML.
+ * `SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY`: the START_TIME of the newest hourly window
+ * with recorded user DML. That start-of-hour is a documented LOWER bound of the last data
+ * change, which is exactly the direction the schema contract requires ("at least as recent
+ * as"); the price is hourly granularity and the view's publishing delay of up to ~6 hours.
  *
- * That function is chosen deliberately over the tempting `INFORMATION_SCHEMA.TABLES`
- * timestamps: `LAST_ALTERED` also moves on DDL and background maintenance ("even when no rows
- * are affected"), so it can be NEWER than the last data change — which the `partial` contract
- * ("at least as recent as") forbids reporting. The commit time is documented as approximate
- * (clock precision and skew), but it never lies semantically: only writes move it.
+ * The tempting alternatives both fail the contract, in opposite ways.
+ * `INFORMATION_SCHEMA.TABLES.LAST_ALTERED` also moves on DDL and background maintenance
+ * ("even when no rows are affected"), so it can sit NEWER than the last data change.
+ * `SYSTEM$LAST_CHANGE_COMMIT_TIME` looks perfect — it moves on DML only — but Snowflake
+ * defines it as a change-detection token with undocumented precision and skew, explicitly
+ * discouraging its use as a timestamp; without a bound, it cannot promise the lower-bound
+ * direction either. TABLE_DML_HISTORY records user DML only — background clustering and
+ * maintenance are documented as excluded.
  *
- * All tables of one lookup are measured in a single UNION ALL query; a failed batch retries
- * per table so one broken object (an external table, a permission gap) degrades only itself.
- * Per-table conclusions are cached across the batch, and the adapter's dedicated connection is
- * destroyed when the batch ends — Snowflake connections do not clean up after themselves.
+ * All tables of one lookup are answered by a single query over the view; a table without a
+ * row simply has no recorded DML within the view's retention. Querying ACCOUNT_USAGE needs
+ * the connection role to see the SNOWFLAKE database — without that access, sources honestly
+ * degrade to unknown. Per-table conclusions are cached across the batch, and the adapter's
+ * dedicated connection is destroyed when the batch ends — Snowflake connections do not clean
+ * up after themselves.
  */
 @Injectable()
 export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpdatedResolver {
@@ -96,7 +104,7 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
   ): Promise<SourceDataLastUpdated> {
     const computedAt = new Date().toISOString();
 
-    const plan = await adapter.executeDryRunQuery(item.sql);
+    const plan = await adapter.executeDryRunQuery(item.sql, { signal });
     const tables = collectScannedObjects(plan);
 
     if (tables.length === 0) {
@@ -141,7 +149,11 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
 
     // ISO-8601 UTC strings sort lexicographically in chronological order, so a plain max works.
     const dataLastUpdatedAt = resolvedTimes.reduce((a, b) => (a > b ? a : b));
-    const isPartial = anyFailed || resolvedTimes.length < sources.length;
+    // `sources.length < tables.length` covers an abort that lands between EXPLAIN and the
+    // measurement: earlier items' cached tables would otherwise report `complete` over a
+    // truncated source set.
+    const isPartial =
+      anyFailed || resolvedTimes.length < sources.length || sources.length < tables.length;
 
     return {
       dataLastUpdatedAt,
@@ -152,11 +164,10 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
   }
 
   /**
-   * One UNION ALL query answers the change commit time for every table of this lookup — each
-   * statement is a full driver round trip, so per-table queries would multiply latency for
-   * nothing. A failed batch retries per table, confining the damage to the table that caused
-   * it (an external table the function rejects, a permission gap, a table dropped since the
-   * EXPLAIN).
+   * One query over TABLE_DML_HISTORY answers every table of this lookup. There is no
+   * per-table failure mode to isolate — a table without a row simply has no recorded DML —
+   * so a query failure (typically the role not seeing the SNOWFLAKE database) marks every
+   * asked table as unknown at once.
    */
   private async measureTables(
     adapter: SnowflakeApiAdapter,
@@ -164,65 +175,73 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
     cache: Map<string, CachedSource>,
     signal?: AbortSignal
   ): Promise<void> {
+    // Names that do not split into a clean DATABASE.SCHEMA.TABLE triple (quoted segments,
+    // embedded dots) cannot be matched against the history view's name columns; asking for
+    // the rest must not silently drop them.
+    const identified = tables.filter(table => splitFqn(table) !== null);
+    for (const table of tables) {
+      if (splitFqn(table) === null) {
+        cache.set(table, {
+          entry: {
+            table,
+            dataLastUpdatedAt: null,
+            note: 'cannot identify the source table name',
+          },
+          failed: false,
+        });
+      }
+    }
+    if (identified.length === 0) {
+      return;
+    }
+
     try {
-      const rows = await adapter.executeQueryAndFetchAll(this.buildCommitTimeQuery(tables), {
+      const rows = await adapter.executeQueryAndFetchAll(this.buildDmlHistoryQuery(identified), {
         signal,
       });
-      this.applyCommitTimeRows(tables, rows, cache);
+      this.applyDmlHistoryRows(identified, rows, cache);
     } catch (error) {
       if (signal?.aborted) {
         throw error;
       }
-      if (tables.length === 1) {
-        this.markFailed(tables[0], cache, error);
-        return;
-      }
-      this.logger.warn(
-        `Batched change commit time query failed; retrying per table: ${errorText(error)}`
-      );
-      for (const table of tables) {
-        if (signal?.aborted) {
-          throw error;
-        }
-        try {
-          const rows = await adapter.executeQueryAndFetchAll(this.buildCommitTimeQuery([table]), {
-            signal,
-          });
-          this.applyCommitTimeRows([table], rows, cache);
-        } catch (tableError) {
-          if (signal?.aborted) {
-            throw tableError;
-          }
-          this.markFailed(table, cache, tableError);
-        }
+      this.logger.warn(`Failed to read table change history: ${errorText(error)}`);
+      for (const table of identified) {
+        cache.set(table, {
+          entry: {
+            table,
+            dataLastUpdatedAt: null,
+            note: 'could not read table change history',
+          },
+          failed: true,
+        });
       }
     }
   }
 
-  private applyCommitTimeRows(
+  private applyDmlHistoryRows(
     tables: string[],
     rows: Record<string, unknown>[],
     cache: Map<string, CachedSource>
   ): void {
     const rawByTable = new Map<string, unknown>(
-      rows.map(row => [String(row.SOURCE_TABLE ?? ''), row.LAST_CHANGE])
+      rows.map(row => [String(row.SOURCE_TABLE ?? ''), row.LAST_DML_AT])
     );
 
     for (const table of tables) {
       const raw = rawByTable.get(table);
-      const time = nanosEpochToIsoUtc(raw);
+      let time: string | null = null;
       let note: string | undefined;
-      if (time === null) {
-        if (raw === null || raw === undefined || Number(raw) === 0) {
-          // The function returns 0 for a table with no recorded changes (typically one that
-          // has never seen DML within the retention of its change metadata).
-          note = 'no data changes recorded';
-        } else {
-          // A value came back but in a shape we do not recognise. That is a format drift, not
-          // an unchanged table — logged so it surfaces.
-          this.logger.warn(`Unrecognised change commit time for ${table}: ${String(raw)}`);
-          note = 'unrecognised change commit time value';
-        }
+      if (raw === undefined || raw === null) {
+        // No row within the view's retention (one year): the table has seen no user DML that
+        // Snowflake still remembers.
+        note = 'no data changes recorded in the last year';
+      } else if (typeof raw === 'string' && ISO_UTC_RE.test(raw)) {
+        time = raw;
+      } else {
+        // A value came back but in a shape we do not recognise. That is a format drift, not
+        // an unchanged table — logged so it surfaces.
+        this.logger.warn(`Unrecognised change history value for ${table}: ${String(raw)}`);
+        note = 'unrecognised change history value';
       }
 
       cache.set(table, {
@@ -236,30 +255,49 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
     }
   }
 
-  private markFailed(table: string, cache: Map<string, CachedSource>, error: unknown): void {
-    this.logger.warn(`Failed to read change commit time for ${table}: ${errorText(error)}`);
-    cache.set(table, {
-      entry: {
-        table,
-        dataLastUpdatedAt: null,
-        note: 'could not read change commit time',
-      },
-      failed: true,
-    });
-  }
-
-  private buildCommitTimeQuery(tables: string[]): string {
-    return tables
+  /**
+   * MAX(START_TIME) is the start of the newest hourly window with recorded user DML — a
+   * guaranteed lower bound of the last data change. Rendered to ISO-8601 UTC in SQL so the
+   * driver hands over a deterministic string instead of a timezone-sensitive Date.
+   */
+  private buildDmlHistoryQuery(tables: string[]): string {
+    const tuples = tables
       .map(table => {
-        const keyLiteral = table.replace(/'/g, "''");
-        const argumentLiteral = quotedFqnArgument(table).replace(/'/g, "''");
+        const [database, schema, name] = splitFqn(table)!;
+        const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
         return (
-          `SELECT '${keyLiteral}' AS SOURCE_TABLE, ` +
-          `SYSTEM$LAST_CHANGE_COMMIT_TIME('${argumentLiteral}') AS LAST_CHANGE`
+          `(DATABASE_NAME = ${quote(database)} AND SCHEMA_NAME = ${quote(schema)} ` +
+          `AND TABLE_NAME = ${quote(name)})`
         );
       })
-      .join('\nUNION ALL\n');
+      .join('\n   OR ');
+
+    return (
+      `SELECT DATABASE_NAME || '.' || SCHEMA_NAME || '.' || TABLE_NAME AS SOURCE_TABLE,\n` +
+      `       TO_CHAR(CONVERT_TIMEZONE('UTC', MAX(START_TIME)), ` +
+      `'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"') AS LAST_DML_AT\n` +
+      `FROM SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY\n` +
+      `WHERE ${tuples}\n` +
+      `GROUP BY DATABASE_NAME, SCHEMA_NAME, TABLE_NAME`
+    );
   }
+}
+
+const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+/**
+ * The history view stores plain name columns, so only names that are an unquoted
+ * DATABASE.SCHEMA.TABLE triple can be matched. Anything else returns null.
+ */
+function splitFqn(objectName: string): [string, string, string] | null {
+  if (objectName.includes('"')) {
+    return null;
+  }
+  const parts = objectName.split('.');
+  if (parts.length !== 3 || parts.some(part => part.length === 0)) {
+    return null;
+  }
+  return parts as [string, string, string];
 }
 
 /**
@@ -279,44 +317,6 @@ function collectScannedObjects(plan: SnowflakeQueryExplainJsonResponse): string[
     }
   }
   return [...found];
-}
-
-/**
- * The function takes an identifier inside a string literal, so unquoted segments would be
- * re-resolved case-insensitively. Quoting each segment preserves the exact names the EXPLAIN
- * plan reported; a name that already carries quotes is passed through untouched.
- */
-function quotedFqnArgument(objectName: string): string {
-  if (objectName.includes('"')) {
-    return objectName;
-  }
-  return objectName
-    .split('.')
-    .map(segment => `"${segment}"`)
-    .join('.');
-}
-
-/**
- * `SYSTEM$LAST_CHANGE_COMMIT_TIME` returns epoch NANOseconds as a NUMBER. Values at that
- * magnitude exceed 2^53, so the driver may hand them over as number, string, or bigint —
- * all are accepted; the sub-millisecond tail the float representation may lose is far below
- * this feature's precision. Non-positive values mean "no changes recorded" and map to null.
- */
-function nanosEpochToIsoUtc(value: unknown): string | null {
-  let nanos: number;
-  if (typeof value === 'number') {
-    nanos = value;
-  } else if (typeof value === 'bigint') {
-    nanos = Number(value);
-  } else if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
-    nanos = Number(value.trim());
-  } else {
-    return null;
-  }
-  if (!Number.isFinite(nanos) || nanos <= 0) {
-    return null;
-  }
-  return new Date(Math.floor(nanos / 1_000_000)).toISOString();
 }
 
 /**
