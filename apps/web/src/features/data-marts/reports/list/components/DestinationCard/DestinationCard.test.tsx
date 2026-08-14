@@ -117,7 +117,7 @@ describe('DestinationCard report creation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New Report' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Complete Data Mart setup first');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review Data Setup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Data Setup' }));
     expect(onReviewDataSetup).toHaveBeenCalledOnce();
   });
 });
