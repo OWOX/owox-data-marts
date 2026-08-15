@@ -589,7 +589,7 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Run the Weekly Ads Report now and tell me when it finishes." **(costs credits)**
 - "Export the Ads data mart to a new Google Sheet called 'Weekly Ads Report' and tell me when the initial run finishes." **(costs credits)**
 - "Create a Looker Studio report from the Sales data mart with all fields."
-- "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'."
+- "Send the daily revenue table to the Alerts Slack destination with the message 'Yesterday's numbers'." **(costs credits; sends immediately)**
 - "Rename that report to 'Q3 Ads Report' and keep only the campaign and spend fields."
 - "Change the subject of the daily Slack report to 'Morning numbers'."
 - "Schedule that report to run every Monday at 9am New York time."

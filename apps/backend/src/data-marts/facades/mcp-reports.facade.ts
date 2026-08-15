@@ -238,7 +238,9 @@ export interface McpReportsFacade {
    * result carries the sheet fields). Looker Studio: creates the report with
    * the default destination settings — no extra input is accepted. Email
    * family (email, Slack, Microsoft Teams, Google Chat): requires `message`;
-   * the send condition is not exposed and defaults to "send always".
+   * the send condition is not exposed and defaults to "send always". Push
+   * destinations queue their first run by default unless `runImmediately` is
+   * false; `initial_run` reports the queue outcome for every created report.
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**

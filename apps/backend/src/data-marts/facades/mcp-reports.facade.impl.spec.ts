@@ -521,6 +521,51 @@ describe('McpReportsFacadeImpl.addReport', () => {
     expect(result.initial_run).toEqual({ status: 'queued', run_id: 'run-1' });
   });
 
+  it.each([
+    [DataDestinationType.EMAIL, 'email'],
+    [DataDestinationType.SLACK, 'slack'],
+    [DataDestinationType.MS_TEAMS, 'teams'],
+    [DataDestinationType.GOOGLE_CHAT, 'google_chat'],
+  ] as const)(
+    'queues the first run by default for the %s email-family destination',
+    async (destinationType, mcpDestinationType) => {
+      const {
+        facade,
+        dataDestinationService,
+        createReportService,
+        getReportService,
+        runReportService,
+      } = createFacade({ reports: [], triggers: [] });
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+        id: 'dest-1',
+        type: destinationType,
+      } as never);
+      createReportService.run.mockResolvedValue({
+        id: 'report-1',
+        createdByUser: { email: 'ann@owox.com' },
+      } as unknown as ReportDto);
+      getReportService.run.mockResolvedValue(buildReport({ id: 'report-1', destinationType }));
+
+      const result = await facade.addReport({
+        ...addRequest,
+        runImmediately: undefined,
+        message: { body: '{{table}}' },
+      });
+
+      expect(runReportService.run).toHaveBeenCalledWith({
+        reportId: 'report-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        projectId: 'project-1',
+        runType: RunType.manual,
+      });
+      expect(result).toMatchObject({
+        destination_type: mcpDestinationType,
+        initial_run: { status: 'queued', run_id: 'run-1' },
+      });
+    }
+  );
+
   it('returns partial success when the report exists but its first run cannot be queued', async () => {
     const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { facade, createGoogleSheetDocumentService, createReportService, runReportService } =
