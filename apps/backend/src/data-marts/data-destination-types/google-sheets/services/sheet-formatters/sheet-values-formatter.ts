@@ -22,40 +22,11 @@ export class SheetValuesFormatter {
   ]);
 
   /**
-   * Formats values in rows based on field types
-   * @param rows - Rows to format
-   * @param dataHeaders - Headers for the rows
-   * @param sheetTimeZone - Time zone of the sheet
-   * @returns Formatted rows
-   */
-  public formatRowsValues(
-    rows: unknown[][],
-    dataHeaders: ReportDataHeader[],
-    sheetTimeZone: string
-  ): unknown[][] {
-    const columnsToFormat = dataHeaders
-      .map((header, index) => ({
-        index,
-        formatter: this.formatters.get(header.storageFieldType!),
-      }))
-      .filter(item => item.formatter);
-
-    rows.forEach(row => {
-      columnsToFormat.forEach(({ index, formatter }) => {
-        row[index] = formatter!(row[index], sheetTimeZone);
-      });
-      this.escapeRowValues(row);
-    });
-
-    return rows;
-  }
-
-  /**
-   * Same as {@link formatRowsValues} but resolves the per-column formatter by
-   * column **name** instead of position. Used by the diff-based writer where
-   * each row has already been reordered to match the user's column layout in
-   * the destination sheet, so positional alignment with the SQL output schema
-   * no longer holds.
+   * Formats values in rows based on field types, resolving the per-column
+   * formatter by column **name**. Used by the diff-based writer where each
+   * row has already been reordered to match the user's column layout in the
+   * destination sheet, so positional alignment with the SQL output schema
+   * does not hold.
    *
    * Nullish cells (SQL `NULL` → JavaScript `null`/`undefined`) pass through
    * unchanged. The writer pre-clears the imported rectangle before writing

@@ -85,17 +85,4 @@ describe('SheetValuesFormatter', () => {
       expect(row).toEqual(["'+Header alias", 'plain', 42, null]);
     });
   });
-
-  describe('formatRowsValues', () => {
-    it('prefixes values starting with + with an apostrophe', () => {
-      const headers = [
-        new ReportDataHeader('session_id', undefined, undefined, BigQueryFieldType.STRING),
-      ];
-      const rows = [['+value'], ['regular'], [123]];
-
-      const result = formatter.formatRowsValues(rows, headers, 'UTC');
-
-      expect(result).toEqual([["'+value"], ['regular'], [123]]);
-    });
-  });
 });
