@@ -7,33 +7,41 @@
  * the base tables. Both shapes are matched — engine variants differ in which sections they
  * print — and the results are deduplicated.
  *
- * Identifier segments may be backticked when they need quoting; backticks are stripped so
- * the caller gets plain fully-qualified names. The legacy `spark_catalog` prefix is dropped
- * to keep names in the `catalog.schema.table` shape the rest of the resolver works with.
+ * Each relation is returned with its display `name` AND its `segments`: a backticked segment
+ * may itself contain dots, so a joined string cannot be safely re-split downstream — anything
+ * that builds SQL against the table must quote the segments, not the name. The legacy
+ * `spark_catalog` prefix is dropped to keep names in the `catalog.schema.table` shape.
  */
+
+export interface SparkRelationRef {
+  /** Human-readable fully-qualified name; also the cache/display key. */
+  name: string;
+  /** The identifier segments, dots inside a segment preserved. */
+  segments: string[];
+}
 
 const RELATION_RE = /\bRelation\s+((?:`[^`]+`|[\w$]+)(?:\.(?:`[^`]+`|[\w$]+))+)\s*\[/g;
 const SCAN_RE =
   /\b(?:Photon)?(?:File)?Scan\s+\w+\s+((?:`[^`]+`|[\w$]+)(?:\.(?:`[^`]+`|[\w$]+))+)\s*\[/g;
 
-export function parseRelationsFromSparkPlan(planText: string): string[] {
-  const found = new Set<string>();
+export function parseRelationsFromSparkPlan(planText: string): SparkRelationRef[] {
+  const found = new Map<string, SparkRelationRef>();
 
   for (const regex of [RELATION_RE, SCAN_RE]) {
     regex.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(planText)) !== null) {
-      const name = normalizeRelationName(match[1]);
-      if (name) {
-        found.add(name);
+      const ref = normalizeRelationName(match[1]);
+      if (ref) {
+        found.set(ref.name, ref);
       }
     }
   }
 
-  return [...found];
+  return [...found.values()];
 }
 
-function normalizeRelationName(raw: string): string | null {
+function normalizeRelationName(raw: string): SparkRelationRef | null {
   // Segments are either backticked (may contain dots) or plain; taking them in order is
   // simpler and safer than splitting on dots around backticks.
   const segments = [...raw.matchAll(/`([^`]*)`|([^.`]+)/g)].map(match => match[1] ?? match[2]);
@@ -46,5 +54,5 @@ function normalizeRelationName(raw: string): string | null {
   if (segments.length < 2) {
     return null;
   }
-  return segments.join('.');
+  return { name: segments.join('.'), segments };
 }

@@ -9,7 +9,9 @@ describe('parseRelationsFromSparkPlan', () => {
       '+- Relation main.dlu.orders[id#1,revenue#2] parquet',
     ].join('\n');
 
-    expect(parseRelationsFromSparkPlan(plan)).toEqual(['main.dlu.orders']);
+    expect(parseRelationsFromSparkPlan(plan)).toEqual([
+      { name: 'main.dlu.orders', segments: ['main', 'dlu', 'orders'] },
+    ]);
   });
 
   it('extracts tables from physical-plan scans, Photon included', () => {
@@ -20,10 +22,11 @@ describe('parseRelationsFromSparkPlan', () => {
       '+- PhotonScan parquet main.dlu.customers[id#5] DataFilters: []',
     ].join('\n');
 
-    expect(parseRelationsFromSparkPlan(plan).sort()).toEqual([
-      'main.dlu.customers',
-      'main.dlu.orders',
-    ]);
+    expect(
+      parseRelationsFromSparkPlan(plan)
+        .map(ref => ref.name)
+        .sort()
+    ).toEqual(['main.dlu.customers', 'main.dlu.orders']);
   });
 
   it('deduplicates a table appearing in several plan sections', () => {
@@ -32,7 +35,7 @@ describe('parseRelationsFromSparkPlan', () => {
       '+- FileScan parquet main.dlu.orders[id#1]',
     ].join('\n');
 
-    expect(parseRelationsFromSparkPlan(plan)).toEqual(['main.dlu.orders']);
+    expect(parseRelationsFromSparkPlan(plan).map(ref => ref.name)).toEqual(['main.dlu.orders']);
   });
 
   it('strips backticks and the legacy spark_catalog prefix', () => {
@@ -41,9 +44,18 @@ describe('parseRelationsFromSparkPlan', () => {
       '+- Relation `main`.`weird schema`.`orders`[id#2] parquet',
     ].join('\n');
 
-    expect(parseRelationsFromSparkPlan(plan).sort()).toEqual([
-      'default.orders',
-      'main.weird schema.orders',
+    expect(
+      parseRelationsFromSparkPlan(plan)
+        .map(ref => ref.name)
+        .sort()
+    ).toEqual(['default.orders', 'main.weird schema.orders']);
+  });
+
+  it('preserves dots inside a backticked segment in the segments array', () => {
+    const plan = '+- Relation `main`.`weird.schema`.`orders`[id#1] parquet';
+
+    expect(parseRelationsFromSparkPlan(plan)).toEqual([
+      { name: 'main.weird.schema.orders', segments: ['main', 'weird.schema', 'orders'] },
     ]);
   });
 

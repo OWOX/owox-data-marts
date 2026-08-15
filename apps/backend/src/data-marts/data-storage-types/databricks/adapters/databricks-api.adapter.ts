@@ -116,9 +116,14 @@ export class DatabricksApiAdapter {
   }
 
   /**
-   * Executes a SQL query
+   * Executes a SQL query. `options.signal` cancels the in-flight statement best-effort: the
+   * running operation is cancelled server-side and the wait rejects, so an abandoned lookup
+   * does not keep a cold warehouse busy.
    */
-  public async executeQuery(query: string): Promise<{
+  public async executeQuery(
+    query: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<{
     queryId: string;
     rows?: Record<string, unknown>[];
     metadata?: DatabricksQueryMetadata;
@@ -126,9 +131,24 @@ export class DatabricksApiAdapter {
     const cursor = await this.openQueryCursor(query);
     const rows: Record<string, unknown>[] = [];
     let queryError: Error | null = null;
+    const signal = options?.signal;
+    const onAbort = () => {
+      // Best-effort server-side cancel; the pending fetch rejects with the cancel error.
+      cursor.close().catch(() => undefined);
+    };
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        throw new Error(`Aborted before executing query: ${query}`);
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
 
     try {
       while (true) {
+        if (signal?.aborted) {
+          throw new Error('Aborted while fetching query results');
+        }
         const chunk = await cursor.fetchChunk(DEFAULT_FETCH_CHUNK_MAX_ROWS);
         if (chunk.length > 0) {
           rows.push(...chunk);
@@ -160,6 +180,7 @@ export class DatabricksApiAdapter {
       );
       throw queryError;
     } finally {
+      if (signal) signal.removeEventListener('abort', onAbort);
       await this.closeCursorSafely(cursor, 'query execution', queryError);
     }
   }
@@ -167,8 +188,11 @@ export class DatabricksApiAdapter {
   /**
    * Executes a query and returns all rows
    */
-  public async executeQueryAndFetchAll(query: string): Promise<Record<string, unknown>[]> {
-    const { rows } = await this.executeQuery(query);
+  public async executeQueryAndFetchAll(
+    query: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.executeQuery(query, options);
     return rows || [];
   }
 
@@ -176,10 +200,13 @@ export class DatabricksApiAdapter {
    * Executes a dry run query to validate SQL syntax
    * Uses EXPLAIN to validate without executing
    */
-  public async executeDryRunQuery(query: string): Promise<DatabricksQueryExplainJsonResponse> {
+  public async executeDryRunQuery(
+    query: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<DatabricksQueryExplainJsonResponse> {
     try {
       const explainQuery = `EXPLAIN EXTENDED ${query}`;
-      const { rows } = await this.executeQuery(explainQuery);
+      const { rows } = await this.executeQuery(explainQuery, options);
 
       if (!rows || rows.length === 0) {
         return { plan: '', isValid: true };

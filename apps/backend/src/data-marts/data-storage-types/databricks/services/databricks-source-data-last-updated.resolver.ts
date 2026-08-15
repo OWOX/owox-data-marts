@@ -13,8 +13,10 @@ import {
 } from '../../interfaces/source-data-last-updated-resolver.interface';
 import { DatabricksApiAdapterFactory } from '../adapters/databricks-api-adapter.factory';
 import { DatabricksApiAdapter } from '../adapters/databricks-api.adapter';
-import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
-import { parseRelationsFromSparkPlan } from '../utils/databricks-plan-relations.util';
+import {
+  parseRelationsFromSparkPlan,
+  SparkRelationRef,
+} from '../utils/databricks-plan-relations.util';
 
 /**
  * Databricks answers "which tables does this query read" through `EXPLAIN EXTENDED` — the
@@ -32,11 +34,19 @@ import { parseRelationsFromSparkPlan } from '../utils/databricks-plan-relations.
  * this resolver does not recognise is ignored — the safe direction: the answer can only get
  * older, never newer, than the truth.
  *
+ * The operation name alone is not enough: Databricks documents that streaming writes commit
+ * even when they process no data (every AvailableNow run, for one), so a whitelisted commit
+ * additionally has to SHOW a change in its `operationMetrics` — a commit whose metrics are
+ * present and all zero is skipped. Metrics-less commits (the plain CREATE/REPLACE boundary)
+ * still count: skipping those would let a replaced predecessor's history answer instead.
+ *
  * History is per table (it cannot be batched), bounded by the table's `logRetentionDuration`
- * (30 days by default) and read with a LIMIT — a table whose last data change is older than
- * what the read window shows degrades to an honest unknown. Non-Delta and external tables
- * have no history at all and degrade the same way. Per-table conclusions are cached across
- * the batch, and the session is closed when the batch ends.
+ * (30 days by default); the operation filter sits in the SQL WHERE, so the read window
+ * (`ORDER BY timestamp DESC LIMIT n`) is spent on candidate commits, not on maintenance
+ * noise. A table whose last data change is older than the window degrades to an honest
+ * unknown. Non-Delta and external tables have no history at all and degrade the same way.
+ * Per-table conclusions are cached across the batch, and the session is closed when the
+ * batch ends.
  */
 @Injectable()
 export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUpdatedResolver {
@@ -134,7 +144,7 @@ export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUp
   ): Promise<SourceDataLastUpdated> {
     const computedAt = new Date().toISOString();
 
-    const explain = await adapter.executeDryRunQuery(item.sql);
+    const explain = await adapter.executeDryRunQuery(item.sql, { signal });
     if (!explain.isValid) {
       throw new Error(explain.error ?? 'EXPLAIN failed');
     }
@@ -154,15 +164,15 @@ export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUp
       if (signal?.aborted) {
         break;
       }
-      if (!cache.has(table)) {
-        cache.set(table, await this.measureTable(adapter, table));
+      if (!cache.has(table.name)) {
+        cache.set(table.name, await this.measureTable(adapter, table, signal));
       }
     }
 
     const sources: SourceDataLastUpdatedEntry[] = [];
     let anyFailed = false;
     for (const table of tables) {
-      const cached = cache.get(table);
+      const cached = cache.get(table.name);
       if (!cached) {
         // Tables skipped by an abort have no conclusion yet — leave them out entirely rather
         // than inventing an unknown entry for a table we simply did not get to.
@@ -201,44 +211,68 @@ export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUp
   }
 
   /**
-   * Reads the newest slice of the table's history and takes the first commit whose operation
-   * changes data. History is newest-first, so the first match IS the latest data change.
+   * Reads the newest data-operation commits of the table's history and returns the newest
+   * one that demonstrably changed data. The operation filter lives in the SQL WHERE, so the
+   * LIMIT window holds candidates rather than maintenance noise, and ORDER BY makes the row
+   * order deterministic (the SELECT wrapper around DESCRIBE HISTORY guarantees none).
    */
-  private async measureTable(adapter: DatabricksApiAdapter, table: string): Promise<CachedSource> {
+  private async measureTable(
+    adapter: DatabricksApiAdapter,
+    table: SparkRelationRef,
+    signal?: AbortSignal
+  ): Promise<CachedSource> {
     let rows: Record<string, unknown>[];
     try {
-      rows = await adapter.executeQueryAndFetchAll(this.buildHistoryQuery(table));
+      rows = await adapter.executeQueryAndFetchAll(this.buildHistoryQuery(table), { signal });
     } catch (error) {
       // Typically a non-Delta or external table (history only exists for Delta), a dropped
       // table, or a permission gap. All are per-table conditions; the item stays alive.
-      this.logger.warn(`Failed to read table history for ${table}: ${errorText(error)}`);
+      this.logger.warn(`Failed to read table history for ${table.name}: ${errorText(error)}`);
       return {
-        entry: { table, dataLastUpdatedAt: null, note: 'could not read table history' },
+        entry: { table: table.name, dataLastUpdatedAt: null, note: 'could not read table history' },
         failed: true,
       };
     }
 
+    // Client-side max over valid rows: with ORDER BY the first match is already the newest,
+    // but the answer must not depend on row order at all.
+    let newest: string | null = null;
     for (const row of rows) {
       const operation = String(row.OPERATION ?? '').toUpperCase();
       if (!DatabricksSourceDataLastUpdatedResolver.DATA_CHANGING_OPERATIONS.has(operation)) {
         continue;
       }
+      if (!commitChangedData(row.OPERATION_METRICS)) {
+        // A whitelisted commit that wrote nothing — an empty streaming run, a zero-row DML.
+        // Counting it would report a falsely fresh timestamp.
+        continue;
+      }
       const committedAt = row.COMMITTED_AT;
       if (typeof committedAt === 'string' && ISO_UTC_RE.test(committedAt)) {
-        return { entry: { table, dataLastUpdatedAt: committedAt }, failed: false };
+        if (newest === null || committedAt > newest) {
+          newest = committedAt;
+        }
+        continue;
       }
       // A matching commit whose timestamp we cannot read is a format drift, not an unchanged
       // table — logged so it surfaces.
-      this.logger.warn(`Unrecognised history timestamp for ${table}: ${String(committedAt)}`);
+      this.logger.warn(`Unrecognised history timestamp for ${table.name}: ${String(committedAt)}`);
       return {
-        entry: { table, dataLastUpdatedAt: null, note: 'unrecognised table history value' },
+        entry: {
+          table: table.name,
+          dataLastUpdatedAt: null,
+          note: 'unrecognised table history value',
+        },
         failed: false,
       };
     }
 
+    if (newest !== null) {
+      return { entry: { table: table.name, dataLastUpdatedAt: newest }, failed: false };
+    }
     return {
       entry: {
-        table,
+        table: table.name,
         dataLastUpdatedAt: null,
         note: 'no data changes in the recent table history',
       },
@@ -248,17 +282,54 @@ export class DatabricksSourceDataLastUpdatedResolver implements SourceDataLastUp
 
   /**
    * The timestamp is rendered to ISO-8601 UTC in SQL — `to_utc_timestamp` with the session's
-   * own timezone makes the string deterministic regardless of warehouse configuration.
+   * own timezone makes the string deterministic regardless of warehouse configuration. The
+   * table identifier is quoted per segment: a backticked segment may contain dots, so the
+   * joined display name must never be re-split.
    */
-  private buildHistoryQuery(table: string): string {
-    const escaped = escapeFullyQualifiedIdentifier(table.split('.'));
+  private buildHistoryQuery(table: SparkRelationRef): string {
+    const escaped = table.segments.map(segment => `\`${segment.replace(/`/g, '``')}\``).join('.');
+    const operations = [...DatabricksSourceDataLastUpdatedResolver.DATA_CHANGING_OPERATIONS]
+      .map(operation => `'${operation}'`)
+      .join(', ');
     return (
       `SELECT date_format(to_utc_timestamp(timestamp, current_timezone()), ` +
-      `"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'") AS COMMITTED_AT, operation AS OPERATION ` +
-      `FROM (DESCRIBE HISTORY ${escaped} ` +
-      `LIMIT ${DatabricksSourceDataLastUpdatedResolver.HISTORY_READ_LIMIT})`
+      `"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'") AS COMMITTED_AT, operation AS OPERATION, ` +
+      `to_json(operationMetrics) AS OPERATION_METRICS ` +
+      `FROM (DESCRIBE HISTORY ${escaped}) ` +
+      `WHERE upper(operation) IN (${operations}) ` +
+      `ORDER BY timestamp DESC ` +
+      `LIMIT ${DatabricksSourceDataLastUpdatedResolver.HISTORY_READ_LIMIT}`
     );
   }
+}
+
+/**
+ * Whether a history commit demonstrably changed data, judged by its `operationMetrics`.
+ * Metrics present with every counter at zero = an empty commit (Databricks documents that
+ * streaming writes commit even with no data). Absent or unreadable metrics count as a change:
+ * the metrics-less commits in practice are the CREATE/REPLACE boundary ones, and skipping
+ * those would let a replaced predecessor's history answer for the new table.
+ */
+function commitChangedData(rawMetrics: unknown): boolean {
+  if (typeof rawMetrics !== 'string' || rawMetrics.trim() === '') {
+    return true;
+  }
+  let metrics: unknown;
+  try {
+    metrics = JSON.parse(rawMetrics);
+  } catch {
+    return true;
+  }
+  if (metrics === null || typeof metrics !== 'object') {
+    return true;
+  }
+  const counters = Object.values(metrics as Record<string, unknown>)
+    .map(value => (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : null))
+    .filter((value): value is number => value !== null);
+  if (counters.length === 0) {
+    return true;
+  }
+  return counters.some(value => value > 0);
 }
 
 const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;

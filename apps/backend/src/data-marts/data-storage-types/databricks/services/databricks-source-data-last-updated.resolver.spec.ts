@@ -10,9 +10,14 @@ const explainWith = (...tables: string[]) => ({
   ].join('\n'),
 });
 
-const historyRow = (operation: string, committedAt: string | null) => ({
+const historyRow = (
+  operation: string,
+  committedAt: string | null,
+  metrics?: Record<string, string>
+) => ({
   OPERATION: operation,
   COMMITTED_AT: committedAt,
+  ...(metrics ? { OPERATION_METRICS: JSON.stringify(metrics) } : {}),
 });
 
 const T_AUG_1 = '2026-08-01T10:00:00.000Z';
@@ -66,7 +71,7 @@ describe('DatabricksSourceDataLastUpdatedResolver', () => {
     expect(result.sources.map(s => s.table)).toEqual(['main.dlu.orders', 'main.dlu.customers']);
   });
 
-  it('reads history through an escaped identifier with a bounded LIMIT', async () => {
+  it('filters and orders history in SQL before the bounded LIMIT', async () => {
     const adapter = adapterWith({
       executeDryRunQuery: jest.fn().mockResolvedValue(explainWith('main.dlu.orders')),
       executeQueryAndFetchAll: jest.fn().mockResolvedValue([historyRow('WRITE', T_AUG_1)]),
@@ -74,8 +79,81 @@ describe('DatabricksSourceDataLastUpdatedResolver', () => {
     await run(adapter);
 
     const sql = adapter.executeQueryAndFetchAll.mock.calls[0][0] as string;
-    expect(sql).toContain('DESCRIBE HISTORY `main`.`dlu`.`orders` LIMIT 100');
+    expect(sql).toContain('DESCRIBE HISTORY `main`.`dlu`.`orders`');
+    // The operation filter sits in SQL so the LIMIT window is spent on candidates, and the
+    // order is explicit — the SELECT wrapper guarantees none by itself.
+    expect(sql).toContain(`WHERE upper(operation) IN ('WRITE'`);
+    expect(sql).toContain('ORDER BY timestamp DESC');
+    expect(sql).toContain('LIMIT 100');
+    expect(sql).toContain('to_json(operationMetrics)');
     expect(sql).toContain('to_utc_timestamp');
+  });
+
+  it('quotes a dotted segment as one identifier part in the history query', async () => {
+    const adapter = adapterWith({
+      executeDryRunQuery: jest.fn().mockResolvedValue({
+        isValid: true,
+        plan: '+- Relation `main`.`weird.schema`.`orders`[id#1] parquet',
+      }),
+      executeQueryAndFetchAll: jest.fn().mockResolvedValue([historyRow('WRITE', T_AUG_1)]),
+    });
+    const result = await run(adapter);
+
+    const sql = adapter.executeQueryAndFetchAll.mock.calls[0][0] as string;
+    expect(sql).toContain('DESCRIBE HISTORY `main`.`weird.schema`.`orders`');
+    expect(result.dataLastUpdatedAt).toBe(T_AUG_1);
+  });
+
+  it('skips whitelisted commits whose metrics show no change, such as empty streaming runs', async () => {
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainWith('main.dlu.orders')),
+        executeQueryAndFetchAll: jest.fn().mockResolvedValue([
+          // Databricks commits streaming writes even when they process no data.
+          historyRow('STREAMING UPDATE', '2026-08-10T00:00:00.000Z', {
+            numFiles: '0',
+            numOutputRows: '0',
+            numOutputBytes: '0',
+          }),
+          historyRow('WRITE', T_AUG_1, { numFiles: '1', numOutputRows: '5' }),
+        ]),
+      })
+    );
+
+    // The empty streaming commit from Aug 10 must NOT become the answer.
+    expect(result.dataLastUpdatedAt).toBe(T_AUG_1);
+    expect(result.coverage).toBe('complete');
+  });
+
+  it('reports a table with only empty commits as unknown with a note', async () => {
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainWith('main.dlu.orders')),
+        executeQueryAndFetchAll: jest
+          .fn()
+          .mockResolvedValue([
+            historyRow('STREAMING UPDATE', '2026-08-10T00:00:00.000Z', { numOutputRows: '0' }),
+          ]),
+      })
+    );
+
+    expect(result).toMatchObject({ dataLastUpdatedAt: null, coverage: 'unavailable' });
+    expect(result.sources[0]).toMatchObject({
+      note: 'no data changes in the recent table history',
+    });
+  });
+
+  it('does not depend on row order: the newest matching commit wins', async () => {
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest.fn().mockResolvedValue(explainWith('main.dlu.orders')),
+        executeQueryAndFetchAll: jest
+          .fn()
+          .mockResolvedValue([historyRow('WRITE', T_AUG_1), historyRow('MERGE', T_AUG_5)]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe(T_AUG_5);
   });
 
   it('skips maintenance commits on top of the history and finds the older write', async () => {
