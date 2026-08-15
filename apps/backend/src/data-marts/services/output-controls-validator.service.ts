@@ -507,7 +507,9 @@ export class OutputControlsValidatorService {
    * non-aggregated column projects its own name (date-trunc keeps the name), plus the
    * synthetic `Unique Count` (when uniqueCount) and one
    * `<source>__unique_count` per joined source. Saved reports never project `Row Count`
-   * (it is opt-in on read plans only), so it is not part of this namespace. A real
+   * (it is opt-in on read plans only), so it is not part of this namespace — a caller that
+   * ever wires the `rowCount: true` opt-in into a SAVED report must add the label back
+   * here, or a real "Row Count" column becomes a duplicate alias again. A real
    * column whose name equals a synthetic label — or any two projected names that coincide —
    * is a duplicate alias on BigQuery / silent clobber on name-keyed readers. Uses the SAME
    * label helpers the renderer/header-generator use so this can never drift from the SELECT.

@@ -68,6 +68,7 @@ describe('RedshiftReportReader result-column binding', () => {
         { column: 'orders__amount', function: 'MIN' },
         { column: 'orders__amount', function: 'MAX' },
       ],
+      rowCount: true,
     } as never);
 
     const batch = await reader.readReportDataBatch();
@@ -92,6 +93,7 @@ describe('RedshiftReportReader result-column binding', () => {
     await reader.prepareReportData(buildReport(), {
       columnFilter: ['country', 'orders__amount'],
       aggregationConfig: [{ column: 'orders__amount', function: 'SUM' }],
+      rowCount: true,
     } as never);
 
     const batch = await reader.readReportDataBatch();
@@ -215,6 +217,7 @@ describe('RedshiftReportReader result-column binding', () => {
     await reader.prepareReportData(buildReport(), {
       columnFilter: ['country', longColumn],
       aggregationConfig: [{ column: longColumn, function: 'SUM' }],
+      rowCount: true,
     } as never);
 
     const batch = await reader.readReportDataBatch();

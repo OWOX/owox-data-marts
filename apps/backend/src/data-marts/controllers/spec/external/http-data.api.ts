@@ -32,8 +32,8 @@ export function StreamHttpDataSpec() {
         'column becomes `"<column> | <TOKEN>"`, where `<TOKEN>` is an uppercase ' +
         'spreadsheet-style token for the function (most match the function name, but ' +
         '`COUNT_DISTINCT` becomes `COUNTUNIQUE`, `P50` becomes `MEDIAN`, `STRING_AGG` becomes ' +
-        '`STRINGAGG`, `ANY_VALUE` becomes `ANYVALUE`), and a synthetic `"Row Count"` column is ' +
-        'appended — and an explicit `column` projection is required (a wildcard selector ' +
+        '`STRINGAGG`, `ANY_VALUE` becomes `ANYVALUE`) — and an explicit `column` projection is ' +
+        'required (a wildcard selector ' +
         'would group by every column). Authenticated ' +
         'with the ODM member token via `x-owox-authorization`. Creates one DataMartRun ' +
         'of type HTTP_DATA per request, available through the run history endpoint.',

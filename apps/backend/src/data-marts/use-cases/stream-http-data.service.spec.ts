@@ -896,7 +896,9 @@ describe('StreamHttpDataService', () => {
         new ReportDataHeader('revenue | SUM'),
       ])
     );
-    reader.readReportDataBatch.mockResolvedValueOnce(new ReportDataBatch([['2026-05-01', 93]], null));
+    reader.readReportDataBatch.mockResolvedValueOnce(
+      new ReportDataBatch([['2026-05-01', 93]], null)
+    );
     const res = mockResponse();
 
     await service.stream(fakeCommand(), res);

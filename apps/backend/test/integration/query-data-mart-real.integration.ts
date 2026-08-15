@@ -205,10 +205,10 @@ describeIfCredentials('QueryDataMartService — aggregated query on real BigQuer
     // --- columns must reflect the executed aggregated SQL, NOT the raw `fields` list ---
     // 'dim' is a GROUP BY key → stays as 'dim'.
     // 'revenue' is aggregated with SUM → becomes 'revenue | SUM'.
-    // Row Count is appended automatically for every aggregated query.
+    // No Row Count: it is opt-in on read plans only, and MCP queries never ask for it.
     expect(result.columns).toContain('dim');
     expect(result.columns).toContain('revenue | SUM');
-    expect(result.columns).toContain('Row Count');
+    expect(result.columns).not.toContain('Row Count');
     // The raw 'revenue' column must NOT appear — it was aggregated away.
     expect(result.columns).not.toContain('revenue');
 
@@ -217,19 +217,16 @@ describeIfCredentials('QueryDataMartService — aggregated query on real BigQuer
 
     const dimIdx = result.columns.indexOf('dim');
     const sumIdx = result.columns.indexOf('revenue | SUM');
-    const rowCountIdx = result.columns.indexOf('Row Count');
 
     const byDim = new Map(result.rows.map(row => [String(row[dimIdx]), row]));
     expect(byDim.has('a')).toBe(true);
     expect(byDim.has('b')).toBe(true);
 
-    // dim='a': 10.0 + 5.0 = 15.0 with 2 source rows
+    // dim='a': 10.0 + 5.0 = 15.0
     expect(Number(byDim.get('a')![sumIdx])).toBeCloseTo(15.0, 5);
-    expect(Number(byDim.get('a')![rowCountIdx])).toBe(2);
 
-    // dim='b': 3.0 with 1 source row
+    // dim='b': 3.0
     expect(Number(byDim.get('b')![sumIdx])).toBeCloseTo(3.0, 5);
-    expect(Number(byDim.get('b')![rowCountIdx])).toBe(1);
 
     // --- totals is a non-null block (server-side grand totals over all rows) ---
     expect(result.totals).not.toBeNull();
