@@ -11,6 +11,22 @@ import {
 import { ReportAccessService } from '../../services/report-access.service';
 import { ReportService } from '../../services/report.service';
 
+/** Google's hard cap for a sheet (tab) name. */
+const MAX_SHEET_TITLE_LENGTH = 100;
+/** Used when the report title sanitizes down to nothing. */
+const DEFAULT_SHEET_TITLE = 'Report data';
+
+/**
+ * Google accepts almost any character in a sheet name but caps it at 100 and
+ * rejects empty. Apostrophes are swapped for typographic ones because the report
+ * writer builds A1 ranges as `'${title}'!A1:...` without escaping quotes — a
+ * straight apostrophe in the name would corrupt every range on the next run.
+ */
+function toSheetTitle(raw: string): string {
+  const cleaned = raw.replace(/'/g, '’').trim().slice(0, MAX_SHEET_TITLE_LENGTH).trim();
+  return cleaned || DEFAULT_SHEET_TITLE;
+}
+
 /**
  * Reconnects a Google Sheets report to a sheet identified by TITLE, repairing the
  * stored `destinationConfig.sheetId`.
@@ -26,7 +42,7 @@ import { ReportService } from '../../services/report.service';
  * anyway (Google rejects duplicate titles) and would be wrong if it were not.
  *
  * Reusing an existing sheet means the next run writes into it. That is the user's
- * explicit choice: they type or confirm the title before this runs.
+ * explicit choice: clicking "Reconnect & run" on the failed report is the consent.
  */
 @Injectable()
 export class ReconnectGoogleSheetService {
@@ -60,10 +76,7 @@ export class ReconnectGoogleSheetService {
     }
 
     const { spreadsheetId } = report.destinationConfig;
-    const title = command.title?.trim() || report.title.trim();
-    if (!title) {
-      throw new BadRequestException('Sheet title is required');
-    }
+    const title = toSheetTitle(command.title?.trim() || report.title);
 
     const adapter = await this.adapterFactory.createFromDestination(report.dataDestination);
     if (!adapter) {
@@ -81,6 +94,21 @@ export class ReconnectGoogleSheetService {
       });
     });
 
+    // Repair only what is broken. If the stored gid still resolves, the report is
+    // not suffering from a missing sheet, and rebinding it by title would silently
+    // move where data lands — onto a same-named sheet the user maintains by hand,
+    // for instance. Report the sheet as-is and let the caller just run.
+    const currentSheet = adapter.findSheetById(spreadsheet, report.destinationConfig.sheetId);
+    if (currentSheet?.properties?.title) {
+      return {
+        spreadsheetId,
+        sheetId: report.destinationConfig.sheetId,
+        sheetTitle: currentSheet.properties.title,
+        created: false,
+        changed: false,
+      };
+    }
+
     const existingSheetId = adapter.findSheetByTitle(spreadsheet, title)?.properties?.sheetId;
     // Null-checked, not falsy-checked: gid 0 is the default first sheet.
     const created = existingSheetId === null || existingSheetId === undefined;
@@ -97,6 +125,6 @@ export class ReconnectGoogleSheetService {
       }) in spreadsheet ${spreadsheetId}`
     );
 
-    return { spreadsheetId, sheetId, sheetTitle: title, created };
+    return { spreadsheetId, sheetId, sheetTitle: title, created, changed: true };
   }
 }

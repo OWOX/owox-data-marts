@@ -8,4 +8,6 @@ export interface ReconnectSheetResponseDto {
   sheetTitle: string;
   /** True when the sheet was created, false when an existing sheet was reused. */
   created: boolean;
+  /** False when the report already pointed at a live sheet and nothing was rebound. */
+  changed: boolean;
 }

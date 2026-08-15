@@ -58,12 +58,9 @@ export function StatusIcon({ status, error, className }: StatusIconProps) {
 
   // Generate unique ID for tooltip
   const tooltipId = `status-tooltip-${status}-${error ? 'error' : 'normal'}`;
-  const getAccessibleDescription = () => {
-    if (status === ReportStatusEnum.ERROR && error) {
-      return `${label}: ${error}`;
-    }
-    return label;
-  };
+  // With an error message to show, the message alone reads better than a
+  // "Fail" heading above it — the red icon already carries the status.
+  const errorMessage = status === ReportStatusEnum.ERROR ? error : null;
 
   return (
     <TooltipProvider>
@@ -72,15 +69,16 @@ export function StatusIcon({ status, error, className }: StatusIconProps) {
           <Icon
             className={cn('h-5 w-5', color, className)}
             role='img'
-            aria-label={getAccessibleDescription()}
+            aria-label={errorMessage ?? label}
             aria-describedby={tooltipId}
             tabIndex={0}
           />
         </TooltipTrigger>
         <TooltipContent id={tooltipId} side='bottom' role='tooltip'>
-          <div className='text-xs'>{label}</div>
-          {status === ReportStatusEnum.ERROR && error && (
-            <div className='mt-1 max-w-xs text-xs break-words whitespace-normal'>{error}</div>
+          {errorMessage ? (
+            <div className='max-w-xs text-xs break-words whitespace-normal'>{errorMessage}</div>
+          ) : (
+            <div className='text-xs'>{label}</div>
           )}
         </TooltipContent>
       </Tooltip>

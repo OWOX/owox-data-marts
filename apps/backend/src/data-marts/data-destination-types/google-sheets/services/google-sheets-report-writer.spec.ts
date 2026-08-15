@@ -350,7 +350,7 @@ describe('GoogleSheetsReportWriter — pre-clears imported rectangle before writ
     // BusinessViolationException subclass — keeps the run failure at WARN level.
     expect(error).toBeInstanceOf(GoogleSheetNotFound);
     expect((error as Error).message).toBe(sheetNotFoundMessage(SPREADSHEET_ID, SHEET_ID));
-    expect((error as Error).message).toContain('Reconnect sheet');
+    expect((error as Error).message).toContain('Reconnect & run');
   });
 
   it('pre-clears in the zero-batch fallback so empty result sets wipe stale data', async () => {

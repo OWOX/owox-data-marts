@@ -8,7 +8,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema';
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
-import { sheetNotFoundMessage } from '../../../errors/google-sheet-not-found.error';
+import { sheetNotFoundSetupMessage } from '../../../errors/google-sheet-not-found.error';
 
 /**
  * Validator for Google Sheets access
@@ -55,7 +55,10 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
       const sheet = adapter.findSheetById(spreadsheet, configOpt.data.sheetId);
 
       if (!spreadsheet?.properties?.title || !sheet || !sheet?.properties?.title) {
-        const message = sheetNotFoundMessage(configOpt.data.spreadsheetId, configOpt.data.sheetId);
+        const message = sheetNotFoundSetupMessage(
+          configOpt.data.spreadsheetId,
+          configOpt.data.sheetId
+        );
         this.logger.warn(message);
         return new ValidationResult(false, message);
       }

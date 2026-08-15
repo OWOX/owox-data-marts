@@ -40,9 +40,29 @@ export function sheetNotFoundMessage(spreadsheetId: string, sheetId: number): st
   return (
     `Can't find the sheet this report writes to. ` +
     `Someone deleted it, or an import replaced the sheets of this spreadsheet. ` +
-    `Use "Reconnect sheet" on the report to point it at an existing sheet. ` +
-    `(spreadsheet: ${spreadsheetId}, sheet ID: ${sheetId})`
+    `Use "Reconnect & run" on the report to repair it and refresh the data. ` +
+    sheetIdsSuffix(spreadsheetId, sheetId)
   );
+}
+
+/**
+ * Setup-time variant, shown by the access validator inside the create/edit report
+ * form. The "Reconnect & run" button does not exist there (on create, the report
+ * itself does not exist yet) — but the document-link field being validated does,
+ * so the remediation points at it instead.
+ */
+export function sheetNotFoundSetupMessage(spreadsheetId: string, sheetId: number): string {
+  return (
+    `The link points to a sheet that doesn't exist in this spreadsheet — ` +
+    `it may have been deleted, or the gid belongs to another document. ` +
+    `Open the spreadsheet, select the sheet to write to, and paste the URL from the address bar. ` +
+    sheetIdsSuffix(spreadsheetId, sheetId)
+  );
+}
+
+/** Kept out of the first sentence — the IDs are for support, not the reader. */
+function sheetIdsSuffix(spreadsheetId: string, sheetId: number): string {
+  return `(spreadsheet: ${spreadsheetId}, sheet ID: ${sheetId})`;
 }
 
 /**

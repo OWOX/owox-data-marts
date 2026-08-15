@@ -29,4 +29,12 @@ export class ReconnectGoogleSheetResponseDto {
     description: 'True when the sheet was created, false when an existing sheet was reused',
   })
   created: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'False when the report already pointed at a live sheet and nothing was rebound. ' +
+      'The report is left untouched in that case — there was nothing to repair.',
+  })
+  changed: boolean;
 }
