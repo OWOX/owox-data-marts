@@ -44,7 +44,7 @@ export class SheetValuesFormatter {
       columnsToFormat.forEach(({ index, formatter }) => {
         row[index] = formatter!(row[index], sheetTimeZone);
       });
-      this.escapeLeadingPlus(row);
+      this.escapeRowValues(row);
     });
 
     return rows;
@@ -88,7 +88,7 @@ export class SheetValuesFormatter {
       columnsToFormat.forEach(({ index, formatter }) => {
         row[index] = formatter!(row[index], sheetTimeZone);
       });
-      this.escapeLeadingPlus(row);
+      this.escapeRowValues(row);
     });
 
     return orderedRows;
@@ -101,14 +101,19 @@ export class SheetValuesFormatter {
    * symbol: the cell shows the original value and the apostrophe itself is not
    * part of the cell content. Only `+` is escaped — values starting with `=`
    * intentionally stay untouched so that formulas can be inserted as data.
+   *
+   * Mutates the row in place and returns it. Public so that every row written
+   * through `USER_ENTERED` — including the header row, where a user-defined
+   * column alias may start with `+` — is escaped the same way.
    */
-  private escapeLeadingPlus(row: unknown[]): void {
+  public escapeRowValues<T extends unknown[]>(row: T): T {
     for (let i = 0; i < row.length; i++) {
       const value = row[i];
       if (typeof value === 'string' && value.startsWith('+')) {
         row[i] = `'${value}`;
       }
     }
+    return row;
   }
 
   private formatTimestamp(value: unknown, sheetTimeZone: string): unknown {

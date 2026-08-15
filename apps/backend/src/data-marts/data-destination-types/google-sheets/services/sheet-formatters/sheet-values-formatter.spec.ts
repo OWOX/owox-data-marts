@@ -75,6 +75,17 @@ describe('SheetValuesFormatter', () => {
     });
   });
 
+  describe('escapeRowValues', () => {
+    it('escapes + values in place and returns the same row', () => {
+      const row = ['+Header alias', 'plain', 42, null];
+
+      const result = formatter.escapeRowValues(row);
+
+      expect(result).toBe(row);
+      expect(row).toEqual(["'+Header alias", 'plain', 42, null]);
+    });
+  });
+
   describe('formatRowsValues', () => {
     it('prefixes values starting with + with an apostrophe', () => {
       const headers = [
