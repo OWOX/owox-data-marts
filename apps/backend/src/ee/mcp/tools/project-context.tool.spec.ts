@@ -134,6 +134,37 @@ describe('GetProjectContextTool', () => {
     expect(structuredContent.current_project.description).toBeNull();
   });
 
+  it('returns project context with a null description when loading the description fails', async () => {
+    const projectContext = {
+      getProjectContext: jest.fn().mockResolvedValue({
+        project: {
+          id: 'project-1',
+          title: 'Main Project',
+          status: 'active',
+          roles: ['admin'],
+          createdAt: '2026-06-01 12:30:45',
+        },
+      }),
+    } as unknown as jest.Mocked<McpProjectContextFacade>;
+    const projectSettings = {
+      getDescription: jest.fn().mockRejectedValue(new Error('Project settings unavailable')),
+    } as unknown as jest.Mocked<ProjectSettingsFacade>;
+    const tool = new GetProjectContextTool(projectContext, projectSettings);
+
+    const result = await tool.handler({}, context);
+
+    expect(result.structuredContent).toMatchObject({
+      current_project: {
+        id: 'project-1',
+        title: 'Main Project',
+        description: null,
+        status: 'active',
+        roles: ['admin'],
+        created_at: '2026-06-01 12:30:45',
+      },
+    });
+  });
+
   it('rejects explicit project_id input', () => {
     const tool = new GetProjectContextTool(
       {} as McpProjectContextFacade,
