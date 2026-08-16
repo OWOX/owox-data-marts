@@ -21,7 +21,7 @@ Depending on the selected database type for the backend (`DB_TYPE`) and identity
 
 - **For `DB_TYPE=mysql`** - add MySQL connection variables (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`)
 - **For `IDP_PROVIDER=better-auth`** - add Better Auth variables (`IDP_BETTER_AUTH_SECRET`, `IDP_BETTER_AUTH_BASE_URL`, etc.)
-- **For Report Run execution on self-managed deployments** - set `LICENSE_KEY` to a LICENSE-bound key created in OWOX Data Marts Cloud (Project Settings → License keys) and bound to your `PUBLIC_ORIGIN`. Without a valid key the deployment runs as `COMMUNITY`: configuration stays fully available, but Report Runs finish as `RESTRICTED`
+- **For Report Run execution on self-managed deployments** - follow [Configure a Self-Managed License Key](license-key-setup.md) to create a LICENSE-bound key in [Project Settings → License keys](../../project/license-keys.md), match it to `PUBLIC_ORIGIN`, and set it as `LICENSE_KEY`. Without a valid key the deployment runs as `COMMUNITY`: configuration stays fully available, but Report Runs finish as `RESTRICTED`
 - **For the shared Cloud deployment** - provision a separate INTERNAL-bound `LICENSE_KEY` through the deployment secret process; Project Settings never issues this key. It must be bound to the Cloud `PUBLIC_ORIGIN`, must not carry a customer billing project, and requires the complete `BALANCE_ENDPOINT_*` integration. Rotate it through the same secret process and retain every old signing key until the last license it signed expires
 - **For the Cloud deployment that issues customer license keys** - set `LICENSE_ISSUANCE_ENABLED=true` together with `LICENSE_SIGNING_SERVICE_ACCOUNT_KEY_JSON` (a user-managed key of the OWOX license service account, injected from the secret store) and the `BALANCE_ENDPOINT_*` variables. Self-managed deployments never set these
 
@@ -174,6 +174,7 @@ owox serve --env-file custom.env --port 3030
   - Examples: `http://localhost:3000`, `https://data-marts.example.com`
   - Default: `http://localhost:${PORT}`
   - In production, set this to your actual deployment URL.
+  - For a licensed self-managed deployment, it must match the Public origin of the configured [license key](license-key-setup.md).
 
 - **LOOKER_STUDIO_DESTINATION_ORIGIN**: Public origin used to generate the deployment URL for the Data Studio Destination.
   - If empty, it falls back to `PUBLIC_ORIGIN`.

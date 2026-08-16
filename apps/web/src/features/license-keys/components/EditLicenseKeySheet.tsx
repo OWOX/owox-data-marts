@@ -210,7 +210,7 @@ export function EditLicenseKeySheet({
                 <MetadataItem
                   label='Last activity'
                   value={licenseKey?.lastUsedAt ? formatDateShort(licenseKey.lastUsedAt) : 'Never'}
-                  description='Most recent Report Run authorized with this license key.'
+                  description='When this license key was last successfully used by its self-managed deployment.'
                 />
               </FormSection>
 

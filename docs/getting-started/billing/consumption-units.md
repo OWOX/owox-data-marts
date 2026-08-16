@@ -39,6 +39,10 @@ For better transparency and flexibility, Report Runs are broken down into follow
 | Report Run           | MS Teams Report Run      | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). A message was pushed to the [MS Teams Destination](../../destinations/supported-destinations/microsoft-teams.md).                                                                                                    |
 | Report Run           | Slack Report Run         | Represents Report Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). A message was pushed to the [Slack Destination](../../destinations/supported-destinations/slack.md).                                                                                                                 |
 
+### Consumption from licensed self-managed deployments
+
+A self-managed deployment configured with a [managed license key](../deployment-guide/license-key-setup.md) sends successful Report Run consumption to the OWOX Data Marts Cloud project that issued the key. The calculation stays the same, while the **Credits consumption** page shows usage from each licensed deployment separately from native Cloud usage. Process Runs remain on the self-managed deployment and are not sent to Cloud for consumption billing.
+
 ## Process Run
 
 ### **How Are Process Runs Calculated?**
