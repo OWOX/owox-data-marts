@@ -113,6 +113,8 @@ export interface DataMartContextType extends DataMartState {
   ) => Promise<void>;
   runSchemaActualization?: () => Promise<void>;
   isSchemaActualizationLoading?: boolean;
+  /** Publishes through the Data Mart page flow and returns whether it succeeded. */
+  publishDataMartWithEffects?: () => Promise<boolean>;
   registerSchemaGuard?: (registration: SchemaGuardRegistration | null) => void;
   runGuarded?: (action: GuardedAction, opts: { intent: SchemaGuardIntent }) => void;
   error: ApiError | null;

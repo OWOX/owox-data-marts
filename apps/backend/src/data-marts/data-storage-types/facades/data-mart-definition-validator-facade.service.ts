@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { TypeResolver } from '../../../common/resolver/type-resolver';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { DataMartValidator, ValidationResult } from '../interfaces/data-mart-validator.interface';
+import {
+  DataMartValidationCode,
+  DataMartValidator,
+  ValidationResult,
+} from '../interfaces/data-mart-validator.interface';
 import { DATA_MART_VALIDATOR_RESOLVER } from '../data-storage-providers';
 import { DataMart } from '../../entities/data-mart.entity';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
@@ -18,16 +22,25 @@ export class DataMartDefinitionValidatorFacade {
   async validate(dataMart: DataMart): Promise<ValidationResult> {
     const definition = dataMart.definition;
     if (!definition) {
-      return new ValidationResult(false, 'DataMart definition not found');
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.DEFINITION_NOT_FOUND,
+        'DataMart definition not found'
+      );
     }
 
     const config = dataMart.storage.config;
     if (!config) {
-      return new ValidationResult(false, 'DataMart storage config not found');
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.STORAGE_CONFIG_NOT_FOUND,
+        'DataMart storage config not found'
+      );
     }
 
     if (!dataMart.storage.credentialId) {
-      return new ValidationResult(false, 'DataMart storage credentials not found');
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.STORAGE_CREDENTIALS_NOT_FOUND,
+        'DataMart storage credentials not found'
+      );
     }
 
     const credentials = await this.credentialsResolver.resolve(dataMart.storage);
@@ -39,7 +52,7 @@ export class DataMartDefinitionValidatorFacade {
   async checkIsValid(dataMart: DataMart): Promise<void> {
     const result = await this.validate(dataMart);
     if (!result.valid) {
-      throw new BusinessViolationException(result.errorMessage!, result.details);
+      throw new BusinessViolationException(result.errorMessage!, result.details, result.code);
     }
   }
 }

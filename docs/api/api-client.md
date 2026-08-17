@@ -118,8 +118,8 @@ const settings = await client.project.getSettings();
 console.log(settings.description);
 ```
 
-Project admins can update the project description used as project-specific business context. Pass
-`null` to clear it.
+Project admins can update the project description used as project-specific business context. The
+description can contain up to 10,000 characters. Pass `null` to clear it.
 
 ```ts
 await client.project.updateDescription(

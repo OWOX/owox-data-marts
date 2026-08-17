@@ -204,8 +204,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const isGeneratingTitle = aiPendingScope?.scope === DataMartMetadataScope.TITLE;
   const showAiTitleHelper = isAiHelperEnabled && !isConnector;
 
-  const handlePublish = useCallback(async () => {
-    if (!dataMartId) return;
+  const publishDataMartWithEffects = useCallback(async (): Promise<boolean> => {
+    if (!dataMartId) return false;
     setIsPublishing(true);
 
     try {
@@ -225,8 +225,10 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         isInsightsEnabled: shouldShowInsights,
         showOnce: true,
       });
+      return true;
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
+      return false;
     } finally {
       setIsPublishing(false);
     }
@@ -426,7 +428,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     <Button
                       variant='default'
                       onClick={() => {
-                        schemaGuard.runGuarded(() => handlePublish(), { intent: 'publish' });
+                        schemaGuard.runGuarded(
+                          () => {
+                            void publishDataMartWithEffects();
+                          },
+                          {
+                            intent: 'publish',
+                          }
+                        );
                       }}
                       disabled={isPublishing || !canPublish}
                       className={cn(
@@ -567,6 +576,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getDataMart,
             runSchemaActualization,
             isSchemaActualizationLoading,
+            publishDataMartWithEffects,
             registerSchemaGuard: schemaGuard.registerSchemaGuard,
             runGuarded: schemaGuard.runGuarded,
             projectId,

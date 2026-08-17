@@ -4,6 +4,7 @@ import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definit
 import {
   DataMartValidator,
   ValidationResult,
+  DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
 import { DatabricksApiAdapterFactory } from '../adapters/databricks-api-adapter.factory';
 import { isDatabricksCredentials } from '../../data-storage-credentials.guards';
@@ -71,7 +72,8 @@ export class DatabricksDataMartValidator implements DataMartValidator {
   private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
       if (!isValidDatabricksFullyQualifiedName(definition.fullyQualifiedName)) {
-        return ValidationResult.failure(
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
           'Invalid identifier format. Expected: catalog.schema.table'
         );
       }
@@ -81,7 +83,8 @@ export class DatabricksDataMartValidator implements DataMartValidator {
           allowTwoLevel: true,
         })
       ) {
-        return ValidationResult.failure(
+        return ValidationResult.authoredFailure(
+          DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
           'Invalid identifier format. Expected: schema.table or catalog.schema.table'
         );
       }

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   DataMartValidator,
   ValidationResult,
+  DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -33,17 +34,21 @@ export class RedshiftDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
+    // Identifiers are checked first, as in every other warehouse validator: the
+    // check needs only the definition, and an unconfigured storage would
+    // otherwise mask a malformed table name behind a config error the publish
+    // path cannot show.
+    const identifierValidation = this.validateIdentifiers(dataMartDefinition);
+    if (!identifierValidation.valid) {
+      return identifierValidation;
+    }
+
     if (!isRedshiftConfig(config)) {
       return ValidationResult.failure('Incompatible data storage config');
     }
 
     if (!isRedshiftCredentials(credentials)) {
       return ValidationResult.failure('Incompatible data storage credentials');
-    }
-
-    const identifierValidation = this.validateIdentifiers(dataMartDefinition);
-    if (!identifierValidation.valid) {
-      return identifierValidation;
     }
 
     if (isConnectorDefinition(dataMartDefinition)) {
@@ -81,7 +86,8 @@ export class RedshiftDataMartValidator implements DataMartValidator {
     }
 
     if (identifierToValidate && !isValidRedshiftFullyQualifiedName(identifierToValidate)) {
-      return ValidationResult.failure(
+      return ValidationResult.authoredFailure(
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT,
         'Invalid identifier format. Expected: schema.table or database.schema.table'
       );
     }

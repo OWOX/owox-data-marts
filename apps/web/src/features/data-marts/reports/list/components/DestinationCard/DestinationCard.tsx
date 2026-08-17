@@ -1,4 +1,14 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@owox/ui/components/alert-dialog';
+import { Button } from '@owox/ui/components/button';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
@@ -7,7 +17,12 @@ import {
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
 } from '../../../../../../shared/components/CollapsibleCard';
-import type { DataMartStatusInfo } from '../../../../shared';
+import {
+  DataMartStatus,
+  getRequiredSetupActions,
+  type DataMartStatusInfo,
+  type DataMartValidationError,
+} from '../../../../shared';
 import type { DataDestination } from '../../../../../data-destination';
 import { useDataDestination, useDataDestinationVisibility } from '../../../../../data-destination';
 import { useReportSidesheet } from '../../model/hooks';
@@ -19,6 +34,10 @@ import { useReport } from '../../../shared';
 interface DestinationCardProps {
   destination: DataDestination;
   dataMartStatus?: DataMartStatusInfo;
+  canPublish?: boolean;
+  validationErrors?: DataMartValidationError[];
+  onPublishDataMart?: () => Promise<boolean>;
+  onReviewDataSetup?: () => void;
 }
 
 const reportDestinationTypes = [
@@ -28,6 +47,8 @@ const reportDestinationTypes = [
   DataDestinationType.MS_TEAMS,
   DataDestinationType.GOOGLE_CHAT,
 ];
+
+type ReportCreationDialog = 'publish' | 'setup';
 
 /**
  * Returns stats for a destination: report count and total Google Sheets destinations.
@@ -51,8 +72,18 @@ function useDestinationStats(destinationId: string) {
  * - Allows adding and editing reports via a modal
  * - Renders a report table inside the card
  */
-export function DestinationCard({ destination, dataMartStatus }: DestinationCardProps) {
+export function DestinationCard({
+  destination,
+  dataMartStatus,
+  canPublish = false,
+  validationErrors = [],
+  onPublishDataMart,
+  onReviewDataSetup,
+}: DestinationCardProps) {
   const { destinationInfo, isVisible } = useDataDestinationVisibility(destination);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogContent, setDialogContent] = useState<ReportCreationDialog>('setup');
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Modal state and handlers for creating/editing reports
   const { isOpen, mode, editingReport, handleAddReport, handleEditReport, handleCloseModal } =
@@ -64,6 +95,37 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
     destination.type === DataDestinationType.GOOGLE_SHEETS &&
     reportsCount === 0 &&
     googleSheetsCount === 1;
+
+  const isDraft = dataMartStatus?.code === DataMartStatus.DRAFT;
+  const requiredSetupActions = getRequiredSetupActions(validationErrors);
+
+  const handleAddReportRequest = useCallback(() => {
+    if (!isDraft) {
+      handleAddReport();
+      return;
+    }
+
+    setDialogContent(canPublish ? 'publish' : 'setup');
+    setIsDialogOpen(true);
+  }, [canPublish, handleAddReport, isDraft]);
+
+  const handlePublishAndCreateReport = useCallback(async () => {
+    if (!onPublishDataMart) return;
+
+    setIsPublishing(true);
+    const published = await onPublishDataMart().catch(() => false);
+    setIsPublishing(false);
+    setIsDialogOpen(false);
+
+    if (published) {
+      handleAddReport();
+    }
+  }, [handleAddReport, onPublishDataMart]);
+
+  const handleReviewDataSetup = useCallback(() => {
+    setIsDialogOpen(false);
+    onReviewDataSetup?.();
+  }, [onReviewDataSetup]);
 
   // Skip rendering if destination is not active
   if (!isVisible) {
@@ -85,7 +147,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
             <CollapsibleCardHeaderActions>
               {/* Render AddReportButton only for Google Sheets*/}
               {reportDestinationTypes.includes(destination.type) && (
-                <AddReportButton dataMartStatus={dataMartStatus} onAddReport={handleAddReport} />
+                <AddReportButton onAddReport={handleAddReportRequest} />
               )}
             </CollapsibleCardHeaderActions>
           </CollapsibleCardHeader>
@@ -95,8 +157,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
             <ReportListRenderer
               destination={destination}
               onEditReport={handleEditReport}
-              dataMartStatus={dataMartStatus}
-              onAddReport={handleAddReport}
+              onAddReport={handleAddReportRequest}
             />
           </CollapsibleCardContent>
 
@@ -119,6 +180,48 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
         mode={mode}
         initialReport={editingReport}
       />
+
+      <AlertDialog
+        open={isDialogOpen}
+        onOpenChange={open => {
+          if (!open && !isPublishing) setIsDialogOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {dialogContent === 'publish'
+                ? 'Publish Data Mart to create a report?'
+                : 'Complete Data Mart setup first'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {dialogContent === 'publish'
+                ? 'Reports are available only for published Data Marts. We’ll open the new report form when publishing is complete.'
+                : requiredSetupActions.length === 1
+                  ? `Before creating a report, ${requiredSetupActions[0]}.`
+                  : 'Before creating a report the required setup is needed:'}
+            </AlertDialogDescription>
+            {dialogContent === 'setup' && requiredSetupActions.length > 1 && (
+              <ul className='text-muted-foreground list-disc space-y-0.5 pl-5 text-sm'>
+                {requiredSetupActions.map(action => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            )}
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+            {dialogContent === 'publish' ? (
+              <Button onClick={() => void handlePublishAndCreateReport()} disabled={isPublishing}>
+                {isPublishing ? 'Publishing…' : 'Publish and create report'}
+              </Button>
+            ) : (
+              <Button onClick={handleReviewDataSetup}>Open Data Setup</Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

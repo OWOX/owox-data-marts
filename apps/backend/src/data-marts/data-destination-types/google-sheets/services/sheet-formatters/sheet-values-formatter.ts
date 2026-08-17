@@ -22,41 +22,11 @@ export class SheetValuesFormatter {
   ]);
 
   /**
-   * Formats values in rows based on field types
-   * @param rows - Rows to format
-   * @param dataHeaders - Headers for the rows
-   * @param sheetTimeZone - Time zone of the sheet
-   * @returns Formatted rows
-   */
-  public formatRowsValues(
-    rows: unknown[][],
-    dataHeaders: ReportDataHeader[],
-    sheetTimeZone: string
-  ): unknown[][] {
-    const columnsToFormat = dataHeaders
-      .map((header, index) => ({
-        index,
-        formatter: this.formatters.get(header.storageFieldType!),
-      }))
-      .filter(item => item.formatter);
-
-    if (columnsToFormat.length > 0) {
-      rows.forEach(row => {
-        columnsToFormat.forEach(({ index, formatter }) => {
-          row[index] = formatter!(row[index], sheetTimeZone);
-        });
-      });
-    }
-
-    return rows;
-  }
-
-  /**
-   * Same as {@link formatRowsValues} but resolves the per-column formatter by
-   * column **name** instead of position. Used by the diff-based writer where
-   * each row has already been reordered to match the user's column layout in
-   * the destination sheet, so positional alignment with the SQL output schema
-   * no longer holds.
+   * Formats values in rows based on field types, resolving the per-column
+   * formatter by column **name**. Used by the diff-based writer where each
+   * row has already been reordered to match the user's column layout in the
+   * destination sheet, so positional alignment with the SQL output schema
+   * does not hold.
    *
    * Nullish cells (SQL `NULL` → JavaScript `null`/`undefined`) pass through
    * unchanged. The writer pre-clears the imported rectangle before writing
@@ -85,15 +55,36 @@ export class SheetValuesFormatter {
       })
       .filter(item => item.formatter);
 
-    if (columnsToFormat.length > 0) {
-      orderedRows.forEach(row => {
-        columnsToFormat.forEach(({ index, formatter }) => {
-          row[index] = formatter!(row[index], sheetTimeZone);
-        });
+    orderedRows.forEach(row => {
+      columnsToFormat.forEach(({ index, formatter }) => {
+        row[index] = formatter!(row[index], sheetTimeZone);
       });
-    }
+      this.escapeRowValues(row);
+    });
 
     return orderedRows;
+  }
+
+  /**
+   * The data write uses `valueInputOption: 'USER_ENTERED'`, which makes Sheets
+   * parse a leading `+` as the start of a formula and render the cell as
+   * `#ERROR! Formula parse error`. A leading apostrophe is the Sheets escape
+   * symbol: the cell shows the original value and the apostrophe itself is not
+   * part of the cell content. Only `+` is escaped — values starting with `=`
+   * intentionally stay untouched so that formulas can be inserted as data.
+   *
+   * Mutates the row in place and returns it. Public so that every row written
+   * through `USER_ENTERED` — including the header row, where a user-defined
+   * column alias may start with `+` — is escaped the same way.
+   */
+  public escapeRowValues<T extends unknown[]>(row: T): T {
+    for (let i = 0; i < row.length; i++) {
+      const value = row[i];
+      if (typeof value === 'string' && value.startsWith('+')) {
+        row[i] = `'${value}`;
+      }
+    }
+    return row;
   }
 
   private formatTimestamp(value: unknown, sheetTimeZone: string): unknown {
