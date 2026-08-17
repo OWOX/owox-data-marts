@@ -18,6 +18,7 @@ import {
   GitMerge,
   Info,
   MoreHorizontal,
+  Text,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
@@ -34,6 +35,7 @@ import type {
   TransientRelationshipRow,
 } from '../../../shared/types/relationship.types';
 import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
+import { JoinDescriptionForm } from './JoinDescriptionForm';
 import { JoinSettingsForm } from './JoinSettingsForm';
 import { NoAccessIndicator } from './NoAccessIndicator';
 import {
@@ -88,7 +90,7 @@ export interface SourceEntry {
   dataMartId: string;
 }
 
-type AccordionTab = 'fields' | 'join-settings';
+type AccordionTab = 'fields' | 'join-settings' | 'description';
 
 interface RelationshipAccordionItemProps {
   row: TransientRelationshipRow;
@@ -431,6 +433,10 @@ export function RelationshipAccordionItem({
                           <GitMerge className='h-4 w-4' />
                           Join Settings
                         </TabsTrigger>
+                        <TabsTrigger value='description'>
+                          <Text className='h-4 w-4' />
+                          Description
+                        </TabsTrigger>
                       </TabsList>
                     </div>
 
@@ -487,6 +493,22 @@ export function RelationshipAccordionItem({
                         dataMartId={dataMartId}
                         readOnly={readOnly || isTransient}
                         siblingAliases={siblingAliases}
+                        inheritedFrom={
+                          isTransient
+                            ? { id: row.sourceDmId, title: row.parentDataMartTitle }
+                            : null
+                        }
+                        onSaved={updated => {
+                          onRelationshipUpdated(updated);
+                        }}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value='description'>
+                      <JoinDescriptionForm
+                        relationship={rel}
+                        dataMartId={dataMartId}
+                        readOnly={readOnly || isTransient}
                         inheritedFrom={
                           isTransient
                             ? { id: row.sourceDmId, title: row.parentDataMartTitle }

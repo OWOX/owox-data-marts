@@ -43,6 +43,15 @@ describe('GetDataMartDetailsTool', () => {
           sourceDataMart: 'blended_org',
         },
       ],
+      joins: [
+        {
+          aliasPath: 'blended_org',
+          sourceDataMart: 'Orders',
+          targetDataMart: 'blended_org',
+          joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: 'id' }],
+          description: 'Each order is placed by one organization',
+        },
+      ],
     };
     const facade = {
       getDataMartDetails: jest.fn().mockResolvedValue(detailsResult),
@@ -59,10 +68,21 @@ describe('GetDataMartDetailsTool', () => {
       joined_fields_included: boolean;
       fields: Array<Record<string, unknown>>;
       joined_fields: Array<Record<string, unknown>>;
+      joins: Array<Record<string, unknown>>;
       operators_by_category: Record<string, string[]>;
     };
 
     expect(sc.id).toBe('dm_1');
+    // Join edges pass through untouched — the relationship description IS the payload (#6780).
+    expect(sc.joins).toEqual([
+      {
+        aliasPath: 'blended_org',
+        sourceDataMart: 'Orders',
+        targetDataMart: 'blended_org',
+        joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: 'id' }],
+        description: 'Each order is placed by one organization',
+      },
+    ]);
     expect(sc.url).toBe('https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup');
     expect(sc.joined_fields_included).toBe(true);
     // Governance defaults, not the full type menu: DATE → MIN/MAX, STRING → COUNT/COUNT_DISTINCT.
@@ -111,6 +131,7 @@ describe('GetDataMartDetailsTool', () => {
         description: 'Orders data mart',
         fields: [],
         joinedFields: [],
+        joins: [],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new GetDataMartDetailsTool(facade, publicOrigin);
@@ -120,6 +141,7 @@ describe('GetDataMartDetailsTool', () => {
     expect(result.structuredContent).toMatchObject({
       joined_fields_included: false,
       joined_fields: [],
+      joins: [],
     });
     expect(facade.getDataMartDetails).toHaveBeenCalledWith(
       expect.objectContaining({ includeJoinedFields: false })
@@ -168,6 +190,7 @@ describe('GetDataMartDetailsTool', () => {
             sourceDataMart: 'costs',
           },
         ],
+        joins: [],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
     const tool = new GetDataMartDetailsTool(facade, publicOrigin);
@@ -229,6 +252,7 @@ describe('GetDataMartDetailsTool', () => {
         fields: expect.any(Object),
         joined_fields_included: expect.any(Object),
         joined_fields: expect.any(Object),
+        joins: expect.any(Object),
         operators_by_category: expect.any(Object),
       }),
       annotations: {

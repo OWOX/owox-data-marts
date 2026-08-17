@@ -48,6 +48,13 @@ export class RelationshipResponseApiDto {
   @ApiProperty()
   joinConditions: JoinCondition[];
 
+  @ApiProperty({
+    example: 'Visitors from the website sign up for the product and convert into users',
+    description: 'Business meaning of this relationship, shared with AI assistants',
+    required: false,
+  })
+  description?: string;
+
   @ApiProperty({ example: 'user-id-123' })
   createdById: string;
 

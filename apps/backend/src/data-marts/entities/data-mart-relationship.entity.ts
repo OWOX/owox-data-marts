@@ -40,6 +40,9 @@ export class DataMartRelationship implements CreatorAwareEntity {
   @Column({ length: 255 })
   targetAlias: string;
 
+  @Column({ type: 'text', nullable: true })
+  description?: string | null;
+
   @Column({
     type: 'json',
     transformer: createZodTransformer<JoinCondition[]>(JoinConditionsSchema),

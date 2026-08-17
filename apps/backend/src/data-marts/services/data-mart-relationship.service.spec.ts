@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
+import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { JoinCondition } from '../dto/schemas/join-condition.schema';
@@ -367,6 +368,7 @@ describe('DataMartRelationshipService', () => {
         dataStorage: storage,
         targetAlias: 'my_alias',
         joinConditions: [],
+        description: null,
         projectId: 'project-1',
         createdById: 'user-1',
       });
@@ -399,6 +401,52 @@ describe('DataMartRelationshipService', () => {
 
       expect(result.joinConditions).toEqual([]);
       expect(repository.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    const makeUpdateCommand = (description: string | null | undefined) =>
+      new UpdateRelationshipCommand(
+        'rel-1',
+        'dm-source',
+        'project-1',
+        'user-1',
+        [],
+        undefined,
+        undefined,
+        description
+      );
+
+    it('stores a trimmed description', async () => {
+      const relationship = makeRelationship('dm-source', 'dm-target');
+      repository.save.mockImplementation(entity => Promise.resolve(entity as DataMartRelationship));
+
+      const updated = await service.update(relationship, makeUpdateCommand('  Users convert  '));
+
+      expect(updated.description).toBe('Users convert');
+    });
+
+    it('clears the description on null and on blank input', async () => {
+      repository.save.mockImplementation(entity => Promise.resolve(entity as DataMartRelationship));
+
+      for (const cleared of [null, '   ']) {
+        const relationship = makeRelationship('dm-source', 'dm-target', {
+          description: 'old meaning',
+        });
+        const updated = await service.update(relationship, makeUpdateCommand(cleared));
+        expect(updated.description).toBeNull();
+      }
+    });
+
+    it('leaves the description untouched when the command omits it', async () => {
+      const relationship = makeRelationship('dm-source', 'dm-target', {
+        description: 'old meaning',
+      });
+      repository.save.mockImplementation(entity => Promise.resolve(entity as DataMartRelationship));
+
+      const updated = await service.update(relationship, makeUpdateCommand(undefined));
+
+      expect(updated.description).toBe('old meaning');
     });
   });
 

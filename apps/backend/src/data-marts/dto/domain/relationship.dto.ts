@@ -18,6 +18,7 @@ export interface RelationshipDto {
   targetDataMart: RelationshipDataMartRef;
   targetAlias: string;
   joinConditions: JoinCondition[];
+  description?: string;
   createdById: string;
   createdAt: Date;
   modifiedAt: Date;

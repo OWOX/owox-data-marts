@@ -97,6 +97,27 @@ const JoinedFieldSchema = z
   })
   .passthrough();
 
+const JoinSchema = z
+  .object({
+    aliasPath: z
+      .string()
+      .describe(
+        'Dotted alias path of the joined source — matches the "<alias>__" prefix of joined_fields names.'
+      ),
+    sourceDataMart: z.string().describe('Title of the data mart on the left side of this join.'),
+    targetDataMart: z.string().describe('Title of the joined data mart.'),
+    joinConditions: z
+      .array(z.object({ sourceFieldName: z.string(), targetFieldName: z.string() }).passthrough())
+      .describe('Field pairs the rows are matched on (source field = target field).'),
+    description: z
+      .string()
+      .optional()
+      .describe(
+        'Analyst-written business meaning of this relationship (e.g. "Visitors from the website sign up for the product and convert into users"). Use it to interpret joined fields and to reason about cause and effect across the joined data marts.'
+      ),
+  })
+  .passthrough();
+
 type RawField = Record<string, unknown>;
 
 @Injectable()
@@ -120,6 +141,11 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       .array(JoinedFieldSchema)
       .describe(
         'Fields available from joined/blended data marts when joined_fields_included is true. Reference each by its exact "name" in query_data_mart; because they come from a joined data mart they may also be used in "slices".'
+      ),
+    joins: z
+      .array(JoinSchema)
+      .describe(
+        'How the joined data marts relate to this one — one entry per join edge (populated only when joined_fields_included is true): the matched key fields plus, when set, the business meaning of the relationship. Read these before interpreting joined_fields.'
       ),
     operators_by_category: z
       .record(z.string(), z.array(z.string()))
@@ -182,6 +208,7 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       fields,
       joined_fields_included: includeJoinedFields,
       joined_fields: joinedFields,
+      joins: result.joins,
       operators_by_category: operatorsByCategory,
     };
 

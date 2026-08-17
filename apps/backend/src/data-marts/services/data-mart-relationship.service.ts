@@ -36,6 +36,7 @@ export class DataMartRelationshipService {
       dataStorage: sourceDataMart.storage,
       targetAlias: command.targetAlias,
       joinConditions: command.joinConditions,
+      description: this.normalizeDescription(command.description),
       projectId: command.projectId,
       createdById: command.userId,
     });
@@ -131,8 +132,17 @@ export class DataMartRelationshipService {
     if (command.joinConditions !== undefined) {
       relationship.joinConditions = command.joinConditions;
     }
+    if (command.description !== undefined) {
+      relationship.description = this.normalizeDescription(command.description);
+    }
 
     return this.repository.save(relationship);
+  }
+
+  /** Blank descriptions are stored as NULL, so consumers never see empty strings. */
+  private normalizeDescription(description: string | null | undefined): string | null {
+    const trimmed = description?.trim();
+    return trimmed ? trimmed : null;
   }
 
   async delete(relationship: DataMartRelationship): Promise<void> {

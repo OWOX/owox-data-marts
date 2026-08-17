@@ -25,6 +25,7 @@ import {
   McpDataMartsFacade,
   McpDataMartDetailsResponse,
   McpGetDataMartDetailsRequest,
+  McpJoinDto,
   McpJoinedFieldDto,
   McpListDataMartsRequest,
   McpListDataMartsResponse,
@@ -93,9 +94,9 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         } as DataMartSchema) as { fields: Array<Record<string, unknown>> })
       : undefined;
 
-    const { joinedFields, uniqueCountSources } = request.includeJoinedFields
+    const { joinedFields, joins, uniqueCountSources } = request.includeJoinedFields
       ? await this.resolveJoinedFields(request, this.topLevelFieldNames(schema?.fields ?? []))
-      : { joinedFields: [], uniqueCountSources: [] };
+      : { joinedFields: [], joins: [], uniqueCountSources: [] };
 
     return {
       id: dataMart.id,
@@ -103,6 +104,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       description: dataMart.description ?? '',
       fields: this.withDisplayNames(schema?.fields ?? []),
       joinedFields,
+      joins,
       uniqueCountSources,
     };
   }
@@ -122,6 +124,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     nativeFieldNames: ReadonlySet<string>
   ): Promise<{
     joinedFields: McpJoinedFieldDto[];
+    joins: McpJoinDto[];
     uniqueCountSources: McpUniqueCountSourceDto[];
   }> {
     try {
@@ -131,7 +134,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         request.dataMartId
       );
       if (relationships.length === 0) {
-        return { joinedFields: [], uniqueCountSources: [] };
+        return { joinedFields: [], joins: [], uniqueCountSources: [] };
       }
 
       const blendable = await this.blendableSchemaService.computeBlendableSchema(
@@ -148,6 +151,8 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         s => s.isIncluded && s.isAccessibleForReporting
       );
       const accessiblePaths = new Set(accessibleSources.map(s => s.aliasPath));
+
+      const joins = await this.resolveJoins(accessibleSources);
 
       const blendedFields = blendable.blendedFields
         .filter(f => !f.isHidden && accessiblePaths.has(f.aliasPath))
@@ -210,13 +215,43 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
         });
       }
 
-      return { joinedFields: [...blendedFields, ...uniqueCountFields], uniqueCountSources };
+      return { joinedFields: [...blendedFields, ...uniqueCountFields], joins, uniqueCountSources };
     } catch (err) {
       this.logger.warn(
         `resolveJoinedFields failed; returning no joined fields: ${err instanceof Error ? err.message : String(err)}`
       );
-      return { joinedFields: [], uniqueCountSources: [] };
+      return { joinedFields: [], joins: [], uniqueCountSources: [] };
     }
+  }
+
+  /**
+   * The join-tree edges behind the accessible sources — every source was pulled through exactly
+   * one relationship (`relationshipId`), including transitive ones, so one lookup by ids covers
+   * the whole tree. Gives the model the join keys and the analyst-written relationship
+   * description (#6780) that `joinedFields` alone cannot carry.
+   */
+  private async resolveJoins(
+    accessibleSources: Array<{ aliasPath: string; relationshipId: string }>
+  ): Promise<McpJoinDto[]> {
+    const relationshipsById = new Map(
+      (await this.relationshipService.findByIds(accessibleSources.map(s => s.relationshipId))).map(
+        rel => [rel.id, rel]
+      )
+    );
+
+    const joins: McpJoinDto[] = [];
+    for (const source of accessibleSources) {
+      const rel = relationshipsById.get(source.relationshipId);
+      if (!rel?.sourceDataMart || !rel.targetDataMart) continue;
+      joins.push({
+        aliasPath: source.aliasPath,
+        sourceDataMart: rel.sourceDataMart.title,
+        targetDataMart: rel.targetDataMart.title,
+        joinConditions: rel.joinConditions,
+        ...(rel.description ? { description: rel.description } : {}),
+      });
+    }
+    return joins;
   }
 
   async queryDataMart(

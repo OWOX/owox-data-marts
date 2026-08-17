@@ -69,11 +69,12 @@ describe('McpDataMartsFacadeImpl', () => {
       }),
     }) as unknown as jest.Mocked<BlendableSchemaService>;
 
-  const createRelationshipService = (relationshipCount = 1) =>
+  const createRelationshipService = (relationshipCount = 1, relationships: unknown[] = []) =>
     ({
       findBySourceDataMartId: jest
         .fn()
         .mockResolvedValue(Array.from({ length: relationshipCount }, () => ({}))),
+      findByIds: jest.fn().mockResolvedValue(relationships),
     }) as unknown as jest.Mocked<DataMartRelationshipService>;
 
   const createSummarizeMcpDataCatalogService = () =>
@@ -345,6 +346,7 @@ describe('McpDataMartsFacadeImpl', () => {
         },
       ],
       joinedFields: [],
+      joins: [],
       uniqueCountSources: [],
     });
     expect(dataMartService.actualizeSchemaIfExpired).toHaveBeenCalledWith(
@@ -444,6 +446,7 @@ describe('McpDataMartsFacadeImpl', () => {
       description: '',
       fields: [],
       joinedFields: [],
+      joins: [],
       uniqueCountSources: [],
     });
   });
@@ -568,6 +571,77 @@ describe('McpDataMartsFacadeImpl', () => {
         roles: ['viewer'],
       }
     );
+  });
+
+  it('surfaces join edges with their keys and relationship description, omitting inaccessible sources (#6780)', async () => {
+    const dataMartService = createDataMartService({
+      id: 'dm_1',
+      title: 'Users',
+      description: '',
+      schema: { type: BigQueryDataMartSchemaType, fields: [] },
+    });
+    const blendableSchemaService = createBlendableSchemaService(
+      [],
+      [
+        {
+          aliasPath: 'visitors',
+          relationshipId: 'rel_1',
+          isIncluded: true,
+          isAccessibleForReporting: true,
+        },
+        {
+          aliasPath: 'secret',
+          relationshipId: 'rel_2',
+          isIncluded: true,
+          isAccessibleForReporting: false,
+        },
+      ]
+    );
+    const relationshipService = createRelationshipService(1, [
+      {
+        id: 'rel_1',
+        sourceDataMart: { title: 'Users' },
+        targetDataMart: { title: 'Visitors' },
+        joinConditions: [{ sourceFieldName: 'visitor_id', targetFieldName: 'id' }],
+        description: 'Visitors from the website sign up for the product and convert into users',
+      },
+      {
+        id: 'rel_2',
+        sourceDataMart: { title: 'Users' },
+        targetDataMart: { title: 'Secret' },
+        joinConditions: [],
+        description: 'Must not be exposed',
+      },
+    ]);
+    const facade = new McpDataMartsFacadeImpl(
+      createListDataMartsService([]),
+      createGetDataMartService(),
+      dataMartService,
+      createQueryDataMartService(),
+      blendableSchemaService,
+      relationshipService,
+      createSummarizeMcpDataCatalogService()
+    );
+
+    const result = await facade.getDataMartDetails({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      dataMartId: 'dm_1',
+      includeJoinedFields: true,
+    });
+
+    // Only the accessible source's edge is exposed; the description travels with it.
+    expect(result.joins).toEqual([
+      {
+        aliasPath: 'visitors',
+        sourceDataMart: 'Users',
+        targetDataMart: 'Visitors',
+        joinConditions: [{ sourceFieldName: 'visitor_id', targetFieldName: 'id' }],
+        description: 'Visitors from the website sign up for the product and convert into users',
+      },
+    ]);
+    expect(relationshipService.findByIds).toHaveBeenCalledWith(['rel_1']);
   });
 
   it('appends a joined Unique Count pseudo-field per available source, omitting sources that are not available (#6792)', async () => {

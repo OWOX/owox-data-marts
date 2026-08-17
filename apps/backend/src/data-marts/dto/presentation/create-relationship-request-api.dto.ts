@@ -2,6 +2,7 @@ import {
   IsString,
   IsArray,
   IsNotEmpty,
+  IsOptional,
   ValidateNested,
   MinLength,
   MaxLength,
@@ -69,4 +70,13 @@ export class CreateRelationshipRequestApiDto {
   @ValidateNested({ each: true })
   @Type(() => JoinConditionApiDto)
   joinConditions: JoinConditionApiDto[];
+
+  @ApiProperty({
+    example: 'Visitors from the website sign up for the product and convert into users',
+    description: 'Business meaning of this relationship, shared with AI assistants',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  description?: string;
 }

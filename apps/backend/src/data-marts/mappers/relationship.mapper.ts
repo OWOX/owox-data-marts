@@ -37,7 +37,8 @@ export class RelationshipMapper {
       dto.joinConditions.map(c => this.toJoinCondition(c)),
       context.projectId,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.description
     );
   }
 
@@ -54,7 +55,8 @@ export class RelationshipMapper {
       context.userId,
       context.roles ?? [],
       dto.targetAlias,
-      dto.joinConditions?.map(c => this.toJoinCondition(c))
+      dto.joinConditions?.map(c => this.toJoinCondition(c)),
+      dto.description
     );
   }
 
@@ -122,6 +124,7 @@ export class RelationshipMapper {
       },
       targetAlias: entity.targetAlias,
       joinConditions: entity.joinConditions,
+      description: entity.description ?? undefined,
       createdById: entity.createdById,
       createdAt: entity.createdAt,
       modifiedAt: entity.modifiedAt,

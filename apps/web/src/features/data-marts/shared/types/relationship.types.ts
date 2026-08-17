@@ -49,6 +49,8 @@ export interface DataMartRelationship {
   targetDataMart: RelatedDataMart;
   targetAlias: string;
   joinConditions: JoinCondition[];
+  /** Business meaning of this relationship, shared with AI assistants. */
+  description?: string;
   createdById: string;
   createdAt: string;
   modifiedAt: string;
@@ -59,11 +61,14 @@ export interface CreateRelationshipRequest {
   targetDataMartId: string;
   targetAlias: string;
   joinConditions: JoinCondition[];
+  description?: string;
 }
 
 export interface UpdateRelationshipRequest {
   targetAlias?: string;
   joinConditions?: JoinCondition[];
+  /** Omit to leave untouched; null or an empty string clears it. */
+  description?: string | null;
 }
 
 export interface RelationshipGraphNode {

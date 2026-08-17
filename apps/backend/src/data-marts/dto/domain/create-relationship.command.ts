@@ -8,6 +8,7 @@ export class CreateRelationshipCommand {
     public readonly joinConditions: JoinCondition[],
     public readonly projectId: string,
     public readonly userId: string,
-    public readonly roles: string[]
+    public readonly roles: string[],
+    public readonly description?: string
   ) {}
 }

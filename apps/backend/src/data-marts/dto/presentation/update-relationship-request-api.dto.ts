@@ -2,6 +2,7 @@ import {
   IsString,
   IsArray,
   ValidateNested,
+  ValidateIf,
   MinLength,
   MaxLength,
   IsOptional,
@@ -40,4 +41,16 @@ export class UpdateRelationshipRequestApiDto {
   @Type(() => JoinConditionApiDto)
   @IsOptional()
   joinConditions?: JoinConditionApiDto[];
+
+  @ApiProperty({
+    example: 'Visitors from the website sign up for the product and convert into users',
+    description:
+      'Business meaning of this relationship, shared with AI assistants. Send null or an empty string to clear it.',
+    required: false,
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf(obj => obj.description !== null)
+  @IsString()
+  description?: string | null;
 }

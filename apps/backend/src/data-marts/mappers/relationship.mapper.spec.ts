@@ -55,6 +55,7 @@ describe('RelationshipMapper', () => {
         targetDataMartId: 'target-dm-2',
         targetAlias: 'orders',
         joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+        description: 'Each user has orders they placed',
       };
 
       const command = mapper.toCreateCommand('source-dm-1', mockContext, dto);
@@ -67,6 +68,7 @@ describe('RelationshipMapper', () => {
       expect(command.joinConditions).toEqual([
         { sourceFieldName: 'user_id', targetFieldName: 'user_id' },
       ]);
+      expect(command.description).toBe('Each user has orders they placed');
     });
   });
 
@@ -75,6 +77,7 @@ describe('RelationshipMapper', () => {
       const dto: UpdateRelationshipRequestApiDto = {
         targetAlias: 'new_alias',
         joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+        description: 'Each user has orders they placed',
       };
 
       const command = mapper.toUpdateCommand('rel-1', 'source-dm-1', mockContext, dto);
@@ -85,6 +88,7 @@ describe('RelationshipMapper', () => {
       expect(command.projectId).toBe('project-456');
       expect(command.targetAlias).toBe('new_alias');
       expect(command.joinConditions).toEqual([{ sourceFieldName: 'id', targetFieldName: 'id' }]);
+      expect(command.description).toBe('Each user has orders they placed');
     });
 
     it('should produce undefined for optional fields when not provided', () => {
@@ -94,6 +98,15 @@ describe('RelationshipMapper', () => {
 
       expect(command.targetAlias).toBeUndefined();
       expect(command.joinConditions).toBeUndefined();
+      expect(command.description).toBeUndefined();
+    });
+
+    it('should pass null description through so the update can clear it', () => {
+      const dto: UpdateRelationshipRequestApiDto = { description: null };
+
+      const command = mapper.toUpdateCommand('rel-1', 'source-dm-1', mockContext, dto);
+
+      expect(command.description).toBeNull();
     });
   });
 
@@ -120,6 +133,15 @@ describe('RelationshipMapper', () => {
       expect(dto.createdAt).toEqual(new Date('2024-01-01T00:00:00.000Z'));
       expect(dto.modifiedAt).toEqual(new Date('2024-01-02T00:00:00.000Z'));
       expect(dto.createdByUser).toBeNull();
+      expect(dto.description).toBeUndefined();
+    });
+
+    it('should carry the relationship description when set', () => {
+      const entity = { ...mockEntity, description: 'Each user has orders they placed' };
+
+      const dto = mapper.toDomainDto(entity, null, fullAccess);
+
+      expect(dto.description).toBe('Each user has orders they placed');
     });
 
     it('falls back to userHasAccess=false when access map lacks the data mart id', () => {

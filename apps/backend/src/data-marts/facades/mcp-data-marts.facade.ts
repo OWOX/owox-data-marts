@@ -80,12 +80,28 @@ export interface McpUniqueCountSourceDto {
   displayName: string;
 }
 
+/**
+ * One edge of the join tree behind `joinedFields`, so the model sees not only WHICH fields a
+ * joined source contributes but HOW the two data marts relate: the join keys (data context) and
+ * the analyst-written relationship description (business context, e.g. "Visitors from the
+ * website sign up for the product and convert into users").
+ */
+export interface McpJoinDto {
+  /** Dotted alias path of the joined source — matches the `<alias>__` prefix of joinedFields. */
+  aliasPath: string;
+  sourceDataMart: string;
+  targetDataMart: string;
+  joinConditions: Array<{ sourceFieldName: string; targetFieldName: string }>;
+  description?: string;
+}
+
 export interface McpDataMartDetailsResponse {
   id: string;
   name: string;
   description: string;
   fields: Array<Record<string, unknown>>;
   joinedFields: McpJoinedFieldDto[];
+  joins: McpJoinDto[];
   uniqueCountSources: McpUniqueCountSourceDto[];
 }
 
