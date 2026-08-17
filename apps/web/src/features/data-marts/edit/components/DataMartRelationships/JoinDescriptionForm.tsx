@@ -33,20 +33,33 @@ export function JoinDescriptionForm({
   const savedValue = relationship.description ?? '';
   const [localValue, setLocalValue] = useState(savedValue);
   const debouncedValue = useDebounce(localValue, 800);
-  const lastSavedRef = useRef(savedValue);
-  const isDirtyRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
+  const lastSavedRef = useRef(savedValue);
+  // What the textarea holds RIGHT NOW — the debounced value and the in-flight payload
+  // both lag behind it, and every dirty/clean decision must compare against it.
+  const latestValueRef = useRef(savedValue);
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
-    setLocalValue(savedValue);
     lastSavedRef.current = savedValue;
-    isDirtyRef.current = false;
+    // Sync from the server only while clean — resetting mid-edit would silently
+    // revert text the user typed while a save was in flight.
+    if (!isDirtyRef.current) {
+      setLocalValue(savedValue);
+      latestValueRef.current = savedValue;
+    }
   }, [savedValue]);
 
-  const save = (value: string) => {
-    if (readOnly || isSaving) return;
+  // Kept in a ref so effects can depend on plain values (debouncedValue, isSaving)
+  // without re-running on every render for a new function identity.
+  const saveRef = useRef<(value: string, opts?: { ignoreInFlight?: boolean }) => void>(() => {
+    /* replaced each render below */
+  });
+  saveRef.current = (value, { ignoreInFlight = false } = {}) => {
+    if (readOnly || (isSaving && !ignoreInFlight)) return;
     if (value.trim() === lastSavedRef.current.trim()) {
-      isDirtyRef.current = false;
+      // Nothing to send; stay dirty only if the textarea has since diverged again.
+      isDirtyRef.current = latestValueRef.current.trim() !== lastSavedRef.current.trim();
       return;
     }
     setIsSaving(true);
@@ -60,7 +73,11 @@ export function JoinDescriptionForm({
       )
       .then(updated => {
         lastSavedRef.current = updated.description ?? '';
-        isDirtyRef.current = false;
+        // Clear the dirty flag only if the textarea still matches what was sent —
+        // text typed during the request stays dirty and is retried below.
+        if (latestValueRef.current.trim() === value.trim()) {
+          isDirtyRef.current = false;
+        }
         onSaved(updated);
       })
       .catch(() => {
@@ -73,11 +90,22 @@ export function JoinDescriptionForm({
       });
   };
 
+  // Fires when the debounce settles AND whenever an in-flight save finishes —
+  // the latter retries edits that were skipped because a save was already running.
   useEffect(() => {
-    if (!isDirtyRef.current) return;
-    save(debouncedValue);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when the debounced value settles
-  }, [debouncedValue]);
+    if (!isDirtyRef.current || isSaving) return;
+    saveRef.current(latestValueRef.current);
+  }, [debouncedValue, isSaving]);
+
+  // Flush a pending edit when the tab unmounts (tab switch, row collapse) — the
+  // debounce timer dies with the component, and blur is not guaranteed to fire first.
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current) {
+        saveRef.current(latestValueRef.current, { ignoreInFlight: true });
+      }
+    };
+  }, []);
 
   return (
     <div className='flex flex-col gap-3 p-4'>
@@ -122,10 +150,13 @@ export function JoinDescriptionForm({
         value={localValue}
         onChange={e => {
           setLocalValue(e.target.value);
+          latestValueRef.current = e.target.value;
           isDirtyRef.current = true;
         }}
         onBlur={() => {
-          if (isDirtyRef.current) save(localValue);
+          if (isDirtyRef.current && !isSaving) {
+            saveRef.current(latestValueRef.current);
+          }
         }}
         placeholder='e.g. Visitors from the website sign up for the product and convert into users'
         disabled={readOnly}

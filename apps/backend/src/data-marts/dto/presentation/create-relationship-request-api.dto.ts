@@ -2,7 +2,7 @@ import {
   IsString,
   IsArray,
   IsNotEmpty,
-  IsOptional,
+  ValidateIf,
   ValidateNested,
   MinLength,
   MaxLength,
@@ -76,7 +76,10 @@ export class CreateRelationshipRequestApiDto {
     description: 'Business meaning of this relationship, shared with AI assistants',
     required: false,
   })
+  // Not @IsOptional(): that would skip validation for an explicit null too, smuggling a null
+  // into the `string | undefined` command field. Omitting the key is fine; null is a 400 —
+  // unlike the update DTO, which deliberately opts INTO null as its "clear" signal.
+  @ValidateIf(obj => obj.description !== undefined)
   @IsString()
-  @IsOptional()
   description?: string;
 }

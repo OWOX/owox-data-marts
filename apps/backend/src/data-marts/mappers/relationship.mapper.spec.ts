@@ -391,6 +391,33 @@ describe('CreateRelationshipRequestApiDto validation', () => {
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
   });
+
+  it('accepts an omitted description and a string description', async () => {
+    const base = {
+      targetDataMartId: 'target-dm-1',
+      targetAlias: 'orders',
+      joinConditions: [],
+    };
+
+    expect(await validate(plainToInstance(CreateRelationshipRequestApiDto, base))).toHaveLength(0);
+    expect(
+      await validate(
+        plainToInstance(CreateRelationshipRequestApiDto, { ...base, description: 'Buyers' })
+      )
+    ).toHaveLength(0);
+  });
+
+  it('rejects an explicit null description — create has no "clear" semantics to opt into', async () => {
+    const dto = plainToInstance(CreateRelationshipRequestApiDto, {
+      targetDataMartId: 'target-dm-1',
+      targetAlias: 'orders',
+      joinConditions: [],
+      description: null,
+    });
+
+    const errors = await validate(dto);
+    expect(errors.find(e => e.property === 'description')).toBeDefined();
+  });
 });
 
 describe('UpdateRelationshipRequestApiDto validation', () => {
@@ -424,5 +451,21 @@ describe('UpdateRelationshipRequestApiDto validation', () => {
 
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
+  });
+
+  // Pins the null-clear contract: @IsOptional() skips validation for null, which is exactly
+  // what the update DTO relies on — losing that would break the UI's "clear description" PATCH.
+  it('accepts description as a string, as null (clear), and omitted', async () => {
+    for (const payload of [{ description: 'Buyers' }, { description: null }, {}]) {
+      const errors = await validate(plainToInstance(UpdateRelationshipRequestApiDto, payload));
+      expect(errors).toHaveLength(0);
+    }
+  });
+
+  it('rejects a non-string description', async () => {
+    const dto = plainToInstance(UpdateRelationshipRequestApiDto, { description: 42 });
+
+    const errors = await validate(dto);
+    expect(errors.find(e => e.property === 'description')).toBeDefined();
   });
 });

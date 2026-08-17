@@ -229,29 +229,39 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
    * one relationship (`relationshipId`), including transitive ones, so one lookup by ids covers
    * the whole tree. Gives the model the join keys and the analyst-written relationship
    * description (#6780) that `joinedFields` alone cannot carry.
+   *
+   * Failure here degrades only `joins` to [] — by this point the blendable schema has already
+   * resolved, and this extra lookup must not take the joined fields down with it.
    */
   private async resolveJoins(
     accessibleSources: Array<{ aliasPath: string; relationshipId: string }>
   ): Promise<McpJoinDto[]> {
-    const relationshipsById = new Map(
-      (await this.relationshipService.findByIds(accessibleSources.map(s => s.relationshipId))).map(
-        rel => [rel.id, rel]
-      )
-    );
+    try {
+      const relationshipsById = new Map(
+        (
+          await this.relationshipService.findByIds(accessibleSources.map(s => s.relationshipId))
+        ).map(rel => [rel.id, rel])
+      );
 
-    const joins: McpJoinDto[] = [];
-    for (const source of accessibleSources) {
-      const rel = relationshipsById.get(source.relationshipId);
-      if (!rel?.sourceDataMart || !rel.targetDataMart) continue;
-      joins.push({
-        aliasPath: source.aliasPath,
-        sourceDataMart: rel.sourceDataMart.title,
-        targetDataMart: rel.targetDataMart.title,
-        joinConditions: rel.joinConditions,
-        ...(rel.description ? { description: rel.description } : {}),
-      });
+      const joins: McpJoinDto[] = [];
+      for (const source of accessibleSources) {
+        const rel = relationshipsById.get(source.relationshipId);
+        if (!rel?.sourceDataMart || !rel.targetDataMart) continue;
+        joins.push({
+          aliasPath: source.aliasPath,
+          sourceDataMart: rel.sourceDataMart.title,
+          targetDataMart: rel.targetDataMart.title,
+          joinConditions: rel.joinConditions,
+          ...(rel.description ? { description: rel.description } : {}),
+        });
+      }
+      return joins;
+    } catch (err) {
+      this.logger.warn(
+        `resolveJoins failed; returning joined fields without joins: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return [];
     }
-    return joins;
   }
 
   async queryDataMart(

@@ -45,7 +45,7 @@ export class UpdateRelationshipRequestApiDto {
   @ApiProperty({
     example: 'Visitors from the website sign up for the product and convert into users',
     description:
-      'Business meaning of this relationship, shared with AI assistants. Send null or an empty string to clear it.',
+      'Business meaning of this relationship, shared with AI assistants. Values are trimmed; send null or a blank (empty/whitespace-only) string to clear it.',
     required: false,
     nullable: true,
   })
