@@ -46,7 +46,8 @@ export function TargetSetupStep({
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
 
-  // Track if user has manually edited the catalog, schema and table fields
+  // Track if user has manually edited the dataset, catalog, schema and table fields
+  const datasetEditedByUser = useRef(false);
   const catalogEditedByUser = useRef(false);
   const schemaEditedByUser = useRef(false);
   const tableEditedByUser = useRef(false);
@@ -148,6 +149,19 @@ export function TargetSetupStep({
   );
 
   useEffect(() => {
+    // This effect only seeds the fields (defaults, or an existing target in edit mode).
+    // Once the user touches any field, local state is the source of truth: the change
+    // handlers already push the full target upstream, and re-parsing the echoed
+    // fullyQualifiedName here would wipe fields that are momentarily empty.
+    if (
+      datasetEditedByUser.current ||
+      catalogEditedByUser.current ||
+      schemaEditedByUser.current ||
+      tableEditedByUser.current
+    ) {
+      return;
+    }
+
     let newDatasetName = '';
     let newCatalogName = '';
     let newSchemaName = '';
@@ -235,22 +249,13 @@ export function TargetSetupStep({
     );
 
     setDatasetName(newDatasetName);
-    // Only update catalog if user hasn't manually edited it
-    if (!catalogEditedByUser.current) {
-      setCatalogName(newCatalogName);
-      setCatalogError(newCatalogError);
-    }
-    // Only update schema if user hasn't manually edited it
-    if (!schemaEditedByUser.current) {
-      setSchemaName(newSchemaName);
-      setSchemaError(newSchemaError);
-    }
-    // Only update table if user hasn't manually edited it
-    if (!tableEditedByUser.current) {
-      setTableName(newTableName);
-      setTableError(newTableError);
-    }
     setDatasetError(newDatasetError);
+    setCatalogName(newCatalogName);
+    setCatalogError(newCatalogError);
+    setSchemaName(newSchemaName);
+    setSchemaError(newSchemaError);
+    setTableName(newTableName);
+    setTableError(newTableError);
 
     const newFullyQualifiedName =
       dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName
@@ -293,13 +298,8 @@ export function TargetSetupStep({
                 newTableError === null
               );
 
-    // Only update target from useEffect if user hasn't manually edited fields
-    // When user edits, handleSchemaNameChange/handleTableNameChange will call updateTarget
     const shouldUpdate =
-      !catalogEditedByUser.current &&
-      !schemaEditedByUser.current &&
-      !tableEditedByUser.current &&
-      (target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid);
+      target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid;
 
     if (shouldUpdate) {
       updateTarget(
@@ -316,6 +316,7 @@ export function TargetSetupStep({
   }, [target, sanitizedDestinationName, sanitizedConnectorName, dataStorageType, updateTarget]);
 
   const handleDatasetNameChange = (name: string) => {
+    datasetEditedByUser.current = true;
     setDatasetName(name);
     const validationError = validate(name);
     setDatasetError(validationError);
