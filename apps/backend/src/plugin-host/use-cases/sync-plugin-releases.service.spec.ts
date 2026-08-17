@@ -391,11 +391,23 @@ describe('SyncPluginReleasesService', () => {
     // processCandidate. A release that redefines an existing collection must publish.
     it('accepts a release that redefines a collection from the current manifest', async () => {
       const s = setup();
-      s.githubApi.listReleases.mockResolvedValue([release('v2.0.0')]);
+      // The reported case: a patch release binds an already-released collection to an entity.
+      const boundDashboards = {
+        name: 'dashboards',
+        scope: 'project',
+        entityBinding: {
+          type: 'data-mart',
+          actions: { read: 'SEE', create: 'SEE', update: 'EDIT', delete: 'DELETE' },
+        },
+      };
+      s.githubApi.listReleases.mockResolvedValue([release('v0.1.1')]);
+      s.githubApi.getFileAtCommit.mockResolvedValue(
+        JSON.stringify({ ...JSON.parse(MANIFEST), collections: [boundDashboards] })
+      );
       s.versionService.findAllByPluginId.mockResolvedValue([
         {
           id: 'v1',
-          semver: '1.0.0',
+          semver: '0.1.0',
           collections: [{ name: 'dashboards', scope: 'project' }],
         },
       ] as never);
@@ -403,8 +415,11 @@ describe('SyncPluginReleasesService', () => {
       const result = await run(s);
 
       expect(result.report.rejections).toEqual([]);
-      expect(result.report.acceptedSemvers).toEqual(['2.0.0']);
-      expect(s.versionService.insertVersionForLease).toHaveBeenCalled();
+      expect(result.report.acceptedSemvers).toEqual(['0.1.1']);
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalledWith(
+        expect.objectContaining({ collections: [boundDashboards] }),
+        'lease-1'
+      );
     });
 
     // One broken release must not take the good ones down with it.
