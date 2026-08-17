@@ -33,6 +33,17 @@ export interface FolderAccess {
 /**
  * Adapter for Google Sheets API operations
  */
+/**
+ * Quotes a sheet (tab) title for use in an A1 range. Embedded apostrophes are
+ * doubled per the A1 grammar — `Bob's data` becomes `'Bob''s data'` — so any
+ * title a user can type in Google Sheets produces a parseable range. Every
+ * range interpolation site must go through this; a raw `'${title}'` breaks on
+ * the first apostrophe.
+ */
+export function quoteA1SheetTitle(title: string): string {
+  return `'${title.replace(/'/g, "''")}'`;
+}
+
 export class GoogleSheetsApiAdapter {
   private static readonly SHEETS_SCOPE = ['https://www.googleapis.com/auth/spreadsheets'];
 
@@ -503,8 +514,8 @@ export class GoogleSheetsApiAdapter {
   ): Promise<string[]> {
     const range =
       toCol !== undefined
-        ? `'${sheetTitle}'!${GoogleSheetsApiAdapter.colToA1(fromCol)}${row}:${GoogleSheetsApiAdapter.colToA1(toCol)}${row}`
-        : `'${sheetTitle}'!${row}:${row}`;
+        ? `${quoteA1SheetTitle(sheetTitle)}!${GoogleSheetsApiAdapter.colToA1(fromCol)}${row}:${GoogleSheetsApiAdapter.colToA1(toCol)}${row}`
+        : `${quoteA1SheetTitle(sheetTitle)}!${row}:${row}`;
     const resp = await this.executeWithRetry(() =>
       this.service.spreadsheets.values.get({
         spreadsheetId,
@@ -535,7 +546,7 @@ export class GoogleSheetsApiAdapter {
     fromCol: number,
     toCol: number
   ): Promise<string[]> {
-    const range = `'${sheetTitle}'!${GoogleSheetsApiAdapter.colToA1(fromCol)}${row}:${GoogleSheetsApiAdapter.colToA1(toCol)}${row}`;
+    const range = `${quoteA1SheetTitle(sheetTitle)}!${GoogleSheetsApiAdapter.colToA1(fromCol)}${row}:${GoogleSheetsApiAdapter.colToA1(toCol)}${row}`;
     const resp = await this.executeWithRetry(() =>
       this.service.spreadsheets.values.get({
         spreadsheetId,
@@ -597,7 +608,7 @@ export class GoogleSheetsApiAdapter {
     if (width <= 0 || rowTo < rowFrom) {
       return [];
     }
-    const range = `'${sheetTitle}'!${GoogleSheetsApiAdapter.colToA1(fromCol)}${rowFrom}:${GoogleSheetsApiAdapter.colToA1(toCol)}${rowTo}`;
+    const range = `${quoteA1SheetTitle(sheetTitle)}!${GoogleSheetsApiAdapter.colToA1(fromCol)}${rowFrom}:${GoogleSheetsApiAdapter.colToA1(toCol)}${rowTo}`;
     const resp = await this.executeWithRetry(() =>
       this.service.spreadsheets.get({
         spreadsheetId,
@@ -740,7 +751,7 @@ export class GoogleSheetsApiAdapter {
     await this.executeWithRetry(() =>
       this.service.spreadsheets.values.clear({
         spreadsheetId,
-        range: `'${sheetTitle}'`,
+        range: quoteA1SheetTitle(sheetTitle),
       })
     );
   }

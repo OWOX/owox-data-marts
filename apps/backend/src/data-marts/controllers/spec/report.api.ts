@@ -8,7 +8,6 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { ReportResponseApiDto } from '../../dto/presentation/report-response-api.dto';
-import { ReconnectGoogleSheetRequestDto } from '../../dto/presentation/google-sheets/reconnect-google-sheet-request.dto';
 import { ReconnectGoogleSheetResponseDto } from '../../dto/presentation/google-sheets/reconnect-google-sheet-response.dto';
 import {
   createReportRequestBodySchema,
@@ -73,14 +72,13 @@ export function RunReportSpec() {
 export function ReconnectGoogleSheetSpec() {
   return applyDecorators(
     ApiOperation({
-      summary: 'Reconnect a Google Sheets report to a sheet by title',
+      summary: 'Reconnect a Google Sheets report to a sheet named after the report',
       description:
-        'Points the report at a sheet (tab) with the given title, creating it when the ' +
-        'spreadsheet has none, and repairs the stored sheet ID. Recovers a report whose ' +
-        'sheet was deleted or re-created.',
+        'Points the report at a sheet (tab) named after the report title, creating it when ' +
+        'the spreadsheet has none, and repairs the stored sheet ID. Recovers a report whose ' +
+        'sheet was deleted or re-created. No request body.',
     }),
     ApiParam({ name: 'id', description: 'Report ID' }),
-    ApiBody({ type: ReconnectGoogleSheetRequestDto }),
     ApiOkResponse({
       description: 'The report has been reconnected to the sheet.',
       type: ReconnectGoogleSheetResponseDto,

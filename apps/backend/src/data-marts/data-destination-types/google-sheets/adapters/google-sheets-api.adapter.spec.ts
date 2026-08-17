@@ -1,6 +1,16 @@
 import { JWT } from 'google-auth-library';
 import { sheets_v4 } from 'googleapis';
-import { GoogleSheetsApiAdapter } from './google-sheets-api.adapter';
+import { GoogleSheetsApiAdapter, quoteA1SheetTitle } from './google-sheets-api.adapter';
+
+describe('quoteA1SheetTitle', () => {
+  it.each([
+    ['Sheet1', "'Sheet1'"],
+    ["Bob's data", "'Bob''s data'"],
+    ["it's Bob's", "'it''s Bob''s'"],
+  ])('quotes %s as %s, doubling apostrophes per the A1 grammar', (title, expected) => {
+    expect(quoteA1SheetTitle(title)).toBe(expected);
+  });
+});
 
 describe('GoogleSheetsApiAdapter (pure helpers)', () => {
   /**

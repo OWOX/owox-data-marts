@@ -263,8 +263,12 @@ export function useReport() {
     reportStatusPollingService.setConfig(config);
   }, []);
 
+  // Returns whether the run actually started. Errors are handled here (tracked
+  // and logged, HTTP errors toasted by the interceptor), but callers holding an
+  // optimistic "running" flag need the outcome to release it — lastRunStatus
+  // does not change on a failed start, so status-sync effects never fire.
   const runReport = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<boolean> => {
       try {
         // Stop any existing polling for this report
         stopPollingReport(id);
@@ -281,6 +285,7 @@ export function useReport() {
           label: id,
         });
         toast.success('Report run started');
+        return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to run report';
         trackEvent({
@@ -290,6 +295,7 @@ export function useReport() {
           error: message,
         });
         console.error('Failed to run report:', error);
+        return false;
       }
     },
     [fetchReportById, startPollingReport, stopPollingReport]

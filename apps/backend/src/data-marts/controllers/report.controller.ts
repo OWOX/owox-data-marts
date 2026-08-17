@@ -16,7 +16,6 @@ import { UpdateReportService } from '../use-cases/update-report.service';
 import { GetReportGeneratedSqlService } from '../use-cases/get-report-generated-sql.service';
 import { CopyReportAsDataMartService } from '../use-cases/copy-report-as-data-mart.service';
 import { ReconnectGoogleSheetService } from '../use-cases/google-sheets/reconnect-google-sheet.service';
-import { ReconnectGoogleSheetRequestDto } from '../dto/presentation/google-sheets/reconnect-google-sheet-request.dto';
 import { ReconnectGoogleSheetResponseDto } from '../dto/presentation/google-sheets/reconnect-google-sheet-response.dto';
 import {
   ReconnectGoogleSheetSpec,
@@ -141,10 +140,9 @@ export class ReportController {
   @ReconnectGoogleSheetSpec()
   async reconnectGoogleSheet(
     @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string,
-    @Body() dto: ReconnectGoogleSheetRequestDto
+    @Param('id') id: string
   ): Promise<ReconnectGoogleSheetResponseDto> {
-    const command = this.mapper.toReconnectGoogleSheetCommand(id, context, dto);
+    const command = this.mapper.toReconnectGoogleSheetCommand(id, context);
     return this.reconnectGoogleSheetService.run(command);
   }
 

@@ -134,14 +134,14 @@ export class ReportService extends ApiService {
   }
 
   /**
-   * Point a Google Sheets report at a sheet with the given title, creating that
-   * sheet when the spreadsheet has none. Repairs a report whose sheet was deleted.
+   * Point a Google Sheets report at a sheet named after the report, creating
+   * that sheet when the spreadsheet has none. Repairs a report whose sheet was
+   * deleted. No request body — the backend derives the name from the report.
    * @param id Report ID
-   * @param data Sheet title; the backend falls back to the report title when omitted
    * @returns Which sheet the report is connected to now, and whether it was created
    */
-  async reconnectSheet(id: string, data: { title?: string }): Promise<ReconnectSheetResponseDto> {
-    return this.post<ReconnectSheetResponseDto>(`/${id}/google-sheets/reconnect-sheet`, data);
+  async reconnectSheet(id: string): Promise<ReconnectSheetResponseDto> {
+    return this.post<ReconnectSheetResponseDto>(`/${id}/google-sheets/reconnect-sheet`, {});
   }
 
   /**

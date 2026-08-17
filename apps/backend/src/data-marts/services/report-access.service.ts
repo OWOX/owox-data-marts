@@ -173,6 +173,29 @@ export class ReportAccessService {
   }
 
   /**
+   * Same assertion as {@link checkMutateAccess}, but on an already-loaded Report —
+   * for use cases that have the entity in hand and would otherwise pay a second
+   * identical `findOne`. Caller MUST ensure `dataMart` and `dataDestination`
+   * relations are loaded.
+   */
+  async checkMutateAccessForReport(
+    userId: string,
+    roles: string[],
+    report: Report,
+    projectId: string
+  ): Promise<void> {
+    const result = await this.evaluateMutateAccessForReport(userId, roles, report, projectId);
+    if (!result.allowed) {
+      this.logger.warn(`Access denied: ${result.reason}`, {
+        userId,
+        reportId: report.id,
+        projectId,
+      });
+      throw new ForbiddenException(MUTATE_DENIED_MESSAGES[result.reason]);
+    }
+  }
+
+  /**
    * Evaluate whether a user can OPERATE a Report — manual run + CRUD report triggers.
    * Decoupled from `canMutate` (which controls report config edits / owner changes).
    *
@@ -255,6 +278,27 @@ export class ReportAccessService {
       this.logger.warn(`Operate access denied: ${result.reason}`, {
         userId,
         reportId,
+        projectId,
+      });
+      throw new ForbiddenException(OPERATE_DENIED_MESSAGES[result.reason]);
+    }
+  }
+
+  /**
+   * Same assertion as {@link checkOperateAccess}, but on an already-loaded Report.
+   * Caller MUST ensure `dataMart` and `dataDestination` relations are loaded.
+   */
+  async checkOperateAccessForReport(
+    userId: string,
+    roles: string[],
+    report: Report,
+    projectId: string
+  ): Promise<void> {
+    const result = await this.evaluateOperateAccessForReport(userId, roles, report, projectId);
+    if (!result.allowed) {
+      this.logger.warn(`Operate access denied: ${result.reason}`, {
+        userId,
+        reportId: report.id,
         projectId,
       });
       throw new ForbiddenException(OPERATE_DENIED_MESSAGES[result.reason]);

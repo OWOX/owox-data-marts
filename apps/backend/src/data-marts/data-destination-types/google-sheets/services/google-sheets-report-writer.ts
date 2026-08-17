@@ -17,7 +17,7 @@ import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { SheetHeaderFormatter } from './sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-formatter';
 import { ColumnPlanBuilder } from './column-plan-builder';
-import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
+import { GoogleSheetsApiAdapter, quoteA1SheetTitle } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 import { SheetsReportRunEvent } from '../../../events/sheets-report-run.event';
@@ -334,7 +334,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       return;
     }
     const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
-    const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
+    const range = `${quoteA1SheetTitle(this.sheetTitle)}!A${rowFrom}:${lastA1}${rowTo}`;
     return this.executeWithErrorHandling(
       () => this.adapter.clearValuesInRange(this.destination.spreadsheetId, range),
       'Pre-clearing imported rectangle before writing new data'
@@ -383,7 +383,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       const rowFrom = this.writtenRowsCount + 1;
       const rowTo = rowFrom + rows.length - 1;
       const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
-      const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
+      const range = `${quoteA1SheetTitle(this.sheetTitle)}!A${rowFrom}:${lastA1}${rowTo}`;
 
       await this.adapter.updateValues(this.destination.spreadsheetId, range, formattedRows);
 
@@ -1023,11 +1023,15 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       }
 
       const lastA1 = GoogleSheetsApiAdapter.colToA1(finalNames.length);
-      await this.adapter.updateValues(spreadsheetId, `'${this.sheetTitle}'!A1:${lastA1}1`, [
-        // An alias is free text, so it can start with `+` just like a data
-        // value — escape it the same way to keep row 1 out of formula parsing.
-        this.valuesFormatter.escapeRowValues(headerRow),
-      ]);
+      await this.adapter.updateValues(
+        spreadsheetId,
+        `${quoteA1SheetTitle(this.sheetTitle)}!A1:${lastA1}1`,
+        [
+          // An alias is free text, so it can start with `+` just like a data
+          // value — escape it the same way to keep row 1 out of formula parsing.
+          this.valuesFormatter.escapeRowValues(headerRow),
+        ]
+      );
 
       // Per-column short marker only at header-write time. Full A1 provenance
       // (import finish time, data mart title, link) is applied in finalize.

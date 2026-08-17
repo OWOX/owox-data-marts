@@ -81,7 +81,15 @@ export function GoogleSheetsActionsCell({
 
     try {
       setIsRunning(true);
-      await runReport(row.original.id);
+      // runReport never throws — it reports the outcome as a boolean. Release
+      // the optimistic flag on a failed start, or the row stays on a disabled
+      // "Running report..." (lastRunStatus doesn't change, so the sync effect
+      // keyed on it never fires).
+      const started = await runReport(row.original.id);
+      if (!started) {
+        setIsRunning(false);
+        return;
+      }
       await onRunSuccess?.();
     } catch (error) {
       setIsRunning(false);
@@ -91,35 +99,40 @@ export function GoogleSheetsActionsCell({
 
   // Rebinds the report to a sheet named after it (reuse or create), then runs.
   // Renaming the sheet in Google Sheets later is safe — the report stores the gid.
+  // Requires canRun on top of canEditConfig: the action's second half is a run,
+  // and a mutate-only user would repair the sheet only to watch /run 403.
   const handleReconnectSheet = useCallback(async () => {
-    if (!canEditConfig || isReconnecting) return;
+    if (!canEditConfig || !canRun || isReconnecting) return;
 
     setMenuOpen(false);
     setIsReconnecting(true);
     try {
-      const result = await reportService.reconnectSheet(row.original.id, {});
-      // One shared tail so the variants can't drift apart. `changed: false` means
-      // the report's sheet was alive and the backend left it alone — the run below
-      // is then the whole point, so don't claim a repair that didn't happen.
-      const dataNote = 'Your data is loading into it now.';
+      const result = await reportService.reconnectSheet(row.original.id);
+      // One shared tail so the variants can't drift apart. It claims only what is
+      // known before the run starts. `changed: false` means the report's sheet was
+      // alive and the backend left it alone — the run below is then the whole
+      // point, so don't claim a repair that didn't happen.
+      const dataNote = 'Starting a run to load your data.';
       const outcome = !result.changed
         ? `The report is already connected to the sheet "${result.sheetTitle}"`
         : result.created
           ? `Created sheet "${result.sheetTitle}"`
           : `Reconnected to the existing sheet "${result.sheetTitle}"`;
       toast.success(`${outcome}. ${dataNote}`, { duration: RECONNECT_TOAST_DURATION_MS });
-      // runReport refreshes the report, starts status polling and toasts
-      // "Report run started"; it catches its own failures, so a failed start
-      // surfaces through the row status.
+      // runReport never throws — it reports the outcome as a boolean (it also
+      // refreshes the report, starts polling and toasts "Report run started").
+      // Release the optimistic flag on a failed start, or the row stays on a
+      // disabled "Running report..." until reload.
       setIsRunning(true);
-      await runReport(row.original.id);
+      const started = await runReport(row.original.id);
+      if (!started) {
+        setIsRunning(false);
+      }
       // Refresh so the row (and the "Open document" link built from the sheet
       // ID) reflects the new destination.
       await fetchReportsByDataMartId(row.original.dataMart.id);
     } catch (error) {
-      // Release the optimistic "running" flag, as handleRun does: the row-status
-      // effect only re-syncs when lastRunStatus changes, so a failed refresh would
-      // otherwise leave the menu stuck on a disabled "Running report...".
+      // Reconnect itself failed before the run was attempted.
       setIsRunning(false);
       showApiErrorToast(error, 'Failed to reconnect sheet');
     } finally {
@@ -127,6 +140,7 @@ export function GoogleSheetsActionsCell({
     }
   }, [
     canEditConfig,
+    canRun,
     isReconnecting,
     runReport,
     fetchReportsByDataMartId,
@@ -194,7 +208,7 @@ export function GoogleSheetsActionsCell({
               where data lands. */}
           {row.original.lastRunStatus === ReportStatusEnum.ERROR && (
             <DropdownMenuItem
-              disabled={!canEditConfig || isReconnecting}
+              disabled={!canEditConfig || !canRun || isReconnecting}
               onClick={e => {
                 e.stopPropagation();
                 void handleReconnectSheet();

@@ -76,7 +76,7 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
       created: true,
       changed: true,
     });
-    runReport.mockResolvedValue(undefined);
+    runReport.mockResolvedValue(true);
     fetchReportsByDataMartId.mockResolvedValue(undefined);
   });
 
@@ -94,7 +94,7 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
     await waitFor(() => {
       expect(fetchReportsByDataMartId).toHaveBeenCalledWith('dm-1');
     });
-    expect(reconnectSheet).toHaveBeenCalledWith('report-1', {});
+    expect(reconnectSheet).toHaveBeenCalledWith('report-1');
     expect(toastSuccess).toHaveBeenCalledWith(
       expect.stringContaining('Created sheet "Revenue"'),
       expect.anything()
@@ -104,6 +104,41 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
     expect(reconnectSheet.mock.invocationCallOrder[0]).toBeLessThan(
       runReport.mock.invocationCallOrder[0]
     );
+  });
+
+  it('tells the truth when the sheet was already connected', async () => {
+    // changed: false — the backend found the stored gid alive and touched nothing.
+    reconnectSheet.mockResolvedValueOnce({
+      spreadsheetId: 'spread-1',
+      sheetId: 7,
+      sheetTitle: 'Revenue',
+      created: false,
+      changed: false,
+    });
+    render(<GoogleSheetsActionsCell row={{ original: buildReport('ERROR') }} />);
+
+    fireEvent.click(screen.getByText('Reconnect & run'));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        expect.stringContaining('already connected to the sheet "Revenue"'),
+        expect.anything()
+      );
+    });
+    expect(runReport).toHaveBeenCalledWith('report-1');
+  });
+
+  it('releases the running state when the run fails to start', async () => {
+    runReport.mockResolvedValueOnce(false);
+    render(<GoogleSheetsActionsCell row={{ original: buildReport('ERROR') }} />);
+
+    fireEvent.click(screen.getByText('Reconnect & run'));
+
+    await waitFor(() => {
+      expect(fetchReportsByDataMartId).toHaveBeenCalledWith('dm-1');
+    });
+    // Not stuck on the disabled "Running report..." label.
+    expect(screen.getByText('Run report')).toBeInTheDocument();
   });
 
   it('surfaces a reconnect failure and does not run the report', async () => {

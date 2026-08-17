@@ -4,6 +4,8 @@ import { ReconnectGoogleSheetResponseDto } from '../../dto/presentation/google-s
 import { isGoogleSheetsConfig } from '../../data-destination-types/data-destination-config.guards';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsApiAdapterFactory } from '../../data-destination-types/google-sheets/adapters/google-sheets-api-adapter.factory';
+import { GoogleSheetsApiAdapter } from '../../data-destination-types/google-sheets/adapters/google-sheets-api.adapter';
+import { GoogleApiException } from '../../exceptions/google-oauth.exceptions';
 import {
   GoogleSheetNotFound,
   spreadsheetNotAccessibleMessage,
@@ -18,12 +20,14 @@ const DEFAULT_SHEET_TITLE = 'Report data';
 
 /**
  * Google accepts almost any character in a sheet name but caps it at 100 and
- * rejects empty. Apostrophes are swapped for typographic ones because the report
- * writer builds A1 ranges as `'${title}'!A1:...` without escaping quotes — a
- * straight apostrophe in the name would corrupt every range on the next run.
+ * rejects empty. Apostrophes stay as typed — A1 ranges escape them at
+ * construction (`quoteA1SheetTitle` in the adapter), and rewriting them here
+ * would make reuse-by-title miss a hand-made sheet whose name contains one.
+ * The cap counts code points, not UTF-16 units, so an emoji at the boundary is
+ * kept or dropped whole, never bisected.
  */
 function toSheetTitle(raw: string): string {
-  const cleaned = raw.replace(/'/g, '’').trim().slice(0, MAX_SHEET_TITLE_LENGTH).trim();
+  const cleaned = Array.from(raw.trim()).slice(0, MAX_SHEET_TITLE_LENGTH).join('').trim();
   return cleaned || DEFAULT_SHEET_TITLE;
 }
 
@@ -60,11 +64,20 @@ export class ReconnectGoogleSheetService {
       command.projectId
     );
 
-    // Changing where a report writes is a config mutation, not an operation.
-    await this.reportAccessService.checkMutateAccess(
+    // Both checks, on the already-loaded report: rebinding the config is a
+    // mutation, and creating a sheet is a structural write into the customer's
+    // spreadsheet with the stored credentials — the same consent /run requires.
+    // The UI mirrors this by offering the action only with canEditConfig && canRun.
+    await this.reportAccessService.checkMutateAccessForReport(
       command.userId,
       command.roles,
-      command.reportId,
+      report,
+      command.projectId
+    );
+    await this.reportAccessService.checkOperateAccessForReport(
+      command.userId,
+      command.roles,
+      report,
       command.projectId
     );
 
@@ -76,7 +89,7 @@ export class ReconnectGoogleSheetService {
     }
 
     const { spreadsheetId } = report.destinationConfig;
-    const title = toSheetTitle(command.title?.trim() || report.title);
+    const title = toSheetTitle(report.title);
 
     const adapter = await this.adapterFactory.createFromDestination(report.dataDestination);
     if (!adapter) {
@@ -86,9 +99,18 @@ export class ReconnectGoogleSheetService {
     }
 
     const spreadsheet = await adapter.getSpreadsheet(spreadsheetId).catch((error: Error) => {
-      // The spreadsheet itself is unreachable — reconnecting a sheet inside it
-      // cannot help, and the user needs the other remedy (fix access, or pick a
-      // different document).
+      // A transient Google fault (429/5xx) is not an access problem — sending the
+      // user to fix sharing that was never broken would erode trust in the message.
+      const status = GoogleSheetsApiAdapter.httpStatusOf(error);
+      if (status === 429 || (status !== undefined && status >= 500)) {
+        throw new GoogleApiException(
+          'Google Sheets is temporarily unavailable. Please try again in a few minutes.',
+          error
+        );
+      }
+      // The spreadsheet itself is unreachable (deleted, trashed, or unshared) —
+      // reconnecting a sheet inside it cannot help, and the user needs the other
+      // remedy: fix access, or pick a different document.
       throw new GoogleSheetNotFound(spreadsheetNotAccessibleMessage(spreadsheetId, error.message), {
         spreadsheetId,
       });

@@ -2,6 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { ReconnectGoogleSheetService } from './reconnect-google-sheet.service';
 import { ReconnectGoogleSheetCommand } from '../../dto/domain/google-sheets/reconnect-google-sheet.command';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
+import { GoogleSheetNotFound } from '../../errors/google-sheet-not-found.error';
+import { GoogleApiException } from '../../exceptions/google-oauth.exceptions';
 
 const SPREADSHEET_ID = 'spread-1';
 
@@ -47,7 +49,10 @@ function build(opts: { sheets: { sheetId: number; title: string }[]; reportTitle
     getByIdAndProjectIdWithDestination: jest.fn().mockResolvedValue(report),
     updateDestinationConfig: jest.fn().mockResolvedValue(undefined),
   };
-  const reportAccessService = { checkMutateAccess: jest.fn().mockResolvedValue(undefined) };
+  const reportAccessService = {
+    checkMutateAccessForReport: jest.fn().mockResolvedValue(undefined),
+    checkOperateAccessForReport: jest.fn().mockResolvedValue(undefined),
+  };
   const adapterFactory = { createFromDestination: jest.fn().mockResolvedValue(adapter) };
 
   const service = new ReconnectGoogleSheetService(
@@ -59,8 +64,7 @@ function build(opts: { sheets: { sheetId: number; title: string }[]; reportTitle
   return { service, adapter, reportService, reportAccessService, report };
 }
 
-const command = (title?: string) =>
-  new ReconnectGoogleSheetCommand('report-1', 'proj-1', 'user-1', [], title);
+const command = () => new ReconnectGoogleSheetCommand('report-1', 'proj-1', 'user-1', []);
 
 describe('ReconnectGoogleSheetService', () => {
   it('leaves a report alone when its own sheet still exists', async () => {
@@ -74,7 +78,7 @@ describe('ReconnectGoogleSheetService', () => {
       ],
     });
 
-    const result = await service.run(command('Revenue'));
+    const result = await service.run(command());
 
     expect(result).toEqual({
       spreadsheetId: SPREADSHEET_ID,
@@ -94,7 +98,7 @@ describe('ReconnectGoogleSheetService', () => {
       sheets: [{ sheetId: 0, title: 'Revenue' }],
     });
 
-    const result = await service.run(command('Revenue'));
+    const result = await service.run(command());
 
     expect(adapter.addSheet).not.toHaveBeenCalled();
     expect(result).toEqual({
@@ -116,7 +120,7 @@ describe('ReconnectGoogleSheetService', () => {
       sheets: [{ sheetId: 12, title: 'Something else' }],
     });
 
-    const result = await service.run(command('Revenue'));
+    const result = await service.run(command());
 
     expect(adapter.addSheet).toHaveBeenCalledWith(SPREADSHEET_ID, 'Revenue');
     expect(result).toEqual({
@@ -132,25 +136,38 @@ describe('ReconnectGoogleSheetService', () => {
     );
   });
 
-  it('falls back to the report title when the command carries none', async () => {
-    const { service, adapter } = build({ sheets: [], reportTitle: 'Weekly revenue' });
+  it('reuses a hand-made sheet whose name contains a straight apostrophe', async () => {
+    // Regression for review: the old sanitizer swapped ' → ’ before the lookup,
+    // so a hand-recreated tab literally named "Bob's data" was never matched and
+    // a visually identical duplicate got created. Titles now stay as typed; A1
+    // ranges escape apostrophes at construction instead.
+    const { service, adapter, reportService } = build({
+      sheets: [{ sheetId: 5, title: "Bob's data" }],
+      reportTitle: "Bob's data",
+    });
 
-    await service.run(command());
+    const result = await service.run(command());
 
-    expect(adapter.addSheet).toHaveBeenCalledWith(SPREADSHEET_ID, 'Weekly revenue');
+    expect(adapter.addSheet).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({ sheetId: 5, sheetTitle: "Bob's data", created: false })
+    );
+    expect(reportService.updateDestinationConfig).toHaveBeenCalledWith(
+      'report-1',
+      expect.objectContaining({ sheetId: 5 })
+    );
   });
 
-  it("swaps apostrophes and caps the name at Google's 100-char limit", async () => {
-    // Straight apostrophes would corrupt the writer's unescaped `'${title}'!A1`
-    // ranges; a name longer than 100 chars is rejected by Google outright.
-    const { service, adapter } = build({ sheets: [], reportTitle: `Bob's ${'x'.repeat(120)}` });
+  it("caps the name at Google's 100-code-point limit without splitting surrogate pairs", async () => {
+    // 99 chars + an emoji (2 UTF-16 units) straddling the boundary: a unit-based
+    // slice would bisect the pair and produce a malformed title.
+    const { service, adapter } = build({ sheets: [], reportTitle: `${'x'.repeat(99)}😀y` });
 
     await service.run(command());
 
     const usedTitle = adapter.addSheet.mock.calls[0][1] as string;
-    expect(usedTitle.startsWith('Bob’s ')).toBe(true);
-    expect(usedTitle).not.toContain("'");
-    expect(usedTitle).toHaveLength(100);
+    expect(Array.from(usedTitle)).toHaveLength(100);
+    expect(usedTitle.endsWith('😀')).toBe(true);
   });
 
   it('falls back to a default name when the report title is blank', async () => {
@@ -163,17 +180,46 @@ describe('ReconnectGoogleSheetService', () => {
 
   it('checks mutate access before touching the spreadsheet', async () => {
     const { service, adapter, reportAccessService } = build({ sheets: [] });
-    reportAccessService.checkMutateAccess.mockRejectedValueOnce(new Error('forbidden'));
+    reportAccessService.checkMutateAccessForReport.mockRejectedValueOnce(new Error('forbidden'));
 
-    await expect(service.run(command('Revenue'))).rejects.toThrow('forbidden');
+    await expect(service.run(command())).rejects.toThrow('forbidden');
     expect(adapter.getSpreadsheet).not.toHaveBeenCalled();
     expect(adapter.addSheet).not.toHaveBeenCalled();
+  });
+
+  it('requires operate access too — creating a sheet writes into the spreadsheet', async () => {
+    const { service, adapter, reportAccessService } = build({ sheets: [] });
+    reportAccessService.checkOperateAccessForReport.mockRejectedValueOnce(
+      new Error('operate-forbidden')
+    );
+
+    await expect(service.run(command())).rejects.toThrow('operate-forbidden');
+    expect(adapter.getSpreadsheet).not.toHaveBeenCalled();
+    expect(adapter.addSheet).not.toHaveBeenCalled();
+  });
+
+  it('reports a transient Google fault as temporary, not as an access problem', async () => {
+    const { service, adapter } = build({ sheets: [] });
+    adapter.getSpreadsheet.mockRejectedValueOnce(
+      Object.assign(new Error('Backend Error'), { code: 503 })
+    );
+
+    await expect(service.run(command())).rejects.toBeInstanceOf(GoogleApiException);
+  });
+
+  it('reports an unreachable spreadsheet with the access remedy', async () => {
+    const { service, adapter } = build({ sheets: [] });
+    adapter.getSpreadsheet.mockRejectedValueOnce(
+      Object.assign(new Error('The caller does not have permission'), { code: 403 })
+    );
+
+    await expect(service.run(command())).rejects.toBeInstanceOf(GoogleSheetNotFound);
   });
 
   it('rejects a report that does not write to Google Sheets', async () => {
     const { service, report } = build({ sheets: [] });
     report.dataDestination.type = DataDestinationType.LOOKER_STUDIO;
 
-    await expect(service.run(command('Revenue'))).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.run(command())).rejects.toBeInstanceOf(BadRequestException);
   });
 });

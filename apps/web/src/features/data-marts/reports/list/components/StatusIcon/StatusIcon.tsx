@@ -58,8 +58,10 @@ export function StatusIcon({ status, error, className }: StatusIconProps) {
 
   // Generate unique ID for tooltip
   const tooltipId = `status-tooltip-${status}-${error ? 'error' : 'normal'}`;
-  // With an error message to show, the message alone reads better than a
-  // "Fail" heading above it — the red icon already carries the status.
+  // With an error message to show, the visible tooltip drops the "Fail" heading —
+  // the red icon already carries the status. The accessible name keeps it: the
+  // ERROR/CANCELLED/RESTRICTED glyphs differ only by color, so without the word a
+  // screen reader would hear the message but never that the run failed.
   const errorMessage = status === ReportStatusEnum.ERROR ? error : null;
 
   return (
@@ -69,7 +71,7 @@ export function StatusIcon({ status, error, className }: StatusIconProps) {
           <Icon
             className={cn('h-5 w-5', color, className)}
             role='img'
-            aria-label={errorMessage ?? label}
+            aria-label={errorMessage ? `${label}: ${errorMessage}` : label}
             aria-describedby={tooltipId}
             tabIndex={0}
           />
