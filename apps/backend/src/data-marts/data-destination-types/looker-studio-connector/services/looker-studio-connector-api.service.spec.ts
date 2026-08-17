@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Report } from '../../../entities/report.entity';
 import { GetDataRequest } from '../schemas/get-data.schema';
+import { GetSchemaRequest } from '../schemas/get-schema.schema';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
 import { ProjectBlockedReason } from '../../../enums/project-blocked-reason.enum';
 
@@ -35,6 +36,7 @@ import { LookerStudioConnectorApiService } from './looker-studio-connector-api.s
 describe('LookerStudioConnectorApiService', () => {
   let service: LookerStudioConnectorApiService;
   let dataService: jest.Mocked<LookerStudioConnectorApiDataService>;
+  let schemaService: jest.Mocked<LookerStudioConnectorApiSchemaService>;
   let cacheService: jest.Mocked<ReportDataCacheService>;
   let reportService: jest.Mocked<ReportService>;
   let reportRunService: jest.Mocked<LookerStudioReportRunService>;
@@ -54,6 +56,10 @@ describe('LookerStudioConnectorApiService', () => {
       prepareStreamingContext: jest.fn(),
       streamData: jest.fn(),
     } as unknown as jest.Mocked<LookerStudioConnectorApiDataService>;
+
+    schemaService = {
+      getSchema: jest.fn(),
+    } as unknown as jest.Mocked<LookerStudioConnectorApiSchemaService>;
 
     cacheService = {
       getOrCreateCachedReader: jest.fn(),
@@ -88,7 +94,7 @@ describe('LookerStudioConnectorApiService', () => {
 
     service = new LookerStudioConnectorApiService(
       {} as LookerStudioConnectorApiConfigService,
-      {} as LookerStudioConnectorApiSchemaService,
+      schemaService,
       dataService,
       cacheService,
       reportService,
@@ -126,6 +132,18 @@ describe('LookerStudioConnectorApiService', () => {
       },
     }) as GetDataRequest;
 
+  const createMockSchemaRequest = (): GetSchemaRequest =>
+    ({
+      connectionConfig: {
+        deploymentUrl: 'https://example.com',
+        destinationId: 'dest-1',
+        destinationSecretKey: 'secret',
+      },
+      request: {
+        configParams: { destinationId: 'dest-1', reportId: 'report-1' },
+      },
+    }) as GetSchemaRequest;
+
   const createMockReport = (): Report =>
     ({
       id: 'report-1',
@@ -139,6 +157,24 @@ describe('LookerStudioConnectorApiService', () => {
     write: jest.fn().mockReturnValue(true),
     end: jest.fn(),
     headersSent: false,
+  });
+
+  describe('getSchema', () => {
+    it('does not apply Report Run billing authorization to a schema-only request', async () => {
+      const request = createMockSchemaRequest();
+      const report = createMockReport();
+      const cachedReader = { reader: {}, dataDescription: { dataHeaders: [] } };
+      const response = { schema: [] };
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(report);
+      cacheService.getOrCreateCachedReader.mockResolvedValue(cachedReader as never);
+      schemaService.getSchema.mockResolvedValue(response);
+      projectBilling.verifyCanPerformOperations.mockRejectedValue(new Error('blocked'));
+
+      await expect(service.getSchema(request)).resolves.toBe(response);
+
+      expect(projectBilling.verifyCanPerformOperations).not.toHaveBeenCalled();
+      expect(schemaService.getSchema).toHaveBeenCalledWith(request, report, cachedReader);
+    });
   });
 
   describe('getDataStreaming', () => {

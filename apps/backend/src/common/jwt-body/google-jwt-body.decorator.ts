@@ -38,6 +38,13 @@ interface JwkSet {
   keys: JwkKey[];
 }
 
+export class JwksUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = JwksUnavailableError.name;
+  }
+}
+
 export const GoogleJwtBody = createParamDecorator(
   (expectedServiceAccount: string, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
@@ -116,7 +123,11 @@ export async function verifyJwtClaims(
 
     return payload;
   } catch (error) {
-    if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+    if (
+      error instanceof UnauthorizedException ||
+      error instanceof BadRequestException ||
+      error instanceof JwksUnavailableError
+    ) {
       throw error;
     }
     throw new UnauthorizedException(`JWT validation failed: ${error.message}`);
@@ -169,7 +180,9 @@ async function ensureCertsCache(serviceAccountEmail: string, force = false): Pro
       certsCache.set(serviceAccountEmail, certs);
       cacheExpiry.set(serviceAccountEmail, Date.now() + CACHE_DURATION);
     } catch (error) {
-      throw new Error(`Failed to update service account certificates cache: ${error.message}`);
+      throw new JwksUnavailableError(
+        `Failed to update service account certificates cache: ${error.message}`
+      );
     }
   })();
   refreshes.set(serviceAccountEmail, refresh);

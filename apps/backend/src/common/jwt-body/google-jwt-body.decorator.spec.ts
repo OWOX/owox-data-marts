@@ -1,7 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { generateKeyPairSync } from 'crypto';
 import * as jwt from 'jsonwebtoken';
-import { verifyJwtClaims } from './google-jwt-body.decorator';
+import { JwksUnavailableError, verifyJwtClaims } from './google-jwt-body.decorator';
 
 function keyPair(): { publicKey: Record<string, string>; privateKey: string } {
   const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -171,5 +171,15 @@ describe('verifyJwtClaims', () => {
         'https://customer.test'
       )
     ).rejects.toThrow('Invalid issuer');
+  });
+
+  it('distinguishes a JWKS fetch failure from an invalid token', async () => {
+    const sa = nextAccount();
+    const { privateKey } = keyPair();
+    global.fetch = jest.fn().mockRejectedValue(new Error('dns lookup failed'));
+
+    await expect(
+      verifyJwtClaims(signWithIssuer(privateKey, sa, { kid: 'key-a' }), sa, 'https://customer.test')
+    ).rejects.toBeInstanceOf(JwksUnavailableError);
   });
 });

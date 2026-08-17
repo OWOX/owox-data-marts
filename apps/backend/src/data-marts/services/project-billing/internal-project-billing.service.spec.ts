@@ -102,6 +102,22 @@ describe('InternalProjectBillingService', () => {
         buildService({ BALANCE_ENDPOINT_BASE_URL: 'https://balance.owox.test' })
       ).toThrow('Balance service is partially configured');
     });
+
+    it.each([
+      'CONSUMPTION_PUBSUB_PROJECT_ID',
+      'CONSUMPTION_SHEETS_REPORT_RUN_TOPIC',
+      'CONSUMPTION_LOOKER_REPORT_RUN_TOPIC',
+      'CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC',
+      'CONSUMPTION_MCP_QUERY_RUN_TOPIC',
+      'CONSUMPTION_EMAIL_REPORT_RUN_TOPIC',
+      'CONSUMPTION_SLACK_REPORT_RUN_TOPIC',
+      'CONSUMPTION_GOOGLE_CHAT_REPORT_RUN_TOPIC',
+      'CONSUMPTION_MS_TEAMS_REPORT_RUN_TOPIC',
+    ])('rejects a license gateway missing %s', missingKey => {
+      const service = buildService({ ...PUBSUB_ENV, ...BALANCE_ENV, [missingKey]: undefined });
+
+      expect(() => service.assertForwardedConsumptionConfigured()).toThrow(missingKey);
+    });
   });
 
   describe('verifyCanPerformOperations', () => {
@@ -395,6 +411,31 @@ describe('InternalProjectBillingService', () => {
       );
 
       expect(mockPublish).toHaveBeenCalledWith('slack-topic', expect.anything());
+    });
+
+    it('rejects a forwarded record when its topic is not configured', async () => {
+      const service = buildService({ CONSUMPTION_PUBSUB_PROJECT_ID: 'consumption-project' });
+
+      await expect(
+        service.publishForwardedConsumption(
+          RunKind.HTTP_DATA_RUN,
+          { projectId: 'caller-project', dataMartId: 'dm-1' },
+          licenseAttribution
+        )
+      ).rejects.toThrow('not configured');
+    });
+
+    it('propagates a forwarded PubSub publication failure', async () => {
+      mockPublish.mockRejectedValue(new Error('pubsub unavailable'));
+      const service = buildService(PUBSUB_ENV);
+
+      await expect(
+        service.publishForwardedConsumption(
+          RunKind.HTTP_DATA_RUN,
+          { projectId: 'caller-project', dataMartId: 'dm-1' },
+          licenseAttribution
+        )
+      ).rejects.toThrow('pubsub unavailable');
     });
   });
 

@@ -17,6 +17,7 @@ export class LicenseGatewayController {
           'BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT and BALANCE_ENDPOINT_TARGET_AUDIENCE.'
       );
     }
+    projectBillingService.assertForwardedConsumptionConfigured();
   }
 
   @Post('can-perform')

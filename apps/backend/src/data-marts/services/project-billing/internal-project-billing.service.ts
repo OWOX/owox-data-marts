@@ -15,7 +15,12 @@ import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/sc
 import { DataMart } from '../../entities/data-mart.entity';
 import { Report } from '../../entities/report.entity';
 import { ConnectorService } from '../connector/connector.service';
-import { ProjectBillingService, RunKind, SheetsReportDetails } from './project-billing.service';
+import {
+  ProjectBillingService,
+  REPORT_RUN_KINDS,
+  RunKind,
+  SheetsReportDetails,
+} from './project-billing.service';
 
 const TOPIC_ENV_BY_RUN_KIND: Record<Exclude<RunKind, RunKind.EMAIL_BASED_REPORT_RUN>, string> = {
   [RunKind.CONNECTOR_RUN]: 'CONSUMPTION_CONNECTOR_RUN_TOPIC',
@@ -90,6 +95,23 @@ export class InternalProjectBillingService extends ProjectBillingService {
 
   public isBalanceConfigured(): boolean {
     return this.balanceConfigured;
+  }
+
+  public assertForwardedConsumptionConfigured(): void {
+    const topicEnvKeys = REPORT_RUN_KINDS.flatMap(kind =>
+      kind === RunKind.EMAIL_BASED_REPORT_RUN
+        ? Object.values(TOPIC_ENV_BY_EMAIL_BASED_DESTINATION)
+        : [TOPIC_ENV_BY_RUN_KIND[kind]]
+    ).filter((key): key is string => Boolean(key));
+    const missing = ['CONSUMPTION_PUBSUB_PROJECT_ID', ...topicEnvKeys].filter(
+      key => !this.configService.get<string>(key)
+    );
+
+    if (missing.length) {
+      throw new Error(
+        `LICENSE_ISSUANCE_ENABLED requires forwarded consumption configuration. Missing: ${missing.join(', ')}`
+      );
+    }
   }
 
   public async verifyCanPerformOperations(projectId: string): Promise<void> {
@@ -228,19 +250,25 @@ export class InternalProjectBillingService extends ProjectBillingService {
         selfManagedOrigin: license.origin,
         projectId: license.projectId,
       },
-      payload.dataDestinationType as DataDestinationType | undefined
+      payload.dataDestinationType as DataDestinationType | undefined,
+      true
     );
   }
 
   private async publish(
     kind: RunKind,
     command: Record<string, unknown>,
-    destinationType?: DataDestinationType
+    destinationType?: DataDestinationType,
+    throwOnFailure = false
   ): Promise<void> {
     try {
       const topic = this.resolveTopic(kind, destinationType);
       if (!this.pubSubService || !topic) {
-        this.logger.debug(`${kind} consumption tracking is not configured, skipping...`);
+        const message = `${kind} consumption tracking is not configured`;
+        if (throwOnFailure) {
+          throw new Error(message);
+        }
+        this.logger.debug(`${message}, skipping...`);
         return;
       }
 
@@ -255,6 +283,9 @@ export class InternalProjectBillingService extends ProjectBillingService {
         }. CMD: ${JSON.stringify(command)}`,
         error instanceof Error ? error.stack : undefined
       );
+      if (throwOnFailure) {
+        throw error;
+      }
     }
   }
 

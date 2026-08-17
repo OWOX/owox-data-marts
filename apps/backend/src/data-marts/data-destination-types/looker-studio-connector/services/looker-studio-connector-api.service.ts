@@ -105,10 +105,6 @@ export class LookerStudioConnectorApiService {
    */
   public async getSchema(request: GetSchemaRequest): Promise<GetSchemaResponse> {
     const report = await this.getReport(request);
-    await this.projectBillingService.verifyCanPerformOperations(
-      report.dataMart.projectId,
-      RunKind.LOOKER_REPORT_RUN
-    );
     const cachedReader = await this.getCachedReader(report);
 
     // Pass cached data to schema service

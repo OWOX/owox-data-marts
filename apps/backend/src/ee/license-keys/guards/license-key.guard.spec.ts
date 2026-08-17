@@ -1,11 +1,19 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ProjectBinding } from '../../../common/config/app-edition-config.service';
-import { verifyJwtClaims } from '../../../common/jwt-body/google-jwt-body.decorator';
+import {
+  JwksUnavailableError,
+  verifyJwtClaims,
+} from '../../../common/jwt-body/google-jwt-body.decorator';
 import { LicenseKey } from '../entities/license-key.entity';
 import { LicenseKeyService } from '../services/license-key.service';
 import { LicenseKeyGuard, LicensedRequest } from './license-key.guard';
 
 jest.mock('../../../common/jwt-body/google-jwt-body.decorator', () => ({
+  ...jest.requireActual('../../../common/jwt-body/google-jwt-body.decorator'),
   verifyJwtClaims: jest.fn(),
 }));
 
@@ -109,6 +117,14 @@ describe('LicenseKeyGuard', () => {
 
     await expect(guard.canActivate(contextOf(validHeaders()).context)).rejects.toThrow(
       'License key is not valid'
+    );
+  });
+
+  it('reports JWKS infrastructure failure as retryable unavailability', async () => {
+    verifyJwtClaimsMock.mockRejectedValue(new JwksUnavailableError('jwks unavailable'));
+
+    await expect(guard.canActivate(contextOf(validHeaders()).context)).rejects.toBeInstanceOf(
+      ServiceUnavailableException
     );
   });
 

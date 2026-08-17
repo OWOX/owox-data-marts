@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { AppEditionConfig } from './app-edition-config.service';
 
 /**
- * Runs hourly license actualization using cron schedule.
+ * Runs license actualization every 15 minutes using cron schedule.
  * The first check happens during AppEditionConfig factory initialization,
- * this job handles subsequent hourly checks.
+ * this job handles subsequent checks.
  */
 @Injectable()
 export class AppEditionLicenseRefresherService {
@@ -13,12 +13,12 @@ export class AppEditionLicenseRefresherService {
 
   constructor(private readonly appEdition: AppEditionConfig) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
-  async checkLicenseHourly(): Promise<void> {
+  @Cron('0 */15 * * * *')
+  async checkLicense(): Promise<void> {
     try {
       await this.appEdition.actualizeAppEdition(false);
     } catch (error) {
-      this.logger.error('Hourly license check failed', error as Error);
+      this.logger.error('Scheduled license check failed', error as Error);
     }
   }
 }

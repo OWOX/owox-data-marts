@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request } from 'express';
 import {
   LICENSE_KEY_ID_HEADER,
@@ -6,7 +12,11 @@ import {
   LicenseKeyClaims,
   ProjectBinding,
 } from '../../../common/config/app-edition-config.service';
-import { JwtPayload, verifyJwtClaims } from '../../../common/jwt-body/google-jwt-body.decorator';
+import {
+  JwksUnavailableError,
+  JwtPayload,
+  verifyJwtClaims,
+} from '../../../common/jwt-body/google-jwt-body.decorator';
 import { LicenseKey } from '../entities/license-key.entity';
 import { LicenseKeyService } from '../services/license-key.service';
 
@@ -85,7 +95,10 @@ export class LicenseKeyGuard implements CanActivate {
         until: Math.min(expiresAtMs, Date.now() + VERIFIED_TOKEN_TTL_MS),
       });
       return claims;
-    } catch {
+    } catch (error) {
+      if (error instanceof JwksUnavailableError) {
+        throw new ServiceUnavailableException('License verification is temporarily unavailable');
+      }
       throw new UnauthorizedException('License key is not valid');
     }
   }
