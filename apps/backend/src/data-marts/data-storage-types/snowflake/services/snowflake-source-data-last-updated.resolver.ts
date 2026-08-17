@@ -250,6 +250,11 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
         // may hold only an older Snowflake-side write — reporting it as `complete` would
         // present that stale write as THE last change. Even a present history row is refused.
         note = 'iceberg table — modification time not measured';
+      } else if (String(row.IS_HYBRID ?? '').toUpperCase() === 'YES') {
+        // Hybrid tables also report TABLE_TYPE = 'BASE TABLE', but TABLE_DML_HISTORY
+        // explicitly excludes their DML — a null history row means "not tracked here", not
+        // "unchanged", so the no-changes note would mislead.
+        note = 'hybrid table — modification time not measured';
       } else if (row.LAST_DML_AT === null || row.LAST_DML_AT === undefined) {
         // A live base table with no recorded user DML within the view's retention (one year).
         note = 'no data changes recorded in the last year';
@@ -299,13 +304,14 @@ export class SnowflakeSourceDataLastUpdatedResolver implements SourceDataLastUpd
       `SELECT t.TABLE_CATALOG || '.' || t.TABLE_SCHEMA || '.' || t.TABLE_NAME AS SOURCE_TABLE,\n` +
       `       t.TABLE_TYPE AS TABLE_TYPE,\n` +
       `       t.IS_ICEBERG AS IS_ICEBERG,\n` +
+      `       t.IS_HYBRID AS IS_HYBRID,\n` +
       `       TO_CHAR(CONVERT_TIMEZONE('UTC', MAX(h.START_TIME)), ` +
       `'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"') AS LAST_DML_AT\n` +
       `FROM SNOWFLAKE.ACCOUNT_USAGE.TABLES t\n` +
       `LEFT JOIN SNOWFLAKE.ACCOUNT_USAGE.TABLE_DML_HISTORY h ON h.TABLE_ID = t.TABLE_ID\n` +
       `WHERE t.DELETED IS NULL\n` +
       `  AND (${tuples})\n` +
-      `GROUP BY 1, 2, 3`
+      `GROUP BY 1, 2, 3, 4`
     );
   }
 }

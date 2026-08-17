@@ -85,6 +85,7 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
     );
     expect(sql).toContain('MAX(h.START_TIME)');
     expect(sql).toContain('t.IS_ICEBERG');
+    expect(sql).toContain('t.IS_HYBRID');
     // Identity, not names: history rows of a dropped-and-recreated table's old generation
     // must never answer for the current one.
     expect(sql).toContain('ON h.TABLE_ID = t.TABLE_ID');
@@ -141,6 +142,37 @@ describe('SnowflakeSourceDataLastUpdatedResolver', () => {
         table: 'DEV.DLU.ICE_EVENTS',
         dataLastUpdatedAt: null,
         note: 'iceberg table — modification time not measured',
+      })
+    );
+  });
+
+  it('marks a hybrid table as not measured instead of claiming no changes', async () => {
+    // TABLE_DML_HISTORY explicitly excludes hybrid-table DML: a null history row means
+    // "not tracked here", so the no-changes note would mislead a reader about a live table.
+    const result = await run(
+      adapterWith({
+        executeDryRunQuery: jest
+          .fn()
+          .mockResolvedValue(explainPlan(['DEV.DLU.ORDERS'], ['DEV.DLU.HYBRID_STATE'])),
+        executeQueryAndFetchAll: jest.fn().mockResolvedValue([
+          { SOURCE_TABLE: 'DEV.DLU.ORDERS', TABLE_TYPE: 'BASE TABLE', LAST_DML_AT: HOUR_AUG_1 },
+          {
+            SOURCE_TABLE: 'DEV.DLU.HYBRID_STATE',
+            TABLE_TYPE: 'BASE TABLE',
+            IS_HYBRID: 'YES',
+            LAST_DML_AT: null,
+          },
+        ]),
+      })
+    );
+
+    expect(result.dataLastUpdatedAt).toBe(HOUR_AUG_1);
+    expect(result.coverage).toBe('partial');
+    expect(result.sources).toContainEqual(
+      expect.objectContaining({
+        table: 'DEV.DLU.HYBRID_STATE',
+        dataLastUpdatedAt: null,
+        note: 'hybrid table — modification time not measured',
       })
     );
   });
