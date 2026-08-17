@@ -90,6 +90,11 @@ export interface McpAddReportRequest {
   name?: string;
   /** Required for email-family destinations; rejected for any other type. */
   message?: McpAddReportMessage;
+  /**
+   * Whether to enqueue the first Report Run after creating the report. Omitted
+   * means true for push destinations and false for pull-based destinations.
+   */
+  runImmediately?: boolean;
   projectId: string;
   userId: string;
   /** Requesting user email — the auto-created sheet is shared with them (best-effort). */
@@ -97,12 +102,20 @@ export interface McpAddReportRequest {
   roles: string[];
 }
 
+export type McpAddReportInitialRunResult =
+  | { status: 'queued'; run_id: string }
+  | { status: 'not_requested' }
+  | { status: 'not_applicable' }
+  | { status: 'failed_to_queue'; error: string };
+
 export interface McpAddReportResult {
   report_id: string;
   /** Type of the report's destination — lets the tool layer add per-type guidance. */
   destination_type: McpDestinationType;
   owner: string | null;
   status: 'created';
+  /** Outcome of the automatic first run. The report exists for every outcome. */
+  initial_run: McpAddReportInitialRunResult;
   /** Link to the auto-created Google Sheet. Google Sheets destinations only. */
   sheet_url?: string;
   /** True when the configured Drive folder could not be used and the sheet landed in the Drive root. Google Sheets destinations only. */
@@ -225,7 +238,9 @@ export interface McpReportsFacade {
    * result carries the sheet fields). Looker Studio: creates the report with
    * the default destination settings — no extra input is accepted. Email
    * family (email, Slack, Microsoft Teams, Google Chat): requires `message`;
-   * the send condition is not exposed and defaults to "send always".
+   * the send condition is not exposed and defaults to "send always". Push
+   * destinations queue their first run by default unless `runImmediately` is
+   * false; `initial_run` reports the queue outcome for every created report.
    */
   addReport(request: McpAddReportRequest): Promise<McpAddReportResult>;
   /**

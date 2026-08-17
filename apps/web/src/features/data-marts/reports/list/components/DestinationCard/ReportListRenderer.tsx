@@ -4,19 +4,16 @@ import { EmailReportsTable } from '../EmailReportsTable';
 import { LookerStudioReportCard } from '../LookerStudioReportCard';
 import type { DataDestination } from '../../../../../data-destination';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
-import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 
 interface ReportListRendererProps {
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
-  dataMartStatus?: DataMartStatusInfo;
   onAddReport: () => void;
 }
 
 export function ReportListRenderer({
   destination,
   onEditReport,
-  dataMartStatus,
   onAddReport,
 }: ReportListRendererProps) {
   switch (destination.type) {
@@ -25,7 +22,6 @@ export function ReportListRenderer({
         <GoogleSheetsReportsTable
           destination={destination}
           onEditReport={onEditReport}
-          dataMartStatus={dataMartStatus}
           onAddReport={onAddReport}
         />
       );
@@ -39,7 +35,6 @@ export function ReportListRenderer({
           destinationType={destination.type}
           destination={destination}
           onEditReport={onEditReport}
-          dataMartStatus={dataMartStatus}
           onAddReport={onAddReport}
         />
       );

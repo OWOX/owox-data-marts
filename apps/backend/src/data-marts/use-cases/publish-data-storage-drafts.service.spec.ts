@@ -1,7 +1,8 @@
 import { ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
-import { PUBLISH_DATA_MART_ERRORS } from './publish-data-mart.service';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
+import { PUBLISH_DATA_MART_ERRORS, PublishForbiddenException } from './publish-data-mart.service';
 import { PublishDataStorageDraftsService } from './publish-data-storage-drafts.service';
 
 describe('PublishDataStorageDraftsService', () => {
@@ -192,7 +193,11 @@ describe('PublishDataStorageDraftsService', () => {
   it('counts a draft as failed (without throwing) and reports the reason', async () => {
     const { service, publishDataMartService } = createService();
     publishDataMartService.run.mockRejectedValue(
-      new BusinessViolationException(PUBLISH_DATA_MART_ERRORS.NO_DEFINITION)
+      new BusinessViolationException(
+        PUBLISH_DATA_MART_ERRORS.NO_DEFINITION.message,
+        undefined,
+        PUBLISH_DATA_MART_ERRORS.NO_DEFINITION.code
+      )
     );
 
     const result = await service.run(
@@ -201,20 +206,94 @@ describe('PublishDataStorageDraftsService', () => {
 
     expect(result.successCount).toBe(0);
     expect(result.failedCount).toBe(1);
-    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_DEFINITION]);
+    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_DEFINITION.message]);
   });
 
   it('reports the permission error verbatim (thrown as a Nest ForbiddenException)', async () => {
     const { service, publishDataMartService } = createService();
     publishDataMartService.run.mockRejectedValue(
-      new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION)
+      new PublishForbiddenException(
+        PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message,
+        PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.code
+      )
     );
 
     const result = await service.run(
       new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
     );
 
-    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_PERMISSION]);
+    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message]);
+  });
+
+  // 8: an authored validator message now reaches the user instead of being
+  // downgraded, because the facade tags it with a DataMartValidationCode.
+  it('surfaces an authored validator message that carries a code', async () => {
+    const { service, publishDataMartService } = createService();
+    publishDataMartService.run.mockRejectedValue(
+      new BusinessViolationException(
+        'Invalid identifier format. Expected: project.dataset.table',
+        undefined,
+        DataMartValidationCode.INVALID_IDENTIFIER_FORMAT
+      )
+    );
+
+    const result = await service.run(
+      new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
+    );
+
+    expect(result.failureReasons).toEqual([
+      'Invalid identifier format. Expected: project.dataset.table',
+    ]);
+  });
+
+  // 7: the guarantee is now structural — the same exception type carrying raw
+  // warehouse text has no code, so it is replaced rather than trusted.
+  it('genericizes a BusinessViolationException that carries no code', async () => {
+    const { service, publishDataMartService } = createService();
+    publishDataMartService.run.mockRejectedValue(
+      new BusinessViolationException(
+        'Syntax error at [1:8] in SELECT * FROM `acme-prod-1234.finance.salaries`'
+      )
+    );
+
+    const result = await service.run(
+      new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
+    );
+
+    expect(result.failureReasons).toEqual([
+      'Publishing failed. Open the Data Mart to see details.',
+    ]);
+    expect(JSON.stringify(result)).not.toContain('acme-prod-1234');
+  });
+
+  it('genericizes an unrecognized code, not just a missing one', async () => {
+    const { service, publishDataMartService } = createService();
+    publishDataMartService.run.mockRejectedValue(
+      new BusinessViolationException('Some other subsystem failed', undefined, 'SOME_OTHER_CODE')
+    );
+
+    const result = await service.run(
+      new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
+    );
+
+    expect(result.failureReasons).toEqual([
+      'Publishing failed. Open the Data Mart to see details.',
+    ]);
+  });
+
+  it('does not trust a bare ForbiddenException that merely repeats the wording', async () => {
+    const { service, publishDataMartService } = createService();
+    publishDataMartService.run.mockRejectedValue(
+      new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message)
+    );
+
+    const result = await service.run(
+      new PublishDataStorageDraftsCommand('storage-1', 'project-1', 'user-1')
+    );
+
+    expect(result.failureReasons).toEqual([
+      'Publishing failed. Open the Data Mart to see details.',
+    ]);
   });
 
   it('never leaks an unrecognized error message to the caller', async () => {
@@ -251,7 +330,12 @@ describe('PublishDataStorageDraftsService', () => {
     publishDataMartService.run.mockImplementation((command: { id: string }) => {
       if (command.id === 'visible-dm') return Promise.resolve(undefined);
       // Access-gated Data Marts fail the per-draft EDIT check.
-      return Promise.reject(new ForbiddenException(PUBLISH_DATA_MART_ERRORS.NO_PERMISSION));
+      return Promise.reject(
+        new PublishForbiddenException(
+          PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message,
+          PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.code
+        )
+      );
     });
 
     const result = await service.run(
@@ -263,7 +347,7 @@ describe('PublishDataStorageDraftsService', () => {
 
     // Reasons are deduplicated, so the count of hidden Data Marts is not
     // inferable from the list either.
-    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_PERMISSION]);
+    expect(result.failureReasons).toEqual([PUBLISH_DATA_MART_ERRORS.NO_PERMISSION.message]);
 
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('hidden-dm-8f3a1c02');

@@ -55,7 +55,7 @@ describe('McpStreamableHttpTransportHandler', () => {
 
   const createInstructionsService = () =>
     ({
-      getInstructions: jest.fn().mockResolvedValue('OWOX instructions'),
+      getInstructions: jest.fn().mockReturnValue('OWOX instructions'),
     }) as unknown as jest.Mocked<McpInstructionsService>;
 
   it('creates stateless SDK transport for no-session tool requests', async () => {
@@ -90,7 +90,7 @@ describe('McpStreamableHttpTransportHandler', () => {
 
     await handler.handleRequest(request as never, response as never, body, context);
 
-    expect(instructionsService.getInstructions).toHaveBeenCalledWith('project-1');
+    expect(instructionsService.getInstructions).toHaveBeenCalledWith();
     expect(factory.create).toHaveBeenCalledWith(context, 'OWOX instructions');
     expect(server.connect).toHaveBeenCalledWith(mockTransportInstances[0]);
     expect(mockHandleRequest).toHaveBeenCalledWith(request, response, body);

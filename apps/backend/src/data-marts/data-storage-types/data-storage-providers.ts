@@ -56,6 +56,7 @@ import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-sto
 import { BigQuerySourceDataLastUpdatedResolver } from './bigquery/services/bigquery-source-data-last-updated.resolver';
 import { RedshiftSourceDataLastUpdatedResolver } from './redshift/services/redshift-source-data-last-updated.resolver';
 import { AthenaSourceDataLastUpdatedResolver } from './athena/services/athena-source-data-last-updated.resolver';
+import { SnowflakeSourceDataLastUpdatedResolver } from './snowflake/services/snowflake-source-data-last-updated.resolver';
 import { DatabricksSourceDataLastUpdatedResolver } from './databricks/services/databricks-source-data-last-updated.resolver';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
@@ -188,7 +189,7 @@ const queryBuilderProviders = [
   RedshiftQueryBuilder,
   DatabricksQueryBuilder,
 ];
-const validatorProviders = [
+export const validatorProviders = [
   BigQueryDataMartValidator,
   LegacyBigQueryDataMartValidator,
   AthenaDataMartValidator,
@@ -266,6 +267,7 @@ const sourceDataLastUpdatedProviders = [
   BigQuerySourceDataLastUpdatedResolver,
   RedshiftSourceDataLastUpdatedResolver,
   AthenaSourceDataLastUpdatedResolver,
+  SnowflakeSourceDataLastUpdatedResolver,
   DatabricksSourceDataLastUpdatedResolver,
 ];
 const publicCredentialsProviders = [

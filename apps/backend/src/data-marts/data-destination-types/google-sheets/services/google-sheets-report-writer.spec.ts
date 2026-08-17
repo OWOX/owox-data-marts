@@ -6,6 +6,7 @@ import { ReportDataDescription } from '../../../dto/domain/report-data-descripti
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { GoogleSheetsReportWriter } from './google-sheets-report-writer';
 import { ColumnPlanBuilder } from './column-plan-builder';
+import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 
 /**
  * Targeted unit spec for {@link GoogleSheetsReportWriter}'s pre-clear
@@ -75,6 +76,12 @@ interface BuildOpts {
    * ("Automatic") column. Defaults to all-`undefined`.
    */
   columnFormats?: (sheets_v4.Schema$CellFormat | undefined)[];
+  /**
+   * Wire the real {@link SheetValuesFormatter} instead of the identity mock,
+   * so tests can prove formatter output (e.g. `+` escaping) actually reaches
+   * `adapter.updateValues` rather than being lost between collaborators.
+   */
+  useRealValuesFormatter?: boolean;
 }
 
 /**
@@ -175,9 +182,12 @@ function buildWriter(opts: BuildOpts) {
     createOwoxColumnsMetadataRequest: jest.fn().mockReturnValue({}),
     updateOwoxColumnsMetadataRequest: jest.fn().mockReturnValue({}),
   };
-  const valuesFormatter = {
-    formatRowsValuesByName: jest.fn().mockImplementation((rows: unknown[][]) => rows),
-  };
+  const valuesFormatter = opts.useRealValuesFormatter
+    ? new SheetValuesFormatter()
+    : {
+        formatRowsValuesByName: jest.fn().mockImplementation((rows: unknown[][]) => rows),
+        escapeRowValues: jest.fn().mockImplementation((row: unknown[]) => row),
+      };
 
   const appEditionConfig = { isEnterpriseEdition: jest.fn().mockReturnValue(true) };
   const publicOriginService = {
@@ -1058,6 +1068,7 @@ function buildStructuralWriter(opts: {
   };
   const valuesFormatter = {
     formatRowsValuesByName: jest.fn().mockImplementation((rows: unknown[][]) => rows),
+    escapeRowValues: jest.fn().mockImplementation((row: unknown[]) => row),
   };
   const appEditionConfig = { isEnterpriseEdition: jest.fn().mockReturnValue(true) };
   const publicOriginService = {
@@ -1319,5 +1330,28 @@ describe('GoogleSheetsReportWriter — insertDimension grid-size guard (sentinel
     );
     expect(colAppends).toEqual([]);
     expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length);
+  });
+});
+
+describe('GoogleSheetsReportWriter — leading-+ escaping reaches the adapter (real formatter)', () => {
+  it('writes +-leading data values and header aliases apostrophe-escaped', async () => {
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      useRealValuesFormatter: true,
+    });
+
+    const headers = [
+      new ReportDataHeader(finalImportedNames[0], '+Country'),
+      new ReportDataHeader(finalImportedNames[1]),
+      new ReportDataHeader(finalImportedNames[2]),
+    ];
+    await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
+    await writer.writeReportDataBatch(new ReportDataBatch([['+38050', '10', '2']]));
+
+    const writtenRows = adapter.updateValues.mock.calls.map(call => call[2]);
+    expect(writtenRows).toContainEqual([
+      ["'+Country", finalImportedNames[1], finalImportedNames[2]],
+    ]);
+    expect(writtenRows).toContainEqual([["'+38050", '10', '2']]);
   });
 });

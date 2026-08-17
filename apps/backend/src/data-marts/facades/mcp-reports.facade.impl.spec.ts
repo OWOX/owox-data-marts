@@ -44,7 +44,7 @@ jest.mock('../services/access-decision', () => ({
   Action: { SEE: 'SEE', USE: 'USE' },
 }));
 
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { RunType } from '../../common/scheduler/shared/types';
 import { QueryFailedError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -419,6 +419,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
     destinationId: 'dest-1',
     fields: ['channel', 'revenue'],
     name: 'Weekly revenue',
+    runImmediately: false,
     projectId: 'project-1',
     userId: 'user-1',
     userEmail: 'ann@owox.com',
@@ -494,8 +495,98 @@ describe('McpReportsFacadeImpl.addReport', () => {
       destination_type: 'google_sheets',
       owner: 'ann@owox.com',
       status: 'created',
+      initial_run: { status: 'not_requested' },
       sheet_url: 'https://docs.google.com/spreadsheets/d/ss-1/edit#gid=0',
     });
+  });
+
+  it('queues the first run by default for a push destination', async () => {
+    const { facade, createGoogleSheetDocumentService, createReportService, runReportService } =
+      createFacade({ reports: [], triggers: [] });
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+    createReportService.run.mockResolvedValue({
+      id: 'report-1',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+
+    const result = await facade.addReport({ ...addRequest, runImmediately: undefined });
+
+    expect(runReportService.run).toHaveBeenCalledWith({
+      reportId: 'report-1',
+      userId: 'user-1',
+      roles: ['editor'],
+      projectId: 'project-1',
+      runType: RunType.manual,
+    });
+    expect(result.initial_run).toEqual({ status: 'queued', run_id: 'run-1' });
+  });
+
+  it.each([
+    [DataDestinationType.EMAIL, 'email'],
+    [DataDestinationType.SLACK, 'slack'],
+    [DataDestinationType.MS_TEAMS, 'teams'],
+    [DataDestinationType.GOOGLE_CHAT, 'google_chat'],
+  ] as const)(
+    'queues the first run by default for the %s email-family destination',
+    async (destinationType, mcpDestinationType) => {
+      const {
+        facade,
+        dataDestinationService,
+        createReportService,
+        getReportService,
+        runReportService,
+      } = createFacade({ reports: [], triggers: [] });
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+        id: 'dest-1',
+        type: destinationType,
+      } as never);
+      createReportService.run.mockResolvedValue({
+        id: 'report-1',
+        createdByUser: { email: 'ann@owox.com' },
+      } as unknown as ReportDto);
+      getReportService.run.mockResolvedValue(buildReport({ id: 'report-1', destinationType }));
+
+      const result = await facade.addReport({
+        ...addRequest,
+        runImmediately: undefined,
+        message: { body: '{{table}}' },
+      });
+
+      expect(runReportService.run).toHaveBeenCalledWith({
+        reportId: 'report-1',
+        userId: 'user-1',
+        roles: ['editor'],
+        projectId: 'project-1',
+        runType: RunType.manual,
+      });
+      expect(result).toMatchObject({
+        destination_type: mcpDestinationType,
+        initial_run: { status: 'queued', run_id: 'run-1' },
+      });
+    }
+  );
+
+  it('returns partial success when the report exists but its first run cannot be queued', async () => {
+    const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const { facade, createGoogleSheetDocumentService, createReportService, runReportService } =
+      createFacade({ reports: [], triggers: [] });
+    createGoogleSheetDocumentService.run.mockResolvedValue({ spreadsheetId: 'ss-1', sheetId: 0 });
+    createReportService.run.mockResolvedValue({
+      id: 'report-1',
+      createdByUser: { email: 'ann@owox.com' },
+    } as unknown as ReportDto);
+    runReportService.run.mockRejectedValue(new Error('queue unavailable'));
+
+    const result = await facade.addReport({ ...addRequest, runImmediately: undefined });
+
+    expect(result).toMatchObject({
+      report_id: 'report-1',
+      status: 'created',
+      initial_run: { status: 'failed_to_queue', error: 'queue unavailable' },
+    });
+    expect(createReportService.run).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalled();
+    logError.mockRestore();
   });
 
   it('passes the placed-in-root and shared-with-requester flags through', async () => {
@@ -698,8 +789,25 @@ describe('McpReportsFacadeImpl.addReport', () => {
       destination_type: 'looker_studio',
       owner: 'ann@owox.com',
       status: 'created',
+      initial_run: { status: 'not_applicable' },
     });
     expect(result).not.toHaveProperty('sheet_url');
+  });
+
+  it('rejects an explicit initial run for Looker Studio before creating a report', async () => {
+    const { facade, dataDestinationService, createReportService } = createFacade({
+      reports: [],
+      triggers: [],
+    });
+    dataDestinationService.getByIdAndProjectId.mockResolvedValue({
+      id: 'dest-1',
+      type: DataDestinationType.LOOKER_STUDIO,
+    } as never);
+
+    await expect(
+      facade.addReport({ ...addRequest, name: undefined, runImmediately: true })
+    ).rejects.toThrow('run_immediately is not applicable');
+    expect(createReportService.run).not.toHaveBeenCalled();
   });
 
   it('maps fields ["*"] to no column projection for Looker Studio reports', async () => {
@@ -880,6 +988,7 @@ describe('McpReportsFacadeImpl.addReport', () => {
       destination_type: 'slack',
       owner: 'ann@owox.com',
       status: 'created',
+      initial_run: { status: 'not_requested' },
     });
     expect(result).not.toHaveProperty('sheet_url');
   });

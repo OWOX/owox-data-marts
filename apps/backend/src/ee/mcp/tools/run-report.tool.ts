@@ -20,7 +20,7 @@ type RunReportInput = z.infer<typeof inputSchema>;
 export class RunReportTool implements McpToolDefinition<RunReportInput> {
   readonly name = 'run_report';
   readonly description =
-    'Start an existing report by report_id and deliver fresh data to its push destination (Google Sheets, Email, Slack, Microsoft Teams, or Google Chat). Returns immediately with report_id and run_id; it does not wait or report final status. Then poll get_report_run_status with those ids until should_poll is false, waiting up to 15 seconds between checks when possible. Do not call run_report again for the same report while that run is in progress; each call starts a new billed Report Run, and concurrent runs are rejected as "Report is already running or pending".';
+    'Start an existing report by report_id and deliver fresh data to its push destination. Use this for a later rerun or when add_report returned initial_run.status="failed_to_queue". Do not call it when add_report already returned a queued run_id. Returns immediately with report_id and run_id; it does not wait for final status. Poll get_report_run_status with those ids until should_poll is false, waiting up to 15 seconds between checks when possible. Each call starts a new billed Report Run; concurrent runs are rejected as "Report is already running or pending".';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     report_id: z.string(),

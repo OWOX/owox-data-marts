@@ -90,6 +90,9 @@ describe('RunReportTool', () => {
     expect(tool.description).toContain('run_id');
     expect(tool.description).toContain('15 seconds');
     expect(tool.description).toContain('billed');
+    expect(tool.description).toContain('add_report');
+    expect(tool.description).toContain('failed_to_queue');
+    expect(tool.description).toContain('queued run_id');
     expect(tool.description).not.toContain('HTTP Data API');
     expect(tool.description).not.toContain('do not stop polling on your own initiative');
     expect(tool.description).not.toContain('60 seconds');

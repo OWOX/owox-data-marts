@@ -1018,7 +1018,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       const lastA1 = GoogleSheetsApiAdapter.colToA1(finalNames.length);
       await this.adapter.updateValues(spreadsheetId, `'${this.sheetTitle}'!A1:${lastA1}1`, [
-        headerRow,
+        // An alias is free text, so it can start with `+` just like a data
+        // value — escape it the same way to keep row 1 out of formula parsing.
+        this.valuesFormatter.escapeRowValues(headerRow),
       ]);
 
       // Per-column short marker only at header-write time. Full A1 provenance

@@ -12,6 +12,7 @@ import { useDataDestination } from './useDataDestination';
 export function useDataDestinationsWithReports() {
   // Get the current Data Mart from outlet context
   const { dataMart } = useOutletContext<DataMartContextType>();
+  const dataMartId = dataMart?.id;
 
   // Hook to manage reports
   const { fetchReportsByDataMartId } = useReport();
@@ -27,13 +28,13 @@ export function useDataDestinationsWithReports() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!dataMart) return; // If no Data Mart, exit early
+    if (!dataMartId) return; // If no Data Mart, exit early
 
     const fetchData = async () => {
       setIsLoading(true); // Start combined loading
       try {
         // Fetch both destinations and reports concurrently
-        await Promise.all([fetchDataDestinations(), fetchReportsByDataMartId(dataMart.id)]);
+        await Promise.all([fetchDataDestinations(), fetchReportsByDataMartId(dataMartId)]);
       } catch (err) {
         console.error('Failed to fetch Data Mart destinations or reports:', err);
       } finally {
@@ -42,7 +43,7 @@ export function useDataDestinationsWithReports() {
     };
 
     void fetchData();
-  }, [dataMart, fetchDataDestinations, fetchReportsByDataMartId]);
+  }, [dataMartId, fetchDataDestinations, fetchReportsByDataMartId]);
 
   // Combine local loading with destinationsLoading from the DataDestination hook
   const combinedLoading = isLoading || destinationsLoading;

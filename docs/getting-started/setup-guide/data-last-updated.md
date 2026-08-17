@@ -2,7 +2,7 @@
 
 Data Last Updated shows when the source tables/views behind a Data Mart last changed in the storage. It answers the question "how current is what I am looking at?" before you build a report or act on an answer from an AI assistant.
 
-Data Last Updated is currently measured for **Google BigQuery**, **AWS Redshift**, **AWS Athena**, and **Databricks** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
+Data Last Updated is currently measured for **Google BigQuery**, **AWS Redshift**, **AWS Athena**, **Snowflake**, and **Databricks** Data Marts. Data Marts on other storages show **Unknown** until their support lands.
 
 ## What the value means
 
@@ -66,6 +66,7 @@ Storage-specific caveats:
 - **BigQuery** reports modification times immediately and exactly.
 - **Redshift** metadata can lag real writes by up to ~5 minutes, so a load that finished a moment ago may not show yet. Older Redshift releases do not report modification times at all — those Data Marts show Unknown. Source tables outside the connection's database, and tables in schemas whose names require quoting (mixed case, hyphens, non-ASCII characters), cannot be identified and appear as unknown entries with partial coverage.
 - **Athena** answers exactly for **Iceberg** tables (the time of the last data commit). Classic **Hive** tables show Unknown — their catalog stores no data-change time. The catalog's metadata timestamps can be newer than the last data change, so OWOX does not report them. Tables from federated catalogs (connectors other than the Glue Data Catalog) are not measured.
+- **Snowflake** reports the start of the hour in which the data last changed, from the account's DML history. The value can trail reality by several hours, because Snowflake publishes this history with a delay. The connection role needs access to the `SNOWFLAKE` database (account usage); without it, sources show Unknown. Schema changes and background maintenance do not move the value. Materialized views, Iceberg tables, and other non-standard objects are not measured and appear as unknown sources.
 - **Databricks** answers exactly for **Delta** tables: the commit time of the last operation that changed data. Maintenance operations such as OPTIMIZE and VACUUM do not count. Table history is kept for a limited period (30 days by default); older changes show Unknown. Non-Delta and external tables, materialized views, and streaming tables have no readable history and show Unknown too.
 
 ## Data Last Updated vs. the Data freshness check

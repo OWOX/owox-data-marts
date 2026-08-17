@@ -7,14 +7,12 @@ import { DataDestinationType } from '../../../../../data-destination';
 import type { DataDestination } from '../../../../../data-destination';
 import { useBaseTable } from '../../../../../../shared/hooks';
 import { BaseTable } from '../../../../../../shared/components/Table';
-import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import { AddReportButton } from '../DestinationCard/AddReportButton';
 
 interface EmailReportsTableProps {
   destinationType: DataDestinationType;
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
-  dataMartStatus?: DataMartStatusInfo;
   onAddReport: () => void;
 }
 
@@ -28,7 +26,6 @@ export function EmailReportsTable({
   destinationType,
   destination,
   onEditReport,
-  dataMartStatus,
   onAddReport,
 }: EmailReportsTableProps) {
   const { reports, setPollingConfig } = useReport();
@@ -98,7 +95,7 @@ export function EmailReportsTable({
           <p className='text-muted-foreground text-sm font-medium'>
             Create your first report for this destination
           </p>
-          <AddReportButton dataMartStatus={dataMartStatus} onAddReport={onAddReport} />
+          <AddReportButton onAddReport={onAddReport} />
         </div>
       )}
     />
