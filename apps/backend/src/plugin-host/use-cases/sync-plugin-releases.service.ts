@@ -22,10 +22,7 @@ import { PluginService, PluginSyncSlotClaim } from '../services/plugin.service';
 import { PluginVersionService } from '../services/plugin-version.service';
 import { RemoteUrlValidatorService } from '../services/remote-url-validator.service';
 import { GithubRepoRef, parseGithubRepoLocator } from '../utils/github-repo-locator.util';
-import {
-  findIncompatibleCollectionChange,
-  parsePluginManifest,
-} from '../utils/plugin-manifest.util';
+import { parsePluginManifest } from '../utils/plugin-manifest.util';
 import { compareSemver, formatSemver, parseReleaseTag } from '../utils/semver.util';
 
 /** A release that survived the free checks and is worth spending network calls on. */
@@ -214,26 +211,11 @@ export class SyncPluginReleasesService {
       return false;
     }
 
-    const currentVersion = (await this.versionService.findAllByPluginId(pluginId)).reduce<
-      { semver: string; collections: PluginVersionCollections } | undefined
-    >(
-      (highest, version) =>
-        !highest || compareSemver(version.semver, highest.semver) > 0
-          ? { semver: version.semver, collections: version.collections ?? [] }
-          : highest,
-      undefined
-    );
-    const incompatibility = findIncompatibleCollectionChange(
-      currentVersion?.collections ?? [],
-      manifest.manifest.collections
-    );
-    if (incompatibility) {
-      into.rejections.push(
-        this.rejection(release, ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE, incompatibility)
-      );
-      return false;
-    }
-
+    // ponytail: collection-compatibility gate temporarily off, so a release that redefines
+    // an existing collection publishes instead of being rejected. It returns gated on
+    // SemVer: enforced for minor and patch, waived for a major release, so a plugin author
+    // decides when a breaking change is intended. findIncompatibleCollectionChange and
+    // COLLECTIONS_INCOMPATIBLE are kept for that.
     const delivery = await this.remoteUrlValidator.validate(manifest.manifest.delivery.url);
     if (!delivery.ok) {
       into.rejections.push(this.rejection(release, delivery.code, delivery.detail));
@@ -394,7 +376,3 @@ export class SyncPluginReleasesService {
     return { tagName: release.tagName, githubReleaseId: release.githubReleaseId, code, detail };
   }
 }
-
-type PluginVersionCollections = NonNullable<
-  Awaited<ReturnType<PluginVersionService['findById']>>
->['collections'];

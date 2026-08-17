@@ -387,7 +387,9 @@ describe('SyncPluginReleasesService', () => {
       expect(result.report.acceptedSemvers).toEqual(['1.0.0']);
     });
 
-    it('rejects a release that removes a collection from the current manifest', async () => {
+    // The collection-compatibility gate is temporarily off; see the ponytail note in
+    // processCandidate. A release that redefines an existing collection must publish.
+    it('accepts a release that redefines a collection from the current manifest', async () => {
       const s = setup();
       s.githubApi.listReleases.mockResolvedValue([release('v2.0.0')]);
       s.versionService.findAllByPluginId.mockResolvedValue([
@@ -400,11 +402,9 @@ describe('SyncPluginReleasesService', () => {
 
       const result = await run(s);
 
-      expect(result.report.rejections[0]).toMatchObject({
-        code: ReleaseRejectionCode.COLLECTIONS_INCOMPATIBLE,
-      });
-      expect(s.validator.validate).not.toHaveBeenCalled();
-      expect(s.versionService.insertVersionForLease).not.toHaveBeenCalled();
+      expect(result.report.rejections).toEqual([]);
+      expect(result.report.acceptedSemvers).toEqual(['2.0.0']);
+      expect(s.versionService.insertVersionForLease).toHaveBeenCalled();
     });
 
     // One broken release must not take the good ones down with it.
