@@ -59,6 +59,29 @@ Each connector requires authentication. Here is how you can obtain the required 
 
 Use the **credentials screen** to manage access per platform.
 
+### Copy a configuration from another Data Mart
+
+The **Copy from…** option reuses a connector configuration from another Data Mart, including its stored credentials.
+
+Copying credentials requires **Edit** access to the source Data Mart. You have it in one of these cases:
+
+- You are a Project Admin.
+- You are a Technical User and a Technical Owner of the source Data Mart.
+- You are a Technical User, and the source Data Mart is **Shared for maintenance**.
+
+Without this access, saving the Data Mart fails with this error:
+
+> You do not have permission to copy connector credentials from the source Data Mart.
+
+To resolve it, choose one of these options:
+
+- Ask an owner of the source Data Mart to add you as a Technical Owner.
+- Ask them to turn on **Shared for maintenance** on the source Data Mart.
+- If you are a Business User, ask a Project Admin to change your role to Technical User.
+- Enter your own credentials instead of copying.
+
+One more check applies when your role scope is **Selected contexts only**. You also need a context overlap with the source Data Mart. See [Ownership and Sharing](../../project/ownership-and-sharing.md) for the full access model.
+
 ## Step 4: Customize export schema
 
 Once the connector and parameters are set, click **Next** to select the node you want to import in this data mart.

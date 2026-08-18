@@ -326,7 +326,7 @@ describe('UpdateDataMartDefinitionService', () => {
     );
 
     await expect(service.run(command)).rejects.toThrow(
-      'You do not have permission to copy connector credentials from the source DataMart'
+      'You do not have permission to copy connector credentials from the source Data Mart'
     );
     expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
       2,
@@ -366,7 +366,7 @@ describe('UpdateDataMartDefinitionService', () => {
     );
 
     await expect(service.run(command)).rejects.toThrow(
-      'You do not have permission to copy connector credentials from the source DataMart'
+      'You do not have permission to copy connector credentials from the source Data Mart'
     );
     expect(accessDecisionService.canAccess).toHaveBeenNthCalledWith(
       2,
