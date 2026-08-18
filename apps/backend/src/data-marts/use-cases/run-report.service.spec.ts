@@ -446,6 +446,9 @@ describe('RunReportService', () => {
       expect(reportReaderResolver.resolve).not.toHaveBeenCalled();
       expect(report.lastRunStatus).toBe(ReportRunStatus.RESTRICTED);
       expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.RESTRICTED);
+      expect(reportRun.getDataMartRun().errors).toEqual([
+        expect.stringContaining('https://app.owox.com'),
+      ]);
       expect(reportRunService.finish).toHaveBeenCalled();
     }
   );

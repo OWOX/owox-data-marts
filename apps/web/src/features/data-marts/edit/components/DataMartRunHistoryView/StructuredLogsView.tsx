@@ -7,6 +7,25 @@ interface StructuredLogsViewProps {
   logs: LogEntry[];
 }
 
+const OWOX_APP_URL = 'https://app.owox.com';
+
+const renderMessage = (message: string) =>
+  message.split(/(https:\/\/app\.owox\.com)/g).map((part, index) =>
+    part === OWOX_APP_URL ? (
+      <a
+        key={`${part}-${String(index)}`}
+        href={part}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='underline'
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+
 export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -55,9 +74,11 @@ export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
               }`}
             >
               {logEntry.message.includes('\n') ? (
-                <pre className={`font-mono text-xs whitespace-pre-wrap`}>{logEntry.message}</pre>
+                <pre className='font-mono text-xs whitespace-pre-wrap'>
+                  {renderMessage(logEntry.message)}
+                </pre>
               ) : (
-                <span>{logEntry.message}</span>
+                <span>{renderMessage(logEntry.message)}</span>
               )}
             </div>
           </div>

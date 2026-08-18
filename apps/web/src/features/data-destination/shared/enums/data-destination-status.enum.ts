@@ -4,5 +4,4 @@
 export enum DataDestinationStatus {
   ACTIVE = 'Active',
   COMING_SOON = 'Coming soon',
-  CLOUD_ONLY = 'Cloud only',
 }

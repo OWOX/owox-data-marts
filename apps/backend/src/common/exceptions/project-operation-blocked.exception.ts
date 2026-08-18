@@ -21,7 +21,7 @@ export class ProjectOperationBlockedException extends BusinessViolationException
     }
     if (blockedReasons.includes(ProjectBlockedReason.LICENSE_REQUIRED)) {
       message +=
-        ' Report Runs require an active OWOX Data Marts Cloud license. Create a managed license key in OWOX Data Marts Cloud Project Settings and set it as LICENSE_KEY to enable execution.';
+        ' Report Runs require an active OWOX Data Marts Cloud license. Open https://app.owox.com and create a managed license key in Project Settings, then set it as LICENSE_KEY to enable execution.';
     }
     message = message.trim();
 
