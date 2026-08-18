@@ -34,7 +34,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   async processNode({ nodeName, fields }) {
-    const storage = this.getStorageByNode(nodeName);
+    const storage = await this.getStorageByNode(nodeName);
     if (ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName])) {
       await this.processTimeSeriesNode({ nodeName, fields, storage });
     } else {
