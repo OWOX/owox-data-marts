@@ -164,6 +164,24 @@ describe('LookerStudioConnectorApiDataService', () => {
 
       expect(context.rowLimit).toBe(100);
     });
+
+    it('names the unresolvable fields when none of the requested fields exist anymore', async () => {
+      // Looker Studio persists the data-source schema and keeps requesting fields by their old
+      // names, so a chart bound to a column the report no longer produces must get an error
+      // that says WHICH names failed — not a generic "no valid fields".
+      const report = createMockReport();
+      const request = createMockRequest(['Row Count']);
+      const cachedReader = createMockCachedReader(
+        [{ name: 'field1', storageFieldType: 'STRING' }],
+        []
+      );
+
+      await expect(
+        service.prepareStreamingContext(request, report, cachedReader, false)
+      ).rejects.toThrow(
+        /None of the requested fields exist.*\[Row Count\].*refresh the data source/
+      );
+    });
   });
 
   describe('streamData', () => {

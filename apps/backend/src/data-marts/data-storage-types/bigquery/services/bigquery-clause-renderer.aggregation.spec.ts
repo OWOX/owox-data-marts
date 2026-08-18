@@ -59,7 +59,8 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       ]
     );
     expect(out.selectSql).toBe(
-      'SUM(`revenue`) AS `revenue | SUM`,\n' + '  COUNT(DISTINCT `orders`) AS `orders | COUNTUNIQUE`'
+      'SUM(`revenue`) AS `revenue | SUM`,\n' +
+        '  COUNT(DISTINCT `orders`) AS `orders | COUNTUNIQUE`'
     );
     expect(out.groupBySql).toBe('');
   });

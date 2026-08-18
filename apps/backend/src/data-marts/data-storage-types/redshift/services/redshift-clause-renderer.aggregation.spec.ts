@@ -84,7 +84,8 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
       ]
     );
     expect(out.selectSql).toBe(
-      'SUM("revenue") AS "revenue | SUM",\n' + '  COUNT(DISTINCT "orders") AS "orders | COUNTUNIQUE"'
+      'SUM("revenue") AS "revenue | SUM",\n' +
+        '  COUNT(DISTINCT "orders") AS "orders | COUNTUNIQUE"'
     );
     expect(out.groupBySql).toBe('');
   });

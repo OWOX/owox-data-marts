@@ -132,7 +132,14 @@ export class LookerStudioConnectorApiDataService {
     );
 
     if (filteredHeaders.length === 0) {
-      throw new BusinessViolationException('No valid fields found in the request');
+      // Name the fields so the error is self-diagnosing: Looker Studio persists the data-source
+      // schema and keeps requesting fields by their old names, so a chart bound to a column the
+      // report no longer produces lands here long after the report changed. Telling the user
+      // WHICH names failed points them straight at "Refresh fields" on the data source.
+      throw new BusinessViolationException(
+        `None of the requested fields exist in the report output: [${requestedFieldNames.join(', ')}]. ` +
+          'The report columns have likely changed — refresh the data source fields in Looker Studio.'
+      );
     }
 
     // Create index mapping for data filtering

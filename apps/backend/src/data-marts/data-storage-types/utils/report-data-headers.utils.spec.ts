@@ -150,9 +150,7 @@ describe('resolveReportDataHeaders', () => {
         },
         BQ
       );
-      const aggregatedNames = headers
-        .filter(h => h.aggregateFunction)
-        .map(h => `\`${h.name}\``);
+      const aggregatedNames = headers.filter(h => h.aggregateFunction).map(h => `\`${h.name}\``);
       expect(aggregatedNames).toEqual([
         agg.selectSql.match(/AS (`revenue \| SUM`)/)![1],
         agg.selectSql.match(/AS (`revenue \| AVG`)/)![1],

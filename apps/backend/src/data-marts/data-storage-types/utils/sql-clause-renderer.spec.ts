@@ -243,7 +243,6 @@ describe('SqlClauseRenderer', () => {
       expect(out.aliasByColumn.get('d')).toBe('"d"');
       expect(out.aliasByColumn.get('x')).toBe('"x | SUM"');
     });
-
   });
 
   describe('column qualification via ColumnRefResolver', () => {
