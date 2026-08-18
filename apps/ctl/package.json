@@ -55,7 +55,10 @@
     ],
     "topicSeparator": " "
   },
-  "repository": "OWOX/owox-data-marts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
+  },
   "scripts": {
     "build": "tsc",
     "build:clean": "shx rm -rf dist oclif.manifest.json tsconfig.tsbuildinfo",

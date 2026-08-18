@@ -5,6 +5,10 @@
   "author": "OWOX",
   "license": "ELv2",
   "description": "OWOX Better Auth implementation for OWOX IDP Protocol",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
+  },
   "scripts": {
     "build": "tsc && node ./scripts/copy-public.cjs",
     "build:dep": "npm run build:internal-helpers && npm run build:idp-protocol",

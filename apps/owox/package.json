@@ -70,7 +70,10 @@
     "plugins": ["@oclif/plugin-help"],
     "topicSeparator": " "
   },
-  "repository": "OWOX/owox-data-marts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
+  },
   "scripts": {
     "build": "tsc",
     "build:backend": "npm run build -w @owox/backend --prefix ../..",

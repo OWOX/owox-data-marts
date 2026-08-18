@@ -2,6 +2,10 @@
   "name": "@owox/connectors",
   "version": "0.31.0",
   "description": "Connectors and storages for different data sources",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
+  },
   "license": "MIT",
   "publishConfig": {
     "access": "public"
