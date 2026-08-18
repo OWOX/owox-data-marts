@@ -76,6 +76,65 @@ const MicrosoftAdsHelper = {
   },
 
   /**
+   * Download and unzip a CSV file, converting rows to objects in chunks that are
+   * flushed to the callback as soon as they fill up. Unlike downloadCsvRows +
+   * csvRowsToObjects, this never holds the full row array or full object array in
+   * memory — only the CSV text of one file and one chunk at a time.
+   * @param {string} url
+   * @param {function(Array<Object>): Promise<void>} onRecordsChunk
+   * @param {number} [chunkSize=2000]
+   * @returns {Promise<void>}
+   */
+  async processCsvRecordsFromUrl(url, onRecordsChunk, chunkSize = 2000) {
+    const response = await HttpUtils.fetch(url);
+    const blob = await response.getBlob();
+    const files = FileUtils.unzip(blob);
+    for (const file of files) {
+      await this.processCsvTextInChunks(file.getDataAsString(), onRecordsChunk, chunkSize);
+    }
+  },
+
+  /**
+   * Convert CSV text to record objects chunk by chunk. The first non-empty line is
+   * the header (sanitized like csvRowsToObjects); 'Format Version' rows are skipped.
+   * @param {string} csvText
+   * @param {function(Array<Object>): Promise<void>} onRecordsChunk
+   * @param {number} chunkSize
+   * @returns {Promise<void>}
+   */
+  async processCsvTextInChunks(csvText, onRecordsChunk, chunkSize) {
+    const lines = csvText.split('\n');
+    let headerNames = null;
+    let chunk = [];
+
+    for (const line of lines) {
+      if (line.trim() === '') continue;
+      const rowValues = FileUtils.parseCsv(line)[0];
+
+      if (headerNames === null) {
+        headerNames = rowValues.map(rawHeader => rawHeader.replace(/[^a-zA-Z0-9]/g, ''));
+        continue;
+      }
+      if (rowValues[0] === 'Format Version') continue;
+
+      const record = {};
+      headerNames.forEach((headerName, colIndex) => {
+        record[headerName] = rowValues[colIndex];
+      });
+      chunk.push(record);
+
+      if (chunk.length >= chunkSize) {
+        await onRecordsChunk(chunk);
+        chunk = [];
+      }
+    }
+
+    if (chunk.length > 0) {
+      await onRecordsChunk(chunk);
+    }
+  },
+
+  /**
    * Convert a 2D array of CSV rows into an array of objects
    * @param {Array<Array<string>>} csvRows
    * @returns {Array<Object>}
