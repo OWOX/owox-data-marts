@@ -144,7 +144,7 @@ describe('float-type resolution is exhaustive (getFloatType via AVG)', () => {
   });
 });
 
-describe('integerTypeFor (Row Count header type)', () => {
+describe('integerTypeFor (COUNT effective type)', () => {
   it.each([
     [DataStorageType.GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER],
     [DataStorageType.LEGACY_GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER],

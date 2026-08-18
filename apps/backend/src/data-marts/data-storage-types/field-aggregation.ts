@@ -57,8 +57,7 @@ export function effectiveComparisonType(
 }
 
 /**
- * Storage-specific integer type. Used for COUNT/COUNT_DISTINCT effective types and
- * for the synthetic Row Count header (COUNT(*)).
+ * Storage-specific integer type. Used for COUNT/COUNT_DISTINCT effective types.
  */
 export function integerTypeFor(storageType: DataStorageType): StorageFieldType {
   switch (storageType) {

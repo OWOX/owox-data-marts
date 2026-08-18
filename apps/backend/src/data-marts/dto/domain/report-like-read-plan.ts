@@ -27,25 +27,9 @@ export interface ReportLikeReadPlan {
   groupRestriction?: GroupRestriction;
   dateTruncConfig?: DateTruncConfig;
   uniqueCountConfig?: UniqueCountConfig;
-  /**
-   * Explicit opt-in to the `COUNT(*)` Row Count column. Off unless a read plan asks for it:
-   * a report must contain only the columns the user selected, so Row Count is not appended
-   * to aggregated reports automatically.
-   */
-  rowCount?: boolean;
 }
 
 export type ReportLike = Report | ReportLikeReadPlan;
-
-/**
- * Whether the `COUNT(*)` Row Count column should be projected. Only when a read plan
- * explicitly opts in via `rowCount: true` — never by default: a report must contain only
- * the columns the user selected. (A saved `Report` carries no `rowCount`, so reports never
- * project it.) Single source so the compose, blended-build, and header paths cannot drift.
- */
-export function shouldIncludeRowCount(report: ReportLike): boolean {
-  return 'rowCount' in report && report.rowCount === true;
-}
 
 /**
  * Whether a report projects METRICS ONLY — it asks for aggregates or any Unique Count, so an empty
@@ -83,7 +67,7 @@ export function usesSuffixedJoinedFieldNames(report: ReportLike): boolean {
 
 /**
  * True when the report carries any output control — a filter, sort, limit,
- * aggregation, date-trunc bucket, or Row Count. Single source for this predicate (run /
+ * aggregation, or date-trunc bucket. Single source for this predicate (run /
  * cache / compose / run-record paths) so the copies cannot drift.
  */
 export function hasOutputControls(report: ReportLike): boolean {

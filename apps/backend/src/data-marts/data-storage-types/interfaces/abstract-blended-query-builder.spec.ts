@@ -2118,19 +2118,6 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     expect(sql).toContain('GROUP BY\n  DATE_TRUNC(DATE(main.date), MONTH)');
   });
 
-  it('appends COUNT(*) Row Count as the last select item when rowCount is set', () => {
-    const { sql } = builder.buildBlendedQuery({
-      ...buildContext([spendChain()], ['channel', 'clicks']),
-      fieldIndex: spendFieldIndex,
-      // A MAIN-side metric: no sleeve, so Row Count really is the final select item.
-      aggregations: [{ column: 'clicks', function: 'SUM' }],
-      rowCount: true,
-    });
-
-    // "Last select item" = immediately followed by the outer FROM, with nothing in between.
-    expect(sql).toMatch(/COUNT\(\*\) AS `Row Count`\nFROM main\n/);
-  });
-
   // the sleeve's join-back dimension and the outer GROUP BY key are derived
   // independently, so the builder asserts they came out byte-identical. Inject exactly the
   // drift that already happened once (the sleeve projecting a date dimension untruncated) by
@@ -2587,24 +2574,23 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     });
   });
 
-  it('emits sleeve pulls AFTER Row Count, so SELECT order != header order', () => {
+  it('emits sleeve pulls AFTER the non-sleeve select items, so SELECT order != header order', () => {
     const { sql } = builder.buildBlendedQuery({
       ...buildContext([spendChain()], ['channel', 'spend__cost']),
       fieldIndex: spendFieldIndex,
       aggregations: [{ column: 'spend__cost', function: 'SUM' }],
-      rowCount: true,
     });
 
-    const rowCountAt = sql.indexOf('COUNT(*) AS `Row Count`');
+    // The dimension is a non-sleeve select item; the sleeve pull is appended after it, while
+    // `resolveReportDataHeaders` keeps the metric header at its own column's position. Readers
+    // bind result columns to headers BY NAME, which is what makes this divergence safe.
+    const dimensionAt = sql.indexOf('main.channel AS `channel`');
     const sleevePullAt = sql.indexOf('ANY_VALUE(sleeve_spend__cost.`spend__cost | SUM`)');
-    expect(rowCountAt).toBeGreaterThan(-1);
-    expect(sleevePullAt).toBeGreaterThan(rowCountAt);
-    // Row Count is a plain main-side COUNT(*) — the sleeve must not inflate it by joining
-    // extra rows: the join-back is one row per dimension group.
-    expect(sql).toContain('COUNT(*) AS `Row Count`');
+    expect(dimensionAt).toBeGreaterThan(-1);
+    expect(sleevePullAt).toBeGreaterThan(dimensionAt);
   });
 
-  it('does not aggregate when no aggregation/date-trunc/row-count is requested', () => {
+  it('does not aggregate when no aggregation/date-trunc is requested', () => {
     const { sql } = builder.buildBlendedQuery(
       buildContext([spendChain()], ['channel', 'spend__cost'])
     );

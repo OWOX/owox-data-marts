@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   REPORT_AGGREGATE_FUNCTION_LABELS,
-  ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
   aggregateFunctionLabel,
   buildJoinedUniqueCountColumnName,
@@ -33,10 +32,9 @@ describe('REPORT_AGGREGATE_FUNCTION_LABELS (web mirror — drift guard)', () => 
     });
   });
 
-  // Same drift contract as the map above: the backend emits these as the literal SQL alias
-  // and header name, and the web builds sort rules from them, so a silent edit must fail CI.
-  it('pins the synthetic output-column labels', () => {
-    expect(ROW_COUNT_LABEL).toBe('Row Count');
+  // Same drift contract as the map above: the backend emits this as the literal SQL alias
+  // and header name, and the web builds sort rules from it, so a silent edit must fail CI.
+  it('pins the synthetic output-column label', () => {
     expect(UNIQUE_COUNT_LABEL).toBe('Unique Count');
   });
 

@@ -31,14 +31,12 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
   ): string | QueryBuildResult {
     const aggregations = queryOptions?.aggregations ?? [];
     const dateTruncs = queryOptions?.dateTruncs ?? [];
-    const rowCount = queryOptions?.rowCount === true;
     const uniqueCount = queryOptions?.uniqueCount === true;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
-      rowCount ||
       uniqueCount ||
       queryOptions?.limit != null;
 
@@ -62,7 +60,7 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
-    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+    if (aggregations.length > 0 || dateTruncs.length > 0 || uniqueCount) {
       return this.clauseRenderer.renderAggregatedQuery({
         fromClause,
         columns: queryOptions?.columns ?? [],
@@ -71,7 +69,6 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
         filters: queryOptions?.filters ?? [],
         sort: queryOptions?.sort ?? [],
         limit: queryOptions?.limit ?? null,
-        rowCount,
         uniqueCount,
         primaryKeyColumns: queryOptions?.primaryKeyColumns,
         groupRestriction: queryOptions?.groupRestriction,

@@ -6,7 +6,7 @@ import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
  * The Redshift Data API hands back rows as positional `Field[]`, so this reader is the one
  * place where result columns are bound to report headers. It used to do that by POSITION,
  * which silently mismatched every cell once the blended builder started appending
- * metric-sleeve pulls after `Row Count`.
+ * metric-sleeve pulls after the non-sleeve select items.
  */
 describe('RedshiftReportReader result-column binding', () => {
   const field = (value: string | number | boolean | null) =>
@@ -48,17 +48,16 @@ describe('RedshiftReportReader result-column binding', () => {
   };
 
   it('binds cells to headers by column name, not by result position ( sleeve order)', async () => {
-    // The SQL a blended aggregated report emits: dimension, non-sleeve metrics, Row Count,
+    // The SQL a blended aggregated report emits: dimension, non-sleeve metrics,
     // and THEN the sleeve pull — while the header list puts `| SUM` at its column's position.
     const { reader } = createReader({
       ColumnMetadata: [
         { label: 'country' },
         { label: 'orders__amount | MIN' },
         { label: 'orders__amount | MAX' },
-        { label: 'Row Count' },
         { label: 'orders__amount | SUM' },
       ],
-      Records: [[field('US'), field(1), field(9), field(4), field(150)]],
+      Records: [[field('US'), field(1), field(9), field(150)]],
     });
 
     await reader.prepareReportData(buildReport(), {
@@ -68,13 +67,12 @@ describe('RedshiftReportReader result-column binding', () => {
         { column: 'orders__amount', function: 'MIN' },
         { column: 'orders__amount', function: 'MAX' },
       ],
-      rowCount: true,
     } as never);
 
     const batch = await reader.readReportDataBatch();
 
-    // Header order is country, SUM, MIN, MAX, Row Count — each cell must carry ITS value.
-    expect(batch.dataRows).toEqual([['US', 150, 1, 9, 4]]);
+    // Header order is country, SUM, MIN, MAX — each cell must carry ITS value.
+    expect(batch.dataRows).toEqual([['US', 150, 1, 9]]);
   });
 
   // Redshift's default `enable_case_sensitive_identifier = off` lower-cases even a quoted
@@ -82,23 +80,18 @@ describe('RedshiftReportReader result-column binding', () => {
   // matching would leave every aggregated cell empty.
   it('matches a case-folded result label against its header name', async () => {
     const { reader } = createReader({
-      ColumnMetadata: [
-        { label: 'country' },
-        { label: 'row count' },
-        { label: 'orders__amount | sum' },
-      ],
-      Records: [[field('US'), field(4), field(150)]],
+      ColumnMetadata: [{ label: 'country' }, { label: 'orders__amount | sum' }],
+      Records: [[field('US'), field(150)]],
     });
 
     await reader.prepareReportData(buildReport(), {
       columnFilter: ['country', 'orders__amount'],
       aggregationConfig: [{ column: 'orders__amount', function: 'SUM' }],
-      rowCount: true,
     } as never);
 
     const batch = await reader.readReportDataBatch();
 
-    expect(batch.dataRows).toEqual([['US', 150, 4]]);
+    expect(batch.dataRows).toEqual([['US', 150]]);
   });
 
   it('prefers an exact label match over a case-folded one', async () => {
@@ -148,15 +141,13 @@ describe('RedshiftReportReader result-column binding', () => {
 
   it('reuses the first page column metadata for a follow-up page that omits it', async () => {
     const { reader, adapter } = createReader({
-      ColumnMetadata: [{ label: 'country' }, { label: 'Row Count' }],
+      ColumnMetadata: [{ label: 'country' }, { label: 'amount' }],
       Records: [[field('US'), field(4)]],
       NextToken: 'page2',
     });
 
     await reader.prepareReportData(buildReport(), {
-      columnFilter: ['country'],
-      aggregationConfig: [],
-      rowCount: true,
+      columnFilter: ['country', 'amount'],
     } as never);
     await reader.readReportDataBatch();
 
@@ -173,14 +164,12 @@ describe('RedshiftReportReader result-column binding', () => {
   // the read (the old positional mapping never needed metadata at all).
   it('fetches statement metadata explicitly when the first page it sees omits it', async () => {
     const { reader, adapter } = createReader({ Records: [[field(7), field('UA')]] }, [
-      { label: 'Row Count' },
+      { label: 'amount' },
       { label: 'country' },
     ]);
 
     await reader.prepareReportData(buildReport(), {
-      columnFilter: ['country'],
-      aggregationConfig: [],
-      rowCount: true,
+      columnFilter: ['country', 'amount'],
     } as never);
 
     const batch = await reader.readReportDataBatch('page2');
@@ -210,19 +199,18 @@ describe('RedshiftReportReader result-column binding', () => {
     const truncatedLabel = headerName.toLowerCase().slice(0, 127);
 
     const { reader } = createReader({
-      ColumnMetadata: [{ label: 'country' }, { label: 'Row Count' }, { label: truncatedLabel }],
-      Records: [[field('US'), field(4), field(150)]],
+      ColumnMetadata: [{ label: 'country' }, { label: truncatedLabel }],
+      Records: [[field('US'), field(150)]],
     });
 
     await reader.prepareReportData(buildReport(), {
       columnFilter: ['country', longColumn],
       aggregationConfig: [{ column: longColumn, function: 'SUM' }],
-      rowCount: true,
     } as never);
 
     const batch = await reader.readReportDataBatch();
 
-    expect(batch.dataRows).toEqual([['US', 150, 4]]);
+    expect(batch.dataRows).toEqual([['US', 150]]);
   });
 
   // The limit is 127 BYTES: a two-byte-per-character name is cut at half the characters, and
@@ -301,7 +289,7 @@ describe('RedshiftReportReader result-column binding', () => {
 
   it('binds restored-state reads by name too', async () => {
     const { reader } = createReader({
-      ColumnMetadata: [{ label: 'Row Count' }, { label: 'country' }],
+      ColumnMetadata: [{ label: 'amount' }, { label: 'country' }],
       Records: [[field(7), field('UA')]],
     });
 
@@ -310,7 +298,7 @@ describe('RedshiftReportReader result-column binding', () => {
     await reader.prepareReportData(buildReport(), { columnFilter: ['country'] } as never);
     await reader.initFromState({ type: 'AWS_REDSHIFT', statementId: 'st1' } as never, [
       new ReportDataHeader('country'),
-      new ReportDataHeader('Row Count'),
+      new ReportDataHeader('amount'),
     ]);
 
     const batch = await reader.readReportDataBatch();

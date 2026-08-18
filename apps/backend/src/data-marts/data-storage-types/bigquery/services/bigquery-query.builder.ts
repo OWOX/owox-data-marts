@@ -41,7 +41,6 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
   ): Promise<string | QueryBuildResult> {
     const aggregations = queryOptions?.aggregations ?? [];
     const dateTruncs = queryOptions?.dateTruncs ?? [];
-    const rowCount = queryOptions?.rowCount === true;
     const uniqueCount = queryOptions?.uniqueCount === true;
     const hasExplicitProjection = (queryOptions?.columns?.length ?? 0) > 0;
     const hasOutputControls =
@@ -49,7 +48,6 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       (queryOptions?.sort?.length ?? 0) > 0 ||
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
-      rowCount ||
       uniqueCount ||
       queryOptions?.limit != null;
 
@@ -89,11 +87,11 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? [], qualifyColumn);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
-    // Aggregations (or a date-trunc bucket / Row Count / Unique Count) replace the plain
+    // Aggregations (or a date-trunc bucket / Unique Count) replace the plain
     // SELECT list with `<dims>, FN(<metric>) AS …` and inject GROUP BY.
     // SELECT/GROUP BY stay unqualified: after FROM … AS src, bare column names resolve
     // to columns of src (qualifying projections would force nested-RECORD AS work).
-    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+    if (aggregations.length > 0 || dateTruncs.length > 0 || uniqueCount) {
       return this.clauseRenderer.renderAggregatedQuery({
         fromClause,
         columns: queryOptions?.columns ?? [],
@@ -102,7 +100,6 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
         filters: queryOptions?.filters ?? [],
         sort: queryOptions?.sort ?? [],
         limit: queryOptions?.limit ?? null,
-        rowCount,
         uniqueCount,
         primaryKeyColumns: queryOptions?.primaryKeyColumns,
         groupRestriction: queryOptions?.groupRestriction,

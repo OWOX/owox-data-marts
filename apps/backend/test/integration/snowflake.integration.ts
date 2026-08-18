@@ -550,11 +550,10 @@ describeIfSnowflakeCredentials(
         expect(Number(unrestricted[0]['amount | SUM'])).toBeCloseTo(150, 5);
       }, 120000);
 
-      // Case 1 — group-by + multi-fn (SUM + AVG + COUNT_DISTINCT) + Row Count
-      it('group-by status + SUM/AVG/COUNT_DISTINCT/Row Count returns real per-group values', async () => {
+      // Case 1 — group-by + multi-fn (SUM + AVG + COUNT_DISTINCT)
+      it('group-by status + SUM/AVG/COUNT_DISTINCT returns real per-group values', async () => {
         const rows = await runFilter({
           columns: ['status', 'amount', 'id'],
-          rowCount: true,
           aggregations: [
             { column: 'amount', function: 'SUM' },
             { column: 'amount', function: 'AVG' },
@@ -571,14 +570,12 @@ describeIfSnowflakeCredentials(
         expect(Number(active['amount | SUM'])).toBeCloseTo(90, 5);
         expect(Number(active['amount | AVG'])).toBeCloseTo(22.5, 5);
         expect(Number(active['id | COUNTUNIQUE'])).toBe(4);
-        expect(Number(active['Row Count'])).toBe(4);
 
         const inactive = byStatus.get('inactive')!;
         expect(inactive).toBeDefined();
         expect(Number(inactive['amount | SUM'])).toBeCloseTo(60, 5);
         expect(Number(inactive['amount | AVG'])).toBeCloseTo(30.0, 5);
         expect(Number(inactive['id | COUNTUNIQUE'])).toBe(2);
-        expect(Number(inactive['Row Count'])).toBe(2);
       }, 60000);
 
       // Case 2 — MIN / MAX / plain COUNT alongside group-by
@@ -688,10 +685,9 @@ describeIfSnowflakeCredentials(
       // The seed has dates spread across multiple months; row 5 is next year.
       // We only assert: correct number of distinct month buckets ≥ 3 (rows 3 and 4
       // are guaranteed to be in different months from today), and total SUM = 150.
-      it('date-trunc MONTH + SUM on date_col — total SUM covers non-NULL amounts; Row Count covers all 7 rows', async () => {
+      it('date-trunc MONTH + SUM on date_col — total SUM covers non-NULL amounts', async () => {
         const rows = await runFilter({
           columns: ['date_col', 'amount'],
-          rowCount: true,
           dateTruncs: [{ column: 'date_col', unit: 'MONTH' }],
           aggregations: [{ column: 'amount', function: 'SUM' }],
         });
@@ -700,10 +696,6 @@ describeIfSnowflakeCredentials(
         // NULL amount on row 7 does not change SUM; Number(null)→0 for that bucket.
         const totalSum = rows.reduce((acc, r) => acc + Number(r['amount | SUM']), 0);
         expect(totalSum).toBeCloseTo(150, 5);
-
-        // Includes the NULL-date bucket for row 7.
-        const totalRows = rows.reduce((acc, r) => acc + Number(r['Row Count']), 0);
-        expect(totalRows).toBe(7);
       }, 60000);
 
       // Case 6 — date-trunc YEAR + SUM on date_col.
@@ -726,7 +718,6 @@ describeIfSnowflakeCredentials(
       it('totals shape (metrics-only, no GROUP BY) → one row with correct grand totals', async () => {
         const rows = await runFilter({
           columns: ['amount', 'id'],
-          rowCount: true,
           aggregations: [
             { column: 'amount', function: 'SUM' },
             { column: 'id', function: 'COUNT_DISTINCT' },
@@ -735,17 +726,15 @@ describeIfSnowflakeCredentials(
 
         expect(rows).toHaveLength(1);
         const row = rows[0];
-        // SUM ignores NULL amount on row 7; COUNT/Row Count include the all-NULL row.
+        // SUM ignores NULL amount on row 7; COUNT DISTINCT includes the all-NULL row's id.
         expect(Number(row['amount | SUM'])).toBeCloseTo(150, 5);
         expect(Number(row['id | COUNTUNIQUE'])).toBe(7);
-        expect(Number(row['Row Count'])).toBe(7);
       }, 60000);
 
       // Case 8 — aggregation respects a WHERE filter (totals-respect-filters guarantee).
       it('grand SUM with status=active filter covers only active rows (ids 1,3,5,6 → SUM=90)', async () => {
         const rows = await runFilter({
           columns: ['amount'],
-          rowCount: true,
           filters: [{ column: 'status', operator: 'eq', value: 'active' }],
           aggregations: [{ column: 'amount', function: 'SUM' }],
         });
@@ -753,7 +742,6 @@ describeIfSnowflakeCredentials(
         expect(rows).toHaveLength(1);
         const row = rows[0];
         expect(Number(row['amount | SUM'])).toBeCloseTo(90, 5);
-        expect(Number(row['Row Count'])).toBe(4);
       }, 60000);
 
       // Case 9 — ORDER BY aggregated alias (SUM desc) with the NULL-status bucket.

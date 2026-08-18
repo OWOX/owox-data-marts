@@ -35,13 +35,6 @@ export interface DataMartQueryOptions {
   dateTruncs?: DateTruncRule[];
 
   /**
-   * When true, append a synthetic `COUNT(*) AS "Row Count"` metric to the aggregated
-   * SELECT (no extra GROUP BY key). Triggers the aggregated path even with zero metric
-   * aggregations and zero date-trunc rules.
-   */
-  rowCount?: boolean;
-
-  /**
    * When true, append a synthetic `COUNT(DISTINCT <pk-tuple>) AS "Unique Count"` metric
    * to the aggregated SELECT (no extra GROUP BY key). Requires `primaryKeyColumns` to be
    * non-empty. Triggers the aggregated path even with zero metric aggregations.

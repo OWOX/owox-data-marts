@@ -93,7 +93,7 @@ describe('ReportTotalsService', () => {
       'orders | COUNTUNIQUE': 10,
     });
     // Executes the totals SQL as an override and resolves headers from the SAME derived
-    // numeric-field plan (columns + aggregations), opting out of Row Count / Unique Count.
+    // numeric-field plan (columns + aggregations); Unique Count is not part of totals.
     expect(reader.prepareReportData).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -103,7 +103,6 @@ describe('ReportTotalsService', () => {
           { column: 'revenue', function: 'SUM' },
           { column: 'orders', function: 'COUNT_DISTINCT' },
         ],
-        rowCount: false,
       })
     );
     expect(reader.readReportDataBatch).toHaveBeenCalledWith(undefined, 1);

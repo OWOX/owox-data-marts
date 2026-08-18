@@ -81,18 +81,6 @@ describe('AthenaQueryBuilder — aggregations', () => {
     );
   });
 
-  it('rowCount appends COUNT(*) AS "Row Count" as the last select item', () => {
-    const result = builder.buildQuery(tableDefinition('mydb.schema.tbl'), {
-      columns: ['channel', 'revenue'],
-      aggregations: [{ column: 'revenue', function: 'SUM' }],
-      rowCount: true,
-    });
-    expect(sqlOf(result)).toBe(
-      'SELECT\n  "channel",\n  SUM("revenue") AS "revenue | SUM",\n  COUNT(*) AS "Row Count"\n' +
-        'FROM "mydb"."schema"."tbl"\nGROUP BY\n  "channel"'
-    );
-  });
-
   it('date-trunc bucket with a metric truncates the dimension and groups by it', () => {
     const result = builder.buildQuery(tableDefinition('mydb.schema.tbl'), {
       columns: ['date', 'revenue'],

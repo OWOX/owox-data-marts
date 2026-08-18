@@ -126,38 +126,6 @@ describe('BigQueryQueryBuilder — aggregations', () => {
     );
   });
 
-  it('rowCount appends COUNT(*) AS `Row Count` and takes the aggregated path with no metrics', async () => {
-    const result = await builder.buildQuery(tableDefinition('p.d.t'), {
-      columns: ['channel'],
-      rowCount: true,
-    });
-    expect(await sqlOf(result)).toBe(
-      'SELECT\n' +
-        '  `channel`,\n' +
-        '  COUNT(*) AS `Row Count`\n' +
-        'FROM `p`.`d`.`t` AS src\n' +
-        'GROUP BY\n' +
-        '  `channel`'
-    );
-  });
-
-  it('rowCount with a metric appends Row Count after the suffixed metric alias', async () => {
-    const result = await builder.buildQuery(tableDefinition('p.d.t'), {
-      columns: ['channel', 'revenue'],
-      aggregations: [{ column: 'revenue', function: 'SUM' }],
-      rowCount: true,
-    });
-    expect(await sqlOf(result)).toBe(
-      'SELECT\n' +
-        '  `channel`,\n' +
-        '  SUM(`revenue`) AS `revenue | SUM`,\n' +
-        '  COUNT(*) AS `Row Count`\n' +
-        'FROM `p`.`d`.`t` AS src\n' +
-        'GROUP BY\n' +
-        '  `channel`'
-    );
-  });
-
   it('emits HAVING after GROUP BY for an aggregated-metric filter (function set)', async () => {
     const result = await builder.buildQuery(tableDefinition('p.d.t'), {
       columns: ['channel', 'revenue'],

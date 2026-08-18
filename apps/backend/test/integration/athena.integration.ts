@@ -398,12 +398,11 @@ AS SELECT * FROM (VALUES
     }
 
     // Case 1 — group-by + multi-fn (SUM+AVG) + COUNT_DISTINCT on `id`.
-    // active=true → ids 1,3,4: SUM=8, AVG≈2.667, COUNT_DISTINCT=3, Row Count=3
-    // active=false → id 2:     SUM=2, AVG=2.0,   COUNT_DISTINCT=1, Row Count=1
-    it('group-by active + SUM/AVG/COUNT_DISTINCT on id + Row Count → real per-group values', async () => {
+    // active=true → ids 1,3,4: SUM=8, AVG≈2.667, COUNT_DISTINCT=3
+    // active=false → id 2:     SUM=2, AVG=2.0,   COUNT_DISTINCT=1
+    it('group-by active + SUM/AVG/COUNT_DISTINCT on id → real per-group values', async () => {
       const rows = await runWithAggregations({
         columns: ['active', 'id'],
-        rowCount: true,
         aggregations: [
           { column: 'id', function: 'SUM' },
           { column: 'id', function: 'AVG' },
@@ -420,14 +419,12 @@ AS SELECT * FROM (VALUES
       expect(Number(active['id | SUM'])).toBe(8); // 1+3+4
       expect(Number(active['id | AVG'])).toBeCloseTo(8 / 3, 3);
       expect(Number(active['id | COUNTUNIQUE'])).toBe(3);
-      expect(Number(active['Row Count'])).toBe(3);
 
       const inactive = byActive.get('false')!;
       expect(inactive).toBeDefined();
       expect(Number(inactive['id | SUM'])).toBe(2);
       expect(Number(inactive['id | AVG'])).toBeCloseTo(2.0, 5);
       expect(Number(inactive['id | COUNTUNIQUE'])).toBe(1);
-      expect(Number(inactive['Row Count'])).toBe(1);
     }, 60000);
 
     // Case 2 — MIN / MAX / plain COUNT (group by active).
@@ -524,7 +521,6 @@ AS SELECT * FROM (VALUES
     it('date-trunc MONTH + SUM on id → 4 month buckets with the seeded sums', async () => {
       const rows = await runWithAggregations({
         columns: ['created_at', 'id'],
-        rowCount: true,
         dateTruncs: [{ column: 'created_at', unit: 'MONTH' }],
         aggregations: [{ column: 'id', function: 'SUM' }],
       });
@@ -541,11 +537,6 @@ AS SELECT * FROM (VALUES
       expect(sumByMonth.get('2024-02-01')).toBe(2);
       expect(sumByMonth.get('2024-03-01')).toBe(3);
       expect(sumByMonth.get('2024-04-01')).toBe(4);
-
-      // Row Count is 1 per month (one seeded row each).
-      for (const r of rows) {
-        expect(Number(r['Row Count'])).toBe(1);
-      }
     }, 60000);
 
     // Case 6 — date-trunc YEAR + SUM (all 4 rows in 2024 → 1 bucket, SUM=10).
@@ -562,10 +553,9 @@ AS SELECT * FROM (VALUES
     }, 60000);
 
     // Case 7 — totals shape (metrics-only, no GROUP BY) → one row.
-    it('totals (no GROUP BY) → one row with SUM=10, COUNT_DISTINCT=4, Row Count=4', async () => {
+    it('totals (no GROUP BY) → one row with SUM=10, COUNT_DISTINCT=4', async () => {
       const rows = await runWithAggregations({
         columns: ['id'],
-        rowCount: true,
         aggregations: [
           { column: 'id', function: 'SUM' },
           { column: 'id', function: 'COUNT_DISTINCT' },
@@ -576,14 +566,12 @@ AS SELECT * FROM (VALUES
       const row = rows[0];
       expect(Number(row['id | SUM'])).toBe(10);
       expect(Number(row['id | COUNTUNIQUE'])).toBe(4);
-      expect(Number(row['Row Count'])).toBe(4);
     }, 60000);
 
     // Case 8 — totals WITH a WHERE filter (active=true → ids 1,3,4, SUM=8, count=3).
-    it('totals with active=is_true filter → SUM=8, COUNT_DISTINCT=3, Row Count=3', async () => {
+    it('totals with active=is_true filter → SUM=8, COUNT_DISTINCT=3', async () => {
       const rows = await runWithAggregations({
         columns: ['id'],
-        rowCount: true,
         filters: [{ column: 'active', operator: 'is_true' }],
         aggregations: [
           { column: 'id', function: 'SUM' },
@@ -595,15 +583,13 @@ AS SELECT * FROM (VALUES
       const row = rows[0];
       expect(Number(row['id | SUM'])).toBe(8); // 1+3+4
       expect(Number(row['id | COUNTUNIQUE'])).toBe(3);
-      expect(Number(row['Row Count'])).toBe(3);
     }, 60000);
 
     // Case 9 — aggregation respects a WHERE filter (group-by still narrows correctly).
     // With active=is_false → only id=2; group-by on active gives one group.
-    it('aggregation with active=is_false filter → one group, SUM=2, Row Count=1', async () => {
+    it('aggregation with active=is_false filter → one group, SUM=2', async () => {
       const rows = await runWithAggregations({
         columns: ['active', 'id'],
-        rowCount: true,
         filters: [{ column: 'active', operator: 'is_false' }],
         aggregations: [{ column: 'id', function: 'SUM' }],
       });
@@ -612,7 +598,6 @@ AS SELECT * FROM (VALUES
       const row = rows[0];
       expect(row.active).toBe('false');
       expect(Number(row['id | SUM'])).toBe(2);
-      expect(Number(row['Row Count'])).toBe(1);
     }, 60000);
 
     // Case 10 — ORDER BY aggregated alias (SUM desc) + limit 1 returns larger group.

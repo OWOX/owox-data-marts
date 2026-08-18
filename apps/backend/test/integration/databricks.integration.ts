@@ -483,11 +483,10 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
       expect(Number(unrestricted[0]['amount | SUM'])).toBeCloseTo(150, 5);
     }, 120000);
 
-    // group-by + multi-fn: SUM + AVG + COUNT_DISTINCT + MIN + MAX + COUNT + Row Count
+    // group-by + multi-fn: SUM + AVG + COUNT_DISTINCT + MIN + MAX + COUNT
     it('group-by status + SUM/AVG/COUNT_DISTINCT/MIN/MAX/COUNT returns real per-group values', async () => {
       const rows = await runFilter({
         columns: ['status', 'amount', 'id'],
-        rowCount: true,
         aggregations: [
           { column: 'amount', function: 'SUM' },
           { column: 'amount', function: 'AVG' },
@@ -511,7 +510,6 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
       expect(Number(active['amount | MIN'])).toBeCloseTo(0, 5);
       expect(Number(active['amount | MAX'])).toBeCloseTo(50, 5);
       expect(Number(active['amount | COUNT'])).toBe(4);
-      expect(Number(active['Row Count'])).toBe(4);
 
       const inactive = byStatus.get('inactive')!;
       expect(inactive).toBeDefined();
@@ -521,7 +519,6 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
       expect(Number(inactive['amount | MIN'])).toBeCloseTo(20, 5);
       expect(Number(inactive['amount | MAX'])).toBeCloseTo(40, 5);
       expect(Number(inactive['amount | COUNT'])).toBe(2);
-      expect(Number(inactive['Row Count'])).toBe(2);
     }, 60000);
 
     // all percentiles + monotonicity. PERCENTILE_CONT is exact in Databricks.
@@ -614,7 +611,6 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
     it('date-trunc MONTH + SUM: grand total=150, row 1&6 bucket exists, at least 4 buckets', async () => {
       const rows = await runFilter({
         columns: ['date_col', 'amount'],
-        rowCount: true,
         dateTruncs: [{ column: 'date_col', unit: 'MONTH' }],
         aggregations: [{ column: 'amount', function: 'SUM' }],
       });
@@ -658,10 +654,9 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
     }, 60000);
 
     // totals shape (metrics-only, no GROUP BY) → one row with grand aggregates.
-    it('totals shape (no GROUP BY, SUM+COUNT_DISTINCT+Row Count): one row, grand values', async () => {
+    it('totals shape (no GROUP BY, SUM+COUNT_DISTINCT): one row, grand values', async () => {
       const rows = await runFilter({
         columns: ['amount', 'id'],
-        rowCount: true,
         aggregations: [
           { column: 'amount', function: 'SUM' },
           { column: 'id', function: 'COUNT_DISTINCT' },
@@ -673,14 +668,12 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
       expect(Number(row['amount | SUM'])).toBeCloseTo(150, 5);
       // 7 rows now (all-NULL row 7 added); its id is non-NULL so COUNT DISTINCT id = 7.
       expect(Number(row['id | COUNTUNIQUE'])).toBe(7);
-      expect(Number(row['Row Count'])).toBe(7);
     }, 60000);
 
     // totals shape WITH a WHERE filter.
-    it('totals with WHERE status=active: SUM=90, COUNTUNIQUE=4, Row Count=4', async () => {
+    it('totals with WHERE status=active: SUM=90, COUNTUNIQUE=4', async () => {
       const rows = await runFilter({
         columns: ['amount', 'id'],
-        rowCount: true,
         filters: [{ column: 'status', operator: 'eq', value: 'active' }],
         aggregations: [
           { column: 'amount', function: 'SUM' },
@@ -693,7 +686,6 @@ describeIfCredentials('Databricks — date/time coercion, escaping, regex, opera
       // active ids 1,3,5,6 → amounts 10+30+50+0=90; 4 distinct ids; 4 rows.
       expect(Number(row['amount | SUM'])).toBeCloseTo(90, 5);
       expect(Number(row['id | COUNTUNIQUE'])).toBe(4);
-      expect(Number(row['Row Count'])).toBe(4);
     }, 60000);
 
     // aggregation respects WHERE filter (group-by path).

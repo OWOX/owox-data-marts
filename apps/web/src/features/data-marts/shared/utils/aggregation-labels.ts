@@ -5,7 +5,7 @@ import type { ReportAggregateFunction } from '../types/relationship.types';
  * `REPORT_AGGREGATE_FUNCTION_LABELS`
  * (apps/backend/src/data-marts/dto/schemas/aggregation-labels.ts) so the function
  * picker, the configured-aggregation rows, and the produced output column all read
- * the same. Title Case is consistent with `Row Count` / `Unique Count`.
+ * the same. Title Case is consistent with `Unique Count`.
  */
 export const REPORT_AGGREGATE_FUNCTION_LABELS: Record<ReportAggregateFunction, string> = {
   SUM: 'Sum',
@@ -27,12 +27,11 @@ export function aggregateFunctionLabel(fn: ReportAggregateFunction): string {
 }
 
 /**
- * Synthetic output-column labels. Mirror of the backend `ROW_COUNT_LABEL` /
- * `UNIQUE_COUNT_LABEL` (same backend module as the map above). The backend emits these
+ * Synthetic output-column label. Mirror of the backend
+ * `UNIQUE_COUNT_LABEL` (same backend module as the map above). The backend emits it
  * as the literal SQL `AS` alias and as the `ReportDataHeader.name`, so a drift here means
  * the web references a column the query never produces. Pinned by the drift-guard test.
  */
-export const ROW_COUNT_LABEL = 'Row Count';
 export const UNIQUE_COUNT_LABEL = 'Unique Count';
 
 /**

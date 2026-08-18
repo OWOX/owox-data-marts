@@ -1,5 +1,5 @@
 import {
-  ROW_COUNT_LABEL,
+  UNIQUE_COUNT_LABEL,
   aggregatedColumnAlias,
   aggregatedColumnLabel,
   aggregateFunctionLabel,
@@ -42,7 +42,7 @@ describe('aggregation-labels', () => {
     expect(aggregateFunctionLabel('P25')).toBe('25th Percentile');
   });
 
-  it('ROW_COUNT_LABEL is "Row Count"', () => {
-    expect(ROW_COUNT_LABEL).toBe('Row Count');
+  it('UNIQUE_COUNT_LABEL is "Unique Count"', () => {
+    expect(UNIQUE_COUNT_LABEL).toBe('Unique Count');
   });
 });

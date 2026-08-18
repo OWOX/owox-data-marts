@@ -294,11 +294,10 @@ describeIfCredentials('BigQuery Integration Tests', () => {
   // OUTERMOST column names must be schema-legal, and PARENTHESES are illegal:
   //   Invalid field name "amount (aggregated by SUM)". Fields must contain the
   //   allowed characters ... https://cloud.google.com/bigquery/docs/schemas#column_names
-  // (A SPACE alias like `Row Count` IS accepted — BigQuery flexible column names.)
+  // (An alias with a SPACE IS accepted — BigQuery flexible column names.)
   //
   // Fix: aggregation-labels.ts now emits a parens-free alias `<col> | TOKEN`
-  // (the `|` is verified-legal in BQ output column names; consistent with the
-  // working `Row Count`, which proved spaces are accepted). These
+  // (the `|` is verified-legal in BQ output column names; spaces are accepted too). These
   // cases therefore EXECUTE on real BigQuery and assert the real values against
   // the 4 seeded rows (amounts 10.5, 20.0, 30.0, 40.0; active true for ids 1,3,4
   // and false for id 2).
@@ -329,7 +328,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
     it('group-by + multi-fn (SUM+AVG) + COUNT_DISTINCT executes and returns the real aggregates', async () => {
       const rows = await runWithAggregations({
         columns: ['active', 'amount', 'id'],
-        rowCount: true,
         aggregations: [
           { column: 'amount', function: 'SUM' },
           { column: 'amount', function: 'AVG' },
@@ -346,7 +344,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       expect(Number(active['amount | SUM'])).toBeCloseTo(80.5, 5);
       expect(Number(active['amount | AVG'])).toBeCloseTo(26.8333, 3);
       expect(Number(active['id | COUNTUNIQUE'])).toBe(3);
-      expect(Number(active['Row Count'])).toBe(3);
 
       // active = false → id 2 with amount 20.0
       const inactive = byActive.get(false)!;
@@ -354,13 +351,11 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       expect(Number(inactive['amount | SUM'])).toBeCloseTo(20.0, 5);
       expect(Number(inactive['amount | AVG'])).toBeCloseTo(20.0, 5);
       expect(Number(inactive['id | COUNTUNIQUE'])).toBe(1);
-      expect(Number(inactive['Row Count'])).toBe(1);
     }, 60000);
 
     it('date-trunc MONTH + SUM executes and buckets each row into its own month', async () => {
       const rows = await runWithAggregations({
         columns: ['created_at', 'amount'],
-        rowCount: true,
         dateTruncs: [{ column: 'created_at', unit: 'MONTH' }],
         aggregations: [{ column: 'amount', function: 'SUM' }],
       });
@@ -377,11 +372,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       expect(sumByMonth.get('2024-02-01')).toBeCloseTo(20.0, 5);
       expect(sumByMonth.get('2024-03-01')).toBeCloseTo(30.0, 5);
       expect(sumByMonth.get('2024-04-01')).toBeCloseTo(40.0, 5);
-
-      // Row Count is 1 per month (one seeded row each).
-      for (const r of rows) {
-        expect(Number(r['Row Count'])).toBe(1);
-      }
     }, 60000);
 
     it('percentile P50 via APPROX_QUANTILES executes and returns a value within range', async () => {
@@ -401,7 +391,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
     it('totals shape (metrics-only, no GROUP BY) executes and returns one totals row', async () => {
       const rows = await runWithAggregations({
         columns: ['amount', 'id'],
-        rowCount: true,
         aggregations: [
           { column: 'amount', function: 'SUM' },
           { column: 'id', function: 'COUNT_DISTINCT' },
@@ -412,7 +401,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       const row = rows[0];
       expect(Number(row['amount | SUM'])).toBeCloseTo(100.5, 5);
       expect(Number(row['id | COUNTUNIQUE'])).toBe(4);
-      expect(Number(row['Row Count'])).toBe(4);
     }, 60000);
 
     it('date-trunc MONTH with a timeZone executes (the tz date-trunc SQL now runs on real BQ)', async () => {
@@ -514,19 +502,17 @@ describeIfCredentials('BigQuery Integration Tests', () => {
     }, 60000);
 
     // Case 4 — aggregation respects the WHERE filter (totals-respect-filters guarantee).
-    it('grand SUM with active=is_true filter executes; SUM and Row Count cover only matched rows', async () => {
+    it('grand SUM with active=is_true filter executes; SUM covers only matched rows', async () => {
       const rows = await runWithAggregations({
         columns: ['amount'],
-        rowCount: true,
         filters: [{ column: 'active', operator: 'is_true' }],
         aggregations: [{ column: 'amount', function: 'SUM' }],
       });
 
       expect(rows).toHaveLength(1);
       const row = rows[0];
-      // Filtered set ids 1,3,4 → 10.5 + 30 + 40 = 80.5; three matched rows.
+      // Filtered set ids 1,3,4 → 10.5 + 30 + 40 = 80.5.
       expect(Number(row['amount | SUM'])).toBeCloseTo(80.5, 5);
-      expect(Number(row['Row Count'])).toBe(3);
     }, 60000);
 
     // Case 5 — ORDER BY an aggregated alias + LIMIT. The sort column 'amount' resolves
@@ -605,7 +591,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
     it('totals shape (metrics-only, SUM + COUNT_DISTINCT, no GROUP BY) with active filter executes', async () => {
       const rows = await runWithAggregations({
         columns: ['amount', 'id'],
-        rowCount: true,
         filters: [{ column: 'active', operator: 'is_true' }],
         aggregations: [
           { column: 'amount', function: 'SUM' },
@@ -617,14 +602,12 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       const row = rows[0];
       expect(Number(row['amount | SUM'])).toBeCloseTo(80.5, 5);
       expect(Number(row['id | COUNTUNIQUE'])).toBe(3);
-      expect(Number(row['Row Count'])).toBe(3);
     }, 60000);
 
     // Case 9 — empty result. A grand aggregate over the empty set still yields ONE row.
-    it('empty-result grand aggregate executes; one row with Row Count 0 and null SUM', async () => {
+    it('empty-result grand aggregate executes; one row with zero COUNTUNIQUE and null SUM', async () => {
       const rows = await runWithAggregations({
         columns: ['amount', 'id'],
-        rowCount: true,
         filters: [{ column: 'name', operator: 'eq', value: 'definitely-no-match' }],
         aggregations: [
           { column: 'amount', function: 'SUM' },
@@ -635,7 +618,6 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       // Grand aggregate over zero matched rows is still a single row.
       expect(rows).toHaveLength(1);
       const row = rows[0];
-      expect(Number(row['Row Count'])).toBe(0);
       expect(Number(row['id | COUNTUNIQUE'])).toBe(0);
       // SUM over no rows is NULL in BigQuery.
       const sum = row['amount | SUM'];

@@ -384,7 +384,7 @@ describe('StreamHttpDataService', () => {
   });
 
   it('computes totals before streaming and persists them under the run metadata', async () => {
-    const totals = { 'revenue | SUM': 93, 'Row Count': 2 };
+    const totals = { 'revenue | SUM': 93, 'revenue | AVG': 46.5 };
     reportTotals.computeTotals.mockResolvedValueOnce(totals);
     const res = mockResponse();
 

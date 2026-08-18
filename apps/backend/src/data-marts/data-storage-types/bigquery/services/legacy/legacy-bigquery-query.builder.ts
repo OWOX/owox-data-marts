@@ -28,9 +28,9 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
     queryOptions?: DataMartQueryOptions
   ): Promise<string | QueryBuildResult> {
     // Must mirror the parent BigQueryQueryBuilder's full notion of "needs the OC path":
-    // aggregations / date-trunc buckets / Row Count / Unique Count count too, not just
+    // aggregations / date-trunc buckets / Unique Count count too, not just
     // filter/sort/limit. Otherwise an aggregated or Totals request with no filter/sort/limit
-    // (e.g. composeTotals: rowCount:false, empty sort/limit) bypasses super.buildQuery and
+    // (e.g. composeTotals: empty sort/limit) bypasses super.buildQuery and
     // silently drops the GROUP BY, returning ungrouped rows.
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
@@ -38,7 +38,6 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
       queryOptions?.limit != null ||
       (queryOptions?.aggregations?.length ?? 0) > 0 ||
       (queryOptions?.dateTruncs?.length ?? 0) > 0 ||
-      queryOptions?.rowCount === true ||
       queryOptions?.uniqueCount === true;
 
     // Output controls reference the materialized BQ view (mainTableReference), which is

@@ -67,17 +67,6 @@ describe('SnowflakeQueryBuilder — aggregations', () => {
     );
   });
 
-  it('rowCount appends COUNT(*) AS "Row Count" as the last select item', () => {
-    const sql = builder.buildQuery(tableDefinition('db.sc.tbl'), {
-      columns: ['channel', 'revenue'],
-      aggregations: [{ column: 'revenue', function: 'SUM' }],
-      rowCount: true,
-    });
-    expect(sql).toBe(
-      'SELECT\n  "channel",\n  SUM("revenue") AS "revenue | SUM",\n  COUNT(*) AS "Row Count"\nFROM db."sc"."tbl"\nGROUP BY\n  "channel"'
-    );
-  });
-
   it('date-trunc bucket with a metric truncates the dimension and groups by it', () => {
     const sql = builder.buildQuery(tableDefinition('db.sc.tbl'), {
       columns: ['date', 'revenue'],

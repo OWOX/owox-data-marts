@@ -5,11 +5,7 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
-import {
-  ReportLike,
-  shouldIncludeRowCount,
-  usesSuffixedJoinedFieldNames,
-} from '../dto/domain/report-like-read-plan';
+import { ReportLike, usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
 import { tryAliasPathToCteName } from '../dto/schemas/filter-config.schema';
 import { SortRule } from '../dto/schemas/sort-config.schema';
@@ -304,7 +300,6 @@ export class BlendedReportDataService {
         limit: report.limitConfig ?? undefined,
         aggregations: normalizedAggregations ?? report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
-        rowCount: shouldIncludeRowCount(report),
         uniqueCount: hasMainUniqueCount(report.uniqueCountConfig),
         primaryKeyColumns,
         uniqueCountSources,

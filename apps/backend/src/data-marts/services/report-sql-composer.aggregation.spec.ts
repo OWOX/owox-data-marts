@@ -105,8 +105,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await expect(service.compose(report, {} as never)).resolves.toBeDefined();
   });
 
-  it('passes rowCount: false to buildQuery even when aggregationConfig is non-empty', async () => {
-    // Row Count is opt-in on read plans only; a saved report never projects it.
+  it('never passes a rowCount flag to buildQuery — the concept no longer exists', async () => {
     const { service, queryBuilderFacade } = createService();
     const report = buildReport({
       columnConfig: ['channel', 'revenue'],
@@ -115,27 +114,8 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
 
     await service.compose(report, {} as never);
 
-    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
-      expect.anything(),
-      expect.objectContaining({ rowCount: false })
-    );
-  });
-
-  it('passes rowCount: false to buildQuery when aggregationConfig is empty or absent', async () => {
-    const { service, queryBuilderFacade } = createService();
-    const report = buildReport({
-      columnConfig: ['channel', 'revenue'],
-      aggregationConfig: [],
-    } as Partial<Report>);
-
-    await service.compose(report, {} as never);
-
-    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
-      expect.anything(),
-      expect.objectContaining({ rowCount: false })
-    );
+    const [, , options] = (queryBuilderFacade.buildQuery as jest.Mock).mock.calls[0];
+    expect(options).not.toHaveProperty('rowCount');
   });
 
   it('passes uniqueCount: true and primaryKeyColumns when uniqueCountConfig === true', async () => {
@@ -237,20 +217,6 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       'GOOGLE_BIGQUERY',
       expect.anything(),
       expect.objectContaining({ uniqueCount: false })
-    );
-  });
-
-  it('rowCount is false when report has no aggregationConfig at all', async () => {
-    const { service, queryBuilderFacade } = createService();
-    // aggregationConfig absent — must NOT produce rowCount: true.
-    const report = buildReport({} as Partial<Report>);
-
-    await service.compose(report, {} as never);
-
-    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
-      expect.anything(),
-      expect.objectContaining({ rowCount: false })
     );
   });
 
@@ -644,7 +610,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(validator.validateForReport).not.toHaveBeenCalled();
     });
 
-    it('re-resolves the blending decision against the metrics-only totals plan (rowCount false, no Unique Count)', async () => {
+    it('re-resolves the blending decision against the metrics-only totals plan (no Unique Count)', async () => {
       const { service, blendedReportDataService } = makeBqTotalsComposer(['revenue']);
       const report = buildTotalsReport({
         columnConfig: ['order_date', 'channel', 'revenue'],
@@ -655,7 +621,6 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledTimes(1);
       const planArg = blendedReportDataService.resolveBlendingDecision.mock.calls[0][0];
       expect(planArg.columnConfig).toEqual(['revenue']);
-      expect(planArg.rowCount).toBe(false);
       expect(planArg.uniqueCountConfig).toBeNull();
     });
 
@@ -739,7 +704,6 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
             ],
             columns: plan.columnConfig ?? [],
             aggregations: plan.aggregationConfig ?? undefined,
-            rowCount: false,
             columnTypes: { postJoin: new Map(blendedFields.map(f => [f.name, f.type])) },
             // Mirror the real BlendedReportDataService.resolveBlendingDecision, which always
             // builds and passes a fieldIndex before invoking buildBlendedQuery — a joined
@@ -800,7 +764,6 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       // unavoidable in any blended SQL — assert only the final SELECT is ungrouped.
       const planArg = blendedReportDataService.resolveBlendingDecision.mock.calls[0][0];
       expect(planArg.columnConfig).toEqual(['revenue', 'partner__cost']);
-      expect(planArg.rowCount).toBe(false);
       const finalSelect = result!.sql.slice(result!.sql.lastIndexOf('\n\nSELECT'));
       // partner__cost is a JOINED numeric field carrying BOTH SUM and AVG at once — routed
       // through its value sleeve (uniform routing, 3) rather than dedup+SUM/dedup+

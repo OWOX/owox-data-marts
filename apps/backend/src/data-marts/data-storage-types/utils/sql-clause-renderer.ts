@@ -9,7 +9,6 @@ import {
   IANA_TIME_ZONE_PATTERN,
 } from '../../dto/schemas/date-trunc-config.schema';
 import {
-  ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
@@ -170,8 +169,6 @@ export abstract class SqlClauseRenderer {
    * suffix. A dimension that carries a date-trunc unit renders as
    * `DATE_TRUNC(col) AS "col"` and groups by that same truncated expression (not the
    * bare column). Returns empty `groupBySql` when every projected column is aggregated.
-   * When `opts.includeRowCount` is set, a `COUNT(*) AS "Row Count"` metric is appended
-   * as the last select item (no extra GROUP BY key).
    *
    * `aliasByColumn` maps each projected column to its QUOTED output alias (metric →
    * its FIRST function's quoted suffixed label, dimension incl. date-trunc → quoted
@@ -227,7 +224,6 @@ export abstract class SqlClauseRenderer {
     aggregations: AggregationRule[],
     dateTruncByColumn?: ReadonlyMap<string, DateTruncUnit>,
     opts?: {
-      includeRowCount?: boolean;
       includeUniqueCount?: boolean;
       primaryKeyColumns?: string[];
       qualifyColumn?: ColumnRefResolver;
@@ -285,9 +281,6 @@ export abstract class SqlClauseRenderer {
       // qualified reference back to the unqualified output column name.
       return [qualify ? `${ref} AS ${outputAlias}` : ref];
     });
-    if (opts?.includeRowCount) {
-      selectParts.push(`COUNT(*) AS ${this.quoteIdentifier(ROW_COUNT_LABEL)}`);
-    }
     if (opts?.includeUniqueCount && opts?.primaryKeyColumns?.length) {
       selectParts.push(
         `${this.renderCountDistinctPrimaryKey(opts.primaryKeyColumns, qualify)} AS ${this.quoteIdentifier(UNIQUE_COUNT_LABEL)}`
@@ -435,7 +428,6 @@ export abstract class SqlClauseRenderer {
     filters: FilterRule[];
     sort: SortRule[];
     limit: number | null | undefined;
-    rowCount: boolean;
     uniqueCount: boolean;
     primaryKeyColumns?: string[];
     groupRestriction?: GroupRestriction;
@@ -463,7 +455,6 @@ export abstract class SqlClauseRenderer {
       opts.aggregations,
       buildDateTruncUnitMap(opts.dateTruncs),
       {
-        includeRowCount: opts.rowCount,
         includeUniqueCount: opts.uniqueCount,
         primaryKeyColumns: opts.primaryKeyColumns,
         qualifyColumn: opts.qualifyProjection,

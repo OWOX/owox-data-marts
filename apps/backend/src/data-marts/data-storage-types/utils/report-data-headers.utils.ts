@@ -3,7 +3,6 @@ import { PrepareReportDataOptions } from '../interfaces/data-storage-report-read
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { computeEffectiveType, integerTypeFor } from '../field-aggregation';
 import {
-  ROW_COUNT_LABEL,
   UNIQUE_COUNT_LABEL,
   aggregatedColumnAlias,
   aggregatedColumnLabel,
@@ -30,16 +29,13 @@ import {
  *   more than one function (each becomes its own output column). Readers map result rows to
  *   headers BY NAME, so the header name MUST equal the SQL alias. Header order does NOT have
  *   to equal SELECT column order, and on the blended path it does not: a metric-sleeve pull
- * (joined COUNT DISTINCT / SUM / AVG,) is appended after `Row Count`, while the
+ * (joined COUNT DISTINCT / SUM / AVG,) is appended after the non-sleeve select items, while the
  *   header for it sits at its own column's position.
  * - `uniqueCountSources` appends one header per joined source, after the main Data Mart's
  *   `Unique Count`. Its `name` is the SQL-safe `outputLabel` (`orders__unique_count`) the sleeve
  *   aliased, and its display alias is the free-form `displayLabel` (`Orders Unique Count`) — the
  *   same name/alias split every blended column header already uses. It is the SAME list the blended
  *   builder rendered its sleeves from, so a source dropped there has no header here either.
- * - When `options.rowCount === true`, a synthetic `Row Count` header (matching the
- *   `COUNT(*) AS "Row Count"` output column) is appended last. Row Count is opt-in only:
- *   a report contains only the columns the user selected.
  */
 export function resolveReportDataHeaders(
   nativeHeaders: ReportDataHeader[],
@@ -107,22 +103,6 @@ export function resolveReportDataHeaders(
           )
       );
     });
-  }
-
-  // Row Count only when the read plan explicitly asked for it — mirroring
-  // `shouldIncludeRowCount`, so the header list cannot drift from the SELECT.
-  const includeRowCount = options?.rowCount === true;
-  if (includeRowCount) {
-    headers = [
-      ...headers,
-      new ReportDataHeader(
-        ROW_COUNT_LABEL,
-        undefined,
-        undefined,
-        integerTypeFor(storageType),
-        'COUNT'
-      ),
-    ];
   }
 
   if (mainUniqueCount) {

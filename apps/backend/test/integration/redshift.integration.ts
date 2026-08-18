@@ -694,7 +694,6 @@ describeIfCredentials(
       it('group-by status + SUM/AVG/COUNT_DISTINCT/MIN/MAX/COUNT returns real per-group values', async () => {
         const rows = await runFilter({
           columns: ['status', 'amount', 'id'],
-          rowCount: true,
           aggregations: [
             { column: 'amount', function: 'SUM' },
             { column: 'amount', function: 'AVG' },
@@ -718,7 +717,6 @@ describeIfCredentials(
         expect(Number(active['amount | min'])).toBeCloseTo(0, 5);
         expect(Number(active['amount | max'])).toBeCloseTo(50, 5);
         expect(Number(active['amount | count'])).toBe(4);
-        expect(Number(active['row count'])).toBe(4);
 
         // inactive → ids 2,4; amounts 20+40=60; COUNT=2
         const inactive = byStatus.get('inactive')!;
@@ -729,7 +727,6 @@ describeIfCredentials(
         expect(Number(inactive['amount | min'])).toBeCloseTo(20, 5);
         expect(Number(inactive['amount | max'])).toBeCloseTo(40, 5);
         expect(Number(inactive['amount | count'])).toBe(2);
-        expect(Number(inactive['row count'])).toBe(2);
       }, 60000);
 
       it('PERCENTILE_CONT P25/P50/P75/P95 on amount: in-range, monotonic, and exact', async () => {
@@ -810,7 +807,6 @@ describeIfCredentials(
       it('date-trunc MONTH on date_col + SUM: each row in its own relative month', async () => {
         const rows = await runFilter({
           columns: ['date_col', 'amount'],
-          rowCount: true,
           dateTruncs: [{ column: 'date_col', unit: 'MONTH' }],
           aggregations: [{ column: 'amount', function: 'SUM' }],
         });
@@ -822,10 +818,6 @@ describeIfCredentials(
         expect(rows.length).toBeGreaterThanOrEqual(2);
         const total = rows.reduce((acc, r) => acc + Number(r['amount | sum']), 0);
         expect(total).toBeCloseTo(150, 5);
-        // Every bucket Row Count must be ≥ 1
-        for (const r of rows) {
-          expect(Number(r['row count'])).toBeGreaterThanOrEqual(1);
-        }
       }, 60000);
 
       it('date-trunc YEAR on date_col + SUM: at least 3 distinct year buckets, total = 150', async () => {
@@ -845,7 +837,6 @@ describeIfCredentials(
       it('totals (metrics-only, no GROUP BY): one row with correct grand totals', async () => {
         const rows = await runFilter({
           columns: ['amount', 'id'],
-          rowCount: true,
           aggregations: [
             { column: 'amount', function: 'SUM' },
             { column: 'id', function: 'COUNT_DISTINCT' },
@@ -858,13 +849,11 @@ describeIfCredentials(
         expect(Number(row['amount | sum'])).toBeCloseTo(150, 5);
         // 7 distinct ids including the all-NULL seed row
         expect(Number(row['id | countunique'])).toBe(7);
-        expect(Number(row['row count'])).toBe(7);
       }, 60000);
 
-      it('totals with WHERE filter: grand SUM + Row Count cover only active rows', async () => {
+      it('totals with WHERE filter: grand SUM covers only active rows', async () => {
         const rows = await runFilter({
           columns: ['amount'],
-          rowCount: true,
           filters: [{ column: 'status', operator: 'eq', value: 'active' }],
           aggregations: [{ column: 'amount', function: 'SUM' }],
         });
@@ -873,13 +862,11 @@ describeIfCredentials(
         const row = rows[0];
         // active: ids 1,3,5,6 → 10+30+50+0 = 90
         expect(Number(row['amount | sum'])).toBeCloseTo(90, 5);
-        expect(Number(row['row count'])).toBe(4);
       }, 60000);
 
       it('aggregation respects WHERE filter: inactive only → SUM=60, COUNT=2', async () => {
         const rows = await runFilter({
           columns: ['amount'],
-          rowCount: true,
           filters: [{ column: 'status', operator: 'eq', value: 'inactive' }],
           aggregations: [
             { column: 'amount', function: 'SUM' },
@@ -892,7 +879,6 @@ describeIfCredentials(
         // inactive: ids 2,4 → 20+40=60; COUNT=2
         expect(Number(row['amount | sum'])).toBeCloseTo(60, 5);
         expect(Number(row['amount | count'])).toBe(2);
-        expect(Number(row['row count'])).toBe(2);
       }, 60000);
 
       it('ORDER BY aggregated alias (SUM desc): NULL-status group first, then active (90)', async () => {
@@ -2555,7 +2541,7 @@ describeIfCredentials('Redshift result-column labels (report reader binding)', (
 
   it('returns the quoted output alias as the column label, modulo identifier case folding', async () => {
     const alias = 'orders__amount | SUM';
-    const { statementId } = await adapter.executeQuery(`SELECT 1 AS "${alias}", 2 AS "Row Count"`);
+    const { statementId } = await adapter.executeQuery(`SELECT 1 AS "${alias}", 2 AS "Order Count"`);
     await adapter.waitForQueryToComplete(statementId);
 
     const metadata = await adapter.getQueryResultsMetadata(statementId);
@@ -2564,6 +2550,6 @@ describeIfCredentials('Redshift result-column labels (report reader binding)', (
     console.log(`Redshift result column labels: ${JSON.stringify(labels)}`);
 
     // Spaces and the `|` separator survive verbatim; only case may differ.
-    expect(labels.map(l => l.toLowerCase())).toEqual([alias.toLowerCase(), 'row count']);
+    expect(labels.map(l => l.toLowerCase())).toEqual([alias.toLowerCase(), 'order count']);
   }, 120000);
 });

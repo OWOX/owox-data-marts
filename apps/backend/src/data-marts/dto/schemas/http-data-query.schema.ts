@@ -152,7 +152,7 @@ export const HttpDataQuerySchema = z
     // Grouping (aggregation or date bucket) demands an explicit column projection, mirroring the
     // Report rule AGGREGATION_REQUIRES_COLUMN_CONFIG. A wildcard/all-columns selection makes every
     // unaggregated column a grouping key, so `SUM` over a wide mart degenerates to per-row groups
-    // (Row Count 1) and can blow up query cost — a footgun unique to the HTTP path. A grand total
+    // (one source row each) and can blow up query cost — a footgun unique to the HTTP path. A grand total
     // is still reachable by selecting ONLY the aggregated column (no grouping keys → one row).
     const hasAggregation = (value.aggregation?.length ?? 0) > 0;
     const hasGrouping = hasAggregation || (value.dateTrunc?.length ?? 0) > 0;

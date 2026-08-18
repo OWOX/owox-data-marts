@@ -48,22 +48,18 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
     expect(out.selectSql).toBe('SUM(`metrics`.`revenue`) AS `metrics_revenue | SUM`');
   });
 
-  // Grand-total shape (what composeTotals produces): all-metrics, no dimensions, Row Count
-  // appended → a single all-aggregated row, so there is NO GROUP BY.
-  it('all metrics, no dimensions, with Row Count → no GROUP BY clause', () => {
+  // Grand-total shape (what composeTotals produces): all-metrics, no dimensions
+  // → a single all-aggregated row, so there is NO GROUP BY.
+  it('all metrics, no dimensions → no GROUP BY clause', () => {
     const out = r.renderAggregatedSelect(
       ['revenue', 'orders'],
       [
         { column: 'revenue', function: 'SUM' },
         { column: 'orders', function: 'COUNT_DISTINCT' },
-      ],
-      undefined,
-      { includeRowCount: true }
+      ]
     );
     expect(out.selectSql).toBe(
-      'SUM(`revenue`) AS `revenue | SUM`,\n' +
-        '  COUNT(DISTINCT `orders`) AS `orders | COUNTUNIQUE`,\n' +
-        '  COUNT(*) AS `Row Count`'
+      'SUM(`revenue`) AS `revenue | SUM`,\n' + '  COUNT(DISTINCT `orders`) AS `orders | COUNTUNIQUE`'
     );
     expect(out.groupBySql).toBe('');
   });
@@ -218,19 +214,6 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
       const out = r.renderAggregatedSelect(['date'], [], new Map([['date', 'MONTH']]));
       expect(out.selectSql).toBe('DATE_TRUNC(DATE(`date`), MONTH) AS `date`');
     });
-  });
-
-  it('appends COUNT(*) AS `Row Count` as the last select item', () => {
-    const out = r.renderAggregatedSelect(
-      ['channel', 'revenue'],
-      [{ column: 'revenue', function: 'SUM' }],
-      undefined,
-      { includeRowCount: true }
-    );
-    expect(out.selectSql).toBe(
-      '`channel`,\n  SUM(`revenue`) AS `revenue | SUM`,\n  COUNT(*) AS `Row Count`'
-    );
-    expect(out.groupBySql).toBe('\nGROUP BY\n  `channel`');
   });
 
   describe('Unique Count — BigQuery (backtick quotes, STRING cast type)', () => {

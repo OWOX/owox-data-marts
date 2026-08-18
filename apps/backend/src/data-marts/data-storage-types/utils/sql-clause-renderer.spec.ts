@@ -100,32 +100,13 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  describe('renderAggregatedSelect — output naming, Row Count, alias map', () => {
+  describe('renderAggregatedSelect — output naming, alias map', () => {
     it('aliases an aggregated metric to the suffixed label (FN argument stays the raw column)', () => {
       const out = r.renderAggregatedSelect(
         ['channel', 'revenue'],
         [{ column: 'revenue', function: 'SUM' }]
       );
       expect(out.selectSql).toBe('"channel",\n  SUM("revenue") AS "revenue | SUM"');
-      expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
-    });
-
-    it('appends COUNT(*) AS "Row Count" as the LAST select item and adds no GROUP BY key', () => {
-      const out = r.renderAggregatedSelect(
-        ['channel', 'revenue'],
-        [{ column: 'revenue', function: 'SUM' }],
-        undefined,
-        { includeRowCount: true }
-      );
-      expect(out.selectSql).toBe(
-        '"channel",\n  SUM("revenue") AS "revenue | SUM",\n  COUNT(*) AS "Row Count"'
-      );
-      expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
-    });
-
-    it('supports Row Count with no metric aggregations (dimension-only group)', () => {
-      const out = r.renderAggregatedSelect(['channel'], [], undefined, { includeRowCount: true });
-      expect(out.selectSql).toBe('"channel",\n  COUNT(*) AS "Row Count"');
       expect(out.groupBySql).toBe('\nGROUP BY\n  "channel"');
     });
 
@@ -263,14 +244,6 @@ describe('SqlClauseRenderer', () => {
       expect(out.aliasByColumn.get('x')).toBe('"x | SUM"');
     });
 
-    it('appends an unqualified COUNT(*) Row Count even in qualified mode', () => {
-      const out = r.renderAggregatedSelect(['d'], [], undefined, {
-        qualifyColumn: qualify,
-        includeRowCount: true,
-      });
-      expect(out.selectSql).toBe('t."d" AS "d",\n  COUNT(*) AS "Row Count"');
-      expect(out.groupBySql).toBe('\nGROUP BY\n  t."d"');
-    });
   });
 
   describe('column qualification via ColumnRefResolver', () => {
@@ -350,16 +323,15 @@ describe('SqlClauseRenderer', () => {
       expect(out.selectSql).not.toContain(UNIQUE_COUNT_LABEL);
     });
 
-    it('works alongside Row Count — both present, Unique Count after Row Count', () => {
+    it('Unique Count is appended after the projected dimensions', () => {
       const out = r.renderAggregatedSelect(['channel'], [], undefined, {
-        includeRowCount: true,
         includeUniqueCount: true,
         primaryKeyColumns: ['id'],
       });
-      const rcIdx = out.selectSql.indexOf('Row Count');
+      const dimIdx = out.selectSql.indexOf('"channel"');
       const ucIdx = out.selectSql.indexOf(UNIQUE_COUNT_LABEL);
-      expect(rcIdx).toBeGreaterThan(-1);
-      expect(ucIdx).toBeGreaterThan(rcIdx);
+      expect(dimIdx).toBeGreaterThan(-1);
+      expect(ucIdx).toBeGreaterThan(dimIdx);
     });
   });
 

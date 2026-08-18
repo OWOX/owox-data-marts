@@ -59,8 +59,7 @@ export class ReportTotalsService {
         // Joined-numeric totals are not native columns; their base type travels here so the
         // header path can widen it per aggregation function.
         blendedDataHeaders: totals.blendedDataHeaders,
-        // Row Count / Unique Count are not part of the totals summary.
-        rowCount: false,
+        // Unique Count is not part of the totals summary.
         // Only when supplied, so non-MCP callers stay unchanged.
         ...(queryTimeoutMs !== undefined ? { queryTimeoutMs } : {}),
         ...(signal !== undefined ? { signal } : {}),

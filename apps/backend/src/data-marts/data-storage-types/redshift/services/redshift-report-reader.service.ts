@@ -96,7 +96,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
     // The Data API returns each row as a positional `Field[]`, so this reader used to map
     // records straight to positions — which silently assumed SELECT column order equals
     // `reportDataHeaders` order. That assumption no longer holds: an aggregated blended report
-    // appends its metric-sleeve pulls AFTER the `Row Count` / `Unique Count` columns
+    // appends its metric-sleeve pulls AFTER the non-sleeve select items (`Unique Count` included)
     // while the header list places each aggregate at its own column's position. Bind
     // by NAME instead — like every other dialect's reader does — so column order is irrelevant.
     const { exact, folded } = await this.resolveColumnIndexes(

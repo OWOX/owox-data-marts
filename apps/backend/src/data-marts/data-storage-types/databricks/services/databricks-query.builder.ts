@@ -30,14 +30,12 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
     const aggregations = queryOptions?.aggregations ?? [];
     const dateTruncs = queryOptions?.dateTruncs ?? [];
-    const rowCount = queryOptions?.rowCount === true;
     const uniqueCount = queryOptions?.uniqueCount === true;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
       aggregations.length > 0 ||
       dateTruncs.length > 0 ||
-      rowCount ||
       uniqueCount ||
       queryOptions?.limit != null;
 
@@ -63,7 +61,7 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
 
     this.assertNoParams(where.params.length + orderBy.params.length + limit.params.length);
 
-    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+    if (aggregations.length > 0 || dateTruncs.length > 0 || uniqueCount) {
       const built = this.clauseRenderer.renderAggregatedQuery({
         fromClause,
         columns: queryOptions?.columns ?? [],
@@ -72,7 +70,6 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
         filters: queryOptions?.filters ?? [],
         sort: queryOptions?.sort ?? [],
         limit: queryOptions?.limit ?? null,
-        rowCount,
         uniqueCount,
         primaryKeyColumns: queryOptions?.primaryKeyColumns,
         groupRestriction: queryOptions?.groupRestriction,

@@ -6,7 +6,6 @@ import {
   ReportLikeReadPlan,
   hasOutputControls,
   isMetricsOnlyProjection,
-  shouldIncludeRowCount,
 } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
@@ -178,7 +177,6 @@ export class ReportSqlComposerService {
         sort: sortConfig ?? undefined,
         aggregations: report.aggregationConfig ?? undefined,
         dateTruncs: report.dateTruncConfig ?? undefined,
-        rowCount: shouldIncludeRowCount(report),
         uniqueCount,
         primaryKeyColumns: pkFields.map(f => f.name),
         limit: report.limitConfig ?? undefined,
@@ -232,8 +230,8 @@ export class ReportSqlComposerService {
    * de-duplicated distribution rather than the fanned one.
    *
    * Totals are otherwise INDEPENDENT of the report's own display aggregation functions — the
-   * numeric auto-summary is computed even for a non-aggregated report. Row Count and Unique
-   * Count are NOT part of totals. WHERE filters are respected. HAVING (function-carrying) filters
+   * numeric auto-summary is computed even for a non-aggregated report. Unique
+   * Count is NOT part of totals. WHERE filters are respected. HAVING (function-carrying) filters
    * are HONOURED, not dropped: they cannot apply directly to a query with no GROUP BY, so they
    * travel as a `GroupRestriction` and the builder restricts Totals to the ROWS of the groups
    * that survive them (restricting rows, rather than adding up per-group values, is what keeps a
@@ -308,9 +306,8 @@ export class ReportSqlComposerService {
       sortConfig: null,
       dateTruncConfig: null,
       limitConfig: null,
-      // Totals are a metrics-only summary — no Unique Count, no Row Count.
+      // Totals are a metrics-only summary — no Unique Count.
       uniqueCountConfig: null,
-      rowCount: false,
       groupRestriction:
         havingFilters.length > 0
           ? {

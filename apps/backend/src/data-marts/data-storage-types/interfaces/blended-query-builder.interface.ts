@@ -110,7 +110,6 @@ export interface BlendedQueryContext {
   // final SELECT). Mirrors DataMartQueryOptions; the pre-join rollup is unrelated.
   aggregations?: AggregationRule[];
   dateTruncs?: DateTruncRule[];
-  rowCount?: boolean;
   uniqueCount?: boolean;
   primaryKeyColumns?: string[];
   /**

@@ -1,7 +1,6 @@
 import {
   hasOutputControls,
   ReportLike,
-  shouldIncludeRowCount,
   usesSuffixedJoinedFieldNames,
 } from './report-like-read-plan';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -107,57 +106,5 @@ describe('usesSuffixedJoinedFieldNames', () => {
 
     expect(() => usesSuffixedJoinedFieldNames(report)).not.toThrow();
     expect(usesSuffixedJoinedFieldNames(report)).toBe(false);
-  });
-});
-
-describe('shouldIncludeRowCount', () => {
-  // Row Count is opt-in only: a report contains only the columns the user selected, so an
-  // aggregated plan no longer projects it unless the read plan explicitly asks.
-  it('defaults to false for an aggregated plan (no explicit opt-in)', () => {
-    expect(
-      shouldIncludeRowCount({ ...basePlan, aggregationConfig: [{ column: 'c', function: 'SUM' }] })
-    ).toBe(false);
-  });
-
-  it('defaults to false when there are no aggregations', () => {
-    expect(shouldIncludeRowCount({ ...basePlan })).toBe(false);
-    expect(shouldIncludeRowCount({ ...basePlan, aggregationConfig: [] })).toBe(false);
-  });
-
-  it('stays false on an explicit rowCount: false (the Totals plan)', () => {
-    expect(
-      shouldIncludeRowCount({
-        ...basePlan,
-        rowCount: false,
-        aggregationConfig: [{ column: 'c', function: 'SUM' }],
-      })
-    ).toBe(false);
-  });
-
-  it('honors an explicit rowCount: true even with no aggregations', () => {
-    expect(shouldIncludeRowCount({ ...basePlan, rowCount: true })).toBe(true);
-  });
-
-  // A saved Report entity carries no `rowCount` property at all — it must never project one.
-  it('returns false for a Report-shaped object without a rowCount property', () => {
-    expect(
-      shouldIncludeRowCount({
-        ...basePlan,
-        aggregationConfig: [{ column: 'c', function: 'SUM' }],
-      } as unknown as Report)
-    ).toBe(false);
-  });
-
-  it('returns false for a date-trunc-only plan (bucket set, no aggregations)', () => {
-    expect(
-      shouldIncludeRowCount({ ...basePlan, dateTruncConfig: [{ column: 'date', unit: 'MONTH' }] })
-    ).toBe(false);
-    expect(
-      shouldIncludeRowCount({
-        ...basePlan,
-        dateTruncConfig: [{ column: 'date', unit: 'MONTH', timeZone: 'America/New_York' }],
-        aggregationConfig: [],
-      })
-    ).toBe(false);
   });
 });

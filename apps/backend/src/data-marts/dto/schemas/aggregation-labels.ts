@@ -8,12 +8,11 @@ import { AggregationRule } from './aggregation-config.schema';
  * result rows to headers by name, so the alias and the header name have to match
  * exactly or every aggregated value maps to null.
  */
-export const ROW_COUNT_LABEL = 'Row Count';
 export const UNIQUE_COUNT_LABEL = 'Unique Count';
 
 /**
  * Human-readable Title Case label per aggregate function — used in the web aggregation
- * UI as the display label. Title Case is consistent with `Row Count` / `Unique Count`.
+ * UI as the display label. Title Case is consistent with `Unique Count`.
  */
 export const REPORT_AGGREGATE_FUNCTION_LABELS: Record<ReportAggregateFunction, string> = {
   SUM: 'Sum',
