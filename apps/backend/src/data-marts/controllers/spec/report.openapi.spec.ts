@@ -25,6 +25,7 @@ import { GetReportService } from '../../use-cases/get-report.service';
 import { ListReportsByDataMartService } from '../../use-cases/list-reports-by-data-mart.service';
 import { ListReportsByInsightTemplateService } from '../../use-cases/list-reports-by-insight-template.service';
 import { ListReportsByProjectService } from '../../use-cases/list-reports-by-project.service';
+import { ReconnectGoogleSheetService } from '../../use-cases/google-sheets/reconnect-google-sheet.service';
 import { ReportMapper } from '../../mappers/report.mapper';
 import { RunReportService } from '../../use-cases/run-report.service';
 import { UpdateReportService } from '../../use-cases/update-report.service';
@@ -43,6 +44,7 @@ describe('ReportController OpenAPI', () => {
       ListReportsByDataMartService,
       ListReportsByInsightTemplateService,
       ListReportsByProjectService,
+      ReconnectGoogleSheetService,
       ReportMapper,
       RunReportService,
       UpdateReportService,
