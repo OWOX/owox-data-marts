@@ -78,8 +78,9 @@ const MicrosoftAdsHelper = {
   /**
    * Download and unzip a CSV file, converting rows to objects in chunks that are
    * flushed to the callback as soon as they fill up. Unlike downloadCsvRows +
-   * csvRowsToObjects, this never holds the full row array or full object array in
-   * memory — only the CSV text of one file and one chunk at a time.
+   * csvRowsToObjects, this never builds the full cell-array or record-object
+   * arrays. Peak memory is one file's CSV text plus its split line strings
+   * (V8 slices sharing the parent string's memory) plus one chunk of records.
    * @param {string} url
    * @param {function(Array<Object>): Promise<void>} onRecordsChunk
    * @param {number} [chunkSize=2000]
@@ -99,10 +100,10 @@ const MicrosoftAdsHelper = {
    * the header (sanitized like csvRowsToObjects); 'Format Version' rows are skipped.
    * @param {string} csvText
    * @param {function(Array<Object>): Promise<void>} onRecordsChunk
-   * @param {number} chunkSize
+   * @param {number} [chunkSize=2000]
    * @returns {Promise<void>}
    */
-  async processCsvTextInChunks(csvText, onRecordsChunk, chunkSize) {
+  async processCsvTextInChunks(csvText, onRecordsChunk, chunkSize = 2000) {
     const lines = csvText.split('\n');
     let headerNames = null;
     let chunk = [];

@@ -100,16 +100,16 @@ describe('_fetchEntityByCampaigns streaming', () => {
     expect(fake.logs).toContain('Fetched 4 keywords from current batch');
   });
 
-  it('halves the batch size and refetches when the API reports the 100MB limit', async () => {
+  it('halves the batch size and refetches each campaign exactly once on the 100MB limit', async () => {
     const campaignIds = Array.from({ length: 20 }, (_, i) => `c${i}`);
-    const fetched = new Set();
+    const fetchCounts = new Map();
     let threw = false;
     const fake = makeFakeSource(async ({ campaignBatch, onRecordsChunk }) => {
       if (campaignBatch.length > 1 && !threw) {
         threw = true;
         throw new Error('Download exceeds 100MB limit');
       }
-      campaignBatch.forEach(id => fetched.add(id));
+      campaignBatch.forEach(id => fetchCounts.set(id, (fetchCounts.get(id) ?? 0) + 1));
       await onRecordsChunk(campaignBatch.map(id => ({ Id: id })));
       return [];
     });
@@ -122,7 +122,80 @@ describe('_fetchEntityByCampaigns streaming', () => {
       onBatchReady: async records => received.push(...records),
     });
 
-    campaignIds.forEach(id => expect(fetched).toContain(id));
+    // The retried range must not be fetched again by the outer loop
+    expect(received).toHaveLength(20);
+    campaignIds.forEach(id => expect(fetchCounts.get(id)).toBe(1));
     expect(fake.logs.some(m => m.includes('retrying with smaller batch size: 1'))).toBe(true);
+  });
+
+  it('does not halve the batch when a storage error mentions 100MB', async () => {
+    const campaignIds = Array.from({ length: 20 }, (_, i) => `c${i}`);
+    const fake = makeFakeSource(async ({ campaignBatch, onRecordsChunk }) => {
+      await onRecordsChunk(campaignBatch.map(id => ({ Id: id })));
+      return [];
+    });
+
+    await expect(
+      proto._fetchEntityByCampaigns.call(fake, {
+        accountId: '1',
+        entityType: 'Keywords',
+        campaignIds,
+        onBatchReady: async () => {
+          throw new Error('BigQuery: request payload exceeds 100MB');
+        },
+      })
+    ).rejects.toThrow('Failed to fetch Keywords: BigQuery: request payload exceeds 100MB');
+    expect(fake.logs.some(m => m.includes('retrying with smaller batch size'))).toBe(false);
+  });
+});
+
+describe('_downloadEntity streaming', () => {
+  it('streams records per zip file with per-file headers and returns []', async () => {
+    const submitUrl = 'https://bulk.test/submit';
+    const fileUrl = 'https://bulk.test/result.zip';
+    const originalHttpUtils = globalThis.HttpUtils;
+    const originalUnzip = globalThis.FileUtils.unzip;
+    globalThis.HttpUtils = {
+      fetch: async url => {
+        if (url === submitUrl) {
+          return { getContentText: async () => JSON.stringify({ DownloadRequestId: 'r1' }) };
+        }
+        if (url.includes('BulkDownloadStatus')) {
+          return {
+            getContentText: async () =>
+              JSON.stringify({ RequestStatus: 'Completed', ResultFileUrl: fileUrl }),
+          };
+        }
+        return { getBlob: async () => 'zip-bytes' };
+      },
+    };
+    globalThis.FileUtils.unzip = () => [
+      { getDataAsString: () => 'Id,Name\n1,a\n2,b' },
+      { getDataAsString: () => 'Code,Label\n9,x' },
+    ];
+
+    try {
+      const chunks = [];
+      const result = await proto._downloadEntity.call(
+        {},
+        {
+          submitUrl,
+          submitOpts: {},
+          onRecordsChunk: async chunk => chunks.push(chunk),
+        }
+      );
+
+      expect(result).toEqual([]);
+      // Each zip entry gets its own header — the legacy array pipeline reused the
+      // first file's header and emitted later header rows as junk records
+      expect(chunks.flat()).toEqual([
+        { Id: '1', Name: 'a' },
+        { Id: '2', Name: 'b' },
+        { Code: '9', Label: 'x' },
+      ]);
+    } finally {
+      globalThis.HttpUtils = originalHttpUtils;
+      globalThis.FileUtils.unzip = originalUnzip;
+    }
   });
 });
