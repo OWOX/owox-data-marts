@@ -46,11 +46,8 @@ export function TargetSetupStep({
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
 
-  // Track if user has manually edited the dataset, catalog, schema and table fields
-  const datasetEditedByUser = useRef(false);
-  const catalogEditedByUser = useRef(false);
-  const schemaEditedByUser = useRef(false);
-  const tableEditedByUser = useRef(false);
+  // Track if user has manually edited any of the fields
+  const editedByUser = useRef(false);
 
   const validate = (name: string, allowQuoted = false): string | null => {
     if (!name.trim()) return 'This field is required';
@@ -86,13 +83,19 @@ export function TargetSetupStep({
       newCatalogName?: string,
       newCatalogError?: string | null
     ) => {
+      // A partial FQN is emitted as '' so that a remounted step re-seeds defaults
+      // instead of failing to parse it and rendering every field empty.
       let fullyQualifiedName: string;
 
-      if (dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName) {
-        // For Snowflake: quote schema and table, but not database
-        const quotedSchema = quoteIdentifier(newSchemaName);
-        const quotedTable = quoteIdentifier(newTableName);
-        fullyQualifiedName = `${newDatasetName}.${quotedSchema}.${quotedTable}`;
+      if (dataStorageType === DataStorageType.SNOWFLAKE) {
+        if (!newDatasetName || !newSchemaName || !newTableName) {
+          fullyQualifiedName = '';
+        } else {
+          // For Snowflake: quote schema and table, but not database
+          const quotedSchema = quoteIdentifier(newSchemaName);
+          const quotedTable = quoteIdentifier(newTableName);
+          fullyQualifiedName = `${newDatasetName}.${quotedSchema}.${quotedTable}`;
+        }
       } else if (dataStorageType === DataStorageType.AWS_REDSHIFT) {
         if (!newSchemaName || !newTableName) {
           fullyQualifiedName = '';
@@ -109,7 +112,8 @@ export function TargetSetupStep({
           fullyQualifiedName = `${newCatalogName}.${newSchemaName}.${newTableName}`;
         }
       } else {
-        fullyQualifiedName = `${newDatasetName}.${newTableName}`;
+        fullyQualifiedName =
+          !newDatasetName || !newTableName ? '' : `${newDatasetName}.${newTableName}`;
       }
 
       const isValid =
@@ -153,12 +157,7 @@ export function TargetSetupStep({
     // Once the user touches any field, local state is the source of truth: the change
     // handlers already push the full target upstream, and re-parsing the echoed
     // fullyQualifiedName here would wipe fields that are momentarily empty.
-    if (
-      datasetEditedByUser.current ||
-      catalogEditedByUser.current ||
-      schemaEditedByUser.current ||
-      tableEditedByUser.current
-    ) {
+    if (editedByUser.current) {
       return;
     }
 
@@ -258,8 +257,10 @@ export function TargetSetupStep({
     setTableError(newTableError);
 
     const newFullyQualifiedName =
-      dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName
-        ? `${newDatasetName}.${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
+      dataStorageType === DataStorageType.SNOWFLAKE
+        ? newDatasetName && newSchemaName && newTableName
+          ? `${newDatasetName}.${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
+          : ''
         : dataStorageType === DataStorageType.AWS_REDSHIFT
           ? newSchemaName && newTableName
             ? `${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
@@ -268,7 +269,9 @@ export function TargetSetupStep({
             ? newCatalogName && newSchemaName && newTableName
               ? `${newCatalogName}.${newSchemaName}.${newTableName}`
               : ''
-            : `${newDatasetName}.${newTableName}`;
+            : newDatasetName && newTableName
+              ? `${newDatasetName}.${newTableName}`
+              : '';
 
     const newIsValid =
       dataStorageType === DataStorageType.SNOWFLAKE
@@ -316,7 +319,7 @@ export function TargetSetupStep({
   }, [target, sanitizedDestinationName, sanitizedConnectorName, dataStorageType, updateTarget]);
 
   const handleDatasetNameChange = (name: string) => {
-    datasetEditedByUser.current = true;
+    editedByUser.current = true;
     setDatasetName(name);
     const validationError = validate(name);
     setDatasetError(validationError);
@@ -333,7 +336,7 @@ export function TargetSetupStep({
   };
 
   const handleCatalogNameChange = (name: string) => {
-    catalogEditedByUser.current = true;
+    editedByUser.current = true;
     setCatalogName(name);
     const validationError = validate(name);
     setCatalogError(validationError);
@@ -350,7 +353,7 @@ export function TargetSetupStep({
   };
 
   const handleSchemaNameChange = (name: string) => {
-    schemaEditedByUser.current = true;
+    editedByUser.current = true;
     setSchemaName(name);
     // Schema is required for both Snowflake, Redshift and Databricks
     const validationError =
@@ -369,7 +372,7 @@ export function TargetSetupStep({
   };
 
   const handleTableNameChange = (name: string) => {
-    tableEditedByUser.current = true;
+    editedByUser.current = true;
     setTableName(name);
     const validationError = validate(
       name,
