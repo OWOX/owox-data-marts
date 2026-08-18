@@ -50,20 +50,25 @@ export function JoinDescriptionForm({
     }
   }, [savedValue]);
 
-  // Kept in a ref so effects can depend on plain values (debouncedValue, isSaving)
-  // without re-running on every render for a new function identity.
-  const saveRef = useRef<(value: string, opts?: { ignoreInFlight?: boolean }) => void>(() => {
+  // The settled-or-null promise of the PATCH currently on the wire. Only one PATCH may
+  // be in flight at a time — the server has no version check, so two concurrent PATCHes
+  // can apply out of order and the stale one would win.
+  const inFlightRef = useRef<Promise<void> | null>(null);
+
+  // Kept in refs so effects and the unmount cleanup can call the latest logic without
+  // depending on a new function identity every render.
+  const sendRef = useRef<(value: string) => void>(() => {
     /* replaced each render below */
   });
-  saveRef.current = (value, { ignoreInFlight = false } = {}) => {
-    if (readOnly || (isSaving && !ignoreInFlight)) return;
+  sendRef.current = value => {
+    if (readOnly) return;
     if (value.trim() === lastSavedRef.current.trim()) {
       // Nothing to send; stay dirty only if the textarea has since diverged again.
       isDirtyRef.current = latestValueRef.current.trim() !== lastSavedRef.current.trim();
       return;
     }
     setIsSaving(true);
-    dataMartRelationshipService
+    const request = dataMartRelationshipService
       .updateRelationship(
         dataMartId,
         relationship.id,
@@ -87,7 +92,19 @@ export function JoinDescriptionForm({
       })
       .finally(() => {
         setIsSaving(false);
+        if (inFlightRef.current === request) {
+          inFlightRef.current = null;
+        }
       });
+    inFlightRef.current = request;
+  };
+
+  const saveRef = useRef<(value: string) => void>(() => {
+    /* replaced each render below */
+  });
+  saveRef.current = value => {
+    if (isSaving) return;
+    sendRef.current(value);
   };
 
   // Fires when the debounce settles AND whenever an in-flight save finishes —
@@ -99,10 +116,21 @@ export function JoinDescriptionForm({
 
   // Flush a pending edit when the tab unmounts (tab switch, row collapse) — the
   // debounce timer dies with the component, and blur is not guaranteed to fire first.
+  // Queued BEHIND any in-flight save, never alongside it: the flush must not start a
+  // second PATCH that could be processed before the first and lose to its stale text.
   useEffect(() => {
     return () => {
-      if (isDirtyRef.current) {
-        saveRef.current(latestValueRef.current, { ignoreInFlight: true });
+      if (!isDirtyRef.current) return;
+      const flushPending = () => {
+        // Re-checked after the in-flight save settles — it may have covered this edit.
+        if (isDirtyRef.current) {
+          sendRef.current(latestValueRef.current);
+        }
+      };
+      if (inFlightRef.current) {
+        void inFlightRef.current.then(flushPending);
+      } else {
+        flushPending();
       }
     };
   }, []);

@@ -164,6 +164,45 @@ describe('JoinDescriptionForm', () => {
     );
   });
 
+  it('queues the unmount flush behind an in-flight save instead of racing it', async () => {
+    let resolveSave: (value: DataMartRelationship) => void = () => undefined;
+    updateRelationship.mockImplementationOnce(
+      () =>
+        new Promise<DataMartRelationship>(resolve => {
+          resolveSave = resolve;
+        })
+    );
+    updateRelationship.mockResolvedValueOnce(buildRelationship({ description: 'B' }));
+    const { unmount } = renderForm();
+
+    // Slow save A starts...
+    fireEvent.change(getTextarea(), { target: { value: 'A' } });
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+    expect(updateRelationship).toHaveBeenCalledTimes(1);
+
+    // ...user types B and leaves the tab while A is still on the wire.
+    fireEvent.change(getTextarea(), { target: { value: 'B' } });
+    unmount();
+
+    // The flush must NOT fire a concurrent PATCH — with no server-side versioning,
+    // out-of-order processing would let stale A overwrite B.
+    expect(updateRelationship).toHaveBeenCalledTimes(1);
+
+    // Once A settles, the queued flush sends B.
+    await act(async () => {
+      resolveSave(buildRelationship({ description: 'A' }));
+    });
+    expect(updateRelationship).toHaveBeenCalledTimes(2);
+    expect(updateRelationship).toHaveBeenLastCalledWith(
+      'source-dm-1',
+      'rel-1',
+      { description: 'B' },
+      expect.anything()
+    );
+  });
+
   it('renders the inherited banner and disables the textarea for transient joins', () => {
     renderForm({
       readOnly: true,
