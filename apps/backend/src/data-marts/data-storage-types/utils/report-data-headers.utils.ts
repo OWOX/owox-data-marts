@@ -50,7 +50,7 @@ export function resolveReportDataHeaders(
   const mainUniqueCount =
     options?.uniqueCount === true && (options?.primaryKeyColumns?.length ?? 0) > 0;
   // A metrics-only query has no projected dimensions: the SELECT emits only the
-  // synthetic metric / Row Count / Unique Count columns. This is the totals query and the
+  // synthetic metric / Unique Count columns. This is the totals query and the
   // uniqueCount-only report. It reads the GATED `mainUniqueCount`, not the raw flag: with the
   // key gone the SQL emits no metric and falls back to a plain SELECT, so a metrics-only header
   // list here would leave the report with no columns at all for a result full of them.

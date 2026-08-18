@@ -21,15 +21,15 @@ import { DataMartService } from 'src/data-marts/services/data-mart.service';
  * response reflects the aggregated output columns — not the raw `fields` list passed in.
  *
  * The alignment gap being closed: unit tests mock the reader, so the header/column
- * rewriting that happens for an aggregated query (dim + metric → dim, <metric> | SUM,
- * Row Count) is only verified live here.
+ * rewriting that happens for an aggregated query (dim + metric → dim, <metric> | SUM)
+ * is only verified live here.
  *
  * Seed data (dim STRING, revenue FLOAT64):
  *   ('a', 10.0), ('a', 5.0), ('b', 3.0)
  *
  * Expected aggregated output grouped by dim with SUM(revenue):
- *   dim='a' → revenue | SUM = 15.0,  Row Count = 2
- *   dim='b' → revenue | SUM =  3.0,  Row Count = 1
+ *   dim='a' → revenue | SUM = 15.0
+ *   dim='b' → revenue | SUM =  3.0
  *
  * Required environment variables (loaded from .env.tests via setup-env.ts):
  *   BQ_SERVICE_ACCOUNT_KEY  - JSON string of a GCP service account key
@@ -205,7 +205,7 @@ describeIfCredentials('QueryDataMartService — aggregated query on real BigQuer
     // --- columns must reflect the executed aggregated SQL, NOT the raw `fields` list ---
     // 'dim' is a GROUP BY key → stays as 'dim'.
     // 'revenue' is aggregated with SUM → becomes 'revenue | SUM'.
-    // No Row Count: it is opt-in on read plans only, and MCP queries never ask for it.
+    // No Row Count: the concept was removed — aggregated output has only selected columns.
     expect(result.columns).toContain('dim');
     expect(result.columns).toContain('revenue | SUM');
     expect(result.columns).not.toContain('Row Count');

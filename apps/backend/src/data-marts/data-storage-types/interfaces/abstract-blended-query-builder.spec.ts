@@ -2156,12 +2156,6 @@ describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
     expect(sql).toContain('sleeve_spend__cost AS (');
   });
 
-  // with a sleeve metric, Row Count is NOT last — the sleeve pulls are
-  // appended after it, while `resolveReportDataHeaders` keeps the metric header at its own
-  // column's position. That divergence is only safe because every reader binds result columns
-  // to headers BY NAME (the Redshift reader used to bind positionally — see its spec). Pin the
-  // order here so a future reader that reintroduces positional binding fails a test, not a
-  // customer's Totals row.
   // Totals under a metric filter: a Totals query has no GROUP BY, so the report's HAVING cannot
   // apply there — it travels as a `groupRestriction` instead. The builder recomputes the
   // surviving groups and semi-joins them, so Totals summarise exactly the rows the report shows.

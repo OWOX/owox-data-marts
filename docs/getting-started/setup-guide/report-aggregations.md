@@ -124,7 +124,7 @@ When a joined Data Mart cannot offer the metric, the row is still shown, disable
 
 ## Counting rows in a group
 
-An aggregated report contains only the columns you select — no `Row Count` column is added on its own. To see how many underlying rows each group stands for, apply the **Count** aggregate function to a column that is always filled (an ID column works well). To count unique entities instead, use a Unique Count.
+An aggregated report contains only the columns you select — no `Row Count` column is added on its own. To see how many underlying rows each group stands for, apply the **Count** aggregate function. Use a column that is always filled, such as an ID column. To count unique entities instead, use a Unique Count.
 
 ## Totals
 
