@@ -2541,7 +2541,9 @@ describeIfCredentials('Redshift result-column labels (report reader binding)', (
 
   it('returns the quoted output alias as the column label, modulo identifier case folding', async () => {
     const alias = 'orders__amount | SUM';
-    const { statementId } = await adapter.executeQuery(`SELECT 1 AS "${alias}", 2 AS "Order Count"`);
+    const { statementId } = await adapter.executeQuery(
+      `SELECT 1 AS "${alias}", 2 AS "Order Count"`
+    );
     await adapter.waitForQueryToComplete(statementId);
 
     const metadata = await adapter.getQueryResultsMetadata(statementId);
