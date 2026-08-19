@@ -1,4 +1,5 @@
 import type { ProjectMember } from '@owox/idp-protocol';
+import { randomUUID } from 'crypto';
 import { createServiceLogger } from '../core/logger.js';
 import type {
   DatabaseAccount,
@@ -43,6 +44,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
   private projectTablesReady = false;
   private onboardingTableReady = false;
   private userProjectOnboardingTableReady = false;
+  private extensionAuthStorageReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {}
 
@@ -142,6 +144,42 @@ export class MysqlDatabaseStore implements DatabaseStore {
     await this.ensureAuthStatesTable(pool);
   }
 
+  async initializeExtensionAuthStorage(): Promise<void> {
+    if (this.extensionAuthStorageReady) return;
+    const pool = await this.getPool();
+    await pool.execute(
+      `CREATE TABLE IF NOT EXISTS extension_assertion_replay (
+        replayKey VARCHAR(80) NOT NULL PRIMARY KEY,
+        expiresAt DATETIME(3) NOT NULL,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_extension_assertion_replay_expires_at (expiresAt)
+      )`
+    );
+    const [indexes] = await pool.execute(
+      `SELECT INDEX_NAME
+         FROM information_schema.statistics
+        WHERE table_schema = DATABASE()
+          AND table_name = 'account'
+          AND index_name = 'idx_account_provider_account'
+        LIMIT 1`
+    );
+    if ((indexes as Array<Record<string, unknown>>).length === 0) {
+      try {
+        await pool.execute(
+          'CREATE UNIQUE INDEX idx_account_provider_account ON account (providerId, accountId)'
+        );
+      } catch (error) {
+        const duplicateIndex =
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'ER_DUP_KEYNAME';
+        if (!duplicateIndex) throw error;
+      }
+    }
+    this.extensionAuthStorageReady = true;
+  }
+
   async isHealthy(): Promise<boolean> {
     try {
       const pool = await this.getPool();
@@ -220,6 +258,51 @@ export class MysqlDatabaseStore implements DatabaseStore {
     )) as [Array<Record<string, unknown>>, unknown];
     const row = (rows as Array<Record<string, unknown>>)[0];
     return row ? this.mapAccount(row) : null;
+  }
+
+  async getAccountByProviderAndAccountId(
+    providerId: string,
+    accountId: string
+  ): Promise<DatabaseAccount | null> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE providerId = ? AND accountId = ? LIMIT 1',
+      [providerId, accountId]
+    )) as [Array<Record<string, unknown>>, unknown];
+    const row = rows[0];
+    return row ? this.mapAccount(row) : null;
+  }
+
+  async linkAccount(
+    providerId: string,
+    accountId: string,
+    userId: string
+  ): Promise<DatabaseAccount> {
+    await this.initializeExtensionAuthStorage();
+    const pool = await this.getPool();
+    await pool.execute(
+      `INSERT IGNORE INTO account (id, accountId, providerId, userId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [randomUUID(), accountId, providerId, userId]
+    );
+    const account = await this.getAccountByProviderAndAccountId(providerId, accountId);
+    if (!account) {
+      throw new Error('Failed to create or resolve provider account link');
+    }
+    return account;
+  }
+
+  async consumeExtensionAssertion(replayKey: string, expiresAt: Date): Promise<boolean> {
+    await this.initializeExtensionAuthStorage();
+    const pool = await this.getPool();
+    await pool.execute(
+      'DELETE FROM extension_assertion_replay WHERE expiresAt <= CURRENT_TIMESTAMP(3)'
+    );
+    const [result] = (await pool.execute(
+      'INSERT IGNORE INTO extension_assertion_replay (replayKey, expiresAt) VALUES (?, ?)',
+      [replayKey, expiresAt]
+    )) as [MysqlExecResult, unknown];
+    return Number(result.affectedRows ?? 0) === 1;
   }
 
   async updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void> {

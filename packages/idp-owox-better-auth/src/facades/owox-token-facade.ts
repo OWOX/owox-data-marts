@@ -1,6 +1,7 @@
-import { AuthResult, Payload } from '@owox/idp-protocol';
+import { AuthResult, Payload, Projects } from '@owox/idp-protocol';
 import { NextFunction, Request, Response } from 'express';
 import {
+  ExtensionSessionIssueResponse,
   IdentityOwoxClient,
   IntrospectionRequest,
   IntrospectionResponse,
@@ -26,6 +27,10 @@ import type { AuthFlowParams } from '../utils/request-utils.js';
 export type TokenResponseWithContext = TokenResponse & {
   authFlowParams?: AuthFlowParams;
 };
+
+export type ExtensionIssueResult =
+  | { mode: 'project_token'; auth: AuthResult }
+  | { mode: 'identity_session'; auth: AuthResult };
 
 /**
  * Wraps Identity OWOX token operations and refresh-token cookies.
@@ -125,6 +130,48 @@ export class OwoxTokenFacade {
     };
   }
 
+  async issueExtensionSession(userId: string, projectId?: string): Promise<ExtensionIssueResult> {
+    const response = await this.identityClient.issueExtensionSession({
+      userId,
+      ...(projectId ? { projectId } : {}),
+    });
+    return OwoxTokenFacade.toExtensionIssueResult(response);
+  }
+
+  async refreshExtensionSession(refreshToken: string): Promise<AuthResult> {
+    const response = await this.identityClient.refreshExtensionSession({ refreshToken });
+    return OwoxTokenFacade.toAuthResult(response);
+  }
+
+  async refreshExtensionProjectToken(refreshToken: string): Promise<AuthResult> {
+    await this.assertExtensionProjectToken(refreshToken);
+    return this.refreshToken(refreshToken);
+  }
+
+  async getExtensionSessionProjects(accessToken: string): Promise<Projects> {
+    return this.identityClient.getExtensionSessionProjects({ accessToken });
+  }
+
+  async exchangeExtensionSessionProjectToken(
+    accessToken: string,
+    projectId: string
+  ): Promise<AuthResult> {
+    const response = await this.identityClient.exchangeExtensionSessionProjectToken({
+      accessToken,
+      projectId,
+    });
+    return OwoxTokenFacade.toAuthResult(response);
+  }
+
+  async revokeExtensionSession(refreshToken: string): Promise<void> {
+    await this.identityClient.revokeExtensionSession({ refreshToken });
+  }
+
+  async revokeExtensionProjectToken(refreshToken: string): Promise<void> {
+    await this.assertExtensionProjectToken(refreshToken);
+    await this.identityClient.revokeExtensionProjectToken({ refreshToken });
+  }
+
   async revokeToken(token: string): Promise<void> {
     const request: RevocationRequest = { token: token, tokenType: 'refresh_token' };
     await this.identityClient.revokeToken(request);
@@ -189,5 +236,37 @@ export class OwoxTokenFacade {
       refreshToken,
       buildCookieOptions(req, { maxAgeMs: expiresIn * 1000 })
     );
+  }
+
+  private static toAuthResult(response: {
+    accessToken: string;
+    refreshToken: string;
+    accessTokenExpiresIn: number;
+    refreshTokenExpiresIn: number;
+  }): AuthResult {
+    return {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      accessTokenExpiresIn: response.accessTokenExpiresIn,
+      refreshTokenExpiresIn: response.refreshTokenExpiresIn,
+    };
+  }
+
+  private async assertExtensionProjectToken(token: string): Promise<void> {
+    const payload = await this.tokenService.parse(token);
+    if (payload?.authFlow !== 'extension') {
+      throw new AuthenticationException('Token was not issued for extension project auth', {
+        description: 'invalid_project_refresh_token',
+      });
+    }
+  }
+
+  private static toExtensionIssueResult(
+    response: ExtensionSessionIssueResponse
+  ): ExtensionIssueResult {
+    if (response.mode === 'project_token') {
+      return { mode: response.mode, auth: OwoxTokenFacade.toAuthResult(response.projectToken) };
+    }
+    return { mode: response.mode, auth: OwoxTokenFacade.toAuthResult(response.identitySession) };
   }
 }

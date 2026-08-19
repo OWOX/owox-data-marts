@@ -15,6 +15,7 @@ export { AuthErrorController } from './controllers/auth-error-controller.js';
 export { PageController } from './controllers/page-controller.js';
 export { PasswordFlowController } from './controllers/password-flow-controller.js';
 export { GoogleSheetsExtensionAuthController } from './controllers/google-sheets-auth.controller.js';
+export { ExtensionAuthController } from './controllers/extension-auth.controller.js';
 export {
   BaseException,
   AuthenticationException,

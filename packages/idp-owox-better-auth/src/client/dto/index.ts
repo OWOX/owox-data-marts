@@ -14,3 +14,4 @@ export * from './membershipRequestsDto.js';
 export * from './projectMemberApiKeyAuthFlowDto.js';
 export * from './pluginRuntimeAuthFlowDto.js';
 export * from './oauthDto.js';
+export * from './extensionAuthFlowDto.js';

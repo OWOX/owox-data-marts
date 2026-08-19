@@ -218,6 +218,83 @@ const ProjectMembersCacheEnvSchema = z
     ),
   }));
 
+/** ---------- Microsoft NAA extension auth config ---------- */
+
+const DEFAULT_MICROSOFT_JWKS_URL = 'https://login.microsoftonline.com/common/discovery/v2.0/keys';
+const DEFAULT_MICROSOFT_ISSUER_AUTHORITY = 'https://login.microsoftonline.com';
+
+const MicrosoftExtensionAuthEnvSchema = z
+  .object({
+    IDP_OWOX_EXTENSION_MICROSOFT_ENABLED: z.enum(['true', 'false']).default('false'),
+    IDP_OWOX_EXTENSION_MICROSOFT_AUDIENCES: z.string().optional(),
+    IDP_OWOX_EXTENSION_MICROSOFT_SCOPE: z.string().optional(),
+    IDP_OWOX_EXTENSION_MICROSOFT_JWKS_URL: z.string().url().optional(),
+    IDP_OWOX_EXTENSION_MICROSOFT_ISSUER_AUTHORITY: z.string().url().optional(),
+    IDP_OWOX_EXTENSION_ALLOWED_ORIGINS: z.string().optional(),
+    IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE: z.string().optional(),
+    IDP_OWOX_EXTENSION_CLOCK_TOLERANCE: zMsString.default('5s' as ms.StringValue),
+  })
+  .superRefine((value, ctx) => {
+    if (value.IDP_OWOX_EXTENSION_MICROSOFT_ENABLED !== 'true') return;
+
+    const required = [
+      ['IDP_OWOX_EXTENSION_MICROSOFT_AUDIENCES', value.IDP_OWOX_EXTENSION_MICROSOFT_AUDIENCES],
+      ['IDP_OWOX_EXTENSION_MICROSOFT_SCOPE', value.IDP_OWOX_EXTENSION_MICROSOFT_SCOPE],
+      ['IDP_OWOX_EXTENSION_ALLOWED_ORIGINS', value.IDP_OWOX_EXTENSION_ALLOWED_ORIGINS],
+    ] as const;
+
+    for (const [field, fieldValue] of required) {
+      if (!fieldValue?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `${field} is required when Microsoft extension auth is enabled`,
+        });
+      }
+    }
+  })
+  .transform(value => {
+    if (value.IDP_OWOX_EXTENSION_MICROSOFT_ENABLED !== 'true') return undefined;
+
+    const allowedAudiences = (value.IDP_OWOX_EXTENSION_MICROSOFT_AUDIENCES ?? '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+    const allowedOrigins = (value.IDP_OWOX_EXTENSION_ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+      .map(origin => normalizeOrigin(origin, 'IDP_OWOX_EXTENSION_ALLOWED_ORIGINS'));
+    if (allowedAudiences.length === 0) {
+      throw new Error('IDP_OWOX_EXTENSION_MICROSOFT_AUDIENCES must contain an audience');
+    }
+    if (allowedOrigins.length === 0) {
+      throw new Error('IDP_OWOX_EXTENSION_ALLOWED_ORIGINS must contain an origin');
+    }
+    const rawRateLimit = value.IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE ?? '30';
+    const assertionRateLimitPerMinute = Number(rawRateLimit);
+    if (!Number.isSafeInteger(assertionRateLimitPerMinute) || assertionRateLimitPerMinute <= 0) {
+      throw new Error(
+        'IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE must be a positive integer'
+      );
+    }
+
+    return {
+      microsoft: {
+        allowedAudiences,
+        requiredScope: (value.IDP_OWOX_EXTENSION_MICROSOFT_SCOPE ?? '').trim(),
+        jwksUrl: value.IDP_OWOX_EXTENSION_MICROSOFT_JWKS_URL ?? DEFAULT_MICROSOFT_JWKS_URL,
+        issuerAuthority: normalizeOrigin(
+          value.IDP_OWOX_EXTENSION_MICROSOFT_ISSUER_AUTHORITY ?? DEFAULT_MICROSOFT_ISSUER_AUTHORITY,
+          'IDP_OWOX_EXTENSION_MICROSOFT_ISSUER_AUTHORITY'
+        ),
+      },
+      allowedOrigins: Array.from(new Set(allowedOrigins)),
+      assertionRateLimitPerMinute,
+      clockTolerance: value.IDP_OWOX_EXTENSION_CLOCK_TOLERANCE,
+    };
+  });
+
 export type DbConfig = z.infer<typeof DbEnvSchema>;
 export type MysqlConfig = Extract<DbConfig, { type: 'mysql' }>;
 export type SqliteConfig = Extract<DbConfig, { type: 'sqlite' }>;
@@ -225,6 +302,7 @@ export type SqliteConfig = Extract<DbConfig, { type: 'sqlite' }>;
 export type IdpConfig = z.infer<typeof IdpEnvSchema>;
 export type JwtConfig = z.infer<typeof JwtEnvSchema>;
 export type IdentityOwoxClientConfig = z.infer<typeof IdentityOwoxClientEnvSchema>;
+export type ExtensionAuthConfig = NonNullable<z.infer<typeof MicrosoftExtensionAuthEnvSchema>>;
 
 export type IdpOwoxConfig = {
   baseUrl: string;
@@ -233,6 +311,7 @@ export type IdpOwoxConfig = {
   jwtConfig: JwtConfig;
   dbConfig: DbConfig;
   projectMembersCacheTtlSeconds: number;
+  extensionAuth?: ExtensionAuthConfig;
 };
 
 /** ---------- Better Auth (UI/auth) config ---------- */
@@ -381,6 +460,7 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const idpConfig = IdpEnvSchema.parse(env);
   const jwtConfig = JwtEnvSchema.parse(env);
   const projectMembersCacheConfig = ProjectMembersCacheEnvSchema.parse(env);
+  const extensionAuth = MicrosoftExtensionAuthEnvSchema.parse(env);
   const baseUrl = resolveBaseUrl(env);
 
   if (jwtConfig.algorithm !== 'RS256') {
@@ -394,6 +474,7 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
     jwtConfig,
     dbConfig,
     projectMembersCacheTtlSeconds: projectMembersCacheConfig.projectMembersCacheTtlSeconds,
+    ...(extensionAuth ? { extensionAuth } : {}),
   };
 }
 
