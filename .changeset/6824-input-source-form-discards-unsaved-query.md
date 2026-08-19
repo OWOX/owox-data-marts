@@ -2,9 +2,9 @@
 'owox': minor
 ---
 
-# Typing in the SQL editor now works reliably on connected Data Marts
+# Typing in the SQL editor now works reliably on saved Data Marts
 
-On Data Marts joined with other Data Marts, the SQL Query editor could refuse to insert spaces: you would type `select * from`, press the spacebar, and nothing would appear. This happened whenever the Joinable Data Marts section was set to the diagram view — the diagram was silently capturing the spacebar for itself. The editor now always receives everything you type, regardless of how the Joinable Data Marts section is displayed.
+On any saved Data Mart, the SQL Query editor could refuse to insert spaces: you would type `select * from`, press the spacebar, and nothing would appear. This happened whenever the Joinable Data Marts section was set to the diagram view — the diagram was silently capturing the spacebar for itself. The editor now always receives everything you type, regardless of how the Joinable Data Marts section is displayed.
 
 Two more editing annoyances are gone as well:
 
