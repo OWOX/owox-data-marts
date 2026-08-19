@@ -1,8 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   DestinationCard,
   EmptyDataMartDestinationsState,
 } from '../../../features/data-marts/reports/list/components';
+import { REPORT_ID_URL_PARAM } from '../../../features/data-marts/reports/list/model/hooks';
+import { useReport } from '../../../features/data-marts/reports/shared';
 import { useOutletContext } from 'react-router';
 import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
@@ -21,6 +24,7 @@ import { PromoBlock } from '../../../shared/components/PromoBlock/PromoBlock';
 import { GoogleSheetsIcon } from '../../../shared/icons/google-sheets-icon';
 import { InviteTeammatesCard } from '../../../shared/components/InviteTeammatesCard';
 import { useProjectRoute } from '../../../shared/hooks/useProjectRoute';
+import { useUrlParam } from '../../../shared/hooks';
 
 function DataMartDestinationsContentInner() {
   const { dataMart, publishDataMartWithEffects } = useOutletContext<DataMartContextType>();
@@ -36,6 +40,28 @@ function DataMartDestinationsContentInner() {
   }, []);
   // Centralized reports polling for this Data Mart
   useDataMartReportsAutoRefresh({ enabled: true, intervalMs: 5000 });
+
+  // Deep link handling: DestinationCard opens the report sidesheet for a matching
+  // reportId query param; here we only clean up a param that matches no report.
+  const { value: deepLinkReportId, removeParam: removeReportIdParam } =
+    useUrlParam(REPORT_ID_URL_PARAM);
+  const { reports, loading: reportsLoading } = useReport();
+  const hasReportsFetchStarted = useRef(false);
+  const hasCheckedDeepLink = useRef(false);
+  useEffect(() => {
+    if (reportsLoading) {
+      hasReportsFetchStarted.current = true;
+      return;
+    }
+    if (!hasReportsFetchStarted.current || hasCheckedDeepLink.current || !deepLinkReportId) {
+      return;
+    }
+    hasCheckedDeepLink.current = true;
+    if (!reports.some(report => report.id === deepLinkReportId)) {
+      toast.error(`Report not found by id ${deepLinkReportId}`);
+      removeReportIdParam();
+    }
+  }, [reportsLoading, reports, deepLinkReportId, removeReportIdParam]);
 
   // Show onboarding video about email reports if the user has not seen it yet
   const shouldShowOnboarding = !isLoading && dataDestinations.length === 0;

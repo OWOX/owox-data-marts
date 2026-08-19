@@ -67,6 +67,17 @@ function useDestinationStats(destinationId: string) {
 }
 
 /**
+ * Returns the reports that belong to a destination.
+ */
+function useDestinationReports(destinationId: string) {
+  const { reports } = useReport();
+  return useMemo(
+    () => reports.filter(report => report.dataDestination.id === destinationId),
+    [reports, destinationId]
+  );
+}
+
+/**
  * DestinationCard component
  * - Displays a collapsible card for each Data Destination
  * - Allows adding and editing reports via a modal
@@ -85,9 +96,11 @@ export function DestinationCard({
   const [dialogContent, setDialogContent] = useState<ReportCreationDialog>('setup');
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Modal state and handlers for creating/editing reports
+  // Modal state and handlers for creating/editing reports.
+  // Passing the destination reports enables deep linking via the reportId query param.
+  const destinationReports = useDestinationReports(destination.id);
   const { isOpen, mode, editingReport, handleAddReport, handleEditReport, handleCloseModal } =
-    useReportSidesheet();
+    useReportSidesheet({ deepLinkReports: destinationReports });
 
   // Condition to show InviteTeammatesCard
   const { reportsCount, googleSheetsCount } = useDestinationStats(destination.id);
