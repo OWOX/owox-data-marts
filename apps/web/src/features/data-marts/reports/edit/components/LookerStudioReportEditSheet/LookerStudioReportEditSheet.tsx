@@ -1,11 +1,4 @@
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@owox/ui/components/sheet';
-import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/components/sheet';
 import { UnsavedChangesConfirmationDialog } from '../../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { LookerStudioReportEditForm } from '../LookerStudioReportEditForm';
@@ -14,7 +7,7 @@ import { ReportFormMode } from '../../../shared';
 import type { DataDestination } from '../../../../../data-destination';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
-import { useReportDeepLink } from '../../hooks/useReportDeepLink';
+import { ReportSheetDescription } from '../ReportSheetDescription';
 
 interface LookerStudioReportEditSheetProps {
   isOpen: boolean;
@@ -44,8 +37,6 @@ export function LookerStudioReportEditSheet({
 
   useIntercomLauncher(isOpen);
 
-  const reportLink = useReportDeepLink(mode === ReportFormMode.EDIT ? initialReport : undefined);
-
   return (
     <Sheet
       open={isOpen}
@@ -58,16 +49,11 @@ export function LookerStudioReportEditSheet({
       <SheetContent data-testid='reportEditSheet'>
         <SheetHeader>
           <SheetTitle>{preSelectedDestination?.title ?? 'Data Studio'}</SheetTitle>
-          <div className='flex w-full items-center gap-4'>
-            <SheetDescription>
-              {mode === ReportFormMode.CREATE
-                ? 'Set up Data Mart as a data source'
-                : 'Update connection details'}
-            </SheetDescription>
-            {reportLink && (
-              <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />
-            )}
-          </div>
+          <ReportSheetDescription mode={mode} report={initialReport}>
+            {mode === ReportFormMode.CREATE
+              ? 'Set up Data Mart as a data source'
+              : 'Update connection details'}
+          </ReportSheetDescription>
         </SheetHeader>
 
         <DataDestinationProvider>

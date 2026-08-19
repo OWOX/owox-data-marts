@@ -1,11 +1,4 @@
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@owox/ui/components/sheet';
-import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/components/sheet';
 import { UnsavedChangesConfirmationDialog } from '../../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { GoogleSheetsReportEditForm } from '../GoogleSheetsReportEditForm';
@@ -14,7 +7,7 @@ import { ReportFormMode } from '../../../shared';
 import type { DataDestination } from '../../../../../data-destination';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
-import { useReportDeepLink } from '../../hooks/useReportDeepLink';
+import { ReportSheetDescription } from '../ReportSheetDescription';
 
 interface GoogleSheetsReportEditSheetProps {
   isOpen: boolean;
@@ -44,8 +37,6 @@ export function GoogleSheetsReportEditSheet({
 
   useIntercomLauncher(isOpen);
 
-  const reportLink = useReportDeepLink(mode === ReportFormMode.EDIT ? initialReport : undefined);
-
   return (
     <Sheet
       open={isOpen}
@@ -60,16 +51,11 @@ export function GoogleSheetsReportEditSheet({
           <SheetTitle>
             {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
           </SheetTitle>
-          <div className='flex w-full items-center gap-4'>
-            <SheetDescription>
-              {mode === ReportFormMode.CREATE
-                ? 'Fill in the details to create a new Google Sheets report'
-                : 'Update details of an existing Google Sheets report'}
-            </SheetDescription>
-            {reportLink && (
-              <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />
-            )}
-          </div>
+          <ReportSheetDescription mode={mode} report={initialReport}>
+            {mode === ReportFormMode.CREATE
+              ? 'Fill in the details to create a new Google Sheets report'
+              : 'Update details of an existing Google Sheets report'}
+          </ReportSheetDescription>
         </SheetHeader>
 
         <DataDestinationProvider>

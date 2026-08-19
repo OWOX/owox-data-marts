@@ -1,11 +1,4 @@
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@owox/ui/components/sheet';
-import { CopyLinkButton } from '@owox/ui/components/common/copy-link-button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/components/sheet';
 import { useCallback } from 'react';
 import { UnsavedChangesConfirmationDialog } from '../../../../../../shared/components/UnsavedChangesConfirmationDialog';
 import { DataDestinationProvider } from '../../../../../data-destination';
@@ -18,7 +11,7 @@ import { toast } from 'sonner';
 import { Link, useLocation, useParams } from 'react-router';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
-import { useReportDeepLink } from '../../hooks/useReportDeepLink';
+import { ReportSheetDescription } from '../ReportSheetDescription';
 
 interface EmailReportEditSheetProps {
   isOpen: boolean;
@@ -86,8 +79,6 @@ export function EmailReportEditSheet({
 
   useIntercomLauncher(isOpen);
 
-  const reportLink = useReportDeepLink(mode === ReportFormMode.EDIT ? initialReport : undefined);
-
   return (
     <Sheet
       open={isOpen}
@@ -103,16 +94,11 @@ export function EmailReportEditSheet({
             {preSelectedDestination?.title ??
               (mode === ReportFormMode.CREATE ? 'Create Report' : 'Report')}
           </SheetTitle>
-          <div className='flex w-full items-center gap-4'>
-            <SheetDescription>
-              {mode === ReportFormMode.CREATE
-                ? 'Fill in the details to create a new report'
-                : 'Update details of an existing report'}
-            </SheetDescription>
-            {reportLink && (
-              <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />
-            )}
-          </div>
+          <ReportSheetDescription mode={mode} report={initialReport}>
+            {mode === ReportFormMode.CREATE
+              ? 'Fill in the details to create a new report'
+              : 'Update details of an existing report'}
+          </ReportSheetDescription>
         </SheetHeader>
 
         <DataDestinationProvider>

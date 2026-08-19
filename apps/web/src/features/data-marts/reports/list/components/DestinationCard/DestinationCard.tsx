@@ -51,22 +51,6 @@ const reportDestinationTypes = [
 type ReportCreationDialog = 'publish' | 'setup';
 
 /**
- * Returns stats for a destination: report count and total Google Sheets destinations.
- */
-function useDestinationStats(destinationId: string) {
-  const { reports } = useReport();
-  const { dataDestinations } = useDataDestination();
-  return useMemo(
-    () => ({
-      reportsCount: reports.filter(r => r.dataDestination.id === destinationId).length,
-      googleSheetsCount: dataDestinations.filter(d => d.type === DataDestinationType.GOOGLE_SHEETS)
-        .length,
-    }),
-    [reports, dataDestinations, destinationId]
-  );
-}
-
-/**
  * Returns the reports that belong to a destination.
  */
 function useDestinationReports(destinationId: string) {
@@ -76,6 +60,19 @@ function useDestinationReports(destinationId: string) {
     [reports, destinationId]
   );
 }
+
+/**
+ * Returns the total number of Google Sheets destinations in the project.
+ */
+function useGoogleSheetsDestinationCount() {
+  const { dataDestinations } = useDataDestination();
+  return useMemo(
+    () => dataDestinations.filter(d => d.type === DataDestinationType.GOOGLE_SHEETS).length,
+    [dataDestinations]
+  );
+}
+
+const NO_DEEP_LINK_REPORTS: never[] = [];
 
 /**
  * DestinationCard component
@@ -97,13 +94,15 @@ export function DestinationCard({
   const [isPublishing, setIsPublishing] = useState(false);
 
   // Modal state and handlers for creating/editing reports.
-  // Passing the destination reports enables deep linking via the reportId query param.
+  // Passing the destination reports enables deep linking via the reportId query param;
+  // an invisible card never renders its sheet, so it must not consume the param.
   const destinationReports = useDestinationReports(destination.id);
   const { isOpen, mode, editingReport, handleAddReport, handleEditReport, handleCloseModal } =
-    useReportSidesheet({ deepLinkReports: destinationReports });
+    useReportSidesheet({ deepLinkReports: isVisible ? destinationReports : NO_DEEP_LINK_REPORTS });
 
   // Condition to show InviteTeammatesCard
-  const { reportsCount, googleSheetsCount } = useDestinationStats(destination.id);
+  const reportsCount = destinationReports.length;
+  const googleSheetsCount = useGoogleSheetsDestinationCount();
   const shouldShowInviteCard =
     destination.type === DataDestinationType.GOOGLE_SHEETS &&
     reportsCount === 0 &&

@@ -15,6 +15,6 @@ export function useReportDeepLink(report: DataMartReport | undefined | null): st
   }
 
   return `${window.location.origin}${scope(
-    `/data-marts/${report.dataMart.id}/reports?${REPORT_ID_URL_PARAM}=${report.id}`
+    `/data-marts/${encodeURIComponent(report.dataMart.id)}/reports?${REPORT_ID_URL_PARAM}=${encodeURIComponent(report.id)}`
   )}`;
 }

@@ -42,7 +42,6 @@ export function useReportSidesheet({ deepLinkReports }: UseReportSidesheetOption
     setParam: setReportIdParam,
     removeParam: removeReportIdParam,
   } = useUrlParam(REPORT_ID_URL_PARAM);
-  const hasAttemptedDeepLink = useRef(false);
 
   /**
    * Opens the modal in CREATE mode
@@ -86,10 +85,19 @@ export function useReportSidesheet({ deepLinkReports }: UseReportSidesheetOption
    * Closes the modal and resets the editing report
    * Memoized to prevent unnecessary re-renders of child components
    */
+  // Param removal goes through a router transition, so for a few renders after a
+  // close the sidesheet is already closed while the param still reads the old value.
+  // Remember the value being removed so the auto-open effect does not re-open from it.
+  const justClosedReportIdRef = useRef<string | null>(null);
+
   const handleCloseModal = useCallback(() => {
     setIsOpen(false);
     setEditingReport(null);
-    if (isDeepLinkEnabled) {
+    // Remove the param only when this sidesheet instance owns it — every card on
+    // the page shares the param, and closing an unrelated (e.g. CREATE-mode) sheet
+    // must not clobber a deep link another card has not resolved yet.
+    if (isDeepLinkEnabled && editingReport?.id === deepLinkReportId) {
+      justClosedReportIdRef.current = deepLinkReportId;
       removeReportIdParam();
     }
     trackEvent({
@@ -98,19 +106,28 @@ export function useReportSidesheet({ deepLinkReports }: UseReportSidesheetOption
       action: mode === ReportFormMode.EDIT ? 'Edit' : 'Create',
       label: 'ReportForm',
     });
-  }, [isDeepLinkEnabled, mode, removeReportIdParam]);
+  }, [isDeepLinkEnabled, mode, editingReport, deepLinkReportId, removeReportIdParam]);
 
-  // Auto-open the sidesheet for a deep-linked report once it appears in the list
+  // Auto-open the sidesheet for a deep-linked report once it appears in the list.
+  // Guarded by isOpen (not a one-shot ref): a manual open sets the param itself, so
+  // the effect must not re-fire handleEditReport for it, while a new param arriving
+  // after a close must still open — both fall out of the isOpen check.
   useEffect(() => {
-    if (!isDeepLinkEnabled || !deepLinkReportId || hasAttemptedDeepLink.current) {
+    if (!isDeepLinkEnabled) {
+      return;
+    }
+    if (!deepLinkReportId) {
+      justClosedReportIdRef.current = null;
+      return;
+    }
+    if (isOpen || deepLinkReportId === justClosedReportIdRef.current) {
       return;
     }
     const report = deepLinkReports.find(item => item.id === deepLinkReportId);
     if (report) {
-      hasAttemptedDeepLink.current = true;
       handleEditReport(report);
     }
-  }, [isDeepLinkEnabled, deepLinkReports, deepLinkReportId, handleEditReport]);
+  }, [isDeepLinkEnabled, deepLinkReports, deepLinkReportId, isOpen, handleEditReport]);
 
   return {
     isOpen,

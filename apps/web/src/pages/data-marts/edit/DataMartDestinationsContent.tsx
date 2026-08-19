@@ -46,17 +46,21 @@ function DataMartDestinationsContentInner() {
   const { value: deepLinkReportId, removeParam: removeReportIdParam } =
     useUrlParam(REPORT_ID_URL_PARAM);
   const { reports, loading: reportsLoading } = useReport();
-  const hasReportsFetchStarted = useRef(false);
-  const hasCheckedDeepLink = useRef(false);
+  // The context starts with an empty reports array and keeps it on a failed fetch,
+  // so "a successful fetch happened" is detected by the array identity changing —
+  // never conclude "not found" from the initial (or error-preserved) state.
+  const initialReportsRef = useRef(reports);
+  const checkedReportIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (reportsLoading) {
-      hasReportsFetchStarted.current = true;
+    if (
+      !deepLinkReportId ||
+      reportsLoading ||
+      reports === initialReportsRef.current ||
+      checkedReportIdRef.current === deepLinkReportId
+    ) {
       return;
     }
-    if (!hasReportsFetchStarted.current || hasCheckedDeepLink.current || !deepLinkReportId) {
-      return;
-    }
-    hasCheckedDeepLink.current = true;
+    checkedReportIdRef.current = deepLinkReportId;
     if (!reports.some(report => report.id === deepLinkReportId)) {
       toast.error(`Report not found by id ${deepLinkReportId}`);
       removeReportIdParam();
