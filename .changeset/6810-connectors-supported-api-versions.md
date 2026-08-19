@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-# Connectors use supported API versions
+# Google Ads, LinkedIn Ads, LinkedIn Pages, and Shopify connectors use supported API versions
 
 Previously, the Google Ads connector called API version v21, which Google
 sunset on 2026-08-05, causing every import to fail with an
