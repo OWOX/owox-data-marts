@@ -109,7 +109,9 @@ export function EmailReportEditSheet({
                 ? 'Fill in the details to create a new report'
                 : 'Update details of an existing report'}
             </SheetDescription>
-            {reportLink && <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />}
+            {reportLink && (
+              <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />
+            )}
           </div>
         </SheetHeader>
 

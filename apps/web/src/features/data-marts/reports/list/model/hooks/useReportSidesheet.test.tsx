@@ -30,9 +30,10 @@ function renderSidesheetHook(initialEntry: string, deepLinkReports?: DataMartRep
 
 describe('useReportSidesheet deep linking', () => {
   it('auto-opens the sidesheet for a matching reportId query param', () => {
-    const { result } = renderSidesheetHook('/ui/project-1/data-marts/mart-1/reports?reportId=report-1', [
-      report,
-    ]);
+    const { result } = renderSidesheetHook(
+      '/ui/project-1/data-marts/mart-1/reports?reportId=report-1',
+      [report]
+    );
 
     expect(result.current.sidesheet.isOpen).toBe(true);
     expect(result.current.sidesheet.editingReport?.id).toBe('report-1');

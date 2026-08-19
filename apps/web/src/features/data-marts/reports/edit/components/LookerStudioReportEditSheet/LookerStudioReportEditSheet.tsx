@@ -64,7 +64,9 @@ export function LookerStudioReportEditSheet({
                 ? 'Set up Data Mart as a data source'
                 : 'Update connection details'}
             </SheetDescription>
-            {reportLink && <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />}
+            {reportLink && (
+              <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />
+            )}
           </div>
         </SheetHeader>
 

@@ -66,7 +66,9 @@ export function GoogleSheetsReportEditSheet({
                 ? 'Fill in the details to create a new Google Sheets report'
                 : 'Update details of an existing Google Sheets report'}
             </SheetDescription>
-            {reportLink && <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />}
+            {reportLink && (
+              <CopyLinkButton link={reportLink} ariaLabel='Copy link to this report' />
+            )}
           </div>
         </SheetHeader>
 
