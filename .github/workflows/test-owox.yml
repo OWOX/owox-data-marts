@@ -65,7 +65,9 @@ jobs:
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
       - name: Build better-sqlite3 native binding
-        if: matrix.test.name == 'Overall test @owox/backend'
+        if: >-
+          matrix.test.name == 'Overall test @owox/backend' ||
+          matrix.test.name == 'Overall test @owox/idp-owox-better-auth'
         run: npm rebuild better-sqlite3 --foreground-scripts
 
       - name: Build publishable CLI packages
