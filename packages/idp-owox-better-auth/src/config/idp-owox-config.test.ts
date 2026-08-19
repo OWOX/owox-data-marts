@@ -43,7 +43,6 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
       IDP_OWOX_EXTENSION_MICROSOFT_AUDIENCES: 'api://owox-api, owox-api-guid',
       IDP_OWOX_EXTENSION_MICROSOFT_SCOPE: 'identity.exchange',
       IDP_OWOX_EXTENSION_ALLOWED_ORIGINS: 'https://addin.owox.test,https://addin.owox.test/',
-      IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE: '12',
     });
 
     expect(config.idpOwox.extensionAuth).toMatchObject({
@@ -53,7 +52,6 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
         issuerAuthority: 'https://login.microsoftonline.com',
       },
       allowedOrigins: ['https://addin.owox.test'],
-      assertionRateLimitPerMinute: 12,
       clockTolerance: '5s',
     });
   });

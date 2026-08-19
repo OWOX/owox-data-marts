@@ -231,7 +231,6 @@ const MicrosoftExtensionAuthEnvSchema = z
     IDP_OWOX_EXTENSION_MICROSOFT_JWKS_URL: z.string().url().optional(),
     IDP_OWOX_EXTENSION_MICROSOFT_ISSUER_AUTHORITY: z.string().url().optional(),
     IDP_OWOX_EXTENSION_ALLOWED_ORIGINS: z.string().optional(),
-    IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE: z.string().optional(),
     IDP_OWOX_EXTENSION_CLOCK_TOLERANCE: zMsString.default('5s' as ms.StringValue),
   })
   .superRefine((value, ctx) => {
@@ -271,14 +270,6 @@ const MicrosoftExtensionAuthEnvSchema = z
     if (allowedOrigins.length === 0) {
       throw new Error('IDP_OWOX_EXTENSION_ALLOWED_ORIGINS must contain an origin');
     }
-    const rawRateLimit = value.IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE ?? '30';
-    const assertionRateLimitPerMinute = Number(rawRateLimit);
-    if (!Number.isSafeInteger(assertionRateLimitPerMinute) || assertionRateLimitPerMinute <= 0) {
-      throw new Error(
-        'IDP_OWOX_EXTENSION_ASSERTION_RATE_LIMIT_PER_MINUTE must be a positive integer'
-      );
-    }
-
     return {
       microsoft: {
         allowedAudiences,
@@ -290,7 +281,6 @@ const MicrosoftExtensionAuthEnvSchema = z
         ),
       },
       allowedOrigins: Array.from(new Set(allowedOrigins)),
-      assertionRateLimitPerMinute,
       clockTolerance: value.IDP_OWOX_EXTENSION_CLOCK_TOLERANCE,
     };
   });

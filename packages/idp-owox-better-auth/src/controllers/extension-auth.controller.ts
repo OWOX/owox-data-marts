@@ -25,55 +25,24 @@ import { validateBody } from '../services/middleware/validation-middleware.js';
 
 export interface ExtensionAuthControllerConfig {
   allowedOrigins: string[];
-  assertionRateLimitPerMinute: number;
-}
-
-class FixedWindowRateLimiter {
-  private readonly entries = new Map<string, { window: number; count: number }>();
-
-  constructor(private readonly limit: number) {}
-
-  consume(key: string): boolean {
-    const window = Math.floor(Date.now() / 60_000);
-    if (this.entries.size > 10_000) {
-      for (const [entryKey, entry] of this.entries) {
-        if (entry.window < window) this.entries.delete(entryKey);
-      }
-    }
-    const current = this.entries.get(key);
-    if (!current || current.window !== window) {
-      this.entries.set(key, { window, count: 1 });
-      return true;
-    }
-    if (current.count >= this.limit) return false;
-    current.count += 1;
-    return true;
-  }
 }
 
 /** Host-neutral public API for extension identity and project-token flows. */
 export class ExtensionAuthController {
   private readonly logger = createServiceLogger(ExtensionAuthController.name);
   private readonly allowedOrigins: Set<string>;
-  private readonly assertionRateLimiter: FixedWindowRateLimiter;
 
   constructor(
     private readonly service: ExtensionAuthService,
     config: ExtensionAuthControllerConfig
   ) {
     this.allowedOrigins = new Set(config.allowedOrigins);
-    this.assertionRateLimiter = new FixedWindowRateLimiter(config.assertionRateLimitPerMinute);
   }
 
   async authenticate(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
       const body = req.body as ExtensionAuthRequest;
       if ('assertion_type' in body) {
-        const rateLimitKey = req.ip || req.socket.remoteAddress || 'unknown';
-        if (!this.assertionRateLimiter.consume(rateLimitKey)) {
-          res.status(429).json({ error: 'rate_limited' });
-          return;
-        }
         const result = await this.service.exchangeMicrosoftAssertion(
           body.assertion,
           body.project_id

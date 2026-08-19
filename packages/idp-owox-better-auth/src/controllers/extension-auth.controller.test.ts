@@ -25,7 +25,6 @@ describe('ExtensionAuthController', () => {
     } as unknown as jest.Mocked<ExtensionAuthService>;
     controller = new ExtensionAuthController(service, {
       allowedOrigins: ['https://addin.owox.test'],
-      assertionRateLimitPerMinute: 30,
     });
   });
 
@@ -150,44 +149,5 @@ describe('ExtensionAuthController', () => {
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
-  });
-
-  it('rate limits assertion exchange without limiting refresh requests', async () => {
-    controller = new ExtensionAuthController(service, {
-      allowedOrigins: ['https://addin.owox.test'],
-      assertionRateLimitPerMinute: 1,
-    });
-    service.exchangeMicrosoftAssertion.mockResolvedValue({ status: 'authenticated', auth });
-    const assertionRequest = {
-      body: { assertion_type: 'ms_entra_access_token', assertion: 'assertion-1' },
-      ip: '127.0.0.1',
-      socket: {},
-      path: '/auth/api/extension',
-    } as Request;
-    const firstResponse = response();
-    const secondResponse = response();
-
-    await controller.authenticate(assertionRequest, firstResponse);
-    await controller.authenticate(
-      {
-        ...assertionRequest,
-        body: { ...assertionRequest.body, assertion: 'assertion-2' },
-      } as Request,
-      secondResponse
-    );
-
-    expect(service.exchangeMicrosoftAssertion).toHaveBeenCalledTimes(1);
-    expect(secondResponse.status).toHaveBeenCalledWith(429);
-
-    service.refreshIdentitySession.mockResolvedValue(auth);
-    const refreshResponse = response();
-    await controller.authenticate(
-      {
-        body: { refresh_token: 'identity-refresh-token' },
-        path: '/auth/api/extension',
-      } as Request,
-      refreshResponse
-    );
-    expect(refreshResponse.json).toHaveBeenCalledWith(auth);
   });
 });

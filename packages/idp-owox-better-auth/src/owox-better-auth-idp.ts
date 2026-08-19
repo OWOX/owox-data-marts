@@ -167,7 +167,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       );
       this.extensionAuthController = new ExtensionAuthController(extensionAuthService, {
         allowedOrigins: extensionAuthConfig.allowedOrigins,
-        assertionRateLimitPerMinute: extensionAuthConfig.assertionRateLimitPerMinute,
       });
     }
     this.pkceFlowOrchestrator = new PkceFlowOrchestrator(
