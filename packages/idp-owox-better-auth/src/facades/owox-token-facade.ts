@@ -140,12 +140,20 @@ export class OwoxTokenFacade {
 
   async revokeExtensionProjectToken(refreshToken: string): Promise<void> {
     await this.assertExtensionProjectToken(refreshToken);
-    await this.revokeToken(refreshToken);
+    const revoked = await this.requestTokenRevocation(refreshToken);
+    if (!revoked) {
+      throw new IdpFailedException('Failed to revoke extension project token');
+    }
   }
 
   async revokeToken(token: string): Promise<void> {
+    await this.requestTokenRevocation(token);
+  }
+
+  private async requestTokenRevocation(token: string): Promise<boolean> {
     const request: RevocationRequest = { token: token, tokenType: 'refresh_token' };
-    await this.identityClient.revokeToken(request);
+    const response = await this.identityClient.revokeToken(request);
+    return response.success;
   }
 
   async accessTokenMiddleware(

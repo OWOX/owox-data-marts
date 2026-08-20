@@ -85,4 +85,16 @@ describe('OwoxTokenFacade extension project-token boundary', () => {
       tokenType: 'refresh_token',
     });
   });
+
+  it('fails extension revoke when the identity service did not revoke the token', async () => {
+    parse.mockResolvedValue({ authFlow: 'extension' });
+    client.revokeToken.mockResolvedValue({ success: false });
+
+    await expect(
+      facade.revokeExtensionProjectToken('extension-refresh-token')
+    ).rejects.toMatchObject({
+      name: 'IdpFailedException',
+      status: 500,
+    });
+  });
 });

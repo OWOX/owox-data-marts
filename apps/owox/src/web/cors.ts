@@ -42,14 +42,26 @@ export function buildCorsAllowedHeaders(
   ];
 }
 
+function parseCorsAllowedOrigins(...values: Array<string | undefined>): string[] {
+  return [
+    ...new Set(
+      values.flatMap(value =>
+        value
+          ? value
+              .split(',')
+              .map(origin => origin.trim())
+              .filter(Boolean)
+          : []
+      )
+    ),
+  ];
+}
+
 export function buildCorsConfig(): CorsOptions {
-  const googleSheetsExtensionOrigin = process.env.GOOGLE_SHEETS_EXTENSION_ORIGIN;
-  const allowedOrigins = googleSheetsExtensionOrigin
-    ? googleSheetsExtensionOrigin
-        .split(',')
-        .map(origin => origin.trim())
-        .filter(origin => origin.length > 0)
-    : [];
+  const allowedOrigins = parseCorsAllowedOrigins(
+    process.env.GOOGLE_SHEETS_EXTENSION_ORIGIN,
+    process.env.IDP_OWOX_EXTENSION_ALLOWED_ORIGINS
+  );
 
   return {
     allowedHeaders: buildCorsAllowedHeaders(),

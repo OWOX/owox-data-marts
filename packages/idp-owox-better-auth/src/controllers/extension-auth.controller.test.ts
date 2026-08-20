@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Express, Request, Response } from 'express';
+import { IdpFailedException } from '../core/exceptions.js';
 import type { ExtensionAuthService } from '../services/auth/extension-auth-service.js';
 import { ExtensionAuthController } from './extension-auth.controller.js';
 
@@ -81,6 +82,23 @@ describe('ExtensionAuthController', () => {
     await controller.authenticate(req, res);
 
     expect(res.json).toHaveBeenCalledWith({ status: 'unknown_identity' });
+  });
+
+  it('does not return 204 when token revocation fails', async () => {
+    const req = {
+      body: { refresh_token: 'refresh-token' },
+      path: '/auth/api/extension/revoke',
+    } as Request;
+    const res = response();
+    service.revokeProjectToken.mockRejectedValue(
+      new IdpFailedException('Failed to revoke extension project token')
+    );
+
+    await controller.revoke(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    expect(res.status).not.toHaveBeenCalledWith(204);
   });
 
   it('registers only exchange, refresh and revoke routes', () => {
