@@ -2,7 +2,7 @@
 
 ## 0.32.0
 
-### Minor Changes
+### Minor Changes 0.32.0
 
 - aa314fd: # Values starting with "+" no longer break in Google Sheets reports
 
@@ -256,6 +256,7 @@
   Previously, every aggregated report automatically included a `Row Count` (`COUNT(*)`) column, even though it was never selected. The column has been removed: reports — and the MCP and HTTP data endpoints — now return only the columns you selected. If you need the number of underlying rows per group, apply the **Count** aggregation to a column that is always filled (an ID column works well); to count unique entities, use a Unique Count. A column of your own named "Row Count" is also no longer rejected in aggregated reports.
 
   ## What changes in existing reports
+
   - **Google Sheets**: on its next run, an aggregated report removes the `Row Count` column from the sheet structurally, shifting everything to its right one column left. Formulas and pivots referencing that range move with it — repoint anything that read `Row Count` to an explicit **Count** column first.
   - **Looker Studio**: `Row Count` was a schema field of the data source, and Looker Studio keeps requesting fields by their stored names. A chart built **only** on `Row Count` starts failing with an error naming the missing field; a chart that also uses other fields keeps working but silently drops the `Row Count` column. Open the data source and use **Refresh fields**, then rebuild the affected metric on an explicit **Count** field. Because report data is cached, individual reports switch to the new column set gradually as their cache entries expire (from minutes up to the cache lifetime configured on the report).
 
@@ -561,7 +562,7 @@
   - **HTTP Data streaming contracts strengthened** — `GET /api/external/http-data/data-marts/{dataMartId}.ndjson` now publishes its exact-column projection, bounded base64url controls, positive-integer limit, NDJSON response, run identifier, and failure contract in OpenAPI. `@owox/api-client` provides typed filter, sort, aggregation, and date-bucket controls for `dataMarts.traverseData(...)` and validates the NDJSON response media type before traversal. Consumers passing controls through `unknown[]` or widened variables must adopt the exported rule types or annotate their options with `TraverseDataOptions`; valid inline calls remain unchanged.
   - **Data Mart list contract actualized** — `GET /api/data-marts` now publishes viewer visibility, non-negative integer offset validation, owner-presence filtering, 1,000-item pages, and the complete nested list-item response contract, including nullable draft definition types and optional nullable user metadata strings. `@owox/api-client` validates every returned page and exposes the full `OWOXDataMart` shape; `dataMarts.list({ offset, ownerFilter })` can start from an offset, filter by `has_owners` or `no_owners`, and follows subsequent pages automatically. The package exports `OWOXDataMartListOptions`, `OWOXDataMartOwnerFilter`, and the nested Data Mart enum and object types, and rejects invalid list options before sending a request. Existing `dataMarts.list()` calls remain compatible.
 
-### Patch Changes
+### Patch Changes 0.31.0
 
 - @owox/internal-helpers@0.31.0
 - @owox/idp-protocol@0.31.0
@@ -2673,6 +2674,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -2680,6 +2682,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
