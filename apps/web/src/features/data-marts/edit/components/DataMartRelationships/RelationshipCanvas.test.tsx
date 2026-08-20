@@ -5,6 +5,9 @@ import { NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
 import type { ErdCardField } from '../../../shared/canvas/erd-fields';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
+import { getFittedGraphZoom, getGraphZoomRange } from './relationship-canvas-zoom';
+
+const FIT_VIEW_PADDING = 1 / 0.85 - 1;
 
 interface ReactFlowStubProps {
   children?: ReactNode;
@@ -131,12 +134,29 @@ describe('RelationshipCanvas viewport', () => {
     );
   });
 
-  it('passes the low zoom floor to a full fit after the interactive floor was raised', async () => {
+  it('derives the interactive zoom floor from the graph and pane geometry', async () => {
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+    const expectedRange = getGraphZoomRange(
+      getFittedGraphZoom(
+        getRenderedGraphBounds(),
+        reactFlowHarness.store.width,
+        reactFlowHarness.store.height,
+        FIT_VIEW_PADDING
+      )
+    );
+    expect(reactFlowHarness.latestProps?.minZoom).toBe(expectedRange.min);
+    expect(expectedRange.min).toBeGreaterThan(0.05);
+  });
+
+  it('passes the low zoom floor to a full fit while the interactive floor is raised', async () => {
     render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
 
     await waitFor(() => {
       expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
-      expect(reactFlowHarness.latestProps?.minZoom).toBe(1.5);
     });
     reactFlowHarness.fitView.mockClear();
 
@@ -153,6 +173,58 @@ describe('RelationshipCanvas viewport', () => {
     });
   });
 
+  it('keeps the zoom buttons working when the initial fit never settles', async () => {
+    // The bug behind this test: the zoom range used to be captured only after
+    // a completed fit, so a fit that ran under transient conditions (opening
+    // the page via search) left both buttons dead until "Fit to view".
+    reactFlowHarness.fitView.mockReset().mockReturnValue(new Promise<boolean>(() => undefined));
+
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(reactFlowHarness.zoomTo).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(reactFlowHarness.zoomTo).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovers with a full fit when the viewport zoom is corrupted', async () => {
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+    });
+    reactFlowHarness.fitView.mockClear();
+    reactFlowHarness.getZoom.mockReturnValue(Number.NaN);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+
+    expect(reactFlowHarness.zoomTo).not.toHaveBeenCalled();
+    expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores viewport moves that carry a non-finite zoom', async () => {
+    render(
+      <RelationshipCanvas
+        {...buildCanvasProps([
+          buildRelationship('rel-1', 'target-1'),
+          buildRelationship('rel-2', 'target-2'),
+        ])}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
+
+    reactFlowHarness.latestProps?.onMove?.(null, { x: -10_000, y: 10_000, zoom: Number.NaN });
+
+    expect(reactFlowHarness.setViewport).not.toHaveBeenCalled();
+  });
+
   it('re-enables automatic fit when graph content changes after a user move', async () => {
     const initialRelationship = buildRelationship('rel-1', 'target-1');
     const { rerender } = render(
@@ -161,7 +233,6 @@ describe('RelationshipCanvas viewport', () => {
 
     await waitFor(() => {
       expect(reactFlowHarness.fitView).toHaveBeenCalledTimes(1);
-      expect(reactFlowHarness.latestProps?.minZoom).toBe(1.5);
     });
     reactFlowHarness.latestProps?.onMoveStart?.({ type: 'pointerdown' });
 

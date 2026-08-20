@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { GRAPH_ZOOM_MAX, getGraphZoomRange, getNextGraphZoom } from './relationship-canvas-zoom';
+import {
+  GRAPH_ZOOM_MAX,
+  GRAPH_ZOOM_MIN,
+  getFittedGraphZoom,
+  getGraphZoomRange,
+  getNextGraphZoom,
+} from './relationship-canvas-zoom';
 
 describe('relationship canvas zoom', () => {
   it('uses the fitted graph zoom as the minimum zoom', () => {
@@ -27,12 +33,27 @@ describe('relationship canvas zoom', () => {
     expect(next?.delta).toBeCloseTo(GRAPH_ZOOM_MAX / 2.9 - 1);
   });
 
-  it('clamps an oversized fitted zoom to the maximum zoom', () => {
-    expect(getGraphZoomRange(GRAPH_ZOOM_MAX + 1).min).toBe(GRAPH_ZOOM_MAX);
+  it('keeps the range usable when the fit lands on the maximum zoom', () => {
+    // A tiny graph on a large pane fits at the max zoom. min === max here
+    // turns both zoom buttons into permanent no-ops (the reported bug), so the
+    // floor falls back to 1x.
+    const range = getGraphZoomRange(GRAPH_ZOOM_MAX + 1);
+
+    expect(range.min).toBe(1);
+    expect(range.max).toBe(GRAPH_ZOOM_MAX);
+    expect(getNextGraphZoom(GRAPH_ZOOM_MAX, -0.25, range)?.zoom).toBeLessThan(GRAPH_ZOOM_MAX);
+    expect(getNextGraphZoom(1, 0.25, range)?.zoom).toBeGreaterThan(1);
   });
 
   it('returns null when the requested zoom is already on the range boundary', () => {
     expect(getNextGraphZoom(GRAPH_ZOOM_MAX, 0.25, getGraphZoomRange(0.2))).toBeNull();
+  });
+
+  it('never moves opposite to the pressed direction when clamping', () => {
+    // The measured graph can be slightly larger than the layout sizes the
+    // range is derived from, leaving the current zoom below range.min — a
+    // zoom-out press must not zoom in.
+    expect(getNextGraphZoom(0.4, -0.25, { min: 0.5, max: GRAPH_ZOOM_MAX })).toBeNull();
   });
 
   it('guards invalid current zoom values', () => {
@@ -43,5 +64,26 @@ describe('relationship canvas zoom', () => {
   it('falls back to a valid minimum for invalid fitted zoom values', () => {
     expect(getGraphZoomRange(Number.NaN).min).toBe(1);
     expect(getGraphZoomRange(0).min).toBe(1);
+  });
+
+  describe('getFittedGraphZoom', () => {
+    const bounds = { minX: 0, minY: 0, maxX: 800, maxY: 200 };
+
+    it('matches the fitView formula for a fractional padding', () => {
+      // padding 0.1 reserves 10% of the pane on each side: the graph gets
+      // 80% of 1000x500 — the width is the limiting side here.
+      expect(getFittedGraphZoom(bounds, 1000, 500, 0.1)).toBeCloseTo((1000 * 0.8) / 800);
+    });
+
+    it('clamps the fitted zoom into the supported range', () => {
+      expect(getFittedGraphZoom(bounds, 20000, 20000, 0)).toBe(GRAPH_ZOOM_MAX);
+      expect(getFittedGraphZoom(bounds, 10, 10, 0)).toBe(GRAPH_ZOOM_MIN);
+    });
+
+    it('reports degenerate inputs as NaN so the range falls back', () => {
+      expect(getFittedGraphZoom(bounds, 0, 500, 0.1)).toBeNaN();
+      expect(getFittedGraphZoom({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, 1000, 500, 0.1)).toBeNaN();
+      expect(getGraphZoomRange(getFittedGraphZoom(bounds, 0, 0, 0.1)).min).toBe(1);
+    });
   });
 });
