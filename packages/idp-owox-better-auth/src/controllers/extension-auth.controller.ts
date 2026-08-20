@@ -115,7 +115,7 @@ export class ExtensionAuthController {
     this.logger[status >= 500 ? 'error' : 'info'](
       `Extension authentication failed: ${known ? error.name : 'UnknownError'}`,
       { path: req.path, status },
-      !known && error instanceof Error ? error : undefined
+      error instanceof Error ? error : undefined
     );
 
     if (error instanceof IdentityApiException) {

@@ -90,15 +90,25 @@ describe('ExtensionAuthController', () => {
       path: '/auth/api/extension/revoke',
     } as Request;
     const res = response();
-    service.revokeProjectToken.mockRejectedValue(
-      new IdpFailedException('Failed to revoke extension project token')
-    );
+    const error = new IdpFailedException('Failed to revoke extension project token');
+    const loggerError = jest.fn();
+    (
+      controller as unknown as {
+        logger: { error: typeof loggerError };
+      }
+    ).logger.error = loggerError;
+    service.revokeProjectToken.mockRejectedValue(error);
 
     await controller.revoke(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     expect(res.status).not.toHaveBeenCalledWith(204);
+    expect(loggerError).toHaveBeenCalledWith(
+      'Extension authentication failed: IdpFailedException',
+      { path: '/auth/api/extension/revoke', status: 500 },
+      error
+    );
   });
 
   it('registers only exchange, refresh and revoke routes', () => {

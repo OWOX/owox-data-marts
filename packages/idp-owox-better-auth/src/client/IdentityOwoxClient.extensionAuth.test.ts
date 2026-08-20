@@ -76,4 +76,26 @@ describe('IdentityOwoxClient Microsoft extension auth flow', () => {
       { headers: { Authorization: 'Bearer c2c-id-token' } }
     );
   });
+
+  it.each([400, 401, 404])('treats revocation HTTP %s as already revoked', async status => {
+    const error = { response: { status } };
+    httpMock.post.mockRejectedValue(error);
+    axiosIsAxiosErrorMock.mockImplementation(value => value === error);
+
+    await expect(
+      createClient().revokeToken({ token: 'refresh-token', tokenType: 'refresh_token' })
+    ).resolves.toEqual({ success: true });
+  });
+
+  it.each([{ response: { status: 429 } }, { response: { status: 503 } }, {}])(
+    'keeps revocation server and transport failures retryable',
+    async error => {
+      httpMock.post.mockRejectedValue(error);
+      axiosIsAxiosErrorMock.mockImplementation(value => value === error);
+
+      await expect(
+        createClient().revokeToken({ token: 'refresh-token', tokenType: 'refresh_token' })
+      ).resolves.toEqual({ success: false });
+    }
+  );
 });

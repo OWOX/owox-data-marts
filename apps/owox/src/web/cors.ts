@@ -51,6 +51,7 @@ function parseCorsAllowedOrigins(...values: Array<string | undefined>): string[]
               .split(',')
               .map(origin => origin.trim())
               .filter(Boolean)
+              .map(origin => new URL(origin).origin)
           : []
       )
     ),
@@ -58,9 +59,13 @@ function parseCorsAllowedOrigins(...values: Array<string | undefined>): string[]
 }
 
 export function buildCorsConfig(): CorsOptions {
+  const microsoftExtensionOrigins =
+    process.env.IDP_OWOX_EXTENSION_MICROSOFT_ENABLED === 'true'
+      ? process.env.IDP_OWOX_EXTENSION_ALLOWED_ORIGINS
+      : undefined;
   const allowedOrigins = parseCorsAllowedOrigins(
     process.env.GOOGLE_SHEETS_EXTENSION_ORIGIN,
-    process.env.IDP_OWOX_EXTENSION_ALLOWED_ORIGINS
+    microsoftExtensionOrigins
   );
 
   return {

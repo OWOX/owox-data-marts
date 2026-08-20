@@ -293,7 +293,8 @@ export class IdentityOwoxClient {
       return { success: resp.status >= 200 && resp.status < 300 };
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        return { success: false };
+        const status = err.response?.status;
+        return { success: status === 400 || status === 401 || status === 404 };
       }
       throw err;
     }
