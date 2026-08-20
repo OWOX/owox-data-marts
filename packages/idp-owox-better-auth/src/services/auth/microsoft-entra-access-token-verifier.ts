@@ -1,8 +1,8 @@
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import ms from 'ms';
 import { z } from 'zod';
 import type { ExtensionAuthConfig } from '../../config/idp-owox-config.js';
-import { AuthenticationException } from '../../core/exceptions.js';
+import { AuthenticationException, IdpFailedException } from '../../core/exceptions.js';
 
 const EntraAccessTokenClaimsSchema = z.object({
   iss: z.string().min(1),
@@ -42,6 +42,14 @@ function normalizeEmail(value: string | undefined): string | undefined {
 function normalizeText(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function isMicrosoftJwksFailure(cause: unknown): boolean {
+  if (cause instanceof TypeError) return true;
+  if (cause instanceof errors.JWKSTimeout) return true;
+  if (cause instanceof errors.JWKSInvalid) return true;
+  if (cause instanceof errors.JWKInvalid) return true;
+  return cause instanceof errors.JOSEError && cause.code === errors.JOSEError.code;
 }
 
 /**
@@ -101,6 +109,12 @@ export class MicrosoftEntraAccessTokenVerifier {
         ...(fullName ? { fullName } : {}),
       };
     } catch (cause) {
+      if (isMicrosoftJwksFailure(cause)) {
+        throw new IdpFailedException('Microsoft signing keys are unavailable', {
+          cause,
+          context: { reason: 'microsoft_jwks_unavailable' },
+        });
+      }
       throw new AuthenticationException('Microsoft assertion validation failed', {
         cause,
         description: 'invalid_assertion',

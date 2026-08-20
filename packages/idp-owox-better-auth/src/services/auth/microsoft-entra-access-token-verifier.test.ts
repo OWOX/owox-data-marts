@@ -1,11 +1,26 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from 'jose';
+import {
+  createLocalJWKSet,
+  errors,
+  exportJWK,
+  generateKeyPair,
+  SignJWT,
+  type JWK,
+  type JWTVerifyGetKey,
+} from 'jose';
 import { MicrosoftEntraAccessTokenVerifier } from './microsoft-entra-access-token-verifier.js';
 
 const TENANT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OBJECT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const AUDIENCE = 'api://owox-extension';
 const REQUIRED_SCOPE = 'identity.exchange';
+const VERIFIER_CONFIG = {
+  allowedAudiences: [AUDIENCE],
+  requiredScope: REQUIRED_SCOPE,
+  jwksUrl: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+  issuerAuthority: 'https://login.microsoftonline.com',
+  clockTolerance: '5s',
+} as const;
 
 describe('MicrosoftEntraAccessTokenVerifier', () => {
   let privateKey: CryptoKey;
@@ -17,13 +32,7 @@ describe('MicrosoftEntraAccessTokenVerifier', () => {
     const publicJwk = (await exportJWK(pair.publicKey)) as JWK;
     publicJwk.kid = 'test-key';
     verifier = new MicrosoftEntraAccessTokenVerifier(
-      {
-        allowedAudiences: [AUDIENCE],
-        requiredScope: REQUIRED_SCOPE,
-        jwksUrl: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
-        issuerAuthority: 'https://login.microsoftonline.com',
-        clockTolerance: '5s',
-      },
+      VERIFIER_CONFIG,
       createLocalJWKSet({ keys: [publicJwk] })
     );
   });
@@ -135,6 +144,37 @@ describe('MicrosoftEntraAccessTokenVerifier', () => {
       description: 'invalid_assertion',
     });
     await expect(verifier.verify(forged)).rejects.toMatchObject({
+      description: 'invalid_assertion',
+    });
+  });
+
+  it.each([
+    ['a JWKS timeout', new errors.JWKSTimeout()],
+    ['a non-success JWKS response', new errors.JOSEError('Expected 200 OK')],
+    ['an invalid JWKS response', new errors.JWKSInvalid('Invalid JWKS')],
+    ['a JWKS network failure', new TypeError('fetch failed')],
+  ])('reports %s as an upstream failure', async (_label, failure) => {
+    const keyResolver: JWTVerifyGetKey = async () => {
+      throw failure;
+    };
+    const unavailableVerifier = new MicrosoftEntraAccessTokenVerifier(VERIFIER_CONFIG, keyResolver);
+
+    await expect(unavailableVerifier.verify(await sign())).rejects.toMatchObject({
+      name: 'IdpFailedException',
+      status: 500,
+      context: { reason: 'microsoft_jwks_unavailable' },
+    });
+  });
+
+  it('keeps an unknown signing key classified as an invalid assertion', async () => {
+    const keyResolver: JWTVerifyGetKey = async () => {
+      throw new errors.JWKSNoMatchingKey();
+    };
+    const unknownKeyVerifier = new MicrosoftEntraAccessTokenVerifier(VERIFIER_CONFIG, keyResolver);
+
+    await expect(unknownKeyVerifier.verify(await sign())).rejects.toMatchObject({
+      name: 'AuthenticationException',
+      status: 401,
       description: 'invalid_assertion',
     });
   });
