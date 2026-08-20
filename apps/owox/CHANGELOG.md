@@ -4,81 +4,9 @@
 
 ### Minor Changes 0.32.0
 
-- aa314fd: # Values starting with "+" no longer break in Google Sheets reports
+![OWOX Data Marts – v0.32.0](https://github.com/user-attachments/assets/2c8c767b-0740-48cb-9e62-5a5ea6bbd10a)
 
-  Google Sheets treats a cell value that starts with `+` as the beginning of a formula, so exported values like session identifiers of the form `+Dri7…` used to show up as `#ERROR! Formula parse error` instead of the data.
-
-  Now the Google Sheets destination prefixes such values with an apostrophe (`'`) — the standard Sheets escape symbol. The cell displays the original value exactly as stored; the apostrophe is not part of the cell content. Only values starting with `+` are escaped: everything else, including formulas inserted as data (values starting with `=`), is exported unchanged.
-
-- 3f94296: # Reliable bulk publishing for Data Mart drafts
-
-  Previously, publishing Data Mart drafts in bulk from a Storage's menu could fail for every draft with a generic "please check them independently" message, even when some drafts were ready to publish. This is now fixed, so drafts you have access to publish succeed as expected. When a draft still cannot be published, the notification names the reason — that it has no definition yet, for example, or that its table name is not in the expected format — so you know what to correct before trying again.
-
-- 94e32a1: # Optional description for Data Mart relationships
-
-  Each join between Data Marts can now carry an optional free-text description explaining the business meaning of the relationship (e.g. "Visitors from the website sign up for the product and convert into users").
-  - **Data Setup UI**: a joined Data Mart's card gets a new **Description** tab next to Join Settings, with an autosaving text area. Inherited (transitive) joins show where to edit the description instead.
-  - **API**: `POST`/`PATCH /data-marts/:id/relationships` accept an optional `description`, and relationship responses return it. Sending `null` or an empty string clears it.
-  - **MCP**: `get_data_mart_details_by_id` with `detail_level=with_joined_fields` now returns a `joins` array — one entry per join edge with the joined data marts, the join key fields, and the relationship description — so AI assistants understand not only which fields a join contributes but how and why the data marts relate.
-
-- 03172e5: # Fix: "Copy from..." no longer shares or deletes another Data Mart's credentials
-
-  Using "Copy from..." to reuse a connector configuration from another Data Mart
-  made both Data Marts point at the same stored credentials instead of copying
-  the values. Saving the new Data Mart could then delete those shared
-  credentials, wiping them on both.
-
-  Copying a configuration that holds manually entered credentials now always
-  creates its own credentials record, and a Data Mart can no longer write to or
-  delete credentials that belong to another one. Data Marts that already share a
-  record are separated automatically the next time each of them is saved.
-
-  A few details worth knowing:
-  - Connections authorized through OAuth are still shared between Data Marts, as
-    they were before — such a credential belongs to the project rather than to a
-    single Data Mart.
-  - Credentials already wiped by this bug are not restored; those Data Marts need
-    their credentials entered again.
-  - A copied Microsoft Ads configuration starts from the source's current
-    (rotated) refresh token, so the copy keeps working even when the originally
-    entered token has already expired. From there each Data Mart rotates its own
-    token independently.
-  - Deleting a Data Mart no longer removes credentials that another Data Mart
-    still references: the record is handed over to the referencing Data Mart
-    instead, so a not-yet-separated pair cannot lose data through deletion.
-  - Copying a configuration with "Copy from…" now requires edit access to the
-    source Data Mart for every connector: you must be its technical owner, or it
-    must be shared with you for maintenance.
-
-- cf830e3: # Give MCP assistants the complete project context
-
-  MCP clients now receive the full project description through `get_project_context`, together with the current project metadata. Assistants are instructed to call the tool before their first project-specific operation, while the always-on MCP initialization instructions remain focused on OWOX workflows, security, and tool usage.
-
-  Project descriptions continue to support up to 10,000 characters and are returned without truncation. After an admin updates the description, the new value is available on the next `get_project_context` call without reconnecting the MCP client.
-
-- d9356e1: # Require an OWOX Data Marts Cloud license for Report Runs
-
-  Every Report Run — Google Sheets, Looker Studio, Email, Slack, Google Chat, MS Teams, HTTP Data, and MCP Query — is now authorized with OWOX Data Marts Cloud before it executes, and its consumption is billed to the project signed into the license key. Without a valid key the deployment runs as Community and Report Runs finish as Restricted with an actionable message; configuration is never hidden or deleted, and Process Runs are unaffected.
-
-  Community deployments can now configure every destination type, including Email, Slack, Google Chat, and MS Teams — the license gates only Report Run execution, not configuration.
-
-  Project administrators can create, rename, and revoke license keys in Project Settings → License keys. A key is bound to one deployment origin, is shown once on creation, and expires after 365 days. To rotate, create a new key, update the deployment, then revoke the old one.
-
-  Legacy offline Enterprise license keys are no longer supported and fall back to Community.
-
-- a30ab25: # Plugin collections: host-stored JSON documents for installed plugins
-
-  Plugins can declare project- or member-scoped collections in `plugin.json` and access them through `ctx.collections(name)`. The host persists JSON documents, applies the collection's entity authorization rules, and keeps credentials out of the plugin frame.
-
-  The SDK collection facade supports paginated `list`, nullable `get`, `put`, and `delete` operations. Entity-bound writes include an immutable `parentId`, allowing the host to authorize every operation against the current member's access to the parent entity.
-
-- a4c8c35: # Google Sheets reports recover from deleted sheets with one click
-
-  A Google Sheets report breaks when someone deletes its destination sheet. An import that replaces the spreadsheet's sheets breaks it the same way. The report then failed every run with a cryptic "Failed to find sheet 0" error.
-
-  Now the error explains what happened and names the fix. A failed report offers a "Reconnect & run" action in its row menu. One click rebinds the report to a sheet named after it — reusing the sheet if it exists, creating it otherwise — and reruns the report. Renaming the sheet afterwards is safe: the report tracks the sheet by its ID, not its name.
-
-- 3674b59: # Count unique records from any joined Data Mart
+- 3674b59: **Count unique records from any joined Data Mart**
 
   Every joined Data Mart now offers a `Unique Count` field in the report column picker, counting distinct records by that Data Mart's primary key. It answers "how many orders per customer" without adding an order column to the report. Composite keys are supported. The field can be selected and sorted by, but not filtered or fed into another aggregation.
 
@@ -88,10 +16,8 @@
 
   A key column marked **Hidden for Report** still counts, on the report's own Data Mart as well as on a joined one. Hiding a column takes it off the list of fields a report can show; counting distinct values of it puts nothing in the output, so there is nothing to hide. On the report's own Data Mart this is new — such a key used to leave the row disabled.
 
-  ## Some existing reports will show different numbers, and the new ones are correct
-
-  Rows whose declared primary key is empty used to be treated as one single record. That was wrong in three ways, and all three are fixed. A Data Mart with no declared key, or one whose key is always filled, is untouched.
-  - **`Unique Count` on a composite key was too high** and now goes down. Every row with an empty key component counted as one extra record — while a single-column key had always ignored such rows, so the same declaration behaved differently depending only on how many columns it had. This applies to any Data Mart with a composite key, joined or not.
+  **Some existing reports will show different numbers, and the new ones are correct.** Rows whose declared primary key is empty used to be treated as one single record. That was wrong in three ways, and all three are fixed. A Data Mart with no declared key, or one whose key is always filled, is untouched.
+  - **`Unique Count` on a composite key was too high** and now goes down. Every row with an empty key component counted as one extra record — while a single-column key had always ignored such rows, so the same declaration behaved differently depending only on how many columns it had. Applies to any Data Mart with a composite key, joined or not.
   - **`Sum` and `Average` on a joined Data Mart were too low** and now go up. All rows sharing an empty key collapsed into one, so the metric read a single row instead of all of them — verified on BigQuery, where twenty such rows summed to the value of one row before the fix and to all twenty after. `Min`, `Max`, the percentiles and `Combined` can shift for the same reason. The two metrics part ways on such a row on purpose: `Unique Count` does not count a record with no identity, while `Sum` still reads its value, so one report can legitimately say `0 orders, worth 2000`.
   - **A key unique only within what it is joined on is now counted per join key**, and the number rises sharply. A line number restarting at 1 in every order reported 12 — the largest order's line count — for a book of 4,300 line items. It now reports 4,300, which is what `Sum` and `Average` on that same key had always meant by it.
 
@@ -101,124 +27,59 @@
 
   One correction goes the other way, and removes a column rather than changing a number. On the report's own Data Mart, a **composite** key one of whose columns had **disconnected** from the source was quietly counted by the columns that remained — which merges records the full key keeps apart, so the count read low with nothing to say so. Such a key now withholds the metric entirely, exactly as a joined Data Mart's already did. Reconnect the missing column, or drop it from the key, and the count comes back.
 
-  ## Primary-key declarations worth a second look
-
-  Only where the **report's own** Data Mart is counted on a **composite** key, whose columns are joined into one value and read as text:
+  **Primary-key declarations worth a second look.** Only where the **report's own** Data Mart is counted on a **composite** key, whose columns are joined into one value and read as text:
   - a **floating-point** part can make two records count as one, when their values differ only in digits beyond what the text form shows;
   - a **date-time** part can do the same — a warehouse writes it at whatever precision it is configured to show, thousandths of a second on **Snowflake** by default — so two records moments apart count as one;
   - a **binary** part can stop the report with the warehouse's own error message rather than an OWOX one.
 
   Prefer whole-number or text columns, or dates without a time part. A **joined** Data Mart's `Unique Count` reads every part of its key as it stands, so none of this applies there. A key declared on a structured column — JSON, geographic, variant — is not one a warehouse can group by, and stops the report either way.
 
-  ## Also
+- d9356e1: **Require an OWOX Data Marts Cloud license for Report Runs**
 
-  A joined Data Mart with a declared primary key feeding `Sum`, `Average`, `Min`, `Max`, a percentile or `Combined` now numbers the rows it reads, which it previously skipped. The numbering runs per join key, so the cost follows the joined data the report actually touches — but reports over large joined Data Marts may run slightly slower.
+  Every Report Run — Google Sheets, Looker Studio, Email, Slack, Google Chat, MS Teams, HTTP Data, and MCP Query — is now authorized with OWOX Data Marts Cloud before it executes, and its consumption is billed to the project signed into the license key. Without a valid key the deployment runs as Community and Report Runs finish as Restricted with an actionable message; configuration is never hidden or deleted, and Process Runs are unaffected.
 
-  A joined Data Mart with a source column literally named `__owox_rid` is now rejected with an error naming the column, in the one case that previously slipped through and returned wrong numbers instead. Rename the source column, or the join reference pointing at it.
+  Community deployments can now configure every destination type, including Email, Slack, Google Chat, and MS Teams — the license gates only Report Run execution, not configuration.
 
-- 53e2b84: # Data Last Updated Date for AWS Athena
+  Project administrators can create, rename, and revoke license keys in Project Settings → License keys. A key is bound to one deployment origin, is shown once on creation, and expires after 365 days. To rotate, create a new key, update the deployment, then revoke the old one.
 
-  **Data Last Updated** now works for AWS Athena Data Marts, on every surface where it already worked for other storages: the Data Mart page, the Data Marts list, the model canvas, and MCP `query_data_mart` responses. No setup is needed — the value appears as soon as someone checks a Data Mart or a run delivers data.
+  Legacy offline Enterprise license keys are no longer supported and fall back to Community.
 
-  OWOX asks Athena which tables the executed query reads — views and SQL Data Marts resolve through to their underlying base tables — and then reads each table's last data change. What it can report depends on the table format. **Iceberg** tables answer exactly: the value is the time of the last commit to the data, visible right after a write.
+- a30ab25: **Plugin collections: host-stored JSON documents for installed plugins**
 
-  Classic **Hive** tables show **Unknown** instead. Their catalog stores no record of when the data changed, and the timestamps it does keep also move when someone only edits the table definition — reporting one could present stale data as freshly updated. Tables from federated catalogs are not measured either. When such a table sits alongside measurable ones, the coverage becomes partial, so the reported value stays a lower bound: the real time can only be more recent.
+  Plugins can declare project- or member-scoped collections in `plugin.json` and access them through `ctx.collections(name)`. The host persists JSON documents, applies the collection's entity authorization rules, and keeps credentials out of the plugin frame.
 
-- 918026f: # Data Last Updated Date for AWS Redshift
+  The SDK collection facade supports paginated `list`, nullable `get`, `put`, and `delete` operations. Entity-bound writes include an immutable `parentId`, allowing the host to authorize every operation against the current member's access to the parent entity.
 
-  **Data Last Updated** now works for AWS Redshift Data Marts, on every surface where it already worked for BigQuery: the Data Mart page, the Data Marts list, the model canvas, and MCP `query_data_mart` responses. No setup is needed — the value appears as soon as someone checks a Data Mart or a run delivers data.
+- 918026f: **Data Last Updated Date for AWS Redshift, AWS Athena, Snowflake, and Databricks**
 
-  OWOX asks Redshift which tables the executed query reads — views and SQL Data Marts resolve through to their underlying base tables — and then reads each table's last data modification time from Redshift's own metadata. Materialized views report the time of their last refresh. Expect the value to trail reality slightly: Redshift refreshes this metadata with a delay of up to about five minutes, so a load that just finished may take a moment to show.
+  **Data Last Updated** now works for four more storages, on every surface where it already worked for BigQuery: the Data Mart page, the Data Marts list, the model canvas, and MCP `query_data_mart` responses. In each case OWOX asks the storage which tables the executed query reads — views and SQL Data Marts resolve through to their underlying base tables — and then reads each table's last data change. When a table that cannot be measured sits alongside measurable ones, the coverage becomes partial, so the reported value stays a lower bound: the real time can only be more recent.
 
-  Some sources cannot be measured and show as unknown: Spectrum external tables, whose data lives outside Redshift, and tables Redshift reports no modification time for. When such a table sits alongside measurable ones, the coverage becomes partial, so the reported value stays a lower bound: the real time can only be more recent.
+  - **AWS Redshift** (918026f) — reads each table's last data modification time from Redshift's own metadata; materialized views report the time of their last refresh. No setup is needed. Expect the value to trail reality slightly: Redshift refreshes this metadata with a delay of up to about five minutes, so a load that just finished may take a moment to show. Spectrum external tables, whose data lives outside Redshift, and tables Redshift reports no modification time for show as unknown.
+  - **AWS Athena** (53e2b84) — what can be reported depends on the table format. **Iceberg** tables answer exactly: the value is the time of the last commit to the data, visible right after a write. Classic **Hive** tables show **Unknown** instead — their catalog stores no record of when the data changed, and the timestamps it does keep also move when someone only edits the table definition, so reporting one could present stale data as freshly updated. Tables from federated catalogs are not measured either. No setup is needed.
+  - **Snowflake** (b81cdb2) — reads each table's last **data** change from the account's DML history. The connection role needs access to the `SNOWFLAKE` database (account usage) — without it, Data Marts show Unknown. The value is the start of the hour in which the data last changed, and it can trail reality by several hours, because Snowflake publishes this history with a delay. Schema changes and Snowflake's own background maintenance do not move the value, so the reported time never overstates how fresh the data is. A table with no recorded data changes in the last year shows **Unknown** with a note, and a dropped-and-recreated table answers for its current generation only, never for its predecessor's history. Materialized views, Iceberg tables (whose data can change outside Snowflake), and other objects the history cannot answer for appear as unknown sources.
+  - **Databricks** (15166aa) — reads each **Delta** table's history for the last commit that actually changed data; the answer is exact and immediate. Maintenance operations do not count: a table that was only compacted by OPTIMIZE or cleaned by VACUUM keeps the timestamp of its last real write. Delta table history is kept for a limited period (30 days by default), so a table whose data last changed earlier shows **Unknown** with a note. Non-Delta and external tables have no history and show Unknown too. No setup is needed.
+  - **In MCP** (e387fee) — the AI assistant is now asked to present the `data_last_updated` timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC", converted to the user's time zone when known) instead of echoing the raw ISO-8601 value. The structured response still carries the ISO-8601 timestamp for machines.
 
-- b81cdb2: # Data Last Updated Date for Snowflake
+- 7edd34f: **The "Row Count" column is removed from aggregated reports**
 
-  **Data Last Updated** now works for Snowflake Data Marts, on every surface where it already worked for other storages: the Data Mart page, the Data Marts list, the model canvas, and MCP `query_data_mart` responses. The connection role needs access to the `SNOWFLAKE` database (account usage) — without it, Data Marts show Unknown.
+  Previously, every aggregated report automatically included a `Row Count` (`COUNT(*)`) column, even though it was never selected. The column has been removed: reports — and the MCP and HTTP data endpoints — now return only the columns you selected. If you need the number of underlying rows per group, apply the **Count** aggregation to a column that is always filled (an ID column works well); to count unique entities, use a Unique Count. A column of your own named "Row Count" is also no longer rejected in aggregated reports.
 
-  OWOX asks Snowflake which tables the executed query reads — views and SQL Data Marts resolve through to their underlying base tables — and then reads each table's last **data** change from the account's DML history. The value is the start of the hour in which the data last changed, and it can trail reality by several hours, because Snowflake publishes this history with a delay. Schema changes and Snowflake's own background maintenance do not move the value, so the reported time never overstates how fresh the data is.
+  What changes in existing reports:
+  - **Google Sheets** — on its next run, an aggregated report removes the `Row Count` column from the sheet structurally, shifting everything to its right one column left. Formulas and pivots referencing that range move with it — repoint anything that read `Row Count` to an explicit **Count** column first.
+  - **Data Studio** — `Row Count` was a schema field of the data source, and Looker Studio keeps requesting fields by their stored names. A chart built **only** on `Row Count` starts failing with an error naming the missing field; a chart that also uses other fields keeps working but silently drops the `Row Count` column. Open the data source and use **Refresh fields**, then rebuild the affected metric on an explicit **Count** field. Because report data is cached, individual reports switch to the new column set gradually as their cache entries expire (from minutes up to the cache lifetime configured on the report).
 
-  A table with no recorded data changes in the last year shows **Unknown** with a note. A dropped-and-recreated table answers for its current generation only, never for its predecessor's history. Materialized views, Iceberg tables (whose data can change outside Snowflake), and other objects the history cannot answer for appear as unknown sources and the coverage becomes partial, so the reported value stays a lower bound: the real time can only be more recent.
+- 94e32a1: **Optional description for Data Mart relationships**
 
-- 15166aa: # Data Last Updated Date for Databricks
+  Each join between Data Marts can now carry an optional free-text description explaining the business meaning of the relationship (e.g. "Visitors from the website sign up for the product and convert into users").
+  - **Data Setup UI** — a joined Data Mart's card gets a new **Description** tab next to Join Settings, with an autosaving text area. Inherited (transitive) joins show where to edit the description instead.
+  - **API** — `POST`/`PATCH /data-marts/:id/relationships` accept an optional `description`, and relationship responses return it. Sending `null` or an empty string clears it.
+  - **MCP** — `get_data_mart_details_by_id` with `detail_level=with_joined_fields` now returns a `joins` array — one entry per join edge with the joined data marts, the join key fields, and the relationship description — so AI assistants understand not only which fields a join contributes but how and why the data marts relate.
 
-  **Data Last Updated** now works for Databricks Data Marts, on every surface where it already worked for other storages: the Data Mart page, the Data Marts list, the model canvas, and MCP `query_data_mart` responses. No setup is needed — the value appears as soon as someone checks a Data Mart or a run delivers data.
+- e387fee: **Joinable Data Marts diagram: filters on the toolbar and the same view settings as the Models canvas**
 
-  OWOX asks Databricks which tables the executed query reads — views and SQL Data Marts resolve through to their underlying base tables — and then reads each **Delta** table's history for the last commit that actually changed data. The answer is exact and immediate. Maintenance operations do not count: a table that was only compacted by OPTIMIZE or cleaned by VACUUM keeps the timestamp of its last real write.
+  The **Status** and **looped data marts** filters moved out of the diagram's gear popover onto the toolbar, right next to search — the same place the Models canvas keeps its filters. They are now dropdowns (`All statuses` / `Published only` / `Draft only`, and `Hide looped data marts` / `Show looped data marts`). More importantly, the filters now cover **both views**: previously they only trimmed the Graph, so switching to List silently showed a different set of relationships. The List now applies the same rules as the diagram — including subtree semantics, where hiding a data mart also hides everything joined through it. Saved filter preferences carry over unchanged.
 
-  Delta table history is kept for a limited period (30 days by default), so a table whose data last changed earlier shows **Unknown** with a note. Non-Delta and external tables have no history and show Unknown too. When such a table sits alongside measurable ones, the coverage becomes partial, so the reported value stays a lower bound: the real time can only be more recent.
-
-- 7ffb499: # Copy a link to a Report
-
-  Reports now have a permanent direct link. Opening a report on the Data Mart Destinations tab puts it into the page URL, and a **Copy link** button in the report panel header lets you share that link with a teammate — opening it shows the page with the same report already open.
-
-- 08ebbda: Run newly created push-destination reports immediately by default when they are created through MCP `add_report`, and return the initial `run_id` for status polling. Use `run_immediately: false` for configuration-only creation; Looker Studio remains pull-based. If queueing fails after creation, the response preserves the report id and directs the assistant to retry with `run_report` instead of creating a duplicate report or Google Sheet.
-- 2549692: # Creating a report no longer stops you at "publish the Data Mart first"
-
-  Before, if your Data Mart was still a draft, the **New Report** button was simply greyed out with a tooltip saying "publish the Data Mart first" — you had to leave the page, find the publish button, publish, and come back to try again.
-
-  Now clicking **New Report** on a draft Data Mart takes you straight to the next step:
-  - If the Data Mart is ready to publish, you'll see **"Publish and create report"** — one click publishes it and opens the new report form right away.
-  - If something is still missing (like a Storage or an Input Source), you'll see exactly what's missing and a **"Review Data Setup"** button that takes you right there.
-
-- 76feef3: # Google Ads, LinkedIn Ads, LinkedIn Pages, and Shopify connectors use supported API versions
-
-  Previously, the Google Ads connector called API version v21, which Google
-  sunset on 2026-08-05, causing every import to fail with an
-  `UNSUPPORTED_VERSION` error. The LinkedIn Ads and LinkedIn Pages connectors
-  were also close to hitting the same wall: they called a version only two
-  months newer than one LinkedIn had already sunset. The Shopify connector was
-  two releases behind, with its version nearing its own support cutoff.
-
-  Now, Google Ads uses v25, LinkedIn Ads and LinkedIn Pages use the 2026-07
-  version, and Shopify uses the 2026-07 version — all current, supported
-  releases. This means imports for these connectors keep running instead of
-  failing once their old versions are sunset.
-
-- 04f822f: # Editing the table name no longer clears the other storage fields
-
-  On the connector setup step "Choose where to store your data", clearing the table name also wiped the dataset (or database) name. Typing a dataset name was impossible while the table field stayed empty — each keystroke disappeared.
-
-  The step now stops re-reading its own emitted value once you edit any field. Defaults still fill in on first open, and an existing target still loads when you edit a saved connector. The fix applies to every storage type: Google BigQuery, AWS Athena, Snowflake, AWS Redshift, and Databricks.
-
-- 43a54e6: # Google Ads campaign and video metrics import
-
-  Google Ads renamed four fields in its v25 API — `video_views`, `video_view_rate`, `campaign_start_date`, and `campaign_end_date` — and the connector kept requesting the old names. Because Google Ads rejects a query entirely when it contains even one unrecognized field, any `campaigns` or `campaigns_stats` import selecting one of these failed outright, including new data marts, which select the campaign dates by default.
-
-  The connector now requests Google Ads' current field names, so these imports run again. No action is needed: the fields keep the same names in OWOX, and existing data mart configurations and destination tables are unaffected.
-
-- 24932f6: # AI helper failures are now visible and understandable instead of silently disappearing
-
-  During AI metadata generation for SQL-based data marts, a missing BigQuery permission (`bigquery.datasets.create`, required by the technical-view flow) failed the run before the AI step — and the error toast auto-dismissed in seconds, so users never learned why nothing was generated. This release improves the communication around such failures without changing the technical-view creation logic itself:
-  - Generation errors now show as persistent, dismissible notifications instead of an auto-dismissing toast; leaving the page mid-generation leaves a notice that the run was cancelled.
-  - BigQuery permission errors are rewritten into a human-readable message naming the project and the missing permission, with the raw error expandable for support.
-  - AI helper trigger logs now include `dataMartId` and `projectId`, and the AI insights facade logs the caught error for failed metadata generation, so production incidents can be found by filtering logs on the data mart id.
-
-- e387fee: # Include field descriptions in the Models canvas exports
-
-  The Models canvas export dropped the business descriptions of Output Schema fields: in the OKF bundle the schema table's Description column carried only the PK/FK notes, and the JSON model graph omitted the field descriptions entirely.
-
-  Both formats now carry each field's description as stored in the Data Mart:
-  - **OKF (Markdown)** — the Description cell reads `PK.` → description. Multi-line descriptions collapse to a single line so they cannot break the Markdown table. The `FK to [Target]` notes left the schema table entirely: relationships live only in the Joins section, which already lists every join with its condition.
-  - **JSON** — every schema field gains a `description` property when one is set, staying compatible with the OWOX Model Canvas graph format.
-
-- e387fee: Ask the AI assistant to present the MCP `data_last_updated` timestamp in a business-friendly form (e.g. "August 4, 2026 at 09:46 UTC", converted to the user's time zone when known) instead of echoing the raw ISO-8601 value. The structured response still carries the ISO-8601 timestamp for machines.
-- e387fee: # Joinable Data Marts: filters on the toolbar, applied to both List and Graph
-
-  The **Status** and **looped data marts** filters of the Joinable Data Marts block moved out of the diagram's gear popover onto the toolbar, right next to search — the same place the Models canvas keeps its filters. They are now dropdowns (`All statuses` / `Published only` / `Draft only`, and `Hide looped data marts` / `Show looped data marts`).
-
-  More importantly, the filters now cover **both views**: previously they only trimmed the Graph, so switching to List silently showed a different set of relationships. The List now applies the same rules as the diagram — including subtree semantics, where hiding a data mart also hides everything joined through it. Saved filter preferences carry over unchanged.
-
-- e387fee: # api-client: expose `in`/`not_in` filters and the new relative-date presets in the traversal types
-
-  Release 0.31.0 taught the Data Mart traversal API the `in`/`not_in` operators and the `this_week`/`last_week`/`this_quarter`/`last_quarter`/`next_n_days` relative-date presets, but the public `@owox/api-client` types were not updated: a TypeScript caller writing `operator: 'in'` got a compile error even though the request itself works.
-  - `TraverseDataFilterRule` gains the `in`/`not_in` branch: `value` is an **array** of 1..500 same-type values (all strings or all numbers) — never a comma-separated string, and never booleans (use `is_true`/`is_false`).
-  - `TraverseDataRelativeDatePreset` gains `this_week`, `last_week`, `this_quarter`, `last_quarter`, and `next_n_days`.
-  - The `@owox/api-client` guide now documents every filter operator's `value` shape (scalar / array / `{ from, to }` / preset), the `in`/`not_in` constraints, the full relative-date preset list, and the NULL-inclusive semantics of negative operators; the OpenAPI description of the `filter` query parameter shows an `in` example.
-
-- e387fee: # Joinable Data Marts diagram: the same view settings as the Models canvas
-
-  The gear on the Joinable Data Marts diagram is back — and it now holds the same view settings as the Models canvas, shared component and all:
+  The gear is back, and now holds the same view settings as the Models canvas, shared component and all:
   - **View** — switch cards between **Compact** and **Detailed**; Detailed shows the joined mart's field rows (name + type, hidden-for-reporting fields dimmed), collapsed to 4 rows with an in-place "+N more" toggle.
   - **Layout algorithm** — **Horizontal** or **Vertical**; the diagram now uses the same dagre layout engine as the Models canvas.
   - **Show join fields** — join conditions (`source = target`) rendered as labels on the relationship lines.
@@ -226,7 +87,109 @@
 
   All settings are remembered per browser, and the inline and fullscreen diagrams stay in sync.
 
-- e387fee: # Typing in the SQL editor now works reliably on saved Data Marts
+- e387fee: **Include field descriptions in the Models canvas exports**
+
+  The Models canvas export dropped the business descriptions of Output Schema fields: in the OKF bundle the schema table's Description column carried only the PK/FK notes, and the JSON model graph omitted the field descriptions entirely. Both formats now carry each field's description as stored in the Data Mart:
+  - **OKF (Markdown)** — the Description cell reads `PK.` → description. Multi-line descriptions collapse to a single line so they cannot break the Markdown table. The `FK to [Target]` notes left the schema table entirely: relationships live only in the Joins section, which already lists every join with its condition.
+  - **JSON** — every schema field gains a `description` property when one is set, staying compatible with the OWOX Model Canvas graph format.
+
+- cf830e3: **Give MCP assistants the complete project context**
+
+  MCP clients now receive the full project description through `get_project_context`, together with the current project metadata. Assistants are instructed to call the tool before their first project-specific operation, while the always-on MCP initialization instructions remain focused on OWOX workflows, security, and tool usage.
+
+  Project descriptions continue to support up to 10,000 characters and are returned without truncation. After an admin updates the description, the new value is available on the next `get_project_context` call without reconnecting the MCP client.
+
+- 08ebbda: **Run newly created push-destination reports immediately through MCP**
+
+  Newly created push-destination reports now run immediately by default when created through MCP `add_report`, and the response returns the initial `run_id` for status polling. Use `run_immediately: false` for configuration-only creation; Looker Studio remains pull-based. If queueing fails after creation, the response preserves the report id and directs the assistant to retry with `run_report` instead of creating a duplicate report or Google Sheet.
+
+- 0301c9e: **Google Chat: direct webhook delivery, clearer setup, and delivery logs**
+
+  - **Direct delivery** (0301c9e) — Google Chat Destinations now offer Incoming Webhook and Channel Email delivery methods. Existing email-based destinations keep their current method, while new destinations default to direct delivery through a space-specific incoming webhook. Webhook messages are formatted cards containing the subject, Data Mart name, rendered report, and a link back to OWOX Data Marts.
+  - **Setup guidance and logs** (953f107) — destination settings now provide contextual instructions for choosing a delivery method and obtaining an incoming webhook URL or space email address. Report run logs identify the delivery method and destination without exposing webhook credentials, with per-part entries shown only when a report is split across multiple Google Chat messages.
+
+- 7ffb499: **Copy a link to a Report**
+
+  Reports now have a permanent direct link. Opening a report on the Data Mart Destinations tab puts it into the page URL, and a **Copy link** button in the report panel header lets you share that link with a teammate — opening it shows the page with the same report already open.
+
+- 2549692: **Creating a report no longer stops you at "publish the Data Mart first"**
+
+  Before, if your Data Mart was still a draft, the **New Report** button was simply greyed out with a tooltip saying "publish the Data Mart first" — you had to leave the page, find the publish button, publish, and come back to try again. Now clicking **New Report** on a draft Data Mart takes you straight to the next step:
+  - If the Data Mart is ready to publish, you'll see **"Publish and create report"** — one click publishes it and opens the new report form right away.
+  - If something is still missing (like a Storage or an Input Source), you'll see exactly what's missing and a **"Review Data Setup"** button that takes you right there.
+
+- 3f94296: **Reliable bulk publishing for Data Mart drafts**
+
+  Previously, publishing Data Mart drafts in bulk from a Storage's menu could fail for every draft with a generic "please check them independently" message, even when some drafts were ready to publish. This is now fixed, so drafts you have access to publish succeed as expected. When a draft still cannot be published, the notification names the reason — that it has no definition yet, for example, or that its table name is not in the expected format — so you know what to correct before trying again.
+
+- 6f2364e: **AI metadata generation for SQL data marts: no dataset-creation permission, and visible failures**
+
+  - **No `bigquery.datasets.create` required** (6f2364e) — generating AI metadata (field aliases and descriptions, data mart title and description) for a SQL-based data mart previously materialized a technical view in the `owox_internal_<location>` dataset, and creating that dataset on first use required the project-level `bigquery.datasets.create` permission — so users with data-only access (e.g. `BigQuery Job User` plus `BigQuery Data Viewer`) could not use the AI helper at all. Sample rows are now fetched through an inline derived table built from the data mart's own SQL (`SELECT <columns> FROM (<data mart sql>) LIMIT <n>`), so the AI helper needs exactly the permissions a regular report run needs:
+    - Plain `SELECT` definitions are inlined on every storage type except legacy Google BigQuery.
+    - `WITH`/CTE definitions are additionally inlined on Google BigQuery storage, where the SQL dialect accepts a CTE inside a parenthesized derived table; other storages keep the previous behavior for CTEs.
+    - Legacy Google BigQuery data marts, SQL that cannot be inlined, explicit table references, and non-SQL definitions (table, view, pattern, connector) continue to use the technical-view path, with the existing human-readable error if permissions are missing there.
+  - **Failures are now visible and understandable** (24932f6) — a missing BigQuery permission used to fail the run before the AI step, and the error toast auto-dismissed in seconds, so users never learned why nothing was generated. Generation errors now show as persistent, dismissible notifications instead of an auto-dismissing toast; leaving the page mid-generation leaves a notice that the run was cancelled. BigQuery permission errors are rewritten into a human-readable message naming the project and the missing permission, with the raw error expandable for support. AI helper trigger logs now include `dataMartId` and `projectId`, and the AI insights facade logs the caught error for failed metadata generation, so production incidents can be found by filtering logs on the data mart id.
+
+- 03172e5: **Fix: "Copy from…" no longer shares or deletes another Data Mart's credentials**
+
+  Using "Copy from…" to reuse a connector configuration from another Data Mart made both Data Marts point at the same stored credentials instead of copying the values. Saving the new Data Mart could then delete those shared credentials, wiping them on both.
+
+  Copying a configuration that holds manually entered credentials now always creates its own credentials record, and a Data Mart can no longer write to or delete credentials that belong to another one. Data Marts that already share a record are separated automatically the next time each of them is saved.
+
+  A few details worth knowing:
+  - Connections authorized through OAuth are still shared between Data Marts, as they were before — such a credential belongs to the project rather than to a single Data Mart.
+  - Credentials already wiped by this bug are not restored; those Data Marts need their credentials entered again.
+  - A copied Microsoft Ads configuration starts from the source's current (rotated) refresh token, so the copy keeps working even when the originally entered token has already expired. From there each Data Mart rotates its own token independently.
+  - Deleting a Data Mart no longer removes credentials that another Data Mart still references: the record is handed over to the referencing Data Mart instead, so a not-yet-separated pair cannot lose data through deletion.
+  - Copying a configuration with "Copy from…" now requires edit access to the source Data Mart for every connector: you must be its technical owner, or it must be shared with you for maintenance.
+
+  The error shown without that access now explains how to get it (8b29435): ask an owner to add you as a Technical Owner or to turn on "Shared for maintenance", or enter the credentials manually. The connector setup guide now documents the "Copy from…" option — who can copy credentials, the exact error text, and how to resolve it.
+
+- 76feef3: **Google Ads, LinkedIn Ads, LinkedIn Pages, and Shopify connectors use supported API versions**
+
+  Previously, the Google Ads connector called API version v21, which Google sunset on 2026-08-05, causing every import to fail with an `UNSUPPORTED_VERSION` error. The LinkedIn Ads and LinkedIn Pages connectors were also close to hitting the same wall: they called a version only two months newer than one LinkedIn had already sunset. The Shopify connector was two releases behind, with its version nearing its own support cutoff.
+
+  Now, Google Ads uses v25, LinkedIn Ads and LinkedIn Pages use the 2026-07 version, and Shopify uses the 2026-07 version — all current, supported releases. This means imports for these connectors keep running instead of failing once their old versions are sunset.
+
+- 43a54e6: **Google Ads campaign and video metrics import**
+
+  Google Ads renamed four fields in its v25 API — `video_views`, `video_view_rate`, `campaign_start_date`, and `campaign_end_date` — and the connector kept requesting the old names. Because Google Ads rejects a query entirely when it contains even one unrecognized field, any `campaigns` or `campaigns_stats` import selecting one of these failed outright, including new data marts, which select the campaign dates by default.
+
+  The connector now requests Google Ads' current field names, so these imports run again. No action is needed: the fields keep the same names in OWOX, and existing data mart configurations and destination tables are unaffected.
+
+- 6e6bac8: **Facebook imports survive an inaccessible ad account**
+
+  Previously, the Facebook Marketing connector aborted the whole import as soon as a single ad account returned a permission error. Because accounts are fetched one after another, one account the access token could no longer reach — typically a client that stopped sharing it — discarded the accounts already fetched and every account still queued behind it. The failure repeated on each following run, since the import never got far enough to record its progress, so the data stayed frozen until someone removed that account from the configuration by hand.
+
+  Now, an account that returns a permission error is skipped and the import carries on with the remaining ones, for catalog and time-series data alike. Each skip is raised as a warning on the run, so an account that is quietly missing from the destination is visible without reading the run log. Only permission failures are skipped: a storage write or an exhausted transient error still fails the run, which keeps the import from moving past a day whose data was never stored. If every account fails, the run stops with an error naming each one, because that points to a global cause such as an expired access token.
+
+- 064557c: **Memory-safe Keywords import for Microsoft Ads**
+
+  Previously, importing Keywords from a large Microsoft Ads account crashed the run with an out-of-memory error. The connector now streams records to storage in small chunks instead of loading the whole download at once. Imports of any account size now complete within normal memory limits.
+
+- 8976dca: **OpenHolidays connector no longer fails when saving fetched data**
+
+  Every OpenHolidays run failed with `TypeError: storage.saveData is not a function` right after the API returned holiday rows, so no data ever reached the storage table. The connector requested its storage instance without waiting for the async initialization to finish, then tried to save data into the still-pending result instead of the ready storage. It now waits for the storage to initialize before saving, and imports complete successfully.
+
+- 04f822f: **Editing the table name no longer clears the other storage fields**
+
+  On the connector setup step "Choose where to store your data", clearing the table name also wiped the dataset (or database) name. Typing a dataset name was impossible while the table field stayed empty — each keystroke disappeared.
+
+  The step now stops re-reading its own emitted value once you edit any field. Defaults still fill in on first open, and an existing target still loads when you edit a saved connector. The fix applies to every storage type: Google BigQuery, AWS Athena, Snowflake, AWS Redshift, and Databricks.
+
+- a4c8c35: **Google Sheets reports recover from deleted sheets with one click**
+
+  A Google Sheets report breaks when someone deletes its destination sheet, and an import that replaces the spreadsheet's sheets breaks it the same way. The report then failed every run with a cryptic "Failed to find sheet 0" error.
+
+  Now the error explains what happened and names the fix. A failed report offers a **Reconnect & run** action in its row menu. One click rebinds the report to a sheet named after it — reusing the sheet if it exists, creating it otherwise — and reruns the report. Renaming the sheet afterwards is safe: the report tracks the sheet by its ID, not its name.
+
+- aa314fd: **Values starting with "+" no longer break in Google Sheets reports**
+
+  Google Sheets treats a cell value that starts with `+` as the beginning of a formula, so exported values like session identifiers of the form `+Dri7…` used to show up as `#ERROR! Formula parse error` instead of the data.
+
+  Now the Google Sheets destination prefixes such values with an apostrophe (`'`) — the standard Sheets escape symbol. The cell displays the original value exactly as stored; the apostrophe is not part of the cell content. Only values starting with `+` are escaped: everything else, including formulas inserted as data (values starting with `=`), is exported unchanged.
+
+- e387fee: **Typing in the SQL editor now works reliably on saved Data Marts**
 
   On any saved Data Mart, the SQL Query editor could refuse to insert spaces: you would type `select * from`, press the spacebar, and nothing would appear. This happened whenever the Joinable Data Marts section was set to the diagram view — the diagram was silently capturing the spacebar for itself. The editor now always receives everything you type, regardless of how the Joinable Data Marts section is displayed.
 
@@ -234,7 +197,7 @@
   - A query you were still writing no longer disappears when the page refreshes its data in the background (for example, right after saving, publishing, or updating the output schema).
   - After picking a different input source type, the Save button no longer stays greyed out while a valid query is on screen.
 
-- 58d4891: # Connecting a Google account no longer fails intermittently
+- 58d4891: **Connecting a Google account no longer fails intermittently**
 
   Authorizing Google BigQuery storage or a Google Sheets destination could fail at random — the popup would show a sign-in screen or an authorization error, and the connection would only succeed after several attempts.
 
@@ -242,121 +205,18 @@
 
   Now the popup only hands the authorization result back to the tab where you clicked "Connect with Google", and that tab completes the connection using its own session. One attempt is all it takes.
 
-- 6f2364e: # AI metadata generation for SQL data marts no longer requires dataset-creation permission
+- e387fee: **api-client: expose `in`/`not_in` filters and the new relative-date presets in the traversal types**
 
-  Generating AI metadata (field aliases and descriptions, data mart title and description) for a SQL-based data mart previously materialized a technical view in the `owox_internal_<location>` dataset, and creating that dataset on first use required the project-level `bigquery.datasets.create` permission — so users with data-only access (e.g. `BigQuery Job User` plus `BigQuery Data Viewer`) could not use the AI helper at all.
+  Release 0.31.0 taught the Data Mart traversal API the `in`/`not_in` operators and the `this_week`/`last_week`/`this_quarter`/`last_quarter`/`next_n_days` relative-date presets, but the public `@owox/api-client` types were not updated: a TypeScript caller writing `operator: 'in'` got a compile error even though the request itself works.
+  - `TraverseDataFilterRule` gains the `in`/`not_in` branch: `value` is an **array** of 1..500 same-type values (all strings or all numbers) — never a comma-separated string, and never booleans (use `is_true`/`is_false`).
+  - `TraverseDataRelativeDatePreset` gains `this_week`, `last_week`, `this_quarter`, `last_quarter`, and `next_n_days`.
+  - The `@owox/api-client` guide now documents every filter operator's `value` shape (scalar / array / `{ from, to }` / preset), the `in`/`not_in` constraints, the full relative-date preset list, and the NULL-inclusive semantics of negative operators; the OpenAPI description of the `filter` query parameter shows an `in` example.
 
-  Sample rows for AI generation are now fetched through an inline derived table built from the data mart's own SQL (`SELECT <columns> FROM (<data mart sql>) LIMIT <n>`), so the AI helper needs exactly the permissions a regular report run needs:
-  - Plain `SELECT` definitions are inlined on every storage type except legacy Google BigQuery.
-  - `WITH`/CTE definitions are additionally inlined on Google BigQuery storage, where the SQL dialect accepts a CTE inside a parenthesized derived table; other storages keep the previous behavior for CTEs.
-  - Legacy Google BigQuery data marts, SQL that cannot be inlined, explicit table references, and non-SQL definitions (table, view, pattern, connector) continue to use the technical-view path, with the existing human-readable error if permissions are missing there.
+- ec28b5e: **API surface maintenance**
 
-- 7edd34f: # The "Row Count" column is removed from aggregated reports
-
-  Previously, every aggregated report automatically included a `Row Count` (`COUNT(*)`) column, even though it was never selected. The column has been removed: reports — and the MCP and HTTP data endpoints — now return only the columns you selected. If you need the number of underlying rows per group, apply the **Count** aggregation to a column that is always filled (an ID column works well); to count unique entities, use a Unique Count. A column of your own named "Row Count" is also no longer rejected in aggregated reports.
-
-  ## What changes in existing reports
-
-  - **Google Sheets**: on its next run, an aggregated report removes the `Row Count` column from the sheet structurally, shifting everything to its right one column left. Formulas and pivots referencing that range move with it — repoint anything that read `Row Count` to an explicit **Count** column first.
-  - **Looker Studio**: `Row Count` was a schema field of the data source, and Looker Studio keeps requesting fields by their stored names. A chart built **only** on `Row Count` starts failing with an error naming the missing field; a chart that also uses other fields keeps working but silently drops the `Row Count` column. Open the data source and use **Refresh fields**, then rebuild the affected metric on an explicit **Count** field. Because report data is cached, individual reports switch to the new column set gradually as their cache entries expire (from minutes up to the cache lifetime configured on the report).
-
-- 8976dca: # OpenHolidays connector no longer fails when saving fetched data
-
-  Every OpenHolidays run failed with `TypeError: storage.saveData is not a function` right after the API returned holiday rows, so no data ever reached the storage table.
-
-  The cause: the connector requested its storage instance without waiting for the async initialization to finish, then tried to save data into the still-pending result instead of the ready storage.
-
-  Now the connector waits for the storage to initialize before saving, and imports complete successfully.
-
-- 8b29435: # Improve: actionable error when copying connector credentials without access
-
-  Saving a connector Data Mart with a configuration copied via "Copy from…"
-  requires edit access to the source Data Mart. The error shown without that
-  access now explains how to get it: ask an owner to add you as a Technical
-  Owner or to turn on "Shared for maintenance", or enter the credentials
-  manually.
-
-  The connector setup guide now documents the "Copy from…" option: who can
-  copy credentials, the exact error text, and how to resolve it.
-
-- 064557c: # Memory-safe Keywords import for Microsoft Ads
-
-  Previously, importing Keywords from a large Microsoft Ads account crashed the run with an out-of-memory error. The connector now streams records to storage in small chunks instead of loading the whole download at once. Imports of any account size now complete within normal memory limits.
-
-- ec28b5e: # API surface maintenance
-
-  ## Low-level API client transport methods
-
-  OWOX API clients can now use `patchJson()` and `deleteJson()` alongside
-  `getJson()`, `postJson()`, `putJson()`, and `getStream()` for `/api/...`
-  endpoints that do not yet have typed resource abstractions. Authenticated
-  low-level requests accept only root-relative `/api/...` paths up to 2,048
-  characters and refuse unsafe paths and redirects, preventing credentials from
-  being sent to an unintended destination. Existing custom transports remain
-  source-compatible and can add PATCH and DELETE support independently; calling
-  an unsupported new method rejects with `OWOXConfigError`.
-
-  The existing plugin protocol adds PATCH and DELETE through `ctx.owox` as an
-  additive capability while preserving compatibility with existing plugins.
-  Low-level JSON return values are caller-typed and are not runtime-validated;
-  consumers should prefer typed resource abstractions when available.
-
-  ## Manage Data Mart run lifecycles through the API client
-
-  `@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through
-  the Data-Mart-scoped `runs.forDataMart(id)` client and its `start()`, `list()`, `get()`, and `cancel()`
-  methods. Starting and cancelling require Technical User access; listing and inspecting require
-  Business User access. `start()` accepts typed incremental or manual-backfill options, including
-  connector-specific fields. Manual-backfill `data` is optional for connectors without backfill
-  fields. The API client requires an explicit `MANUAL_BACKFILL` run type whenever `data` is supplied
-  and rejects `data` on implicit or explicit incremental runs before sending a request. The backend
-  HTTP endpoint separately accepts retained object-valued `data` on incremental requests so existing
-  run forms remain compatible. The client also rejects empty, dot-segment, or separator-bearing Data
-  Mart and run IDs before sending a request. Serialized manual-run options are limited to 1 MiB by
-  both the client and HTTP API; requests above the HTTP transport ceiling return `413` instead of an
-  internal-server error. Packaged authentication middleware now limits its body parsers to `/auth`,
-  so it no longer overrides the backend API's 2 MiB transport ceiling.
-
-  Scoped list pagination defaults to 100 items when omitted and preserves valid caller-provided limits
-  and offsets without silently capping them. The scoped list method rejects unknown, zero or negative
-  limits, negative offsets, non-integer values, non-finite values, and integers outside JavaScript's
-  safe range before authentication or network access. Project-wide `runs.list()` pagination remains
-  unchanged and relies on server normalization.
-  Project-wide and Data-Mart-scoped run methods remain compatible with older self-hosted deployments
-  that omit Data Quality fields, and Data Quality response validation tolerates additive server fields
-  while still checking known values. Existing typed integrations need no migration.
-
-- 6e6bac8: # Facebook imports survive an inaccessible ad account
-
-  Previously, the Facebook Marketing connector aborted the whole import as soon as a single ad
-  account returned a permission error. Because accounts are fetched one after another, one account
-  the access token could no longer reach — typically a client that stopped sharing it — discarded the
-  accounts already fetched and every account still queued behind it. The failure repeated on each
-  following run, since the import never got far enough to record its progress, so the data stayed
-  frozen until someone removed that account from the configuration by hand.
-
-  Now, an account that returns a permission error is skipped and the import carries on with the
-  remaining ones, for catalog and time-series data alike. Each skip is raised as a warning on the run,
-  so an account that is quietly missing from the destination is visible without reading the run log.
-  Only permission failures are skipped: a storage write or an exhausted transient error still fails
-  the run, which keeps the import from moving past a day whose data was never stored. If every account
-  fails, the run stops with an error naming each one, because that points to a global cause such as an
-  expired access token — and finishing quietly there would hide an outage behind a run that imported
-  nothing at all.
-
-- 0301c9e: # Add direct Google Chat delivery while preserving channel email
-
-  Google Chat Destinations now offer Incoming Webhook and Channel Email delivery methods. Existing
-  email-based destinations keep their current method, while new destinations default to direct
-  delivery through a space-specific incoming webhook. Webhook messages are formatted cards containing
-  the subject, Data Mart name, rendered report, and a link back to OWOX Data Marts.
-
-- 953f107: # Improve Google Chat setup guidance and delivery logs
-
-  Google Chat destination settings now provide contextual instructions for choosing a delivery
-  method and obtaining an incoming webhook URL or space email address. Report run logs also identify
-  the delivery method and destination without exposing webhook credentials, with per-part entries
-  shown only when a report is split across multiple Google Chat messages.
+  - **Low-level API client transport methods** — OWOX API clients can now use `patchJson()` and `deleteJson()` alongside `getJson()`, `postJson()`, `putJson()`, and `getStream()` for `/api/...` endpoints that do not yet have typed resource abstractions. Authenticated low-level requests accept only root-relative `/api/...` paths up to 2,048 characters and refuse unsafe paths and redirects, preventing credentials from being sent to an unintended destination. Existing custom transports remain source-compatible and can add PATCH and DELETE support independently; calling an unsupported new method rejects with `OWOXConfigError`. The existing plugin protocol adds PATCH and DELETE through `ctx.owox` as an additive capability while preserving compatibility with existing plugins. Low-level JSON return values are caller-typed and are not runtime-validated; consumers should prefer typed resource abstractions when available.
+  - **Manage Data Mart run lifecycles through the API client** — `@owox/api-client` now supports starting, listing, inspecting, and cancelling Data Mart runs through the Data-Mart-scoped `runs.forDataMart(id)` client and its `start()`, `list()`, `get()`, and `cancel()` methods. Starting and cancelling require Technical User access; listing and inspecting require Business User access. `start()` accepts typed incremental or manual-backfill options, including connector-specific fields; manual-backfill `data` is optional for connectors without backfill fields. The client requires an explicit `MANUAL_BACKFILL` run type whenever `data` is supplied and rejects `data` on implicit or explicit incremental runs before sending a request, while the backend HTTP endpoint separately accepts retained object-valued `data` on incremental requests so existing run forms remain compatible. The client also rejects empty, dot-segment, or separator-bearing Data Mart and run IDs before sending a request. Serialized manual-run options are limited to 1 MiB by both the client and HTTP API; requests above the HTTP transport ceiling return `413` instead of an internal-server error. Packaged authentication middleware now limits its body parsers to `/auth`, so it no longer overrides the backend API's 2 MiB transport ceiling.
+  - **Scoped list pagination** — defaults to 100 items when omitted and preserves valid caller-provided limits and offsets without silently capping them. The scoped list method rejects unknown, zero or negative limits, negative offsets, non-integer values, non-finite values, and integers outside JavaScript's safe range before authentication or network access. Project-wide `runs.list()` pagination remains unchanged and relies on server normalization. Project-wide and Data-Mart-scoped run methods remain compatible with older self-hosted deployments that omit Data Quality fields, and Data Quality response validation tolerates additive server fields while still checking known values. Existing typed integrations need no migration.
 
 ### Patch Changes
 
