@@ -3,6 +3,10 @@
 Google Sheets is a cloud-based spreadsheet application that allows users to create, edit, and collaborate on spreadsheets in real-time.  
 Configure Google Sheets as a **Destination** in OWOX Data Marts to enable business users to access and analyze data directly within their spreadsheets.
 
+Watch the walkthrough below for the full setup.
+
+<https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a>
+
 ---
 
 ## Configuration Steps

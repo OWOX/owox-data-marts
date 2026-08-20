@@ -305,6 +305,45 @@ function processDocumentLinks(fileContent, filePaths) {
 }
 
 /**
+ * GitHub attachment videos that also exist on Cloudflare Stream.
+ * The GitHub URL stays in the source markdown so github.com renders an inline player;
+ * the site build swaps it for the Cloudflare player. paddingTop preserves each video's aspect ratio.
+ */
+const GITHUB_TO_CLOUDFLARE_VIDEOS = {
+  'd2d9d913-a6fc-4949-a8e8-d697abd1631a': {
+    cloudflareId: '4cb8184b0d34d9a293de77e73e405d55',
+    paddingTop: '72.19%',
+  },
+  '95e499eb-0a36-4180-846b-a829294e1afe': {
+    cloudflareId: '93985b60a2758efc77b762f9e291870e',
+    paddingTop: '69.95%',
+  },
+  'dcb60ce1-dd7b-4783-b19c-f2fd85079e1f': {
+    cloudflareId: 'e5dc9849e472884ef88fb5e98e7acc99',
+    paddingTop: '59.11%',
+  },
+};
+
+/**
+ * Renders a Cloudflare Stream iframe embed
+ * @param {string} url - Cloudflare Stream iframe URL
+ * @param {string} paddingTop - Aspect-ratio padding for the responsive wrapper
+ * @returns {string} - HTML embed block
+ */
+function renderCloudflareEmbed(url, paddingTop) {
+  return `<!-- markdownlint-disable-next-line MD033 MD034 -->
+<div style="position: relative; padding-top: ${paddingTop};">
+  <iframe
+    src="${url}"
+    loading="lazy"
+    style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;"
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowfullscreen="true"
+  ></iframe>
+</div>`;
+}
+
+/**
  * Processes GitHub video links in markdown content, converting bare URLs to HTML video tags
  * @param {string} fileContent - Markdown content
  * @returns {string} - Updated markdown content with GitHub video URLs converted to HTML video elements
@@ -324,6 +363,14 @@ function processGithubVideoLinks(fileContent) {
     ) {
       // Extract clean URL by removing angle brackets if present
       const cleanUrl = trimmedLine.replace(/^<|>$/g, '');
+      const assetId = cleanUrl.split('/assets/')[1];
+      const cloudflareVideo = GITHUB_TO_CLOUDFLARE_VIDEOS[assetId];
+      if (cloudflareVideo) {
+        return renderCloudflareEmbed(
+          `https://customer-4geatlj66rtkaxtz.cloudflarestream.com/${cloudflareVideo.cloudflareId}/iframe`,
+          cloudflareVideo.paddingTop
+        );
+      }
       return `<!-- markdownlint-disable-next-line MD033 MD034 -->
 <video controls playsinline muted style="max-width: 100%; height: auto;">
   <!-- markdownlint-disable-next-line MD033 MD034 -->
@@ -338,16 +385,7 @@ function processGithubVideoLinks(fileContent) {
     ) {
       // Extract clean URL by removing angle brackets if present
       const cleanUrl = trimmedLine.replace(/^<|>$/g, '');
-      return `<!-- markdownlint-disable-next-line MD033 MD034 -->
-<div style="position: relative; padding-top: 56.25%;">
-  <iframe
-    src="${cleanUrl}"
-    loading="lazy"
-    style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;"
-    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-    allowfullscreen="true"
-  ></iframe>
-</div>`;
+      return renderCloudflareEmbed(cleanUrl, '56.25%');
     }
     return line;
   });
