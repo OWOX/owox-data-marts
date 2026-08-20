@@ -47,7 +47,6 @@ import { createServiceLogger } from './core/logger.js';
 import { OwoxTokenFacade, type TokenResponseWithContext } from './facades/owox-token-facade.js';
 import { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
 import { ExtensionAuthService } from './services/auth/extension-auth-service.js';
-import { ExtensionIdentityResolver } from './services/auth/extension-identity-resolver.js';
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
@@ -158,13 +157,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         ...extensionAuthConfig.microsoft,
         clockTolerance: extensionAuthConfig.clockTolerance,
       });
-      const extensionIdentityResolver = new ExtensionIdentityResolver(this.store);
-      const extensionAuthService = new ExtensionAuthService(
-        microsoftVerifier,
-        extensionIdentityResolver,
-        this.store,
-        this.tokenFacade
-      );
+      const extensionAuthService = new ExtensionAuthService(microsoftVerifier, this.tokenFacade);
       this.extensionAuthController = new ExtensionAuthController(extensionAuthService, {
         allowedOrigins: extensionAuthConfig.allowedOrigins,
       });
@@ -355,9 +348,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const { runMigrations } = await getMigrations(this.auth.options);
     await this.store.initialize();
     await runMigrations();
-    if (this.extensionAuthController) {
-      await this.store.initializeExtensionAuthStorage();
-    }
   }
 
   registerRoutes(app: Express): void {

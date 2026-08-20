@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { AuthenticationException } from '../../core/exceptions.js';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
-import type { DatabaseStore } from '../../store/database-store.js';
-import type { ExtensionIdentityResolver } from './extension-identity-resolver.js';
 import { ExtensionAuthService } from './extension-auth-service.js';
 import type {
   MicrosoftEntraAccessTokenVerifier,
@@ -12,9 +9,10 @@ import type {
 const identity: VerifiedMicrosoftIdentity = {
   oid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   tid: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  accountId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  replayKey: `sha256:${'a'.repeat(64)}`,
-  expiresAt: new Date(Date.now() + 60_000),
+  verifiedEmail: 'user@example.com',
+  firstName: 'User',
+  lastName: 'Name',
+  fullName: 'User Name',
 };
 const auth = {
   accessToken: 'access-token',
@@ -25,8 +23,6 @@ const auth = {
 
 describe('ExtensionAuthService', () => {
   let verifier: jest.Mocked<MicrosoftEntraAccessTokenVerifier>;
-  let resolver: jest.Mocked<ExtensionIdentityResolver>;
-  let store: jest.Mocked<DatabaseStore>;
   let facade: jest.Mocked<OwoxTokenFacade>;
   let service: ExtensionAuthService;
 
@@ -34,61 +30,51 @@ describe('ExtensionAuthService', () => {
     verifier = {
       verify: jest.fn().mockResolvedValue(identity),
     } as unknown as jest.Mocked<MicrosoftEntraAccessTokenVerifier>;
-    resolver = {
-      resolveMicrosoft: jest.fn().mockResolvedValue({ status: 'resolved', userId: 'bi-user-1' }),
-    } as unknown as jest.Mocked<ExtensionIdentityResolver>;
-    store = {
-      consumeExtensionAssertion: jest.fn().mockResolvedValue(true),
-    } as unknown as jest.Mocked<DatabaseStore>;
     facade = {
-      issueExtensionSession: jest.fn().mockResolvedValue({ mode: 'identity_session', auth }),
-      revokeExtensionSession: jest.fn(),
-      revokeExtensionProjectToken: jest.fn(),
+      exchangeMicrosoftExtensionIdentity: jest.fn().mockResolvedValue(auth),
+      refreshExtensionProjectToken: jest.fn().mockResolvedValue(auth),
+      revokeExtensionProjectToken: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<OwoxTokenFacade>;
-    service = new ExtensionAuthService(verifier, resolver, store, facade);
+    service = new ExtensionAuthService(verifier, facade);
   });
 
-  it('issues directly for an explicit project and never derives a project itself', async () => {
-    facade.issueExtensionSession.mockResolvedValue({ mode: 'project_token', auth });
-
+  it('delegates verified identity and an explicit project to IB', async () => {
     await expect(
       service.exchangeMicrosoftAssertion('entra-assertion', 'project-2')
     ).resolves.toEqual({ status: 'authenticated', auth });
-    expect(facade.issueExtensionSession).toHaveBeenCalledWith('bi-user-1', 'project-2');
+    expect(facade.exchangeMicrosoftExtensionIdentity).toHaveBeenCalledWith({
+      oid: identity.oid,
+      tid: identity.tid,
+      email: identity.verifiedEmail,
+      firstName: identity.firstName,
+      lastName: identity.lastName,
+      fullName: identity.fullName,
+      biProjectId: 'project-2',
+    });
   });
 
-  it('uses the project-neutral bootstrap branch when project id is absent', async () => {
+  it('lets ROI select or create the initial project when project id is absent', async () => {
     await service.exchangeMicrosoftAssertion('entra-assertion');
 
-    expect(facade.issueExtensionSession).toHaveBeenCalledWith('bi-user-1', undefined);
+    expect(facade.exchangeMicrosoftExtensionIdentity).toHaveBeenCalledWith(
+      expect.not.objectContaining({ biProjectId: expect.anything() })
+    );
   });
 
-  it('returns typed unknown_identity without calling IB token issuing', async () => {
-    resolver.resolveMicrosoft.mockResolvedValue({ status: 'unknown_identity' });
+  it('returns unknown_identity when Entra does not provide a safely verified email', async () => {
+    verifier.verify.mockResolvedValue({ oid: identity.oid, tid: identity.tid });
 
     await expect(service.exchangeMicrosoftAssertion('entra-assertion')).resolves.toEqual({
       status: 'unknown_identity',
     });
-    expect(facade.issueExtensionSession).not.toHaveBeenCalled();
+    expect(facade.exchangeMicrosoftExtensionIdentity).not.toHaveBeenCalled();
   });
 
-  it('atomically rejects replay before resolving or linking the identity', async () => {
-    store.consumeExtensionAssertion.mockResolvedValue(false);
+  it('delegates refresh and revoke only through the project-token boundary', async () => {
+    await expect(service.refreshProjectToken('refresh-token')).resolves.toEqual(auth);
+    await service.revokeProjectToken('refresh-token');
 
-    await expect(service.exchangeMicrosoftAssertion('entra-assertion')).rejects.toMatchObject({
-      description: 'assertion_replayed',
-    });
-    expect(resolver.resolveMicrosoft).not.toHaveBeenCalled();
-    expect(facade.issueExtensionSession).not.toHaveBeenCalled();
-  });
-
-  it('falls back to ordinary project-token revocation only for a token-type mismatch', async () => {
-    facade.revokeExtensionSession.mockRejectedValue(
-      new AuthenticationException('Not an identity-session refresh token')
-    );
-
-    await service.revoke('project-refresh-token');
-
-    expect(facade.revokeExtensionProjectToken).toHaveBeenCalledWith('project-refresh-token');
+    expect(facade.refreshExtensionProjectToken).toHaveBeenCalledWith('refresh-token');
+    expect(facade.revokeExtensionProjectToken).toHaveBeenCalledWith('refresh-token');
   });
 });

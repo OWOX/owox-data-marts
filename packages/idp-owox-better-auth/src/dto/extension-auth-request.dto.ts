@@ -19,13 +19,6 @@ export const ExtensionAuthRequestSchema = z.union([
 
 export type ExtensionAuthRequest = z.infer<typeof ExtensionAuthRequestSchema>;
 
-export const ExtensionProjectTokenRequestSchema = z.union([
-  z.object({ project_id: ProjectIdSchema }).strict(),
-  z.object({ refresh_token: z.string().min(1) }).strict(),
-]);
-
-export type ExtensionProjectTokenRequest = z.infer<typeof ExtensionProjectTokenRequestSchema>;
-
 export const ExtensionRevokeRequestSchema = z.object({ refresh_token: z.string().min(1) }).strict();
 
 export type ExtensionRevokeRequest = z.infer<typeof ExtensionRevokeRequestSchema>;

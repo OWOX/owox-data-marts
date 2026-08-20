@@ -1,8 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import {
-  ExtensionAuthRequestSchema,
-  ExtensionProjectTokenRequestSchema,
-} from './extension-auth-request.dto.js';
+import { ExtensionAuthRequestSchema } from './extension-auth-request.dto.js';
 
 describe('extension auth request schemas', () => {
   it('accepts Microsoft assertion with an optional explicit project', () => {
@@ -38,12 +35,9 @@ describe('extension auth request schemas', () => {
     ).toThrow();
   });
 
-  it('keeps project exchange and project refresh bodies mutually exclusive', () => {
-    expect(() =>
-      ExtensionProjectTokenRequestSchema.parse({
-        project_id: 'project-1',
-        refresh_token: 'refresh-token',
-      })
-    ).toThrow();
+  it('accepts a project-scoped refresh token', () => {
+    expect(ExtensionAuthRequestSchema.parse({ refresh_token: 'refresh-token' })).toEqual({
+      refresh_token: 'refresh-token',
+    });
   });
 });

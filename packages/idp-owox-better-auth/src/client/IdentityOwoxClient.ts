@@ -14,19 +14,7 @@ import {
   AuthFlowRequest,
   AuthFlowResponse,
   AuthFlowResponseSchema,
-  ExtensionSessionIssueRequest,
-  ExtensionSessionIssueResponse,
-  ExtensionSessionIssueResponseSchema,
-  ExtensionProjectTokenRevokeRequest,
-  ExtensionSessionProjectsResponse,
-  ExtensionSessionProjectsResponseSchema,
   GoogleIdentityExchangeRequest,
-  IdentitySessionAccessTokenRequest,
-  IdentitySessionProjectTokenRequest,
-  IdentitySessionRefreshRequest,
-  IdentitySessionRevokeRequest,
-  IdentitySessionTokenResponse,
-  IdentitySessionTokenResponseSchema,
   IntrospectionRequest,
   IntrospectionResponse,
   IntrospectionResponseSchema,
@@ -43,6 +31,7 @@ import {
   McpOAuthTokenVerificationRequest,
   McpOAuthTokenVerificationRequestSchema,
   McpOAuthTokenVerificationResponseSchema,
+  MicrosoftExtensionIdentityExchangeRequest,
   OwoxApproveMembershipRequestResponse,
   OwoxApproveMembershipRequestResponseSchema,
   OwoxInviteProjectMemberResponse,
@@ -138,84 +127,18 @@ export class IdentityOwoxClient {
     }
   }
 
-  /**
-   * POST /idp/auth-flow/extension/session.
-   *
-   * The caller has already authenticated and resolved the user. IB remains the
-   * owner of project membership validation and token issuing.
-   */
-  async issueExtensionSession(
-    req: ExtensionSessionIssueRequest
-  ): Promise<ExtensionSessionIssueResponse> {
-    const authHeader = await this.getC2cAuthHeader('issue extension session', {
-      userId: req.userId,
-      hasProjectId: Boolean(req.projectId),
-      projectId: req.projectId,
-    });
-
-    try {
-      const { data } = await this.http.post<unknown>(
-        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/session`,
-        req,
-        { headers: authHeader }
-      );
-      return ExtensionSessionIssueResponseSchema.parse(data);
-    } catch (err) {
-      this.handleAxiosError(
-        err,
-        { userId: req.userId, projectId: req.projectId },
-        'Failed to issue extension session'
-      );
-    }
-  }
-
-  /** POST /idp/auth-flow/extension/session/refresh. */
-  async refreshExtensionSession(
-    req: IdentitySessionRefreshRequest
-  ): Promise<IdentitySessionTokenResponse> {
-    const authHeader = await this.getC2cAuthHeader('refresh extension session', {});
-
-    try {
-      const { data } = await this.http.post<unknown>(
-        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/session/refresh`,
-        req,
-        { headers: authHeader }
-      );
-      return IdentitySessionTokenResponseSchema.parse(data);
-    } catch (err) {
-      this.handleAxiosError(err, {}, 'Failed to refresh extension session');
-    }
-  }
-
-  /** POST /idp/auth-flow/extension/session/projects. */
-  async getExtensionSessionProjects(
-    req: IdentitySessionAccessTokenRequest
-  ): Promise<ExtensionSessionProjectsResponse> {
-    const authHeader = await this.getC2cAuthHeader('list extension session projects', {});
-
-    try {
-      const { data } = await this.http.post<unknown>(
-        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/session/projects`,
-        req,
-        { headers: authHeader }
-      );
-      return ExtensionSessionProjectsResponseSchema.parse(data);
-    } catch (err) {
-      this.handleAxiosError(err, {}, 'Failed to list extension session projects');
-    }
-  }
-
-  /** POST /idp/auth-flow/extension/session/project-token. */
-  async exchangeExtensionSessionProjectToken(
-    req: IdentitySessionProjectTokenRequest
+  /** POST /idp/auth-flow/extension/microsoft-identity. */
+  async exchangeMicrosoftExtensionIdentity(
+    req: MicrosoftExtensionIdentityExchangeRequest
   ): Promise<TokenResponse> {
-    const authHeader = await this.getC2cAuthHeader('exchange extension session project token', {
-      projectId: req.projectId,
+    const authHeader = await this.getC2cAuthHeader('exchange Microsoft extension identity', {
+      hasProjectId: Boolean(req.biProjectId),
+      projectId: req.biProjectId,
     });
 
     try {
-      const { data } = await this.http.post<unknown>(
-        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/session/project-token`,
+      const { data } = await this.http.post<TokenResponse>(
+        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/microsoft-identity`,
         req,
         { headers: authHeader }
       );
@@ -223,39 +146,9 @@ export class IdentityOwoxClient {
     } catch (err) {
       this.handleAxiosError(
         err,
-        { projectId: req.projectId },
-        'Failed to exchange extension project token'
+        { projectId: req.biProjectId },
+        'Failed to exchange Microsoft extension identity'
       );
-    }
-  }
-
-  /** POST /idp/auth-flow/extension/session/revoke. */
-  async revokeExtensionSession(req: IdentitySessionRevokeRequest): Promise<void> {
-    const authHeader = await this.getC2cAuthHeader('revoke extension session', {});
-
-    try {
-      await this.http.post<void>(
-        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/session/revoke`,
-        req,
-        { headers: authHeader }
-      );
-    } catch (err) {
-      this.handleAxiosError(err, {}, 'Failed to revoke extension session');
-    }
-  }
-
-  /** POST /idp/auth-flow/extension/project-token/revoke. */
-  async revokeExtensionProjectToken(req: ExtensionProjectTokenRevokeRequest): Promise<void> {
-    const authHeader = await this.getC2cAuthHeader('revoke extension project token', {});
-
-    try {
-      await this.http.post<void>(
-        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/project-token/revoke`,
-        req,
-        { headers: authHeader }
-      );
-    } catch (err) {
-      this.handleAxiosError(err, {}, 'Failed to revoke extension project token');
     }
   }
 

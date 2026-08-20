@@ -1,4 +1,3 @@
-import { createHash } from 'crypto';
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import ms from 'ms';
 import { z } from 'zod';
@@ -14,18 +13,20 @@ const EntraAccessTokenClaimsSchema = z.object({
   oid: z.string().uuid(),
   tid: z.string().uuid(),
   scp: z.string().min(1),
-  jti: z.string().min(1).optional(),
   email: z.string().optional(),
   xms_edov: z.boolean().optional(),
+  name: z.string().optional(),
+  given_name: z.string().optional(),
+  family_name: z.string().optional(),
 });
 
 export interface VerifiedMicrosoftIdentity {
-  accountId: string;
   oid: string;
   tid: string;
   verifiedEmail?: string;
-  replayKey: string;
-  expiresAt: Date;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
 }
 
 export type MicrosoftEntraAccessTokenVerifierConfig = ExtensionAuthConfig['microsoft'] & {
@@ -36,6 +37,11 @@ function normalizeEmail(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const parsed = z.string().trim().toLowerCase().email().safeParse(value);
   return parsed.success ? parsed.data : undefined;
+}
+
+function normalizeText(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }
 
 /**
@@ -81,19 +87,18 @@ export class MicrosoftEntraAccessTokenVerifier {
         throw new Error('Invalid issued-at timestamp');
       }
 
-      const replayMaterial = claims.jti
-        ? `jti:${claims.tid}:${claims.jti}`
-        : `assertion:${assertion}`;
-      const replayKey = `sha256:${createHash('sha256').update(replayMaterial).digest('hex')}`;
       const verifiedEmail = claims.xms_edov === true ? normalizeEmail(claims.email) : undefined;
+      const firstName = normalizeText(claims.given_name);
+      const lastName = normalizeText(claims.family_name);
+      const fullName = normalizeText(claims.name);
 
       return {
-        accountId: `${claims.oid}:${claims.tid}`,
         oid: claims.oid,
         tid: claims.tid,
         ...(verifiedEmail ? { verifiedEmail } : {}),
-        replayKey,
-        expiresAt: new Date(claims.exp * 1000),
+        ...(firstName ? { firstName } : {}),
+        ...(lastName ? { lastName } : {}),
+        ...(fullName ? { fullName } : {}),
       };
     } catch (cause) {
       throw new AuthenticationException('Microsoft assertion validation failed', {

@@ -29,8 +29,8 @@ describe('OwoxTokenFacade extension project-token boundary', () => {
 
   beforeEach(() => {
     client = {
+      exchangeMicrosoftExtensionIdentity: jest.fn().mockResolvedValue(tokenResponse),
       getToken: jest.fn().mockResolvedValue(tokenResponse),
-      revokeExtensionProjectToken: jest.fn().mockResolvedValue(undefined),
       revokeToken: jest.fn().mockResolvedValue({ success: true }),
     } as unknown as jest.Mocked<IdentityOwoxClient>;
     facade = new OwoxTokenFacade(client, {} as DatabaseStore, config);
@@ -38,15 +38,23 @@ describe('OwoxTokenFacade extension project-token boundary', () => {
     (facade as unknown as { tokenService: { parse: jest.Mock } }).tokenService.parse = parse;
   });
 
-  it('refreshes only a token carrying the extension project auth flow', async () => {
-    parse.mockResolvedValue({ authFlow: 'extension' });
+  it('maps the Microsoft identity exchange to the standard project token result', async () => {
+    const request = { oid: 'oid-1', tid: 'tid-1', email: 'user@example.com' };
 
-    await expect(facade.refreshExtensionProjectToken('extension-refresh-token')).resolves.toEqual({
+    await expect(facade.exchangeMicrosoftExtensionIdentity(request)).resolves.toEqual({
       accessToken: tokenResponse.accessToken,
       refreshToken: tokenResponse.refreshToken,
       accessTokenExpiresIn: tokenResponse.accessTokenExpiresIn,
       refreshTokenExpiresIn: tokenResponse.refreshTokenExpiresIn,
     });
+    expect(client.exchangeMicrosoftExtensionIdentity).toHaveBeenCalledWith(request);
+  });
+
+  it('refreshes only a token carrying the extension auth flow', async () => {
+    parse.mockResolvedValue({ authFlow: 'extension' });
+
+    await facade.refreshExtensionProjectToken('extension-refresh-token');
+
     expect(client.getToken).toHaveBeenCalledWith({
       grantType: 'refresh_token',
       refreshToken: 'extension-refresh-token',
@@ -64,29 +72,17 @@ describe('OwoxTokenFacade extension project-token boundary', () => {
       { description: 'invalid_project_refresh_token' }
     );
     expect(client.getToken).not.toHaveBeenCalled();
-    expect(client.revokeExtensionProjectToken).not.toHaveBeenCalled();
     expect(client.revokeToken).not.toHaveBeenCalled();
   });
 
-  it('revokes an extension project token through the scoped C2C contract', async () => {
+  it('revokes an extension token through the existing token revocation endpoint', async () => {
     parse.mockResolvedValue({ authFlow: 'extension' });
 
-    await expect(
-      facade.revokeExtensionProjectToken('extension-refresh-token')
-    ).resolves.toBeUndefined();
+    await facade.revokeExtensionProjectToken('extension-refresh-token');
 
-    expect(client.revokeExtensionProjectToken).toHaveBeenCalledWith({
-      refreshToken: 'extension-refresh-token',
+    expect(client.revokeToken).toHaveBeenCalledWith({
+      token: 'extension-refresh-token',
+      tokenType: 'refresh_token',
     });
-    expect(client.revokeToken).not.toHaveBeenCalled();
-  });
-
-  it('propagates a scoped project-token revoke failure', async () => {
-    parse.mockResolvedValue({ authFlow: 'extension' });
-    client.revokeExtensionProjectToken.mockRejectedValue(new Error('IB unavailable'));
-
-    await expect(facade.revokeExtensionProjectToken('extension-refresh-token')).rejects.toThrow(
-      'IB unavailable'
-    );
   });
 });

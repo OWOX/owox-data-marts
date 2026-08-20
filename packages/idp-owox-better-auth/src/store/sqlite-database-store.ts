@@ -1,5 +1,4 @@
 import type { ProjectMember } from '@owox/idp-protocol';
-import { randomUUID } from 'crypto';
 import { createServiceLogger } from '../core/logger.js';
 import type {
   DatabaseAccount,
@@ -37,7 +36,6 @@ export class SqliteDatabaseStore implements DatabaseStore {
   private projectTablesReady = false;
   private onboardingTableReady = false;
   private userProjectOnboardingTableReady = false;
-  private extensionAuthStorageReady = false;
 
   constructor(private readonly dbPath: string) {}
 
@@ -183,26 +181,6 @@ export class SqliteDatabaseStore implements DatabaseStore {
     this.ensureAuthStatesTable();
   }
 
-  async initializeExtensionAuthStorage(): Promise<void> {
-    await this.connect();
-    if (this.extensionAuthStorageReady) return;
-    const db = this.getDb();
-    db.prepare(
-      `CREATE TABLE IF NOT EXISTS extension_assertion_replay (
-        replayKey TEXT NOT NULL PRIMARY KEY,
-        expiresAt TEXT NOT NULL,
-        createdAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
-      )`
-    ).run();
-    db.prepare(
-      'CREATE INDEX IF NOT EXISTS idx_extension_assertion_replay_expires_at ON extension_assertion_replay (expiresAt)'
-    ).run();
-    db.prepare(
-      'CREATE UNIQUE INDEX IF NOT EXISTS idx_account_provider_account ON account (providerId, accountId)'
-    ).run();
-    this.extensionAuthStorageReady = true;
-  }
-
   async cleanupExpiredSessions(): Promise<DatabaseOperationResult> {
     await this.connect();
     const stmt = this.getDb().prepare('DELETE FROM session WHERE expiresAt < datetime("now")');
@@ -259,51 +237,6 @@ export class SqliteDatabaseStore implements DatabaseStore {
     );
     const row = stmt.get(userId, providerId) as Record<string, unknown> | undefined;
     return row ? this.mapAccount(row) : null;
-  }
-
-  async getAccountByProviderAndAccountId(
-    providerId: string,
-    accountId: string
-  ): Promise<DatabaseAccount | null> {
-    await this.connect();
-    const row = this.getDb()
-      .prepare(
-        'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE providerId = ? AND accountId = ? LIMIT 1'
-      )
-      .get(providerId, accountId) as Record<string, unknown> | undefined;
-    return row ? this.mapAccount(row) : null;
-  }
-
-  async linkAccount(
-    providerId: string,
-    accountId: string,
-    userId: string
-  ): Promise<DatabaseAccount> {
-    await this.initializeExtensionAuthStorage();
-    const now = new Date().toISOString();
-    this.getDb()
-      .prepare(
-        `INSERT OR IGNORE INTO account (id, accountId, providerId, userId, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run(randomUUID(), accountId, providerId, userId, now, now);
-    const account = await this.getAccountByProviderAndAccountId(providerId, accountId);
-    if (!account) {
-      throw new Error('Failed to create or resolve provider account link');
-    }
-    return account;
-  }
-
-  async consumeExtensionAssertion(replayKey: string, expiresAt: Date): Promise<boolean> {
-    await this.initializeExtensionAuthStorage();
-    const now = new Date().toISOString();
-    this.getDb().prepare('DELETE FROM extension_assertion_replay WHERE expiresAt <= ?').run(now);
-    const result = this.getDb()
-      .prepare(
-        'INSERT OR IGNORE INTO extension_assertion_replay (replayKey, expiresAt) VALUES (?, ?)'
-      )
-      .run(replayKey, expiresAt.toISOString());
-    return Number(result.changes ?? 0) === 1;
   }
 
   async updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void> {

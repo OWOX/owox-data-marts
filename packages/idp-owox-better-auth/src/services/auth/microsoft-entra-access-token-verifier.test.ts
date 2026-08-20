@@ -36,7 +36,9 @@ describe('MicrosoftEntraAccessTokenVerifier', () => {
       scp: `openid ${REQUIRED_SCOPE}`,
       email: 'User@Example.com',
       xms_edov: true,
-      jti: 'assertion-1',
+      given_name: 'User',
+      family_name: 'Name',
+      name: 'User Name',
       ...overrides,
     };
     return new SignJWT(claims)
@@ -48,16 +50,17 @@ describe('MicrosoftEntraAccessTokenVerifier', () => {
       .sign(privateKey);
   }
 
-  it('accepts a valid token from an arbitrary tenant and returns a durable identity', async () => {
+  it('accepts a valid token from an arbitrary tenant and returns a verified identity', async () => {
     const result = await verifier.verify(await sign());
 
     expect(result).toMatchObject({
       oid: OBJECT_ID,
       tid: TENANT_ID,
-      accountId: `${OBJECT_ID}:${TENANT_ID}`,
       verifiedEmail: 'user@example.com',
+      firstName: 'User',
+      lastName: 'Name',
+      fullName: 'User Name',
     });
-    expect(result.replayKey).toMatch(/^sha256:[a-f0-9]{64}$/);
   });
 
   it('rejects a token issued for Microsoft Graph or another audience', async () => {

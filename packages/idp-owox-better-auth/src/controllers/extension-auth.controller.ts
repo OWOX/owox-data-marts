@@ -1,4 +1,3 @@
-import type { AuthResult } from '@owox/idp-protocol';
 import type {
   Express,
   NextFunction,
@@ -14,10 +13,8 @@ import {
 import { createServiceLogger } from '../core/logger.js';
 import {
   ExtensionAuthRequestSchema,
-  ExtensionProjectTokenRequestSchema,
   ExtensionRevokeRequestSchema,
   type ExtensionAuthRequest,
-  type ExtensionProjectTokenRequest,
   type ExtensionRevokeRequest,
 } from '../dto/extension-auth-request.dto.js';
 import type { ExtensionAuthService } from '../services/auth/extension-auth-service.js';
@@ -27,7 +24,7 @@ export interface ExtensionAuthControllerConfig {
   allowedOrigins: string[];
 }
 
-/** Host-neutral public API for extension identity and project-token flows. */
+/** Public Microsoft NAA exchange API for project-scoped extension tokens. */
 export class ExtensionAuthController {
   private readonly logger = createServiceLogger(ExtensionAuthController.name);
   private readonly allowedOrigins: Set<string>;
@@ -51,42 +48,11 @@ export class ExtensionAuthController {
           res.json({ status: 'unknown_identity' });
           return;
         }
-        res.json(ExtensionAuthController.toAuthResponse(result.auth));
+        res.json(result.auth);
         return;
       }
 
-      const auth = await this.service.refreshIdentitySession(body.refresh_token);
-      res.json(ExtensionAuthController.toAuthResponse(auth));
-    } catch (error) {
-      this.handleError(error, req, res);
-    }
-  }
-
-  async listProjects(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    try {
-      const accessToken = ExtensionAuthController.requireBearerToken(req);
-      res.json(await this.service.listProjects(accessToken));
-    } catch (error) {
-      this.handleError(error, req, res);
-    }
-  }
-
-  async projectToken(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    try {
-      const body = req.body as ExtensionProjectTokenRequest;
-      const authorization = req.header('authorization');
-      let auth: AuthResult;
-      if ('project_id' in body) {
-        const accessToken = ExtensionAuthController.requireBearerToken(req);
-        auth = await this.service.exchangeProjectToken(accessToken, body.project_id);
-      } else {
-        if (authorization) {
-          res.status(400).json({ error: 'ambiguous_auth_mode' });
-          return;
-        }
-        auth = await this.service.refreshProjectToken(body.refresh_token);
-      }
-      res.json(ExtensionAuthController.toAuthResponse(auth));
+      res.json(await this.service.refreshProjectToken(body.refresh_token));
     } catch (error) {
       this.handleError(error, req, res);
     }
@@ -95,7 +61,7 @@ export class ExtensionAuthController {
   async revoke(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
       const body = req.body as ExtensionRevokeRequest;
-      await this.service.revoke(body.refresh_token);
+      await this.service.revokeProjectToken(body.refresh_token);
       res.status(204).send();
     } catch (error) {
       this.handleError(error, req, res);
@@ -104,30 +70,18 @@ export class ExtensionAuthController {
 
   registerRoutes(express: Express): void {
     const extensionPath = `${AUTH_BASE_PATH}/api/extension`;
+    const revokePath = `${extensionPath}/revoke`;
     const cors = this.cors.bind(this);
-    for (const path of [
-      extensionPath,
-      `${extensionPath}/projects`,
-      `${extensionPath}/project-token`,
-      `${extensionPath}/revoke`,
-    ]) {
-      express.options(path, cors);
-    }
+    express.options(extensionPath, cors);
+    express.options(revokePath, cors);
     express.post(
       extensionPath,
       cors,
       validateBody(ExtensionAuthRequestSchema),
       this.authenticate.bind(this)
     );
-    express.get(`${extensionPath}/projects`, cors, this.listProjects.bind(this));
     express.post(
-      `${extensionPath}/project-token`,
-      cors,
-      validateBody(ExtensionProjectTokenRequestSchema),
-      this.projectToken.bind(this)
-    );
-    express.post(
-      `${extensionPath}/revoke`,
+      revokePath,
       cors,
       validateBody(ExtensionRevokeRequestSchema),
       this.revoke.bind(this)
@@ -146,8 +100,8 @@ export class ExtensionAuthController {
     }
     res.vary('Origin');
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') {
       res.status(204).send();
       return;
@@ -179,25 +133,5 @@ export class ExtensionAuthController {
       return;
     }
     res.status(status).json({ error: known ? error.publicMessage : 'Internal server error' });
-  }
-
-  private static requireBearerToken(req: ExpressRequest): string {
-    const authorization = req.header('authorization');
-    const match = authorization?.match(/^Bearer\s+(\S+)$/i);
-    if (!match) {
-      throw new AuthenticationException('Bearer identity-session access token is required', {
-        description: 'missing_access_token',
-      });
-    }
-    return match[1]!;
-  }
-
-  private static toAuthResponse(auth: AuthResult): AuthResult {
-    return {
-      accessToken: auth.accessToken,
-      refreshToken: auth.refreshToken,
-      accessTokenExpiresIn: auth.accessTokenExpiresIn,
-      refreshTokenExpiresIn: auth.refreshTokenExpiresIn,
-    };
   }
 }

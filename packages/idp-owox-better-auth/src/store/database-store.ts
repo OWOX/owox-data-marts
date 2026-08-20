@@ -10,8 +10,6 @@ import { StoreResult } from './store-result.js';
 export interface DatabaseStore {
   // Init/maintenance
   initialize(): Promise<void>;
-  /** Initialize storage that depends on Better Auth's migrated tables. */
-  initializeExtensionAuthStorage(): Promise<void>;
   // Generic health/maintenance
   isHealthy(): Promise<boolean>;
   cleanupExpiredSessions(): Promise<DatabaseOperationResult>;
@@ -33,18 +31,6 @@ export interface DatabaseStore {
     userId: string,
     providerId: string
   ): Promise<DatabaseAccount | null>;
-  getAccountByProviderAndAccountId(
-    providerId: string,
-    accountId: string
-  ): Promise<DatabaseAccount | null>;
-  /**
-   * Atomically links a provider account to a user. If a concurrent link wins,
-   * returns the durable existing owner of that provider account.
-   */
-  linkAccount(providerId: string, accountId: string, userId: string): Promise<DatabaseAccount>;
-
-  /** Atomically consumes one external assertion replay key until its expiry. */
-  consumeExtensionAssertion(replayKey: string, expiresAt: Date): Promise<boolean>;
   updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void>;
 
   /**

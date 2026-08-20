@@ -17,11 +17,8 @@ describe('ExtensionAuthController', () => {
   beforeEach(() => {
     service = {
       exchangeMicrosoftAssertion: jest.fn(),
-      refreshIdentitySession: jest.fn(),
-      listProjects: jest.fn(),
-      exchangeProjectToken: jest.fn(),
       refreshProjectToken: jest.fn(),
-      revoke: jest.fn(),
+      revokeProjectToken: jest.fn(),
     } as unknown as jest.Mocked<ExtensionAuthService>;
     controller = new ExtensionAuthController(service, {
       allowedOrigins: ['https://addin.owox.test'],
@@ -38,15 +35,13 @@ describe('ExtensionAuthController', () => {
     } as unknown as Response;
   }
 
-  it('returns the familiar AuthResult shape for a Microsoft assertion', async () => {
+  it('returns the standard project-token result for a Microsoft assertion', async () => {
     const req = {
       body: {
         assertion_type: 'ms_entra_access_token',
         assertion: 'signed-assertion',
         project_id: 'project-1',
       },
-      ip: '127.0.0.1',
-      socket: {},
       path: '/auth/api/extension',
     } as Request;
     const res = response();
@@ -61,11 +56,23 @@ describe('ExtensionAuthController', () => {
     expect(res.json).toHaveBeenCalledWith(auth);
   });
 
-  it('returns unknown_identity as a typed recoverable result', async () => {
+  it('refreshes the same project-scoped extension token type', async () => {
+    const req = {
+      body: { refresh_token: 'refresh-token' },
+      path: '/auth/api/extension',
+    } as Request;
+    const res = response();
+    service.refreshProjectToken.mockResolvedValue(auth);
+
+    await controller.authenticate(req, res);
+
+    expect(service.refreshProjectToken).toHaveBeenCalledWith('refresh-token');
+    expect(res.json).toHaveBeenCalledWith(auth);
+  });
+
+  it('returns unknown_identity when the assertion lacks a safely verified email', async () => {
     const req = {
       body: { assertion_type: 'ms_entra_access_token', assertion: 'signed-assertion' },
-      ip: '127.0.0.1',
-      socket: {},
       path: '/auth/api/extension',
     } as Request;
     const res = response();
@@ -76,35 +83,7 @@ describe('ExtensionAuthController', () => {
     expect(res.json).toHaveBeenCalledWith({ status: 'unknown_identity' });
   });
 
-  it('requires identity-session bearer auth when exchanging an explicit project', async () => {
-    const req = {
-      body: { project_id: 'project-1' },
-      header: jest.fn().mockReturnValue(undefined),
-      path: '/auth/api/extension/project-token',
-    } as unknown as Request;
-    const res = response();
-
-    await controller.projectToken(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(service.exchangeProjectToken).not.toHaveBeenCalled();
-  });
-
-  it('rejects ambiguous project refresh auth modes', async () => {
-    const req = {
-      body: { refresh_token: 'project-refresh-token' },
-      header: jest.fn().mockReturnValue('Bearer identity-access-token'),
-      path: '/auth/api/extension/project-token',
-    } as unknown as Request;
-    const res = response();
-
-    await controller.projectToken(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({ error: 'ambiguous_auth_mode' });
-  });
-
-  it('registers only the new host-neutral routes', () => {
+  it('registers only exchange, refresh and revoke routes', () => {
     const app = {
       options: jest.fn(),
       post: jest.fn(),
@@ -113,25 +92,24 @@ describe('ExtensionAuthController', () => {
 
     controller.registerRoutes(app);
 
+    expect(app.post).toHaveBeenCalledTimes(2);
     expect(app.post).toHaveBeenCalledWith(
       '/auth/api/extension',
       expect.any(Function),
       expect.any(Function),
       expect.any(Function)
     );
-    expect(app.get).toHaveBeenCalledWith(
-      '/auth/api/extension/projects',
+    expect(app.post).toHaveBeenCalledWith(
+      '/auth/api/extension/revoke',
+      expect.any(Function),
       expect.any(Function),
       expect.any(Function)
     );
+    expect(app.get).not.toHaveBeenCalled();
   });
 
   it('rejects a browser origin outside the exact allowlist', () => {
-    const app = {
-      options: jest.fn(),
-      post: jest.fn(),
-      get: jest.fn(),
-    } as unknown as Express;
+    const app = { options: jest.fn(), post: jest.fn() } as unknown as Express;
     controller.registerRoutes(app);
     const cors = (app.post as jest.Mock).mock.calls[0]![1] as (
       req: Request,
