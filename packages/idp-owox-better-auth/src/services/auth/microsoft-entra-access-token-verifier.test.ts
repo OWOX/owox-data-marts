@@ -72,6 +72,14 @@ describe('MicrosoftEntraAccessTokenVerifier', () => {
     });
   });
 
+  it('normalizes the Entra string representation of xms_edov', async () => {
+    const verified = await verifier.verify(await sign({ xms_edov: '1' }));
+    const unverified = await verifier.verify(await sign({ xms_edov: '0' }));
+
+    expect(verified.verifiedEmail).toBe('user@example.com');
+    expect(unverified.verifiedEmail).toBeUndefined();
+  });
+
   it('rejects a token issued for Microsoft Graph or another audience', async () => {
     const token = await new SignJWT({
       oid: OBJECT_ID,

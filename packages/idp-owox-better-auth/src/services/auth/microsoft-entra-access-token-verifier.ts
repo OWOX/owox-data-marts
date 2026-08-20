@@ -4,6 +4,12 @@ import { z } from 'zod';
 import type { ExtensionAuthConfig } from '../../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../../core/exceptions.js';
 
+const EntraBooleanClaimSchema = z.preprocess(value => {
+  if (value === '1') return true;
+  if (value === '0') return false;
+  return value;
+}, z.boolean());
+
 const EntraAccessTokenClaimsSchema = z.object({
   iss: z.string().min(1),
   aud: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
@@ -14,7 +20,7 @@ const EntraAccessTokenClaimsSchema = z.object({
   tid: z.string().uuid(),
   scp: z.string().min(1),
   email: z.string().optional(),
-  xms_edov: z.boolean().optional(),
+  xms_edov: EntraBooleanClaimSchema.optional(),
   name: z.string().optional(),
   given_name: z.string().optional(),
   family_name: z.string().optional(),
