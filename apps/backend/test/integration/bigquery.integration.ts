@@ -4323,8 +4323,13 @@ describeIfCredentials(
 
     it('counts a duplicated joined row ONCE: EU=170, and keeps contradictory rows apart: US=81', async () => {
       const { sql } = builder.buildBlendedQuery(context(['orderId']));
-      expect(sql).not.toContain('__owox_rid');
-      expect(sql).not.toContain('ROW_NUMBER()');
+      // The key rides as its own DISTINCT slot, uncast and unconcatenated. The surrogate stays
+      // projected, but only as the fallback for a row whose key is NULL — which this seed has
+      // none of, so it contributes nothing here.
+      expect(sql).toContain('orders_raw.orderId AS _oid_k0');
+      expect(sql).toContain(
+        'CASE WHEN orders_raw.orderId IS NULL THEN orders_raw.__owox_rid ELSE NULL END AS _oid'
+      );
 
       const byRegion = sumByRegion(await runBlend(context(['orderId'])));
 
@@ -4335,7 +4340,11 @@ describeIfCredentials(
 
     it('without a declared key the same data reads EU=270 — the duplicate is summed twice', async () => {
       const { sql } = builder.buildBlendedQuery(context([]));
-      expect(sql).toContain('AS __owox_rid');
+      // With no key to identify a row by, the surrogate IS the identity: unguarded, and with no
+      // key slot beside it. That is what separates this query from the keyed one — the mere
+      // presence of `__owox_rid` does not, since a keyed source projects it as a fallback too.
+      expect(sql).toContain('orders_raw.__owox_rid AS _oid');
+      expect(sql).not.toContain('_oid_k0');
 
       const byRegion = sumByRegion(await runBlend(context([])));
 
