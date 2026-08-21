@@ -508,13 +508,17 @@ export class ConnectorExecutorService {
           });
         } else if (configErrors.length === 0) {
           const errorMessage = 'Connector process finished without terminal success status';
+          // An interrupted attempt is transient: the retry sweep resumes the run, and with
+          // per-day checkpointing it carries on from the last completed date rather than
+          // starting over. Still recorded in configErrors, so the run is not reported as
+          // successful — it is just not paged as an ERROR on its own.
           addMessageToArray(configErrors, {
-            type: ConnectorMessageType.ERROR,
+            type: ConnectorMessageType.WARNING,
             at: this.systemTimeService.now().toISOString(),
-            error: errorMessage,
-            toFormattedString: () => `[ERROR] ${errorMessage}`,
+            warning: errorMessage,
+            toFormattedString: () => `[WARNING] ${errorMessage}`,
           });
-          this.logger.error(`Configuration ${configIndex + 1} failed: ${errorMessage}`, {
+          this.logger.warn(`Configuration ${configIndex + 1} failed: ${errorMessage}`, {
             dataMartId: dataMart.id,
             projectId: dataMart.projectId,
             runId,
