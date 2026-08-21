@@ -19,7 +19,25 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
     const fields = CriteoAdsHelper.parseFields(this.config.Fields?.value || "");
     const advertiserIds = CriteoAdsHelper.parseAdvertiserIds(this.config.AdvertiserIDs?.value || "");
 
-    await this.processTimeSeriesNodes({ advertiserIds, timeSeriesNodes: Object.keys(fields), fields });
+    // A blank-but-truthy AdvertiserIDs (e.g. ";") passes required-field validation and parses
+    // to an empty list. Without this the day loop would still run, fetch nothing, and walk the
+    // incremental cursor to today — marking days as imported that never were.
+    if (!advertiserIds.length) {
+      throw new Error('No valid Advertiser IDs found in the AdvertiserIDs parameter');
+    }
+
+    const nodeNames = Object.keys(fields);
+    // Every node in the Criteo schema is a time series, and this connector has no catalog
+    // path, so anything else would silently be re-fetched once per day by the loop below.
+    const unsupportedNodes = nodeNames.filter(
+      nodeName => !this.source.fieldsSchema[nodeName]?.isTimeSeries
+    );
+
+    if (unsupportedNodes.length) {
+      throw new Error(`Only time series nodes are supported. Unsupported: ${unsupportedNodes.join(', ')}`);
+    }
+
+    await this.processTimeSeriesNodes({ advertiserIds, timeSeriesNodes: nodeNames, fields });
   }
 
   /**

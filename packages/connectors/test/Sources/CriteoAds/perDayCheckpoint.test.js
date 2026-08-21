@@ -7,10 +7,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 globalThis.DateUtils = { formatDate: date => date.toISOString().slice(0, 10) };
 globalThis.RUN_CONFIG_TYPE = { INCREMENTAL: 'INCREMENTAL', MANUAL_BACKFILL: 'MANUAL_BACKFILL' };
-globalThis.CriteoAdsHelper = {
-  parseFields: value => JSON.parse(value || '{}'),
-  parseAdvertiserIds: value => (value ? value.split(',') : []),
-};
+
+// Advertiser parsing decides whether the day loop may run at all, and this parser is the
+// only one of the four that filters blanks — so use the real helper rather than a stub
+// that cannot produce the empty list the connector has to reject.
+loadGasClass(path.join(__dirname, '../../../src/Sources/CriteoAds/Helper.js'));
+
+// Fields is configured as a flat "nodeName fieldName, nodeName fieldName" string.
+const toFieldsString = nodes =>
+  Object.entries(nodes)
+    .flatMap(([nodeName, fields]) => fields.map(field => `${nodeName} ${field}`))
+    .join(', ');
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/CriteoAds/Connector.js'), {
   AbstractConnector: class {},
@@ -46,7 +53,7 @@ const buildConnector = ({
   self.getStartDateAndDaysToFetch = () => [startDate, daysToFetch];
   self.config = {
     AdvertiserIDs: { value: advertiserIds },
-    Fields: { value: JSON.stringify(nodes) },
+    Fields: { value: toFieldsString(nodes) },
     CreateEmptyTables: { value: false },
     logMessage: () => {},
     updateLastRequstedDate: date => cursorMovedTo.push(new Date(date).toISOString().slice(0, 10)),
@@ -146,6 +153,32 @@ describe('multiple advertisers', () => {
 });
 
 describe('empty configurations', () => {
+  it('refuses to run when AdvertiserIDs holds no usable id', async () => {
+    // ";" is truthy so it passes required-field validation, but this parser filters blanks
+    // to an empty list. Advancing the cursor over days nothing was fetched for would mark
+    // them imported for good, once the lookback window has passed.
+    const { self, cursorMovedTo, fetched } = buildConnector({ advertiserIds: '; ,' });
+
+    await expect(connectorProto.startImportProcess.call(self)).rejects.toThrow(
+      /No valid Advertiser IDs/
+    );
+
+    expect(fetched).toEqual([]);
+    expect(cursorMovedTo).toEqual([]);
+  });
+
+  it('refuses to run a node that is not a time series', async () => {
+    const { self, cursorMovedTo, fetched } = buildConnector({ nodes: { campaigns: ['id'] } });
+    self.source.fieldsSchema.campaigns = { isTimeSeries: false };
+
+    await expect(connectorProto.startImportProcess.call(self)).rejects.toThrow(
+      /Only time series nodes are supported. Unsupported: campaigns/
+    );
+
+    expect(fetched).toEqual([]);
+    expect(cursorMovedTo).toEqual([]);
+  });
+
   it('imports nothing when no node is selected', async () => {
     const { self, cursorMovedTo, fetched } = buildConnector({ nodes: {} });
 
