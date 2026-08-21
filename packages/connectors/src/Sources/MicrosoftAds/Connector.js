@@ -17,111 +17,106 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * Processes all nodes defined in the fields configuration
    */
   async startImportProcess() {
-    const accountIds = FormatUtils.parseAccountIds(this.config.AccountIDs.value);
+    const accountIds = FormatUtils.parseAccountIds(this.config.AccountIDs.value).map(id => id.trim());
     const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);
-    let lastProcessedDate = null;
+    const nodeNames = Object.keys(fields);
+    const timeSeriesNodes = nodeNames.filter(nodeName => this.source.fieldsSchema[nodeName].isTimeSeries);
+    const catalogNodes = nodeNames.filter(nodeName => !this.source.fieldsSchema[nodeName].isTimeSeries);
 
-    for (const rawAccountId of accountIds) {
-      const accountId = rawAccountId.trim();
+    for (const accountId of accountIds) {
       this.config.logMessage(`Starting import process for Account ID: ${accountId}`);
 
-      for (const nodeName in fields) {
-        const processedDate = await this.processNode({
+      for (const nodeName of catalogNodes) {
+        await this.processCatalogNode({
           nodeName,
           accountId,
-          fields: fields[nodeName] || [],
-          updateRequestedDate: false
+          fields: fields[nodeName] || []
         });
-
-        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
-          lastProcessedDate = processedDate;
-        }
       }
     }
 
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
-      this.config.updateLastRequstedDate(lastProcessedDate);
-    }
+    await this.processTimeSeriesNodes({ accountIds, timeSeriesNodes, fields });
   }
 
   /**
-   * Process a single node for a specific account
+   * Imports every time series node for every account, one date at a time.
+   *
+   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * date is complete for *all* accounts and nodes, so a run interrupted midway
+   * resumes from the last fully imported date instead of restarting the range.
+   *
    * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node to process
-   * @param {string} options.accountId - Account ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
+   * @param {Array<string>} options.accountIds - Account IDs to import
+   * @param {Array<string>} options.timeSeriesNodes - Names of the time series nodes to import
+   * @param {Object} options.fields - Map of node name to the fields selected for it
    */
-  async processNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
-    if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      return await this.processTimeSeriesNode({
-        nodeName,
-        accountId,
-        fields,
-        updateRequestedDate
-      });
-    } else {
-      await this.processCatalogNode({
-        nodeName,
-        accountId,
-        fields
-      });
-      return null;
+  async processTimeSeriesNodes({ accountIds, timeSeriesNodes, fields }) {
+    if (!timeSeriesNodes.length) {
+      return;
     }
-  }
 
-  /**
-   * Process a time series node (e.g., ad performance report)
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node
-   * @param {string} options.accountId - Account ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
-   */
-  async processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
-      console.log('No days to fetch for time series data');
-      return null;
+      this.config.logMessage('No days to fetch for time series data');
+      return;
     }
 
-    let lastProcessedDate = null;
-
-    // Process data day by day
     for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + dayOffset);
-      lastProcessedDate = new Date(currentDate);
 
-      const formattedDate = DateUtils.formatDate(currentDate);
-
-      this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
-
-      const data = await this.source.fetchData({
-        nodeName,
-        accountId,
-        start_time: formattedDate,
-        end_time: formattedDate,
-        fields
-      });
-
-      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
-
-      if (data.length || this.config.CreateEmptyTables?.value) {
-        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName);
-        await storage.saveData(preparedData);
-        data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
+      for (const accountId of accountIds) {
+        for (const nodeName of timeSeriesNodes) {
+          await this.processTimeSeriesDay({
+            nodeName,
+            accountId,
+            date: currentDate,
+            fields: fields[nodeName] || [],
+            dayNumber: dayOffset + 1,
+            daysToFetch
+          });
+        }
       }
 
-      // Some callers defer the checkpoint until all accounts finish successfully.
-      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Every account and node stored this date, so the cursor can move past it.
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+  }
 
-    return lastProcessedDate;
+  /**
+   * Fetch and store a single day of a time series node for one account
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.accountId - Account ID
+   * @param {Date} options.date - The day to import
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {number} options.dayNumber - 1-based position of the day within the run
+   * @param {number} options.daysToFetch - Total number of days in the run
+   */
+  async processTimeSeriesDay({ nodeName, accountId, date, fields, dayNumber, daysToFetch }) {
+    const formattedDate = DateUtils.formatDate(date);
+
+    this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayNumber} of ${daysToFetch})`);
+
+    const data = await this.source.fetchData({
+      nodeName,
+      accountId,
+      start_time: formattedDate,
+      end_time: formattedDate,
+      fields
+    });
+
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
+      data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
+    }
   }
 
   /**
