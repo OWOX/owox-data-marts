@@ -85,7 +85,13 @@ function renderPicker(
 
   const onChange = vi.fn();
   const utils = render(
-    <ReportColumnPicker dataMartId={DATA_MART_ID} value={value} onChange={onChange} {...props} />,
+    <ReportColumnPicker
+      dataMartId={DATA_MART_ID}
+      dataMartTitle='Main Data Mart'
+      value={value}
+      onChange={onChange}
+      {...props}
+    />,
     { wrapper }
   );
   return { ...utils, onChange, client };
@@ -141,7 +147,7 @@ describe('ReportColumnPicker access flag', () => {
     expect(screen.getByLabelText('You do not have access to this data mart')).toBeInTheDocument();
 
     const trigger = screen.getByRole('button', { name: /Collapse Joined DM/ });
-    const block = trigger.parentElement;
+    const block = trigger.closest<HTMLElement>('.border-destructive');
     expect(block).not.toBeNull();
     expect(block!.className).toMatch(/border-destructive/);
     expect(block!.className).toMatch(/bg-destructive\/10/);
@@ -229,10 +235,138 @@ describe('ReportColumnPicker access flag', () => {
     const next = onChange.mock.calls.at(-1)?.[0] as string[];
     expect(next).not.toContain('b__only');
 
-    rerender(<ReportColumnPicker dataMartId={DATA_MART_ID} value={next} onChange={() => {}} />);
+    rerender(
+      <ReportColumnPicker
+        dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
+        value={next}
+        onChange={() => {}}
+      />
+    );
 
     expect(screen.queryByText('Joined DM')).not.toBeInTheDocument();
     expect(screen.queryByText('only')).not.toBeInTheDocument();
+  });
+});
+
+describe('ReportColumnPicker joined source details', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('builds a multi-hop join path from the same titles shown by the picker', async () => {
+    const firstSource = buildAvailableSource({
+      aliasPath: 'orders_tech',
+      title: 'Orders native title',
+      defaultAlias: 'Orders for reporting',
+      relationshipId: 'rel-orders',
+      dataMartId: 'dm-orders',
+      depth: 1,
+    });
+    const secondSource = buildAvailableSource({
+      aliasPath: 'orders_tech.items_tech',
+      title: 'Line Items native title',
+      description: 'Line item data mart description.',
+      defaultAlias: 'Line Items for reporting',
+      relationshipId: 'rel-items',
+      dataMartId: 'dm-items',
+      depth: 2,
+    });
+    const schema = buildSchema({
+      nativeFields: [
+        { name: 'native_one', type: 'STRING', description: 'Native field description.' },
+      ] as unknown[],
+      blendedFields: [
+        buildBlendedField({
+          name: 'orders_tech__items_tech__sku',
+          sourceRelationshipId: 'rel-items',
+          sourceDataMartId: 'dm-items',
+          sourceDataMartTitle: 'Line Items native title',
+          targetAlias: 'items_tech',
+          originalFieldName: 'sku',
+          description: 'SKU field description.',
+          transitiveDepth: 2,
+          aliasPath: secondSource.aliasPath,
+          outputPrefix: secondSource.defaultAlias,
+        }),
+      ],
+      availableSources: [firstSource, secondSource],
+    });
+    renderPicker(schema, []);
+
+    const trigger = await screen.findByLabelText('Show join path for Line Items for reporting');
+    const header = screen.getByRole('button', { name: 'Expand Line Items for reporting' });
+    const headerRow = header.parentElement;
+    expect(headerRow).toHaveClass('group/data-mart');
+    expect(header).toHaveClass('flex-1');
+    expect(header).not.toContainElement(trigger);
+    expect(headerRow).toContainElement(trigger);
+    expect(trigger).toHaveAttribute('type', 'button');
+    expect(trigger).toHaveClass('h-6', 'w-6', 'items-center', 'justify-center');
+    expect(header).not.toHaveClass('group');
+    expect(trigger).toHaveClass('group-hover/data-mart:opacity-100');
+    expect(trigger).toHaveClass('focus-visible:opacity-100');
+    expect(trigger).toHaveClass('text-muted-foreground');
+    expect(trigger).not.toHaveClass('text-muted-foreground/50');
+    expect(trigger).not.toHaveClass('group-hover:opacity-100');
+
+    const infoTrigger = screen.getByRole('button', {
+      name: 'Data Mart details for Line Items for reporting',
+    });
+    const infoIcon = infoTrigger.querySelector('.lucide-info');
+    expect(infoIcon).toHaveClass('size-3.5');
+    expect(header).not.toContainElement(infoTrigger);
+    expect(headerRow).toContainElement(infoTrigger);
+    expect(infoTrigger).toHaveAttribute('type', 'button');
+    expect(infoTrigger).toHaveClass('h-6', 'w-6', 'items-center', 'justify-center');
+    expect(infoTrigger).toHaveClass('group-hover/data-mart:opacity-100');
+    expect(infoTrigger).toHaveClass('focus-visible:opacity-100');
+    expect(infoTrigger).toHaveClass('text-muted-foreground');
+    expect(infoTrigger).not.toHaveClass('text-muted-foreground/50');
+    expect(infoTrigger).not.toHaveClass('group-hover:opacity-100');
+    expect(infoTrigger.nextElementSibling).toBe(trigger);
+
+    fireEvent.click(header);
+    for (const fieldName of ['native_one', 'sku']) {
+      const row = screen.getByText(fieldName).closest('label');
+      expect(row).toHaveClass('group/row');
+      expect(row).not.toHaveClass('group');
+
+      const fieldInfoTrigger = row
+        ?.querySelector('.lucide-info')
+        ?.closest('[data-slot="tooltip-trigger"]');
+      expect(row?.querySelector('.ml-auto')).toContainElement(fieldInfoTrigger as HTMLElement);
+      expect(fieldInfoTrigger).toHaveClass('h-6', 'w-6', 'items-center', 'justify-center');
+      expect(fieldInfoTrigger).toHaveClass('group-hover/row:opacity-100');
+      expect(fieldInfoTrigger).not.toHaveClass('group-hover:opacity-100');
+    }
+
+    fireEvent.pointerMove(trigger, { pointerType: 'mouse' });
+    const tooltip = await screen.findByRole('tooltip');
+
+    expect(tooltip).toHaveClass(
+      'max-w-sm',
+      'overflow-auto',
+      'overscroll-contain',
+      'whitespace-nowrap'
+    );
+    expect(tooltip).not.toHaveClass('max-w-64', 'overflow-y-auto');
+    Object.defineProperties(tooltip, {
+      clientHeight: { configurable: true, value: 40 },
+      clientWidth: { configurable: true, value: 384 },
+      scrollHeight: { configurable: true, value: 40 },
+      scrollWidth: { configurable: true, value: 800 },
+    });
+    fireEvent.wheel(tooltip, { deltaX: 0, deltaY: 48 });
+    expect(tooltip.scrollLeft).toBe(48);
+    expect(tooltip).toHaveTextContent('Main Data Mart');
+    expect(tooltip).not.toHaveTextContent('Default Data Mart');
+    expect(tooltip).toHaveTextContent('Orders for reporting');
+    expect(tooltip).toHaveTextContent('Line Items for reporting');
+    expect(tooltip).not.toHaveTextContent('Orders native title');
+    expect(tooltip).not.toHaveTextContent('Line Items native title');
+    expect(tooltip).not.toHaveTextContent('orders_tech');
+    expect(tooltip).not.toHaveTextContent('items_tech');
   });
 });
 
@@ -380,6 +514,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     render(
       <ReportColumnPicker
         dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
         storageType={DataStorageType.GOOGLE_BIGQUERY}
         value={['native_one']}
         onChange={() => {}}
@@ -425,6 +560,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     render(
       <ReportColumnPicker
         dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
         storageType={DataStorageType.GOOGLE_BIGQUERY}
         value={['native_one']}
         onChange={() => {}}
@@ -483,6 +619,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     render(
       <ReportColumnPicker
         dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
         storageType={DataStorageType.GOOGLE_BIGQUERY}
         value={['native_one']}
         onChange={() => {}}
@@ -531,6 +668,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     render(
       <ReportColumnPicker
         dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
         storageType={DataStorageType.GOOGLE_BIGQUERY}
         value={['native_one', 'b__visible_field']}
         onChange={() => {}}
@@ -637,6 +775,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     render(
       <ReportColumnPicker
         dataMartId={DATA_MART_ID}
+        dataMartTitle='Main Data Mart'
         value={['native_one', 'gone__field']}
         onChange={() => {}}
         onCountChange={onCountChange}
@@ -706,6 +845,38 @@ describe('ReportColumnPicker aggregation', () => {
     // AGG panel: no row-count toggle (Row Count is never added to reports).
     fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
     expect(screen.queryByLabelText('Add a Row Count metric')).not.toBeInTheDocument();
+  });
+
+  it('scopes every configured-control edit icon to its own row hover', () => {
+    renderPicker(aggSchema(), ['native_one', 'revenue', 'ordered_at'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [{ column: 'native_one', operator: 'eq', value: 'x' }],
+        sortConfig: [],
+        limitConfig: null,
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        dateTruncConfig: [{ column: 'ordered_at', unit: 'MONTH' }],
+        uniqueCountConfig: [],
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    const expectOwnRowHover = (accessibleName: string) => {
+      const editButton = screen.getByRole('button', { name: accessibleName });
+      expect(editButton).toHaveClass('group-hover/control-row:opacity-100');
+      expect(editButton).not.toHaveClass('group-hover:opacity-100');
+
+      const row = editButton.closest('div.rounded');
+      expect(row).toHaveClass('group/control-row');
+      expect(row).not.toHaveClass('group');
+    };
+
+    fireEvent.click(screen.getByRole('button', { name: 'Output controls' }));
+    expectOwnRowHover('Edit filter');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aggregations' }));
+    expectOwnRowHover('Edit aggregation');
+    expectOwnRowHover('Edit date bucket');
   });
 
   it('shows a per-row AGG icon on a selected aggregatable field, hidden on an unselected one', () => {
@@ -861,7 +1032,9 @@ function queryJoinedUniqueCountRowOf(groupAlias: string): HTMLElement | null {
   const header = screen.queryByRole('button', {
     name: new RegExp(`^(Collapse|Expand) ${groupAlias}$`),
   });
-  return header?.parentElement?.querySelector('[data-slot="unique-count-row"]') ?? null;
+  return (
+    header?.parentElement?.parentElement?.querySelector('[data-slot="unique-count-row"]') ?? null
+  );
 }
 
 function joinedUniqueCountRowOf(groupAlias: string): HTMLElement {
@@ -2152,6 +2325,7 @@ describe('ReportColumnPicker Unique Count per joined source', () => {
       <QueryClientProvider client={client}>
         <ReportColumnPicker
           dataMartId={DATA_MART_ID}
+          dataMartTitle='Main Data Mart'
           value={['id']}
           onChange={vi.fn()}
           storageType={DataStorageType.GOOGLE_BIGQUERY}

@@ -1,32 +1,53 @@
 import { Info } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
 
 interface FieldInfoTooltipProps {
   text: string | undefined;
   compact?: boolean;
+  dataMartHeader?: boolean;
+  label?: string;
 }
 
-export function FieldInfoTooltip({ text, compact }: FieldInfoTooltipProps) {
+export function FieldInfoTooltip({ text, compact, dataMartHeader, label }: FieldInfoTooltipProps) {
   if (!text) return null;
+  const className = cn(
+    'text-muted-foreground hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity',
+    dataMartHeader
+      ? 'group-hover/data-mart:opacity-100 focus-visible:opacity-100'
+      : 'group-hover/row:opacity-100'
+  );
+  const stopParentToggle = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const icon = (
+    <Info className={cn('shrink-0', compact ? 'size-3.5' : 'size-4')} aria-hidden='true' />
+  );
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          // Both the bare `group` (field rows, group headers) and the named `group/row`, so a row
-          // that must not join an ancestor's anonymous group can declare only the latter.
-          className='text-muted-foreground/50 hover:text-muted-foreground inline-flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-hover/row:opacity-100'
-          onClick={e => {
-            // Prevent parent <label>/<button> from toggling the checkbox or
-            // collapsing the group when the user clicks the info icon.
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
-          <Info className={cn('shrink-0', compact ? 'size-3.5' : 'size-4')} aria-hidden='true' />
-        </span>
+        {dataMartHeader ? (
+          <button
+            type='button'
+            aria-label={`Data Mart details for ${label ?? 'data mart'}`}
+            className={className}
+          >
+            {icon}
+          </button>
+        ) : (
+          <span className={className} onClick={stopParentToggle}>
+            {icon}
+          </span>
+        )}
       </TooltipTrigger>
-      <TooltipContent side='top' className='max-w-xs whitespace-pre-wrap'>
+      <TooltipContent
+        side='top'
+        collisionPadding={8}
+        className='max-h-64 max-w-64 overflow-y-auto whitespace-pre-wrap'
+      >
         {text}
       </TooltipContent>
     </Tooltip>

@@ -40,7 +40,7 @@ export function AggregationRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1.5 rounded px-2 py-1.5',
+        'group/control-row flex items-center gap-1.5 rounded px-2 py-1.5',
         isOrphaned ? 'bg-red-50 dark:bg-red-950/30' : 'bg-muted/40'
       )}
     >
@@ -89,7 +89,7 @@ export function AggregationRow({
               variant='ghost'
               size='sm'
               className={cn(
-                'text-muted-foreground hover:text-foreground h-6 w-6 p-0 transition-opacity group-hover:opacity-100',
+                'text-muted-foreground hover:text-foreground h-6 w-6 p-0 transition-opacity group-hover/control-row:opacity-100',
                 editing ? 'opacity-100' : 'opacity-0'
               )}
               aria-label='Edit aggregation'

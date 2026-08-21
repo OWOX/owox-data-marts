@@ -4,7 +4,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import { Search } from 'lucide-react';
+import { Link2, Search } from 'lucide-react';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
@@ -73,6 +73,7 @@ import {
 } from './aggregation-config';
 import { buildColumnSearchResult, matchesColumnSearch } from './report-column-search';
 import { SearchButton } from './SearchButton';
+import { PathTree } from './FieldSearchPicker';
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
 // DISCONNECTED nodes (with their subtrees) are unavailable for reporting, so they
@@ -115,6 +116,14 @@ function uniqueCountColumnName(source: string): string {
  */
 const MAIN_UNIQUE_COUNT_ROW_LABEL = UNIQUE_COUNT_LABEL;
 
+function joinedDataMartTitle(
+  displayPrefix: string,
+  nativeTitle: string,
+  aliasPath: string
+): string {
+  return displayPrefix.trim() || nativeTitle || aliasPath;
+}
+
 export interface ReportColumnSelectionCount {
   selected: number;
   total: number;
@@ -131,6 +140,7 @@ export function ReportColumnsCountBadge({ count }: { count: ReportColumnSelectio
 
 export interface ReportColumnPickerProps {
   dataMartId: string;
+  dataMartTitle: string;
   storageType?: DataStorageType;
   value: string[] | null;
   /**
@@ -257,7 +267,7 @@ const NativeFieldRow = memo(function NativeFieldRow({
     />
   );
   return (
-    <label className='group/row group hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
+    <label className='group/row hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
       <Checkbox
         checked={checked}
         onCheckedChange={c => {
@@ -268,10 +278,10 @@ const NativeFieldRow = memo(function NativeFieldRow({
         {field.alias ?? field.name}
       </span>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
-      <FieldInfoTooltip text={field.description} compact />
-      {/* Fixed height: both icons are conditional, and a row that shows neither would otherwise
+      {/* Fixed height: the actions are conditional, and a row that shows none would otherwise
           sit shorter than its neighbours and grow the moment one appears. */}
       <span className='ml-auto flex h-6 items-center'>
+        <FieldInfoTooltip text={field.description} compact />
         {aggIcon}
         {filterIcon}
       </span>
@@ -371,7 +381,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   return (
     <label
       className={cn(
-        'group/row group flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
+        'group/row flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
         hoverClassName
       )}
     >
@@ -386,10 +396,10 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
         {field.alias || field.originalFieldName}
       </span>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
-      <FieldInfoTooltip text={field.description} compact />
-      {/* Fixed height: both icons are conditional, and a row that shows neither would otherwise
+      {/* Fixed height: the actions are conditional, and a row that shows none would otherwise
           sit shorter than its neighbours and grow the moment one appears. */}
       <span className='ml-auto flex h-6 items-center'>
+        <FieldInfoTooltip text={field.description} compact />
         {aggIcon}
         {filterIcon}
       </span>
@@ -409,6 +419,7 @@ type GroupUniqueCount = NonNullable<BlendedGroup['uniqueCount']> & {
 
 interface BlendedGroupItemProps {
   group: BlendedGroup;
+  joinPath: readonly string[];
   selectedSet: Set<string>;
   onToggleField: ToggleFieldFn;
   filterableTypeFor?: (fieldName: string) => string | undefined;
@@ -423,8 +434,50 @@ interface BlendedGroupItemProps {
   uniqueCount?: GroupUniqueCount;
 }
 
+function JoinPathTooltip({
+  dataMartName,
+  path,
+}: {
+  dataMartName: string;
+  path: readonly string[];
+}) {
+  if (path.length < 2) return null;
+  return (
+    <Tooltip delayDuration={600}>
+      <TooltipTrigger asChild>
+        <button
+          type='button'
+          aria-label={`Show join path for ${dataMartName}`}
+          className='text-muted-foreground hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover/data-mart:opacity-100 focus-visible:opacity-100'
+        >
+          <Link2 className='size-4 shrink-0' aria-hidden='true' />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side='top'
+        align='start'
+        collisionPadding={8}
+        className='max-h-64 max-w-sm overflow-auto overscroll-contain whitespace-nowrap'
+        onWheel={event => {
+          const tooltip = event.currentTarget;
+          if (
+            tooltip.scrollWidth > tooltip.clientWidth &&
+            tooltip.scrollHeight <= tooltip.clientHeight &&
+            Math.abs(event.deltaY) > Math.abs(event.deltaX)
+          ) {
+            tooltip.scrollLeft += event.deltaY;
+          }
+        }}
+      >
+        <PathTree segments={path} />
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function BlendedGroupItem({
   group,
+  joinPath,
   selectedSet,
   onToggleField,
   filterableTypeFor,
@@ -462,33 +515,39 @@ function BlendedGroupItem({
       onOpenChange={setIsOpen}
       className={cn('rounded', inaccessible && 'border-destructive bg-destructive/10 border')}
     >
-      <button
-        type='button'
-        aria-expanded={isOpen}
-        aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.alias}`}
+      <div
         className={cn(
-          'group flex w-full cursor-pointer items-start gap-1.5 rounded px-1 py-1 text-left transition-colors',
+          'group/data-mart flex w-full items-start gap-1.5 rounded px-1 py-1 transition-colors',
           !inaccessible &&
             'bg-secondary/50 dark:bg-muted/50 hover:bg-secondary/80 dark:hover:bg-muted/80'
         )}
-        onClick={() => {
-          setIsOpen(v => !v);
-        }}
       >
-        <Chevron className={cn('mt-0.5 h-4 w-4 shrink-0', accentClass)} />
-        <div className='min-w-0 flex-1'>
-          <div className='flex min-w-0 items-center gap-1.5'>
-            <span
-              className={cn('truncate text-xs font-semibold', inaccessible && 'text-destructive')}
-              title={group.alias}
-            >
-              {group.alias}
-            </span>
-            <FieldInfoTooltip text={group.description} />
-          </div>
-        </div>
-        {inaccessible && <NoAccessIndicator variant='destructive' className='mt-0.5' />}
-      </button>
+        <button
+          type='button'
+          aria-expanded={isOpen}
+          aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.alias}`}
+          className='flex min-w-0 flex-1 cursor-pointer items-start gap-1.5 text-left'
+          onClick={() => {
+            setIsOpen(v => !v);
+          }}
+        >
+          <Chevron className={cn('mt-0.5 h-4 w-4 shrink-0', accentClass)} />
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-xs font-semibold',
+              inaccessible && 'text-destructive'
+            )}
+            title={group.alias}
+          >
+            {group.alias}
+          </span>
+          {inaccessible && <NoAccessIndicator variant='destructive' className='mt-0.5' />}
+        </button>
+        <span className='mt-0.5 flex shrink-0 items-center'>
+          <FieldInfoTooltip text={group.description} compact dataMartHeader label={group.alias} />
+          <JoinPathTooltip dataMartName={group.alias} path={joinPath} />
+        </span>
+      </div>
       <CollapsibleContent>
         {group.visibleFields.map(field => {
           return (
@@ -524,6 +583,7 @@ function BlendedGroupItem({
 
 export function ReportColumnPicker({
   dataMartId,
+  dataMartTitle,
   storageType,
   value,
   onChange,
@@ -810,6 +870,25 @@ export function ReportColumnPicker({
     }
     return map;
   }, [schema?.availableSources]);
+
+  const joinPathFor = useCallback(
+    (aliasPath: string): string[] => {
+      const segments = aliasPath.split('.');
+      const path = [dataMartTitle];
+      for (let index = 0; index < segments.length; index += 1) {
+        const technicalAlias = segments[index];
+        const prefix = segments.slice(0, index + 1).join('.');
+        const source = availableSourceByPath.get(prefix);
+        path.push(
+          source
+            ? joinedDataMartTitle(source.defaultAlias, source.title, source.aliasPath)
+            : technicalAlias
+        );
+      }
+      return path;
+    },
+    [availableSourceByPath, dataMartTitle]
+  );
 
   const accessibleBlendedFieldNames = useMemo(
     () =>
@@ -1289,7 +1368,11 @@ export function ReportColumnPicker({
         group = {
           aliasPath: field.aliasPath,
           title: field.sourceDataMartTitle,
-          alias: field.outputPrefix,
+          alias: joinedDataMartTitle(
+            field.outputPrefix,
+            field.sourceDataMartTitle,
+            field.aliasPath
+          ),
           description: source?.description,
           isAccessibleForReporting: source?.isAccessibleForReporting ?? false,
           visibleFields: [],
@@ -1329,7 +1412,7 @@ export function ReportColumnPicker({
           group = {
             aliasPath: source.aliasPath,
             title: source.title,
-            alias: source.defaultAlias,
+            alias: joinedDataMartTitle(source.defaultAlias, source.title, source.aliasPath),
             description: source.description,
             isAccessibleForReporting: source.isAccessibleForReporting,
             visibleFields: [],
@@ -1600,7 +1683,7 @@ export function ReportColumnPicker({
               return (
                 <label
                   key={name}
-                  className='group/row group hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
+                  className='group/row hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
                 >
                   <Checkbox
                     checked={selected}
@@ -1628,7 +1711,7 @@ export function ReportColumnPicker({
               return (
                 <label
                   key={column}
-                  className='group/row group hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
+                  className='group/row hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
                 >
                   <Checkbox checked={false} disabled />
                   <span className='font-mono text-xs'>{column}</span>
@@ -1692,6 +1775,7 @@ export function ReportColumnPicker({
             <BlendedGroupItem
               key={group.aliasPath}
               group={group}
+              joinPath={joinPathFor(group.aliasPath)}
               selectedSet={effectiveValueSet}
               onToggleField={toggleField}
               filterableTypeFor={filterableTypeFor}
