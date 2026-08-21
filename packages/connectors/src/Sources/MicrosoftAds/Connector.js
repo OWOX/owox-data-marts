@@ -17,15 +17,29 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * Processes all nodes defined in the fields configuration
    */
   async startImportProcess() {
-    const accountIds = FormatUtils.parseAccountIds(this.config.AccountIDs.value).map(id => id.trim());
+    const accountIds = FormatUtils.parseAccountIds(this.config.AccountIDs.value);
+
+    // A blank-but-truthy AccountIDs (e.g. ",") passes required-field validation and parses
+    // to an empty list. Without this the day loop would still run, import nothing, and walk
+    // the incremental cursor to today — silently skipping every day once the config is fixed.
+    if (!accountIds.length) {
+      throw new Error('No valid Account IDs found in the AccountIDs parameter');
+    }
+
     const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);
     const nodeNames = Object.keys(fields);
+    nodeNames.forEach(nodeName => this.assertKnownNode(nodeName));
+
     const timeSeriesNodes = nodeNames.filter(nodeName => this.source.fieldsSchema[nodeName].isTimeSeries);
     const catalogNodes = nodeNames.filter(nodeName => !this.source.fieldsSchema[nodeName].isTimeSeries);
 
-    for (const accountId of accountIds) {
-      this.config.logMessage(`Starting import process for Account ID: ${accountId}`);
+    // Resolve the date range up front so an invalid backfill config (missing StartDate,
+    // EndDate before StartDate) fails before any catalog import rather than after it.
+    const dateRange = timeSeriesNodes.length ? this.getStartDateAndDaysToFetch() : null;
 
+    this.config.logMessage(`Importing ${nodeNames.length} node(s) for account(s): ${accountIds.join(', ')}`);
+
+    for (const accountId of accountIds) {
       for (const nodeName of catalogNodes) {
         await this.processCatalogNode({
           nodeName,
@@ -35,7 +49,21 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       }
     }
 
-    await this.processTimeSeriesNodes({ accountIds, timeSeriesNodes, fields });
+    if (dateRange) {
+      const [startDate, daysToFetch] = dateRange;
+      await this.processTimeSeriesNodes({ accountIds, timeSeriesNodes, fields, startDate, daysToFetch });
+    }
+  }
+
+  /**
+   * Rejects a configured node that the source no longer defines, so an outdated Fields
+   * value fails with a readable message instead of a bare property-of-undefined error
+   * @param {string} nodeName - Name of the node
+   */
+  assertKnownNode(nodeName) {
+    if (!this.source.fieldsSchema[nodeName]) {
+      throw new Error(`Unknown node '${nodeName}'. Please update the Fields configuration`);
+    }
   }
 
   /**
@@ -49,14 +77,10 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {Array<string>} options.accountIds - Account IDs to import
    * @param {Array<string>} options.timeSeriesNodes - Names of the time series nodes to import
    * @param {Object} options.fields - Map of node name to the fields selected for it
+   * @param {Date} options.startDate - First date of the range
+   * @param {number} options.daysToFetch - Number of days to import
    */
-  async processTimeSeriesNodes({ accountIds, timeSeriesNodes, fields }) {
-    if (!timeSeriesNodes.length) {
-      return;
-    }
-
-    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-
+  async processTimeSeriesNodes({ accountIds, timeSeriesNodes, fields, startDate, daysToFetch }) {
     if (daysToFetch <= 0) {
       this.config.logMessage('No days to fetch for time series data');
       return;
@@ -65,16 +89,17 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
     for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + dayOffset);
+      const formattedDate = DateUtils.formatDate(currentDate);
+
+      this.config.logMessage(`Processing ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
 
       for (const accountId of accountIds) {
         for (const nodeName of timeSeriesNodes) {
           await this.processTimeSeriesDay({
             nodeName,
             accountId,
-            date: currentDate,
-            fields: fields[nodeName] || [],
-            dayNumber: dayOffset + 1,
-            daysToFetch
+            formattedDate,
+            fields: fields[nodeName] || []
           });
         }
       }
@@ -91,16 +116,10 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {Object} options - Processing options
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.accountId - Account ID
-   * @param {Date} options.date - The day to import
+   * @param {string} options.formattedDate - The day to import, as YYYY-MM-DD
    * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {number} options.dayNumber - 1-based position of the day within the run
-   * @param {number} options.daysToFetch - Total number of days in the run
    */
-  async processTimeSeriesDay({ nodeName, accountId, date, fields, dayNumber, daysToFetch }) {
-    const formattedDate = DateUtils.formatDate(date);
-
-    this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayNumber} of ${daysToFetch})`);
-
+  async processTimeSeriesDay({ nodeName, accountId, formattedDate, fields }) {
     const data = await this.source.fetchData({
       nodeName,
       accountId,

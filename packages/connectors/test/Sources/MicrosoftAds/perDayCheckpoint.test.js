@@ -7,8 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 globalThis.DateUtils = { formatDate: date => date.toISOString().slice(0, 10) };
 globalThis.RUN_CONFIG_TYPE = { INCREMENTAL: 'INCREMENTAL', MANUAL_BACKFILL: 'MANUAL_BACKFILL' };
-globalThis.FormatUtils = { parseAccountIds: value => value.split(',') };
 globalThis.MicrosoftAdsHelper = { parseFields: value => JSON.parse(value) };
+
+// Account parsing decides whether the day loop runs at all, so use the real helper
+// rather than a stub that can never return the empty list the connector must reject.
+loadGasClass(path.join(__dirname, '../../../src/Core/Utils/FormatUtils.js'));
 
 loadGasClass(path.join(__dirname, '../../../src/Sources/MicrosoftAds/Connector.js'), {
   AbstractConnector: class {},
@@ -156,15 +159,31 @@ describe('multiple accounts', () => {
     expect(cursorMovedTo).toEqual(['2026-08-10']);
   });
 
-  it('trims whitespace around configured account IDs', async () => {
+  it('trims whitespace and accepts semicolons in configured account IDs', async () => {
+    // Whitespace before a delimiter is not eaten by the split, so an untrimmed id would
+    // reach the API as " acc1 " and fetch nothing.
     const { self, fetched } = buildConnector({
-      accountIds: 'acc1, acc2',
+      accountIds: ' acc1 ; acc2 ',
       daysToFetch: 1,
     });
 
     await connectorProto.startImportProcess.call(self);
 
     expect(fetched).toEqual([`acc1/${REPORT_NODE}/2026-08-10`, `acc2/${REPORT_NODE}/2026-08-10`]);
+  });
+
+  it('refuses to run when AccountIDs holds no usable id', async () => {
+    // "," is truthy so it passes required-field validation, but parses to an empty list.
+    // Importing nothing while advancing the cursor would skip every one of those days
+    // for good once the config is corrected.
+    const { self, cursorMovedTo, fetched } = buildConnector({ accountIds: ', ;' });
+
+    await expect(connectorProto.startImportProcess.call(self)).rejects.toThrow(
+      /No valid Account IDs/
+    );
+
+    expect(fetched).toEqual([]);
+    expect(cursorMovedTo).toEqual([]);
   });
 });
 
@@ -213,5 +232,44 @@ describe('node types', () => {
 
     expect(fetched).toEqual([]);
     expect(cursorMovedTo).toEqual([]);
+  });
+
+  it('names the offending node when Fields references one the source dropped', async () => {
+    // Otherwise the run dies on a bare property-of-undefined before the first log line,
+    // leaving nothing in run history to diagnose it from.
+    const { self, fetched } = buildConnector({ nodes: { removed_report: ['Spend'] } });
+
+    await expect(connectorProto.startImportProcess.call(self)).rejects.toThrow(
+      /Unknown node 'removed_report'/
+    );
+
+    expect(fetched).toEqual([]);
+  });
+
+  it('writes an empty day when CreateEmptyTables is on', async () => {
+    const saved = [];
+    const { self } = buildConnector({
+      daysToFetch: 2,
+      fetchData: async () => [],
+      saveData: async rows => saved.push(rows),
+    });
+    self.config.CreateEmptyTables = { value: true };
+
+    await connectorProto.startImportProcess.call(self);
+
+    expect(saved).toEqual([[], []]);
+  });
+
+  it('does not touch storage on an empty day when CreateEmptyTables is off', async () => {
+    const saved = [];
+    const { self } = buildConnector({
+      daysToFetch: 2,
+      fetchData: async () => [],
+      saveData: async rows => saved.push(rows),
+    });
+
+    await connectorProto.startImportProcess.call(self);
+
+    expect(saved).toEqual([]);
   });
 });

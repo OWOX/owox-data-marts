@@ -62,7 +62,8 @@ var FormatUtils = {
    */
   parseAccountIds: function (accountIdsString) {
     return String(accountIdsString)
-      .split(/[,;]\s*/)
-      .filter(id => id.trim().length > 0);
+      .split(/[,;]/)
+      .map(id => id.trim())
+      .filter(id => id.length > 0);
   }
 };
