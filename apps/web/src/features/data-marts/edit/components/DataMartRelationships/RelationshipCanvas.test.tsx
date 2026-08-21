@@ -5,7 +5,8 @@ import { NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
 import type { ErdCardField } from '../../../shared/canvas/erd-fields';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
-import { getFittedGraphZoom, getGraphZoomRange } from './relationship-canvas-zoom';
+import { getViewportForBounds } from '@xyflow/react';
+import { getGraphZoomRange } from './relationship-canvas-zoom';
 
 const FIT_VIEW_PADDING = 1 / 0.85 - 1;
 
@@ -63,7 +64,11 @@ const reactFlowHarness = vi.hoisted(() => {
   };
 });
 
-vi.mock('@xyflow/react', () => ({
+vi.mock('@xyflow/react', async importOriginal => ({
+  // The real padding/zoom math — the zoom-range derivation under test must
+  // run against the library's actual getViewportForBounds semantics.
+  getViewportForBounds: (await importOriginal<typeof import('@xyflow/react')>())
+    .getViewportForBounds,
   useUpdateNodeInternals: () => () => undefined,
   BaseEdge: () => null,
   Handle: () => null,
@@ -140,16 +145,24 @@ describe('RelationshipCanvas viewport', () => {
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
-    const expectedRange = getGraphZoomRange(
-      getFittedGraphZoom(
-        getRenderedGraphBounds(),
-        reactFlowHarness.store.width,
-        reactFlowHarness.store.height,
-        FIT_VIEW_PADDING
-      )
-    );
-    expect(reactFlowHarness.latestProps?.minZoom).toBe(expectedRange.min);
-    expect(expectedRange.min).toBeGreaterThan(0.05);
+    // Expected floor computed with the library's own fitView math, not with
+    // the function under test — a formula drift must fail here.
+    const bounds = getRenderedGraphBounds();
+    const fittedZoom = getViewportForBounds(
+      {
+        x: bounds.minX,
+        y: bounds.minY,
+        width: bounds.maxX - bounds.minX,
+        height: bounds.maxY - bounds.minY,
+      },
+      reactFlowHarness.store.width,
+      reactFlowHarness.store.height,
+      0.05,
+      3,
+      FIT_VIEW_PADDING
+    ).zoom;
+    expect(reactFlowHarness.latestProps?.minZoom).toBe(getGraphZoomRange(fittedZoom).min);
+    expect(fittedZoom).toBeGreaterThan(0.05);
   });
 
   it('passes the low zoom floor to a full fit while the interactive floor is raised', async () => {

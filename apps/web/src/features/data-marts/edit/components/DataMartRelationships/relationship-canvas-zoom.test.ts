@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getViewportForBounds } from '@xyflow/react';
 import {
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
@@ -68,11 +69,17 @@ describe('relationship canvas zoom', () => {
 
   describe('getFittedGraphZoom', () => {
     const bounds = { minX: 0, minY: 0, maxX: 800, maxY: 200 };
+    const rect = { x: 0, y: 0, width: 800, height: 200 };
 
-    it('matches the fitView formula for a fractional padding', () => {
-      // padding 0.1 reserves 10% of the pane on each side: the graph gets
-      // 80% of 1000x500 — the width is the limiting side here.
-      expect(getFittedGraphZoom(bounds, 1000, 500, 0.1)).toBeCloseTo((1000 * 0.8) / 800);
+    it('matches the zoom the real fitView math produces', () => {
+      // Asserted against the library function fitView uses internally — an
+      // in-test re-derivation of the padding formula could drift together
+      // with the implementation and hide a mismatch.
+      const expected = getViewportForBounds(rect, 1000, 500, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX, 0.1);
+      expect(getFittedGraphZoom(bounds, 1000, 500, 0.1)).toBe(expected.zoom);
+      // Sanity-pin the padding semantics of @xyflow v12 (usable pane is
+      // pane / (1 + padding), floored per side): 1000 -> 910 usable px.
+      expect(expected.zoom).toBeCloseTo(910 / 800, 5);
     });
 
     it('clamps the fitted zoom into the supported range', () => {

@@ -1,3 +1,4 @@
+import { getViewportForBounds } from '@xyflow/react';
 import type { CanvasGraphBounds } from '../../../shared/canvas/viewport';
 
 export const GRAPH_ZOOM_MAX = 3;
@@ -12,8 +13,9 @@ export interface GraphZoomRange {
 
 /**
  * The zoom a full fit lands on for the given graph bounds and pane size —
- * the same math React Flow's fitView uses for a fractional padding, which
- * reserves `padding * pane` on each side before fitting the bounds.
+ * computed with React Flow's own getViewportForBounds (the function fitView
+ * uses internally), so the value cannot drift from the library's padding
+ * semantics.
  *
  * Derived analytically (instead of reading the viewport back after a fit) so
  * the zoom range never freezes on a value captured under transient conditions
@@ -32,11 +34,14 @@ export function getFittedGraphZoom(
     return Number.NaN;
   }
 
-  const zoom = Math.min(
-    (paneWidth * (1 - 2 * padding)) / boundsWidth,
-    (paneHeight * (1 - 2 * padding)) / boundsHeight
-  );
-  return Math.min(Math.max(zoom, GRAPH_ZOOM_MIN), GRAPH_ZOOM_MAX);
+  return getViewportForBounds(
+    { x: bounds.minX, y: bounds.minY, width: boundsWidth, height: boundsHeight },
+    paneWidth,
+    paneHeight,
+    GRAPH_ZOOM_MIN,
+    GRAPH_ZOOM_MAX,
+    padding
+  ).zoom;
 }
 
 export function getGraphZoomRange(fittedZoom: number): GraphZoomRange {
