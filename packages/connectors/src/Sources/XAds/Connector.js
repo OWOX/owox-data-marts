@@ -19,117 +19,57 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const fields = XAdsHelper.parseFields(this.config.Fields.value);
     const accountIds = XAdsHelper.parseAccountIds(this.config.AccountIDs.value);
-    let lastProcessedDate = null;
+    const nodeNames = Object.keys(fields);
+    const timeSeriesNodes = nodeNames.filter(nodeName => this.source.fieldsSchema[nodeName].isTimeSeries);
+    const catalogNodes = nodeNames.filter(nodeName => !this.source.fieldsSchema[nodeName].isTimeSeries);
+    const asyncNodes = timeSeriesNodes.filter(nodeName => this.source.fieldsSchema[nodeName].asyncTimeSeries);
+    const syncNodes = timeSeriesNodes.filter(nodeName => !this.source.fieldsSchema[nodeName].asyncTimeSeries);
+
+    // A node whose rows cannot be merged into storage is a configuration error, so it is
+    // rejected before the run spends a full catalog import discovering it.
+    asyncNodes.forEach(nodeName => this.assertUniqueKeysSelected(nodeName, fields[nodeName] || []));
 
     for (const accountId of accountIds) {
-      for (const nodeName in fields) {
-        const processedDate = await this.processNode({
-          nodeName,
-          accountId,
-          fields: fields[nodeName] || [],
-          updateRequestedDate: false
-        });
-
-        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
-          lastProcessedDate = processedDate;
-        }
+      for (const nodeName of catalogNodes) {
+        await this.processCatalogNode({ nodeName, accountId, fields: fields[nodeName] || [] });
       }
-
-      this.source.clearCache(accountId);
     }
 
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
-      this.config.updateLastRequstedDate(lastProcessedDate);
+    try {
+      await this.processTimeSeriesNodes({ accountIds, asyncNodes, syncNodes, fields });
+    } finally {
+      // Every account is revisited on every date now, so its cached promoted tweet IDs
+      // stay in use until the whole range is done and can only be released here.
+      accountIds.forEach(accountId => this.source.clearCache(accountId));
     }
   }
 
   /**
-   * Process a single node for a specific account
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node to process
-   * @param {string} options.accountId - Account ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
-   */
-  async processNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
-    if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      return await this.processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate });
-    } else {
-      await this.processCatalogNode({ nodeName, accountId, fields });
-      return null;
-    }
-  }
-
-  /**
-   * Process a time series node (e.g., stats, stats_by_country).
-   * asyncTimeSeries nodes are routed to processAsyncTimeSeriesNode.
-   * All other nodes use the day-by-day fetchData loop.
-   */
-  async processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
-    if (this.source.fieldsSchema[nodeName].asyncTimeSeries) {
-      return await this.processAsyncTimeSeriesNode({
-        nodeName,
-        accountId,
-        fields,
-        updateRequestedDate
-      });
-    }
-
-    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-
-    if (daysToFetch <= 0) {
-      console.log('No days to fetch for time series data');
-      return null;
-    }
-
-    let lastProcessedDate = null;
-
-    for (let i = 0; i < daysToFetch; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setUTCDate(currentDate.getUTCDate() + i);
-      lastProcessedDate = new Date(currentDate);
-
-      const formattedDate = DateUtils.formatDate(currentDate);
-
-      const data = await this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
-
-      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
-
-      if (data.length || this.config.CreateEmptyTables?.value) {
-        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName);
-        await storage.saveData(preparedData);
-      }
-
-      // Some callers defer the checkpoint until all accounts finish successfully.
-      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(currentDate);
-      }
-    }
-
-    return lastProcessedDate;
-  }
-
-  /**
-   * Process an async time series node (e.g., stats_by_country).
+   * Imports every time series node for every account, one date at a time.
    *
-   * Dates are split into fixed-size chunks. For each chunk, the Source processes
-   * one job at a time (submit → poll → download) and calls onBatchReady after
-   * each date so the Connector can save to BigQuery. The checkpoint can be
-   * deferred by callers until all accounts finish successfully.
+   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * date is complete for *all* accounts and nodes, so a run interrupted midway
+   * resumes from the last fully imported date instead of restarting the range.
+   *
+   * Async nodes submit one job per chunk of dates, so when any of them is selected
+   * the cursor advances a whole chunk at a time. Otherwise every chunk is one day.
+   *
+   * @param {Object} options - Processing options
+   * @param {Array<string>} options.accountIds - Account IDs to import
+   * @param {Array<string>} options.asyncNodes - Time series nodes served by the async jobs API
+   * @param {Array<string>} options.syncNodes - Time series nodes fetched one day at a time
+   * @param {Object} options.fields - Map of node name to the fields selected for it
    */
-  async processAsyncTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
-    const uniqueKeys = this.source.fieldsSchema[nodeName].uniqueKeys || [];
-    const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-    if (missingKeys.length > 0) {
-      throw new Error(`Missing required unique fields for '${nodeName}'. Missing: ${missingKeys.join(', ')}`);
+  async processTimeSeriesNodes({ accountIds, asyncNodes, syncNodes, fields }) {
+    if (!asyncNodes.length && !syncNodes.length) {
+      return;
     }
 
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
-      console.log('No days to fetch for time series data');
-      return null;
+      this.config.logMessage('No days to fetch for time series data');
+      return;
     }
 
     // Build date list with both forms needed downstream.
@@ -141,42 +81,136 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       days.push({ date, formatted: DateUtils.formatDate(date) });
     }
 
-    const storage = await this.getStorageByNode(nodeName);
-    const chunks = XAdsHelper.splitDatesIntoChunks(days.map(d => d.formatted));
     const dayLookup = new Map(days.map(d => [d.formatted, d.date]));
-    let lastProcessedDate = null;
+    const formattedDays = days.map(d => d.formatted);
+    const chunks = asyncNodes.length
+      ? XAdsHelper.splitDatesIntoChunks(formattedDays)
+      : formattedDays.map(formatted => [formatted]);
 
     for (const dateChunk of chunks) {
-      await this.source.fetchData({
-        nodeName,
-        accountId,
-        fields,
-        dateChunk,
-        onBatchReady: async (formatted, data) => {
-          this.config.logMessage(data.length
-            ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
-            : 'No records have been fetched'
-          );
+      await this.importAsyncNodesForChunk({ dateChunk, asyncNodes, accountIds, fields });
+      await this.importSyncNodesForChunk({ dateChunk, syncNodes, accountIds, fields, dayLookup });
 
-          if (data.length || this.config.CreateEmptyTables?.value) {
-            const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-            await storage.saveData(preparedData);
-          }
-
-          const processedDate = dayLookup.get(formatted);
-          if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
-            lastProcessedDate = processedDate;
-          }
-
-          // Some callers defer the checkpoint until all accounts finish successfully.
-          if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-            this.config.updateLastRequstedDate(processedDate);
-          }
-        }
-      });
+      // Every account and node stored every date in this chunk, so the cursor can move past it.
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(dayLookup.get(dateChunk[dateChunk.length - 1]));
+      }
     }
+  }
 
-    return lastProcessedDate;
+  /**
+   * Import one chunk of dates of every async node, for every account
+   * @param {Object} options - Processing options
+   * @param {Array<string>} options.dateChunk - Formatted dates covered by this job
+   * @param {Array<string>} options.asyncNodes - Async time series nodes to import
+   * @param {Array<string>} options.accountIds - Account IDs to import
+   * @param {Object} options.fields - Map of node name to the fields selected for it
+   */
+  async importAsyncNodesForChunk({ dateChunk, asyncNodes, accountIds, fields }) {
+    for (const nodeName of asyncNodes) {
+      for (const accountId of accountIds) {
+        await this.processAsyncTimeSeriesChunk({
+          nodeName,
+          accountId,
+          fields: fields[nodeName] || [],
+          dateChunk
+        });
+      }
+    }
+  }
+
+  /**
+   * Import every date of a chunk of every sync node, for every account
+   * @param {Object} options - Processing options
+   * @param {Array<string>} options.dateChunk - Formatted dates to import
+   * @param {Array<string>} options.syncNodes - Sync time series nodes to import
+   * @param {Array<string>} options.accountIds - Account IDs to import
+   * @param {Object} options.fields - Map of node name to the fields selected for it
+   * @param {Map<string, Date>} options.dayLookup - Formatted date to Date instance
+   */
+  async importSyncNodesForChunk({ dateChunk, syncNodes, accountIds, fields, dayLookup }) {
+    for (const formatted of dateChunk) {
+      for (const nodeName of syncNodes) {
+        for (const accountId of accountIds) {
+          await this.processTimeSeriesDay({
+            nodeName,
+            accountId,
+            date: dayLookup.get(formatted),
+            fields: fields[nodeName] || []
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Rejects a node whose unique keys are not all selected, before any data is fetched
+   * @param {string} nodeName - Name of the node
+   * @param {Array<string>} fields - Fields selected for this node
+   */
+  assertUniqueKeysSelected(nodeName, fields) {
+    const uniqueKeys = this.source.fieldsSchema[nodeName].uniqueKeys || [];
+    const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
+
+    if (missingKeys.length > 0) {
+      throw new Error(`Missing required unique fields for '${nodeName}'. Missing: ${missingKeys.join(', ')}`);
+    }
+  }
+
+  /**
+   * Fetch and store a single day of a time series node for one account
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.accountId - Account ID
+   * @param {Date} options.date - The day to import
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processTimeSeriesDay({ nodeName, accountId, date, fields }) {
+    const formattedDate = DateUtils.formatDate(date);
+
+    const data = await this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
+
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
+    }
+  }
+
+  /**
+   * Fetch and store one chunk of dates of an async time series node for one account.
+   *
+   * The Source processes one job at a time (submit → poll → download) and calls
+   * onBatchReady after each date so the Connector can save it.
+   *
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.accountId - Account ID
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {Array<string>} options.dateChunk - Formatted dates covered by this job
+   */
+  async processAsyncTimeSeriesChunk({ nodeName, accountId, fields, dateChunk }) {
+    const storage = await this.getStorageByNode(nodeName);
+
+    await this.source.fetchData({
+      nodeName,
+      accountId,
+      fields,
+      dateChunk,
+      onBatchReady: async (formatted, data) => {
+        this.config.logMessage(data.length
+          ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
+          : 'No records have been fetched'
+        );
+
+        if (data.length || this.config.CreateEmptyTables?.value) {
+          const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+          await storage.saveData(preparedData);
+        }
+      }
+    });
   }
 
   /**

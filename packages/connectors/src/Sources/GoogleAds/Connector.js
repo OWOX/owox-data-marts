@@ -19,108 +19,103 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const customerIds = FormatUtils.parseIds(this.config.CustomerId.value, { stripCharacters: '-' });
     const fields = FormatUtils.parseFields(this.config.Fields.value);
-    let lastProcessedDate = null;
+    const nodeNames = Object.keys(fields);
+    const timeSeriesNodes = nodeNames.filter(nodeName => this.source.fieldsSchema[nodeName].isTimeSeries);
+    const catalogNodes = nodeNames.filter(nodeName => !this.source.fieldsSchema[nodeName].isTimeSeries);
 
-    for (const nodeName in fields) {
-      const processedDate = await this.processNode({
-        nodeName,
-        customerIds,
-        fields: fields[nodeName] || [],
-        updateRequestedDate: false
-      });
-
-      if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
-        lastProcessedDate = processedDate;
-      }
-    }
-
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
-      this.config.updateLastRequstedDate(lastProcessedDate);
-    }
-  }
-
-  /**
-   * Process a single node for all customer IDs
-   * Global resources (isGlobalResource: true) return identical data for any customer ID,
-   * so only the first customer ID is used to avoid redundant fetches.
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node to process
-   * @param {Array<string>} options.customerIds - Array of customer IDs to process
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
-   */
-  async processNode({ nodeName, customerIds, fields, updateRequestedDate = true }) {
-    const idsToProcess = this.source.fieldsSchema[nodeName].isGlobalResource
-      ? customerIds.slice(0, 1)
-      : customerIds;
-    let lastProcessedDate = null;
-
-    for (const customerId of idsToProcess) {
-      if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-        const processedDate = await this.processTimeSeriesNode({
-          nodeName,
-          customerId,
-          fields,
-          updateRequestedDate
-        });
-
-        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
-          lastProcessedDate = processedDate;
-        }
-      } else {
+    for (const nodeName of catalogNodes) {
+      for (const customerId of this.customerIdsForNode(nodeName, customerIds)) {
         await this.processCatalogNode({
           nodeName,
           customerId,
-          fields
+          fields: fields[nodeName] || []
         });
       }
     }
 
-    return lastProcessedDate;
+    await this.processTimeSeriesNodes({ customerIds, timeSeriesNodes, fields });
   }
 
   /**
-   * Process a time series node (e.g., campaigns with daily metrics)
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node
-   * @param {string} options.customerId - Customer ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
+   * Customer IDs a node has to be fetched for.
+   * Global resources (isGlobalResource: true) return identical data for any customer ID,
+   * so only the first customer ID is used to avoid redundant fetches.
+   * @param {string} nodeName - Name of the node
+   * @param {Array<string>} customerIds - Every customer ID configured for the run
+   * @returns {Array<string>} - Customer IDs to fetch this node for
    */
-  async processTimeSeriesNode({ nodeName, customerId, fields, updateRequestedDate = true }) {
+  customerIdsForNode(nodeName, customerIds) {
+    return this.source.fieldsSchema[nodeName].isGlobalResource
+      ? customerIds.slice(0, 1)
+      : customerIds;
+  }
+
+  /**
+   * Imports every time series node for every customer, one date at a time.
+   *
+   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * date is complete for *all* customers and nodes, so a run interrupted midway
+   * resumes from the last fully imported date instead of restarting the range.
+   *
+   * @param {Object} options - Processing options
+   * @param {Array<string>} options.customerIds - Customer IDs to import
+   * @param {Array<string>} options.timeSeriesNodes - Names of the time series nodes to import
+   * @param {Object} options.fields - Map of node name to the fields selected for it
+   */
+  async processTimeSeriesNodes({ customerIds, timeSeriesNodes, fields }) {
+    if (!timeSeriesNodes.length) {
+      return;
+    }
+
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
-      console.log('No days to fetch for time series data');
-      return null;
+      this.config.logMessage('No days to fetch for time series data');
+      return;
     }
 
-    let lastProcessedDate = null;
-
-    for (let i = 0; i < daysToFetch; i++) {
+    for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
       const currentDate = new Date(startDate);
-      currentDate.setDate(currentDate.getDate() + i);
-      lastProcessedDate = new Date(currentDate);
+      currentDate.setDate(currentDate.getDate() + dayOffset);
 
-      const formattedDate = DateUtils.formatDate(currentDate);
-
-      const data = await this.source.fetchData(nodeName, customerId, { fields, startDate: currentDate });
-
-      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for customer ${customerId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
-
-      if (data.length || this.config.CreateEmptyTables?.value) {
-        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName);
-        await storage.saveData(preparedData);
+      for (const nodeName of timeSeriesNodes) {
+        for (const customerId of this.customerIdsForNode(nodeName, customerIds)) {
+          await this.processTimeSeriesDay({
+            nodeName,
+            customerId,
+            date: currentDate,
+            fields: fields[nodeName] || []
+          });
+        }
       }
 
-      // Some callers defer the checkpoint until all customers finish successfully.
-      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Every customer and node stored this date, so the cursor can move past it.
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+  }
 
-    return lastProcessedDate;
+  /**
+   * Fetch and store a single day of a time series node for one customer
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.customerId - Customer ID
+   * @param {Date} options.date - The day to import
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processTimeSeriesDay({ nodeName, customerId, date, fields }) {
+    const formattedDate = DateUtils.formatDate(date);
+
+    const data = await this.source.fetchData(nodeName, customerId, { fields, startDate: date });
+
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for customer ${customerId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
+    }
   }
 
   /**

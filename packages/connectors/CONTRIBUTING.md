@@ -63,6 +63,13 @@ Key responsibilities:
 
 All connectors must extend `AbstractConnector` (in `src/Core/AbstractConnector.js`).
 
+#### Saving incremental progress
+
+For time series nodes, loop dates on the outside and accounts on the inside. Call
+`updateLastRequstedDate(date)` once a date is stored for every account and node, never
+once at the end of the run. A run that saves its progress only at the end loses all of
+it when the process is interrupted, and the retry sweep then restarts the whole range.
+
 ### Source
 
 The `Source` class is responsible for fetching data from the external API. It must implement:

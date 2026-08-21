@@ -18,92 +18,81 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const fields = CriteoAdsHelper.parseFields(this.config.Fields?.value || "");
     const advertiserIds = CriteoAdsHelper.parseAdvertiserIds(this.config.AdvertiserIDs?.value || "");
-    let lastProcessedDate = null;
 
-    for (const advertiserId of advertiserIds) {
-      for (const nodeName in fields) {
-        const processedDate = await this.processNode({
-          nodeName,
-          advertiserId,
-          fields: fields[nodeName] || [],
-          updateRequestedDate: false
-        });
-
-        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
-          lastProcessedDate = processedDate;
-        }
-      }
-    }
-
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
-      this.config.updateLastRequstedDate(lastProcessedDate);
-    }
+    await this.processTimeSeriesNodes({ advertiserIds, timeSeriesNodes: Object.keys(fields), fields });
   }
 
   /**
-   * Process a single node for a specific advertiser
+   * Imports every node for every advertiser, one date at a time.
+   *
+   * The loop is date-outer on purpose: the incremental cursor may only move once a
+   * date is complete for *all* advertisers and nodes, so a run interrupted midway
+   * resumes from the last fully imported date instead of restarting the range.
+   *
    * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node to process
-   * @param {string} options.advertiserId - Advertiser ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
+   * @param {Array<string>} options.advertiserIds - Advertiser IDs to import
+   * @param {Array<string>} options.timeSeriesNodes - Names of the nodes to import
+   * @param {Object} options.fields - Map of node name to the fields selected for it
    */
-  async processNode({ nodeName, advertiserId, fields, updateRequestedDate = true }) {
-    return await this.processTimeSeriesNode({
-      nodeName,
-      advertiserId,
-      fields,
-      updateRequestedDate
-    });
-  }
+  async processTimeSeriesNodes({ advertiserIds, timeSeriesNodes, fields }) {
+    if (!timeSeriesNodes.length) {
+      return;
+    }
 
-  /**
-   * Process a time series node with date-based logic
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node
-   * @param {string} options.advertiserId - Advertiser ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
-   */
-  async processTimeSeriesNode({ nodeName, advertiserId, fields, updateRequestedDate = true }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
-      console.log('No days to fetch for time series data');
-      return null;
+      this.config.logMessage('No days to fetch for time series data');
+      return;
     }
 
-    let lastProcessedDate = null;
-
-    for (let i = 0; i < daysToFetch; i++) {
+    for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
       const currentDate = new Date(startDate);
-      currentDate.setDate(currentDate.getDate() + i);
-      lastProcessedDate = new Date(currentDate);
+      currentDate.setDate(currentDate.getDate() + dayOffset);
 
-      const formattedDate = DateUtils.formatDate(currentDate);
-
-      const data = await this.source.fetchData({
-        nodeName,
-        accountId: advertiserId,
-        date: currentDate,
-        fields
-      });
-
-      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${advertiserId} on ${formattedDate}` : `No records have been fetched`);
-
-      if (data.length || this.config.CreateEmptyTables?.value) {
-        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName, fields);
-        await storage.saveData(preparedData);
+      for (const nodeName of timeSeriesNodes) {
+        for (const advertiserId of advertiserIds) {
+          await this.processTimeSeriesDay({
+            nodeName,
+            advertiserId,
+            date: currentDate,
+            fields: fields[nodeName] || []
+          });
+        }
       }
 
-      // Some callers defer the checkpoint until all advertisers finish successfully.
-      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Every advertiser and node stored this date, so the cursor can move past it.
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+  }
 
-    return lastProcessedDate;
+  /**
+   * Fetch and store a single day of a node for one advertiser
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.advertiserId - Advertiser ID
+   * @param {Date} options.date - The day to import
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processTimeSeriesDay({ nodeName, advertiserId, date, fields }) {
+    const formattedDate = DateUtils.formatDate(date);
+
+    const data = await this.source.fetchData({
+      nodeName,
+      accountId: advertiserId,
+      date,
+      fields
+    });
+
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${advertiserId} on ${formattedDate}` : `No records have been fetched`);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const storage = await this.getStorageByNode(nodeName, fields);
+      await storage.saveData(preparedData);
+    }
   }
 
   /**
