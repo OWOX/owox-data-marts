@@ -79,6 +79,16 @@ export class BlendedSourceApiDto {
 
   @ApiPropertyOptional({
     description:
+      'Overrides the relationship description for this join node only. Omit to inherit the relationship-level description.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(10000)
+  description?: string;
+
+  @ApiPropertyOptional({
+    description:
       'Per-field overrides keyed by original field name. Values must match the blended field override shape.',
     type: 'object',
     additionalProperties: { $ref: getSchemaPath(BlendedFieldOverrideApiDto) },

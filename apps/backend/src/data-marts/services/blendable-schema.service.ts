@@ -248,6 +248,9 @@ export class BlendableSchemaService {
       availableSource.aliasPath = currentPath;
       availableSource.title = rel.targetDataMart.title;
       availableSource.description = rel.targetDataMart.description ?? undefined;
+      // Effective join description: the per-node override wins, the relationship-level
+      // description is the inherited default — same resolution rule as `alias` above.
+      availableSource.joinDescription = sourceConfig?.description ?? rel.description ?? undefined;
       availableSource.defaultAlias = displayPrefix;
       availableSource.depth = ctx.depth;
       availableSource.fieldCount = flatTargetFields.length;

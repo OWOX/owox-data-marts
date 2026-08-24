@@ -573,7 +573,7 @@ describe('McpDataMartsFacadeImpl', () => {
     );
   });
 
-  it('surfaces join edges with their keys and relationship description, omitting inaccessible sources (#6780)', async () => {
+  it('surfaces join edges with their keys and the effective per-node join description, omitting inaccessible sources', async () => {
     const dataMartService = createDataMartService({
       id: 'dm_1',
       title: 'Users',
@@ -588,12 +588,17 @@ describe('McpDataMartsFacadeImpl', () => {
           relationshipId: 'rel_1',
           isIncluded: true,
           isAccessibleForReporting: true,
+          // Effective value the blendable schema resolved for THIS node (override ?? relationship
+          // description) — the facade must forward it, not re-read the relationship's own text.
+          joinDescription:
+            'Visitors from the website sign up for the product and convert into users',
         },
         {
           aliasPath: 'secret',
           relationshipId: 'rel_2',
           isIncluded: true,
           isAccessibleForReporting: false,
+          joinDescription: 'Must not be exposed',
         },
       ]
     );
@@ -603,7 +608,9 @@ describe('McpDataMartsFacadeImpl', () => {
         sourceDataMart: { title: 'Users' },
         targetDataMart: { title: 'Visitors' },
         joinConditions: [{ sourceFieldName: 'visitor_id', targetFieldName: 'id' }],
-        description: 'Visitors from the website sign up for the product and convert into users',
+        // Not what the response must carry: the facade forwards the source's resolved
+        // joinDescription, never the relationship's own text.
+        description: 'Stale relationship-level text',
       },
       {
         id: 'rel_2',

@@ -113,7 +113,7 @@ const JoinSchema = z
       .string()
       .optional()
       .describe(
-        'Analyst-written business meaning of this relationship (e.g. "Visitors from the website sign up for the product and convert into users"). Use it to interpret joined fields and to reason about cause and effect across the joined data marts.'
+        'Analyst-written business meaning of this join (e.g. "Visitors from the website sign up for the product and convert into users"). May be specific to this join path — the same two data marts can carry a different meaning when joined through a different path. Use it to interpret joined fields and to reason about cause and effect across the joined data marts.'
       ),
   })
   .passthrough();

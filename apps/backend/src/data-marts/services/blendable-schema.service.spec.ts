@@ -1215,6 +1215,79 @@ describe('BlendableSchemaService', () => {
       expect(result.availableSources[0].description).toBeUndefined();
     });
 
+    // The effective join description resolves like `alias`: the per-node override wins, the
+    // relationship-level description is the inherited default — so the SAME relationship reached
+    // through different join paths can explain each path's own business context.
+    it('resolves joinDescription per node: override wins, relationship description is inherited', async () => {
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'orders.items',
+            alias: 'Items',
+            description: 'Line items of orders placed by this customer',
+          },
+        ],
+      };
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const itemsDm = makeDataMart({
+        id: 'dm-3',
+        title: 'Items',
+        schema: makeSchema([{ name: 'sku', type: 'STRING' }]),
+      });
+      const ordersDm = makeDataMart({
+        id: 'dm-2',
+        title: 'Orders',
+        schema: makeSchema([{ name: 'revenue', type: 'FLOAT' }]),
+      });
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'orders',
+          description: 'Orders placed by this customer',
+          targetDataMart: ordersDm,
+        }),
+        makeRelationship({
+          id: 'rel-2',
+          targetAlias: 'items',
+          description: 'Items belonging to an order',
+          sourceDataMart: ordersDm,
+          targetDataMart: itemsDm,
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      const byPath = new Map(result.availableSources.map(s => [s.aliasPath, s]));
+      // No override on the direct join → the relationship-level description is inherited.
+      expect(byPath.get('orders')?.joinDescription).toBe('Orders placed by this customer');
+      // The transitive node's override wins over its relationship's description.
+      expect(byPath.get('orders.items')?.joinDescription).toBe(
+        'Line items of orders placed by this customer'
+      );
+    });
+
+    it('leaves joinDescription undefined when neither an override nor a relationship description is set', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+      relationshipService.findByStorageId.mockResolvedValue([
+        makeRelationship({
+          id: 'rel-1',
+          targetAlias: 'orders',
+          targetDataMart: makeDataMart({
+            id: 'dm-2',
+            title: 'Orders',
+            schema: makeSchema([{ name: 'revenue', type: 'FLOAT' }]),
+          }),
+        }),
+      ]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      expect(result.availableSources[0].joinDescription).toBeUndefined();
+    });
+
     it('should return blended fields from multiple relationships to the same target DM with different aliases', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
 

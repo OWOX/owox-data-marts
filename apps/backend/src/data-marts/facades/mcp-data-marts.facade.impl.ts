@@ -227,14 +227,21 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
   /**
    * The join-tree edges behind the accessible sources — every source was pulled through exactly
    * one relationship (`relationshipId`), including transitive ones, so one lookup by ids covers
-   * the whole tree. Gives the model the join keys and the analyst-written relationship
-   * description (#6780) that `joinedFields` alone cannot carry.
+   * the whole tree. Gives the model the join keys and the analyst-written join description that
+   * `joinedFields` alone cannot carry. The description is the EFFECTIVE one the blendable schema
+   * resolved per node — the per-join override when set, otherwise the relationship-level text —
+   * so the same relationship reached through different join paths can explain each path's own
+   * business context.
    *
    * Failure here degrades only `joins` to [] — by this point the blendable schema has already
    * resolved, and this extra lookup must not take the joined fields down with it.
    */
   private async resolveJoins(
-    accessibleSources: Array<{ aliasPath: string; relationshipId: string }>
+    accessibleSources: Array<{
+      aliasPath: string;
+      relationshipId: string;
+      joinDescription?: string;
+    }>
   ): Promise<McpJoinDto[]> {
     try {
       const relationshipsById = new Map(
@@ -252,7 +259,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           sourceDataMart: rel.sourceDataMart.title,
           targetDataMart: rel.targetDataMart.title,
           joinConditions: rel.joinConditions,
-          ...(rel.description ? { description: rel.description } : {}),
+          ...(source.joinDescription ? { description: source.joinDescription } : {}),
         });
       }
       return joins;

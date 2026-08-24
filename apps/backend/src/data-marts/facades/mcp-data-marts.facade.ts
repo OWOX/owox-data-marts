@@ -83,8 +83,9 @@ export interface McpUniqueCountSourceDto {
 /**
  * One edge of the join tree behind `joinedFields`, so the model sees not only WHICH fields a
  * joined source contributes but HOW the two data marts relate: the join keys (data context) and
- * the analyst-written relationship description (business context, e.g. "Visitors from the
- * website sign up for the product and convert into users").
+ * the analyst-written join description (business context, e.g. "Visitors from the website sign
+ * up for the product and convert into users"). The description is effective per join node — a
+ * per-join override when set, otherwise the relationship-level description.
  */
 export interface McpJoinDto {
   /** Dotted alias path of the joined source — matches the `<alias>__` prefix of joinedFields. */

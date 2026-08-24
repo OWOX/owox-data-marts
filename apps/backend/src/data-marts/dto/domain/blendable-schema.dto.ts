@@ -114,6 +114,12 @@ export class AvailableSourceDto {
   @ApiPropertyOptional({ description: 'Description of the joined Data Mart, if set.' })
   description?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "Effective analyst-written business description of THIS join node: the per-join override when set, otherwise the relationship-level description. Distinct from `description`, which is the joined Data Mart's own description.",
+  })
+  joinDescription?: string;
+
   @ApiProperty({
     description:
       'Human display prefix for this source, shown in the reporting column picker. Free-form text, configurable per relationship — must never be used to build a SQL identifier or output column name.',

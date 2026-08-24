@@ -27,6 +27,9 @@ export const BlendedSourceSchema = z.object({
     ),
   alias: z.string().min(1).max(255),
   isExcluded: z.boolean().optional(),
+  // Per-join override of the relationship description. Absent → the join inherits the
+  // relationship-level description; an empty override is stored as an absent key, not ''.
+  description: z.string().min(1).max(10000).optional(),
   fields: z.record(z.string(), BlendedFieldOverrideSchema).optional(),
 });
 export type BlendedSource = z.infer<typeof BlendedSourceSchema>;

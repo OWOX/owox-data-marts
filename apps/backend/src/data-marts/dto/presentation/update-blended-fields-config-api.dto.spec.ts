@@ -108,6 +108,37 @@ describe('UpdateBlendedFieldsConfigApiDto validation', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it('accepts a per-join description override on a source', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          { path: 'orders', alias: 'Orders', description: 'Orders placed by this customer' },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  // A cleared override must be an ABSENT key, never '' — '' would read as a real override that
+  // blanks the inherited description instead of restoring it.
+  it('rejects an empty description override', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [{ path: 'orders', alias: 'Orders', description: '' }],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a description override longer than 10000 chars', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [{ path: 'orders', alias: 'Orders', description: 'a'.repeat(10001) }],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
   it('rejects empty alias in field override', async () => {
     const errors = await validateDto({
       blendedFieldsConfig: {

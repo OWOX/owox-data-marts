@@ -437,9 +437,12 @@ interface BlendedGroupItemProps {
 function JoinPathTooltip({
   dataMartName,
   path,
+  joinDescription,
 }: {
   dataMartName: string;
   path: readonly string[];
+  /** Effective analyst-written business description of this join node, when set. */
+  joinDescription?: string;
 }) {
   if (path.length < 2) return null;
   return (
@@ -470,6 +473,11 @@ function JoinPathTooltip({
         }}
       >
         <PathTree segments={path} />
+        {joinDescription && (
+          <p className='border-border/50 mt-1.5 max-w-64 border-t pt-1.5 whitespace-pre-wrap'>
+            {joinDescription}
+          </p>
+        )}
       </TooltipContent>
     </Tooltip>
   );
@@ -545,7 +553,11 @@ function BlendedGroupItem({
         </button>
         <span className='mt-0.5 flex shrink-0 items-center'>
           <FieldInfoTooltip text={group.description} compact dataMartHeader label={group.alias} />
-          <JoinPathTooltip dataMartName={group.alias} path={joinPath} />
+          <JoinPathTooltip
+            dataMartName={group.alias}
+            path={joinPath}
+            joinDescription={group.joinDescription}
+          />
         </span>
       </div>
       <CollapsibleContent>
@@ -1374,6 +1386,7 @@ export function ReportColumnPicker({
             field.aliasPath
           ),
           description: source?.description,
+          joinDescription: source?.joinDescription,
           isAccessibleForReporting: source?.isAccessibleForReporting ?? false,
           visibleFields: [],
           selectedCount: 0,
@@ -1414,6 +1427,7 @@ export function ReportColumnPicker({
             title: source.title,
             alias: joinedDataMartTitle(source.defaultAlias, source.title, source.aliasPath),
             description: source.description,
+            joinDescription: source.joinDescription,
             isAccessibleForReporting: source.isAccessibleForReporting,
             visibleFields: [],
             selectedCount: 0,

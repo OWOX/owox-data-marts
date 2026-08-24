@@ -134,6 +134,7 @@ function buildSourceList(
       isIncluded: src.isIncluded,
       fields: fieldsByPath.get(src.aliasPath) ?? [],
       dataMartId: src.dataMartId,
+      descriptionOverride: configSource?.description,
     };
   });
 }
@@ -481,6 +482,7 @@ export function DataMartRelationshipsContent({
         path: source.aliasPath,
         alias,
         ...(current?.isExcluded ? { isExcluded: true } : {}),
+        ...(current?.description ? { description: current.description } : {}),
         ...(current?.fields ? { fields: current.fields } : {}),
       }));
     },
@@ -493,7 +495,23 @@ export function DataMartRelationshipsContent({
         path: aliasPath,
         alias,
         ...(isHidden && { isExcluded: true }),
+        ...(current?.description ? { description: current.description } : {}),
         ...(current?.fields && { fields: current.fields }),
+      }));
+    },
+    [updateSourceConfig]
+  );
+
+  // An all-whitespace override is a cleared one: the key is removed so the join falls back
+  // to the inherited relationship-level description.
+  const handleSourceDescriptionChange = useCallback(
+    (source: SourceEntry, description: string) => {
+      updateSourceConfig(source.aliasPath, current => ({
+        path: source.aliasPath,
+        alias: current?.alias ?? source.alias,
+        ...(current?.isExcluded ? { isExcluded: true } : {}),
+        ...(description.trim() !== '' ? { description } : {}),
+        ...(current?.fields ? { fields: current.fields } : {}),
       }));
     },
     [updateSourceConfig]
@@ -522,6 +540,7 @@ export function DataMartRelationshipsContent({
           path: source.aliasPath,
           alias: current?.alias ?? source.alias,
           ...(current?.isExcluded ? { isExcluded: true } : {}),
+          ...(current?.description ? { description: current.description } : {}),
           ...(Object.keys(newFields).length > 0 ? { fields: newFields } : {}),
         };
       });
@@ -689,6 +708,7 @@ export function DataMartRelationshipsContent({
               onAliasChange={handleSourceAliasChange}
               onHideForReportingChange={handleSourceHideChange}
               onFieldOverrideChange={handleFieldOverrideChange}
+              onDescriptionOverrideChange={handleSourceDescriptionChange}
             />
           );
         })}

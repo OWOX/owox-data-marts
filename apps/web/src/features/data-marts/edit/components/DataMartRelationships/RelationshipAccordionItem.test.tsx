@@ -87,6 +87,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 
@@ -113,6 +114,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 
@@ -144,6 +146,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 
@@ -179,6 +182,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 
@@ -214,6 +218,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 
@@ -247,6 +252,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 
@@ -279,6 +285,7 @@ describe('RelationshipAccordionItem — No primary key badge', () => {
         onAliasChange={noop}
         onHideForReportingChange={noop}
         onFieldOverrideChange={noop}
+        onDescriptionOverrideChange={noop}
       />
     );
 

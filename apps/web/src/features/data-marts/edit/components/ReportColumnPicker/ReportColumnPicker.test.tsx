@@ -392,6 +392,42 @@ describe('ReportColumnPicker joined source details', () => {
     expect(tooltip).not.toHaveTextContent('orders_tech');
     expect(tooltip).not.toHaveTextContent('items_tech');
   });
+
+  it('shows the effective join description in the join-path tooltip when the node has one', async () => {
+    const source = buildAvailableSource({
+      aliasPath: 'orders_tech',
+      title: 'Orders',
+      defaultAlias: 'Orders for reporting',
+      relationshipId: 'rel-orders',
+      dataMartId: 'dm-orders',
+      depth: 1,
+      joinDescription: 'Orders placed by this customer',
+    });
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'orders_tech__revenue',
+          sourceRelationshipId: 'rel-orders',
+          sourceDataMartId: 'dm-orders',
+          sourceDataMartTitle: 'Orders',
+          targetAlias: 'orders_tech',
+          originalFieldName: 'revenue',
+          aliasPath: source.aliasPath,
+          outputPrefix: source.defaultAlias,
+        }),
+      ],
+      availableSources: [source],
+    });
+    renderPicker(schema, []);
+
+    const trigger = await screen.findByLabelText('Show join path for Orders for reporting');
+    fireEvent.pointerMove(trigger, { pointerType: 'mouse' });
+    const tooltip = await screen.findByRole('tooltip');
+
+    expect(tooltip).toHaveTextContent('Orders placed by this customer');
+    // The description must wrap even though the path tree keeps the tooltip nowrap.
+    expect(screen.getByText('Orders placed by this customer')).toHaveClass('whitespace-pre-wrap');
+  });
 });
 
 describe('ReportColumnPicker unresolved columns', () => {

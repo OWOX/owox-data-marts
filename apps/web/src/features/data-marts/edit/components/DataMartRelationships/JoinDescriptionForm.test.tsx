@@ -223,4 +223,73 @@ describe('JoinDescriptionForm', () => {
 
     expect(updateRelationship).not.toHaveBeenCalled();
   });
+
+  // Per-join override mode: the relationship-level description is only the inherited default,
+  // shown as the placeholder; everything typed goes to the blended-fields config through
+  // `override.onChange` and must never PATCH the relationship itself.
+  describe('override mode (transient joins)', () => {
+    const inherited = 'Visitors from the website sign up for the product and convert into users';
+
+    function renderOverride(
+      overrideProps: { value?: string; onChange?: (description: string) => void } = {},
+      relationship = buildRelationship({ description: inherited })
+    ) {
+      const onChange = overrideProps.onChange ?? vi.fn();
+      const utils = renderForm({
+        relationship,
+        inheritedFrom: { id: 'parent-dm-1', title: 'Orders' },
+        override: { value: overrideProps.value ?? '', onChange },
+      });
+      return { ...utils, onChange };
+    }
+
+    it('is editable, shows the inherited description as placeholder, and explains the override', () => {
+      renderOverride();
+
+      const textarea = getTextarea();
+      expect(textarea).not.toBeDisabled();
+      expect(textarea.placeholder).toBe(inherited);
+      expect(screen.getByText(/overrides the description for this join only/i)).toBeInTheDocument();
+    });
+
+    it('commits the typed override after the debounce settles, without touching the relationship', async () => {
+      const { onChange } = renderOverride();
+
+      fireEvent.change(getTextarea(), { target: { value: 'Visitors of THIS account only' } });
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith('Visitors of THIS account only');
+      expect(updateRelationship).not.toHaveBeenCalled();
+    });
+
+    it('flushes a pending override edit on blur and on unmount', async () => {
+      const { onChange, unmount } = renderOverride();
+
+      fireEvent.change(getTextarea(), { target: { value: 'via blur' } });
+      fireEvent.blur(getTextarea());
+      expect(onChange).toHaveBeenLastCalledWith('via blur');
+
+      fireEvent.change(getTextarea(), { target: { value: 'via unmount' } });
+      unmount();
+      expect(onChange).toHaveBeenLastCalledWith('via unmount');
+    });
+
+    it('resets back to inherited: the button clears the override immediately', () => {
+      const { onChange } = renderOverride({ value: 'Path-specific meaning' });
+
+      fireEvent.click(screen.getByRole('button', { name: /reset to inherited/i }));
+
+      expect(onChange).toHaveBeenCalledWith('');
+      expect(getTextarea().value).toBe('');
+    });
+
+    it('offers no reset button while the join simply inherits', () => {
+      renderOverride();
+
+      expect(screen.queryByRole('button', { name: /reset to inherited/i })).not.toBeInTheDocument();
+    });
+  });
 });

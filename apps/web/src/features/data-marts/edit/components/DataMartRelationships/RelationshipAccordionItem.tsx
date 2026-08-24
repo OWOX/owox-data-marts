@@ -88,6 +88,8 @@ export interface SourceEntry {
   isIncluded: boolean;
   fields: BlendedField[];
   dataMartId: string;
+  /** Per-join description override stored for this node; absent → inherits the relationship's. */
+  descriptionOverride?: string;
 }
 
 type AccordionTab = 'fields' | 'join-settings' | 'description';
@@ -111,6 +113,7 @@ interface RelationshipAccordionItemProps {
     fieldName: string,
     override: Partial<BlendedFieldOverride>
   ) => void;
+  onDescriptionOverrideChange: (source: SourceEntry, description: string) => void;
 }
 
 export function RelationshipAccordionItem({
@@ -125,6 +128,7 @@ export function RelationshipAccordionItem({
   onAliasChange,
   onHideForReportingChange,
   onFieldOverrideChange,
+  onDescriptionOverrideChange,
 }: RelationshipAccordionItemProps) {
   const { scope } = useProjectRoute();
   const rel = row.relationship;
@@ -508,11 +512,23 @@ export function RelationshipAccordionItem({
                       <JoinDescriptionForm
                         relationship={rel}
                         dataMartId={dataMartId}
-                        readOnly={readOnly || isTransient}
+                        // A transient join without a source entry (join conditions not configured
+                        // yet) has nowhere to store an override, so it stays read-only.
+                        readOnly={readOnly || (isTransient && !source)}
                         inheritedFrom={
                           isTransient
                             ? { id: row.sourceDmId, title: row.parentDataMartTitle }
                             : null
+                        }
+                        override={
+                          isTransient && source
+                            ? {
+                                value: source.descriptionOverride ?? '',
+                                onChange: description => {
+                                  onDescriptionOverrideChange(source, description);
+                                },
+                              }
+                            : undefined
                         }
                         onSaved={updated => {
                           onRelationshipUpdated(updated);

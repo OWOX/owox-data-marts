@@ -137,6 +137,8 @@ export interface BlendedGroup {
   title: string;
   alias: string;
   description?: string;
+  /** Effective join description for this group's node — see `AvailableSource.joinDescription`. */
+  joinDescription?: string;
   isAccessibleForReporting: boolean;
   visibleFields: BlendedField[];
   selectedCount: number;
@@ -191,6 +193,12 @@ export interface AvailableSource {
   aliasPath: string;
   title: string;
   description?: string;
+  /**
+   * Effective analyst-written business description of THIS join node: the per-join override when
+   * set, otherwise the relationship-level description. Distinct from `description`, which is the
+   * joined Data Mart's own description.
+   */
+  joinDescription?: string;
   defaultAlias: string;
   depth: number;
   fieldCount: number;
@@ -230,6 +238,11 @@ export interface BlendedSource {
   path: string;
   alias: string;
   isExcluded?: boolean;
+  /**
+   * Per-join override of the relationship description. Absent → this join inherits the
+   * relationship-level description; a cleared override is an absent key, never ''.
+   */
+  description?: string;
   fields?: Record<string, BlendedFieldOverride>;
 }
 
