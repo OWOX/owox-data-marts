@@ -7,6 +7,8 @@ import type { FilterRule } from '../../../shared/types/output-config';
  */
 export function summarizeFilterRule(rule: FilterRule): string {
   switch (rule.operator) {
+    case 'is_blank':
+    case 'is_not_blank':
     case 'is_empty':
     case 'is_not_empty':
     case 'is_null':

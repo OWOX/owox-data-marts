@@ -13,7 +13,7 @@ import {
   aggregatedColumnLabel,
   aggregationFunctionsForColumn,
 } from '../../dto/schemas/aggregation-labels';
-import { isFloatingPointType } from '../../dto/schemas/field-type-category';
+import { categorizeFieldType, isFloatingPointType } from '../../dto/schemas/field-type-category';
 import { GroupRestriction } from '../../dto/domain/group-restriction';
 import { buildDateTruncUnitMap, buildTimeZoneMap } from './date-trunc-maps.utils';
 import {
@@ -297,6 +297,38 @@ export abstract class SqlClauseRenderer {
    */
   buildAggregatedAliasResolver(aliasByColumn: ReadonlyMap<string, string>): ColumnRefResolver {
     return col => aliasByColumn.get(col) ?? this.quoteIdentifier(col);
+  }
+
+  /**
+   * Renders the is_blank / is_not_blank pair — "the cell looks empty" (#6779).
+   * Type-aware: a string column is blank when it is NULL, '' or whitespace-only
+   * (TRIM is portable across all five dialects); any other type is blank only when
+   * NULL — there is no empty number/date/boolean. When the column type is unknown
+   * the NULL-only form is emitted: TRIM on a non-string column is a type error on
+   * strict engines, so the safe default is the one that is valid SQL everywhere.
+   * Shared by every dialect renderer — the emitted SQL is identical on all of them.
+   */
+  protected renderBlankFragment(
+    operator: 'is_blank' | 'is_not_blank',
+    columnRef: string,
+    columnType?: string
+  ): RenderedClause {
+    const isString =
+      columnType !== undefined && categorizeFieldType(columnType.trim().toUpperCase()) === 'string';
+    if (operator === 'is_blank') {
+      return {
+        sql: isString
+          ? `(${columnRef} IS NULL OR TRIM(${columnRef}) = '')`
+          : `${columnRef} IS NULL`,
+        params: [],
+      };
+    }
+    return {
+      sql: isString
+        ? `(${columnRef} IS NOT NULL AND TRIM(${columnRef}) <> '')`
+        : `${columnRef} IS NOT NULL`,
+      params: [],
+    };
   }
 
   /**

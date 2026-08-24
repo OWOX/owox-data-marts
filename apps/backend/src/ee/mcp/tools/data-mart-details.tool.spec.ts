@@ -107,7 +107,7 @@ describe('GetDataMartDetailsTool', () => {
     // Only categories present in this data mart appear in the operator matrix.
     expect(Object.keys(sc.operators_by_category).sort()).toEqual(['date', 'string']);
     expect(sc.operators_by_category['string']).toEqual(
-      expect.arrayContaining(['eq', 'contains', 'starts_with', 'is_null'])
+      expect.arrayContaining(['eq', 'contains', 'starts_with', 'is_blank'])
     );
     expect(sc.operators_by_category['string']).not.toEqual(expect.arrayContaining(['gt']));
     expect(sc.operators_by_category['date']).toEqual(
@@ -227,8 +227,8 @@ describe('GetDataMartDetailsTool', () => {
     expect(Object.keys(sc.operators_by_category)).toEqual(
       expect.arrayContaining(['number', 'string'])
     );
-    // 'other' category only allows null checks.
-    expect(sc.operators_by_category['other']).toEqual(['is_null', 'is_not_null']);
+    // 'other' category only allows blank checks.
+    expect(sc.operators_by_category['other']).toEqual(['is_blank', 'is_not_blank']);
   });
 
   it('rejects explicit project_id and legacy camelCase dataMartId input', () => {

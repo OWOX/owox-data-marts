@@ -26,6 +26,10 @@ import {
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 20;
 
+// The null/empty cluster is a single advertised pair: is_blank / is_not_blank —
+// "the value looks empty" (NULL, '' or whitespace-only on strings; NULL elsewhere).
+// The four LEGACY_MCP_OPERATORS below stay accepted so existing callers keep
+// working, but they are excluded from every advertised menu (#6779).
 const MCP_OPERATORS = [
   'eq',
   'neq',
@@ -40,6 +44,8 @@ const MCP_OPERATORS = [
   'lt',
   'lte',
   'between',
+  'is_blank',
+  'is_not_blank',
   'is_empty',
   'is_not_empty',
   'is_null',
@@ -55,6 +61,8 @@ const MCP_OPERATORS = [
   'last_quarter',
   'this_year',
 ] as const;
+
+export const LEGACY_MCP_OPERATORS = ['is_empty', 'is_not_empty', 'is_null', 'is_not_null'] as const;
 
 export const McpOperatorEnum = z.enum(MCP_OPERATORS);
 
@@ -75,7 +83,7 @@ export const makeMcpFilterSchema = () =>
       ])
       .optional()
       .describe(
-        'Operand for the operator: scalar for comparisons; {from, to} for between; array of scalars for in/not_in; positive integer for in_last_n_days/in_next_n_days; omit for is_null/is_not_null/is_empty/is_not_empty and the this_/last_ calendar presets.'
+        'Operand for the operator: scalar for comparisons; {from, to} for between; array of scalars for in/not_in; positive integer for in_last_n_days/in_next_n_days; omit for is_blank/is_not_blank and the this_/last_ calendar presets.'
       ),
   });
 
@@ -172,8 +180,18 @@ export const queryDataMartInputSchema = z
 export type QueryDataMartInput = z.infer<typeof queryDataMartInputSchema>;
 export { DEFAULT_LIMIT, MAX_LIMIT };
 
-// Every advertised operator maps to the internal FilterRule.
+// Every ACCEPTED operator maps to the internal FilterRule.
 export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options;
+
+/**
+ * The operators the tool descriptions and the field-type matrix advertise: everything
+ * accepted minus the legacy null/empty cluster, which only stays parseable for
+ * pre-merge callers (#6779). Error messages list these — steering a failed call to
+ * is_blank, never back to a legacy name.
+ */
+export const ADVERTISED_MCP_OPERATORS = SUPPORTED_MCP_OPERATORS.filter(
+  op => !(LEGACY_MCP_OPERATORS as readonly string[]).includes(op)
+);
 
 /**
  * The full operator menu for boolean fields. eq/neq appear here because mapOne
@@ -181,7 +199,7 @@ export const SUPPORTED_MCP_OPERATORS = McpOperatorEnum.options;
  * this constant next to that translation so the advertised menu and the mapping
  * cannot drift apart. Consumed by the field-type matrix and the details tool.
  */
-export const BOOLEAN_MCP_OPERATORS = ['eq', 'neq', 'is_null', 'is_not_null'] as const;
+export const BOOLEAN_MCP_OPERATORS = ['eq', 'neq', 'is_blank', 'is_not_blank'] as const;
 
 /**
  * Runtime guard for direct facade callers: mapOne takes `operator: string`, so a
@@ -207,7 +225,7 @@ export class UnsupportedOperatorError extends Error {
 export function unsupportedOperatorMessage(op: string): string {
   return (
     `Filter operator '${op}' is not supported. Supported operators: ` +
-    `${SUPPORTED_MCP_OPERATORS.join(', ')}. Pick the closest supported operator and retry.`
+    `${ADVERTISED_MCP_OPERATORS.join(', ')}. Pick the closest supported operator and retry.`
   );
 }
 
@@ -251,6 +269,8 @@ const DIRECT = new Set([
   'gte',
   'lt',
   'lte',
+  'is_blank',
+  'is_not_blank',
   'is_empty',
   'is_not_empty',
   'is_null',

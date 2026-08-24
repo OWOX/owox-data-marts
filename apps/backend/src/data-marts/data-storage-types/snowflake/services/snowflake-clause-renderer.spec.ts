@@ -104,6 +104,18 @@ describe('SnowflakeClauseRenderer', () => {
     );
   });
 
+  it('is_blank / is_not_blank are type-aware: TRIM form on strings, NULL-only elsewhere', () => {
+    expect(where(r, { column: 's', operator: 'is_blank' }, 'VARCHAR')).toBe(
+      `\nWHERE ("s" IS NULL OR TRIM("s") = '')`
+    );
+    expect(where(r, { column: 's', operator: 'is_not_blank' }, 'VARCHAR')).toBe(
+      `\nWHERE ("s" IS NOT NULL AND TRIM("s") <> '')`
+    );
+    expect(where(r, { column: 'n', operator: 'is_blank' }, 'INTEGER')).toBe('\nWHERE "n" IS NULL');
+    // Unknown column type: the NULL-only form is the one that is valid SQL on any type.
+    expect(where(r, { column: 'x', operator: 'is_not_blank' })).toBe('\nWHERE "x" IS NOT NULL');
+  });
+
   it('renders the week/quarter/next_n_days presets (ISO Monday weeks via DAYOFWEEKISO)', () => {
     expect(
       where(r, { column: 'd', operator: 'relative_date', value: { kind: 'next_n_days', n: 7 } })

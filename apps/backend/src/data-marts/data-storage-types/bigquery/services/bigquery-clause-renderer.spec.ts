@@ -68,6 +68,28 @@ describe('BigQueryClauseRenderer', () => {
         "\nWHERE (`a` IS NOT NULL AND `a` != '')"
       );
     });
+    it('is_blank / is_not_blank are type-aware: TRIM form on strings, NULL-only elsewhere', () => {
+      const asType = (type: string) => () => type;
+      expect(
+        r.renderWhere([{ column: 'a', operator: 'is_blank' }], undefined, 'p', asType('STRING')).sql
+      ).toBe("\nWHERE (`a` IS NULL OR TRIM(`a`) = '')");
+      expect(
+        r.renderWhere([{ column: 'a', operator: 'is_not_blank' }], undefined, 'p', asType('STRING'))
+          .sql
+      ).toBe("\nWHERE (`a` IS NOT NULL AND TRIM(`a`) <> '')");
+      expect(
+        r.renderWhere([{ column: 'a', operator: 'is_blank' }], undefined, 'p', asType('INTEGER'))
+          .sql
+      ).toBe('\nWHERE `a` IS NULL');
+      expect(
+        r.renderWhere([{ column: 'a', operator: 'is_not_blank' }], undefined, 'p', asType('DATE'))
+          .sql
+      ).toBe('\nWHERE `a` IS NOT NULL');
+      // Unknown column type: the NULL-only form is the one that is valid SQL on any type.
+      expect(r.renderWhere([{ column: 'a', operator: 'is_blank' }]).sql).toBe(
+        '\nWHERE `a` IS NULL'
+      );
+    });
     it('is_true / is_false', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'is_true' }]).sql).toBe('\nWHERE `a` = TRUE');
       expect(r.renderWhere([{ column: 'a', operator: 'is_false' }]).sql).toBe(

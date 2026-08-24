@@ -145,6 +145,14 @@ describe('OutputControlsValidatorService', () => {
       expect(svc.validateFilters(filters, fieldTypes)).toEqual([]);
     });
 
+    it('accepts is_blank / is_not_blank on every supported type', () => {
+      const filters = ['name', 'amount', 'created_at', 'flag'].flatMap(column => [
+        { column, operator: 'is_blank' as const, placement: 'post-join' as const },
+        { column, operator: 'is_not_blank' as const, placement: 'post-join' as const },
+      ]);
+      expect(svc.validateFilters(filters, fieldTypes)).toEqual([]);
+    });
+
     it('rejects is_empty / is_not_empty on non-STRING types (use is_null instead)', () => {
       const filters = [
         { column: 'amount', operator: 'is_empty' as const, placement: 'post-join' as const },

@@ -15,6 +15,8 @@ import {
 import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
 import { RedshiftClauseRenderer } from './redshift-clause-renderer';
 import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
+import { effectiveComparisonType } from '../../field-aggregation';
+import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 @Injectable()
 export class RedshiftQueryBuilder implements DataMartQueryBuilder {
@@ -41,7 +43,19 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     }
 
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
-    const where = this.clauseRenderer.renderWhere(queryOptions?.filters ?? []);
+    // Redshift inlines literals, so the renderer needs no type-cast placeholders —
+    // but is_blank/is_not_blank branch on the column's category (string vs other),
+    // so the type resolver is threaded the same way the other dialects do it.
+    const columnTypes = queryOptions?.columnTypes;
+    const resolveColumnType = columnTypes
+      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
+      : undefined;
+    const where = this.clauseRenderer.renderWhere(
+      queryOptions?.filters ?? [],
+      undefined,
+      'p',
+      resolveColumnType
+    );
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 
@@ -64,7 +78,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
         qualifyColumn: undefined,
         qualifyProjection: undefined,
         typeByColumn: queryOptions?.columnTypes,
-        resolveColumnType: undefined,
+        resolveColumnType,
       });
       this.assertNoParams(built.params.length);
       return built.sql;

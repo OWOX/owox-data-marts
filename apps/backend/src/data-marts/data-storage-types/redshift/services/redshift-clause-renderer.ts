@@ -96,7 +96,7 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
     rule: FilterRule,
     _paramName: string,
     col: string,
-    _columnType?: string
+    columnType?: string
   ): RenderedClause {
     const lit = (v: string | number | boolean | null): string => formatRedshiftLiteral(v);
     switch (rule.operator) {
@@ -138,6 +138,10 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
           sql: `(${col} IS NULL OR ${col} !~ ${lit(String(rule.value))})`,
           params: [],
         };
+      case 'is_blank':
+      case 'is_not_blank':
+        return this.renderBlankFragment(rule.operator, col, columnType);
+      // Legacy pair (#6779): accepted for saved configs, no longer offered by pickers.
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':

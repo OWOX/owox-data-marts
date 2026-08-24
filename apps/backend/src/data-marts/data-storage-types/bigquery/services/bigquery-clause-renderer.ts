@@ -132,6 +132,10 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
           sql: `(${col} IS NULL OR NOT REGEXP_CONTAINS(${col}, @${paramName}))`,
           params: [{ name: paramName, value: rule.value }],
         };
+      case 'is_blank':
+      case 'is_not_blank':
+        return this.renderBlankFragment(rule.operator, col, columnType);
+      // Legacy pair (#6779): accepted for saved configs, no longer offered by pickers.
       case 'is_empty':
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':

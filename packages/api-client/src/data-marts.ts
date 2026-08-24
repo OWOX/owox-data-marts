@@ -134,7 +134,18 @@ export type TraverseDataFilterRule = (
     }
   | {
       column: string;
-      operator: 'is_empty' | 'is_not_empty' | 'is_null' | 'is_not_null' | 'is_true' | 'is_false';
+      // is_blank/is_not_blank = "the value looks empty": NULL, '' or whitespace-only
+      // on strings, NULL on every other type. The is_empty/is_not_empty/is_null/
+      // is_not_null cluster is legacy — still accepted, no longer offered (#6779).
+      operator:
+        | 'is_blank'
+        | 'is_not_blank'
+        | 'is_empty'
+        | 'is_not_empty'
+        | 'is_null'
+        | 'is_not_null'
+        | 'is_true'
+        | 'is_false';
     }
   | {
       column: string;
