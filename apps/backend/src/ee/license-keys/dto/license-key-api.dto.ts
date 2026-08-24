@@ -42,6 +42,11 @@ const consumptionPayloadSchemas: Partial<Record<RunKind, z.ZodTypeAny>> = {
   [RunKind.LOOKER_REPORT_RUN]: reportConsumptionPayload.extend({
     dataDestinationType: z.literal(DataDestinationType.LOOKER_STUDIO),
   }),
+  // Same shape as any other pulled report: the workbook is not addressable from here, so there
+  // is nothing destination-specific to carry — unlike Google Sheets, which names a document.
+  [RunKind.EXCEL_REPORT_RUN]: reportConsumptionPayload.extend({
+    dataDestinationType: z.literal(DataDestinationType.EXCEL),
+  }),
   [RunKind.EMAIL_BASED_REPORT_RUN]: reportConsumptionPayload.extend({
     dataDestinationType: z.union([
       z.literal(DataDestinationType.EMAIL),

@@ -5,11 +5,8 @@ import { UserReference } from '../../../../../../shared/components/UserReference
 import { useUser } from '../../../../../idp';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
-import {
-  type DataMartReport,
-  isGoogleSheetsDestinationConfig,
-} from '../../../shared/model/types/data-mart-report.ts';
-import { useGoogleSheetsReportForm } from '../../hooks/useGoogleSheetsReportForm.ts';
+import { type DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
+import { useReportForm } from '../../hooks/useReportForm.ts';
 import {
   Form,
   AppForm,
@@ -20,7 +17,6 @@ import {
   FormMessage,
   FormLayout,
   FormSection,
-  FormDescription,
 } from '@owox/ui/components/form';
 import {
   Select,
@@ -33,21 +29,17 @@ import {
   type DataDestination,
   DataDestinationType,
   DataDestinationTypeModel,
+  isPullBasedDestinationType,
+  reportNamesTargetDocument,
   useDataDestination,
-  dataDestinationService,
 } from '../../../../../data-destination';
 import { Link } from 'react-router';
 import { useProjectRoute } from '../../../../../../shared/hooks';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { Button } from '@owox/ui/components/button';
-import { AlertCircle, ExternalLink, Loader2, Plus } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
+import { AlertCircle } from 'lucide-react';
 import {
-  getGoogleSheetTabUrl,
   getGoogleSheetsDestinationEmail,
-  isValidGoogleSheetsUrl,
+  getGoogleSheetsReportDocumentUrl,
   ReportFormMode,
 } from '../../../shared';
 import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
@@ -55,7 +47,7 @@ import {
   ReportSchedulesInlineList,
   type ReportSchedulesInlineListHandle,
 } from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
-import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
+import { GoogleSheetsTargetSection } from './GoogleSheetsTargetSection';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
@@ -73,7 +65,7 @@ import {
 import { DEFAULT_REPORT_TITLE } from '../../../shared';
 import { useDataMartContext } from '../../../../edit/model';
 
-interface GoogleSheetsReportEditFormProps {
+interface ReportEditFormProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   onDirtyChange?: (isDirty: boolean) => void;
@@ -84,10 +76,7 @@ interface GoogleSheetsReportEditFormProps {
   preSelectedDestination?: DataDestination | null;
 }
 
-export const GoogleSheetsReportEditForm = forwardRef<
-  HTMLFormElement,
-  GoogleSheetsReportEditFormProps
->(
+export const ReportEditForm = forwardRef<HTMLFormElement, ReportEditFormProps>(
   (
     {
       initialReport,
@@ -100,10 +89,19 @@ export const GoogleSheetsReportEditForm = forwardRef<
     },
     ref
   ) => {
-    const formId = 'google-sheets-edit-form';
-    const titleInputId = 'google-sheets-title-input';
-    const documentUrlInputId = 'google-sheets-document-url-input';
-    const dataDestinationSelectId = 'google-sheets-data-destination-select';
+    const formId = 'report-edit-form';
+    const titleInputId = 'report-title-input';
+    const documentUrlInputId = 'report-document-url-input';
+    const dataDestinationSelectId = 'report-data-destination-select';
+
+    const destinationType =
+      preSelectedDestination?.type ??
+      initialReport?.dataDestination.type ??
+      DataDestinationType.GOOGLE_SHEETS;
+    // Only what depends on there being a server-side run: a schedule to put it on, and the
+    // offer to run right after saving. What the report writes into is a separate question — see
+    // reportNamesTargetDocument.
+    const isPullDestination = isPullBasedDestinationType(destinationType);
 
     const { dataMart } = useDataMartContext();
     const { scope } = useProjectRoute();
@@ -122,12 +120,11 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     useEffect(() => {
       if (dataDestinations.length > 0) {
-        const googleSheetsDestinations = dataDestinations.filter(
-          destination => destination.type === DataDestinationType.GOOGLE_SHEETS
+        setFilteredDestinations(
+          dataDestinations.filter(destination => destination.type === destinationType)
         );
-        setFilteredDestinations(googleSheetsDestinations);
       }
-    }, [dataDestinations]);
+    }, [dataDestinations, destinationType]);
 
     useAutoFocus({ elementId: titleInputId, isOpen: true, delay: 150 });
 
@@ -168,11 +165,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
       isSubmitting,
       formError: internalFormError,
       onSubmit: handleFormSubmit,
-    } = useGoogleSheetsReportForm({
+    } = useReportForm({
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
       pendingOwnerIdsRef,
+      destinationType,
       onAfterSubmit: async report => {
         try {
           await scheduleRef.current?.persist(report.id);
@@ -205,17 +203,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
     }, [internalFormError, onFormErrorChange]);
 
     useEffect(() => {
-      if (
-        mode === ReportFormMode.EDIT &&
-        initialReport &&
-        isGoogleSheetsDestinationConfig(initialReport.destinationConfig)
-      ) {
+      if (mode === ReportFormMode.EDIT && initialReport) {
+        // Only the document URL depends on which destination this is, and it answers empty for
+        // one that names no document. Everything else is the same everywhere, so gating the
+        // whole reset on a Google Sheets config left an Excel report showing whatever the form
+        // was mounted with.
         reset({
           title: initialReport.title,
-          documentUrl: getGoogleSheetTabUrl(
-            initialReport.destinationConfig.spreadsheetId,
-            initialReport.destinationConfig.sheetId
-          ),
+          documentUrl: getGoogleSheetsReportDocumentUrl(initialReport.destinationConfig),
           dataDestinationId: initialReport.dataDestination.id,
           columnConfig: initialReport.columnConfig ?? null,
           filterConfig: initialReport.filterConfig ?? null,
@@ -247,9 +242,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
       onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
     }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
 
-    const documentUrl = form.watch('documentUrl');
-    const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
-
     const selectedDestinationId = form.watch('dataDestinationId');
     const selectedDestination = filteredDestinations.find(
       destination => destination.id === selectedDestinationId
@@ -257,57 +249,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const selectedDestinationEmail = selectedDestination
       ? getGoogleSheetsDestinationEmail(selectedDestination)
       : undefined;
-    const [isCreatingSheet, setIsCreatingSheet] = useState(false);
-
-    const handleCreateGoogleSheet = async () => {
-      if (!selectedDestinationId || isCreatingSheet) {
-        return;
-      }
-      // The report has no title yet at creation time (defaults to DEFAULT_REPORT_TITLE),
-      // so fall back to the Data Mart title; use the report title once the user set one.
-      const reportTitle = form.getValues('title').trim();
-      const sheetTitle =
-        reportTitle && reportTitle !== DEFAULT_REPORT_TITLE
-          ? reportTitle
-          : (dataMart?.title ?? reportTitle);
-      setIsCreatingSheet(true);
-      try {
-        const { spreadsheetId, sheetId, placedInRoot, sharedWithRequester } =
-          await dataDestinationService.createGoogleSheetDocument(selectedDestinationId, {
-            title: sheetTitle,
-          });
-        form.setValue('documentUrl', getGoogleSheetTabUrl(spreadsheetId, sheetId), {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        // The backend explicitly flags a downgrade (folder dropped / not shared)
-        // when the connected OAuth token lacks a Drive scope. Older backends omit
-        // these flags (undefined), so only warn on an explicit true/false.
-        if (placedInRoot === true || sharedWithRequester === false) {
-          const issues: string[] = [];
-          if (placedInRoot === true) {
-            issues.push(
-              'the selected Drive folder was not used (it was created in your Drive root)'
-            );
-          }
-          if (sharedWithRequester === false) {
-            issues.push('it was not shared with you');
-          }
-          toast(
-            `Google Sheet created, but ${issues.join(', and ')}. Reconnect the destination’s ` +
-              'Google account with Drive access to fix this.',
-            { icon: '⚠️', duration: 8000 }
-          );
-        } else {
-          toast.success('Google Sheet created');
-        }
-      } catch (error) {
-        showApiErrorToast(error, 'Failed to create Google Sheet');
-      } finally {
-        setIsCreatingSheet(false);
-      }
-    };
-
     return (
       <Form {...form}>
         <AppForm
@@ -344,7 +285,11 @@ export const GoogleSheetsReportEditForm = forwardRef<
                     <Select
                       onValueChange={field.onChange}
                       value={field.value}
-                      disabled={loadingDestinations || filteredDestinations.length === 0}
+                      disabled={
+                        isPullDestination ||
+                        loadingDestinations ||
+                        filteredDestinations.length === 0
+                      }
                     >
                       <FormControl>
                         <SelectTrigger
@@ -432,83 +377,17 @@ export const GoogleSheetsReportEditForm = forwardRef<
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name='documentUrl'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel tooltip='The link must include the Sheet ID to insert data into the correct tab'>
-                      Document Link with Sheet ID (GID)
-                    </FormLabel>
-                    <FormControl>
-                      <div className='flex items-center gap-2'>
-                        <Input
-                          id={documentUrlInputId}
-                          placeholder='Paste a Google Sheets URL'
-                          className='flex-1'
-                          {...field}
-                        />
-                        {isValidDocumentUrl && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => {
-                                  window.open(documentUrl.trim(), '_blank', 'noopener,noreferrer');
-                                }}
-                                aria-label='Open document in new tab'
-                              >
-                                <ExternalLink
-                                  className='h-3.5 w-3.5'
-                                  strokeWidth={1.5}
-                                  aria-hidden='true'
-                                />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side='top' align='center' role='tooltip'>
-                              Open document
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                        {!isValidDocumentUrl && (
-                          <>
-                            <span className='text-muted-foreground text-sm'>or</span>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  type='button'
-                                  variant='outline'
-                                  className='flex-shrink-0'
-                                  disabled={!selectedDestinationId || isCreatingSheet}
-                                  onClick={() => void handleCreateGoogleSheet()}
-                                >
-                                  {isCreatingSheet ? (
-                                    <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
-                                  ) : (
-                                    <Plus className='h-4 w-4' aria-hidden='true' />
-                                  )}
-                                  New Sheet
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side='top' align='center' role='tooltip'>
-                                {selectedDestinationId
-                                  ? 'Create a new Google Sheet in the selected destination and fill the link above'
-                                  : 'Select a destination first'}
-                              </TooltipContent>
-                            </Tooltip>
-                          </>
-                        )}
-                      </div>
-                    </FormControl>
-                    <FormDescription>
-                      <DocumentLinkDescription accessEmail={selectedDestinationEmail} />
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* The same answer the hook uses to build the config, so the form cannot ask for
+                  a document the report will not store, or store one it never asked for. */}
+              {reportNamesTargetDocument(destinationType) && (
+                <GoogleSheetsTargetSection
+                  form={form}
+                  destinationId={selectedDestinationId}
+                  accessEmail={selectedDestinationEmail}
+                  dataMartTitle={dataMart?.title}
+                  inputId={documentUrlInputId}
+                />
+              )}
             </FormSection>
             <FormSection
               title='Report Columns'
@@ -561,18 +440,22 @@ export const GoogleSheetsReportEditForm = forwardRef<
                 )}
               />
             </FormSection>
-            <FormSection title='Automate Report Runs'>
-              {dataMart?.id ? (
-                <ReportSchedulesInlineList
-                  ref={scheduleRef}
-                  dataMartId={dataMart.id}
-                  reportId={mode === ReportFormMode.EDIT ? (initialReport?.id ?? null) : null}
-                  onDirtyChange={setTriggersDirty}
-                />
-              ) : (
-                <TimeTriggerAnnouncement />
-              )}
-            </FormSection>
+            {/* Nothing to schedule: a pull report is refreshed by its consumer, and the
+                server has no run to put on a timer. */}
+            {!isPullDestination && (
+              <FormSection title='Automate Report Runs'>
+                {dataMart?.id ? (
+                  <ReportSchedulesInlineList
+                    ref={scheduleRef}
+                    dataMartId={dataMart.id}
+                    reportId={mode === ReportFormMode.EDIT ? (initialReport?.id ?? null) : null}
+                    onDirtyChange={setTriggersDirty}
+                  />
+                ) : (
+                  <TimeTriggerAnnouncement />
+                )}
+              </FormSection>
+            )}
 
             <FormSection title='Ownership'>
               <FormItem>
@@ -614,6 +497,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}
             runAfterSaveRef={runAfterSaveRef}
+            canRunAfterSave={!isPullDestination}
             onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
             onCancel={onCancel}
           />

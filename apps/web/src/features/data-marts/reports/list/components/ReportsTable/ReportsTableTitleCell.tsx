@@ -6,11 +6,11 @@ import {
   reportTitleCellQuickActionClassName,
 } from '../../../shared/components';
 
-interface GoogleSheetsReportTitleCellProps {
+interface ReportsTableTitleCellProps {
   report: DataMartReport;
 }
 
-export function GoogleSheetsReportTitleCell({ report }: GoogleSheetsReportTitleCellProps) {
+export function ReportsTableTitleCell({ report }: ReportsTableTitleCellProps) {
   return (
     <ReportTitleCell
       title={report.title}

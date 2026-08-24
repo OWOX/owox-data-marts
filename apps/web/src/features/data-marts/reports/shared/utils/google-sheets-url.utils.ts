@@ -1,3 +1,8 @@
+import {
+  type DestinationConfig,
+  isGoogleSheetsDestinationConfig,
+} from '../model/types/data-mart-report';
+
 /**
  * Regular expression to match Google Sheets URLs and extract spreadsheetId
  */
@@ -73,6 +78,21 @@ export function getGoogleSheetDocumentUrl(spreadsheetId: string): string {
  */
 export function getGoogleSheetTabUrl(spreadsheetId: string, sheetId: number | string): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${String(sheetId)}`;
+}
+
+/**
+ * The document a saved report writes into, as a URL.
+ *
+ * Empty for a destination whose report names no document — an Excel workbook is read by the
+ * add-in, so it knows its own location and the config carries none. Kept here so the form's
+ * default value and its reset-on-edit cannot disagree about the URL they build.
+ *
+ * @param config - Report destination config, if the report has one yet
+ */
+export function getGoogleSheetsReportDocumentUrl(config?: DestinationConfig): string {
+  return config && isGoogleSheetsDestinationConfig(config)
+    ? getGoogleSheetTabUrl(config.spreadsheetId, config.sheetId)
+    : '';
 }
 
 /**

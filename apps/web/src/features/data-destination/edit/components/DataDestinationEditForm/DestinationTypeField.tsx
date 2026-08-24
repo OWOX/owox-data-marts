@@ -18,7 +18,11 @@ import {
 } from '@owox/ui/components/form';
 import { Badge } from '@owox/ui/components/badge';
 import DestinationTypeDescription from './FormDescriptions/DestinationTypeDescription';
-import { DataDestinationTypeModel, DataDestinationStatus } from '../../../shared';
+import {
+  DataDestinationTypeModel,
+  DataDestinationStatus,
+  canCreateDestinationInApp,
+} from '../../../shared';
 
 interface DestinationTypeFieldProps {
   form: UseFormReturn<DataDestinationFormData>;
@@ -52,6 +56,9 @@ export function DestinationTypeField({
                       ? allowedDestinationTypes.includes(type)
                       : true
                   )
+                  // A type nobody sets up by hand is still listed while it is the one selected,
+                  // or editing such a destination would show an empty type field.
+                  .filter(({ type }) => type === field.value || canCreateDestinationInApp(type))
                   .map(({ type, displayName, icon: Icon, status }) => {
                     const isComingSoon = status === DataDestinationStatus.COMING_SOON;
                     return (

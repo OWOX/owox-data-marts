@@ -75,7 +75,7 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartRunType, usesHttpDataRunShape } from '../enums/data-mart-run-type.enum';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
@@ -806,11 +806,11 @@ export class DataMartMapper {
   private maskAdditionalParams(run: DataMartRunDto): Record<string, unknown> | null {
     // Whitelist only what is safe to expose; every other key (internal run params) is
     // dropped. `totals` are surfaced at the TOP LEVEL of the response (see extractTotals),
-    // so they are removed here: HTTP_DATA runs expose their `httpData` subtree minus totals;
-    // MCP_QUERY runs expose their `mcpQuery` subtree (response summary + request config,
+    // so they are removed here: runs recorded in the httpData shape expose that subtree minus
+    // totals; MCP_QUERY runs expose their `mcpQuery` subtree (response summary + request config,
     // no result-row values); report runs expose nothing (their only safe-to-expose key
     // was `totals`).
-    if (run.type === DataMartRunType.HTTP_DATA) {
+    if (usesHttpDataRunShape(run.type)) {
       const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as
         | Record<string, unknown>
         | undefined;
@@ -834,16 +834,16 @@ export class DataMartMapper {
 
   /**
    * Grand-totals summary, surfaced at the top level of the run response. Report runs persist
-   * it as `additionalParams.totals`; HTTP_DATA runs nest it inside the `httpData` subtree.
+   * it as `additionalParams.totals`; runs recorded in the httpData shape nest it inside the
+   * `httpData` subtree.
    */
   private extractTotals(
     run: DataMartRunDto
   ): Record<string, number | string | boolean | null> | null {
-    const totals =
-      run.type === DataMartRunType.HTTP_DATA
-        ? (run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as Record<string, unknown> | undefined)
-            ?.totals
-        : run.additionalParams?.totals;
+    const totals = usesHttpDataRunShape(run.type)
+      ? (run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as Record<string, unknown> | undefined)
+          ?.totals
+      : run.additionalParams?.totals;
     return (totals as Record<string, number | string | boolean | null> | undefined) ?? null;
   }
 }

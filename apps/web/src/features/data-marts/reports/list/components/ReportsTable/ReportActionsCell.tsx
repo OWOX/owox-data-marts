@@ -13,25 +13,33 @@ import { ConfirmationDialog } from '../../../../../../shared/components/Confirma
 import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport, ReportStatusEnum, reportService } from '../../../shared';
+import {
+  isPullBasedDestinationType,
+  pullBasedRunHint,
+} from '../../../../../data-destination/shared/enums';
 
 /** One sentence with a sheet name needs longer than the 2s default. */
 const RECONNECT_TOAST_DURATION_MS = 6000;
 
-interface GoogleSheetsActionsCellProps {
+interface ReportActionsCellProps {
   row: { original: DataMartReport };
   onDeleteSuccess?: () => void;
   onEditReport?: (report: DataMartReport) => void;
   onRunSuccess?: () => void | Promise<void>;
 }
 
-export function GoogleSheetsActionsCell({
+export function ReportActionsCell({
   row,
   onDeleteSuccess,
   onEditReport,
   onRunSuccess,
-}: GoogleSheetsActionsCellProps) {
+}: ReportActionsCellProps) {
   const canRun = row.original.canRun;
   const canEditConfig = row.original.canEditConfig;
+  // A greyed-out button with no reason reads as a missing permission. This one is not: nobody
+  // can start such a run, because the destination reads the data itself.
+  const isPullBased = isPullBasedDestinationType(row.original.dataDestination.type);
+  const pullRunHint = pullBasedRunHint(row.original.dataDestination.type);
   const [isRunning, setIsRunning] = useState(
     row.original.lastRunStatus === ReportStatusEnum.RUNNING
   );
@@ -187,7 +195,10 @@ export function GoogleSheetsActionsCell({
             role='menuitem'
           >
             <Play className='text-foreground h-4 w-4' aria-hidden='true' />
-            {isRunning ? 'Running report...' : 'Run report'}
+            <div className='flex flex-col'>
+              <span>{isRunning ? 'Running report...' : 'Run report'}</span>
+              {pullRunHint && <span className='text-muted-foreground text-xs'>{pullRunHint}</span>}
+            </div>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -205,8 +216,11 @@ export function GoogleSheetsActionsCell({
           {/* Only offered after a failed run — the error text names this button.
               On a healthy report the click would not no-op: it rebinds the
               destination to a sheet named after the report, silently moving
-              where data lands. */}
-          {row.original.lastRunStatus === ReportStatusEnum.ERROR && (
+              where data lands.
+
+              Never for a pull destination: there is no sheet to rebind, and a
+              failed Excel pull now reaches ERROR like any other failed run. */}
+          {row.original.lastRunStatus === ReportStatusEnum.ERROR && !isPullBased && (
             <DropdownMenuItem
               disabled={!canEditConfig || !canRun || isReconnecting}
               onClick={e => {

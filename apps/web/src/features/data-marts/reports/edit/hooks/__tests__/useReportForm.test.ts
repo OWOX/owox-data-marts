@@ -22,10 +22,8 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import {
-  useGoogleSheetsReportForm,
-  GoogleSheetsReportEditFormSchema,
-} from '../useGoogleSheetsReportForm';
+import { useReportForm, ReportEditFormSchema, buildReportEditFormSchema } from '../useReportForm';
+import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 import { ReportFormMode } from '../../../shared';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
 import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
@@ -111,9 +109,9 @@ const validGoogleSheetsFormData = {
   uniqueCountConfig: [],
 };
 
-describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
+describe('ReportEditFormSchema — columnConfig validation', () => {
   it('rejects an empty array with the expected message', async () => {
-    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+    const result = await ReportEditFormSchema.safeParseAsync({
       ...validGoogleSheetsFormData,
       columnConfig: [],
     });
@@ -126,7 +124,7 @@ describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
   });
 
   it('accepts null (no columns configured yet)', async () => {
-    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+    const result = await ReportEditFormSchema.safeParseAsync({
       ...validGoogleSheetsFormData,
       columnConfig: null,
     });
@@ -135,7 +133,7 @@ describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
   });
 
   it('validates aggregation and date-trunc configs', async () => {
-    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+    const result = await ReportEditFormSchema.safeParseAsync({
       ...validGoogleSheetsFormData,
       aggregationConfig: [{ column: 'revenue', function: 'P95' }],
       dateTruncConfig: [{ column: 'ordered_at', unit: 'MONTH' }],
@@ -145,7 +143,7 @@ describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
   });
 
   it('rejects an unknown aggregation function', async () => {
-    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+    const result = await ReportEditFormSchema.safeParseAsync({
       ...validGoogleSheetsFormData,
       aggregationConfig: [{ column: 'revenue', function: 'MEDIAN' }],
     });
@@ -154,7 +152,7 @@ describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
   });
 
   it('rejects an unknown date-trunc unit', async () => {
-    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+    const result = await ReportEditFormSchema.safeParseAsync({
       ...validGoogleSheetsFormData,
       dateTruncConfig: [{ column: 'ordered_at', unit: 'HOUR' }],
     });
@@ -163,7 +161,7 @@ describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
   });
 });
 
-describe('useGoogleSheetsReportForm — defaults', () => {
+describe('useReportForm — defaults', () => {
   it('seeds defaults from initialReport (title, columnConfig, all output controls)', () => {
     const preJoinRule: FilterRule = {
       column: 'users__userRole',
@@ -182,7 +180,7 @@ describe('useGoogleSheetsReportForm — defaults', () => {
     });
 
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         initialReport,
         mode: ReportFormMode.EDIT,
         dataMartId: 'dm-1',
@@ -199,7 +197,7 @@ describe('useGoogleSheetsReportForm — defaults', () => {
 
   it('falls back to nulls when initialReport has no output controls', () => {
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         initialReport: buildReport(),
         mode: ReportFormMode.EDIT,
         dataMartId: 'dm-1',
@@ -212,7 +210,7 @@ describe('useGoogleSheetsReportForm — defaults', () => {
   });
 });
 
-describe('useGoogleSheetsReportForm — submission', () => {
+describe('useReportForm — submission', () => {
   it('CREATE: passes all output controls (including pre-join rule) to createReport', async () => {
     const preJoinRule: FilterRule = {
       column: 'users__country',
@@ -222,7 +220,7 @@ describe('useGoogleSheetsReportForm — submission', () => {
     };
 
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         mode: ReportFormMode.CREATE,
         dataMartId: 'dm-1',
       })
@@ -268,7 +266,7 @@ describe('useGoogleSheetsReportForm — submission', () => {
   it('UPDATE: forwards output controls to updateReport with the initial report id', async () => {
     const initial = buildReport({ id: 'r-42' });
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         initialReport: initial,
         mode: ReportFormMode.EDIT,
         dataMartId: 'dm-1',
@@ -294,7 +292,7 @@ describe('useGoogleSheetsReportForm — submission', () => {
   it('CREATE: adds ownerIds only when pendingOwnerIdsRef.current is non-null', async () => {
     const ownerRef = { current: ['user-1', 'user-2'] };
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         mode: ReportFormMode.CREATE,
         dataMartId: 'dm-1',
         pendingOwnerIdsRef: ownerRef,
@@ -320,7 +318,7 @@ describe('useGoogleSheetsReportForm — submission', () => {
   it('CREATE: omits ownerIds when pendingOwnerIdsRef.current is null', async () => {
     const ownerRef: { current: string[] | null } = { current: null };
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         mode: ReportFormMode.CREATE,
         dataMartId: 'dm-1',
         pendingOwnerIdsRef: ownerRef,
@@ -343,11 +341,11 @@ describe('useGoogleSheetsReportForm — submission', () => {
   });
 });
 
-describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
+describe('useReportForm — uniqueCountConfig round-trip', () => {
   it('initializes uniqueCountConfig from a saved report', () => {
     const initial = buildReport({ uniqueCountConfig: ['', 'orders'] } as Partial<DataMartReport>);
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         initialReport: initial,
         mode: ReportFormMode.EDIT,
         dataMartId: 'dm-1',
@@ -359,7 +357,7 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
   it('falls back to an empty list when initialReport.uniqueCountConfig is absent', () => {
     const initial = buildReport();
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         initialReport: initial,
         mode: ReportFormMode.EDIT,
         dataMartId: 'dm-1',
@@ -370,7 +368,7 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
 
   it('CREATE: includes uniqueCountConfig in createReport payload', async () => {
     const { result } = renderHook(() =>
-      useGoogleSheetsReportForm({
+      useReportForm({
         mode: ReportFormMode.CREATE,
         dataMartId: 'dm-1',
       })
@@ -391,5 +389,34 @@ describe('useGoogleSheetsReportForm — uniqueCountConfig round-trip', () => {
     expect(mockCreateReport).toHaveBeenCalledWith(
       expect.objectContaining({ uniqueCountConfig: ['', 'orders'] })
     );
+  });
+});
+
+describe('buildReportEditFormSchema', () => {
+  const values = {
+    title: 'X',
+    documentUrl: '',
+    dataDestinationId: 'dest-1',
+    columnConfig: ['col_a'],
+    filterConfig: null,
+    sortConfig: null,
+    limitConfig: null,
+    aggregationConfig: null,
+    dateTruncConfig: null,
+    uniqueCountConfig: [],
+  };
+
+  it('demands a document URL where the report stores one', () => {
+    const result = buildReportEditFormSchema(DataDestinationType.GOOGLE_SHEETS).safeParse(values);
+
+    expect(result.success).toBe(false);
+  });
+
+  it('asks for none where the report names no document', () => {
+    // Validating a field the form never showed would block saving an Excel report on a rule
+    // about a URL nobody can supply.
+    const result = buildReportEditFormSchema(DataDestinationType.EXCEL).safeParse(values);
+
+    expect(result.success).toBe(true);
   });
 });

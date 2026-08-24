@@ -2,24 +2,24 @@ import { type ColumnDef } from '@tanstack/react-table';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../../shared/components/Table';
 import { StatusIcon } from '../../StatusIcon';
-import { GoogleSheetsActionsCell } from '../GoogleSheetsActionsCell';
+import { ReportActionsCell } from '../ReportActionsCell';
 import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
 import { ReportQuickRunCell } from '../../../../shared';
 import { ReportColumnKey } from './columnKeys';
 import { ReportColumnLabels } from './columnLabels';
 import { UserReference } from '../../../../../../../shared/components/UserReference';
 import { UserAvatarGroup } from '../../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
-import { GoogleSheetsReportTitleCell } from '../GoogleSheetsReportTitleCell';
+import { ReportsTableTitleCell } from '../ReportsTableTitleCell';
 
-interface GoogleSheetsTableColumnsProps {
+interface ReportTableColumnsProps {
   onDeleteSuccess?: () => void;
   onEditReport?: (report: DataMartReport) => void;
 }
 
-export const getGoogleSheetsColumns = ({
+export const getReportColumns = ({
   onDeleteSuccess,
   onEditReport,
-}: GoogleSheetsTableColumnsProps = {}): ColumnDef<DataMartReport>[] => [
+}: ReportTableColumnsProps = {}): ColumnDef<DataMartReport>[] => [
   {
     id: 'quickRun',
     size: 40,
@@ -39,7 +39,7 @@ export const getGoogleSheetsColumns = ({
     header: ({ column }) => (
       <SortableHeader column={column}>{ReportColumnLabels[ReportColumnKey.TITLE]}</SortableHeader>
     ),
-    cell: ({ row }) => <GoogleSheetsReportTitleCell report={row.original} />,
+    cell: ({ row }) => <ReportsTableTitleCell report={row.original} />,
   },
   {
     accessorKey: ReportColumnKey.LAST_RUN_DATE,
@@ -124,11 +124,7 @@ export const getGoogleSheetsColumns = ({
     enableResizing: false,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (
-      <GoogleSheetsActionsCell
-        row={row}
-        onDeleteSuccess={onDeleteSuccess}
-        onEditReport={onEditReport}
-      />
+      <ReportActionsCell row={row} onDeleteSuccess={onDeleteSuccess} onEditReport={onEditReport} />
     ),
   },
 ];

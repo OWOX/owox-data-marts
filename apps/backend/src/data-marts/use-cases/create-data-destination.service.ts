@@ -1,3 +1,4 @@
+import { requiresCredentials } from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -171,7 +172,26 @@ export class CreateDataDestinationService {
     }
 
     if (!command.credentials) {
-      throw new BadRequestException('Credentials are required when not copying from a source');
+      if (requiresCredentials(command.type)) {
+        throw new BadRequestException('Credentials are required when not copying from a source');
+      }
+
+      // A destination that holds no secret gets no credential record: `credentialId` is
+      // nullable precisely so nothing has to stand in for one.
+      const entity = this.repository.create({
+        title: command.title,
+        type: command.type,
+        projectId: command.projectId,
+        credentialId: null,
+        createdById: command.userId,
+        availableForUse,
+        availableForMaintenance: false,
+        config: command.config ?? null,
+      });
+
+      const savedEntity = await this.repository.save(entity);
+
+      return this.saveOwnersAndBuildResponse(savedEntity, command);
     }
 
     await this.credentialsValidator.checkCredentials(command.type, command.credentials);

@@ -9,6 +9,7 @@ import { DataDestinationType } from '../data-destination-types/enums/data-destin
 export const MCP_DESTINATION_TYPES = [
   'google_sheets',
   'looker_studio',
+  'excel',
   'email',
   'slack',
   'teams',
@@ -20,6 +21,7 @@ export type McpDestinationType = (typeof MCP_DESTINATION_TYPES)[number];
 const DESTINATION_TYPE_MAP: Record<DataDestinationType, McpDestinationType> = {
   [DataDestinationType.GOOGLE_SHEETS]: 'google_sheets',
   [DataDestinationType.LOOKER_STUDIO]: 'looker_studio',
+  [DataDestinationType.EXCEL]: 'excel',
   [DataDestinationType.EMAIL]: 'email',
   [DataDestinationType.SLACK]: 'slack',
   [DataDestinationType.MS_TEAMS]: 'teams',

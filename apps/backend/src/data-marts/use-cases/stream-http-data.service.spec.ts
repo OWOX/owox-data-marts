@@ -39,7 +39,14 @@ import { HttpDataRequestValidator } from '../services/http-data/http-data-reques
 import { HttpDataStreamWriter } from '../services/http-data/http-data-stream-writer.service';
 import { HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS } from '../services/http-data/http-data.constants';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
-import { StreamHttpDataService } from './stream-http-data.service';
+import {
+  deriveStreamPlanContext,
+  StreamHttpDataService,
+  asExcelReportRun,
+} from './stream-http-data.service';
+import { RunKind } from '../services/project-billing/project-billing.service';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { ReportRunStatus } from '../enums/report-run-status.enum';
 
 function fakeCommand(overrides: Partial<StreamHttpDataCommand> = {}): StreamHttpDataCommand {
   return {
@@ -284,6 +291,7 @@ describe('StreamHttpDataService', () => {
     projectBilling = {
       verifyCanPerformOperations: jest.fn(async request => request),
       registerHttpDataRunConsumption: jest.fn(async () => undefined),
+      registerExcelReportRunConsumption: jest.fn(async () => undefined),
     } as unknown as jest.Mocked<ProjectBillingService>;
 
     reader = {
@@ -331,6 +339,7 @@ describe('StreamHttpDataService', () => {
       getByIdAndProjectId: jest.fn(async () => ({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: ['date', 'revenue'],
         filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
         sortConfig: null,
@@ -339,6 +348,7 @@ describe('StreamHttpDataService', () => {
         uniqueCountConfig: null,
         limitConfig: null,
       })),
+      updateRunStatus: jest.fn(async () => undefined),
     } as unknown as jest.Mocked<ReportService>;
 
     service = new StreamHttpDataService(
@@ -1415,6 +1425,7 @@ describe('StreamHttpDataService', () => {
       reportService.getByIdAndProjectId.mockResolvedValueOnce({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: ['date', 'revenue'],
         filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
         sortConfig: null,
@@ -1437,6 +1448,7 @@ describe('StreamHttpDataService', () => {
       reportService.getByIdAndProjectId.mockResolvedValueOnce({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: ['date', 'revenue'],
         filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
         sortConfig: null,
@@ -1459,6 +1471,7 @@ describe('StreamHttpDataService', () => {
       reportService.getByIdAndProjectId.mockResolvedValueOnce({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: ['date', 'revenue'],
         filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
         sortConfig: null,
@@ -1489,6 +1502,7 @@ describe('StreamHttpDataService', () => {
       reportService.getByIdAndProjectId.mockResolvedValueOnce({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: null,
         filterConfig: null,
         sortConfig: null,
@@ -1513,6 +1527,7 @@ describe('StreamHttpDataService', () => {
       reportService.getByIdAndProjectId.mockResolvedValueOnce({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: ['date', 'revenue'],
         filterConfig: [{ column: 'date', operator: 'gte', value: '2026-01-01' }],
         sortConfig: null,
@@ -1537,6 +1552,7 @@ describe('StreamHttpDataService', () => {
       reportService.getByIdAndProjectId.mockResolvedValueOnce({
         id: 'report-1',
         dataMart: { id: 'dm-1' },
+        dataDestination: { type: DataDestinationType.GOOGLE_SHEETS },
         columnConfig: ['date', 'revenue'],
         filterConfig: null,
         sortConfig: null,
@@ -1572,5 +1588,224 @@ describe('StreamHttpDataService', () => {
         })
       );
     });
+
+    /**
+     * The Excel pull is the report running, so it has to leave behind everything a server-side
+     * run leaves: an Excel-typed run row, the report's own status, and one Excel consumption
+     * unit. Asserted through streamReport rather than the plan alone — the plan flags were
+     * already right while nothing carried them all the way out.
+     */
+    describe('for an Excel report', () => {
+      function excelReport(overrides: Record<string, unknown> = {}) {
+        return {
+          id: 'report-1',
+          dataMart: { id: 'dm-1' },
+          dataDestination: { type: DataDestinationType.EXCEL },
+          columnConfig: ['date', 'revenue'],
+          filterConfig: null,
+          sortConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: null,
+          uniqueCountConfig: null,
+          limitConfig: null,
+          ...overrides,
+        } as never;
+      }
+
+      it('keeps where the caller put the rows in the recorded run', async () => {
+        // The metadata object is rebuilt from the read plan once the plan exists. Every other
+        // field survives that because the plan restates it; this one comes from the caller and
+        // exists nowhere else, so it is the one that silently disappears.
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+        const runContext = {
+          host: 'excel',
+          documentTitle: 'Book1.xlsx',
+          sheetId: '{D268F0F1}',
+          sheetName: 'Sheet1 - renamed',
+        };
+
+        await service.streamReport(fakeReportCommand({ runContext }), mockResponse());
+
+        expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: expect.objectContaining({ runContext }),
+          })
+        );
+      });
+
+      it('records the run as Excel, marks the report succeeded, and charges one Excel unit', async () => {
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+
+        await service.streamReport(fakeReportCommand(), mockResponse());
+
+        expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: DataMartRunType.EXCEL,
+            status: DataMartRunStatus.SUCCESS,
+            // Carried so run history can name the report; a plain HTTP read sends none.
+            report: expect.objectContaining({ id: 'report-1' }),
+          })
+        );
+        expect(reportService.updateRunStatus).toHaveBeenCalledWith(
+          'report-1',
+          ReportRunStatus.SUCCESS,
+          undefined
+        );
+        expect(projectBilling.registerExcelReportRunConsumption).toHaveBeenCalledTimes(1);
+        // One unit per run, never two.
+        expect(projectBilling.registerHttpDataRunConsumption).not.toHaveBeenCalled();
+      });
+
+      it('authorizes the read as an Excel report run, not as a generic HTTP read', async () => {
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+
+        await service.streamReport(fakeReportCommand(), mockResponse());
+
+        expect(projectBilling.verifyCanPerformOperations).toHaveBeenCalledWith(
+          expect.anything(),
+          RunKind.EXCEL_REPORT_RUN
+        );
+      });
+
+      it('marks the report failed when the read fails', async () => {
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+        reader.readReportDataBatch.mockRejectedValueOnce(new Error('storage exploded'));
+
+        // Nothing was written yet, so the failure still surfaces to the caller — the run is
+        // recorded on the way out.
+        await expect(service.streamReport(fakeReportCommand(), mockResponse())).rejects.toThrow();
+
+        expect(reportService.updateRunStatus).toHaveBeenCalledWith(
+          'report-1',
+          ReportRunStatus.ERROR,
+          expect.any(String)
+        );
+        expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: DataMartRunType.EXCEL,
+            status: DataMartRunStatus.FAILED,
+          })
+        );
+        // Nothing was delivered, so nothing is charged.
+        expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
+      });
+
+      it('marks the report cancelled, not failed, when the workbook stops reading', async () => {
+        // Closing the add-in panel is not a failure of the report. A server-side run that is
+        // cancelled says CANCELLED; a pull that is cancelled has to say the same, or every
+        // interrupted refresh leaves a red report behind.
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+        const res = mockResponse();
+        reader.readReportDataBatch.mockImplementationOnce(async () => {
+          res._emit('close');
+          return new ReportDataBatch([['2026-05-01', 1]], 'batch-2');
+        });
+
+        await expect(service.streamReport(fakeReportCommand(), res)).resolves.toBeUndefined();
+
+        expect(reportService.updateRunStatus).toHaveBeenCalledWith(
+          'report-1',
+          ReportRunStatus.CANCELLED,
+          // No error text: nothing went wrong, the reader simply stopped asking.
+          undefined
+        );
+        expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
+      });
+
+      it('marks the report restricted when the project may not run reports', async () => {
+        reportService.getByIdAndProjectId.mockResolvedValueOnce(excelReport());
+        projectBilling.verifyCanPerformOperations.mockRejectedValueOnce(
+          new ProjectOperationBlockedException([ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED])
+        );
+
+        await expect(
+          service.streamReport(fakeReportCommand(), mockResponse())
+        ).rejects.toBeInstanceOf(ProjectOperationBlockedException);
+
+        // Same word a server-side run uses for the same situation, so the two never disagree.
+        expect(reportService.updateRunStatus).toHaveBeenCalledWith(
+          'report-1',
+          ReportRunStatus.RESTRICTED,
+          expect.any(String)
+        );
+        expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+          expect.objectContaining({ status: DataMartRunStatus.RESTRICTED })
+        );
+      });
+
+      it('leaves a Google Sheets report read charged and typed as a plain HTTP read', async () => {
+        await service.streamReport(fakeReportCommand(), mockResponse());
+
+        expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+          expect.objectContaining({ type: DataMartRunType.HTTP_DATA, report: undefined })
+        );
+        expect(projectBilling.registerHttpDataRunConsumption).toHaveBeenCalledTimes(1);
+        expect(projectBilling.registerExcelReportRunConsumption).not.toHaveBeenCalled();
+        // The run that delivers its data is the server writing to the spreadsheet, not this.
+        expect(reportService.updateRunStatus).not.toHaveBeenCalled();
+      });
+    });
+  });
+});
+
+/**
+ * Whether a read counts as the report's own run is decided here, once, before the read starts —
+ * the rest of the stream only carries the answer.
+ */
+describe('asExcelReportRun', () => {
+  function reportWith(destinationType: DataDestinationType) {
+    return { id: 'report-1', dataDestination: { type: destinationType } } as never;
+  }
+
+  it('answers with the report an Excel read is the run of', () => {
+    // Run type, run status, the authorized unit and the charged unit all read this one value,
+    // so there is no second copy of the answer to disagree with it.
+    expect(asExcelReportRun(reportWith(DataDestinationType.EXCEL))).toMatchObject({
+      id: 'report-1',
+    });
+  });
+
+  it.each([DataDestinationType.GOOGLE_SHEETS, DataDestinationType.LOOKER_STUDIO])(
+    'leaves a %s report read a plain HTTP read',
+    destinationType => {
+      // Those reports run elsewhere — the server writing to the spreadsheet, the connector
+      // extraction — and recording this read as the run would overwrite that outcome.
+      // "Pull-based" is the wrong question; the question is whether the run happens here.
+      expect(asExcelReportRun(reportWith(destinationType))).toBeUndefined();
+    }
+  );
+
+  it('answers nothing for a Data Mart stream, which has no report', () => {
+    expect(asExcelReportRun(undefined)).toBeUndefined();
+  });
+});
+
+describe('deriveStreamPlanContext', () => {
+  const planReadPlan = {} as never;
+
+  it('exposes the saved columns and the report id for a report read', () => {
+    const context = deriveStreamPlanContext({
+      kind: 'report',
+      readPlan: planReadPlan,
+      reportId: 'report-1',
+      savedColumns: ['date'],
+    });
+
+    expect(context).toMatchObject({
+      reportId: 'report-1',
+      metadataColumns: ['date'],
+      captureExecutionSql: true,
+    });
+  });
+
+  it('names no report for a Data Mart stream', () => {
+    const context = deriveStreamPlanContext({
+      kind: 'data-mart',
+      readPlan: planReadPlan,
+      columns: ['date'],
+    });
+
+    expect(context.reportId).toBeUndefined();
+    expect(context.captureExecutionSql).toBe(false);
   });
 });

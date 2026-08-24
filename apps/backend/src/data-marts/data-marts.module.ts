@@ -328,6 +328,7 @@ import { ListDataStoragesByTypeService } from './use-cases/list-data-storages-by
 import { ListStorageResourcesService } from './use-cases/list-storage-resources.service';
 import { StorageResourceBrowserFacade } from './data-storage-types/facades/storage-resource-browser.facade';
 import { ListDataDestinationsByTypeService } from './use-cases/list-data-destinations-by-type.service';
+import { ResolveExcelDestinationService } from './use-cases/resolve-excel-destination.service';
 import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
 import { RefreshDataMartDataLastUpdatedService } from './use-cases/refresh-data-mart-data-last-updated.service';
 import { GetStorageOAuthStatusService } from './use-cases/google-oauth/get-storage-oauth-status.service';
@@ -817,6 +818,7 @@ import { PluginEntityAuthorizationFacadeImpl } from './facades/plugin-entity-aut
     ListStorageResourcesService,
     StorageResourceBrowserFacade,
     ListDataDestinationsByTypeService,
+    ResolveExcelDestinationService,
     BatchDataMartHealthStatusService,
     RefreshDataMartDataLastUpdatedService,
     AgentFlowService,

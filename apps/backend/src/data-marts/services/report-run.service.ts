@@ -5,6 +5,11 @@ import { DataMartRunService } from './data-mart-run.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunReportCommand } from '../dto/domain/run-report.command';
 import { ReportService } from './report.service';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import {
+  isPullBasedDataDestinationType,
+  toHumanReadable,
+} from '../data-destination-types/enums/data-destination-type.enum';
 
 const ERROR_NAMES = {
   OPTIMISTIC_LOCK: 'OptimisticLockVersionMismatchError',
@@ -47,6 +52,17 @@ export class ReportRunService {
   @Transactional()
   async createPending(command: RunReportCommand): Promise<ReportRun | null> {
     const report = await this.reportService.getById(command.reportId);
+
+    // Guarded here rather than at the API edge so scheduled triggers are refused too: this is
+    // the one place both the manual and the scheduled path pass through. Enqueueing such a run
+    // would succeed and then fail in the worker with "No component found for type", because a
+    // pull-based destination has no report writer by design.
+    if (isPullBasedDataDestinationType(report.dataDestination.type)) {
+      throw new BusinessViolationException(
+        `Reports on a ${toHumanReadable(report.dataDestination.type)} destination cannot be run ` +
+          `from the server — the data is read by the destination itself.`
+      );
+    }
 
     if (!ReportRun.canStart(report)) {
       return null;

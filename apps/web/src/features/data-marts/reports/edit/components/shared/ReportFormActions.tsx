@@ -19,6 +19,11 @@ export interface ReportFormActionsProps {
   triggersDirty: boolean;
   ownersDirty?: boolean;
   runAfterSaveRef: RefObject<boolean>;
+  /**
+   * False where the server has no run to start — a pull destination reads the report itself.
+   * The run half of every action disappears rather than being offered and refused.
+   */
+  canRunAfterSave?: boolean;
   onSubmit: () => void;
   onCancel?: () => void;
 }
@@ -30,6 +35,7 @@ export const ReportFormActions = ({
   triggersDirty,
   ownersDirty = false,
   runAfterSaveRef,
+  canRunAfterSave = true,
   onSubmit,
   onCancel,
 }: ReportFormActionsProps) => {
@@ -50,7 +56,11 @@ export const ReportFormActions = ({
     isSubmitting || (mode === ReportFormMode.EDIT && !(isDirty || triggersDirty || ownersDirty));
 
   const primaryLabel =
-    mode === ReportFormMode.CREATE ? 'Create & Run report' : 'Save changes to report';
+    mode === ReportFormMode.CREATE
+      ? canRunAfterSave
+        ? 'Create & Run report'
+        : 'Create report'
+      : 'Save changes to report';
 
   const dropdownItemLabel =
     mode === ReportFormMode.CREATE
@@ -74,42 +84,46 @@ export const ReportFormActions = ({
             }
             submitPendingRef.current = true;
             // For CREATE: run after save. For EDIT: don't run
-            runAfterSaveRef.current = mode === ReportFormMode.CREATE;
+            runAfterSaveRef.current = canRunAfterSave && mode === ReportFormMode.CREATE;
           }}
         >
           {primaryLabel}
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='default'
-              type='button'
-              disabled={disabledPrimary}
-              aria-label='More actions'
-              className='group'
-            >
-              <ChevronDown
-                className='size-4 transition-transform duration-200 group-data-[state=open]:rotate-180'
-                aria-hidden='true'
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end' side='top'>
-            <DropdownMenuItem
-              onClick={() => {
-                if (submitPendingRef.current || isSubmitting) return;
-                submitPendingRef.current = true;
-                // For CREATE: don't run. For EDIT: run after save
-                runAfterSaveRef.current = mode === ReportFormMode.EDIT;
-                onSubmit();
-              }}
-              disabled={isSubmitting}
-            >
-              {dropdownItemLabel}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Every entry in this menu is a variation on running the report, so with no
+            server-side run there is nothing left to offer. */}
+        {canRunAfterSave && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='default'
+                type='button'
+                disabled={disabledPrimary}
+                aria-label='More actions'
+                className='group'
+              >
+                <ChevronDown
+                  className='size-4 transition-transform duration-200 group-data-[state=open]:rotate-180'
+                  aria-hidden='true'
+                />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end' side='top'>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (submitPendingRef.current || isSubmitting) return;
+                  submitPendingRef.current = true;
+                  // For CREATE: don't run. For EDIT: run after save
+                  runAfterSaveRef.current = mode === ReportFormMode.EDIT;
+                  onSubmit();
+                }}
+                disabled={isSubmitting}
+              >
+                {dropdownItemLabel}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </ButtonGroup>
 
       {onCancel && (

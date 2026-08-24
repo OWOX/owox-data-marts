@@ -1,43 +1,42 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { getGoogleSheetsColumns } from './columns';
+import { getReportColumns } from './columns';
 import type { Row } from '@tanstack/react-table';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport } from '../../../shared';
-import { DataDestinationType } from '../../../../../data-destination';
-import type { DataDestination } from '../../../../../data-destination';
+import { canCreateReportInApp, type DataDestination } from '../../../../../data-destination';
 import { useBaseTable } from '../../../../../../shared/hooks';
 import { BaseTable } from '../../../../../../shared/components/Table';
 import { AddReportButton } from '../DestinationCard/AddReportButton';
 import { useRefreshSetupProgress } from '../../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { ReportStatusEnum } from '../../../shared/enums';
 
-interface GoogleSheetsReportsTableProps {
+interface ReportsTableProps {
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
   onAddReport: () => void;
 }
 
 /**
- * GoogleSheetsReportsTable
- * - Displays all reports for a Google Sheets destination
+ * ReportsTable
+ * - Displays all reports for one destination, Google Sheets or Excel
  * - Handles sorting, column visibility, and polling for updates
  * - Delegates edit actions to parent via onEditReport
+ *
+ * Not tied to a destination type: no column is destination-specific, and the open-document
+ * action hides itself for a config that names no document.
  */
-export function GoogleSheetsReportsTable({
-  destination,
-  onEditReport,
-  onAddReport,
-}: GoogleSheetsReportsTableProps) {
+export function ReportsTable({ destination, onEditReport, onAddReport }: ReportsTableProps) {
   const { reports, setPollingConfig } = useReport();
 
-  // Filter only Google Sheets reports for this destination
-  const googleSheetsReports = useMemo(() => {
+  // The reports belonging to this destination, read off the destination itself: a separate type
+  // prop would be a second answer to a question this one already answers.
+  const filteredReports = useMemo(() => {
     return reports.filter(
       report =>
-        report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS &&
+        report.dataDestination.type === destination.type &&
         report.dataDestination.id === destination.id
     );
-  }, [reports, destination.id]);
+  }, [reports, destination.id, destination.type]);
 
   // Configure polling
   useEffect(() => {
@@ -53,7 +52,7 @@ export function GoogleSheetsReportsTable({
   const hasRefreshedRef = useRef(false);
   useEffect(() => {
     if (hasRefreshedRef.current) return;
-    const hasSuccessfulReport = googleSheetsReports.some(
+    const hasSuccessfulReport = filteredReports.some(
       report => report.lastRunStatus === ReportStatusEnum.SUCCESS
     );
 
@@ -61,12 +60,12 @@ export function GoogleSheetsReportsTable({
       hasRefreshedRef.current = true;
       refreshSetupProgress();
     }
-  }, [googleSheetsReports, refreshSetupProgress]);
+  }, [filteredReports, refreshSetupProgress]);
 
   // Define table columns
   const columns = useMemo(
     () =>
-      getGoogleSheetsColumns({
+      getReportColumns({
         onDeleteSuccess: () => {
           return;
         },
@@ -77,8 +76,10 @@ export function GoogleSheetsReportsTable({
 
   // Initialize table with shared hook
   const { table } = useBaseTable<DataMartReport>({
-    data: googleSheetsReports,
+    data: filteredReports,
     columns,
+    // Keeps the old name on purpose: this is where a user's saved column layout lives, and
+    // renaming the key would silently discard it.
     storageKeyPrefix: `data-mart-google-sheets-reports-${destination.id}`,
     defaultSortingColumn: 'lastRunDate',
     enableRowSelection: false,
@@ -92,7 +93,7 @@ export function GoogleSheetsReportsTable({
     }
   };
 
-  const tableId = `google-sheets-reports-table-${destination.id}`;
+  const tableId = `reports-table-${destination.id}`;
 
   return (
     <BaseTable
@@ -107,10 +108,20 @@ export function GoogleSheetsReportsTable({
           role='status'
           aria-live='polite'
         >
-          <p className='text-muted-foreground text-sm font-medium'>
-            Create your first report for this destination
-          </p>
-          <AddReportButton onAddReport={onAddReport} />
+          {/* Offering a button that cannot make a working report would be worse than saying
+              where reports come from — see canCreateReportInApp. */}
+          {canCreateReportInApp(destination.type) ? (
+            <>
+              <p className='text-muted-foreground text-sm font-medium'>
+                Create your first report for this destination
+              </p>
+              <AddReportButton onAddReport={onAddReport} />
+            </>
+          ) : (
+            <p className='text-muted-foreground text-sm font-medium'>
+              Create your first report from the OWOX add-in in Excel
+            </p>
+          )}
         </div>
       )}
     />

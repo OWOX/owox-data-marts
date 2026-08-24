@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReportFormMode } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
-import { GoogleSheetsReportEditSheet } from './GoogleSheetsReportEditSheet';
+import { ReportEditSheet } from './ReportEditSheet';
 
 const authMock = vi.hoisted(() => ({
   value: {
@@ -18,8 +18,8 @@ vi.mock('../../../../../idp', () => ({
   useAuth: () => authMock.value,
 }));
 
-vi.mock('../GoogleSheetsReportEditForm', () => ({
-  GoogleSheetsReportEditForm: () => null,
+vi.mock('../ReportEditForm', () => ({
+  ReportEditForm: () => null,
 }));
 
 vi.mock('../../../../../data-destination', () => ({
@@ -48,7 +48,7 @@ const initialReport = {
 function renderSheet(mode: ReportFormMode = ReportFormMode.EDIT) {
   return render(
     <MemoryRouter initialEntries={['/ui/project-1/data-marts/mart-1/reports']}>
-      <GoogleSheetsReportEditSheet
+      <ReportEditSheet
         isOpen
         onClose={vi.fn()}
         mode={mode}
@@ -58,7 +58,7 @@ function renderSheet(mode: ReportFormMode = ReportFormMode.EDIT) {
   );
 }
 
-describe('GoogleSheetsReportEditSheet', () => {
+describe('ReportEditSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 

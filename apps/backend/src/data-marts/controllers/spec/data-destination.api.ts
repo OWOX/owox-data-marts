@@ -54,6 +54,20 @@ export function CreateConnectGoogleSheetsDestinationSpec() {
   );
 }
 
+export function ResolveExcelDestinationSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: "Get the caller's Excel destination, creating it on first use",
+      description:
+        'An Excel destination carries no credentials and no configuration, so there is nothing ' +
+        'for a user to fill in: it is created on demand the first time a report is made from ' +
+        'the Excel add-in. Resolved per user, because a destination is invisible to non-owners ' +
+        'until it is shared. Safe to call repeatedly — it returns the same destination.',
+    }),
+    ApiOkResponse({ type: DataDestinationResponseApiDto })
+  );
+}
+
 export function UpdateDataDestinationSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update Data Destination by ID' }),

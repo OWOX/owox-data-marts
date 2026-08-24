@@ -13,6 +13,10 @@ export interface GoogleSheetsDestinationConfigDto {
 /**
  * DTO for Looker Studio destination configuration
  */
+export interface ExcelDestinationConfigDto {
+  type: DestinationTypeConfigEnum.EXCEL_CONFIG;
+}
+
 export interface LookerStudioDestinationConfigDto {
   type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG;
   cacheLifetime: number;
@@ -61,6 +65,7 @@ export interface EmailDestinationConfigDto {
  */
 export type DestinationConfigDto =
   | GoogleSheetsDestinationConfigDto
+  | ExcelDestinationConfigDto
   | LookerStudioDestinationConfigDto
   | EmailDestinationConfigDto;
 

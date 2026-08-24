@@ -29,6 +29,10 @@ import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { ReportRunStatus } from '../enums/report-run-status.enum';
+import { Report } from '../entities/report.entity';
 import { Action, EntityType } from '../services/access-decision/access-decision.types';
 import { AccessDecisionService } from '../services/access-decision/access-decision.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
@@ -73,9 +77,37 @@ class StreamCancelledError extends Error {
   override readonly name = 'StreamCancelledError';
 }
 
+/**
+ * How a failed read is recorded, in the two places that answer it differently.
+ *
+ * The report statuses mirror what a server-side run leaves behind — see
+ * BaseReportRun.markAsUnsuccessful and ReportRun.markAsCancelled — so a report refreshed from
+ * the Excel add-in reads the same as one the server ran. A blocked run is not a failure, and a
+ * workbook that stopped reading did not fail either.
+ *
+ * The DataMartRun keeps FAILED on a cancellation on purpose: that is how this endpoint has
+ * always recorded an interrupted read, for every caller, and changing it is a separate
+ * question from what the report says about itself.
+ *
+ * Derived from the original error, never from the client-facing one: mapping a storage error
+ * for the client can replace the instance this has to recognise.
+ */
+function toStreamFailureOutcome(error: unknown): {
+  runStatus: DataMartRunStatus.FAILED | DataMartRunStatus.RESTRICTED;
+  reportStatus: ReportRunStatus;
+} {
+  if (error instanceof ProjectOperationBlockedException) {
+    return { runStatus: DataMartRunStatus.RESTRICTED, reportStatus: ReportRunStatus.RESTRICTED };
+  }
+  if (error instanceof StreamCancelledError) {
+    return { runStatus: DataMartRunStatus.FAILED, reportStatus: ReportRunStatus.CANCELLED };
+  }
+  return { runStatus: DataMartRunStatus.FAILED, reportStatus: ReportRunStatus.ERROR };
+}
+
 // Discriminates the two executeStream callers instead of a loose bag of co-varying fields
 // (projectionColumns: null sentinel, optional reportId/captureExecutionSql).
-type ExecuteStreamPlan =
+export type ExecuteStreamPlan =
   | { kind: 'data-mart'; readPlan: ReportLikeReadPlan; columns: string[] }
   | { kind: 'report'; readPlan: ReportLikeReadPlan; reportId: string; savedColumns: string[] };
 
@@ -94,7 +126,24 @@ interface StreamPlanContext {
   projectsByResolvedHeaders: boolean;
 }
 
-function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanContext {
+/**
+ * The report this read IS the run of, or undefined when the read is just a read.
+ *
+ * Answers for Excel alone, because it is the only destination whose run happens here. Every
+ * other destination — including Looker Studio, which is pull-based too — has a run of its own
+ * elsewhere, and reading the same report over HTTP is just a read: recording it as the run
+ * would overwrite the outcome of the one that actually delivered the data.
+ *
+ * Settled by the caller, before anything else happens, and carried through executeStream as a
+ * single value. It cannot come from the read plan: the plan is built after authorization and
+ * after schema actualization, so a read refused or broken before then would be recorded as a
+ * plain HTTP read of nobody's report.
+ */
+export function asExcelReportRun(report: Report | undefined): Report | undefined {
+  return report?.dataDestination.type === DataDestinationType.EXCEL ? report : undefined;
+}
+
+export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanContext {
   switch (plan.kind) {
     case 'data-mart':
       return {
@@ -240,6 +289,7 @@ export class StreamHttpDataService {
       runId: randomUUID(),
       startedAt: this.systemTimeService.now(),
       reportId: report.id,
+      excelReportRun: asExcelReportRun(report),
       initialMetadata: {
         format: HTTP_DATA_FORMAT,
         columns: report.columnConfig ?? [],
@@ -248,6 +298,9 @@ export class StreamHttpDataService {
         aggregation: report.aggregationConfig ?? undefined,
         dateTrunc: report.dateTruncConfig ?? undefined,
         limit: limit ?? report.limitConfig ?? undefined,
+        // Only a caller that places the rows itself can say where they went, so this is
+        // recorded exactly as reported and never derived.
+        runContext: command.runContext,
       },
       buildPlan: async currentDataMart => {
         // The report's `dataDestination` is deliberately NOT carried into the read plan. Joined-field
@@ -287,10 +340,21 @@ export class StreamHttpDataService {
     startedAt: Date;
     initialMetadata: HttpDataRunMetadata;
     reportId?: string;
+    /** See asExcelReportRun. Settled before the read starts, so a refusal is still its run. */
+    excelReportRun?: Report;
     buildPlan: (dataMart: DataMart) => Promise<ExecuteStreamPlan>;
   }): Promise<void> {
-    const { dataMart, accessor, userId, res, runId, startedAt, initialMetadata, buildPlan } =
-      params;
+    const {
+      dataMart,
+      accessor,
+      userId,
+      res,
+      runId,
+      startedAt,
+      initialMetadata,
+      buildPlan,
+      excelReportRun,
+    } = params;
 
     let reader: DataStorageReportReader | null = null;
     let baseMetadata = initialMetadata;
@@ -300,7 +364,7 @@ export class StreamHttpDataService {
     try {
       await this.projectBillingService.verifyCanPerformOperations(
         dataMart.projectId,
-        RunKind.HTTP_DATA_RUN
+        excelReportRun ? RunKind.EXCEL_REPORT_RUN : RunKind.HTTP_DATA_RUN
       );
 
       schemaActualizationInProgress = true;
@@ -324,6 +388,10 @@ export class StreamHttpDataService {
         aggregation: readPlan.aggregationConfig ?? undefined,
         dateTrunc: readPlan.dateTruncConfig ?? undefined,
         limit: readPlan.limitConfig ?? undefined,
+        // Carried over rather than re-derived: every other field here is restated from the
+        // plan, which is why replacing the object wholesale is safe for them. This one comes
+        // from the caller and exists nowhere else, so it has to be carried across explicitly.
+        runContext: baseMetadata.runContext,
       };
 
       const decision = await this.blendedReportDataService.resolveBlendingDecision(
@@ -459,7 +527,8 @@ export class StreamHttpDataService {
           ...(totals ? { totals } : {}),
           ...(totalsError ? { totalsError } : {}),
         },
-        reportId
+        reportId,
+        excelReportRun
       );
 
       res.end();
@@ -478,10 +547,9 @@ export class StreamHttpDataService {
         startedAt,
         { ...baseMetadata, completed: false },
         mappedError,
-        error instanceof ProjectOperationBlockedException
-          ? DataMartRunStatus.RESTRICTED
-          : DataMartRunStatus.FAILED,
-        reportId
+        toStreamFailureOutcome(error),
+        reportId,
+        excelReportRun
       );
       this.handleStreamFailure(res, mappedError);
     } finally {
@@ -559,8 +627,13 @@ export class StreamHttpDataService {
     runId: string,
     startedAt: Date,
     metadata: HttpDataRunMetadata,
-    reportId?: string
+    reportId?: string,
+    excelReportRun?: Report
   ): Promise<void> {
+    if (excelReportRun) {
+      await this.updateReportRunStatus(excelReportRun.id, ReportRunStatus.SUCCESS);
+    }
+
     try {
       await this.dataMartRunService.recordHttpDataRun({
         runId,
@@ -570,6 +643,10 @@ export class StreamHttpDataService {
         status: DataMartRunStatus.SUCCESS,
         metadata,
         reportId,
+        type: excelReportRun ? DataMartRunType.EXCEL : DataMartRunType.HTTP_DATA,
+        // Only when the read is the report's own run: a plain HTTP read of a report leaves the
+        // real run's snapshot alone rather than adding a second, competing one.
+        report: excelReportRun,
       });
     } catch (err) {
       this.logger.error(
@@ -578,11 +655,18 @@ export class StreamHttpDataService {
       return;
     }
 
+    // One unit per run, never two: an Excel report read is charged as an Excel report run, not
+    // additionally as a generic HTTP read. Reading some other report over this endpoint stays a
+    // plain HTTP read — the run that delivers its data is the server writing to its destination.
     try {
-      await this.projectBillingService.registerHttpDataRunConsumption(dataMart, runId);
+      if (excelReportRun) {
+        await this.projectBillingService.registerExcelReportRunConsumption(excelReportRun, runId);
+      } else {
+        await this.projectBillingService.registerHttpDataRunConsumption(dataMart, runId);
+      }
     } catch (err) {
       this.logger.warn(
-        `Failed to register HTTP Data run consumption ${runId}: ${err instanceof Error ? err.message : String(err)}`
+        `Failed to register run consumption ${runId}: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }
@@ -594,24 +678,58 @@ export class StreamHttpDataService {
     startedAt: Date,
     metadata: HttpDataRunMetadata,
     error: unknown,
-    status: DataMartRunStatus.FAILED | DataMartRunStatus.RESTRICTED,
-    reportId?: string
+    outcome: ReturnType<typeof toStreamFailureOutcome>,
+    reportId?: string,
+    excelReportRun?: Report
   ): Promise<void> {
     const message = this.clientFacingErrorMessage(error);
+
+    if (excelReportRun) {
+      // A cancellation carries no error text, the same way a cancelled server-side run leaves
+      // none: nothing went wrong, the reader simply stopped asking.
+      const cancelled = outcome.reportStatus === ReportRunStatus.CANCELLED;
+      await this.updateReportRunStatus(
+        excelReportRun.id,
+        outcome.reportStatus,
+        cancelled ? undefined : message
+      );
+    }
+
     try {
       await this.dataMartRunService.recordHttpDataRun({
         runId,
         dataMart,
         createdById,
         startedAt,
-        status,
+        status: outcome.runStatus,
         metadata,
         errors: [message],
         reportId,
+        type: excelReportRun ? DataMartRunType.EXCEL : DataMartRunType.HTTP_DATA,
+        report: excelReportRun,
       });
     } catch (err) {
       this.logger.warn(
-        `Failed to persist ${status} HTTP Data run ${runId}: ${err instanceof Error ? err.message : String(err)}`
+        `Failed to persist ${outcome.runStatus} HTTP Data run ${runId}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  /**
+   * Mirrors what a server-side run leaves on the report: when the pull is the run, the report
+   * has to carry its outcome, or the Excel add-in and the web UI would disagree about whether
+   * it ever ran. Failing to record it must not fail the stream — the rows already went out.
+   */
+  private async updateReportRunStatus(
+    reportId: string,
+    status: ReportRunStatus,
+    error?: string
+  ): Promise<void> {
+    try {
+      await this.reportService.updateRunStatus(reportId, status, error);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to record run status on report ${reportId}: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }

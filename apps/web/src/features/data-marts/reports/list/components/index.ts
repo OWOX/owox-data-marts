@@ -1,4 +1,4 @@
-export * from './GoogleSheetsReportsTable';
+export * from './ReportsTable';
 export * from './EmailReportsTable';
 export * from './LookerStudioReportCard';
 export * from './StatusIcon';

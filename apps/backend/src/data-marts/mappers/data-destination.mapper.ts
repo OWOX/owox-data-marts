@@ -11,7 +11,10 @@ import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
 import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import {
+  DataDestinationType,
+  requiresCredentials,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationCredentialsUtils } from '../data-destination-types/data-destination-credentials.utils';
 import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command';
 import { GetDestinationOAuthStatusCommand } from '../dto/domain/google-oauth/get-destination-oauth-status.command';
@@ -314,7 +317,12 @@ export class DataDestinationMapper {
     }
 
     if (!dto.credentialId) {
-      this.logger.warn(`Destination ${dto.id} has no credentialId`);
+      // Only a destination that should hold a secret is worth warning about. An Excel
+      // destination never has one, and warning on every list request would train readers to
+      // ignore the message that does matter.
+      if (requiresCredentials(dto.type)) {
+        this.logger.warn(`Destination ${dto.id} has no credentialId`);
+      }
       return {} as DataDestinationResponseApiDto['credentials'];
     }
 

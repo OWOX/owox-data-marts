@@ -53,10 +53,14 @@ vi.mock('../../../shared', () => ({
   reportService: { reconnectSheet: (...args: unknown[]) => reconnectSheet(...args) },
 }));
 
-import { GoogleSheetsActionsCell } from './GoogleSheetsActionsCell';
+import { ReportActionsCell } from './ReportActionsCell';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
+import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 
-const buildReport = (lastRunStatus: string) =>
+const buildReport = (
+  lastRunStatus: string,
+  destinationType: DataDestinationType = DataDestinationType.GOOGLE_SHEETS
+) =>
   ({
     id: 'report-1',
     title: 'Revenue',
@@ -64,9 +68,12 @@ const buildReport = (lastRunStatus: string) =>
     canRun: true,
     canEditConfig: true,
     dataMart: { id: 'dm-1' },
+    // Required by the type; the cast below is what let it be omitted. Reconnect & run is a
+    // Google Sheets feature, so that is the destination most of these cases describe.
+    dataDestination: { type: destinationType },
   }) as unknown as DataMartReport;
 
-describe('GoogleSheetsActionsCell — Reconnect & run', () => {
+describe('ReportActionsCell — Reconnect & run', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     reconnectSheet.mockResolvedValue({
@@ -81,13 +88,21 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
   });
 
   it('is hidden unless the last run failed', () => {
-    render(<GoogleSheetsActionsCell row={{ original: buildReport('SUCCESS') }} />);
+    render(<ReportActionsCell row={{ original: buildReport('SUCCESS') }} />);
+
+    expect(screen.queryByText('Reconnect & run')).not.toBeInTheDocument();
+  });
+
+  it('stays hidden on a failed pull-based report, which has no sheet to rebind', () => {
+    render(
+      <ReportActionsCell row={{ original: buildReport('ERROR', DataDestinationType.EXCEL) }} />
+    );
 
     expect(screen.queryByText('Reconnect & run')).not.toBeInTheDocument();
   });
 
   it('reconnects, reports the outcome, then runs the report', async () => {
-    render(<GoogleSheetsActionsCell row={{ original: buildReport('ERROR') }} />);
+    render(<ReportActionsCell row={{ original: buildReport('ERROR') }} />);
 
     fireEvent.click(screen.getByText('Reconnect & run'));
 
@@ -115,7 +130,7 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
       created: false,
       changed: false,
     });
-    render(<GoogleSheetsActionsCell row={{ original: buildReport('ERROR') }} />);
+    render(<ReportActionsCell row={{ original: buildReport('ERROR') }} />);
 
     fireEvent.click(screen.getByText('Reconnect & run'));
 
@@ -130,7 +145,7 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
 
   it('releases the running state when the run fails to start', async () => {
     runReport.mockResolvedValueOnce(false);
-    render(<GoogleSheetsActionsCell row={{ original: buildReport('ERROR') }} />);
+    render(<ReportActionsCell row={{ original: buildReport('ERROR') }} />);
 
     fireEvent.click(screen.getByText('Reconnect & run'));
 
@@ -143,7 +158,7 @@ describe('GoogleSheetsActionsCell — Reconnect & run', () => {
 
   it('surfaces a reconnect failure and does not run the report', async () => {
     reconnectSheet.mockRejectedValueOnce(new Error('boom'));
-    render(<GoogleSheetsActionsCell row={{ original: buildReport('ERROR') }} />);
+    render(<ReportActionsCell row={{ original: buildReport('ERROR') }} />);
 
     fireEvent.click(screen.getByText('Reconnect & run'));
 

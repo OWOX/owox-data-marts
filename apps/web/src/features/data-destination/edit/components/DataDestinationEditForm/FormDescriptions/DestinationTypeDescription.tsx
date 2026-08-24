@@ -5,6 +5,7 @@ import { DataDestinationType } from '../../../../shared';
 import {
   GoogleSheetsDescription,
   LookerStudioDescription,
+  ExcelDescription,
   ODataDescription,
   EmailDescription,
   SlackDescription,
@@ -15,6 +16,7 @@ import {
 const destinationDescriptions: Record<DataDestinationType, ComponentType> = {
   [DataDestinationType.GOOGLE_SHEETS]: GoogleSheetsDescription,
   [DataDestinationType.LOOKER_STUDIO]: LookerStudioDescription,
+  [DataDestinationType.EXCEL]: ExcelDescription,
   [DataDestinationType.ODATA]: ODataDescription,
   [DataDestinationType.EMAIL]: EmailDescription,
   [DataDestinationType.SLACK]: SlackDescription,
