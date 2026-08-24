@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   describeCoverage,
   formatDataLastUpdatedLabel,
@@ -29,6 +29,8 @@ describe('formatRelativeTime', () => {
 });
 
 describe('formatDataLastUpdatedLabel', () => {
+  afterEach(() => vi.useRealTimers());
+
   const block = {
     dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
     computedAt: '2026-07-28T00:00:00.000Z',
@@ -52,7 +54,10 @@ describe('formatDataLastUpdatedLabel', () => {
   });
 
   it('renders a bare relative time for complete coverage', () => {
-    expect(formatDataLastUpdatedLabel(block)).toMatch(/ago$/);
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    expect(formatDataLastUpdatedLabel(block)).toBe('3 days ago');
   });
 });
 
