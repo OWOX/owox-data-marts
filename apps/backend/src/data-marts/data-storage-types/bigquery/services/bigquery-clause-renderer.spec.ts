@@ -89,6 +89,16 @@ describe('BigQueryClauseRenderer', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'is_blank' }]).sql).toBe(
         '\nWHERE `a` IS NULL'
       );
+      // A REPEATED column is collected as ARRAY<STRING> (see data-mart-schema.utils):
+      // TRIM on an array is a type error, so the NULL-only form must be emitted (#6779).
+      expect(
+        r.renderWhere(
+          [{ column: 'a', operator: 'is_blank' }],
+          undefined,
+          'p',
+          asType('ARRAY<STRING>')
+        ).sql
+      ).toBe('\nWHERE `a` IS NULL');
     });
     it('is_true / is_false', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'is_true' }]).sql).toBe('\nWHERE `a` = TRUE');

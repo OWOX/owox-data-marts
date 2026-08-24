@@ -300,13 +300,27 @@ export abstract class SqlClauseRenderer {
   }
 
   /**
+   * The trimmed form of a string column used by `renderBlankFragment`. The bare
+   * TRIM(col) strips all common whitespace on BigQuery, Athena and Snowflake, but
+   * Redshift and Databricks strip ONLY the space character by default — those two
+   * dialects override this so a tab/newline-only cell counts as blank on every
+   * storage alike (space, tab, CR and LF are the normative blank set; BigQuery and
+   * Athena additionally strip rarer Unicode whitespace, which is accepted slack).
+   */
+  protected blankTrimmedExpression(columnRef: string): string {
+    return `TRIM(${columnRef})`;
+  }
+
+  /**
    * Renders the is_blank / is_not_blank pair — "the cell looks empty" (#6779).
    * Type-aware: a string column is blank when it is NULL, '' or whitespace-only
-   * (TRIM is portable across all five dialects); any other type is blank only when
-   * NULL — there is no empty number/date/boolean. When the column type is unknown
-   * the NULL-only form is emitted: TRIM on a non-string column is a type error on
-   * strict engines, so the safe default is the one that is valid SQL everywhere.
-   * Shared by every dialect renderer — the emitted SQL is identical on all of them.
+   * (see `blankTrimmedExpression` for the per-dialect trim form); any other type is
+   * blank only when NULL — there is no empty number/date/boolean. When the column
+   * type is unknown the NULL-only form is emitted: TRIM on a non-string column is a
+   * type error on strict engines, so the safe default is the one that is valid SQL
+   * everywhere. This branch is a last-resort defense — the report SQL composer
+   * refuses blank filters outright when no schema types are available, so reaching
+   * it means the single filtered column is absent from an otherwise known schema.
    */
   protected renderBlankFragment(
     operator: 'is_blank' | 'is_not_blank',
@@ -315,17 +329,16 @@ export abstract class SqlClauseRenderer {
   ): RenderedClause {
     const isString =
       columnType !== undefined && categorizeFieldType(columnType.trim().toUpperCase()) === 'string';
+    const trimmed = this.blankTrimmedExpression(columnRef);
     if (operator === 'is_blank') {
       return {
-        sql: isString
-          ? `(${columnRef} IS NULL OR TRIM(${columnRef}) = '')`
-          : `${columnRef} IS NULL`,
+        sql: isString ? `(${columnRef} IS NULL OR ${trimmed} = '')` : `${columnRef} IS NULL`,
         params: [],
       };
     }
     return {
       sql: isString
-        ? `(${columnRef} IS NOT NULL AND TRIM(${columnRef}) <> '')`
+        ? `(${columnRef} IS NOT NULL AND ${trimmed} <> '')`
         : `${columnRef} IS NOT NULL`,
       params: [],
     };

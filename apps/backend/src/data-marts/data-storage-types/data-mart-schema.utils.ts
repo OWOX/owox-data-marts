@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DataStorageCredentials } from './data-storage-credentials.type';
 import { REPORT_AGGREGATE_FUNCTIONS } from '../dto/schemas/aggregate-function.schema';
 import type { DataMartSchemaField } from './data-mart-schema.type';
+import { BigQueryFieldMode } from './bigquery/enums/bigquery-field-mode.enum';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { Injectable } from '@nestjs/common';
@@ -37,6 +38,22 @@ export function collectSchemaFieldPathTypes(
   }));
 }
 
+/**
+ * The comparison type of a field as filter/aggregation machinery must see it. A BigQuery
+ * REPEATED field stores its ELEMENT type (`STRING` + mode `REPEATED`), but the column is
+ * an ARRAY<STRING>: string operators and TRIM() are type errors on it, and only the
+ * type-agnostic operators (is_blank / is_null pairs, rendered as bare `col IS NULL`) are
+ * valid SQL. Wrapping the collected type as `ARRAY<T>` files it under the `other`
+ * category everywhere downstream — validator gating, the MCP field-type matrix, and the
+ * renderers' blank/cast branches — so all three surfaces agree (#6779).
+ */
+function comparisonType(field: DataMartSchemaField): string {
+  const rawType = String(field.type);
+  return 'mode' in field && field.mode === BigQueryFieldMode.REPEATED
+    ? `ARRAY<${rawType}>`
+    : rawType;
+}
+
 // Same traversal as `collectSchemaFieldPathTypes` but exposes the underlying field so
 // callers can read per-field governance (aggregationRole / allowedAggregations).
 export function collectSchemaFieldPathDescriptors(
@@ -48,7 +65,7 @@ export function collectSchemaFieldPathDescriptors(
     if (field.isHiddenForReporting) continue;
     if (!isConnected(field)) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({ name: fullName, type: String(field.type), field });
+    result.push({ name: fullName, type: comparisonType(field), field });
     if ('fields' in field && field.fields?.length) {
       result.push(...collectSchemaFieldPathDescriptors(field.fields, fullName));
     }

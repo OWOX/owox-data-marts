@@ -85,12 +85,14 @@ describe('RedshiftClauseRenderer', () => {
         '\nWHERE "a" IS NOT NULL'
       );
     });
-    it('is_blank / is_not_blank are type-aware: TRIM form on strings, NULL-only elsewhere', () => {
+    it('is_blank / is_not_blank are type-aware: BTRIM form on strings, NULL-only elsewhere', () => {
       const asType = (type: string) => () => type;
+      // BTRIM with an explicit set: Redshift's bare TRIM strips only spaces, which
+      // would leave tab/newline-only cells "not blank" — unlike the other dialects.
       expect(
         r.renderWhere([{ column: 'a', operator: 'is_blank' }], undefined, 'p', asType('VARCHAR'))
           .sql
-      ).toBe(`\nWHERE ("a" IS NULL OR TRIM("a") = '')`);
+      ).toBe(`\nWHERE ("a" IS NULL OR BTRIM("a", ' ' || CHR(9) || CHR(10) || CHR(13)) = '')`);
       expect(
         r.renderWhere(
           [{ column: 'a', operator: 'is_not_blank' }],
@@ -98,7 +100,7 @@ describe('RedshiftClauseRenderer', () => {
           'p',
           asType('VARCHAR')
         ).sql
-      ).toBe(`\nWHERE ("a" IS NOT NULL AND TRIM("a") <> '')`);
+      ).toBe(`\nWHERE ("a" IS NOT NULL AND BTRIM("a", ' ' || CHR(9) || CHR(10) || CHR(13)) <> '')`);
       expect(
         r.renderWhere([{ column: 'a', operator: 'is_blank' }], undefined, 'p', asType('INTEGER'))
           .sql

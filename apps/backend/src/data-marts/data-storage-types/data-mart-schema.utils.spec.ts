@@ -2,6 +2,7 @@ import {
   isConnected,
   classifyJoinedUniqueCountAvailability,
   collectPrimaryKeyRowIdentity,
+  collectSchemaFieldPathTypes,
   createBaseFieldSchemaForType,
   getMainUniqueCountKeyFields,
   hasUsablePrimaryKey,
@@ -26,6 +27,33 @@ describe('isConnected', () => {
 
   it('treats DISCONNECTED as gone from the source', () => {
     expect(isConnected(field(DataMartSchemaFieldStatus.DISCONNECTED))).toBe(false);
+  });
+});
+
+describe('collectSchemaFieldPathTypes — comparison types', () => {
+  const connected = DataMartSchemaFieldStatus.CONNECTED;
+  const field = (extra: Record<string, unknown>): DataMartSchemaField =>
+    ({ name: 'f', type: 'STRING', status: connected, ...extra }) as unknown as DataMartSchemaField;
+
+  it('passes a scalar field type through unchanged', () => {
+    expect(collectSchemaFieldPathTypes([field({ mode: 'NULLABLE' })])).toEqual([
+      { name: 'f', type: 'STRING' },
+    ]);
+  });
+
+  it('wraps a BigQuery REPEATED field as ARRAY<T> so it categorizes as non-string', () => {
+    // The column is an ARRAY<STRING>, not a STRING: string operators and the
+    // is_blank TRIM form are type errors on it. The ARRAY<> marking files it
+    // under the `other` category for the validator, the MCP matrix, and the
+    // renderers alike — is_blank then emits the NULL-only form, which is the
+    // valid (and meaningful) blank check for an array column (#6779).
+    expect(collectSchemaFieldPathTypes([field({ mode: 'REPEATED' })])).toEqual([
+      { name: 'f', type: 'ARRAY<STRING>' },
+    ]);
+  });
+
+  it('leaves fields without a mode (non-BigQuery storages) untouched', () => {
+    expect(collectSchemaFieldPathTypes([field({})])).toEqual([{ name: 'f', type: 'STRING' }]);
   });
 });
 

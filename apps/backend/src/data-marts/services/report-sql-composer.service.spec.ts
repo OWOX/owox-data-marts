@@ -492,6 +492,45 @@ describe('ReportSqlComposerService', () => {
     });
   });
 
+  it('throws BLANK_FILTER_REQUIRES_ACTUALIZED_SCHEMA when a blank filter runs with no schema types', async () => {
+    // With no actualized schema there is no column type to branch on, and the
+    // renderer would silently degrade a string is_blank to the NULL-only form —
+    // wrong rows instead of an error (#6779). The composer refuses instead.
+    const { service, queryBuilderFacade } = createService({
+      needsBlending: false,
+      columnFilter: ['name'],
+    });
+    const report = buildReport({
+      columnConfig: ['name'],
+      filterConfig: [{ column: 'name', operator: 'is_blank' }],
+    } as never);
+    await expect(
+      service.compose(report, { userId: 'user-1', roles: ['admin'] })
+    ).rejects.toMatchObject({
+      response: {
+        details: {
+          errors: [{ code: 'BLANK_FILTER_REQUIRES_ACTUALIZED_SCHEMA', column: 'name' }],
+        },
+      },
+    });
+    expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
+  });
+
+  it('legacy is_null composes without an actualized schema — it needs no column type', async () => {
+    const { service, queryBuilderFacade } = createService(
+      { needsBlending: false, columnFilter: ['name'] },
+      'SELECT 1'
+    );
+    const report = buildReport({
+      columnConfig: ['name'],
+      filterConfig: [{ column: 'name', operator: 'is_null' }],
+    } as never);
+    await expect(
+      service.compose(report, { userId: 'user-1', roles: ['admin'] })
+    ).resolves.toBeDefined();
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalled();
+  });
+
   it('throws OUTPUT_CONTROLS_NOT_SUPPORTED on the simple-query path for unsupported storages', async () => {
     // Non-blended path with output controls on a storage that lacks output
     // controls support — must throw the existing structured error before

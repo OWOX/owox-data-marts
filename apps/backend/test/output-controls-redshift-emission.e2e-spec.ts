@@ -228,7 +228,10 @@ describe('Output controls — Redshift SQL emission (e2e)', () => {
     // Postgres unknown-literal coercion handles TIMESTAMP comparison transparently.
     expect(res.body.sql).toContain(`"created_at" >= '2024-01-01'`);
     // String is_blank is type-aware: NULL or whitespace-only, via the schema type map.
-    expect(res.body.sql).toContain(`("name" IS NULL OR TRIM("name") = '')`);
+    // BTRIM with an explicit set — Redshift's bare TRIM strips only spaces.
+    expect(res.body.sql).toContain(
+      `("name" IS NULL OR BTRIM("name", ' ' || CHR(9) || CHR(10) || CHR(13)) = '')`
+    );
     expect(res.body.sql).not.toContain('?');
     expect(res.body.sql).not.toContain('CAST(');
   });

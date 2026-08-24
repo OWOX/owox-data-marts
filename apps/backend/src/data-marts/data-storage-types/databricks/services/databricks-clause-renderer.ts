@@ -79,6 +79,13 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     return `DATE_TRUNC('${unit}', ${expr})`;
   }
 
+  // Spark trim() strips only the space character by default; the BOTH … FROM form
+  // with an explicit set makes tab/CR/LF-only cells blank too, matching the other
+  // dialects (#6779). Spark string literals interpret the \t/\n/\r escapes.
+  protected override blankTrimmedExpression(columnRef: string): string {
+    return `TRIM(BOTH ' \\t\\n\\r' FROM ${columnRef})`;
+  }
+
   protected renderFilterFragment(
     rule: FilterRule,
     _paramName: string,

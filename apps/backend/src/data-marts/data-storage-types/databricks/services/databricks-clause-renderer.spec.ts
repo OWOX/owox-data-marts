@@ -114,12 +114,14 @@ describe('DatabricksClauseRenderer', () => {
     );
   });
 
-  it('is_blank / is_not_blank are type-aware: TRIM form on strings, NULL-only elsewhere', () => {
+  it('is_blank / is_not_blank are type-aware: explicit-set TRIM on strings, NULL-only elsewhere', () => {
+    // BOTH … FROM with an explicit set: Spark's bare trim() strips only spaces, which
+    // would leave tab/newline-only cells "not blank" — unlike the other dialects.
     expect(where(r, { column: 's', operator: 'is_blank' }, 'STRING')).toBe(
-      "\nWHERE (`s` IS NULL OR TRIM(`s`) = '')"
+      "\nWHERE (`s` IS NULL OR TRIM(BOTH ' \\t\\n\\r' FROM `s`) = '')"
     );
     expect(where(r, { column: 's', operator: 'is_not_blank' }, 'STRING')).toBe(
-      "\nWHERE (`s` IS NOT NULL AND TRIM(`s`) <> '')"
+      "\nWHERE (`s` IS NOT NULL AND TRIM(BOTH ' \\t\\n\\r' FROM `s`) <> '')"
     );
     expect(where(r, { column: 'n', operator: 'is_blank' }, 'INT')).toBe('\nWHERE `n` IS NULL');
     // Unknown column type: the NULL-only form is the one that is valid SQL on any type.
