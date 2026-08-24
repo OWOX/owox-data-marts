@@ -123,6 +123,7 @@ describe('Output controls — Redshift SQL emission (e2e)', () => {
           fields: [
             { name: 'id', type: 'INTEGER', status: 'CONNECTED', isPrimaryKey: false },
             { name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED', isPrimaryKey: false },
+            { name: 'name', type: 'VARCHAR', status: 'CONNECTED', isPrimaryKey: false },
           ],
         },
       });
