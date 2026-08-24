@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ComponentProps, ReactNode } from 'react';
 import { ReportColumnPicker } from './ReportColumnPicker';
+import { FieldInfoTooltip } from './FieldInfoTooltip';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type {
@@ -252,6 +253,29 @@ describe('ReportColumnPicker access flag', () => {
 describe('ReportColumnPicker joined source details', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('keeps description wheel events inside a bounded scroll area', async () => {
+    const onWheel = vi.fn();
+    render(
+      <div className='group/data-mart' onWheel={onWheel}>
+        <FieldInfoTooltip
+          text='A long field or Data Mart description.'
+          dataMartHeader
+          label='Customers'
+        />
+      </div>
+    );
+
+    fireEvent.focusIn(screen.getByRole('button', { name: 'Data Mart details for Customers' }));
+    const tooltip = await screen.findByRole('tooltip');
+
+    expect(tooltip).toHaveClass('max-w-xs', 'whitespace-pre-wrap');
+    const scrollArea = tooltip.firstElementChild;
+    expect(scrollArea).toHaveClass('max-h-64', 'overflow-y-auto');
+
+    fireEvent.wheel(scrollArea!, { deltaY: 48 });
+    expect(onWheel).not.toHaveBeenCalled();
   });
 
   it('builds a multi-hop join path from the same titles shown by the picker', async () => {

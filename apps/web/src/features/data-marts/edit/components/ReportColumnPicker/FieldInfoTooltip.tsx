@@ -43,12 +43,15 @@ export function FieldInfoTooltip({ text, compact, dataMartHeader, label }: Field
           </span>
         )}
       </TooltipTrigger>
-      <TooltipContent
-        side='top'
-        collisionPadding={8}
-        className='max-h-64 max-w-64 overflow-y-auto whitespace-pre-wrap'
-      >
-        {text}
+      <TooltipContent side='top' className='max-w-xs whitespace-pre-wrap'>
+        <div
+          className='max-h-64 overflow-y-auto'
+          onWheel={event => {
+            event.stopPropagation();
+          }}
+        >
+          {text}
+        </div>
       </TooltipContent>
     </Tooltip>
   );
