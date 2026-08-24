@@ -13,8 +13,22 @@ vi.mock('../../../../../../../../google-oauth/hooks/useGoogleDrivePicker', () =>
 }));
 
 vi.mock('../../../../../../../shared/components/GoogleSheetsLoginButton', () => ({
-  GoogleSheetsLoginButton: ({ children }: { children?: React.ReactNode }) => (
-    <div data-testid='google-login'>{children}</div>
+  GoogleSheetsLoginButton: ({
+    children,
+    onSuccess,
+  }: {
+    children?: React.ReactNode;
+    onSuccess: (response: { code: string }) => void;
+  }) => (
+    <button
+      type='button'
+      data-testid='google-login'
+      onClick={() => {
+        onSuccess({ code: 'code' });
+      }}
+    >
+      {children}
+    </button>
   ),
 }));
 
@@ -38,7 +52,7 @@ function renderGoogleSheetsOAuth(overrides: Partial<OauthRenderComponentProps> =
         ProjectNumber: '123456789',
       },
     },
-    onOAuthSuccess: vi.fn().mockResolvedValue(undefined),
+    onOAuthSuccess: vi.fn().mockResolvedValue(true),
     ...overrides,
   } as OauthRenderComponentProps;
 
@@ -110,5 +124,36 @@ describe('GoogleSheetsOauthRender', () => {
       spreadsheetUrl
     );
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('clears the selected spreadsheet after connecting another account', async () => {
+    const props = renderGoogleSheetsOAuth({
+      configuration: {
+        SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'code' });
+      expect(props.onValueChange).toHaveBeenCalledWith('SpreadsheetId', '');
+    });
+  });
+
+  it('keeps the selected spreadsheet when reconnection fails', async () => {
+    const props = renderGoogleSheetsOAuth({
+      configuration: {
+        SpreadsheetId: 'https://docs.google.com/spreadsheets/d/old-sheet/edit',
+      },
+      onOAuthSuccess: vi.fn().mockResolvedValue(false),
+    });
+
+    fireEvent.click(screen.getByTestId('google-login'));
+
+    await waitFor(() => {
+      expect(props.onOAuthSuccess).toHaveBeenCalledWith({ code: 'code' });
+    });
+    expect(props.onValueChange).not.toHaveBeenCalledWith('SpreadsheetId', '');
   });
 });

@@ -39,7 +39,7 @@ export interface OauthRenderComponentProps {
   isLoading: boolean;
   status: OAuthStatusResponseDto | null;
   settings: OAuthSettingsResponseDto | null;
-  onOAuthSuccess: (credentials: Record<string, unknown>) => Promise<void>;
+  onOAuthSuccess: (credentials: Record<string, unknown>) => Promise<boolean>;
 }
 
 export function OauthRenderFactory({
@@ -181,10 +181,12 @@ export function OauthRenderFactory({
           [SOURCE_CREDENTIAL_KEY]: exchanged.credentialId,
         });
       }
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to exchange OAuth credentials';
       console.error('Failed to exchange OAuth credentials:', err);
       setError(message);
+      return false;
     } finally {
       setIsLoading(false);
     }

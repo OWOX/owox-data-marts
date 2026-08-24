@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
+import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  useGoogleSheetsPicker,
   validateGoogleSheetsPickerScopes,
   verifyGooglePickerAccount,
 } from './useGoogleDrivePicker';
@@ -51,5 +53,34 @@ describe('verifyGooglePickerAccount', () => {
     await expect(verifyGooglePickerAccount('access-token', 'analyst@example.com')).rejects.toThrow(
       'Open Google Picker with the connected account analyst@example.com'
     );
+  });
+});
+
+describe('useGoogleSheetsPicker', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (window as unknown as { gapi?: unknown }).gapi;
+  });
+
+  it('reports when the Picker module does not initialize', async () => {
+    vi.useFakeTimers();
+    (window as unknown as { gapi: { load: () => void } }).gapi = {
+      load: vi.fn(),
+    };
+    const onError = vi.fn();
+    const { result } = renderHook(() => useGoogleSheetsPicker());
+
+    const opening = result.current.openPicker({
+      apiKey: 'api-key',
+      appId: 'project-number',
+      clientId: 'client-id',
+      onPicked: vi.fn(),
+      onError,
+    });
+
+    await vi.advanceTimersByTimeAsync(10000);
+    await opening;
+
+    expect(onError).toHaveBeenCalledWith('Google Picker failed to initialize. Please try again.');
   });
 });

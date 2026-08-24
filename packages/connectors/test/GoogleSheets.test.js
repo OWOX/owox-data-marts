@@ -217,6 +217,7 @@ test('stores the verified Google account used by Google Picker', async () => {
       id: 'google-user-1',
       name: 'analyst@example.com',
     });
+    assert.equal(credentials.expiresIn, null);
   } finally {
     HttpUtils.fetch = originalFetch;
   }

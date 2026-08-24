@@ -21,8 +21,11 @@ export function GoogleSheetsOauthRender({
   const [pickerError, setPickerError] = useState<string | null>(null);
   const { openPicker } = useGoogleSheetsPicker();
 
-  const handleGoogleLogin = (response: GoogleSheetsLoginResponse) => {
-    void onOAuthSuccess({ code: response.code });
+  const handleGoogleLogin = async (response: GoogleSheetsLoginResponse) => {
+    const connected = await onOAuthSuccess({ code: response.code });
+    if (connected) {
+      onValueChange('SpreadsheetId', '');
+    }
   };
 
   const clientId = settings?.vars.ClientId as string | undefined;
@@ -64,7 +67,7 @@ export function GoogleSheetsOauthRender({
       <GoogleSheetsLoginButton
         clientId={settings?.vars.ClientId as string}
         redirectUri={settings?.vars.RedirectUri as string}
-        onSuccess={handleGoogleLogin}
+        onSuccess={response => void handleGoogleLogin(response)}
         disabled={isLoading}
       >
         {status?.user ? (

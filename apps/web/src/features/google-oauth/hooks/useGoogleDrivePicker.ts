@@ -7,6 +7,7 @@ const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const GAPI_SRC = 'https://apis.google.com/js/api.js';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_SHEETS_MIME_TYPE = 'application/vnd.google-apps.spreadsheet';
+const PICKER_LOAD_TIMEOUT_MS = 10000;
 
 export interface PickedGoogleSpreadsheet {
   id: string;
@@ -136,11 +137,30 @@ function loadPicker(): Promise<void> {
   return loadGapi.then(
     () =>
       new Promise<void>((resolve, reject) => {
-        if (!googleWindow.gapi) {
+        const gapi = googleWindow.gapi;
+        if (!gapi) {
           reject(new Error('gapi failed to initialize'));
           return;
         }
-        googleWindow.gapi.load('picker', resolve);
+
+        let settled = false;
+        const timeoutId = window.setTimeout(() => {
+          settled = true;
+          reject(new Error('Google Picker failed to initialize. Please try again.'));
+        }, PICKER_LOAD_TIMEOUT_MS);
+
+        try {
+          gapi.load('picker', () => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeoutId);
+            resolve();
+          });
+        } catch (error) {
+          settled = true;
+          window.clearTimeout(timeoutId);
+          reject(error instanceof Error ? error : new Error('Google Picker failed to initialize'));
+        }
       })
   );
 }

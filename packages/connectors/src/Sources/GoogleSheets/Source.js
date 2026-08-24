@@ -294,7 +294,9 @@ var GoogleSheetsSource = class GoogleSheetsSource extends AbstractSource {
           client_id: variables.ClientId,
           client_secret: variables.ClientSecret,
         })
-        .withExpiresIn(data.expires_in ?? 3600)
+        // The stored credential is backed by the refresh token. The access
+        // token's one-hour lifetime must not make the connection look expired.
+        .withExpiresIn(data.refresh_token_expires_in ?? null)
         .build()
         .toObject();
     } catch (error) {
