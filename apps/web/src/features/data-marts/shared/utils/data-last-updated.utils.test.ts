@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   describeCoverage,
   formatDataLastUpdatedLabel,
@@ -29,6 +29,18 @@ describe('formatRelativeTime', () => {
 });
 
 describe('formatDataLastUpdatedLabel', () => {
+  // formatDataLastUpdatedLabel reads the real clock, so the fixture's distance from
+  // "now" grows every day — 30 days after the fixture date, the day step gives way
+  // to the month step and numeric:'auto' renders "last month", which has no "ago"
+  // suffix. Pin the clock so the fixture is always 3 days old.
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   const block = {
     dataLastUpdatedAt: '2026-07-25T08:30:00.000Z',
     computedAt: '2026-07-28T00:00:00.000Z',
